@@ -46,6 +46,7 @@ class EngineConfig:
 
     max_active_characters_per_turn: int
     rng_seed: int
+    storyteller_max_history_turns: int
     director_params: RoleParams
     storyteller_params: RoleParams
     character_default_params: RoleParams
@@ -58,6 +59,9 @@ class EngineConfig:
                 os.getenv("MAX_ACTIVE_CHARACTERS_PER_TURN", "4")
             ),
             rng_seed=int(os.getenv("RNG_SEED", "1337")),
+            storyteller_max_history_turns=int(
+                os.getenv("STORYTELLER_MAX_HISTORY_TURNS", "20")
+            ),
             director_params=RoleParams(
                 temperature=float(os.getenv("DIRECTOR_TEMPERATURE", "0.2")),
                 top_p=0.9,

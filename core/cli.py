@@ -114,18 +114,31 @@ def create():
 
 
 @app.command()
-def start(story_id: str):
+def start(
+    story_id: str,
+    max_history: Optional[int] = typer.Option(
+        None,
+        "--max-history",
+        "-m",
+        help="Maximum narrative turns to keep in Storyteller memory (default: 20)",
+    ),
+):
     """Start a created story."""
     console.print(f"[bold yellow]Initializing story {story_id}...[/bold yellow]")
 
     try:
+        # Set max history if provided
+        if max_history is not None:
+            orchestrator.storyteller.set_max_history_turns(max_history)
+            console.print(f"[dim]Storyteller memory limit: {max_history} turns[/dim]")
+
         opening = run_async(orchestrator.start_story(story_id))
 
         console.print("\n" + "=" * 80 + "\n")
         console.print(Panel(opening.narrative, title="Opening Scene", border_style="blue"))
         console.print("\n" + "=" * 80 + "\n")
 
-        console.print(f"[dim]Story started! Use: story continue {story_id}[/dim]")
+        console.print(f"[dim]Story started! Use: story continue-story {story_id}[/dim]")
     except Exception as e:
         console.print(f"[bold red]Error: {e}[/bold red]")
 

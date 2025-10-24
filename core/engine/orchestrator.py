@@ -85,6 +85,13 @@ class Orchestrator:
         if not self.current_outline or not self.current_config:
             raise ValueError(f"Story {story_id} not found or not properly configured")
 
+        # Generate detailed world context (NEW - ensures consistency)
+        print("Generating world context...")
+        world_context = await self.storyteller.generate_world_context(
+            self.current_outline, self.current_config
+        )
+        self.world_state["world_context"] = world_context
+
         # Spawn character agents
         agent_ids = await self.agent_manager.spawn_agents(self.current_outline.major_characters)
 
@@ -245,6 +252,9 @@ Nearby: {', '.join(self.current_scene.nearby_characters) if self.current_scene.n
             },
             "turn_history": self.turn_history,
             "world_state": self.world_state,
+            # NEW: Storyteller omniscient memory
+            "storyteller_history": self.storyteller.conversation_history,
+            "storyteller_world_context": self.storyteller.world_context,
         }
 
         save_path = saves_dir / f"{story_id}.json"
@@ -282,6 +292,10 @@ Nearby: {', '.join(self.current_scene.nearby_characters) if self.current_scene.n
 
         self.turn_history = state.get("turn_history", [])
         self.world_state = state.get("world_state", {})
+
+        # NEW: Restore Storyteller omniscient memory
+        self.storyteller.conversation_history = state.get("storyteller_history", [])
+        self.storyteller.world_context = state.get("storyteller_world_context", None)
 
 
 # Global orchestrator instance

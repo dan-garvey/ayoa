@@ -27,6 +27,11 @@ class Storyteller:
         with open(prompt_path) as f:
             self.system_prompt = f.read()
 
+        # Omniscient narrative memory
+        self.conversation_history: list[dict] = []  # Full narrative history
+        self.world_context: Optional[dict] = None  # Generated world details
+        self.max_history_turns: int = engine_config.storyteller_max_history_turns
+
     async def generate_outline(self, config: StoryConfig) -> StoryOutline:
         """
         Generate a story outline from player preferences.
@@ -90,6 +95,86 @@ Return JSON matching this structure:
         outline = await llm_client.complete_json(messages, self.params, StoryOutline)
         return outline
 
+    async def generate_world_context(
+        self, outline: StoryOutline, config: StoryConfig
+    ) -> dict:
+        """
+        Generate detailed world-building context before story starts.
+
+        Args:
+            outline: Story outline
+            config: Story configuration
+
+        Returns:
+            Dictionary with world details (culture, history, rules, etc.)
+        """
+        player = config.player_character
+        prefs = config.preferences
+
+        prompt = f"""Generate detailed world-building for this interactive story.
+
+PREMISE: {outline.premise}
+GENRE: {prefs.genre}
+TONE: {prefs.tone}
+KEY LOCATIONS: {', '.join(outline.key_locations)}
+MAJOR CHARACTERS: {', '.join([c.name for c in outline.major_characters])}
+
+Create comprehensive world context with:
+
+1. CULTURAL CONTEXT: Social norms, customs, important traditions
+2. HISTORICAL BACKGROUND: Recent events that set the stage (last 50-100 years)
+3. RULES OF THE WORLD: Magic system, technology level, what's possible/impossible
+4. KEY FACTIONS: Political groups, organizations, their goals and conflicts
+5. IMPORTANT LOCATIONS: Detailed descriptions of the key locations
+6. ESTABLISHED FACTS: 10-15 true facts about this world that must remain consistent
+7. TONE GUIDELINES: Specific stylistic notes for maintaining {prefs.tone} tone
+8. NPCS AND BACKGROUND CHARACTERS: Types of people who might appear
+
+Return JSON with these sections. Be specific and detailed - this will ensure consistency throughout the story.
+
+Example structure:
+{{
+  "cultural_context": "Detailed paragraph about society...",
+  "historical_background": "Recent history that matters...",
+  "world_rules": {{"magic": "...", "technology": "...", "limitations": "..."}},
+  "factions": [{{"name": "...", "goals": "...", "conflict": "..."}}],
+  "locations": {{"location_name": "detailed description..."}},
+  "established_facts": ["fact 1", "fact 2", ...],
+  "tone_guidelines": ["guideline 1", "guideline 2", ...],
+  "npc_types": ["type 1", "type 2", ...]
+}}"""
+
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        # Use higher temperature for creativity in world-building
+        import json
+
+        response = await llm_client.complete(messages, self.params)
+
+        # Parse the JSON response
+        try:
+            # Extract JSON from response
+            import re
+
+            json_match = re.search(r"(\{.*\})", response, re.DOTALL)
+            if json_match:
+                world_context = json.loads(json_match.group(1))
+            else:
+                world_context = json.loads(response)
+
+            self.world_context = world_context
+            return world_context
+        except json.JSONDecodeError:
+            # Fallback to basic structure
+            self.world_context = {
+                "cultural_context": "Details to be established during play",
+                "established_facts": [],
+            }
+            return self.world_context
+
     async def create_opening_scene(
         self, outline: StoryOutline, player: PlayerCharacter
     ) -> Scene:
@@ -148,6 +233,8 @@ Return JSON:
         Returns:
             Story output with opening narrative
         """
+        import json
+
         prompt = f"""Compose the opening narrative for this interactive story.
 
 SCENE:
@@ -167,12 +254,30 @@ Write 300-500 words of engaging third-person past tense narrative that:
 Do not include dialogue from major characters (they'll be introduced later).
 Focus on atmosphere, sensory details, and the player's situation."""
 
+        # Initialize conversation history with world context
         messages = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": prompt},
         ]
 
+        # Add world context if available
+        if self.world_context:
+            world_context_str = json.dumps(self.world_context, indent=2)
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"WORLD CONTEXT (maintain consistency with these details):\n{world_context_str}",
+                }
+            )
+
+        messages.append({"role": "user", "content": prompt})
+
         narrative = await llm_client.complete(messages, self.params)
+
+        # Initialize conversation history
+        self.conversation_history = [
+            {"role": "user", "content": f"[OPENING SCENE]\n{prompt}"},
+            {"role": "assistant", "content": narrative},
+        ]
 
         return StoryOutput(narrative=narrative, visible_moves=[], scene_update=scene)
 
@@ -189,7 +294,7 @@ Focus on atmosphere, sensory details, and the player's situation."""
 
         Args:
             user_action: What the player tried to do
-            character_moves: Accepted character moves
+            character_moves: Accepted character moves (ephemeral - used only for this turn)
             npc_actions: Required NPC reactions
             scene: Current scene
             world_state: Current world state
@@ -197,7 +302,9 @@ Focus on atmosphere, sensory details, and the player's situation."""
         Returns:
             Composed narrative output
         """
-        # Build context
+        import json
+
+        # Build current turn context (character moves used here, but NOT stored in history)
         moves_text = "\n".join(
             [
                 f"- {move.character}: {move.intent}"
@@ -209,14 +316,15 @@ Focus on atmosphere, sensory details, and the player's situation."""
 
         npc_text = "\n".join([f"- {action}" for action in npc_actions]) if npc_actions else "None"
 
-        prompt = f"""Compose the narrative for this turn of the story.
+        # Current turn prompt (includes character moves as ephemeral input)
+        current_turn_prompt = f"""Compose the narrative for this turn.
 
 SCENE: {scene.where} - {scene.atmosphere}
 PRESENT: {', '.join(scene.present_characters)}
 
 PLAYER ACTION: {user_action}
 
-CHARACTER RESPONSES:
+CHARACTER RESPONSES (for this turn only):
 {moves_text if character_moves else "None - characters observe silently"}
 
 NPC REACTIONS NEEDED:
@@ -226,21 +334,98 @@ Write 200-500 words of narrative that:
 - Describes the player's action and its immediate effects
 - Integrates character responses naturally (preserve exact dialogue!)
 - Shows NPC reactions as needed
-- Maintains the scene's atmosphere
+- Maintains the scene's atmosphere and continuity with previous narrative
 - Uses third-person past tense
 - Ends on a natural pause for the next player input
 
 Preserve character dialogue EXACTLY as provided. Describe actions cinematically."""
 
-        messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": prompt},
-        ]
+        # Build messages with full conversation history
+        messages = self._build_messages_with_history(current_turn_prompt)
 
+        # Generate narrative
         narrative = await llm_client.complete(messages, self.params)
+
+        # Update history (ONLY user action and narrative - character moves are discarded)
+        self._add_to_history(user_action, narrative)
 
         return StoryOutput(
             narrative=narrative,
             visible_moves=character_moves,
             scene_update=None,  # Scene updates handled separately
         )
+
+    def _build_messages_with_history(self, current_prompt: str) -> list[dict]:
+        """
+        Build LLM messages including full conversation history.
+
+        Args:
+            current_prompt: Current turn prompt
+
+        Returns:
+            List of messages for LLM
+        """
+        import json
+
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+        ]
+
+        # Add world context once at the beginning (if available)
+        if self.world_context:
+            world_context_str = json.dumps(self.world_context, indent=2)
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"WORLD CONTEXT (maintain consistency with these details):\n{world_context_str}",
+                }
+            )
+
+        # Add full conversation history (previous user inputs + narratives)
+        messages.extend(self.conversation_history)
+
+        # Add current turn
+        messages.append({"role": "user", "content": current_prompt})
+
+        return messages
+
+    def _add_to_history(self, user_action: str, narrative: str):
+        """
+        Add turn to conversation history.
+
+        Only stores: user action + generated narrative.
+        Character moves are NOT stored (used only as ephemeral input).
+
+        Args:
+            user_action: What the player did
+            narrative: The generated narrative
+        """
+        self.conversation_history.append(
+            {"role": "user", "content": f"PLAYER ACTION: {user_action}"}
+        )
+        self.conversation_history.append({"role": "assistant", "content": narrative})
+
+        # Truncate if needed
+        self._truncate_history_if_needed()
+
+    def _truncate_history_if_needed(self):
+        """
+        Truncate conversation history to stay within max_history_turns.
+
+        Keeps the most recent turns within the limit.
+        """
+        # Each turn = 2 messages (user + assistant)
+        max_messages = self.max_history_turns * 2
+
+        if len(self.conversation_history) > max_messages:
+            # Keep only the most recent turns
+            self.conversation_history = self.conversation_history[-max_messages:]
+
+    def set_max_history_turns(self, max_turns: int):
+        """
+        Set the maximum number of turns to keep in history.
+
+        Args:
+            max_turns: Maximum turns to maintain (will be doubled for user+assistant pairs)
+        """
+        self.max_history_turns = max_turns
