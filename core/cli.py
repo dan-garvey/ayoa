@@ -92,13 +92,28 @@ def create():
     )
 
     # Create story
-    console.print("\n[bold yellow]Generating your story...[/bold yellow]")
-
     from core.models.schemas import StoryConfig
 
     config = StoryConfig(player_character=player_char, preferences=preferences)
 
-    story_id, outline = run_async(orchestrator.create_story(config))
+    console.print("\n[bold yellow]Creating story and saving preferences...[/bold yellow]")
+
+    try:
+        story_id, outline = run_async(orchestrator.create_story(config))
+    except Exception as e:
+        console.print(f"\n[bold red]Error generating story outline: {e}[/bold red]")
+        # Try to find the saved story_id from the most recent save
+        from pathlib import Path
+        saves_dir = Path("./saves")
+        if saves_dir.exists():
+            saves = sorted(saves_dir.glob(f"{player_char.name.lower().replace(' ', '_')}_*.json"),
+                          key=lambda p: p.stat().st_mtime, reverse=True)
+            if saves:
+                failed_story_id = saves[0].stem
+                console.print(f"\n[dim]Your preferences were saved as: {failed_story_id}[/dim]")
+                console.print(f"[dim]You can retry outline generation with:[/dim]")
+                console.print(f"[bold]  story retry-outline {failed_story_id}[/bold]")
+        raise
 
     console.print(f"\n[bold green]Created story: {story_id}[/bold green]")
     console.print(f"\n[bold]Premise:[/bold] {outline.premise}")
@@ -292,6 +307,50 @@ def config():
     console.print(f"  Director: {engine_config.director_params.temperature}")
     console.print(f"  Storyteller: {engine_config.storyteller_params.temperature}")
     console.print(f"  Character Default: {engine_config.character_default_params.temperature}")
+
+
+@app.command()
+def retry_outline(story_id: str):
+    """Retry generating outline for a story that failed during creation."""
+    try:
+        console.print(f"[bold yellow]Loading story configuration for {story_id}...[/bold yellow]")
+
+        # Load the saved config
+        orchestrator._load_story_state(story_id)
+
+        if not orchestrator.current_config:
+            console.print("[bold red]Error: No configuration found for this story[/bold red]")
+            return
+
+        if orchestrator.current_outline:
+            console.print(f"[bold yellow]Story {story_id} already has an outline.[/bold yellow]")
+            console.print(f"[dim]Premise: {orchestrator.current_outline.premise[:100]}...[/dim]")
+            if not Confirm.ask("Generate a new outline?"):
+                return
+
+        console.print("[bold yellow]Generating outline...[/bold yellow]")
+
+        # Regenerate outline
+        outline = run_async(orchestrator.storyteller.generate_outline(orchestrator.current_config))
+
+        # Update and save
+        orchestrator.current_outline = outline
+        orchestrator._save_story_state(story_id)
+
+        console.print(f"\n[bold green]Successfully generated outline for {story_id}[/bold green]")
+        console.print(f"\n[bold]Premise:[/bold] {outline.premise}")
+        console.print(f"\n[bold]Major Characters:[/bold]")
+        for char in outline.major_characters:
+            console.print(f"  - {char.name} ({char.role}): {char.description}")
+
+        # Offer to start
+        if Confirm.ask("\nStart your adventure now?"):
+            start(story_id)
+        else:
+            console.print(f"\n[dim]To start later, run: story start {story_id}[/dim]")
+
+    except Exception as e:
+        console.print(f"[bold red]Error: {e}[/bold red]")
 
 
 @app.command()

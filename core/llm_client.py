@@ -137,19 +137,25 @@ class LLMClient:
         content = content.strip()
 
         # Try to extract JSON from markdown code blocks
-        if "```json" in content or "```" in content:
-            # Extract content between code fences
-            match = re.search(r'```(?:json)?\s*\n(.*?)\n```', content, re.DOTALL)
+        if "```" in content:
+            # Try multiple patterns for code fence extraction
+            # Pattern 1: standard code fence with optional language
+            match = re.search(r'```(?:json)?\s*\n(.*?)```', content, re.DOTALL)
             if match:
                 content = match.group(1).strip()
-        elif content.startswith("```"):
-            # Simple case: starts with code fence
-            lines = content.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            content = "\n".join(lines)
+            else:
+                # Pattern 2: code fence without closing fence (model didn't finish)
+                match = re.search(r'```(?:json)?\s*\n(.*)$', content, re.DOTALL)
+                if match:
+                    content = match.group(1).strip()
+                else:
+                    # Pattern 3: simple line-based extraction
+                    lines = content.split("\n")
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    content = "\n".join(lines).strip()
 
         # Try to extract JSON object if embedded in text
         if not content.startswith("{") and not content.startswith("["):
@@ -163,7 +169,9 @@ class LLMClient:
             data = json.loads(content)
             return response_model.model_validate(data)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse JSON response: {e}\nContent: {content[:500]}...")
+            # Show more context for debugging
+            preview = content[:1000] if len(content) > 1000 else content
+            raise ValueError(f"Failed to parse JSON response: {e}\nContent ({len(content)} chars):\n{preview}{'...' if len(content) > 1000 else ''}")
 
     async def complete_batch(
         self,

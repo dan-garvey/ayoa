@@ -46,14 +46,16 @@ class Orchestrator:
         Returns:
             Tuple of (story_id, outline)
         """
-        story_id = f"story_{uuid.uuid4().hex[:8]}"
+        # Create story ID using character name + hash
+        char_name = config.player_character.name.lower().replace(" ", "_")
+        # Remove non-alphanumeric characters except underscore
+        char_name = "".join(c for c in char_name if c.isalnum() or c == "_")
+        story_id = f"{char_name}_{uuid.uuid4().hex[:8]}"
 
-        # Generate outline
-        outline = await self.storyteller.generate_outline(config)
-
-        # Save configuration
+        # Save configuration IMMEDIATELY (before any LLM calls)
+        # This ensures user preferences are persisted even if outline generation fails
         self.current_story_id = story_id
-        self.current_outline = outline
+        self.current_outline = None  # Will be filled in after generation
         self.current_config = config
         self.turn_history = []
         self.world_state = {
@@ -63,7 +65,14 @@ class Orchestrator:
             "tone": config.preferences.tone,
         }
 
-        # Persist to disk
+        # Persist preferences to disk BEFORE generating outline
+        self._save_story_state(story_id)
+
+        # Now generate outline (this can fail without losing user's preferences)
+        outline = await self.storyteller.generate_outline(config)
+
+        # Update with generated outline and save again
+        self.current_outline = outline
         self._save_story_state(story_id)
 
         return story_id, outline

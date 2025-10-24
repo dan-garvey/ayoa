@@ -56,7 +56,7 @@ class EngineConfig:
         """Create config from environment variables."""
         return cls(
             max_active_characters_per_turn=int(
-                os.getenv("MAX_ACTIVE_CHARACTERS_PER_TURN", "4")
+                os.getenv("MAX_ACTIVE_CHARACTERS_PER_TURN", "10")
             ),
             rng_seed=int(os.getenv("RNG_SEED", "1337")),
             storyteller_max_history_turns=int(
@@ -65,19 +65,19 @@ class EngineConfig:
             director_params=RoleParams(
                 temperature=float(os.getenv("DIRECTOR_TEMPERATURE", "0.2")),
                 top_p=0.9,
-                max_tokens=512,
+                max_tokens=10240,  # 10x increase - routing to multiple characters
                 json_mode=True,
             ),
             storyteller_params=RoleParams(
                 temperature=float(os.getenv("STORYTELLER_TEMPERATURE", "0.7")),
                 top_p=0.95,
-                max_tokens=700,
+                max_tokens=15000,  # 10x increase - complex JSON responses (outlines, world context)
                 json_mode=False,
             ),
             character_default_params=RoleParams(
                 temperature=float(os.getenv("CHARACTER_DEFAULT_TEMPERATURE", "0.7")),
                 top_p=0.9,
-                max_tokens=180,
+                max_tokens=1800,  # 10x increase - individual character responses
                 json_mode=True,
             ),
         )

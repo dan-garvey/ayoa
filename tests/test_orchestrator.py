@@ -37,7 +37,9 @@ async def test_create_story(sample_story_config, monkeypatch):
 
     story_id, outline = await orchestrator.create_story(sample_story_config)
 
-    assert story_id.startswith("story_")
+    # Story ID should be character_name + hash (e.g., eleanor_blackwood_abc12345)
+    assert story_id.startswith("eleanor_blackwood_")
+    assert len(story_id.split("_")) >= 3  # at least: eleanor_blackwood_hash
     assert outline.premise == "A test story"
     assert orchestrator.current_story_id == story_id
 
