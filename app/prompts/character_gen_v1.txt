@@ -1,32 +1,57 @@
-Generate a new character for an interactive fiction world.
+Generate a new character for an interactive fiction world. The character must fit naturally into the established setting and have a clear reason for being present in this scene.
 
-## World Context
-{world_context}
+## Setting
+{setting_summary}
 
-## Spawn Seed
+## World Lore
+{world_lore}
+
+## Physical Rules
+{world_rules}
+
+## Current Scene
+{scene_context}
+
+## Spawn Request
+Character ID: {character_id}
 {spawn_seed}
 
-## Your Task
-Create a distinct character with a unique voice, personality, and goals. The character should fit naturally into the world and have a clear reason for being present.
+## Existing Characters (avoid duplicating)
+{existing_characters}
 
-Respond with ONLY valid JSON matching the CharacterRecord schema:
+## Instructions
+
+1. Create a character who fits the world's genre, era, and tone naturally.
+2. Give them a distinct voice — they should sound different from existing characters.
+3. Their role and reason for presence should be grounded in the world logic.
+4. Include concrete physical appearance details.
+5. Goals should be specific and tied to their role, not generic.
+6. Set initial attitudes toward key characters they would know about.
+7. Keep backstory concise but specific — a few sentences that explain who they are.
+
+## Output Format
+
+Respond with ONLY valid JSON. No commentary, no markdown fences.
+
 {{
   "character_id": "{character_id}",
-  "name": "string",
+  "name": "string — full name appropriate to their race/faction",
   "status": "active",
   "location": "{location}",
   "public_sheet": {{
-    "role": "string",
-    "traits": ["string"],
-    "voice": "string — description of how they speak"
+    "role": "string — their role or occupation",
+    "traits": ["string — 3-5 personality traits"],
+    "voice": "string — how they speak, verbal style",
+    "appearance": "string — physical description",
+    "faction": "string — faction or group affiliation"
   }},
   "private_state": {{
-    "goals": ["string"],
-    "attitudes": {{}},
+    "goals": ["string — what they want"],
+    "attitudes": {{"user": 0.0}},
+    "secrets": [],
     "intentions_enabled": false
   }},
-  "memory": {{
-    "episodic": [],
-    "summaries": []
-  }}
+  "backstory": "string — brief background",
+  "personality": "string — inner character description",
+  "narrative_notes": "string — how to play this character"
 }}

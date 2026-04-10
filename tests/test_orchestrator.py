@@ -10,7 +10,7 @@ from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry
+from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry, SpawnRequest
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -265,3 +265,74 @@ class TestOrchestrator:
         assert response.debug is not None
         assert "event_id" in response.debug.canonical_event
         assert "observers" in response.debug.discriminator
+
+
+class TestCharacterSpawn:
+    @pytest.mark.asyncio
+    async def test_spawn_character(self, mock_client, sample_checkpoint):
+        mock_client.complete = AsyncMock()
+        new_char = CharacterRecord(
+            character_id="stablehand_01",
+            name="Tom the Stablehand",
+            location="courtyard",
+            public_sheet=PublicSheet(role="stablehand", traits=["nervous"]),
+        )
+        mock_client.complete.return_value = LLMResponse(parsed=new_char)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="stablehand_01", seed={"role": "stablehand"})],
+        )
+
+        assert len(spawned) == 1
+        assert spawned[0].name == "Tom the Stablehand"
+        # Should be added to checkpoint
+        assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
+
+    @pytest.mark.asyncio
+    async def test_skip_existing_character(self, mock_client, sample_checkpoint):
+        mock_client.complete = AsyncMock()
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+
+        # guard_17 already exists
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="guard_17", seed={"role": "guard"})],
+        )
+
+        assert len(spawned) == 0
+        mock_client.complete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_spawn_limit(self, mock_client, sample_checkpoint):
+        mock_client.complete = AsyncMock()
+        new_char = CharacterRecord(
+            character_id="npc",
+            name="NPC",
+            location="courtyard",
+        )
+        mock_client.complete.return_value = LLMResponse(parsed=new_char)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+
+        requests = [
+            SpawnRequest(character_id=f"npc_{i}", seed={"role": f"npc{i}"})
+            for i in range(5)
+        ]
+        spawned = await mgr.spawn_characters(sample_checkpoint, requests)
+
+        # Capped at MAX_SPAWNS_PER_TURN = 3
+        assert len(spawned) == 3
+
+    def test_spawn_without_client(self, sample_checkpoint):
+        mgr = CharacterManager()
+        import asyncio
+        spawned = asyncio.get_event_loop().run_until_complete(
+            mgr.spawn_characters(
+                sample_checkpoint,
+                [SpawnRequest(character_id="test", seed={})],
+            )
+        )
+        assert len(spawned) == 0

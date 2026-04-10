@@ -39,7 +39,7 @@ class Orchestrator:
         self.narrator = Narrator(client, prompt_mgr)
         self.discriminator = Discriminator(client, prompt_mgr)
         self.agent_engine = CharacterAgent(client, prompt_mgr)
-        self.char_mgr = CharacterManager()
+        self.char_mgr = CharacterManager(client, prompt_mgr)
         self.checkpoint_mgr = checkpoint_mgr
 
     async def process_turn(self, request: TurnRequest) -> TurnResponse:
@@ -71,6 +71,10 @@ class Orchestrator:
 
         # Apply roster updates (dormancy, culling)
         self.char_mgr.apply_roster_updates(checkpoint, disc_output)
+
+        # Step 3.5: Spawn new characters if requested
+        if disc_output.spawn:
+            await self.char_mgr.spawn_characters(checkpoint, disc_output.spawn)
 
         # Step 4: Agent fan-out (parallel)
         responding = [o for o in disc_output.observers if o.should_respond]
