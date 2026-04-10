@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from app.schemas.state import (
     ModelConfig, SessionConfig, SessionState, TimeState,
-    LocationState, PhysicsRuleset, WorldState,
+    LocationState, PhysicsRuleset, StorySetting, WorldState,
 )
 from app.schemas.characters import (
     CharacterRecord, CharacterStatus, PublicSheet, PrivateState, CharacterMemory,
@@ -129,6 +129,25 @@ class TestWorldState:
         ws = WorldState()
         assert ws.facts == []
         assert ws.physics_ruleset.strength_limits == "human_baseline"
+        assert ws.lore == ""
+        assert ws.setting.genre == ""
+
+    def test_rich_world(self):
+        ws = WorldState(
+            setting=StorySetting(
+                genre="fantasy",
+                era="post-war covenant era",
+                tone="dark political intrigue",
+                premise="Academy for future leaders of warring races",
+            ),
+            lore="Three centuries ago, the major races nearly destroyed each other...",
+            facts=["Article Nineteen prohibits cross-racial procreation."],
+            physics_ruleset=PhysicsRuleset(magic_enabled=True),
+        )
+        assert ws.setting.genre == "fantasy"
+        assert "Article Nineteen" in ws.facts[0]
+        assert ws.physics_ruleset.magic_enabled is True
+        assert "Three centuries" in ws.lore
 
 
 class TestCharacterRecord:
@@ -148,6 +167,33 @@ class TestCharacterRecord:
         data = {**CHARACTER_EXAMPLE, "status": "exploded"}
         with pytest.raises(ValidationError):
             CharacterRecord(**data)
+
+    def test_rich_character(self):
+        cr = CharacterRecord(
+            character_id="ashara_01",
+            name="Ashara vel Kothren",
+            location="garvey_house",
+            public_sheet=PublicSheet(
+                role="demon seat heir-designate",
+                traits=["confident", "meritocratic", "lacks empathy for weakness"],
+                voice="direct and measured, no false modesty",
+                appearance="Tall—6'1\" before the horns. Deep red skin, molten gold eyes.",
+                faction="House vel Kothren",
+            ),
+            private_state=PrivateState(
+                goals=["become the greatest demon seat-holder", "lift demon restrictions"],
+                attitudes={"user": 0.0, "rashid_01": 0.3},
+                secrets=["grandmother was involved in the human collapse"],
+            ),
+            backstory="Born to House vel Kothren. Won the Trials of Ascension at seventeen...",
+            personality="Confident without cruelty. Meritocratic to a fault...",
+            narrative_notes="Her tail is her honest voice. Flicks when irritated, curls when pleased...",
+        )
+        assert cr.private_state.attitudes["rashid_01"] == pytest.approx(0.3)
+        assert "grandmother" in cr.private_state.secrets[0]
+        assert "Trials of Ascension" in cr.backstory
+        assert "tail" in cr.narrative_notes
+        assert cr.public_sheet.faction == "House vel Kothren"
 
 
 class TestCanonicalEvent:

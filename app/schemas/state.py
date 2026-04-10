@@ -16,6 +16,8 @@ class SessionConfig(BaseModel):
     models: ModelConfig = Field(default_factory=ModelConfig)
     debug: bool = False
     stream_mode: str = "final_only"
+    # Long-form narrator style rules: prose discipline, pacing, subtext philosophy
+    narrative_rules: str = ""
 
 
 class SessionState(BaseModel):
@@ -42,9 +44,20 @@ class PhysicsRuleset(BaseModel):
     magic_enabled: bool = False
 
 
+class StorySetting(BaseModel):
+    """Genre, era, and tone metadata — used to ground character genesis and narrator voice."""
+    genre: str = ""
+    era: str = ""
+    tone: str = ""
+    premise: str = ""
+
+
 class WorldState(BaseModel):
     time: TimeState = Field(default_factory=TimeState)
     locations: LocationState = Field(default_factory=LocationState)
     facts: list[str] = Field(default_factory=list)
     physics_ruleset: PhysicsRuleset = Field(default_factory=PhysicsRuleset)
     global_flags: dict[str, Any] = Field(default_factory=dict)
+    setting: StorySetting = Field(default_factory=StorySetting)
+    # Long-form world lore: history, factions, laws, magic systems, etc.
+    lore: str = ""
