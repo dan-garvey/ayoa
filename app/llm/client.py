@@ -35,25 +35,50 @@ def extract_json(text: str) -> str:
     if match:
         return match.group(1).strip()
 
-    # Try to find a JSON object directly
-    # Find the first { and last } to extract the outermost object
+    # Find the first JSON structure — either { or [
     first_brace = text.find("{")
-    if first_brace == -1:
+    first_bracket = text.find("[")
+
+    # Determine which comes first (ignoring -1 = not found)
+    if first_brace == -1 and first_bracket == -1:
         return text.strip()
 
+    if first_bracket != -1 and (first_brace == -1 or first_bracket < first_brace):
+        # Array comes first — match [ with ]
+        open_ch, close_ch = "[", "]"
+        start = first_bracket
+    else:
+        # Object comes first — match { with }
+        open_ch, close_ch = "{", "}"
+        start = first_brace
+
     depth = 0
-    last_brace = -1
-    for i in range(first_brace, len(text)):
-        if text[i] == "{":
+    in_string = False
+    escape = False
+    end = -1
+    for i in range(start, len(text)):
+        c = text[i]
+        if escape:
+            escape = False
+            continue
+        if c == "\\":
+            escape = True
+            continue
+        if c == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if c == open_ch:
             depth += 1
-        elif text[i] == "}":
+        elif c == close_ch:
             depth -= 1
             if depth == 0:
-                last_brace = i
+                end = i
                 break
 
-    if last_brace != -1:
-        return text[first_brace : last_brace + 1]
+    if end != -1:
+        return text[start : end + 1]
 
     return text.strip()
 
