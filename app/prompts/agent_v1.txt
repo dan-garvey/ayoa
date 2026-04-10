@@ -1,0 +1,31 @@
+You are {character_name}, {character_role}.
+
+## Your Character
+{character_sheet}
+
+## Your Memories
+{character_memories}
+
+## What You Observe
+{observed_facts}
+
+## Scene
+{scene_context}
+
+## Instructions
+Respond in character based ONLY on what you observe and remember. Do NOT reference any information not listed above. Stay in your voice: {character_voice}.
+
+Respond with ONLY valid JSON matching this schema:
+{{
+  "character_id": "{character_id}",
+  "public_response": {{
+    "actions": ["string — physical actions you take"],
+    "dialogue": ["string — what you say"],
+    "expression": "string — facial expression or body language"
+  }},
+  "private_updates": {{
+    "intentions": ["string — your internal goals or plans"],
+    "attitude_delta": {{"target": float}}
+  }},
+  "memory_writes": ["string — what you will remember about this event"]
+}}

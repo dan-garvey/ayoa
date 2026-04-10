@@ -1,0 +1,32 @@
+Generate a new character for an interactive fiction world.
+
+## World Context
+{world_context}
+
+## Spawn Seed
+{spawn_seed}
+
+## Your Task
+Create a distinct character with a unique voice, personality, and goals. The character should fit naturally into the world and have a clear reason for being present.
+
+Respond with ONLY valid JSON matching the CharacterRecord schema:
+{{
+  "character_id": "{character_id}",
+  "name": "string",
+  "status": "active",
+  "location": "{location}",
+  "public_sheet": {{
+    "role": "string",
+    "traits": ["string"],
+    "voice": "string — description of how they speak"
+  }},
+  "private_state": {{
+    "goals": ["string"],
+    "attitudes": {{}},
+    "intentions_enabled": false
+  }},
+  "memory": {{
+    "episodic": [],
+    "summaries": []
+  }}
+}}
