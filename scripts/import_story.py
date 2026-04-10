@@ -188,7 +188,7 @@ async def extract_characters(client: LLMClient, source: str) -> list[dict]:
 def build_checkpoint(world_data: dict, characters_data: list[dict], story_id: str) -> CheckpointFile:
     """Assemble extracted data into a CheckpointFile."""
     session = SessionState(
-        session_id=str(uuid.uuid4()),
+        session_id=story_id,
         story_id=story_id,
         turn_index=0,
     )
@@ -311,12 +311,14 @@ def main():
     parser = argparse.ArgumentParser(description="Import a single-agent IF prompt into engine format")
     parser.add_argument("source", help="Path to the source prompt text file")
     parser.add_argument("--output", "-o", default=None, help="Output checkpoint JSON path")
-    parser.add_argument("--story-id", default="imported", help="Story ID for the checkpoint")
+    parser.add_argument("--story-id", default=None, help="Story ID for the checkpoint")
     args = parser.parse_args()
 
+    base = os.path.splitext(os.path.basename(args.source))[0]
+    if args.story_id is None:
+        args.story_id = base
     if args.output is None:
-        base = os.path.splitext(os.path.basename(args.source))[0]
-        args.output = f"app/storage/saves/{base}/ckpt_0000.json"
+        args.output = f"app/storage/saves/{args.story_id}/ckpt_0000.json"
 
     asyncio.run(import_story(args.source, args.output, args.story_id))
 
