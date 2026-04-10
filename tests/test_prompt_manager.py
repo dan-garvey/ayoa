@@ -82,14 +82,19 @@ class TestPromptManagerWithRealTemplates:
         mgr = PromptManager(prompts_dir="app/prompts")
         result = mgr.render(
             "narrator_phase1",
+            setting_summary="Genre: fantasy\nTone: dark",
+            world_lore="The kingdom has been at war.",
             world_rules="No magic. Human baseline strength.",
             scene_context="A stone courtyard in the rain.",
+            characters_present="- Captain Vero (guard): disciplined",
             recent_transcript="(none)",
             world_facts="The courtyard is wet.",
+            narrative_rules="Write concise prose.",
             user_input="I try to lift the building.",
         )
         assert "I try to lift the building" in result
         assert "No magic" in result
+        assert "Captain Vero" in result
 
     def test_agent_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")
