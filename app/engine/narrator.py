@@ -1,18 +1,21 @@
 """Narrator engine — adjudication (Phase 1) and composition (Phase 2).
 
 Phase 1 takes user input + world state and produces a CanonicalEvent.
-Phase 2 (future) takes the CanonicalEvent + agent outputs and produces final prose.
+Phase 2 takes the CanonicalEvent + agent outputs and produces final prose.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from typing import TYPE_CHECKING
 
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.events import CanonicalEvent
+from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.checkpoint import CheckpointFile
 
 if TYPE_CHECKING:
@@ -86,6 +89,90 @@ class Narrator:
         )
 
         return event
+
+    async def phase_2(
+        self,
+        user_input: str,
+        event: CanonicalEvent,
+        agent_outputs: list[CharacterAgentOutput],
+        checkpoint: CheckpointFile,
+    ) -> NarratorFinalOutput:
+        """Compose final narrative prose from the event and character responses.
+
+        Returns NarratorFinalOutput with polished prose, transcript entry,
+        and turn summary.
+        """
+        setting_summary = self._build_setting_summary(checkpoint)
+        narrative_rules = checkpoint.config.narrative_rules or "No specific narrative rules."
+        scene_context = self._build_scene_context(checkpoint)
+        canonical_event = json.dumps(event.model_dump(), indent=2)
+        formatted_agents = self._format_agent_outputs(agent_outputs, checkpoint)
+
+        prompt = self.prompt_manager.render(
+            "narrator_phase2",
+            setting_summary=setting_summary,
+            narrative_rules=narrative_rules,
+            canonical_event=canonical_event,
+            agent_outputs=formatted_agents,
+            scene_context=scene_context,
+            user_input=user_input,
+        )
+
+        logger.info("NP2: composing final narrative with %d agent outputs", len(agent_outputs))
+
+        response = await self.client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": prompt}],
+            response_model=NarratorFinalOutput,
+            temperature=0.5,
+            max_tokens=4000,
+        )
+        result: NarratorFinalOutput = response.parsed
+
+        logger.info(
+            "NP2 result: %d chars, summary: %s",
+            len(result.final_text),
+            result.turn_summary[:80] if result.turn_summary else "(none)",
+        )
+
+        return result
+
+    def _format_agent_outputs(
+        self,
+        agent_outputs: list[CharacterAgentOutput],
+        checkpoint: CheckpointFile,
+    ) -> str:
+        """Format agent outputs for the NP2 prompt."""
+        if not agent_outputs:
+            return "No characters responded to this event."
+
+        sections = []
+        for output in agent_outputs:
+            # Find character name
+            char = next(
+                (c for c in checkpoint.characters if c.character_id == output.character_id),
+                None,
+            )
+            name = char.name if char else output.character_id
+
+            parts = [f"### {name} ({output.character_id})"]
+
+            if output.public_response.actions:
+                parts.append("Actions:")
+                for action in output.public_response.actions:
+                    parts.append(f"  - {action}")
+
+            if output.public_response.dialogue:
+                parts.append("Dialogue:")
+                for line in output.public_response.dialogue:
+                    parts.append(f'  - "{line}"')
+
+            if output.public_response.expression:
+                parts.append(f"Expression: {output.public_response.expression}")
+
+            sections.append("\n".join(parts))
+
+        return "\n\n".join(sections)
 
     # --- Context builders ---
 
