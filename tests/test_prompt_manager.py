@@ -102,12 +102,23 @@ class TestPromptManagerWithRealTemplates:
             "agent",
             character_name="Captain Vero",
             character_role="guard captain",
-            character_sheet="Disciplined, dry humor",
+            character_traits="disciplined, dry humor",
+            character_voice="clipped and formal",
+            character_appearance="Tall, scarred",
+            character_faction="City Watch",
+            character_backstory="Twenty years of service.",
+            character_personality="Stoic but caring.",
+            character_goals="- maintain order",
+            character_attitudes="- user: -0.1 (neutral)",
+            character_secrets="- knows the hidden passage",
             character_memories="(none)",
+            character_narrative_notes="Right hand twitches when lying.",
+            world_context="Genre: fantasy",
             observed_facts="The user strains against the building.",
             scene_context="Estate courtyard, raining.",
-            character_voice="clipped and formal",
+            recent_transcript="(none)",
             character_id="guard_17",
         )
         assert "Captain Vero" in result
         assert "guard_17" in result
+        assert "hidden passage" in result
