@@ -91,8 +91,13 @@ class TestPromptManagerWithRealTemplates:
             world_facts="The courtyard is wet.",
             narrative_rules="Write concise prose.",
             user_input="I try to lift the building.",
+            player_name="Aldric",
+            hidden_lore="Secret conspiracy details.",
+            hidden_facts="- Hidden fact one\n- Hidden fact two",
+            opening_directive="",
         )
         assert "I try to lift the building" in result
+        assert "Aldric" in result
         assert "No magic" in result
         assert "Captain Vero" in result
 
@@ -117,6 +122,7 @@ class TestPromptManagerWithRealTemplates:
             observed_facts="The user strains against the building.",
             scene_context="Estate courtyard, raining.",
             recent_transcript="(none)",
+            characters_present="No other characters are present.",
             character_id="guard_17",
         )
         assert "Captain Vero" in result

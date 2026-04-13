@@ -24,6 +24,8 @@ class SessionState(BaseModel):
     session_id: str
     story_id: str = ""
     turn_index: int = 0
+    player_name: str = ""
+    player_character_id: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
@@ -61,3 +63,11 @@ class WorldState(BaseModel):
     setting: StorySetting = Field(default_factory=StorySetting)
     # Long-form world lore: history, factions, laws, magic systems, etc.
     lore: str = ""
+    # Hidden lore/facts — available to discriminator and agents for authentic
+    # reactions, but NEVER shown to the narrator or the player. These contain
+    # spoilers, conspiracy details, and secrets to be discovered through play.
+    hidden_lore: str = ""
+    hidden_facts: list[str] = Field(default_factory=list)
+    # Characters the player has been formally introduced to (by character_id).
+    # NP2 uses names only for known characters; others are described by appearance.
+    known_characters: list[str] = Field(default_factory=list)

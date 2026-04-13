@@ -134,7 +134,13 @@ class Discriminator:
         entries = []
         scene_id = checkpoint.world_state.locations.current_scene_id
 
+        player_id = checkpoint.session.player_character_id
+
         for char in checkpoint.characters:
+            # Exclude the player character — player actions come from the user, not agents
+            if char.character_id == player_id:
+                continue
+
             status = char.status.value
             location = char.location or "unknown"
 
@@ -153,11 +159,33 @@ class Discriminator:
             role = char.public_sheet.role or "unknown role"
             loc_name = scene_graph.get(location, {}).get("name", location)
 
+            # Enrich with private state for discriminator decision-making
+            goals_str = ""
+            if char.private_state and char.private_state.goals:
+                goals_str = "; ".join(char.private_state.goals[:3])
+
+            attitudes_str = ""
+            if char.private_state and char.private_state.attitudes:
+                player_char_id = checkpoint.session.player_character_id
+                player_att = char.private_state.attitudes.get(player_char_id)
+                if player_att is not None:
+                    attitudes_str = f"Attitude toward player: {player_att:+.1f}"
+
+            secrets_str = ""
+            if char.private_state and char.private_state.secrets:
+                secrets_str = "; ".join(char.private_state.secrets[:2])
+
             entry = (
                 f"- {char.name} (id: {char.character_id})\n"
                 f"  Status: {status} | Location: {loc_name} ({location}) | Proximity: {proximity}\n"
                 f"  Role: {role}"
             )
+            if goals_str:
+                entry += f"\n  Goals: {goals_str}"
+            if attitudes_str:
+                entry += f"\n  {attitudes_str}"
+            if secrets_str:
+                entry += f"\n  Secrets: {secrets_str}"
             entries.append(entry)
 
         return "\n".join(entries)

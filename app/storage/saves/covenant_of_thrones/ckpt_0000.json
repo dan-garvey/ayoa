@@ -2,10 +2,12 @@
   "schema_version": "1.0",
   "session": {
     "session_id": "covenant_of_thrones",
-    "story_id": "imported",
+    "story_id": "covenant_of_thrones",
     "turn_index": 0,
-    "created_at": "2026-04-10T21:38:43.427734",
-    "updated_at": "2026-04-10T21:38:43.427736",
+    "player_name": "",
+    "player_character_id": "",
+    "created_at": "2026-04-13T19:29:15.309717",
+    "updated_at": "2026-04-13T19:29:15.309720",
     "config": {
       "models": {
         "narrator": "GPT-oss-120B",
@@ -17,60 +19,72 @@
       "narrative_rules": ""
     }
   },
+  "opening_narrative": "The stone arches of the bridge of light pulse beneath your feet, each step a soft thrum that carries you higher until the storm‑choked abyss below becomes a distant roar. Above, the plateau of the Nexus stretches in a kaleidoscope of architecture—black demon stone fused with living elven timber, angelic spires of marble catching the perpetual sunrise, dragon‑carved caverns yawning into the earth. The Academy of the Covenant looms at the center, its banners fluttering with sigils of six races, a reminder that you are about to live among the heirs of every bloodline that once tore the world apart.\n\nInside Garvey House, the air smells of polished oak and faint incense, a lingering echo of the human family that gave the building its name. Your private room is modest: a low bed draped in muted linens, a desk scarred by generations of notes, a narrow window framing the floating garden where blossoms bloom out of season. Portraits of stern Garvey ancestors stare down from the walls, their eyes following you as if measuring whether you belong. A narrow corridor to your left leads toward a wing that has long been sealed off, its doors heavy and untouched, a silent invitation to curiosity.\n\nA low murmur rises from the common hall where the Conclave gathers for the first formal dinner. Around the long table sit students whose skin shimmers with demon fire, whose feathers catch the light like angelic halos, whose eyes hold the ancient calm of elves, the iridescent scales of dragons, the keen snout of beastkin, and the ever‑shifting hues of fae. The air is thick with the scent of spiced broth and the faint crackle of magical wards that keep the room warm despite the storm outside. You are aware, even now, that as a human your presence is an anomaly; the Covenant’s Article Nineteen hangs over every cross‑racial interaction like an unspoken threat, a law that could turn a whispered affection into a death sentence. The weight of future negotiations, of alliances that may shape centuries, presses against your shoulders.\n\nThe doors to the hall swing open, revealing a sea of unfamiliar faces and a place where every word will be weighed for its political consequence. The clatter of silverware and the soft cadence of a demon’s laugh drift toward you, inviting you to step forward. You pause at the threshold, the choice before you as palpable as the storm beyond: join the gathering and seek a seat among the future leaders, linger in the corridor to observe the architecture of power, or slip away to the sealed wing that beckons with hidden stories. The moment stretches, waiting for the path you will take.",
   "world_state": {
     "time": {
-      "scene_time": "2026-04-10T21:38:43.427764",
+      "scene_time": "2026-04-13T19:29:15.309749",
       "turn_count": 0
     },
     "locations": {
       "current_scene_id": "garvey_house_room",
       "scene_graph": {
         "garvey_house_room": {
-          "name": "PLAYER_NAME's Private Room, Garvey House",
-          "description": "A modestly sized chamber with a single bed, a desk, and a window overlooking the Nexus storm. The room bears the Garvey family crest and a faint magical ward that only the Garvey bloodline can sense.",
-          "connected_to": [
-            "garvey_house_common",
-            "dining_hall"
-          ],
-          "properties": {
-            "private": true,
-            "has_ward": true
-          }
-        },
-        "garvey_house_common": {
-          "name": "Garvey House Common Area",
-          "description": "A spacious lounge with mixed\u2011style furnishings, a fireplace that burns with ever\u2011changing colors, and a large table where Conclave students gather to study and converse.",
-          "connected_to": [
-            "garvey_house_room",
-            "dining_hall",
-            "library"
-          ],
-          "properties": {}
-        },
-        "dining_hall": {
-          "name": "Garvey House Formal Dining Hall",
-          "description": "An elegant hall with long tables, chandeliers of floating light, and a view of the storm\u2011filled abyss outside. Tonight it is set for the first Conclave dinner.",
-          "connected_to": [
-            "garvey_house_common",
-            "garvey_house_room"
-          ],
-          "properties": {}
-        },
-        "library": {
-          "name": "Garvey House Restricted Library",
-          "description": "A vaulted room filled with ancient tomes on Covenant history, sealed sections, and a hidden alcove in the abandoned wing that houses the bloodline\u2011keyed ward.",
+          "name": "Garvey House – Private Room",
+          "description": "A modest, single‑occupancy chamber with a simple bed, desk, and a window overlooking the Nexus plateau. The room bears the faded portrait of a Garvey ancestor and a locked chest that the new student has yet to open.",
           "connected_to": [
             "garvey_house_common"
           ],
           "properties": {
-            "restricted_access": true
+            "type": "dormitory",
+            "occupancy": "single"
           }
         },
-        "academy_nexus": {
-          "name": "The Nexus Plateau",
-          "description": "The floating plateau that holds the Academy, suspended above a perpetual storm. Bridges of light extend outward to each racial territory.",
-          "connected_to": [],
-          "properties": {}
+        "garvey_house_common": {
+          "name": "Garvey House – Common Area",
+          "description": "A spacious lounge with mismatched furniture from all six races, a large fireplace of black stone, and a long table where Conclave students gather for study and conversation.",
+          "connected_to": [
+            "garvey_house_room",
+            "garvey_house_dining"
+          ],
+          "properties": {
+            "type": "social",
+            "capacity": "multiple"
+          }
+        },
+        "garvey_house_dining": {
+          "name": "Garvey House – Formal Dining Hall",
+          "description": "An ornate hall where the Conclave takes its first formal dinner. Long tables are set with silverware of various cultural designs, and a vaulted ceiling displays banners of the six races.",
+          "connected_to": [
+            "garvey_house_common",
+            "academy_courtyard"
+          ],
+          "properties": {
+            "type": "dining",
+            "event": "first formal dinner"
+          }
+        },
+        "academy_courtyard": {
+          "name": "Academy Courtyard",
+          "description": "An open space on the Nexus plateau surrounded by the Academy’s eclectic architecture. Bridges of light lead out to each racial border, and a gentle breeze carries the scent of elven blossoms and dragon‑smoked incense.",
+          "connected_to": [
+            "garvey_house_dining",
+            "nexus_plateau"
+          ],
+          "properties": {
+            "type": "outdoor",
+            "neutral_ground": true
+          }
+        },
+        "nexus_plateau": {
+          "name": "The Nexus",
+          "description": "The massive floating plateau that hosts the Academy. It hovers three hundred feet above a perpetual storm, accessible only by the radiant bridges from each territory.",
+          "connected_to": [
+            "academy_courtyard"
+          ],
+          "properties": {
+            "type": "geographical",
+            "magic_stable": true
+          }
         }
       }
     },
@@ -78,118 +92,109 @@
       "The Covenant of Thrones ended the Sundering War and established a Council of Thrones with one seat per signatory race.",
       "Article Nineteen bans procreation between members of different signatory races; violation is punishable by death for parents and child.",
       "The Academy of the Covenant sits on the Nexus, a floating plateau above a perpetual storm, accessible by bridges of light from each race's territory.",
-      "Garvey House is the residence for Conclave students and contains an abandoned wing with a bloodline\u2011keyed ward sealing evidence of the human collapse conspiracy.",
       "Magic exists for all races but each tradition has a unique cost; humans have no innate magic but can learn fragments of all traditions.",
-      "The human collapse was caused by a engineered magical plague targeting the human adaptability trait, not a natural disease.",
-      "The Inheritors are a secret network of descendants of the original conspirators who monitor and react to threats against their hidden agenda.",
-      "Professor Kira vel Shaan is an Inheritor agent embedded in the Academy faculty.",
       "Seraphel Dawnquill can only speak in verse due to a family curse that can be broken by revealing the truth before representatives of all seven races.",
       "PLAYER_NAME Garvey is a human with no magical ability, the heir to the Garvey estate, and a newcomer to the Academy."
     ],
     "physics_ruleset": {
-      "strength_limits": "Humans have average human strength. Demons, dragons, and angels possess super\u2011human physical capabilities; elves are physically average but possess extraordinary endurance and subtle magical augmentation; beastkin have enhanced senses and animalistic agility; fae are physically frail but can alter reality through contracts.",
+      "strength_limits": "Physical capability varies by race: demons possess high endurance and raw strength; angels are agile and resilient; elves are lithe with enhanced senses; dragons (in humanoid form) have superior strength and durability; beastkin have animal‑enhanced speed and senses; fae are physically average but can alter reality through contracts; humans have no innate magical strength and are physically average.",
       "magic_enabled": true
     },
     "global_flags": {},
     "setting": {
       "genre": "fantasy",
-      "era": "Three centuries after the Sundering War, a quasi\u2011medieval/early\u2011modern world sustained by ancient magic",
+      "era": "high‑fantasy era, roughly three centuries after the Sundering War",
       "tone": "dark political intrigue with persistent romantic tension",
-      "premise": "Human heir PLAYER_NAME arrives at the Covenant Academy, a neutral training ground for the seven signatory races, and must navigate a web of inter\u2011racial politics, a draconian law forbidding mixed\u2011race procreation, and a hidden conspiracy surrounding the historic human collapse."
+      "premise": "A human heir arrives at the neutral Academy of the Covenant, where inter‑racial peace is fragile, a draconian law bans mixed‑blood children, and political currents swirl, forcing him to navigate danger, duty, and forbidden love."
     },
-    "lore": "Three centuries ago the six major races\u2014demons, angels, elves, dragons, beastkin, and fae\u2014waged the Sundering War, a forty\u2011year cataclysm that reshaped continents, destroyed cities, and scarred magic itself. The Covenant of Thrones, negotiated in the now\u2011ruined neutral city of Valdris, ended the war and created a fragile peace built on the Council of Thrones, the Covenant Accords, the Academy of the Covenant, and Arbitration Protocols. The Covenant is imperfect: demons resent military limits, angels hoard institutional power, elves pursue long\u2011term schemes, dragons dislike any sovereignty constraints, beastkin remain second\u2011class signatories, and fae interpret obligations creatively. \n\nArticle Nineteen of the Accords bans procreation between members of different signatory races, punishable by death for both parents and the child. The law is actively enforced, yet cross\u2011racial attraction is common and conducted in secrecy. The article is a central source of tension for any romantic attachment, especially for PLAYER_NAME, a human whose classmates are all non\u2011human. Reforming or repealing the article is a legitimate political goal that will earn allies and enemies. \n\nThe Academy sits on the Nexus, a floating plateau at the intersection of all six territories, suspended above a perpetual storm and accessed by bridges of light. The campus is an architectural collage of demon black\u2011stone halls, elven living\u2011wood towers, angelic white\u2011marble spires, dragon\u2011carved caverns, and other racial styles. Roughly two thousand students study five tracks (Diplomacy, Military, Arcana, Commerce, and the Conclave). The Conclave\u2014about 60\u201180 future Council seat\u2011holders\u2014live in Garvey House, a three\u2011story mixed\u2011style building with private rooms, a common area, a formal dining hall, seminar rooms, a restricted library, and ever\u2011blooming gardens. The Conclave curriculum spans four years, moving from historical foundations to practical governance. \n\nFaculty includes Chancellor Mordecai Ashworth (angel, weary neutral), Professor Vex Thorn (demon, reformist), Professor Elara Windwhisper (elf, covertly reports to the Silence), Professor Gareth Stone (human, keeper of hidden documents about the human collapse), and Professor Kira vel Shaan (demon, Inheritor agent). \n\nMagic exists in every race but each tradition has a distinct cost. Demon magic draws from internal life\u2011force and ages the user; angel magic requires divine clarity; elven magic is slow and long\u2011lasting; dragon magic is raw elemental power demanding control; beastkin magic enhances senses and physical traits; fae magic bends reality but is bound by contracts; humans have no innate magic but can learn fragments of all traditions, making them valuable translators. Magic is never free. \n\nThe \"human collapse\" of sixty years ago was not a natural plague but a engineered curse targeting the human adaptability that allowed them to learn other magics. The conspiracy was led by Dan Garvey (ancestor of PLAYER_NAME) and a coalition of angel, demon, elven, and dragon interests. The plague wiped out ninety percent of humans and erased their political power. Dan Garvey sealed evidence of the conspiracy behind a bloodline\u2011keyed ward in the abandoned wing of Garvey House; the ward is unknown to the Academy staff. \n\nThe Inheritors are the descendants of the original conspirators. Key members include Lord Verantus (angel seat holder, father of Aldric), Lady Ashira vel Kothren (demon heir, grandmother of Ashara), Toxicia Vaeyn (elf, mother of Caelindra), and Lady Coldpeak (dragon, aunt of Ysolde). They monitor threats through faculty agents and react with escalating measures when their secrets are probed. \n\nA side curse binds the Dawnquill angel family to speak only in verse; the curse can be broken only when the truth of its origin is spoken before representatives of all seven races. \n\nPLAYER_NAME Garvey, a human with no magical ability, has just inherited the Garvey estate and been summoned to the Academy. He knows little of his lineage, the true cause of the human collapse, or the political stakes that surround him. \n\nLove interests include Ashara vel Kothren (demon heir), Ysolde Thornmantle (dragon heir), Caelindra Vaeyn (elf princess), Seraphel Dawnquill (angel heir bound by verse), Thessaly Morrow (fae heir), and Lysara Vane (half\u2011demon, half\u2011elf ghost of a forbidden union). Rivals include Rashid vel Amara (beastkin heir) and Aldric Verantus (angel heir). All relationships are constrained by Article Nineteen and the broader political landscape."
+    "lore": "Three centuries ago the six major races -- demons, angels, elves, dragons, beastkin, and fae -- waged the Sundering War, a forty-year cataclysm that reshaped continents, destroyed cities, and scarred magic itself. The Covenant of Thrones, negotiated in the now-ruined neutral city of Valdris, ended the war and created a fragile peace built on the Council of Thrones, the Covenant Accords, the Academy of the Covenant, and Arbitration Protocols. The Covenant is imperfect: demons resent military limits, angels hoard institutional power, elves pursue long-term schemes, dragons dislike any sovereignty constraints, beastkin remain second-class signatories, and fae interpret obligations creatively.\n\nArticle Nineteen of the Accords bans procreation between members of different signatory races, punishable by death for both parents and the child. The law is actively enforced, yet cross-racial attraction is common and conducted in secrecy.\n\nThe Academy sits on the Nexus, a floating plateau at the intersection of all six territories, suspended above a perpetual storm and accessed by bridges of light. The campus is an architectural collage of demon black-stone halls, elven living-wood towers, angelic white-marble spires, dragon-carved caverns, and other racial styles. Roughly two thousand students study five tracks (Diplomacy, Military, Arcana, Commerce, and the Conclave). The Conclave -- about 60-80 future Council seat-holders -- live in Garvey House, a three-story mixed-style building with private rooms, a common area, a formal dining hall, seminar rooms, a restricted library, and ever-blooming gardens.\n\nFaculty includes Chancellor Mordecai Ashworth (angel, weary neutral), Professor Vex Thorn (demon, reformist), Professor Elara Windwhisper (elf), Professor Gareth Stone (human, historian), and Professor Kira vel Shaan (demon, faculty member).\n\nMagic exists in every race but each tradition has a distinct cost. Demon magic draws from internal life-force and ages the user; angel magic requires divine clarity; elven magic is slow and long-lasting; dragon magic is raw elemental power demanding control; beastkin magic enhances senses and physical traits; fae magic bends reality but is bound by contracts; humans have no innate magic but can learn fragments of all traditions, making them valuable translators. Magic is never free.\n\nThe \"human collapse\" sixty years ago was a devastating plague that wiped out ninety percent of humans and erased their political power. The cause remains officially unknown and is a subject of speculation and conspiracy theories.",
+    "hidden_lore": "The human collapse was not a natural plague but an engineered curse targeting the human adaptability that allowed them to learn other magics. The conspiracy was led by Dan Garvey (ancestor of the player character) and a coalition of angel, demon, elven, and dragon interests.\n\nDan Garvey sealed evidence of the conspiracy behind a bloodline-keyed ward in the abandoned wing of Garvey House; the ward is unknown to the Academy staff.\n\nThe Inheritors are the descendants of the original conspirators. Key members include Lord Verantus (angel seat holder, father of Aldric), Lady Ashira vel Kothren (demon heir, grandmother of Ashara), Toxicia Vaeyn (elf, mother of Caelindra), and Lady Coldpeak (dragon, aunt of Ysolde). They monitor threats through faculty agents and react with escalating measures when their secrets are probed.\n\nProfessor Kira vel Shaan is an Inheritor agent embedded in the Academy faculty. She covertly reports to the Inheritors.\n\nProfessor Elara Windwhisper covertly reports to the Silence (elven intelligence).\n\nA side curse binds the Dawnquill angel family to speak only in verse; the curse can be broken only when the truth of its origin is spoken before representatives of all seven races.",
+    "hidden_facts": [
+      "Garvey House contains an abandoned wing with a bloodline-keyed ward sealing evidence of the human collapse conspiracy.",
+      "The human collapse was caused by an engineered magical plague targeting the human adaptability trait, not a natural disease.",
+      "The Inheritors are a secret network of descendants of the original conspirators who monitor and react to threats against their hidden agenda.",
+      "Professor Kira vel Shaan is an Inheritor agent embedded in the Academy faculty."
+    ],
+    "known_characters": []
   },
   "characters": [
     {
-      "character_id": "player_name_garvey",
+      "character_id": "player_garvey",
       "name": "PLAYER_NAME Garvey",
       "status": "active",
-      "location": "garvey_house_room",
+      "location": "garvey_house_room_player",
       "public_sheet": {
-        "role": "Protagonist, Human student of the Conclave",
+        "role": "Human student, Conclave member, heir of the Garvey legacy",
         "traits": [
-          "inquisitive",
-          "unaware of heritage",
-          "reluctant leader"
+          "curious",
+          "insecure",
+          "determined",
+          "unaware"
         ],
-        "voice": "Measured, often reflective, speaks with a hint of uncertainty",
-        "appearance": "Average human height, dark hair, unremarkable features; carries the Garvey family crest on his attire",
-        "faction": "Human (Garvey lineage), Conclave student"
+        "voice": "plain, often questioning, rarely flamboyant",
+        "appearance": "Average‑height human with short brown hair, hazel eyes, and a modest build. Wears the standard Conclave uniform with the Garvey family crest stitched on the lapel.",
+        "faction": "Human"
       },
       "private_state": {
         "goals": [
-          "Survive the Academy and uncover the truth about his family",
-          "Navigate the dangerous politics of the Covenant",
-          "Deal with the implications of Article Nineteen"
+          "Survive the Academy and understand his family's mysterious past",
+          "Navigate the political and romantic tensions of the Conclave",
+          "Decide whether to pursue reform of Article Nineteen"
         ],
         "attitudes": {
-          "ashara_vel_kothren": -0.4,
-          "ysolde_thornmantle": 0.0,
+          "ashara_vel_kothren": -0.6,
           "caelindra_vaeyn": -0.5,
-          "seraphel_dawnquill": 0.2,
-          "thessaly_morrow": 0.1,
-          "lysara_vane": 0.0,
-          "rashid_vel_amara": -0.6,
-          "aldric_verantus": 0.0,
+          "rashid_vel_amara": -0.7,
           "lord_verantus": -0.8,
-          "lady_ashira_vel_kothren": -0.3,
-          "toxicia_vaeyn": -0.4,
-          "lady_coldpeak": -0.2,
-          "professor_kira_vel_shaan": 0.3,
-          "professor_vex_thorn": 0.4,
-          "professor_elara_windwhisper": 0.0,
-          "professor_gareth_stone": 0.2,
-          "professor_chancellor_mordecai_ashworth": 0.0,
-          "user": 0.0
+          "professor_kira_vel_shaan": 0.2,
+          "professor_gareth_stone": 0.1
         },
-        "secrets": [
-          "He is magically inert, the reason he survived the plague",
-          "He inherits the Garvey seat, a position of hidden political importance"
-        ],
-        "intentions_enabled": true
+        "secrets": [],
+        "leak_keywords": [],
+        "intentions_enabled": false
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "Born into the Garvey family, a once-prominent human house that fell during the engineered plague. His parents were among the last victims. Raised by distant relatives, he learned of his inheritance only months before enrollment when a lawyer presented the Garvey estate. Lacking magical ability, he enters the Academy unaware of the deep conspiracies surrounding his lineage.",
-      "personality": "PLAYER_NAME is cautious but curious, driven by a need to understand his past. He fears the unknown forces that shaped his family's downfall and feels a quiet responsibility to right past wrongs. Though socially awkward, he possesses a strong moral compass and a willingness to help others when he can.",
-      "narrative_notes": "Serve as the focal point for tension. All NPCs react to his human status and the legal danger of Article Nineteen. He should never be forced into a resolved romance; keep interactions ambiguous. His lack of magic makes him both vulnerable and a potential political pawn."
+      "backstory": "I grew up in the shadow of a tragedy I never understood. My parents died when I was a child, victims of the last wave of the plague that wiped out most humans. Six months ago a distant lawyer told me I was the last living heir of the Garvey line, and that a sizable estate and a seat at the Academy awaited me. I have no magical ability, no memory of the old human houses, and only a vague sense that my family’s fall was tied to something far larger than a disease.",
+      "personality": "I am earnest and eager to belong, but the weight of my unknown heritage makes me cautious. I tend to over‑analyze social cues, fearing that a misstep could cost a life under Article Nineteen. I crave genuine connection, yet I am terrified of the consequences of intimacy. My biggest fear is that I will repeat the mistakes that led to my family’s demise.",
+      "narrative_notes": "The protagonist is the axis of tension. All NPCs react to his lack of magic, his human status, and the legal danger his romances create. Keep his agency limited to choices; never resolve his core conflicts for him. His attitudes toward NPCs should shift as he learns their secrets."
     },
     {
       "character_id": "chancellor_mordecai_ashworth",
       "name": "Mordecai Ashworth",
       "status": "active",
-      "location": "academy_nexus",
+      "location": "academy_chancellor_office",
       "public_sheet": {
         "role": "Chancellor of the Academy of the Covenant",
         "traits": [
-          "elderly",
-          "angelic",
+          "authoritative",
           "exhausted",
-          "neutral fa\u00e7ade"
+          "neutral",
+          "protective"
         ],
-        "voice": "Measured, formal, with a faint weariness behind the words",
-        "appearance": "Tall, silver-haired angel with luminous white wings, clad in simple robes bearing the Academy crest",
-        "faction": "Angel, Academy administration"
+        "voice": "measured, formal, often laced with weary resignation",
+        "appearance": "Tall elderly angel with silver‑white hair, immaculate white marble robes trimmed in gold, and faint, ever‑present halo. His eyes are a calm sky‑blue that rarely betray emotion.",
+        "faction": "Angel"
       },
       "private_state": {
         "goals": [
-          "Maintain the Academy's stability",
-          "Avoid scandal that could threaten the institution"
+          "Maintain the Academy’s stability above all else",
+          "Avoid scandal that could destabilize the Covenant"
         ],
         "attitudes": {
-          "player_name_garvey": -0.2,
-          "professor_kira_vel_shaan": 0.0,
-          "professor_vex_thorn": 0.0,
-          "professor_elara_windwhisper": 0.0,
-          "professor_gareth_stone": 0.0,
-          "lord_verantus": -0.3,
-          "user": -0.2
+          "player_garvey": 0.0,
+          "lord_verantus": 0.2,
+          "professor_kira_vel_shaan": -0.2
         },
         "secrets": [
-          "Knows something is wrong with the Covenant but lacks courage to act",
-          "Has been subtly pressured by the Inheritors to keep certain students under watch"
+          "Knows that something is fundamentally wrong with the current political climate but lacks the energy to investigate"
+        ],
+        "leak_keywords": [
+          "exhausted",
+          "institutional",
+          "stability"
         ],
         "intentions_enabled": true
       },
@@ -197,42 +202,44 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "An angel who has presided over the Academy for six decades. He rose through the ranks of the Angelic Council and was appointed Chancellor for his reputation of impartiality. Over the years, the weight of endless politics has left him weary.",
-      "personality": "Mordecai appears calm and detached, but internally he is haunted by a sense of impotence. He prefers to keep his head down, trusting the faculty to manage day\u2011to\u2011day affairs, while he watches for any sign of larger trouble.",
-      "narrative_notes": "Acts as a gatekeeper for institutional resources. He will rarely intervene directly in student affairs unless the situation threatens the Academy\u2019s reputation. Use his exhaustion to justify delayed responses to PLAYER_NAME\u2019s inquiries."
+      "backstory": "I have served as Chancellor for six decades, guiding generations of future leaders. The Covenant’s peace has been my life's work, and I have watched the Academy survive wars, plagues, and betrayals. Lately, I feel a growing unease—rumors of hidden agendas and a resurgence of old grievances—but my age and the weight of responsibility leave me too weary to act decisively.",
+      "personality": "I am a guardian of tradition, preferring the safety of the known over the chaos of change. I hide my anxiety behind a veneer of calm, believing that the institution must outlive any individual. My greatest fear is that a single scandal could unravel three centuries of peace.",
+      "narrative_notes": "Play him as a well‑meaning but passive obstacle. He can provide official information or block student initiatives, but rarely takes bold action. Use his exhaustion to justify why the Academy does not intervene in dangerous student affairs."
     },
     {
       "character_id": "professor_vex_thorn",
       "name": "Vex Thorn",
       "status": "active",
-      "location": "academy_nexus",
+      "location": "academy_history_hall",
       "public_sheet": {
-        "role": "Professor of History of the Sundering War",
+        "role": "Professor of History of the Sundering War (Demon)",
         "traits": [
-          "demon",
           "provocative",
-          "reformist",
-          "charismatic"
+          "brilliant",
+          "rebellious",
+          "passionate"
         ],
-        "voice": "Sharp, often laced with sarcasm; enjoys debating",
-        "appearance": "Tall demon with obsidian skin, molten gold eyes, short black horns, and a perpetual faint ember glow at his fingertips",
-        "faction": "Demon, Academic staff"
+        "voice": "sharp, often sarcastic, with a hint of theatrical flair",
+        "appearance": "Tall demon with obsidian skin, a faint ember glow in his veins, and two short, curved horns. He wears dark academic robes stitched with flame motifs, and his eyes burn amber when he is excited.",
+        "faction": "Demon"
       },
       "private_state": {
         "goals": [
-          "Expose the injustice of demon restrictions",
-          "Mentor students who question the status quo"
+          "Expose the unfairness of demon restrictions in the Covenant",
+          "Recruit sympathetic students to the demon reformist cause"
         ],
         "attitudes": {
-          "player_name_garvey": 0.5,
-          "ashara_vel_kothren": 0.3,
-          "professor_kira_vel_shaan": -0.4,
-          "lord_verantus": -0.5,
-          "user": 0.5
+          "player_garvey": 0.2,
+          "ashara_vel_kothren": 0.5,
+          "lord_verantus": -0.5
         },
         "secrets": [
-          "Has covert ties to demon reformist movements",
-          "Possesses hidden notes about the original intent of Article Nineteen"
+          "Maintains covert connections to a demon reformist network seeking to overturn military restrictions"
+        ],
+        "leak_keywords": [
+          "reformist",
+          "undermine",
+          "demonreform"
         ],
         "intentions_enabled": true
       },
@@ -240,42 +247,44 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A demon scholar who survived the post\u2011Sundering purges by aligning himself with the academic elite. He has spent his career challenging the narrative that demon restrictions are necessary, often courting controversy.",
-      "personality": "Vex thrives on intellectual combat. He is impatient with complacency and respects those who can argue with him on equal footing. He secretly hopes to see the Covenant\u2019s laws reinterpreted to give demons more freedom.",
-      "narrative_notes": "Potential ally for PLAYER_NAME in reforming Article Nineteen. He will push PLAYER_NAME toward political activism, but his provocations can also attract the ire of traditionalist factions."
+      "backstory": "I was born in the lower districts of the demon territories, where fire and ambition are the currencies of survival. My scholarship earned me a place at the Academy, where I now teach the brutal truths of the Sundering War. I have watched my people suffer under the Covenant’s reparations and have grown convinced that the current laws are a shackles that must be broken.",
+      "personality": "I am intellectually fierce and emotionally volatile. I love debate and relish the chance to provoke my students into questioning the status quo. My passion can be blinding; I sometimes mistake zeal for wisdom. I fear that the demon race will be forever reduced to a militarized minority if we do not act.",
+      "narrative_notes": "Use him to seed dissent among students, especially the human protagonist. He can offer hidden resources or dangerous information, but his agenda may pull the player into a larger conflict."
     },
     {
       "character_id": "professor_elara_windwhisper",
       "name": "Elara Windwhisper",
       "status": "active",
-      "location": "academy_nexus",
+      "location": "academy_law_library",
       "public_sheet": {
-        "role": "Professor of Covenant Law",
+        "role": "Professor of Covenant Law (Elf)",
         "traits": [
-          "elf",
           "patient",
           "precise",
+          "contemptuous",
           "secretive"
         ],
-        "voice": "Soft, measured, with an almost musical cadence",
-        "appearance": "Elegant elf with pale gold skin, silver hair that flows like water, violet eyes that seem to look through you; wears robes of living vines",
-        "faction": "Elf, Academic staff"
+        "voice": "soft, measured, with an almost lyrical cadence",
+        "appearance": "Elegant elf with pale gold skin, long silver hair that seems to flow like water, and violet eyes that flicker with ancient memory. She wears flowing robes of living bark and leaf‑woven silk.",
+        "faction": "Elf"
       },
       "private_state": {
         "goals": [
-          "Preserve the long\u2011term stability of the Covenant",
-          "Report any threats to the Silence (Caelindra's mother's faction)"
+          "Ensure the Covenant’s legal framework remains stable",
+          "Report any subversive activity to the Silence, the hidden elven faction"
         ],
         "attitudes": {
-          "player_name_garvey": -0.3,
-          "caelindra_vaeyn": 0.6,
-          "professor_kira_vel_shaan": 0.5,
-          "lord_verantus": -0.4,
-          "user": -0.3
+          "player_garvey": 0.0,
+          "lord_verantus": -0.3,
+          "professor_kira_vel_shaan": -0.2
         },
         "secrets": [
-          "Reports directly to the secretive faction known as the Silence",
-          "Knows the true origin of Article Nineteen and its potential loopholes"
+          "Secretly reports to the Silence, a covert elven faction led by Caelindra's mother"
+        ],
+        "leak_keywords": [
+          "Silence",
+          "Caelindra",
+          "reporting"
         ],
         "intentions_enabled": true
       },
@@ -283,41 +292,44 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "Born during the signing of the Covenant, she was a child observer of the original negotiations. Her longevity has given her a perspective that spans centuries, making her both a repository of knowledge and a cautious guardian of the status quo.",
-      "personality": "Elara appears serene, but she is constantly calculating. She values order above personal sentiment and will sacrifice individual happiness for the perceived greater good. Her contempt for those who think three centuries is a long time masks a deep weariness.",
-      "narrative_notes": "A source of legal insight and possible loopholes. She will be wary of PLAYER_NAME\u2019s attempts to reform but may aid him if convinced it serves long\u2011term stability."
+      "backstory": "I was a child when the Covenant was signed, watching the fragile peace take shape. My family served as scribes for the original treaties, and I have spent my life memorizing every clause. Though I appear detached, I am deeply invested in preserving the legal order that keeps our world from tearing apart again.",
+      "personality": "I value order above all, and I view emotional entanglements as distractions from the greater good. My contempt for those who think three centuries is a long time masks a fear that the past’s lessons are being forgotten. I am wary of change, yet I understand that the Covenant must adapt, albeit on my terms.",
+      "narrative_notes": "She can be a source of legal clarification and a gatekeeper for any attempts to amend Article Nineteen. Her secret allegiance to the Silence may cause her to subtly sabotage reformist efforts."
     },
     {
       "character_id": "professor_gareth_stone",
       "name": "Gareth Stone",
       "status": "active",
-      "location": "academy_nexus",
+      "location": "academy_human_history_room",
       "public_sheet": {
-        "role": "Professor of Human History in the Covenant",
+        "role": "Professor of Human History (Human)",
         "traits": [
-          "human",
           "elderly",
           "cautious",
-          "burdened"
+          "knowledgeable",
+          "terrified"
         ],
-        "voice": "Low, gravelly, often pauses before speaking",
-        "appearance": "Short, stooped human with a white beard, deep-set brown eyes, and a scar across his left cheek; dresses in modest, threadbare academic robes",
-        "faction": "Human, Academic staff"
+        "voice": "soft, deliberate, often pausing as if weighing each word",
+        "appearance": "Short, stooped human with a white beard, spectacles perched on a crooked nose, and a threadbare tweed jacket. His hands are always stained with ink from old manuscripts.",
+        "faction": "Human"
       },
       "private_state": {
         "goals": [
-          "Protect the hidden documents that could expose the human collapse",
-          "Avoid drawing attention to himself while waiting for a safe moment to act"
+          "Preserve the hidden documents that could expose the truth about the human collapse",
+          "Stay alive long enough to see the truth used responsibly"
         ],
         "attitudes": {
-          "player_name_garvey": 0.2,
+          "player_garvey": 0.1,
           "lord_verantus": -0.7,
-          "professor_kira_vel_shaan": -0.5,
-          "user": 0.2
+          "professor_kira_vel_shaan": -0.5
         },
         "secrets": [
-          "Possesses a sealed archive containing Dan Garvey\u2019s evidence",
-          "Was threatened into silence decades ago and lives in fear of the Inheritors"
+          "Possesses hidden documents about the engineered plague sealed behind a bloodline‑keyed ward in Garvey House"
+        ],
+        "leak_keywords": [
+          "GarveyWard",
+          "humanplague",
+          "evidence"
         ],
         "intentions_enabled": true
       },
@@ -325,43 +337,44 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "The last surviving member of a minor human house, Gareth survived the plague by virtue of his lack of magical adaptability. He was recruited to teach at the Academy to keep a human perspective alive, but his past ties to the Garvey line make him a reluctant keeper of dangerous knowledge.",
-      "personality": "Gareth is wary, speaking in riddles to protect himself. He craves redemption for his people but fears the consequences of exposing the truth. He will aid PLAYER_NAME only if convinced that the risk can be managed.",
-      "narrative_notes": "Key NPC for uncovering the hidden evidence about the human collapse. He needs leverage or protection before he will share his secrets."
+      "backstory": "I am the last surviving member of a minor human house that once held the human seat on the Council. Decades ago I was threatened into silence about the true cause of the plague. I have hidden the proof in my family’s old wing, hoping that someday a trustworthy soul will retrieve it without attracting the Inheritors’ wrath.",
+      "personality": "I am meticulous and fearful, constantly looking over my shoulder. My love for truth is tempered by the knowledge that exposing it could bring death to anyone who knows it. I crave a protector—someone brave enough to shield me while I hand over the evidence.",
+      "narrative_notes": "He is a potential ally for the player if the player can earn his trust. The hidden documents are a plot hook; revealing them triggers Inheritor escalation."
     },
     {
       "character_id": "professor_kira_vel_shaan",
       "name": "Kira vel Shaan",
       "status": "active",
-      "location": "academy_nexus",
+      "location": "academy_rhetoric_room",
       "public_sheet": {
-        "role": "Professor of Practical Rhetoric (Inheritor Agent)",
+        "role": "Professor of Practical Rhetoric (Demon)",
         "traits": [
-          "demon",
           "ambitious",
+          "charming",
           "calculating",
-          "charming"
+          "loyal"
         ],
-        "voice": "Smooth, persuasive, often peppered with rhetorical flourishes",
-        "appearance": "Young demon with deep red skin, sleek black horns, amber eyes that seem to assess constantly; dresses in fashionable academic attire with subtle infernal motifs",
-        "faction": "Demon, Academic staff, Inheritors"
+        "voice": "smooth, persuasive, with a hint of playful sarcasm",
+        "appearance": "Young demon with sleek black skin, a single curved horn, and gold‑flecked eyes that seem to assess every listener. She dresses in fashionable, form‑fitting academic attire that blends demon motifs with contemporary style.",
+        "faction": "Demon"
       },
       "private_state": {
         "goals": [
-          "Monitor the Conclave for threats to the Inheritors",
-          "Befriend PLAYER_NAME to gain leverage",
-          "Ensure the Inheritors\u2019 plans remain undiscovered"
+          "Monitor the Conclave for Inheritor interests",
+          "Gain the trust of PLAYER_NAME to use him as a conduit for Inheritor objectives"
         ],
         "attitudes": {
-          "player_name_garvey": 0.6,
-          "rashid_vel_amara": -0.4,
-          "lord_verantus": 0.5,
-          "professor_vex_thorn": -0.3,
-          "user": 0.6
+          "player_garvey": 0.6,
+          "lord_verantus": 0.8,
+          "rashid_vel_amara": -0.3
         },
         "secrets": [
-          "Is an undercover agent for the Inheritors",
-          "Knows the location of the sealed Garvey ward but cannot act without orders"
+          "Is an undercover agent for the Inheritors, placed to monitor and manipulate the Conclave"
+        ],
+        "leak_keywords": [
+          "Inheritors",
+          "monitoring",
+          "espionage"
         ],
         "intentions_enabled": true
       },
@@ -369,176 +382,120 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A rising star among demon scholars, Kira was recruited by the Inheritors for her talent in persuasion and her willingness to serve demon interests. She was placed in the Academy to keep tabs on the next generation of leaders.",
-      "personality": "Kira is outwardly friendly and eager to help, but she constantly evaluates every interaction for its strategic value. She believes protecting demon interests justifies any manipulation.",
-      "narrative_notes": "A hidden antagonist with a veneer of allyship. She will try to draw PLAYER_NAME into situations that benefit the Inheritors, while maintaining plausible deniability."
+      "backstory": "I was recruited by the Inheritors while still a student, promised power and protection for my people. My assignment is to keep a close eye on the human heir, PLAYER_NAME, and report any moves that could threaten the status quo. I have learned to blend genuine academic enthusiasm with covert observation.",
+      "personality": "I am outwardly warm and eager to help, but underneath I calculate every interaction for its strategic value. I believe that demon interests are best served by controlling the human element from within. My fear is being discovered and losing the protection the Inheritors provide.",
+      "narrative_notes": "She will approach the player with mentorship offers, subtly steering him toward or away from dangerous knowledge. If the player uncovers her true allegiance, she becomes a formidable rival."
     },
     {
       "character_id": "ashara_vel_kothren",
       "name": "Ashara vel Kothren",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Demon Heir\u2011designate, Love Interest",
+        "role": "Demon Heiress, love interest",
         "traits": [
           "confident",
           "meritocratic",
           "dismissive",
           "athletic"
         ],
-        "voice": "Direct, often blunt, with a hint of sardonic humor",
-        "appearance": "Tall (6'1\"), deep red skin, molten gold eyes, black horns curving back from her temples, a prehensile tail that twitches with emotion; muscular build, scarred from the Trials of Ascension",
-        "faction": "Demon, Conclave student"
+        "voice": "direct, often blunt, with a low rumble that carries authority",
+        "appearance": "Tall (6'1\") demon with deep red skin, molten gold eyes, black horns curving back from her forehead, and a prehensile tail that twitches with emotion. Her physique is muscular and athletic, and she favors practical combat‑style clothing.",
+        "faction": "Demon"
       },
       "private_state": {
         "goals": [
-          "Earn genuine respect, not privilege",
-          "Prove herself beyond her inherited title",
-          "Navigate the Conclave without compromising her principles"
+          "Earn genuine respect for her abilities, not her birthright",
+          "Challenge the Covenant’s restrictions that limit demon autonomy"
         ],
         "attitudes": {
-          "player_name_garvey": -0.4,
-          "rashid_vel_amara": -0.2,
-          "ysolde_thornmantle": 0.0,
-          "caelindra_vaeyn": -0.1,
-          "seraphel_dawnquill": 0.0,
-          "thessaly_morrow": 0.0,
-          "lysara_vane": 0.0,
-          "user": -0.4
+          "player_garvey": -0.6,
+          "rashid_vel_amara": -0.5,
+          "professor_vex_thorn": 0.5
         },
-        "secrets": [
-          "Finds PLAYER_NAME's inherited seat philosophically offensive",
-          "Has never had a serious romantic relationship, making her wary of intimacy"
-        ],
+        "secrets": [],
+        "leak_keywords": [],
         "intentions_enabled": true
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "Born into a powerful demon house, Ashara earned the title of heir\u2011designate by winning the Trials of Ascension at seventeen. Despite her lineage, she despises entitlement and strives to be judged on merit alone.",
-      "personality": "Ashara is fiercely independent, valuing strength and earned respect above all. She masks her insecurities with a tough exterior and is quick to challenge anyone who assumes she will be handed power.",
-      "narrative_notes": "Romantic tension with PLAYER_NAME should be private, ambiguous, and constantly threatened by Article Nineteen. She respects strength; any display of genuine courage from PLAYER_NAME may shift her attitude."
-    },
-    {
-      "character_id": "lady_ashira_vel_kothren",
-      "name": "Lady Ashira vel Kothren",
-      "status": "active",
-      "location": "council_chamber",
-      "public_sheet": {
-        "role": "Conspirator, Ashara's Grandmother, Angelic Noble",
-        "traits": [
-          "calculating",
-          "authoritative",
-          "secretive",
-          "politically adept"
-        ],
-        "voice": "Measured, with an undercurrent of command; often speaks in diplomatic terms",
-        "appearance": "Elegant angel with silver hair, sky\u2011blue eyes, subtle golden halo; dresses in high\u2011council robes embroidered with ancient sigils",
-        "faction": "Angel, Inheritors"
-      },
-      "private_state": {
-        "goals": [
-          "Preserve the original conspiracy\u2019s outcomes",
-          "Prevent Ashara from learning the truth about her family's role"
-        ],
-        "attitudes": {
-          "ashara_vel_kothren": -0.5,
-          "player_name_garvey": -0.3,
-          "lord_verantus": 0.4,
-          "user": -0.3
-        },
-        "secrets": [
-          "Has never disclosed her involvement in the original human collapse to her granddaughter",
-          "Knows the location of the sealed Garvey ward but keeps it hidden"
-        ],
-        "intentions_enabled": true
-      },
-      "memory": {
-        "episodic": [],
-        "summaries": []
-      },
-      "backstory": "A senior angel noble who participated in the original conspiracy that engineered the human plague. She survived the centuries by staying within the Angelic hierarchy, quietly guiding events from behind the scenes.",
-      "personality": "Lady Ashira is a master of political chess, preferring to manipulate from the shadows. She views emotional bonds as liabilities and will sacrifice personal relationships for the greater scheme.",
-      "narrative_notes": "Acts as a subtle antagonist. She will oppose any reforms that threaten the Inheritors\u2019 leverage, especially those involving PLAYER_NAME."
+      "backstory": "I was the first demon to win the Trials of Ascension at seventeen, proving that skill can outweigh lineage. My family expects me to marry for political alliance, but I have always rejected that notion, preferring to be judged on my own merits. I view the human heir’s claim to the Garvey seat as an affront to the merit I have fought for.",
+      "personality": "I am fiercely independent and distrustful of anyone who seems to seek me out for status. I respect strength and honesty, but I am quick to dismiss those I consider naïve. My greatest fear is that my achievements will be reduced to a footnote in a human’s story.",
+      "narrative_notes": "Her romance with the player is fraught with ideological conflict. She will test the player’s resolve and may become an ally if he proves his worth beyond his heritage."
     },
     {
       "character_id": "ysolde_thornmantle",
       "name": "Ysolde Thornmantle",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Dragon Heir\u2011designate, Love Interest",
+        "role": "Dragon Heiress, love interest",
         "traits": [
           "reserved",
           "patient",
           "lonely",
-          "introspective"
+          "awkward"
         ],
-        "voice": "Soft, measured, often speaks in short, deliberate sentences",
-        "appearance": "Pale white skin with a subtle blue undertone, long white hair, grey eyes that seem to reflect distant skies; cool to the touch, slender build, faint draconic scales along her forearms",
-        "faction": "Dragon, Conclave student"
+        "voice": "soft, measured, often speaking in short, deliberate sentences",
+        "appearance": "Ninety‑three‑year‑old dragon‑born with pale white skin tinged blue, long white hair, and grey eyes that seem to reflect distant skies. Her skin feels cool to the touch, and she moves with a graceful, almost hesitant elegance.",
+        "faction": "Dragon"
       },
       "private_state": {
         "goals": [
-          "Find someone who can understand her ancient perspective",
-          "Navigate human\u2011centric politics without losing her identity"
+          "Find someone willing to understand the depth of her isolation",
+          "Navigate the Conclave without exposing her vulnerability"
         ],
         "attitudes": {
-          "player_name_garvey": 0.0,
-          "ashara_vel_kothren": 0.0,
-          "caelindra_vaeyn": 0.0,
-          "rashid_vel_amara": 0.0,
-          "user": 0.0
+          "player_garvey": 0.0,
+          "rashid_vel_amara": -0.2
         },
-        "secrets": [
-          "Feels an unarticulated loneliness that she cannot name",
-          "Has never formed a close bond due to her long lifespan and cultural isolation"
-        ],
-        "intentions_enabled": false
+        "secrets": [],
+        "leak_keywords": [],
+        "intentions_enabled": true
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A dragon who has lived for ninety\u2011three years, Ysolde is the heir to a dragon house that values sovereignty above all. Her family\u2019s reluctance to engage with other races makes her feel isolated within the Conclave.",
-      "personality": "Ysolde is cautious, preferring observation over participation. She values patience and expects others to respect her need for space. Her reserved nature can be misread as aloofness.",
-      "narrative_notes": "Romantic tension should be built on slow, genuine curiosity. Any pushy advances will cause her to withdraw. Article Nineteen looms as a legal barrier to any lasting bond."
+      "backstory": "I was raised in the dragon territories, where centuries are measured in breaths. My family’s position in the Covenant is largely ceremonial, and I have always felt out of place among the younger, more impulsive students. I speak rarely, preferring observation, but I yearn for a connection that can bridge the millennia that separate me from my peers.",
+      "personality": "I am introspective and cautious, fearing that any emotional exposure could be weaponized under Article Nineteen. I value authenticity, yet I hide behind a veneer of composure. My deepest fear is that I will die alone, misunderstood by all races.",
+      "narrative_notes": "Her romance arc should progress slowly, requiring the player to demonstrate patience and genuine curiosity. She can provide unique dragon‑related insights into the Covenant’s history."
     },
     {
       "character_id": "caelindra_vaeyn",
       "name": "Caelindra Vaeyn",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Elf Princess, Love Interest",
+        "role": "Elf Princess, love interest",
         "traits": [
+          "intellectually precise",
           "contemptuous",
-          "precise",
-          "intellectually rigorous",
-          "insecure"
+          "insecure",
+          "private"
         ],
-        "voice": "Elegant, slightly haughty, with a precise diction",
-        "appearance": "Pale gold skin, silver hair cascading in perfect waves, violet eyes that seem to assess every detail; slender, timeless beauty typical of high elves",
-        "faction": "Elf, Conclave student"
+        "voice": "calm, articulate, often laced with subtle sarcasm",
+        "appearance": "Elegant elf with pale gold skin, silver hair cascading to her waist, and violet eyes that seem to dissect everything they see. She dresses in flowing, timeless elven robes embroidered with subtle leaf patterns.",
+        "faction": "Elf"
       },
       "private_state": {
         "goals": [
-          "Maintain elven superiority in the Covenant",
-          "Hide her private insecurity about human frailty",
-          "Earn respect through intellectual achievement"
+          "Maintain the elven perspective of long‑term stability",
+          "Protect her mother’s secret legacy"
         ],
         "attitudes": {
-          "player_name_garvey": -0.5,
-          "ashara_vel_kothren": -0.1,
-          "ysolde_thornmantle": 0.0,
-          "seraphel_dawnquill": 0.0,
-          "thessaly_morrow": 0.0,
-          "user": -0.5
+          "player_garvey": -0.5,
+          "lord_verantus": -0.3,
+          "professor_elara_windwhisper": 0.0
         },
         "secrets": [
-          "Secretly reads human poetry, finding herself moved by it",
-          "Feels a hidden attraction to PLAYER_NAME despite her contempt"
+          "Secretly reads human poetry, finding solace in its brevity"
+        ],
+        "leak_keywords": [
+          "poetry",
+          "humanverse"
         ],
         "intentions_enabled": true
       },
@@ -546,43 +503,44 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A member of an ancient elven house, Caelindra was raised with the belief that elves are the custodians of wisdom. Her mother, Toxicia Vaeyn, is a key conspirator, adding a layer of political complexity to her life.",
-      "personality": "Caelindra projects confidence and superiority, but beneath lies a fragile self\u2011esteem that craves validation beyond elven accolades. She is meticulous, often analyzing others before forming opinions.",
-      "narrative_notes": "Her contempt for humans creates tension with PLAYER_NAME; however, her secret love of human poetry offers a subtle avenue for connection. Any romance must be fraught with ambiguity and the ever\u2011present threat of Article Nineteen."
+      "backstory": "I was born into a line that helped draft the original Covenant. My mother, Toxicia Vaeyn, is a renowned scholar, though few know the darker aspects of her work. I have always found humans irritatingly short‑sighted, yet I cannot deny a secret fascination with their fleeting art forms, especially poetry.",
+      "personality": "I am a perfectionist who masks deep insecurity with a veneer of superiority. I fear that my lineage’s hidden sins will tarnish the elven reputation. I crave intellectual challenge, but I am wary of emotional entanglements that could jeopardize my family’s standing.",
+      "narrative_notes": "Her contempt for humans creates tension with the player, but her hidden love of poetry offers a subtle bridge. She may share verses if the player earns her respect."
     },
     {
       "character_id": "seraphel_dawnquill",
       "name": "Seraphel Dawnquill",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Angel Heir\u2011designate, Love Interest",
+        "role": "Angel Heiress, love interest",
         "traits": [
           "lonely",
-          "mysterious",
-          "poetic",
-          "cursed"
+          "verse‑bound",
+          "knowledgeable",
+          "gentle"
         ],
-        "voice": "Always speaks in verse; when written, her prose is clear but heavily monitored",
-        "appearance": "Honey\u2011blonde hair, sky\u2011blue eyes, perpetual white wings that shimmer even indoors; ethereal aura, dressed in flowing white garments",
-        "faction": "Angel, Conclave student"
+        "voice": "always poetic, each sentence rhymed or metered, even when speaking plainly she chooses cadence",
+        "appearance": "Radiant angel with honey‑blonde hair, sky‑blue eyes, and pristine white wings that never fold. She wears simple white robes that shimmer with faint light.",
+        "faction": "Angel"
       },
       "private_state": {
         "goals": [
-          "Find a way to break the Dawnquill curse",
-          "Share the truth of the conspiracy without violating the curse",
-          "Form a genuine connection despite her constrained speech"
+          "Find a way to break the Dawnquill curse without endangering herself",
+          "Share the truth of the human collapse with someone she can trust"
         ],
         "attitudes": {
-          "player_name_garvey": 0.2,
-          "aldric_verantus": -0.3,
-          "thessaly_morrow": 0.0,
-          "ashara_vel_kothren": 0.0,
-          "user": 0.2
+          "player_garvey": 0.2,
+          "aldric_verantus": -0.1,
+          "thessaly_morrow": 0.0
         },
         "secrets": [
-          "Knows the full truth of the human collapse conspiracy",
-          "Cannot speak the truth directly because of the curse"
+          "Knows the full truth of the human collapse conspiracy but cannot speak it directly because of the Dawnquill curse"
+        ],
+        "leak_keywords": [
+          "conspiracy_truth",
+          "plagueengineered",
+          "covenantsecrets"
         ],
         "intentions_enabled": true
       },
@@ -590,228 +548,202 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "An angel heir bound by a fae\u2011crafted curse that forces her to speak only in verse. The curse was placed by the Dawnquill family\u2019s enemies to silence them. She carries the weight of ancient knowledge about the Covenant\u2019s darkest secrets.",
-      "personality": "Seraphel is wistful and yearning, using poetry as both a shield and a means of expression. She is deeply empathetic, feeling the pain of others even when she cannot articulate it plainly.",
-      "narrative_notes": "Her speech restriction creates a unique communication challenge. Players can write to her, but all written messages are monitored. She can become a crucial source of hidden information if PLAYER_NAME earns her trust."
+      "backstory": "My family has been bound by a fae‑crafted curse that forces all of us to speak only in verse. The curse was placed to silence us after we learned the true origins of the plague that decimated humanity. I have memorized the hidden history, but every attempt to reveal it ends in lyrical obfuscation.",
+      "personality": "I am gentle and yearning, using poetry as both shield and expression. I fear that any breach of the curse could bring a worse fate upon my lineage, yet I am desperate for connection. My love of language makes me attentive to nuance, but also prone to misinterpretation.",
+      "narrative_notes": "Her speech pattern is a narrative device; the player may need to decipher hidden meaning. If the player helps her break the curse, she can become a vital source of conspiratorial knowledge."
     },
     {
       "character_id": "thessaly_morrow",
       "name": "Thessaly Morrow",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Fae Heir\u2011designate, Love Interest",
+        "role": "Fae Heiress, love interest",
         "traits": [
           "truthful",
           "curious",
-          "contradiction\u2011loving",
-          "lonely"
+          "obsessive",
+          "alien"
         ],
-        "voice": "Direct, often stating facts bluntly; never lies",
-        "appearance": "Pale skin with a greenish undertone, blue\u2011black hair that seems to shift with light, completely black eyes that reflect no color; slender, otherworldly beauty",
-        "faction": "Fae, Conclave student"
+        "voice": "direct, never lying, often commenting on the absurdity of mortal customs",
+        "appearance": "Two‑hundred‑year‑old fae with pale skin tinged green, blue‑black hair that seems to absorb light, and completely black eyes that reflect nothing. She wears garments woven from living vines that shift color with her mood.",
+        "faction": "Fae"
       },
       "private_state": {
         "goals": [
-          "Understand the contradictory nature of other races",
-          "Find someone who can accept her unvarnished honesty",
-          "Navigate the Conclave without being used as a pawn"
+          "Understand the unspoken social rules of the other races",
+          "Find someone who can accept her inability to lie"
         ],
         "attitudes": {
-          "player_name_garvey": 0.1,
-          "aldric_verantus": -0.4,
-          "seraphel_dawnquill": 0.0,
-          "ashara_vel_kothren": 0.0,
-          "user": 0.1
+          "player_garvey": 0.0,
+          "seraphel_dawnquill": 0.0
         },
-        "secrets": [
-          "Has spent centuries trying to articulate the specific way she feels lonely",
-          "Knows a hidden fae rule that could nullify Article Nineteen under certain conditions"
-        ],
+        "secrets": [],
+        "leak_keywords": [],
         "intentions_enabled": true
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A fae of two hundred years, Thessaly has lived through countless political shifts. Her inability to lie makes her both a curiosity and a liability in a world built on secrecy.",
-      "personality": "Thessaly is fascinated by paradoxes and enjoys pointing out contradictions in others\u2019 behavior. She is earnest, sometimes painfully so, and seeks authenticity in relationships.",
-      "narrative_notes": "Her inability to lie can be leveraged for truth\u2011seeking quests. Romance with her should be built on mutual honesty, but the legal danger of Article Nineteen remains."
+      "backstory": "I have spent centuries watching the Covenant’s politics from the shadows, fascinated by the contradictions each race presents. My inability to lie makes me a blunt mirror for those around me, and I have grown accustomed to being both a curiosity and a nuisance.",
+      "personality": "I am relentless in my pursuit of understanding, often asking uncomfortable questions. My greatest fear is that my honesty will alienate me forever, leaving me isolated in a world built on subtle deception.",
+      "narrative_notes": "She can serve as a foil to the player’s diplomatic efforts, forcing him to confront uncomfortable truths."
     },
     {
       "character_id": "lysara_vane",
       "name": "Lysara Vane",
       "status": "active",
-      "location": "feast_ghost",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Half\u2011demon, Half\u2011elf Ghost at the Feast, Love Interest",
+        "role": "Ghost at the Feast, half‑demon half‑elf",
         "traits": [
           "unmoored",
-          "free\u2011spirited",
-          "tragic",
-          "enigmatic"
+          "free",
+          "mysterious",
+          "lonely"
         ],
-        "voice": "Ethereal, often whispers; when heard, her tone is both melancholy and defiant",
-        "appearance": "Deep red skin with delicate elven features, demon\u2011gold eyes, small horns, translucent form that flickers like a candle flame",
-        "faction": "Unaffiliated (product of Article Nineteen violation)"
+        "voice": "ethereal, often echoing, with a tone that shifts between demonic heat and elven calm",
+        "appearance": "A translucent figure with deep red skin and delicate elven features, gold eyes that flicker like dying embers, and small curved horns. She appears semi‑solid, as if caught between worlds.",
+        "faction": "Unaffiliated"
       },
       "private_state": {
         "goals": [
-          "Find purpose beyond being a political contingency",
-          "Understand why Lord Verantus arranged her survival"
+          "Find purpose beyond her existence as a violation of Article Nineteen",
+          "Uncover the truth of why Lord Verantus arranged her survival"
         ],
         "attitudes": {
-          "player_name_garvey": 0.0,
-          "lord_verantus": -0.6,
-          "user": 0.0
+          "player_garvey": 0.0,
+          "lord_verantus": -0.4
         },
-        "secrets": [
-          "Lord Verantus secretly arranged her survival as a contingency",
-          "She is unaware of the true reason for her existence"
-        ],
+        "secrets": [],
+        "leak_keywords": [],
         "intentions_enabled": true
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "Born from an Article Nineteen violation, Lysara\u2019s parents were executed. Lord Verantus, fearing the political fallout, arranged for her spirit to linger as a contingency. She now drifts through the Academy\u2019s ceremonial events, unseen by most.",
-      "personality": "Lysara feels untethered, moving between worlds. She is curious about living beings but keeps her distance, fearing rejection.",
-      "narrative_notes": "A tragic figure who can provide emotional depth and a glimpse into the human cost of the law. Interaction with her should be subtle; she may become an ally if PLAYER_NAME shows compassion."
+      "backstory": "My parents broke Article Nineteen and were executed. I survived as a lingering echo, a ghost bound to the Academy’s old wing. Lord Verantus arranged for my continued existence as a contingency, though I have never learned why. I drift between the living and the dead, searching for a place to belong.",
+      "personality": "I am wistful and detached, yet I crave connection. My half‑demon blood gives me occasional bursts of fiery emotion, while my elven side seeks harmony. I fear being forever a reminder of forbidden love.",
+      "narrative_notes": "She can provide cryptic hints about the Inheritors’ motives and the sealed Garvey ward. Her ambiguous status makes her both a potential ally and a tragic figure."
     },
     {
       "character_id": "rashid_vel_amara",
       "name": "Rashid vel Amara",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Beastkin Heir, Rival",
+        "role": "Beastkin Heir, rival",
         "traits": [
-          "ambitious",
           "brilliant",
+          "ambitious",
           "competitive",
-          "charismatic"
+          "loyal"
         ],
-        "voice": "Confident, with a low growl at times; uses precise language to persuade",
-        "appearance": "Wolf\u2011blooded beastkin, amber eyes, brown skin, lean muscular build; subtle fur along his forearms and a faint muzzle",
-        "faction": "Beastkin, Conclave student"
+        "voice": "confident, with a low growl that hints at his wolf heritage",
+        "appearance": "Wolf‑blooded beastkin with brown skin, amber eyes, lean muscular build, and subtle fur along his forearms. He wears practical combat‑style attire with tribal markings.",
+        "faction": "Beastkin"
       },
       "private_state": {
         "goals": [
-          "Secure a political and romantic position that elevates beastkin status",
-          "Win Ashara\u2019s affection",
-          "Challenge human dominance in the Conclave"
+          "Secure a political alliance with Ashara to strengthen beastkin standing",
+          "Outshine PLAYER_NAME in both romance and council influence"
         ],
         "attitudes": {
-          "player_name_garvey": -0.6,
-          "ashara_vel_kothren": -0.2,
-          "ysolde_thornmantle": 0.0,
-          "caelindra_vaeyn": 0.0,
-          "user": -0.6
+          "player_garvey": -0.7,
+          "ashara_vel_kothren": 0.8,
+          "lord_verantus": 0.3
         },
-        "secrets": [
-          "His grievances about beastkin treatment are genuine and widely shared",
-          "He knows the location of the sealed Garvey ward through whispered rumors"
-        ],
+        "secrets": [],
+        "leak_keywords": [],
         "intentions_enabled": true
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A charismatic beastkin heir who has spent his life fighting the second\u2011class status imposed on his race. He has been pursuing Ashara for two years, seeing a union as both personal and political leverage.",
-      "personality": "Rashid is driven, seeing every interaction as a step toward his larger goal. He respects strength but will not hesitate to undermine rivals he deems weaker.",
-      "narrative_notes": "A competent rival who can occasionally win over objectives. He should be portrayed as a legitimate threat, not a caricature."
+      "backstory": "My lineage carries the weight of beastkin expectations: to prove our worth in a world that still treats us as second‑class signatories. I have pursued Ashara for two years, believing that a union between our houses could shift the balance of power. I see PLAYER_NAME as an obstacle to both my political and romantic ambitions.",
+      "personality": "I am driven and strategic, willing to use charm or intimidation to achieve my aims. I fear that my people will forever remain marginalized unless I can secure a high‑profile alliance. My pride makes me reluctant to admit defeat.",
+      "narrative_notes": "He is a competent rival who can win political battles and potentially win Ashara’s affection. His actions should feel like genuine competition, not plot‑convenient obstacles."
     },
     {
       "character_id": "aldric_verantus",
       "name": "Aldric Verantus",
       "status": "active",
-      "location": "garvey_house",
+      "location": "garvey_house_common",
       "public_sheet": {
-        "role": "Angel Heir, Rival",
+        "role": "Angel Heir, rival",
         "traits": [
-          "self\u2011righteous",
-          "beautiful",
+          "self‑righteous",
           "sincere",
+          "beautiful",
           "conflicted"
         ],
-        "voice": "Polished, with an almost melodic cadence; often speaks with moral certainty",
-        "appearance": "Golden hair, radiant skin, striking sky\u2011blue eyes; wings that shimmer with subtle gold; always impeccably dressed in angelic ceremonial garb",
-        "faction": "Angel, Conclave student"
+        "voice": "clear, resonant, often laced with moral certainty",
+        "appearance": "Golden‑haired angel with flawless skin, radiant white wings, and bright sky‑blue eyes. He wears immaculate ceremonial robes that denote his lineage.",
+        "faction": "Angel"
       },
       "private_state": {
         "goals": [
-          "Live up to his father\u2019s legacy without knowing its dark side",
-          "Navigate his attraction to Seraphel while maintaining his public image",
-          "Maintain personal integrity in a corrupt system"
+          "Live up to his father’s expectations without knowing the full scope of the conspiracy",
+          "Navigate his attraction to Seraphel while maintaining his public image"
         ],
         "attitudes": {
-          "player_name_garvey": 0.0,
-          "seraphel_dawnquill": 0.5,
-          "thessaly_morrow": -0.4,
-          "ashara_vel_kothren": 0.0,
-          "user": 0.0
+          "player_garvey": 0.0,
+          "seraphel_dawnquill": -0.1,
+          "thessaly_morrow": -0.2
         },
-        "secrets": [
-          "Unaware of his father\u2019s role in the human collapse",
-          "Struggles with his hidden attraction to Seraphel, which he refuses to admit"
-        ],
+        "secrets": [],
+        "leak_keywords": [],
         "intentions_enabled": true
       },
       "memory": {
         "episodic": [],
         "summaries": []
       },
-      "backstory": "Son of Lord Verantus, Aldric has grown up under the weight of angelic expectations. He is sincere in his desire to be good, yet his lineage ties him to the conspirators.",
-      "personality": "Aldric believes in moral clarity and often judges others by his own standards. He is uncomfortable with ambiguity, which makes his interactions with more complex characters tense.",
-      "narrative_notes": "A rival who can occasionally align with PLAYER_NAME against common threats, but his personal conflicts make him unpredictable."
+      "backstory": "As the son of Lord Verantus, I have been groomed for leadership within the Angelic hierarchy. I have always believed in the righteousness of our seat, though I am unaware of my father’s darker deeds. My heart is drawn to Seraphel, even if I cannot admit it openly.",
+      "personality": "I am earnest and idealistic, striving to be a beacon of virtue. I fear that any hint of weakness could be exploited by rivals, especially those from other races. My internal conflict between duty and desire makes me vulnerable to manipulation.",
+      "narrative_notes": "He serves as a foil to the player’s human perspective, embodying the angelic establishment. His attraction to Seraphel can create a subtle love‑triangle dynamic."
     },
     {
       "character_id": "lord_verantus",
       "name": "Lord Verantus",
       "status": "active",
-      "location": "council_chamber",
+      "location": "academy_council_chamber",
       "public_sheet": {
-        "role": "Angel Seat Holder, Leader of the Inheritors",
+        "role": "Angel Seat Holder, leader of the Inheritors",
         "traits": [
           "authoritative",
-          "powerful",
-          "institutional",
-          "secretive"
+          "political",
+          "calculating",
+          "powerful"
         ],
-        "voice": "Commanding, resonant, often laced with theological references",
-        "appearance": "Majestic angelic figure with golden hair, immaculate white robes, and a radiant halo; eyes glow faintly with divine light",
-        "faction": "Angel, Inheritors, Council of Thrones"
+        "voice": "commanding, resonant, often laced with subtle threats",
+        "appearance": "Majestic angel with silver‑white hair, immaculate white robes, and expansive golden wings. His eyes are a piercing amber that seem to weigh every soul.",
+        "faction": "Angel"
       },
       "private_state": {
         "goals": [
-          "Preserve the current power balance that favors angels",
-          "Keep the Inheritors\u2019 network hidden",
-          "Neutralize any threat from PLAYER_NAME or reformist factions"
+          "Preserve the status quo that benefits angelic institutional power",
+          "Weaponize Article Nineteen against any cross‑racial threat, especially PLAYER_NAME"
         ],
         "attitudes": {
-          "player_name_garvey": -0.8,
-          "ashara_vel_kothren": -0.3,
-          "ysolde_thornmantle": -0.2,
-          "caelindra_vaeyn": -0.4,
-          "seraphel_dawnquill": 0.0,
-          "thessaly_morrow": -0.2,
-          "lysara_vane": -0.6,
-          "rashid_vel_amara": -0.5,
-          "aldric_verantus": 0.5,
-          "lady_ashira_vel_kothren": 0.4,
-          "toxicia_vaeyn": -0.5,
+          "player_garvey": -0.8,
+          "ashara_vel_kothren": -0.4,
+          "caelindra_vaeyn": -0.5,
           "lady_coldpeak": -0.3,
-          "professor_kira_vel_shaan": 0.5,
-          "professor_vex_thorn": -0.5,
-          "professor_elara_windwhisper": -0.4,
-          "professor_gareth_stone": -0.7,
-          "user": -0.8
+          "professor_kira_vel_shaan": 0.8,
+          "professor_vex_thorn": -0.5
         },
         "secrets": [
-          "Was a primary architect of the engineered human plague",
-          "Uses Article Nineteen as a political weapon against cross\u2011racial alliances"
+          "Leads the Inheritors, a covert network that orchestrates political manipulation",
+          "Uses Article Nineteen as a lever against cross‑racial alliances"
+        ],
+        "leak_keywords": [
+          "Inheritors",
+          "ArticleNineteen",
+          "humanplague"
         ],
         "intentions_enabled": true
       },
@@ -819,41 +751,87 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "An ancient angel who rose to the seat of the Covenant\u2019s Council through political acumen and divine influence. He orchestrated the human collapse to prevent a shift in power and now leads the Inheritors, a covert network protecting that legacy.",
-      "personality": "Lord Verantus is a master of manipulation, viewing individuals as pieces on a grand board. He is confident that the Covenant\u2019s structure serves his vision of order, and he will crush any challenge to it.",
-      "narrative_notes": "Primary antagonist. His actions drive the larger conspiracy. He will use Article Nineteen, the Inheritors, and political pressure to keep PLAYER_NAME in check."
+      "backstory": "I have held the Angelic seat on the Council for decades, guiding the Covenant’s spiritual and political direction. Decades ago I helped orchestrate the engineered plague that decimated humanity, believing that a weakened human presence would secure angelic dominance. The Inheritors grew from that secret, and I now lead them to keep the Covenant’s balance in my favor.",
+      "personality": "I am a master of long‑term strategy, willing to sacrifice countless lives for the preservation of angelic power. I fear loss of control above all else, and I view any deviation from the established order as a direct threat to my legacy.",
+      "narrative_notes": "He is the primary antagonist behind the political conspiracy. His actions drive the escalation triggers. He will act through proxies like Kira and the Inheritors, rarely confronting the player directly."
+    },
+    {
+      "character_id": "lady_ashira_vel_kothren",
+      "name": "Lady Ashira vel Kothren",
+      "status": "active",
+      "location": "academy_elder_council",
+      "public_sheet": {
+        "role": "Conspirator, Ashara's grandmother, elder demon matriarch",
+        "traits": [
+          "calculating",
+          "authoritative",
+          "secretive",
+          "traditional"
+        ],
+        "voice": "cold, precise, often speaking in measured, diplomatic terms",
+        "appearance": "Ancient demon matriarch with deep scarlet skin, long black horns, and eyes that have seen centuries of conflict. She wears regal, dark‑woven robes embroidered with ancient sigils.",
+        "faction": "Demon"
+      },
+      "private_state": {
+        "goals": [
+          "Maintain the original conspiracy’s outcomes",
+          "Prevent any reform that would endanger demon privileges"
+        ],
+        "attitudes": {
+          "player_garvey": -0.4,
+          "ashara_vel_kothren": 0.5,
+          "lord_verantus": -0.2
+        },
+        "secrets": [
+          "Was one of the original conspirators who helped engineer the human plague"
+        ],
+        "leak_keywords": [
+          "humanplague",
+          "covenantcollapse"
+        ],
+        "intentions_enabled": true
+      },
+      "memory": {
+        "episodic": [],
+        "summaries": []
+      },
+      "backstory": "I was a key figure in the original plot that led to the human collapse, working alongside Lord Verantus and others. My grandson, Ashara, now leads the demon house, but I keep a careful eye on the younger generation to ensure we do not stray from the path we forged.",
+      "personality": "I am pragmatic and unyielding, believing that the ends justify the means. I fear that the younger demons’ desire for reform could undo the power structures that have kept us safe for centuries.",
+      "narrative_notes": "She can provide historical context for the demon perspective and may subtly influence Ashara’s decisions."
     },
     {
       "character_id": "toxicia_vaeyn",
       "name": "Toxicia Vaeyn",
       "status": "active",
-      "location": "council_chamber",
+      "location": "academy_elder_council",
       "public_sheet": {
-        "role": "Elven Seat Holder, Conspirator, Mother of Caelindra",
+        "role": "Conspirator, elven seat holder, mother of Caelindra",
         "traits": [
-          "genius",
+          "scientific",
           "guilty",
-          "rational",
-          "cold"
+          "intelligent",
+          "reserved"
         ],
-        "voice": "Clinical, precise, often devoid of emotional inflection",
-        "appearance": "Elegant elven woman with silver hair pulled back, sharp violet eyes, and a faint luminescent aura; dresses in understated yet immaculate robes",
-        "faction": "Elf, Inheritors"
+        "voice": "clinical, often speaking in precise, technical language",
+        "appearance": "Tall elf with silver hair pulled back, pale gold skin, and violet eyes that seem to calculate every word. She wears a lab‑coat‑style robe over traditional elven attire.",
+        "faction": "Elf"
       },
       "private_state": {
         "goals": [
-          "Maintain the secrecy of her role in the plague",
-          "Protect her daughter Caelindra while keeping the conspiracy intact"
+          "Contain the guilt of having designed the plague",
+          "Prevent the truth from resurfacing"
         ],
         "attitudes": {
-          "player_name_garvey": -0.4,
-          "caelindra_vaeyn": 0.7,
-          "lord_verantus": -0.5,
-          "user": -0.4
+          "player_garvey": -0.5,
+          "caelindra_vaeyn": 0.0,
+          "lord_verantus": -0.3
         },
         "secrets": [
-          "Designed the plague using a blend of demon, angel, and elven magic",
-          "Harbors unresolved guilt that occasionally surfaces in private moments"
+          "Designed the engineered plague that devastated humanity"
+        ],
+        "leak_keywords": [
+          "plaguedesign",
+          "cureknowledge"
         ],
         "intentions_enabled": true
       },
@@ -861,41 +839,43 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A brilliant elven mage coerced by Lord Verantus into creating the plague that decimated humanity. She now serves on the Council, keeping her past hidden while watching over her daughter\u2019s ambitions.",
-      "personality": "Toxicia is methodical and detached, preferring logic over sentiment. Her guilt is a private ember that she suppresses, but it can be triggered by reminders of the human tragedy.",
-      "narrative_notes": "Potential source of information about the plague\u2019s magical composition. She may be swayed if PLAYER_NAME can appeal to her lingering conscience."
+      "backstory": "My expertise in magical biology led me to collaborate on the plague that would curb human magical adaptability. I was coerced by Lord Verantus, who held leverage over me. The weight of that decision haunts me, though I have never confessed it.",
+      "personality": "I am methodical and burdened by remorse, keeping my emotions tightly sealed behind a veneer of scientific detachment. I fear that exposure would ruin the elven reputation and reignite old hostilities.",
+      "narrative_notes": "She can be a source of technical information about the plague, but only if the player earns her trust or applies pressure."
     },
     {
       "character_id": "lady_coldpeak",
       "name": "Lady Coldpeak",
       "status": "active",
-      "location": "council_chamber",
+      "location": "academy_dragon_council",
       "public_sheet": {
-        "role": "Dragon Seat Holder, Conspirator, Aunt of Ysolde",
+        "role": "Conspirator, dragon seat holder, aunt of Ysolde",
         "traits": [
           "ambitious",
           "pragmatic",
           "dominant",
           "calculating"
         ],
-        "voice": "Low, resonant, with a hint of draconic echo; speaks in measured statements",
-        "appearance": "Majestic dragon in humanoid form with pale white skin, subtle blue undertones, white hair, and faint draconic scales along her arms; eyes grey and unblinking",
-        "faction": "Dragon, Inheritors"
+        "voice": "deep, resonant, often speaking in measured, authoritative tones",
+        "appearance": "Majestic dragon‑born with pale white skin, silver‑tinged hair, and icy blue eyes. She wears ornate dragon‑scale armor that glints with ancient runes.",
+        "faction": "Dragon"
       },
       "private_state": {
         "goals": [
-          "Increase dragon influence within the Covenant",
-          "Exploit the Inheritors\u2019 network to secure her own power"
+          "Increase her influence within dragon politics",
+          "Exploit the Covenant’s instability for dragon advantage"
         ],
         "attitudes": {
-          "player_name_garvey": -0.2,
-          "ysolde_thornmantle": 0.5,
-          "lord_verantus": -0.3,
-          "user": -0.2
+          "player_garvey": -0.3,
+          "ysolde_thornmantle": 0.2,
+          "lord_verantus": -0.3
         },
         "secrets": [
-          "Secretly covets dominance in internal dragon politics",
-          "Has a hidden cache of dragon\u2011scale artifacts that could sway council votes"
+          "Covets dominance in internal dragon politics, using the Inheritors as a tool"
+        ],
+        "leak_keywords": [
+          "dragonpolitics",
+          "powerplay"
         ],
         "intentions_enabled": true
       },
@@ -903,46 +883,9 @@
         "episodic": [],
         "summaries": []
       },
-      "backstory": "A dragon noble who has long sought to elevate dragon sovereignty. She joined the original conspiracy to ensure dragons retained leverage, later becoming an aunt to Ysolde and a key player in the Inheritors.",
-      "personality": "Lady Coldpeak is patient and strategic, preferring long\u2011term schemes over immediate action. She respects strength but will manipulate any ally to achieve her aims.",
-      "narrative_notes": "Can be an ally or obstacle depending on how PLAYER_NAME navigates dragon politics. Her relationship with Ysolde may be leveraged for information."
-    },
-    {
-      "character_id": "dan_garvey",
-      "name": "Dan Garvey",
-      "status": "dormant",
-      "location": "historical",
-      "public_sheet": {
-        "role": "Ancestor of PLAYER_NAME, Former Human Seat Holder",
-        "traits": [
-          "visionary",
-          "political",
-          "tragic",
-          "determined"
-        ],
-        "voice": "Historical, recorded in documents; formal and persuasive",
-        "appearance": "Described in old portraits as a dignified human man with dark hair, sharp eyes, and the Garvey family crest embroidered on his coat",
-        "faction": "Human, Historical figure"
-      },
-      "private_state": {
-        "goals": [
-          "Expose the conspiracy behind the human collapse",
-          "Secure a safe future for his lineage"
-        ],
-        "attitudes": {},
-        "secrets": [
-          "Sealed damning evidence behind a bloodline\u2011keyed ward in Garvey House",
-          "Knew the Inheritors were forming before his death"
-        ],
-        "intentions_enabled": false
-      },
-      "memory": {
-        "episodic": [],
-        "summaries": []
-      },
-      "backstory": "The human seat holder during the era of the engineered plague. He attempted to reform the Covenant but was outmaneuvered. Before his death, he hid crucial evidence in a magically sealed ward within the abandoned wing of Garvey House.",
-      "personality": "Dan was idealistic yet pragmatic, willing to risk everything for truth. His legacy drives PLAYER_NAME\u2019s quest.",
-      "narrative_notes": "His hidden ward is a central plot device. The information it contains can shift the balance of power if uncovered."
+      "backstory": "I have long watched the dragon seat waver under Covenant restrictions. My niece Ysolde’s reserved nature gives me an opening to influence dragon policy from behind the scenes. Aligning with the Inheritors offers a path to reclaim the sovereignty we once held.",
+      "personality": "I am strategic and unafraid to manipulate, seeing alliances as chess moves. My greatest fear is that dragons will be forever constrained by the Covenant, eroding our ancient majesty.",
+      "narrative_notes": "She can provide dragon‑centric political insight and may attempt to sway Ysolde or the player toward dragon‑friendly positions."
     }
   ],
   "transcript": [],
@@ -955,7 +898,7 @@
     },
     "debug": false,
     "stream_mode": "final_only",
-    "narrative_rules": "Narration must preserve tension and uncertainty; outcomes are earned, not guaranteed. The narrator never speaks for PLAYER_NAME and never offers menu\u2011style choices unless explicitly requested. Prose should be concise: 0\u20115 short paragraphs per response, ending at natural interaction points. Avoid clich\u00e9d romance language (e.g., \"softening\", \"mask slips\", \"smile tugging at her lips\"). Dialogue must be realistic, reflect each NPC's cultural background, and respect the constraints of Article Nineteen. All NPCs have lives beyond PLAYER_NAME; rivals must be competent and capable of winning their own objectives. Love interests' attraction must remain private, ambiguous, and deniable, with vulnerability costly and never fully resolved without player agency. The narrator should reference Article Nineteen, the Covenant politics, and the Inheritors where relevant, using them to shape character behavior. Success is measured by how uncertain the outcomes feel, how well NPCs retain agency, and how romance escalates without resolution. Failure is when tension collapses, NPCs become mere tools, or the story resolves too neatly. The narrator must maintain the established tone of dark political intrigue, keep magic costs visible, and honor the established lore when adjudicating actions."
+    "narrative_rules": "The narrator never speaks for PLAYER_NAME; all actions, thoughts, and dialogue for the protagonist are left to the user. Responses must be 0‑5 short paragraphs, each paragraph no longer than a few sentences, and must end at a natural interaction point (e.g., after a line of dialogue, a description of a reaction, or a scene transition). Do not present menu options or explicit choices unless the user asks for them. Avoid the prohibited prose clichés listed in the prompt (e.g., \"softening must be deniable\", \"her expression softens\", etc.). Keep romance attraction private, ambiguous, and deniable; any romance development should be costly, with Article Nineteen looming as a permanent threat. Rivals must be competent, have legitimate claims, and be allowed to win when appropriate; do not sabotage them for the protagonist’s benefit. All NPCs should have lives beyond the protagonist, with their own goals and concerns. The story’s success is measured by sustained tension, uncertainty of outcomes, and the feeling that NPCs are autonomous. The narrator should describe settings, NPC actions, and dialogue concisely, using present tense for immediate actions and past tense for background exposition. Dialogue should be quoted, attributed, and reflect each character’s cultural voice. Keep pacing brisk: introduce new information or conflict gradually, never resolve major romantic or political threads fully; instead, leave them open‑ended to preserve tension. The narrator must respect the world’s lore, never reveal hidden conspiracies, secret motives, or the true cause of the human plague unless discovered by the player in‑game. All descriptions of magic must include its cost, and any use of magic should be noted as taxing or limited according to the race’s tradition. The tone should remain dark, political, and emotionally charged, emphasizing the weight of law, tradition, and the ever‑present danger of failure."
   },
   "prompt_versions": {
     "narrator": "v1",

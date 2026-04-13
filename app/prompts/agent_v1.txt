@@ -37,6 +37,9 @@ Faction: {character_faction}
 ## Scene
 {scene_context}
 
+## Other Characters Present
+{characters_present}
+
 ## Recent Conversation
 {recent_transcript}
 
@@ -57,6 +60,8 @@ Faction: {character_faction}
 7. **Update your attitudes.** If this event changes how you feel about the player or another character, include an attitude_delta. Deltas should be small (-0.1 to +0.1 for minor shifts, up to -0.3/+0.3 for significant events). Don't change attitudes without reason.
 
 8. **Write memories.** Record what you observed in a concise, first-person memory entry. This is what you'll remember later.
+
+9. **Social awareness.** You know who else is in the scene with you. Your response should account for their presence — you might address someone, avoid a topic because the wrong person is listening, or react differently depending on who's watching. Use the "Other Characters Present" section for this awareness.
 
 ## Output Format
 

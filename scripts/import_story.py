@@ -69,8 +69,8 @@ Extract the world state from this prompt. Respond with ONLY valid JSON matching 
     "tone": "string — e.g. dark political intrigue, lighthearted adventure",
     "premise": "string — 1-3 sentence premise of the story"
   }},
-  "lore": "string — comprehensive world lore: history, factions, political systems, laws, magic systems, religions, key events. Include everything a narrator needs to adjudicate actions in this world. This should be thorough — multiple paragraphs.",
-  "facts": ["string — discrete current-state facts about the world that are always true at story start"],
+  "lore": "string — COMMON KNOWLEDGE world lore only: history, factions, political systems, laws, magic systems, religions, key events that are publicly known. Do NOT include hidden conspiracies, secret plots, true causes of mysterious events, or information that characters would need to discover through play. If something is a mystery in the story (e.g. the true cause of a plague), describe it as a mystery — do not reveal the answer here. This should be thorough — multiple paragraphs.",
+  "facts": ["string — discrete current-state facts about the world that are publicly known at story start. Do NOT include secret or hidden facts."],
   "physics_ruleset": {{
     "strength_limits": "string — baseline physical capability",
     "magic_enabled": true/false
@@ -119,7 +119,7 @@ Respond with ONLY valid JSON — an array of character objects:
       "secrets": ["string — things they know but hide"],
       "intentions_enabled": true/false
     }},
-    "backstory": "string — full character history, background, how they got here",
+    "backstory": "string — character history as THEY understand it, from THEIR perspective. Include only what this character knows or believes about themselves and their past. Do NOT include hidden plot information, conspiracy details, or secrets that this character is unaware of.",
     "personality": "string — deep personality description, inner world, private self, what they want and fear",
     "narrative_notes": "string — tells, signals, romantic dynamics, how to play this character, what makes them tick as a narrative element. Include physical tells, relationship dynamics, difficulty level if applicable, sensuality notes if present."
   }}
@@ -131,7 +131,40 @@ Important:
 - Set attitude toward the protagonist as "user"
 - Capture the FULL depth of each character — personality essays, backstories, narrative notes should be thorough
 - For characters described briefly (supporting cast), still create a record with what's available
-- Set intentions_enabled=true for characters with hidden agendas or complex inner lives"""
+- Set intentions_enabled=true for characters with hidden agendas or complex inner lives
+
+## Information Isolation — CRITICAL
+The source prompt may contain hidden plot details, conspiracies, and secrets. You MUST separate what each character KNOWS from what the READER knows:
+- **backstory**: Write ONLY what the character themselves knows or believes. If the protagonist doesn't know a plague was engineered, their backstory says "the plague" not "the engineered plague." If an NPC is secretly a spy, their backstory should read like a normal person's history — the spy role goes in `secrets`.
+- **public_sheet**: Contains ONLY what is observable to others (role, appearance, traits, voice, faction).
+- **private_state.secrets**: This is where hidden knowledge, true allegiances, conspiracies, and plot-relevant information belongs. A character who is secretly an agent of a conspiracy has that fact HERE, not in their backstory or personality.
+- **narrative_notes**: May reference hidden dynamics for the author's benefit, but should not state secrets as if the character is aware of them (unless they are)."""
+
+
+OPENING_NARRATIVE_PROMPT = """\
+You are a narrative writer for an interactive fiction engine. Given a story prompt, write the opening passage that the player reads when they first start the game.
+
+## Source Prompt
+{source_prompt}
+
+## Your Task
+Write the opening narrative — the first thing the player reads. This sets the scene, establishes who they are and why they're here, and ends at a moment where they can choose what to do.
+
+## Rules
+1. Write in **second person present tense**: "You step off the bridge..." not "The player steps..."
+2. Use **PLAYER_NAME** as a placeholder for the character's name (it will be replaced later)
+3. Write **3-5 paragraphs** of polished prose
+4. Establish:
+   - Who PLAYER_NAME is and why they are arriving at this place
+   - What they see, hear, and feel — sensory grounding in the starting location
+   - The stakes: what's at risk, what they don't know, what looms ahead
+   - A sense of being an outsider entering an unfamiliar world
+5. End at a **natural decision point** — PLAYER_NAME has arrived, taken in the scene, and can now choose what to do. Do NOT make any choices for them (don't decide where they sit, what they pick up, who they talk to)
+6. Include ONLY **common knowledge**. No conspiracy details, no hidden lore, no secret plots. PLAYER_NAME doesn't know the dark history yet — they're a newcomer
+7. Do NOT use the word "you" in the very first word — start with something more evocative
+
+## Output
+Return ONLY the prose text. No JSON, no markdown fences, no commentary. Just the narrative passage with paragraph breaks."""
 
 
 async def extract_world(client: LLMClient, source: str) -> dict:
@@ -185,7 +218,28 @@ async def extract_characters(client: LLMClient, source: str) -> list[dict]:
     return characters
 
 
-def build_checkpoint(world_data: dict, characters_data: list[dict], story_id: str) -> CheckpointFile:
+async def extract_opening(client: LLMClient, source: str) -> str:
+    """Generate the opening narrative passage from the source prompt."""
+    logger.info("Generating opening narrative...")
+    result = await client.complete(
+        role="narrator",
+        messages=[
+            {"role": "user", "content": OPENING_NARRATIVE_PROMPT.format(source_prompt=source)},
+        ],
+        temperature=0.5,
+        max_tokens=4000,
+    )
+    text = result.content.strip()
+    # Strip markdown fences if the LLM wrapped it
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:-3].rstrip()
+    logger.info(f"  Opening narrative: {len(text)} chars")
+    return text
+
+
+def build_checkpoint(world_data: dict, characters_data: list[dict], story_id: str, opening_narrative: str = "") -> CheckpointFile:
     """Assemble extracted data into a CheckpointFile."""
     session = SessionState(
         session_id=story_id,
@@ -265,6 +319,7 @@ def build_checkpoint(world_data: dict, characters_data: list[dict], story_id: st
 
     return CheckpointFile(
         session=session,
+        opening_narrative=opening_narrative,
         world_state=world_state,
         characters=characters,
         config=config,
@@ -282,13 +337,14 @@ async def import_story(source_path: str, output_path: str, story_id: str) -> Che
     client = LLMClient(config=config)
 
     try:
-        # Run world and character extraction in parallel
-        world_data, characters_data = await asyncio.gather(
+        # Run world, character, and opening extraction in parallel
+        world_data, characters_data, opening_text = await asyncio.gather(
             extract_world(client, source),
             extract_characters(client, source),
+            extract_opening(client, source),
         )
 
-        checkpoint = build_checkpoint(world_data, characters_data, story_id)
+        checkpoint = build_checkpoint(world_data, characters_data, story_id, opening_narrative=opening_text)
 
         # Write output
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)

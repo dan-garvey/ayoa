@@ -11,17 +11,31 @@ import logging
 import uuid
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel
+
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.events import CanonicalEvent
-from app.schemas.narrator import NarratorFinalOutput
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.discriminator import DiscriminatorOutput
 
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+# Compress transcript when it exceeds this many entries
+TRANSCRIPT_COMPRESS_THRESHOLD = 20
+# Keep this many recent entries uncompressed
+TRANSCRIPT_KEEP_RECENT = 5
+
+
+class TranscriptSummary(BaseModel):
+    """LLM output for transcript compression."""
+    summary: str
+    key_facts: list[str] = []
 
 
 class Narrator:
@@ -52,6 +66,21 @@ class Narrator:
         )
         world_facts = self._build_world_facts(checkpoint)
         narrative_rules = checkpoint.config.narrative_rules or "No specific narrative rules."
+        hidden_lore = checkpoint.world_state.hidden_lore or "None."
+        hidden_facts = self._build_hidden_facts(checkpoint)
+
+        player_name = checkpoint.session.player_name or "the protagonist"
+
+        # Include opening directive on first turn only
+        opening_directive = ""
+        if not checkpoint.transcript and checkpoint.opening_narrative:
+            opening_directive = (
+                "## Opening Scene Directive\n"
+                "This is the FIRST turn of the story. The player is arriving/beginning. "
+                "Use the following scene-setting guidance from the story author to shape "
+                "your resolved outcome. Ground it in the actual current scene and characters present.\n\n"
+                f"{checkpoint.opening_narrative}\n"
+            )
 
         prompt = self.prompt_manager.render(
             "narrator_phase1",
@@ -64,6 +93,10 @@ class Narrator:
             world_facts=world_facts,
             narrative_rules=narrative_rules,
             user_input=user_input,
+            player_name=player_name,
+            hidden_lore=hidden_lore,
+            hidden_facts=hidden_facts,
+            opening_directive=opening_directive,
         )
 
         logger.info("NP1: adjudicating user action: %s", user_input[:80])
@@ -96,6 +129,7 @@ class Narrator:
         event: CanonicalEvent,
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
+        disc_output: DiscriminatorOutput | None = None,
     ) -> NarratorFinalOutput:
         """Compose final narrative prose from the event and character responses.
 
@@ -106,7 +140,19 @@ class Narrator:
         narrative_rules = checkpoint.config.narrative_rules or "No specific narrative rules."
         scene_context = self._build_scene_context(checkpoint)
         canonical_event = json.dumps(event.model_dump(), indent=2)
-        formatted_agents = self._format_agent_outputs(agent_outputs, checkpoint)
+        formatted_agents = self._format_agent_outputs(agent_outputs, checkpoint, disc_output)
+        player_name = checkpoint.session.player_name or "the protagonist"
+
+        # Include opening directive on first turn only
+        opening_directive = ""
+        if not checkpoint.transcript and checkpoint.opening_narrative:
+            opening_directive = (
+                "## Opening Scene Directive\n"
+                "This is the OPENING of the story. Write a rich, immersive scene-setting passage. "
+                "Use the following guidance from the story author to shape tone, atmosphere, and detail. "
+                "This should feel like the opening of a novel — evocative and grounding.\n\n"
+                f"{checkpoint.opening_narrative}\n"
+            )
 
         prompt = self.prompt_manager.render(
             "narrator_phase2",
@@ -116,6 +162,8 @@ class Narrator:
             agent_outputs=formatted_agents,
             scene_context=scene_context,
             user_input=user_input,
+            player_name=player_name,
+            opening_directive=opening_directive,
         )
 
         logger.info("NP2: composing final narrative with %d agent outputs", len(agent_outputs))
@@ -141,21 +189,40 @@ class Narrator:
         self,
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
+        disc_output: DiscriminatorOutput | None = None,
     ) -> str:
         """Format agent outputs for the NP2 prompt."""
         if not agent_outputs:
             return "No characters responded to this event."
 
+        # Build observation level lookup
+        obs_levels: dict[str, str] = {}
+        if disc_output:
+            for obs in disc_output.observers:
+                obs_levels[obs.character_id] = obs.observation_level
+
+        known = set(checkpoint.world_state.known_characters)
         sections = []
         for output in agent_outputs:
-            # Find character name
+            # Find character record
             char = next(
                 (c for c in checkpoint.characters if c.character_id == output.character_id),
                 None,
             )
-            name = char.name if char else output.character_id
 
-            parts = [f"### {name} ({output.character_id})"]
+            # Use name only if player has met this character; otherwise describe them
+            if output.character_id in known:
+                label = char.name if char else output.character_id
+            elif char and char.public_sheet.appearance:
+                label = char.public_sheet.appearance
+            elif char and char.public_sheet.role:
+                label = char.public_sheet.role
+            else:
+                label = output.character_id
+
+            parts = [f"### {label}"]
+            obs_level = obs_levels.get(output.character_id, "direct")
+            parts.append(f"[Observation: {obs_level}]")
 
             if output.public_response.actions:
                 parts.append("Actions:")
@@ -173,6 +240,65 @@ class Narrator:
             sections.append("\n".join(parts))
 
         return "\n\n".join(sections)
+
+    async def compress_transcript(self, checkpoint: CheckpointFile) -> bool:
+        """Compress older transcript entries into a summary if threshold exceeded.
+
+        Replaces older entries with a single summary entry, keeping the most
+        recent entries intact. Returns True if compression was performed.
+        """
+        if len(checkpoint.transcript) < TRANSCRIPT_COMPRESS_THRESHOLD:
+            return False
+
+        # Split into old (to compress) and recent (to keep)
+        cut = len(checkpoint.transcript) - TRANSCRIPT_KEEP_RECENT
+        old_entries = checkpoint.transcript[:cut]
+        recent_entries = checkpoint.transcript[cut:]
+
+        # Build transcript block for compression
+        lines = []
+        for entry in old_entries:
+            lines.append(f"Player: {entry.user}")
+            lines.append(f"Narrator: {entry.assistant}")
+            lines.append("")
+        transcript_block = "\n".join(lines).strip()
+
+        setting_summary = self._build_setting_summary(checkpoint)
+
+        prompt = self.prompt_manager.render(
+            "transcript_summary",
+            setting_summary=setting_summary,
+            transcript_block=transcript_block,
+        )
+
+        logger.info(
+            "Compressing transcript: %d entries -> summary + %d recent",
+            len(old_entries), len(recent_entries),
+        )
+
+        response = await self.client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": prompt}],
+            response_model=TranscriptSummary,
+            temperature=0.3,
+            max_tokens=2000,
+        )
+        summary: TranscriptSummary = response.parsed
+
+        # Replace transcript with summary entry + recent entries
+        summary_entry = TranscriptEntry(
+            user="[TRANSCRIPT SUMMARY]",
+            assistant=summary.summary,
+        )
+        checkpoint.transcript = [summary_entry] + recent_entries
+
+        # Add any key facts to world facts
+        for fact in summary.key_facts:
+            if fact not in checkpoint.world_state.facts:
+                checkpoint.world_state.facts.append(fact)
+
+        logger.info("Transcript compressed: %d entries remaining", len(checkpoint.transcript))
+        return True
 
     # --- Context builders ---
 
@@ -254,4 +380,10 @@ class Narrator:
         facts = checkpoint.world_state.facts
         if not facts:
             return "No specific world facts recorded."
+        return "\n".join(f"- {fact}" for fact in facts)
+
+    def _build_hidden_facts(self, checkpoint: CheckpointFile) -> str:
+        facts = checkpoint.world_state.hidden_facts
+        if not facts:
+            return "None."
         return "\n".join(f"- {fact}" for fact in facts)

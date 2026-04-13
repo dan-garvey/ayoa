@@ -9,6 +9,11 @@ class DebugFlags(BaseModel):
     include_internal_state_deltas: bool = False
 
 
+class PersonalizeRequest(BaseModel):
+    session_id: str
+    player_name: str
+
+
 class TurnRequest(BaseModel):
     session_id: str
     checkpoint_id: str | None = None

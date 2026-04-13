@@ -35,6 +35,10 @@ Apply these rules strictly to determine who observes what:
 
 7. **Information boundary.** Each observer's `facts` list must contain ONLY facts from the canonical event's observable_facts that this specific character could perceive given their position and senses. Never include facts a character couldn't know. This is critical for maintaining knowledge isolation.
 
+8. **Use character motivations.** The character registry includes goals, attitudes, and secrets. Use these to inform your `should_respond` decisions. A character whose goals are directly affected by the event is more likely to respond. A character with a secret relevant to the situation may respond with deflection or nervousness. A character with strong attitudes toward the player will react more strongly to player-directed events.
+
+9. **Never include the player character.** The player character's actions come from user input, not from agents. They are intentionally excluded from the Character Registry. Do NOT add them to the observers list, do NOT set should_respond for them, and do NOT reference them in spawn, dormant, or cull lists. Only evaluate non-player characters.
+
 ## Spawn, Dormancy, and Culling
 
 - **Spawn:** Request a new character only if the scene logically requires someone not yet in the registry (e.g., a shopkeeper when entering a shop, a servant answering a bell). Do not spawn characters gratuitously. Include a seed with role, reason for presence, and location.
@@ -57,7 +61,16 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
       "should_respond": true or false
     }}
   ],
-  "spawn": [],
+  "spawn": [
+    {{
+      "character_id": "string — a snake_case unique id for the new character",
+      "seed": {{
+        "role": "string — their role (e.g. 'Dining hall steward')",
+        "reason": "string — why they are here",
+        "location": "string — scene_id where they appear"
+      }}
+    }}
+  ],
   "dormant": [],
   "cull": []
 }}

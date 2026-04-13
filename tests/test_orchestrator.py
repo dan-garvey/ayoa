@@ -7,6 +7,7 @@ from app.engine.character_manager import CharacterManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
+from app.llm.config import LLMConfig
 from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
@@ -23,6 +24,7 @@ from app.schemas.state import LocationState, SessionState, WorldState
 def mock_client():
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock()
+    client.config = LLMConfig()
     return client
 
 
@@ -265,6 +267,12 @@ class TestOrchestrator:
         assert response.debug is not None
         assert "event_id" in response.debug.canonical_event
         assert "observers" in response.debug.discriminator
+        # Stage 12: Enhanced debug info
+        assert response.debug.total_duration_ms > 0
+        assert len(response.debug.latencies) >= 3  # np1, disc, np2
+        assert response.debug.models_used["narrator"] == "GPT-oss-120B"
+        assert "narrator_phase1" in response.debug.prompt_versions
+        assert isinstance(response.debug.validations, list)
 
 
 class TestCharacterSpawn:

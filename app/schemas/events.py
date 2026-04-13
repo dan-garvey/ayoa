@@ -15,6 +15,7 @@ class SceneDelta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     time_advanced_seconds: int = 0
+    new_scene_id: str = ""
 
 
 class CanonicalEvent(BaseModel):

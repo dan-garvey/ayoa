@@ -12,6 +12,7 @@ from app.schemas.state import SessionConfig, SessionState, WorldState
 class CheckpointFile(BaseModel):
     schema_version: str = "1.0"
     session: SessionState
+    opening_narrative: str = ""
     world_state: WorldState = Field(default_factory=WorldState)
     characters: list[CharacterRecord] = Field(default_factory=list)
     transcript: list[TranscriptEntry] = Field(default_factory=list)

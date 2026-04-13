@@ -89,7 +89,46 @@ def build_world_context(checkpoint: CheckpointFile) -> str:
         for fact in checkpoint.world_state.facts:
             parts.append(f"- {fact}")
 
+    # Include world lore for grounding
+    if checkpoint.world_state.lore:
+        parts.append(f"\nWorld lore:\n{checkpoint.world_state.lore}")
+
     return "\n".join(parts) if parts else "No world context available."
+
+
+def build_characters_present(
+    character: CharacterRecord, checkpoint: CheckpointFile
+) -> str:
+    """Build a summary of other characters present in the same scene."""
+    scene_id = checkpoint.world_state.locations.current_scene_id
+    if not scene_id:
+        return "You don't know who else is nearby."
+
+    present = []
+    for char in checkpoint.characters:
+        if char.character_id == character.character_id:
+            continue
+        if char.location != scene_id:
+            continue
+        if char.status.value != "active":
+            continue
+
+        role = char.public_sheet.role or "unknown role"
+        appearance = char.public_sheet.appearance or "nondescript"
+        # Include this character's attitude toward the other character
+        attitude = character.private_state.attitudes.get(char.character_id)
+        att_note = ""
+        if attitude is not None and abs(attitude) >= 0.1:
+            if attitude > 0:
+                att_note = " (you regard them positively)"
+            else:
+                att_note = " (you regard them negatively)"
+
+        present.append(f"- {char.name}: {role}, {appearance}{att_note}")
+
+    if not present:
+        return "No other characters are present."
+    return "\n".join(present)
 
 
 def build_recent_transcript(

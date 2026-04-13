@@ -178,13 +178,20 @@ class LLMClient:
         last_error = None
         for attempt in range(self.config.max_retries + 1):
             try:
-                return await self._client.chat.completions.create(
+                response = await self._client.chat.completions.create(
                     model=model,
                     messages=messages,
                     temperature=temperature,
                     max_completion_tokens=max_tokens,
                     stream=stream,
                 )
+                if not response.choices:
+                    raise openai.InternalServerError(
+                        message="LLM returned empty choices",
+                        response=httpx.Response(status_code=500),
+                        body=None,
+                    )
+                return response
             except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
                 last_error = e
                 if attempt < self.config.max_retries:

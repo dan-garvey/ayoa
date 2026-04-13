@@ -14,6 +14,7 @@ from app.engine.context_builder import (
     build_world_context,
     build_recent_transcript,
     format_observed_facts,
+    build_characters_present,
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
@@ -53,6 +54,7 @@ class CharacterAgent:
         world = build_world_context(checkpoint)
         transcript = build_recent_transcript(checkpoint)
         facts_str = format_observed_facts(observed_facts)
+        characters_present = build_characters_present(character, checkpoint)
 
         prompt = self.prompt_manager.render(
             "agent",
@@ -61,6 +63,7 @@ class CharacterAgent:
             world_context=world,
             recent_transcript=transcript,
             observed_facts=facts_str,
+            characters_present=characters_present,
         )
 
         logger.info(
