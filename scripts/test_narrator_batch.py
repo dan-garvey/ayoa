@@ -23,11 +23,10 @@ from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
+from scripts.checkpoint_utils import resolve_checkpoint_path
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-DEFAULT_CHECKPOINT = "app/storage/saves/covenant_of_thrones/ckpt_0000.json"
 
 TEST_ACTIONS = [
     # Feasible: simple social action
@@ -70,7 +69,9 @@ async def run_batch(checkpoint_path: str):
 
 
 def main():
-    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CHECKPOINT
+    checkpoint_path = resolve_checkpoint_path(
+        sys.argv[1] if len(sys.argv) > 1 else None
+    )
     asyncio.run(run_batch(checkpoint_path))
 
 

@@ -5,7 +5,7 @@ Loads a checkpoint and lets you type player actions to see NP1 adjudication.
 Usage:
     .venv/bin/python scripts/test_narrator_interactive.py [checkpoint_path]
 
-If no checkpoint is given, uses the Covenant of Thrones import.
+If no checkpoint is given, uses the most recently imported checkpoint.
 """
 
 from __future__ import annotations
@@ -25,13 +25,11 @@ from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
+from scripts.checkpoint_utils import resolve_checkpoint_path
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-DEFAULT_CHECKPOINT = "app/storage/saves/covenant_of_thrones/ckpt_0000.json"
 
 
 async def run_interactive(checkpoint_path: str):
@@ -85,11 +83,16 @@ async def run_interactive(checkpoint_path: str):
 
 
 def main():
-    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CHECKPOINT
+    try:
+        checkpoint_path = resolve_checkpoint_path(
+            sys.argv[1] if len(sys.argv) > 1 else None
+        )
+    except FileNotFoundError as exc:
+        logger.error(str(exc))
+        sys.exit(1)
 
     if not os.path.exists(checkpoint_path):
         logger.error(f"Checkpoint not found: {checkpoint_path}")
-        logger.info("Run the story importer first: .venv/bin/python scripts/import_story.py stories/covenant_of_thrones.txt")
         sys.exit(1)
 
     asyncio.run(run_interactive(checkpoint_path))

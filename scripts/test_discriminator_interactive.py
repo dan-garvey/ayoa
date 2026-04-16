@@ -22,11 +22,10 @@ from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
+from scripts.checkpoint_utils import resolve_checkpoint_path
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-DEFAULT_CHECKPOINT = "app/storage/saves/covenant_of_thrones/ckpt_0000.json"
 
 TEST_ACTIONS = [
     # Quiet action in private room — only characters in same/adjacent location should observe
@@ -72,7 +71,7 @@ async def run_test(checkpoint_path: str):
                 )
                 print(f"\n  {char_name} ({obs.character_id}):")
                 print(f"    Level: {obs.observation_level}")
-                print(f"    Should respond: {obs.should_respond}")
+                print(f"    Response priority: {obs.response_priority}")
                 print(f"    Perceived facts:")
                 for k, fact in enumerate(obs.facts, 1):
                     print(f"      {k}. {fact}")
@@ -89,7 +88,9 @@ async def run_test(checkpoint_path: str):
 
 
 def main():
-    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CHECKPOINT
+    checkpoint_path = resolve_checkpoint_path(
+        sys.argv[1] if len(sys.argv) > 1 else None
+    )
     asyncio.run(run_test(checkpoint_path))
 
 

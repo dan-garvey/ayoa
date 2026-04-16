@@ -150,14 +150,14 @@ def check_player_as_agent(
     disc = debug.get("discriminator", {})
     for obs in disc.get("observers", []):
         if obs.get("character_id") == player_character_id:
-            respond = obs.get("should_respond", False)
-            severity = "error" if respond else "warning"
+            priority = obs.get("response_priority", 0)
+            severity = "error" if priority >= 3 else "warning"
             issues.append(Issue(
                 severity=severity,
                 category="player_as_agent",
                 description=(
                     f"Player character '{player_character_id}' in discriminator observers "
-                    f"(should_respond={respond})"
+                    f"(response_priority={priority})"
                 ),
                 turn_index=turn_index,
             ))

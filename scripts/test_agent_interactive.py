@@ -26,12 +26,10 @@ from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
+from scripts.checkpoint_utils import resolve_checkpoint_path
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-DEFAULT_CHECKPOINT = "app/storage/saves/covenant_of_thrones/ckpt_0000.json"
-
 
 async def run_test(checkpoint_path: str):
     with open(checkpoint_path) as f:
@@ -70,7 +68,7 @@ async def run_test(checkpoint_path: str):
         # Discriminator
         disc_output = await discriminator.run(event, checkpoint)
         print(f"\n--- Discriminator ---")
-        responding = [o for o in disc_output.observers if o.should_respond]
+        responding = [o for o in disc_output.observers if o.response_priority >= 3]
         print(f"Observers: {len(disc_output.observers)}, Responding: {len(responding)}")
 
         # Run responding agents in parallel
@@ -116,7 +114,9 @@ async def run_test(checkpoint_path: str):
 
 
 def main():
-    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CHECKPOINT
+    checkpoint_path = resolve_checkpoint_path(
+        sys.argv[1] if len(sys.argv) > 1 else None
+    )
     asyncio.run(run_test(checkpoint_path))
 
 

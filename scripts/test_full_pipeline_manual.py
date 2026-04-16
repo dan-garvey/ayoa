@@ -26,11 +26,10 @@ from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
+from scripts.checkpoint_utils import resolve_checkpoint_path
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-DEFAULT_CHECKPOINT = "app/storage/saves/covenant_of_thrones/ckpt_0000.json"
 
 TEST_ACTION = (
     "I walk into the common area and say: "
@@ -81,14 +80,14 @@ async def run_pipeline(checkpoint_path: str):
         print("DISCRIMINATOR")
         print(f"{'='*70}")
         disc_output = await discriminator.run(event, checkpoint)
-        responding = [o for o in disc_output.observers if o.should_respond]
+        responding = [o for o in disc_output.observers if o.response_priority >= 3]
         print(f"Observers: {len(disc_output.observers)}, Responding: {len(responding)}")
         for obs in disc_output.observers:
             name = next(
                 (c.name for c in checkpoint.characters if c.character_id == obs.character_id),
                 obs.character_id,
             )
-            print(f"  {name}: {obs.observation_level}, respond={obs.should_respond}, facts={len(obs.facts)}")
+            print(f"  {name}: {obs.observation_level}, priority={obs.response_priority}, facts={len(obs.facts)}")
 
         # === Agents (parallel) ===
         print(f"\n{'='*70}")
@@ -141,7 +140,9 @@ async def run_pipeline(checkpoint_path: str):
 
 
 def main():
-    checkpoint_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CHECKPOINT
+    checkpoint_path = resolve_checkpoint_path(
+        sys.argv[1] if len(sys.argv) > 1 else None
+    )
     asyncio.run(run_pipeline(checkpoint_path))
 
 

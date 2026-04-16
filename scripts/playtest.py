@@ -2,10 +2,10 @@
 """Automated playtesting — runs scripted or agent-driven sessions through the engine.
 
 Usage:
-    .venv/bin/python scripts/playtest.py --story covenant_of_thrones --strategy scripted
-    .venv/bin/python scripts/playtest.py --story covenant_of_thrones --strategy adversarial
-    .venv/bin/python scripts/playtest.py --story covenant_of_thrones --strategy agent --turns 10
-    .venv/bin/python scripts/playtest.py --story covenant_of_thrones --strategy all --parallel 3
+    .venv/bin/python scripts/playtest.py --story <story_id> --strategy scripted
+    .venv/bin/python scripts/playtest.py --story <story_id> --strategy adversarial
+    .venv/bin/python scripts/playtest.py --story <story_id> --strategy agent --turns 10
+    .venv/bin/python scripts/playtest.py --story <story_id> --strategy all --parallel 3
 
 Requires the engine server to be running (or use --start-server to auto-start).
 """
