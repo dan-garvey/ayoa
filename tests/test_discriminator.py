@@ -121,7 +121,7 @@ def sample_discriminator_output():
                     "The player glances at the dry fountain.",
                     "The player looks up at the darkening sky.",
                 ],
-                should_respond=False,
+                response_priority=2,
             ),
         ],
         spawn=[],

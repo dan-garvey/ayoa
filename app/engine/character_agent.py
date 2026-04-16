@@ -15,6 +15,8 @@ from app.engine.context_builder import (
     build_recent_transcript,
     format_observed_facts,
     build_characters_present,
+    format_prior_responses,
+    format_queued_observations,
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
@@ -37,6 +39,7 @@ class CharacterAgent:
         character: CharacterRecord,
         observed_facts: list[str],
         checkpoint: CheckpointFile,
+        prior_responses: list[CharacterAgentOutput] | None = None,
     ) -> CharacterAgentOutput:
         """Generate an in-character response based on observed facts.
 
@@ -44,6 +47,7 @@ class CharacterAgent:
             character: The character record for this agent.
             observed_facts: Facts this character perceived (from discriminator).
             checkpoint: Current game state for scene/world context.
+            prior_responses: Responses from higher-priority characters this turn.
 
         Returns:
             CharacterAgentOutput with public response and private updates.
@@ -55,6 +59,8 @@ class CharacterAgent:
         transcript = build_recent_transcript(checkpoint)
         facts_str = format_observed_facts(observed_facts)
         characters_present = build_characters_present(character, checkpoint)
+        queued_obs = format_queued_observations(character)
+        prior_resp = format_prior_responses(prior_responses or [], checkpoint)
 
         prompt = self.prompt_manager.render(
             "agent",
@@ -64,6 +70,8 @@ class CharacterAgent:
             recent_transcript=transcript,
             observed_facts=facts_str,
             characters_present=characters_present,
+            queued_observations=queued_obs,
+            prior_character_responses=prior_resp,
         )
 
         logger.info(
@@ -84,6 +92,9 @@ class CharacterAgent:
 
         # Ensure character_id matches
         result.character_id = character.character_id
+
+        # Flush the observation queue — character has now responded
+        character.memory.observation_queue.clear()
 
         logger.info(
             "Agent %s: %d actions, %d dialogue lines, %d memory writes",

@@ -74,7 +74,7 @@ DISCRIMINATOR_EXAMPLE = {
                 "The building does not move.",
                 "The user visibly strains.",
             ],
-            "should_respond": True,
+            "response_priority": 5,
         }
     ],
     "spawn": [],
@@ -220,7 +220,7 @@ class TestDiscriminatorOutput:
         do = DiscriminatorOutput(**DISCRIMINATOR_EXAMPLE)
         assert len(do.observers) == 1
         assert do.observers[0].character_id == "guard_17"
-        assert do.observers[0].should_respond is True
+        assert do.observers[0].response_priority == 5
 
     def test_round_trip(self):
         do = DiscriminatorOutput(**DISCRIMINATOR_EXAMPLE)

@@ -147,7 +147,7 @@ class TestOrchestrator:
                 ObserverEntry(
                     character_id="guard_17",
                     facts=["Player looks around."],
-                    should_respond=True,
+                    response_priority=5,
                 ),
             ],
         )

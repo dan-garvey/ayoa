@@ -11,7 +11,7 @@ class ObserverEntry(BaseModel):
     character_id: str
     observation_level: str = "direct"
     facts: list[str] = Field(default_factory=list)
-    should_respond: bool = True
+    response_priority: int = 0  # 0=silent, 1=minimal, 2=low, 3=moderate, 4=high, 5=compelled
 
 
 class SpawnRequest(BaseModel):
@@ -28,6 +28,7 @@ class DiscriminatorOutput(BaseModel):
 
     event_id: str = ""
     observers: list[ObserverEntry] = Field(default_factory=list)
+    suggested_response_cap: int = 2
     spawn: list[SpawnRequest] = Field(default_factory=list)
     dormant: list[str] = Field(default_factory=list)
     cull: list[str] = Field(default_factory=list)

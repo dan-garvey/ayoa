@@ -73,11 +73,12 @@ class Discriminator:
         if not result.event_id:
             result.event_id = event.event_id
 
-        observers_responding = sum(1 for o in result.observers if o.should_respond)
+        high_priority = sum(1 for o in result.observers if o.response_priority >= 3)
         logger.info(
-            "Discriminator result: %d observers, %d responding, %d spawns",
+            "Discriminator result: %d observers, %d high-priority (cap=%d), %d spawns",
             len(result.observers),
-            observers_responding,
+            high_priority,
+            result.suggested_response_cap,
             len(result.spawn),
         )
 

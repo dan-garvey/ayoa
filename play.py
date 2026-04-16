@@ -416,9 +416,9 @@ def print_debug_verbose(debug: dict):
         for obs in observers:
             cid = obs.get("character_id", "?")
             level = obs.get("observation_level", "?")
-            respond = obs.get("should_respond", False)
+            priority = obs.get("response_priority", 0)
             facts = obs.get("facts", [])
-            tag = "RESPOND" if respond else "observe"
+            tag = f"P{priority}" + (" RESPOND" if priority >= 3 else "")
             print(f"    {dim(f'{cid} [{level}] [{tag}]')}")
             for fact in facts:
                 print(f"      {dim(f'- {fact}')}")

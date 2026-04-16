@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 # Per-agent timeout in seconds
 AGENT_TIMEOUT = 60.0
+# Maximum number of agents that can respond per turn
+MAX_RESPONDERS = 3
+# Maximum observation queue entries per character
+MAX_OBSERVATION_QUEUE = 10
 
 
 class Orchestrator:
@@ -116,20 +120,39 @@ class Orchestrator:
                 model=self.client.config.model_for_role("agent"),
             ))
 
-        # Step 4: Agent fan-out (parallel)
-        # Exclude the player character — their actions come from user input, not agents
+        # Step 4: Agent selection — priority-based with response cap
         player_id = checkpoint.session.player_character_id
+        candidates = sorted(
+            [o for o in disc_output.observers if o.character_id != player_id],
+            key=lambda o: o.response_priority,
+            reverse=True,
+        )
+        response_cap = min(
+            disc_output.suggested_response_cap, MAX_RESPONDERS
+        )
         responding = [
-            o for o in disc_output.observers
-            if o.should_respond and o.character_id != player_id
-        ]
+            o for o in candidates if o.response_priority >= 3
+        ][:response_cap]
+        observing_only = [o for o in candidates if o not in responding]
+
         agent_outputs: list[CharacterAgentOutput] = []
+
+        logger.info(
+            "Response selection: %d candidates, %d responding (cap=%d), %d observing",
+            len(candidates), len(responding), response_cap, len(observing_only),
+        )
 
         # Short-circuit: unwitnessed failure
         # If infeasible and no NPCs should respond, return NP1's outcome directly.
         if not event.world_adjudication.feasible and not responding:
             logger.info(
                 "Short-circuit: unwitnessed failure, returning NP1 outcome directly"
+            )
+
+            # Populate observation queues for present-but-silent characters
+            self._populate_observation_queues(
+                checkpoint, observing_only,
+                event.world_adjudication.resolved_outcome,
             )
 
             transcript_entry = TranscriptEntry(
@@ -179,25 +202,58 @@ class Orchestrator:
                 debug=debug,
             )
 
+        # Step 4a: Sequential agent execution
+        # Phase 1: Primary responder (highest priority)
+        # Phase 2: Secondary responders in parallel, each seeing primary's output
         if responding:
             t0 = time.monotonic()
-            agent_tasks = []
-            for obs in responding:
-                char = self.char_mgr.get_character(checkpoint, obs.character_id)
-                if char:
-                    task = asyncio.wait_for(
-                        self.agent_engine.respond(char, obs.facts, checkpoint),
+
+            # Primary responder
+            primary_obs = responding[0]
+            primary_char = self.char_mgr.get_character(
+                checkpoint, primary_obs.character_id
+            )
+            if primary_char:
+                try:
+                    primary_result = await asyncio.wait_for(
+                        self.agent_engine.respond(
+                            primary_char, primary_obs.facts, checkpoint,
+                            prior_responses=[],
+                        ),
                         timeout=AGENT_TIMEOUT,
                     )
-                    agent_tasks.append(task)
+                    agent_outputs.append(primary_result)
+                except Exception as e:
+                    logger.warning("Primary agent %s failed: %s",
+                                   primary_obs.character_id, e)
 
-            results = await asyncio.gather(*agent_tasks, return_exceptions=True)
+            # Secondary responders (see primary's output)
+            secondary_obs = responding[1:]
+            if secondary_obs:
+                secondary_tasks = []
+                for obs in secondary_obs:
+                    char = self.char_mgr.get_character(
+                        checkpoint, obs.character_id
+                    )
+                    if char:
+                        task = asyncio.wait_for(
+                            self.agent_engine.respond(
+                                char, obs.facts, checkpoint,
+                                prior_responses=list(agent_outputs),
+                            ),
+                            timeout=AGENT_TIMEOUT,
+                        )
+                        secondary_tasks.append(task)
 
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.warning("Agent failed: %s", result)
-                else:
-                    agent_outputs.append(result)
+                if secondary_tasks:
+                    results = await asyncio.gather(
+                        *secondary_tasks, return_exceptions=True
+                    )
+                    for result in results:
+                        if isinstance(result, Exception):
+                            logger.warning("Secondary agent failed: %s", result)
+                        else:
+                            agent_outputs.append(result)
 
             latencies.append(PhaseLatency(
                 phase="agent_fanout",
@@ -266,6 +322,16 @@ class Orchestrator:
         for output in agent_outputs:
             self.char_mgr.apply_agent_output(checkpoint, output)
 
+        # Step 6.1: Populate observation queues for non-responding observers
+        # Build an NPC-perspective summary using character names (not player-
+        # perspective descriptions from NP2's turn_summary).
+        npc_summary = self._build_npc_turn_summary(
+            request.user_input, agent_outputs, checkpoint,
+        )
+        self._populate_observation_queues(
+            checkpoint, observing_only, npc_summary,
+        )
+
         # Update transcript
         checkpoint.transcript.append(final.transcript_entry)
 
@@ -318,3 +384,62 @@ class Orchestrator:
             output_text=final.final_text,
             debug=debug,
         )
+
+    def _populate_observation_queues(
+        self,
+        checkpoint: CheckpointFile,
+        observers: list,
+        summary: str,
+    ) -> None:
+        """Add turn observations to non-responding characters' queues."""
+        turn_idx = checkpoint.session.turn_index
+        queued_count = 0
+        for obs in observers:
+            char = self.char_mgr.get_character(checkpoint, obs.character_id)
+            if not char:
+                logger.debug("Queue skip: character %s not found", obs.character_id)
+                continue
+
+            if obs.observation_level == "direct":
+                entry = f"[Turn {turn_idx}] {summary}"
+            elif obs.observation_level == "indirect":
+                entry = f"[Turn {turn_idx}] [Heard nearby] {summary}"
+            else:
+                entry = f"[Turn {turn_idx}] [Sensed disturbance] Something happened nearby."
+
+            char.memory.observation_queue.append(entry)
+            queued_count += 1
+
+            # Cap the queue
+            if len(char.memory.observation_queue) > MAX_OBSERVATION_QUEUE:
+                char.memory.observation_queue = char.memory.observation_queue[
+                    -MAX_OBSERVATION_QUEUE:
+                ]
+
+        if queued_count:
+            logger.info(
+                "Observation queues: %d characters updated", queued_count
+            )
+
+    def _build_npc_turn_summary(
+        self,
+        user_input: str,
+        agent_outputs: list[CharacterAgentOutput],
+        checkpoint: CheckpointFile,
+    ) -> str:
+        """Build a turn summary using character names for NPC consumption."""
+        player_name = checkpoint.session.player_name or "The player"
+        parts = [f"{player_name}: {user_input}"]
+
+        for output in agent_outputs:
+            char = self.char_mgr.get_character(checkpoint, output.character_id)
+            name = char.name if char else output.character_id
+            pieces = []
+            for action in output.public_response.actions:
+                pieces.append(action)
+            for line in output.public_response.dialogue:
+                pieces.append(f'said "{line}"')
+            if pieces:
+                parts.append(f"{name}: {'; '.join(pieces)}")
+
+        return " | ".join(parts)

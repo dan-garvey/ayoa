@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 
@@ -152,6 +153,45 @@ def format_observed_facts(facts: list[str]) -> str:
     if not facts:
         return "You observe nothing unusual."
     return "\n".join(f"- {fact}" for fact in facts)
+
+
+def format_prior_responses(
+    prior_responses: list[CharacterAgentOutput],
+    checkpoint: CheckpointFile,
+) -> str:
+    """Format other characters' responses that happened earlier this turn."""
+    if not prior_responses:
+        return "No other characters have responded yet."
+
+    parts = []
+    for resp in prior_responses:
+        char = next(
+            (c for c in checkpoint.characters if c.character_id == resp.character_id),
+            None,
+        )
+        name = char.name if char else resp.character_id
+        lines = []
+        if resp.public_response.actions:
+            lines.extend(resp.public_response.actions)
+        if resp.public_response.dialogue:
+            for d in resp.public_response.dialogue:
+                lines.append(f'"{d}"')
+        if resp.public_response.expression:
+            lines.append(f"({resp.public_response.expression})")
+        parts.append(f"- {name}: {'; '.join(lines)}")
+
+    return "\n".join(parts)
+
+
+def format_queued_observations(character: CharacterRecord) -> str:
+    """Format the observation queue for inclusion in the agent prompt."""
+    if not character.memory.observation_queue:
+        return "Nothing noteworthy has happened since you last acted."
+
+    lines = ["Since you last acted or spoke, you observed the following:"]
+    for entry in character.memory.observation_queue:
+        lines.append(f"- {entry}")
+    return "\n".join(lines)
 
 
 def _attitude_label(value: float) -> str:

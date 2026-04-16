@@ -23,6 +23,7 @@ class PublicSheet(BaseModel):
 class CharacterMemory(BaseModel):
     episodic: list[str] = Field(default_factory=list)
     summaries: list[str] = Field(default_factory=list)
+    observation_queue: list[str] = Field(default_factory=list)
 
 
 class PrivateState(BaseModel):

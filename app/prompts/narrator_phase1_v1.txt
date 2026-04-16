@@ -52,6 +52,7 @@ Hidden facts:
    - Do NOT invent obstacles, locks, barriers, guards, traps, or constraints that are not explicitly stated in the Scene, World Rules, World Facts, or Hidden World Knowledge sections above. If nothing says a door is locked, the door is NOT locked. If nothing says a path is blocked, the path is NOT blocked.
    - Mundane movement between connected locations is ALWAYS feasible unless a specific constraint is documented above. Walking through a door, down a hallway, or to a connected room simply succeeds.
    - If you are uncertain whether a constraint exists, it does not exist. Default to feasibility for ordinary physical actions.
+   - **Characters listed in "Characters Present in Scene" are available for interaction.** Do not reject or downgrade an action because a character is not described as standing "right next to" or "directly beside" {player_name}. If a character is present in the scene, {player_name} can approach, speak to, or interact with them. Scenes are rooms, not football fields — everyone present is within conversational range unless the scene description explicitly states otherwise.
 
 4. **Resolve the outcome.** Write in second person present tense ("You..."). Apply these rules:
    - If the action is **fully feasible**: describe what happens. You succeed.
@@ -65,7 +66,8 @@ Hidden facts:
 
 5. **Generate observable facts.** List concrete, sensory-level facts that nearby characters could perceive. Write these in **third person** (since they describe what others see): "{player_name} does X." Include:
    - Physical actions visible to onlookers
-   - Sounds produced (dialogue, impacts, grunts of effort)
+   - **Dialogue VERBATIM.** If {player_name} speaks, the observable fact MUST include the exact words. Write: '{player_name} says, "What service is that?"' — NOT '{player_name} speaks a question aloud.' Other characters need to hear the actual words to respond appropriately.
+   - Sounds produced (impacts, grunts of effort, non-verbal sounds)
    - Emotional expressions visible on the character's face or body
    - Environmental changes (objects moved, doors opened, things broken)
    - Do NOT include internal thoughts, motivations, or knowledge that requires telepathy
@@ -135,7 +137,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences, no explanation 
     "time_advanced_seconds": 20
   }},
   "observable_facts": [
-    "{player_name} approaches the gate guard and speaks to them.",
+    "{player_name} approaches the gate guard and says, \"Can I pass through the gate?\"",
     "The guard inspects something {player_name} presents.",
     "The guard nods and moves to open the gate.",
     "{player_name} passes through the now-open gate."

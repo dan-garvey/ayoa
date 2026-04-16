@@ -124,6 +124,8 @@ class TestPromptManagerWithRealTemplates:
             recent_transcript="(none)",
             characters_present="No other characters are present.",
             character_id="guard_17",
+            queued_observations="Nothing noteworthy has happened since you last acted.",
+            prior_character_responses="No other characters have responded yet.",
         )
         assert "Captain Vero" in result
         assert "guard_17" in result
