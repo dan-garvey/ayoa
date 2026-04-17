@@ -121,7 +121,7 @@ Respond with ONLY valid JSON — an array of character objects:
     }},
     "backstory": "string — character history as THEY understand it, from THEIR perspective. Include only what this character knows or believes about themselves and their past. Do NOT include hidden plot information, conspiracy details, or secrets that this character is unaware of.",
     "personality": "string — deep personality description, inner world, private self, what they want and fear",
-    "narrative_notes": "string — tells, signals, romantic dynamics, how to play this character, what makes them tick as a narrative element. Include physical tells, relationship dynamics, difficulty level if applicable, sensuality notes if present."
+    "narrative_notes": "string — how to play this character in scenes: what they hide, what pressures them, how they deflect, what kind of interaction changes them, and what narrative role they serve. If the source clearly contains a distinctive tell, include it as situational rather than always-on."
   }}
 ]
 
@@ -132,6 +132,10 @@ Important:
 - Capture the FULL depth of each character — personality essays, backstories, narrative notes should be thorough
 - For characters described briefly (supporting cast), still create a record with what's available
 - Set intentions_enabled=true for characters with hidden agendas or complex inner lives
+- In `narrative_notes`, prioritize pressure points, contradictions, social constraints, and dramatic function over surface quirks
+- Do NOT manufacture stock mannerisms such as repeated smiles, hair touches, brow lifts, ring touches, or "sparkling eyes" unless the source prompt makes them specifically important
+- Do NOT restate appearance details as behavior notes unless the source explicitly ties them to a meaningful, situational tell
+- If romance is present, capture the constraints, risks, and what earns trust; do not reduce the character to canned flirtation beats
 
 ## Information Isolation — CRITICAL
 The source prompt may contain hidden plot details, conspiracies, and secrets. You MUST separate what each character KNOWS from what the READER knows:
@@ -152,16 +156,18 @@ Write the opening narrative — the first thing the player reads. This sets the 
 
 ## Rules
 1. Write in **second person present tense**: "You step off the bridge..." not "The player steps..."
-2. Use **PLAYER_NAME** as a placeholder for the character's name (it will be replaced later)
-3. Write **3-5 paragraphs** of polished prose
-4. Establish:
+2. Use **PLAYER_NAME** as a placeholder for the character's name (it will be replaced later). The name already exists as a placeholder — do NOT ask the user to provide it.
+3. Begin immediately in-fiction. Do NOT use preambles like "Before we begin," and do NOT ask setup questions about name, appearance, or backstory.
+4. Write **3-5 paragraphs** of polished prose
+5. Establish:
    - Who PLAYER_NAME is and why they are arriving at this place
    - What they see, hear, and feel — sensory grounding in the starting location
    - The stakes: what's at risk, what they don't know, what looms ahead
    - A sense of being an outsider entering an unfamiliar world
-5. End at a **natural decision point** — PLAYER_NAME has arrived, taken in the scene, and can now choose what to do. Do NOT make any choices for them (don't decide where they sit, what they pick up, who they talk to)
-6. Include ONLY **common knowledge**. No conspiracy details, no hidden lore, no secret plots. PLAYER_NAME doesn't know the dark history yet — they're a newcomer
-7. Do NOT use the word "you" in the very first word — start with something more evocative
+6. End at a **natural decision point** — PLAYER_NAME has arrived, taken in the scene, and can now choose what to do. Do NOT make any choices for them (don't decide where they sit, what they pick up, who they talk to)
+7. Include ONLY **common knowledge**. No conspiracy details, no hidden lore, no secret plots. PLAYER_NAME doesn't know the dark history yet — they're a newcomer
+8. Do NOT use the word "you" in the very first word — start with something more evocative
+9. Never break the fourth wall. Never mention prompts, players, character creation, or what the reader should supply.
 
 ## Output
 Return ONLY the prose text. No JSON, no markdown fences, no commentary. Just the narrative passage with paragraph breaks."""
