@@ -12,6 +12,7 @@ from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpda
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry, SpawnRequest
+from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -273,6 +274,102 @@ class TestOrchestrator:
         assert response.debug.models_used["narrator"] == "GPT-oss-120B"
         assert "narrator_phase1" in response.debug.prompt_versions
         assert isinstance(response.debug.validations, list)
+
+    @pytest.mark.asyncio
+    async def test_full_turn_merged_path(
+        self, mock_client, mock_checkpoint_mgr, prompt_manager
+    ):
+        merged = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                event_id="evt_0000",
+                user_intent="look around",
+                world_adjudication=WorldAdjudication(
+                    attempted_action="survey area",
+                    feasible=True,
+                    resolved_outcome="Player looks around.",
+                ),
+                observable_facts=["Player looks around."],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="guard_17",
+                    facts=["Player looks around."],
+                    response_priority=5,
+                ),
+            ],
+        )
+
+        agent_out = CharacterAgentOutput(
+            character_id="guard_17",
+            public_response=PublicResponse(dialogue=["Everything alright?"]),
+            private_updates=PrivateUpdates(attitude_delta={"user": 0.05}),
+            memory_writes=["The player looked around."],
+        )
+
+        narrator_out = NarratorFinalOutput(
+            final_text="You look around. \"Everything alright?\" Captain Vero asks.",
+            transcript_entry=TranscriptEntry(
+                user="I look around.",
+                assistant="You look around. \"Everything alright?\" Captain Vero asks.",
+            ),
+            turn_summary="Player surveyed area; guard responded.",
+        )
+
+        mock_client.complete.side_effect = [
+            LLMResponse(parsed=merged),
+            LLMResponse(parsed=agent_out),
+            LLMResponse(parsed=narrator_out),
+        ]
+
+        orchestrator = Orchestrator(
+            mock_client, mock_checkpoint_mgr, prompt_manager, merged_event_router=True
+        )
+        request = TurnRequest(session_id="test-session", user_input="I look around.")
+
+        response = await orchestrator.process_turn(request)
+
+        assert response.session_id == "test-session"
+        assert "look around" in response.output_text.lower()
+        assert response.turn_index == 1
+        assert mock_client.complete.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_merged_path_debug_mode(
+        self, mock_client, mock_checkpoint_mgr, prompt_manager
+    ):
+        merged = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                event_id="evt_0000",
+                user_intent="test",
+                world_adjudication=WorldAdjudication(
+                    attempted_action="test",
+                    feasible=True,
+                    resolved_outcome="test",
+                ),
+            ),
+            observers=[],
+        )
+        narrator_out = NarratorFinalOutput(
+            final_text="Test.",
+            transcript_entry=TranscriptEntry(user="test", assistant="Test."),
+            turn_summary="test",
+        )
+
+        mock_client.complete.side_effect = [
+            LLMResponse(parsed=merged),
+            LLMResponse(parsed=narrator_out),
+        ]
+
+        orchestrator = Orchestrator(
+            mock_client, mock_checkpoint_mgr, prompt_manager, merged_event_router=True
+        )
+        request = TurnRequest(session_id="test-session", user_input="test", debug=True)
+
+        response = await orchestrator.process_turn(request)
+
+        assert response.debug is not None
+        assert "event_router" in response.debug.models_used
+        assert any(lat.phase == "event_router" for lat in response.debug.latencies)
 
 
 class TestCharacterSpawn:

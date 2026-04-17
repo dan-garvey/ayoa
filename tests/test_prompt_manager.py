@@ -77,6 +77,7 @@ class TestPromptManagerWithRealTemplates:
         assert "discriminator" in versions
         assert "agent" in versions
         assert "character_gen" in versions
+        assert "event_router" in versions
 
     def test_narrator_phase1_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")

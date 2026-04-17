@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class ModelConfig(BaseModel):
+    event_router: str = "GPT-oss-120B"
     narrator: str = "GPT-oss-120B"
     discriminator: str = "GPT-oss-120B"
     agent_default: str = "GPT-oss-120B"

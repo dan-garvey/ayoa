@@ -12,6 +12,7 @@ class LLMConfig(BaseModel):
     user: str = ""
 
     role_models: dict[str, str] = Field(default_factory=lambda: {
+        "event_router": "GPT-oss-120B",
         "narrator": "GPT-oss-120B",
         "discriminator": "GPT-oss-120B",
         "agent": "GPT-oss-120B",

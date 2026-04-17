@@ -394,7 +394,8 @@ def print_debug_verbose(debug: dict):
     adj = event.get("world_adjudication", {})
     if adj:
         feasible = adj.get("feasible", "?")
-        print(f"\n  {dim(f'NP1: feasible={feasible}')}")
+        phase_label = "EventRouter" if "event_router" in debug.get("models_used", {}) else "NP1"
+        print(f"\n  {dim(f'{phase_label}: feasible={feasible}')}")
         outcome = adj.get("resolved_outcome", "")
         if outcome:
             print(f"  {dim(f'  outcome: {outcome[:120]}...' if len(outcome) > 120 else f'  outcome: {outcome}')}")

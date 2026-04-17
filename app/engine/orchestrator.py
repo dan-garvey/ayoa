@@ -1,18 +1,20 @@
 """Turn orchestrator — wires the full turn pipeline.
 
-Sequence: Load checkpoint -> NP1 -> Discriminator -> Agents (parallel) -> NP2 -> Save checkpoint.
+Sequence: Load checkpoint -> NP1+Discriminator or EventRouter -> Agents -> NP2 -> Save checkpoint.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.discriminator import Discriminator
+from app.engine.event_router import EventRouter
 from app.engine.narrator import Narrator
 from app.engine.prompt_manager import PromptManager
 from app.engine.validators import validate_all_outputs
@@ -41,14 +43,22 @@ class Orchestrator:
         client: LLMClient,
         checkpoint_mgr: CheckpointManager,
         prompt_mgr: PromptManager,
+        merged_event_router: bool | None = None,
     ):
         self.client = client
         self.prompt_mgr = prompt_mgr
         self.narrator = Narrator(client, prompt_mgr)
         self.discriminator = Discriminator(client, prompt_mgr)
+        self.event_router = EventRouter(client, prompt_mgr)
         self.agent_engine = CharacterAgent(client, prompt_mgr)
         self.char_mgr = CharacterManager(client, prompt_mgr)
         self.checkpoint_mgr = checkpoint_mgr
+        self.use_merged_event_router = (
+            merged_event_router
+            if merged_event_router is not None
+            else os.environ.get("INTFIC_MERGED_EVENT_ROUTER", "").lower()
+            in {"1", "true", "yes", "on"}
+        )
 
     async def process_turn(self, request: TurnRequest) -> TurnResponse:
         """Process a single turn through the full pipeline.
@@ -74,38 +84,47 @@ class Orchestrator:
             request.session_id,
         )
 
-        # Step 2: NP1 Adjudicate
-        t0 = time.monotonic()
-        event = await self.narrator.phase_1(request.user_input, checkpoint)
-        latencies.append(PhaseLatency(
-            phase="np1_adjudicate",
-            duration_ms=(time.monotonic() - t0) * 1000,
-            model=self.client.config.model_for_role("narrator"),
-        ))
+        if self.use_merged_event_router:
+            t0 = time.monotonic()
+            routed = await self.event_router.run(request.user_input, checkpoint)
+            event = routed.canonical_event
+            disc_output = routed.to_discriminator_output()
+            latencies.append(PhaseLatency(
+                phase="event_router",
+                duration_ms=(time.monotonic() - t0) * 1000,
+                model=self.client.config.model_for_role("event_router"),
+            ))
+        else:
+            # Step 2: NP1 Adjudicate
+            t0 = time.monotonic()
+            event = await self.narrator.phase_1(request.user_input, checkpoint)
+            latencies.append(PhaseLatency(
+                phase="np1_adjudicate",
+                duration_ms=(time.monotonic() - t0) * 1000,
+                model=self.client.config.model_for_role("narrator"),
+            ))
 
-        # Step 2.5: Apply scene transition if NP1 detected movement
+            # Step 3: Discriminator
+            t0 = time.monotonic()
+            disc_output = await self.discriminator.run(event, checkpoint)
+            latencies.append(PhaseLatency(
+                phase="discriminator",
+                duration_ms=(time.monotonic() - t0) * 1000,
+                model=self.client.config.model_for_role("discriminator"),
+            ))
+
+        # Step 2.5 / merged equivalent: Apply scene transition before roster routing
         if event.scene_delta.new_scene_id:
             old_scene = checkpoint.world_state.locations.current_scene_id
             new_scene = event.scene_delta.new_scene_id
             if new_scene in checkpoint.world_state.locations.scene_graph:
                 checkpoint.world_state.locations.current_scene_id = new_scene
-                logger.info(
-                    "Scene transition: %s -> %s", old_scene, new_scene
-                )
+                logger.info("Scene transition: %s -> %s", old_scene, new_scene)
             else:
                 logger.warning(
-                    "NP1 suggested scene %s but it's not in the scene graph",
+                    "Event analysis suggested scene %s but it's not in the scene graph",
                     new_scene,
                 )
-
-        # Step 3: Discriminator
-        t0 = time.monotonic()
-        disc_output = await self.discriminator.run(event, checkpoint)
-        latencies.append(PhaseLatency(
-            phase="discriminator",
-            duration_ms=(time.monotonic() - t0) * 1000,
-            model=self.client.config.model_for_role("discriminator"),
-        ))
 
         # Apply roster updates (dormancy, culling)
         self.char_mgr.apply_roster_updates(checkpoint, disc_output)
@@ -177,11 +196,17 @@ class Orchestrator:
             debug = None
             if request.debug:
                 prompt_versions = self.prompt_mgr.get_all_versions()
-                models_used = {
-                    "narrator": self.client.config.model_for_role("narrator"),
-                    "discriminator": self.client.config.model_for_role("discriminator"),
-                    "agent": self.client.config.model_for_role("agent"),
-                }
+                if self.use_merged_event_router:
+                    models_used = {
+                        "event_router": self.client.config.model_for_role("event_router"),
+                        "agent": self.client.config.model_for_role("agent"),
+                    }
+                else:
+                    models_used = {
+                        "narrator": self.client.config.model_for_role("narrator"),
+                        "discriminator": self.client.config.model_for_role("discriminator"),
+                        "agent": self.client.config.model_for_role("agent"),
+                    }
                 debug = DebugPayload(
                     canonical_event=event.model_dump(),
                     discriminator=disc_output.model_dump(),
@@ -360,11 +385,18 @@ class Orchestrator:
         debug = None
         if request.debug:
             prompt_versions = self.prompt_mgr.get_all_versions()
-            models_used = {
-                "narrator": self.client.config.model_for_role("narrator"),
-                "discriminator": self.client.config.model_for_role("discriminator"),
-                "agent": self.client.config.model_for_role("agent"),
-            }
+            if self.use_merged_event_router:
+                models_used = {
+                    "event_router": self.client.config.model_for_role("event_router"),
+                    "narrator": self.client.config.model_for_role("narrator"),
+                    "agent": self.client.config.model_for_role("agent"),
+                }
+            else:
+                models_used = {
+                    "narrator": self.client.config.model_for_role("narrator"),
+                    "discriminator": self.client.config.model_for_role("discriminator"),
+                    "agent": self.client.config.model_for_role("agent"),
+                }
             debug = DebugPayload(
                 canonical_event=event.model_dump(),
                 discriminator=disc_output.model_dump(),
