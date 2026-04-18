@@ -255,9 +255,9 @@ In debug mode, also return structured intermediate artifacts.
   "updated_at": "timestamp",
   "config": {
     "models": {
-      "narrator": "GPT-oss-120B",
-      "discriminator": "GPT-oss-120B",
-      "agent_default": "GPT-oss-120B"
+      "narrator": "claude-sonnet-4-6",
+      "discriminator": "claude-sonnet-4-6",
+      "agent_default": "claude-sonnet-4-6"
     },
     "debug": false,
     "stream_mode": "final_only"
@@ -520,23 +520,25 @@ Debug streaming should be opt-in. The normal UX should remain clean and invisibl
 
 ## 9.3 Internal Model Client Contract
 
-The engine will call the shared model gateway using role-specific model names.
+The engine calls the Anthropic Messages API using role-specific model names via the `anthropic` SDK.
 
 Example base request shape:
 
 ```python
-POST {gateway_url}/api/OnPrem/{model_name}/completions
-{
-  "data": "<assembled prompt>",
-  "stream": true|false
-}
+client = anthropic.AsyncAnthropic()
+response = await client.messages.create(
+    model=model_name,               # e.g. "claude-sonnet-4-6"
+    system="<system prompt>",
+    messages=[{"role": "user", "content": "<assembled prompt>"}],
+    max_tokens=1000,
+)
 ```
 
 Wrap this behind a client abstraction:
 
 ```python
 class LLMClient:
-    def complete(self, model_name: str, prompt: str, stream: bool = False, options: dict | None = None):
+    def complete(self, role: str, messages: list[dict], response_model=None, max_tokens: int | None = None):
         ...
 ```
 
@@ -732,9 +734,9 @@ Recommended debug artifact per turn:
     "narrator_phase_2": 2100
   },
   "models": {
-    "narrator": "GPT-oss-120B",
-    "discriminator": "GPT-oss-120B",
-    "agent_default": "GPT-oss-120B"
+    "narrator": "claude-sonnet-4-6",
+    "discriminator": "claude-sonnet-4-6",
+    "agent_default": "claude-sonnet-4-6"
   }
 }
 ```

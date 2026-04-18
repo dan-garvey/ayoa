@@ -1,64 +1,55 @@
-"""Test script for the LLM gateway chat completion API."""
+"""Test script for the Anthropic Messages API."""
 
-import openai
-import httpx
-import os
-import getpass
-import time
-import json
 import argparse
+import json
+import os
+import time
+
+import anthropic
 
 
-def make_client(base_url: str) -> openai.OpenAI:
-    headers = {
-        "Ocp-Apim-Subscription-Key": os.getenv("LLM_GATEWAY_KEY"),
-        "user": os.environ.get("USER", getpass.getuser()),
-    }
-    return openai.OpenAI(
-        base_url=base_url,
-        api_key="dummy",
-        http_client=httpx.Client(verify=False),
-        default_headers=headers,
+def make_client() -> anthropic.Anthropic:
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+    return anthropic.Anthropic()
+
+
+def _extract_text(response) -> str:
+    return "".join(
+        block.text for block in response.content if getattr(block, "type", "") == "text"
     )
 
 
-def test_basic_completion(client: openai.OpenAI, model: str):
+def test_basic_completion(client: anthropic.Anthropic, model: str):
     print(f"=== Basic Completion: {model} ===")
     start = time.perf_counter()
-    response = client.chat.completions.create(
+    response = client.messages.create(
         model=model,
-        max_completion_tokens=200,
-        temperature=0.7,
+        max_tokens=200,
         messages=[{"role": "user", "content": "In one sentence, what is interactive fiction?"}],
     )
     elapsed = time.perf_counter() - start
 
-    choice = response.choices[0]
     print(f"Model:   {response.model}")
     print(f"Time:    {elapsed:.2f}s")
-    print(f"Reply:   {choice.message.content}")
-    print(f"Finish:  {choice.finish_reason}")
-    print(f"Usage:   {response.usage.model_dump_json(indent=2)}")
+    print(f"Reply:   {_extract_text(response)}")
+    print(f"Finish:  {response.stop_reason}")
+    print(f"Usage:   input={response.usage.input_tokens} output={response.usage.output_tokens}")
     print()
 
 
-def test_streaming(client: openai.OpenAI, model: str):
+def test_streaming(client: anthropic.Anthropic, model: str):
     print(f"=== Streaming: {model} ===")
     start = time.perf_counter()
-    stream = client.chat.completions.create(
-        model=model,
-        max_completion_tokens=200,
-        temperature=0.7,
-        messages=[{"role": "user", "content": "Describe a rainy courtyard in two sentences."}],
-        stream=True,
-    )
-
     chunks = 0
     print("Reply:   ", end="", flush=True)
-    for chunk in stream:
-        delta = chunk.choices[0].delta if chunk.choices else None
-        if delta and delta.content:
-            print(delta.content, end="", flush=True)
+    with client.messages.stream(
+        model=model,
+        max_tokens=200,
+        messages=[{"role": "user", "content": "Describe a rainy courtyard in two sentences."}],
+    ) as stream:
+        for text in stream.text_stream:
+            print(text, end="", flush=True)
             chunks += 1
 
     elapsed = time.perf_counter() - start
@@ -67,7 +58,7 @@ def test_streaming(client: openai.OpenAI, model: str):
     print()
 
 
-def test_structured_json(client: openai.OpenAI, model: str):
+def test_structured_json(client: anthropic.Anthropic, model: str):
     print(f"=== Structured JSON Output: {model} ===")
     system = (
         "You are a world-state engine. Respond ONLY with valid JSON, no markdown fences.\n"
@@ -76,18 +67,15 @@ def test_structured_json(client: openai.OpenAI, model: str):
     user = "The player tries to lift a stone castle with bare hands."
 
     start = time.perf_counter()
-    response = client.chat.completions.create(
+    response = client.messages.create(
         model=model,
-        max_completion_tokens=200,
-        temperature=0.3,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        max_tokens=200,
+        system=system,
+        messages=[{"role": "user", "content": user}],
     )
     elapsed = time.perf_counter() - start
 
-    raw = response.choices[0].message.content
+    raw = _extract_text(response)
     print(f"Raw:     {raw}")
     try:
         parsed = json.loads(raw)
@@ -99,24 +87,22 @@ def test_structured_json(client: openai.OpenAI, model: str):
     print()
 
 
-def test_multi_turn(client: openai.OpenAI, model: str):
+def test_multi_turn(client: anthropic.Anthropic, model: str):
     print(f"=== Multi-Turn Conversation: {model} ===")
-    messages = [
-        {"role": "system", "content": "You are a guard captain named Vero. You speak in clipped, formal sentences."},
-        {"role": "user", "content": "I approach the gate."},
-    ]
+    system = "You are a guard captain named Vero. You speak in clipped, formal sentences."
+    messages = [{"role": "user", "content": "I approach the gate."}]
 
     for turn in range(2):
         start = time.perf_counter()
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=model,
-            max_completion_tokens=150,
-            temperature=0.7,
+            max_tokens=150,
+            system=system,
             messages=messages,
         )
         elapsed = time.perf_counter() - start
 
-        reply = response.choices[0].message.content
+        reply = _extract_text(response)
         print(f"Turn {turn + 1}: ({elapsed:.2f}s) {reply}")
         messages.append({"role": "assistant", "content": reply})
         messages.append({"role": "user", "content": "I ask to be let through." if turn == 0 else "I show my papers."})
@@ -125,17 +111,12 @@ def test_multi_turn(client: openai.OpenAI, model: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test LLM gateway chat completion API")
-    parser.add_argument("--url", default="https://llm-api.amd.com/OnPrem", help="Gateway base URL")
-    parser.add_argument("--model", default="GPT-oss-120B", help="Model name")
+    parser = argparse.ArgumentParser(description="Test Anthropic Messages API")
+    parser.add_argument("--model", default="claude-haiku-4-5", help="Model name")
     parser.add_argument("--test", choices=["basic", "stream", "json", "multi", "all"], default="all")
     args = parser.parse_args()
 
-    if not os.getenv("LLM_GATEWAY_KEY"):
-        print("ERROR: Set LLM_GATEWAY_KEY environment variable")
-        raise SystemExit(1)
-
-    client = make_client(args.url)
+    client = make_client()
 
     tests = {
         "basic": test_basic_completion,

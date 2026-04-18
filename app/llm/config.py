@@ -6,25 +6,26 @@ from pydantic import BaseModel, Field
 
 
 class LLMConfig(BaseModel):
-    gateway_url: str = "https://llm-api.amd.com/OnPrem"
-    api_key: str = "dummy"
-    subscription_key: str = ""
-    user: str = ""
+    api_key: str = ""
 
     role_models: dict[str, str] = Field(default_factory=lambda: {
-        "event_router": "GPT-oss-120B",
-        "narrator": "GPT-oss-120B",
-        "discriminator": "GPT-oss-120B",
-        "agent": "GPT-oss-120B",
-        "character_gen": "GPT-oss-120B",
+        "event_router": "claude-sonnet-4-6",
+        "narrator": "claude-sonnet-4-6",
+        "discriminator": "claude-sonnet-4-6",
+        "agent": "claude-sonnet-4-6",
+        "character_gen": "claude-sonnet-4-6",
     })
 
-    default_model: str = "GPT-oss-120B"
+    default_model: str = "claude-sonnet-4-6"
     default_temperature: float = 0.7
     default_max_tokens: int = 1000
     max_retries: int = 2
     retry_base_delay: float = 1.0
     timeout: float = 60.0
+    # Compaction trigger (beta). Sonnet 4.6 has a 1M context window with no
+    # long-context pricing tier, so we defer compaction until we're within
+    # ~100K tokens of the window limit. Tune down for smaller-window models.
+    compact_trigger_tokens: int = 900_000
 
     def model_for_role(self, role: str) -> str:
         return self.role_models.get(role, self.default_model)
@@ -32,6 +33,5 @@ class LLMConfig(BaseModel):
     @classmethod
     def from_env(cls) -> LLMConfig:
         return cls(
-            subscription_key=os.environ.get("LLM_GATEWAY_KEY", ""),
-            user=os.environ.get("USER", "unknown"),
+            api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
         )

@@ -30,7 +30,6 @@ from dotenv import load_dotenv
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
-    CharacterMemory,
     CharacterRecord,
     CharacterStatus,
     PrivateState,
@@ -52,15 +51,25 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # --- Extraction prompts ---
+#
+# The three extraction calls below share one large piece of context — the source
+# prompt — and differ only in the task-specific instructions. To let the Anthropic
+# prompt cache kick in (source cached once, reused on retries within 5 minutes),
+# the source prompt is sent as a stable `system` message and each call's user
+# message holds only the task-specific instructions.
 
-WORLD_EXTRACTION_PROMPT = """\
-You are a story structure analyst. Given a monolithic interactive fiction prompt, extract the world-building elements into structured JSON.
+SHARED_SOURCE_SYSTEM = """\
+You extract structured data from monolithic interactive-fiction source prompts for an
+interactive-fiction engine. The source prompt below is the single authoritative input
+for this import run — every extraction task you receive will ask for a different slice
+of it.
 
 ## Source Prompt
-{source_prompt}
+{source_prompt}"""
 
-## Your Task
-Extract the world state from this prompt. Respond with ONLY valid JSON matching this schema:
+
+WORLD_EXTRACTION_PROMPT = """\
+Extract the world state from the source prompt. Respond with ONLY valid JSON matching this schema:
 
 {{
   "setting": {{
@@ -90,13 +99,7 @@ Extract the world state from this prompt. Respond with ONLY valid JSON matching 
 }}"""
 
 CHARACTER_EXTRACTION_PROMPT = """\
-You are a character analyst for an interactive fiction engine. Given a monolithic prompt, extract ALL named characters into structured records.
-
-## Source Prompt
-{source_prompt}
-
-## Your Task
-Extract every named character (NPCs, love interests, rivals, supporting cast, faculty, political figures) into structured records. For each character, capture their full depth.
+Extract every named character from the source prompt (NPCs, love interests, rivals, supporting cast, faculty, political figures) into structured records. For each character, capture their full depth.
 
 Respond with ONLY valid JSON — an array of character objects:
 
@@ -146,13 +149,7 @@ The source prompt may contain hidden plot details, conspiracies, and secrets. Yo
 
 
 OPENING_NARRATIVE_PROMPT = """\
-You are a narrative writer for an interactive fiction engine. Given a story prompt, write the opening passage that the player reads when they first start the game.
-
-## Source Prompt
-{source_prompt}
-
-## Your Task
-Write the opening narrative — the first thing the player reads. This sets the scene, establishes who they are and why they're here, and ends at a moment where they can choose what to do.
+Write the opening narrative for the source prompt — the first thing the player reads. This sets the scene, establishes who they are and why they're here, and ends at a moment where they can choose what to do.
 
 ## Rules
 1. Write in **second person present tense**: "You step off the bridge..." not "The player steps..."
@@ -179,7 +176,8 @@ async def extract_world(client: LLMClient, source: str) -> dict:
     result = await client.complete(
         role="narrator",
         messages=[
-            {"role": "user", "content": WORLD_EXTRACTION_PROMPT.format(source_prompt=source)},
+            {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
+            {"role": "user", "content": WORLD_EXTRACTION_PROMPT},
         ],
         temperature=0.3,
         max_tokens=8000,
@@ -198,7 +196,8 @@ async def extract_characters(client: LLMClient, source: str) -> list[dict]:
     result = await client.complete(
         role="narrator",
         messages=[
-            {"role": "user", "content": CHARACTER_EXTRACTION_PROMPT.format(source_prompt=source)},
+            {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
+            {"role": "user", "content": CHARACTER_EXTRACTION_PROMPT},
         ],
         temperature=0.3,
         max_tokens=16000,
@@ -230,7 +229,8 @@ async def extract_opening(client: LLMClient, source: str) -> str:
     result = await client.complete(
         role="narrator",
         messages=[
-            {"role": "user", "content": OPENING_NARRATIVE_PROMPT.format(source_prompt=source)},
+            {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
+            {"role": "user", "content": OPENING_NARRATIVE_PROMPT},
         ],
         temperature=0.5,
         max_tokens=4000,

@@ -1,7 +1,7 @@
 """Context builder — constructs prompt context for character agents.
 
-Builds character packets, scene context, and recent transcript summaries
-that are visibility-aware (only includes information the character can know).
+Builds character packets and scene context that are visibility-aware (only
+includes information the character can know).
 """
 
 from __future__ import annotations
@@ -16,27 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 def build_character_packet(char: CharacterRecord) -> dict[str, str]:
-    """Build the context variables for a character agent prompt."""
+    """Build the stable character-identity variables for the agent system prompt.
+
+    Dynamic state (goals/attitudes/secrets) is rendered into the per-turn user
+    message separately; this function covers the frozen-identity portion.
+    """
     traits = ", ".join(char.public_sheet.traits) if char.public_sheet.traits else "none noted"
-    goals = "\n".join(f"- {g}" for g in char.private_state.goals) if char.private_state.goals else "None specified."
-    secrets = "\n".join(f"- {s}" for s in char.private_state.secrets) if char.private_state.secrets else "None."
-
-    # Format attitudes
-    attitudes_lines = []
-    for target, value in char.private_state.attitudes.items():
-        label = _attitude_label(value)
-        attitudes_lines.append(f"- {target}: {value:+.1f} ({label})")
-    attitudes = "\n".join(attitudes_lines) if attitudes_lines else "No strong opinions."
-
-    # Format memories
-    memories = []
-    if char.memory.episodic:
-        for m in char.memory.episodic[-10:]:  # Last 10 episodic memories
-            memories.append(f"- {m}")
-    if char.memory.summaries:
-        for s in char.memory.summaries[-3:]:  # Last 3 summary memories
-            memories.append(f"- [Summary] {s}")
-    memories_str = "\n".join(memories) if memories else "No prior memories of events."
 
     return {
         "character_id": char.character_id,
@@ -48,11 +33,33 @@ def build_character_packet(char: CharacterRecord) -> dict[str, str]:
         "character_faction": char.public_sheet.faction or "unaffiliated",
         "character_backstory": char.backstory or "No detailed backstory available.",
         "character_personality": char.personality or "No detailed personality notes.",
+        "character_narrative_notes": char.narrative_notes or "No special narrative guidance.",
+    }
+
+
+def build_character_state(char: CharacterRecord) -> dict[str, str]:
+    """Build the per-turn dynamic state variables for the agent user message."""
+    goals = (
+        "\n".join(f"- {g}" for g in char.private_state.goals)
+        if char.private_state.goals
+        else "None specified."
+    )
+    secrets = (
+        "\n".join(f"- {s}" for s in char.private_state.secrets)
+        if char.private_state.secrets
+        else "None."
+    )
+
+    attitudes_lines = []
+    for target, value in char.private_state.attitudes.items():
+        label = _attitude_label(value)
+        attitudes_lines.append(f"- {target}: {value:+.1f} ({label})")
+    attitudes = "\n".join(attitudes_lines) if attitudes_lines else "No strong opinions."
+
+    return {
         "character_goals": goals,
         "character_attitudes": attitudes,
         "character_secrets": secrets,
-        "character_memories": memories_str,
-        "character_narrative_notes": char.narrative_notes or "No special narrative guidance.",
     }
 
 
@@ -84,13 +91,11 @@ def build_world_context(checkpoint: CheckpointFile) -> str:
     if setting.premise:
         parts.append(f"Premise: {setting.premise}")
 
-    # Include key world facts
     if checkpoint.world_state.facts:
         parts.append("\nKey world facts:")
         for fact in checkpoint.world_state.facts:
             parts.append(f"- {fact}")
 
-    # Include world lore for grounding
     if checkpoint.world_state.lore:
         parts.append(f"\nWorld lore:\n{checkpoint.world_state.lore}")
 
@@ -116,7 +121,6 @@ def build_characters_present(
 
         role = char.public_sheet.role or "unknown role"
         appearance = char.public_sheet.appearance or "nondescript"
-        # Include this character's attitude toward the other character
         attitude = character.private_state.attitudes.get(char.character_id)
         att_note = ""
         if attitude is not None and abs(attitude) >= 0.1:
@@ -130,22 +134,6 @@ def build_characters_present(
     if not present:
         return "No other characters are present."
     return "\n".join(present)
-
-
-def build_recent_transcript(
-    checkpoint: CheckpointFile, max_entries: int = 5
-) -> str:
-    """Build recent transcript, limited to prevent context bloat."""
-    if not checkpoint.transcript:
-        return "No prior conversation."
-
-    entries = checkpoint.transcript[-max_entries:]
-    lines = []
-    for entry in entries:
-        lines.append(f"Player: {entry.user}")
-        lines.append(f"Narrator: {entry.assistant}")
-        lines.append("")
-    return "\n".join(lines).strip()
 
 
 def format_observed_facts(facts: list[str]) -> str:
@@ -183,15 +171,21 @@ def format_prior_responses(
     return "\n".join(parts)
 
 
-def format_queued_observations(character: CharacterRecord) -> str:
-    """Format the observation queue for inclusion in the agent prompt."""
-    if not character.memory.observation_queue:
-        return "Nothing noteworthy has happened since you last acted."
+def format_pending_observations_block(character: CharacterRecord) -> str:
+    """Render the pending-observations markdown block for the agent user message.
 
-    lines = ["Since you last acted or spoke, you observed the following:"]
-    for entry in character.memory.observation_queue:
+    Returns an empty string when there's nothing pending (so the template
+    renders cleanly without a dangling header). The orchestrator flushes and
+    clears `character.pending_observations` around this call.
+    """
+    if not character.pending_observations:
+        return ""
+
+    lines = ["## Since your last response"]
+    for entry in character.pending_observations:
         lines.append(f"- {entry}")
-    return "\n".join(lines)
+    lines.append("")  # trailing blank line before next section
+    return "\n".join(lines) + "\n"
 
 
 def _attitude_label(value: float) -> str:

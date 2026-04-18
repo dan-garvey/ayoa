@@ -20,12 +20,6 @@ class PublicSheet(BaseModel):
     faction: str = ""
 
 
-class CharacterMemory(BaseModel):
-    episodic: list[str] = Field(default_factory=list)
-    summaries: list[str] = Field(default_factory=list)
-    observation_queue: list[str] = Field(default_factory=list)
-
-
 class PrivateState(BaseModel):
     goals: list[str] = Field(default_factory=list)
     # Keys can be "user" or any character_id for inter-character attitudes
@@ -41,7 +35,10 @@ class CharacterRecord(BaseModel):
     location: str = ""
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
     private_state: PrivateState = Field(default_factory=PrivateState)
-    memory: CharacterMemory = Field(default_factory=CharacterMemory)
+    # Staging area for observations the character witnessed silently (turns where
+    # they didn't respond). Flushed into the next agent user message when the
+    # character is asked to respond, then cleared.
+    pending_observations: list[str] = Field(default_factory=list)
     # Long-form text fields for rich character content
     backstory: str = ""
     personality: str = ""

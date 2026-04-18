@@ -65,6 +65,18 @@ def mock_checkpoint_mgr(sample_checkpoint):
     return mgr
 
 
+def _llm_response(parsed) -> LLMResponse:
+    """Shape the LLMResponse like the new engine expects (with raw_response.content)."""
+    raw = MagicMock()
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "{}"
+    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    raw.content = [text_block]
+    raw.model = "claude-sonnet-4-6"
+    return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
+
+
 @pytest.fixture
 def prompt_manager():
     return PromptManager("app/prompts")
@@ -107,16 +119,6 @@ class TestCharacterManager:
         mgr.apply_agent_output(sample_checkpoint, output)
         assert char.private_state.attitudes["user"] == 1.0
 
-    def test_apply_memory_writes(self, sample_checkpoint):
-        mgr = CharacterManager()
-        output = CharacterAgentOutput(
-            character_id="guard_17",
-            memory_writes=["Saw the player looking around."],
-        )
-        mgr.apply_agent_output(sample_checkpoint, output)
-        char = mgr.get_character(sample_checkpoint, "guard_17")
-        assert "looking around" in char.memory.episodic[0]
-
     def test_apply_roster_dormant(self, sample_checkpoint):
         mgr = CharacterManager()
         disc = DiscriminatorOutput(dormant=["guard_17"])
@@ -128,22 +130,19 @@ class TestCharacterManager:
 class TestOrchestrator:
     @pytest.mark.asyncio
     async def test_full_turn(self, mock_client, mock_checkpoint_mgr, prompt_manager):
-        """Test a complete turn with mocked LLM responses."""
-        # Set up sequential mock responses for the 4 LLM calls:
-        # NP1, Discriminator, Agent, NP2
-        event = CanonicalEvent(
-            event_id="evt_0000",
-            user_intent="look around",
-            world_adjudication=WorldAdjudication(
-                attempted_action="survey area",
-                feasible=True,
-                resolved_outcome="Player looks around.",
+        """Test a complete turn with mocked LLM responses (canonical merged path)."""
+        # 3 LLM calls: EventRouter (merged NP1+Disc), Agent, NP2.
+        merged = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                event_id="evt_0000",
+                user_intent="look around",
+                world_adjudication=WorldAdjudication(
+                    attempted_action="survey area",
+                    feasible=True,
+                    resolved_outcome="Player looks around.",
+                ),
+                observable_facts=["Player looks around."],
             ),
-            observable_facts=["Player looks around."],
-        )
-
-        disc = DiscriminatorOutput(
-            event_id="evt_0000",
             observers=[
                 ObserverEntry(
                     character_id="guard_17",
@@ -172,10 +171,9 @@ class TestOrchestrator:
         )
 
         mock_client.complete.side_effect = [
-            LLMResponse(parsed=event),
-            LLMResponse(parsed=disc),
-            LLMResponse(parsed=agent_out),
-            LLMResponse(parsed=narrator_out),
+            _llm_response(merged),
+            _llm_response(agent_out),
+            _llm_response(narrator_out),
         ]
 
         orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
@@ -187,25 +185,26 @@ class TestOrchestrator:
         assert "look around" in response.output_text.lower()
         assert response.turn_index == 1
         assert response.debug is None
-        assert mock_client.complete.call_count == 4
+        assert mock_client.complete.call_count == 3
         mock_checkpoint_mgr.save.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_turn_with_no_responders(
         self, mock_client, mock_checkpoint_mgr, prompt_manager
     ):
-        """Test turn where no characters respond."""
-        event = CanonicalEvent(
-            event_id="evt_0000",
-            user_intent="think quietly",
-            world_adjudication=WorldAdjudication(
-                attempted_action="internal reflection",
-                feasible=True,
-                resolved_outcome="Player thinks.",
+        """Turn where no characters respond — EventRouter returns no observers."""
+        merged = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                event_id="evt_0000",
+                user_intent="think quietly",
+                world_adjudication=WorldAdjudication(
+                    attempted_action="internal reflection",
+                    feasible=True,
+                    resolved_outcome="Player thinks.",
+                ),
             ),
+            observers=[],
         )
-
-        disc = DiscriminatorOutput(event_id="evt_0000", observers=[])
 
         narrator_out = NarratorFinalOutput(
             final_text="You stand quietly, collecting your thoughts.",
@@ -217,9 +216,8 @@ class TestOrchestrator:
         )
 
         mock_client.complete.side_effect = [
-            LLMResponse(parsed=event),
-            LLMResponse(parsed=disc),
-            LLMResponse(parsed=narrator_out),
+            _llm_response(merged),
+            _llm_response(narrator_out),
         ]
 
         orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
@@ -228,115 +226,12 @@ class TestOrchestrator:
         response = await orchestrator.process_turn(request)
 
         assert "quietly" in response.output_text.lower()
-        # Only 3 LLM calls: NP1, Disc, NP2 (no agents)
-        assert mock_client.complete.call_count == 3
+        # 2 LLM calls: EventRouter, NP2 (no agents)
+        assert mock_client.complete.call_count == 2
 
     @pytest.mark.asyncio
     async def test_debug_mode(self, mock_client, mock_checkpoint_mgr, prompt_manager):
-        """Test that debug mode includes internal artifacts."""
-        event = CanonicalEvent(
-            event_id="evt_0000",
-            user_intent="test",
-            world_adjudication=WorldAdjudication(
-                attempted_action="test",
-                feasible=True,
-                resolved_outcome="test",
-            ),
-        )
-
-        disc = DiscriminatorOutput(event_id="evt_0000")
-
-        narrator_out = NarratorFinalOutput(
-            final_text="Test.",
-            transcript_entry=TranscriptEntry(user="test", assistant="Test."),
-            turn_summary="test",
-        )
-
-        mock_client.complete.side_effect = [
-            LLMResponse(parsed=event),
-            LLMResponse(parsed=disc),
-            LLMResponse(parsed=narrator_out),
-        ]
-
-        orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
-        request = TurnRequest(
-            session_id="test-session", user_input="test", debug=True
-        )
-
-        response = await orchestrator.process_turn(request)
-
-        assert response.debug is not None
-        assert "event_id" in response.debug.canonical_event
-        assert "observers" in response.debug.discriminator
-        # Stage 12: Enhanced debug info
-        assert response.debug.total_duration_ms > 0
-        assert len(response.debug.latencies) >= 3  # np1, disc, np2
-        assert response.debug.models_used["narrator"] == "GPT-oss-120B"
-        assert "narrator_phase1" in response.debug.prompt_versions
-        assert isinstance(response.debug.validations, list)
-
-    @pytest.mark.asyncio
-    async def test_full_turn_merged_path(
-        self, mock_client, mock_checkpoint_mgr, prompt_manager
-    ):
-        merged = EventRouterOutput(
-            canonical_event=CanonicalEvent(
-                event_id="evt_0000",
-                user_intent="look around",
-                world_adjudication=WorldAdjudication(
-                    attempted_action="survey area",
-                    feasible=True,
-                    resolved_outcome="Player looks around.",
-                ),
-                observable_facts=["Player looks around."],
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id="guard_17",
-                    facts=["Player looks around."],
-                    response_priority=5,
-                ),
-            ],
-        )
-
-        agent_out = CharacterAgentOutput(
-            character_id="guard_17",
-            public_response=PublicResponse(dialogue=["Everything alright?"]),
-            private_updates=PrivateUpdates(attitude_delta={"user": 0.05}),
-            memory_writes=["The player looked around."],
-        )
-
-        narrator_out = NarratorFinalOutput(
-            final_text="You look around. \"Everything alright?\" Captain Vero asks.",
-            transcript_entry=TranscriptEntry(
-                user="I look around.",
-                assistant="You look around. \"Everything alright?\" Captain Vero asks.",
-            ),
-            turn_summary="Player surveyed area; guard responded.",
-        )
-
-        mock_client.complete.side_effect = [
-            LLMResponse(parsed=merged),
-            LLMResponse(parsed=agent_out),
-            LLMResponse(parsed=narrator_out),
-        ]
-
-        orchestrator = Orchestrator(
-            mock_client, mock_checkpoint_mgr, prompt_manager, merged_event_router=True
-        )
-        request = TurnRequest(session_id="test-session", user_input="I look around.")
-
-        response = await orchestrator.process_turn(request)
-
-        assert response.session_id == "test-session"
-        assert "look around" in response.output_text.lower()
-        assert response.turn_index == 1
-        assert mock_client.complete.call_count == 3
-
-    @pytest.mark.asyncio
-    async def test_merged_path_debug_mode(
-        self, mock_client, mock_checkpoint_mgr, prompt_manager
-    ):
+        """Debug mode includes internal artifacts on the merged path."""
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
                 event_id="evt_0000",
@@ -349,6 +244,7 @@ class TestOrchestrator:
             ),
             observers=[],
         )
+
         narrator_out = NarratorFinalOutput(
             final_text="Test.",
             transcript_entry=TranscriptEntry(user="test", assistant="Test."),
@@ -356,20 +252,24 @@ class TestOrchestrator:
         )
 
         mock_client.complete.side_effect = [
-            LLMResponse(parsed=merged),
-            LLMResponse(parsed=narrator_out),
+            _llm_response(merged),
+            _llm_response(narrator_out),
         ]
 
-        orchestrator = Orchestrator(
-            mock_client, mock_checkpoint_mgr, prompt_manager, merged_event_router=True
+        orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
+        request = TurnRequest(
+            session_id="test-session", user_input="test", debug=True
         )
-        request = TurnRequest(session_id="test-session", user_input="test", debug=True)
 
         response = await orchestrator.process_turn(request)
 
         assert response.debug is not None
-        assert "event_router" in response.debug.models_used
+        assert "event_id" in response.debug.canonical_event
+        assert "observers" in response.debug.discriminator
+        assert response.debug.total_duration_ms > 0
         assert any(lat.phase == "event_router" for lat in response.debug.latencies)
+        assert "event_router" in response.debug.models_used
+        assert isinstance(response.debug.validations, list)
 
 
 class TestCharacterSpawn:
@@ -382,7 +282,7 @@ class TestCharacterSpawn:
             location="courtyard",
             public_sheet=PublicSheet(role="stablehand", traits=["nervous"]),
         )
-        mock_client.complete.return_value = LLMResponse(parsed=new_char)
+        mock_client.complete.return_value = _llm_response(new_char)
 
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 
@@ -418,7 +318,7 @@ class TestCharacterSpawn:
             name="NPC",
             location="courtyard",
         )
-        mock_client.complete.return_value = LLMResponse(parsed=new_char)
+        mock_client.complete.return_value = _llm_response(new_char)
 
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 

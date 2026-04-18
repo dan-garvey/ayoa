@@ -72,30 +72,31 @@ class TestPromptManagerWithRealTemplates:
     def test_all_templates_load(self):
         mgr = PromptManager(prompts_dir="app/prompts")
         versions = mgr.get_all_versions()
-        assert "narrator_phase1" in versions
         assert "narrator_phase2" in versions
-        assert "discriminator" in versions
         assert "agent" in versions
         assert "character_gen" in versions
         assert "event_router" in versions
+        # Legacy templates removed:
+        assert "narrator_phase1" not in versions
+        assert "discriminator" not in versions
+        assert "transcript_summary" not in versions
 
-    def test_narrator_phase1_renders(self):
+    def test_event_router_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")
         result = mgr.render(
-            "narrator_phase1",
+            "event_router",
             setting_summary="Genre: fantasy\nTone: dark",
             world_lore="The kingdom has been at war.",
             world_rules="No magic. Human baseline strength.",
-            scene_context="A stone courtyard in the rain.",
+            scene_graph="- courtyard (id: courtyard)",
+            current_scene="A stone courtyard in the rain.",
             characters_present="- Captain Vero (guard): disciplined",
-            recent_transcript="(none)",
             world_facts="The courtyard is wet.",
-            narrative_rules="Write concise prose.",
+            hidden_lore="Secret conspiracy details.",
+            hidden_facts="- Hidden fact one",
+            character_registry="- guard_17 Captain Vero",
             user_input="I try to lift the building.",
             player_name="Aldric",
-            hidden_lore="Secret conspiracy details.",
-            hidden_facts="- Hidden fact one\n- Hidden fact two",
-            opening_directive="",
         )
         assert "I try to lift the building" in result
         assert "Aldric" in result
@@ -117,17 +118,56 @@ class TestPromptManagerWithRealTemplates:
             character_goals="- maintain order",
             character_attitudes="- user: -0.1 (neutral)",
             character_secrets="- knows the hidden passage",
-            character_memories="(none)",
             character_narrative_notes="Right hand twitches when lying.",
             world_context="Genre: fantasy",
             observed_facts="The user strains against the building.",
             scene_context="Estate courtyard, raining.",
-            recent_transcript="(none)",
             characters_present="No other characters are present.",
             character_id="guard_17",
-            queued_observations="Nothing noteworthy has happened since you last acted.",
             prior_character_responses="No other characters have responded yet.",
+            pending_observations_block="",
         )
         assert "Captain Vero" in result
         assert "guard_17" in result
         assert "hidden passage" in result
+
+    def test_render_messages_requires_delimiter(self):
+        mgr = PromptManager(prompts_dir="app/prompts")
+        # All canonical templates have the delimiter, so this should succeed.
+        messages = mgr.render_messages(
+            "event_router",
+            setting_summary="x", world_lore="x", world_rules="x",
+            scene_graph="x", current_scene="x", characters_present="x",
+            world_facts="x", hidden_lore="x", hidden_facts="x",
+            character_registry="x", user_input="x", player_name="x",
+        )
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+
+    def test_render_messages_rejects_missing_delimiter(self, mgr):
+        # The tmp-path `greeting` fixture has no <<<USER>>> delimiter.
+        with pytest.raises(ValueError, match="<<<USER>>>"):
+            mgr.render_messages("greeting_v1", name="a", place="b")
+
+    def test_render_conversation_inserts_history(self):
+        from app.schemas.conversation import ConversationMessage
+
+        mgr = PromptManager(prompts_dir="app/prompts")
+        history = [
+            ConversationMessage(role="user", content="prev user"),
+            ConversationMessage(role="assistant", content="prev assistant"),
+        ]
+        messages = mgr.render_conversation(
+            "event_router",
+            history=history,
+            setting_summary="x", world_lore="x", world_rules="x",
+            scene_graph="x", current_scene="x", characters_present="x",
+            world_facts="x", hidden_lore="x", hidden_facts="x",
+            character_registry="x", user_input="x", player_name="x",
+        )
+        assert len(messages) == 4
+        assert messages[0]["role"] == "system"
+        assert messages[1]["content"] == "prev user"
+        assert messages[2]["content"] == "prev assistant"
+        assert messages[3]["role"] == "user"

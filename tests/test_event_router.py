@@ -31,6 +31,19 @@ def mock_client():
     return client
 
 
+def _llm_response(parsed) -> LLMResponse:
+    """Build an LLMResponse with a mocked raw_response.content so engine code
+    that persists the raw content blocks can call .model_dump() on each block."""
+    raw = MagicMock()
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "{}"
+    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    raw.content = [text_block]
+    raw.model = "claude-sonnet-4-6"
+    return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
+
+
 @pytest.fixture
 def sample_checkpoint():
     return CheckpointFile(
@@ -103,7 +116,7 @@ class TestEventRouterRun:
     async def test_basic_run(
         self, mock_client, prompt_manager, sample_checkpoint, sample_router_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_router_output)
+        mock_client.complete.return_value = _llm_response(sample_router_output)
         router = EventRouter(mock_client, prompt_manager)
 
         result = await router.run("I look around.", sample_checkpoint)
@@ -115,13 +128,16 @@ class TestEventRouterRun:
     async def test_prompt_contains_routing_context(
         self, mock_client, prompt_manager, sample_checkpoint, sample_router_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_router_output)
+        mock_client.complete.return_value = _llm_response(sample_router_output)
         router = EventRouter(mock_client, prompt_manager)
 
         await router.run("I look around.", sample_checkpoint)
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "Captain Vero" in prompt
         assert "great_hall" in prompt
         assert "Estate Courtyard" in prompt
@@ -131,7 +147,7 @@ class TestEventRouterRun:
     async def test_uses_event_router_role(
         self, mock_client, prompt_manager, sample_checkpoint, sample_router_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_router_output)
+        mock_client.complete.return_value = _llm_response(sample_router_output)
         router = EventRouter(mock_client, prompt_manager)
 
         await router.run("I look around.", sample_checkpoint)

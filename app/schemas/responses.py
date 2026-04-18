@@ -6,10 +6,18 @@ from pydantic import BaseModel, Field
 
 
 class PhaseLatency(BaseModel):
-    """Latency info for a single pipeline phase."""
+    """Latency + token usage for a single pipeline phase."""
     phase: str
     duration_ms: float
     model: str = ""
+    # Token usage for this phase's LLM call. Cache metrics let you verify
+    # turn-over-turn that the prior conversation is being read from cache
+    # rather than re-processed. Multiple LLM calls in a single phase
+    # (e.g. agent fan-out) are summed.
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
 
 
 class DebugPayload(BaseModel):

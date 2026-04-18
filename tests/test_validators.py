@@ -13,7 +13,6 @@ from app.engine.validators import (
 from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
 from app.schemas.characters import (
     CharacterRecord,
-    CharacterMemory,
     PublicSheet,
     PrivateState,
 )

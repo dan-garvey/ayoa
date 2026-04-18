@@ -33,6 +33,17 @@ def mock_client():
     return client
 
 
+def _llm_response(parsed) -> LLMResponse:
+    raw = MagicMock()
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "{}"
+    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    raw.content = [text_block]
+    raw.model = "claude-sonnet-4-6"
+    return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
+
+
 @pytest.fixture
 def sample_checkpoint():
     return CheckpointFile(
@@ -112,10 +123,10 @@ class TestNarratorPhase2:
         self, mock_client, prompt_manager, sample_checkpoint,
         sample_event, sample_agent_outputs, sample_narrator_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_narrator_output)
+        mock_client.complete.return_value = _llm_response(sample_narrator_output)
         narrator = Narrator(mock_client, prompt_manager)
 
-        result = await narrator.phase_2(
+        result = await narrator.compose(
             "I look around.",
             sample_event,
             sample_agent_outputs,
@@ -131,15 +142,18 @@ class TestNarratorPhase2:
         self, mock_client, prompt_manager, sample_checkpoint,
         sample_event, sample_agent_outputs, sample_narrator_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_narrator_output)
+        mock_client.complete.return_value = _llm_response(sample_narrator_output)
         narrator = Narrator(mock_client, prompt_manager)
 
-        await narrator.phase_2(
+        await narrator.compose(
             "I look around.", sample_event, sample_agent_outputs, sample_checkpoint
         )
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "evt_0003" in prompt
         assert "dry fountain" in prompt
 
@@ -148,15 +162,18 @@ class TestNarratorPhase2:
         self, mock_client, prompt_manager, sample_checkpoint,
         sample_event, sample_agent_outputs, sample_narrator_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_narrator_output)
+        mock_client.complete.return_value = _llm_response(sample_narrator_output)
         narrator = Narrator(mock_client, prompt_manager)
 
-        await narrator.phase_2(
+        await narrator.compose(
             "I look around.", sample_event, sample_agent_outputs, sample_checkpoint
         )
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "Storm's coming" in prompt
         assert "steps closer" in prompt
         assert "guard_17" in prompt
@@ -166,15 +183,18 @@ class TestNarratorPhase2:
         self, mock_client, prompt_manager, sample_checkpoint,
         sample_event, sample_agent_outputs, sample_narrator_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_narrator_output)
+        mock_client.complete.return_value = _llm_response(sample_narrator_output)
         narrator = Narrator(mock_client, prompt_manager)
 
-        await narrator.phase_2(
+        await narrator.compose(
             "test", sample_event, sample_agent_outputs, sample_checkpoint
         )
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "No clichés" in prompt
 
     @pytest.mark.asyncio
@@ -183,15 +203,18 @@ class TestNarratorPhase2:
         sample_event, sample_narrator_output
     ):
         """NP2 should work with no character responses."""
-        mock_client.complete.return_value = LLMResponse(parsed=sample_narrator_output)
+        mock_client.complete.return_value = _llm_response(sample_narrator_output)
         narrator = Narrator(mock_client, prompt_manager)
 
-        result = await narrator.phase_2(
+        result = await narrator.compose(
             "I look around.", sample_event, [], sample_checkpoint
         )
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "No characters responded" in prompt
 
     @pytest.mark.asyncio
@@ -199,10 +222,10 @@ class TestNarratorPhase2:
         self, mock_client, prompt_manager, sample_checkpoint,
         sample_event, sample_agent_outputs, sample_narrator_output
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_narrator_output)
+        mock_client.complete.return_value = _llm_response(sample_narrator_output)
         narrator = Narrator(mock_client, prompt_manager)
 
-        await narrator.phase_2(
+        await narrator.compose(
             "test", sample_event, sample_agent_outputs, sample_checkpoint
         )
 

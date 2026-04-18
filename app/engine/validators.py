@@ -78,7 +78,7 @@ def build_known_entities(
     - Their own name and details
     - Names from observed facts
     - Characters they have attitudes toward
-    - Their own backstory/memory entities
+    - Their own backstory and personality
     - World facts (common knowledge)
     """
     known = set()
@@ -114,10 +114,6 @@ def build_known_entities(
     # Character's own backstory entities
     known |= extract_entities(character.backstory)
     known |= extract_entities(character.personality)
-
-    # Their episodic memories
-    for mem in character.memory.episodic:
-        known |= extract_entities(mem)
 
     # World facts are common knowledge
     for fact in checkpoint.world_state.facts:

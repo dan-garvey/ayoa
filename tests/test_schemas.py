@@ -8,7 +8,7 @@ from app.schemas.state import (
     LocationState, PhysicsRuleset, StorySetting, WorldState,
 )
 from app.schemas.characters import (
-    CharacterRecord, CharacterStatus, PublicSheet, PrivateState, CharacterMemory,
+    CharacterRecord, CharacterStatus, PublicSheet, PrivateState,
 )
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry, SpawnRequest
@@ -44,7 +44,7 @@ CHARACTER_EXAMPLE = {
         "attitudes": {"user": -0.1},
         "intentions_enabled": True,
     },
-    "memory": {"episodic": [], "summaries": []},
+    "pending_observations": [],
 }
 
 CANONICAL_EVENT_EXAMPLE = {
@@ -320,10 +320,10 @@ class TestCheckpointFile:
             world_state=WorldState(**WORLD_STATE_EXAMPLE),
             characters=[CharacterRecord(**CHARACTER_EXAMPLE)],
         )
-        assert ckpt.schema_version == "1.0"
+        assert ckpt.schema_version == "2.0"
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        assert ckpt.prompt_versions["narrator"] == "v1"
+        assert ckpt.prompt_versions["event_router"] == "v3"
 
     def test_round_trip(self):
         ckpt = CheckpointFile(

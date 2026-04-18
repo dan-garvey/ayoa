@@ -1,4 +1,4 @@
-"""Tests for the LLM client — unit tests with mocks and integration tests against live gateway."""
+"""Tests for the LLM client — unit tests with mocks and integration tests against live API."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -8,6 +8,38 @@ import pytest
 from app.llm.client import LLMClient, LLMResponse, extract_json
 from app.llm.config import LLMConfig
 from app.schemas.events import CanonicalEvent
+
+
+def _install_stream_mock(client, *responses):
+    """Wire `client._client.messages.stream(**kwargs)` to yield responses in order.
+
+    Each call enters an async context manager whose `get_final_message()` returns
+    the next response (or raises it, if it's an Exception).
+    """
+    iterator = iter(responses)
+
+    def stream_factory(**kwargs):
+        nxt = next(iterator)
+        ctx = MagicMock()
+
+        async def aenter(_self):
+            stream_obj = MagicMock()
+            if isinstance(nxt, BaseException):
+                stream_obj.get_final_message = AsyncMock(side_effect=nxt)
+            else:
+                stream_obj.get_final_message = AsyncMock(return_value=nxt)
+            return stream_obj
+
+        async def aexit(_self, *args):
+            return None
+
+        ctx.__aenter__ = aenter
+        ctx.__aexit__ = aexit
+        return ctx
+
+    mock = MagicMock(side_effect=stream_factory)
+    client._client.messages.stream = mock
+    return mock
 
 
 # --- extract_json unit tests ---
@@ -49,40 +81,41 @@ class TestLLMConfig:
         assert config.model_for_role("unknown") == config.default_model
 
     def test_from_env(self):
-        with patch.dict("os.environ", {"LLM_GATEWAY_KEY": "test-key", "USER": "testuser"}):
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
             config = LLMConfig.from_env()
-            assert config.subscription_key == "test-key"
-            assert config.user == "testuser"
+            assert config.api_key == "test-key"
 
 
-# --- LLMClient unit tests (mocked gateway) ---
+# --- LLMClient unit tests (mocked API) ---
 
-def _make_mock_response(content: str, model: str = "test-model"):
-    """Create a mock OpenAI ChatCompletion response."""
-    msg = MagicMock()
-    msg.content = content
+def _make_mock_response(content: str, model: str = "claude-haiku-4-5", parsed=None):
+    """Create a mock Anthropic Message response.
 
-    choice = MagicMock()
-    choice.message = msg
+    If `parsed` is supplied, the text block carries `parsed_output` — this is
+    what the SDK populates when `output_format` is set on the request and the
+    API emits a schema-conforming response.
+    """
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = content
+    text_block.parsed_output = parsed
 
     usage = MagicMock()
-    usage.prompt_tokens = 10
-    usage.completion_tokens = 20
-    usage.total_tokens = 30
+    usage.input_tokens = 10
+    usage.output_tokens = 20
 
     response = MagicMock()
-    response.choices = [choice]
+    response.content = [text_block]
     response.model = model
     response.usage = usage
+    response.stop_reason = "end_turn"
     return response
 
 
 @pytest.fixture
 def mock_config():
     return LLMConfig(
-        gateway_url="http://fake",
-        subscription_key="fake-key",
-        user="testuser",
+        api_key="fake-key",
         max_retries=1,
         retry_base_delay=0.01,
     )
@@ -96,8 +129,7 @@ def client(mock_config):
 class TestLLMClientComplete:
     @pytest.mark.asyncio
     async def test_basic_completion(self, client):
-        mock_resp = _make_mock_response("Hello world")
-        client._client.chat.completions.create = AsyncMock(return_value=mock_resp)
+        _install_stream_mock(client, _make_mock_response("Hello world"))
 
         result = await client.complete(
             role="narrator",
@@ -106,13 +138,84 @@ class TestLLMClientComplete:
 
         assert isinstance(result, LLMResponse)
         assert result.content == "Hello world"
-        assert result.model == "test-model"
+        assert result.model == "claude-haiku-4-5"
         assert result.usage["total_tokens"] == 30
         assert result.parsed is None
 
     @pytest.mark.asyncio
-    async def test_structured_output_success(self, client):
-        valid_json = json.dumps({
+    async def test_system_message_peeled_to_top_level(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[
+                {"role": "system", "content": "You are a bard."},
+                {"role": "user", "content": "Sing."},
+            ],
+            cache=False,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["system"] == "You are a bard."
+        assert call_kwargs["messages"] == [{"role": "user", "content": "Sing."}]
+
+    @pytest.mark.asyncio
+    async def test_cache_breakpoint_on_system_when_enabled(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[
+                {"role": "system", "content": "You are a bard."},
+                {"role": "user", "content": "Sing."},
+            ],
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["system"] == [
+            {
+                "type": "text",
+                "text": "You are a bard.",
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        assert "cache_control" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_no_cache_when_no_system(self, client):
+        """No shared prefix → no cache marker anywhere."""
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": "Hi"}],
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert "system" not in call_kwargs
+        assert "cache_control" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_cache_suppressed_when_disabled(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[
+                {"role": "system", "content": "You are a bard."},
+                {"role": "user", "content": "Hi"},
+            ],
+            cache=False,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["system"] == "You are a bard."
+        assert "cache_control" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_structured_output_passes_output_format(self, client):
+        """When response_model is set, we hand the Pydantic class to the SDK via output_format."""
+        event = CanonicalEvent.model_validate({
             "event_id": "evt_001",
             "user_intent": "open the door",
             "world_adjudication": {
@@ -123,8 +226,7 @@ class TestLLMClientComplete:
             "scene_delta": {"time_advanced_seconds": 2},
             "observable_facts": ["The door swings open."],
         })
-        mock_resp = _make_mock_response(valid_json)
-        client._client.chat.completions.create = AsyncMock(return_value=mock_resp)
+        mock = _install_stream_mock(client, _make_mock_response("{}", parsed=event))
 
         result = await client.complete(
             role="narrator",
@@ -132,77 +234,88 @@ class TestLLMClientComplete:
             response_model=CanonicalEvent,
         )
 
+        assert mock.call_args.kwargs["output_format"] is CanonicalEvent
         assert isinstance(result.parsed, CanonicalEvent)
         assert result.parsed.user_intent == "open the door"
         assert result.parsed.world_adjudication.feasible is True
 
     @pytest.mark.asyncio
-    async def test_structured_output_with_markdown_fences(self, client):
-        fenced = '```json\n{"event_id":"e1","user_intent":"look","world_adjudication":{"attempted_action":"look around","feasible":true,"resolved_outcome":"sees room"},"scene_delta":{"time_advanced_seconds":1},"observable_facts":["A dim room."]}\n```'
-        mock_resp = _make_mock_response(fenced)
-        client._client.chat.completions.create = AsyncMock(return_value=mock_resp)
+    async def test_structured_output_missing_parsed_raises(self, client):
+        """If output_format was set but SDK returned no parsed_output, fail loudly."""
+        _install_stream_mock(client, _make_mock_response("not valid", parsed=None))
 
-        result = await client.complete(
-            role="narrator",
-            messages=[{"role": "user", "content": "look"}],
-            response_model=CanonicalEvent,
-        )
-
-        assert isinstance(result.parsed, CanonicalEvent)
-        assert result.parsed.user_intent == "look"
-
-    @pytest.mark.asyncio
-    async def test_structured_output_repair_on_bad_json(self, client):
-        bad_resp = _make_mock_response("not json at all {broken")
-        good_json = json.dumps({
-            "event_id": "evt_r",
-            "user_intent": "wait",
-            "world_adjudication": {
-                "attempted_action": "wait",
-                "feasible": True,
-                "resolved_outcome": "time passes",
-            },
-            "scene_delta": {"time_advanced_seconds": 5},
-            "observable_facts": ["Nothing happens."],
-        })
-        good_resp = _make_mock_response(good_json)
-
-        client._client.chat.completions.create = AsyncMock(side_effect=[bad_resp, good_resp])
-
-        result = await client.complete(
-            role="narrator",
-            messages=[{"role": "user", "content": "wait"}],
-            response_model=CanonicalEvent,
-        )
-
-        assert isinstance(result.parsed, CanonicalEvent)
-        assert result.parsed.user_intent == "wait"
-        # Two calls: original + repair
-        assert client._client.chat.completions.create.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_structured_output_fails_after_repair(self, client):
-        bad_resp = _make_mock_response("garbage")
-        still_bad_resp = _make_mock_response("still garbage")
-
-        client._client.chat.completions.create = AsyncMock(side_effect=[bad_resp, still_bad_resp])
-
-        with pytest.raises(ValueError, match="Failed to parse"):
+        with pytest.raises(ValueError, match="no parsed output"):
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "x"}],
                 response_model=CanonicalEvent,
             )
 
+    @pytest.mark.asyncio
+    async def test_compact_false_uses_stable_stream(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert "context_management" not in call_kwargs
+        assert "betas" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_compact_true_adds_context_management(self, client):
+        """compact=True switches to the beta stream with compaction config + beta header."""
+        # Install the mock on beta.messages.stream instead.
+        from unittest.mock import AsyncMock, MagicMock
+
+        stream_mock = MagicMock()
+        stream_obj = MagicMock()
+        stream_obj.get_final_message = AsyncMock(return_value=_make_mock_response("ok"))
+        cm = MagicMock()
+
+        async def aenter(_self):
+            return stream_obj
+
+        async def aexit(_self, *a):
+            return None
+
+        cm.__aenter__ = aenter
+        cm.__aexit__ = aexit
+        stream_mock.return_value = cm
+        client._client.beta.messages.stream = stream_mock
+
+        await client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": "hi"}],
+            compact=True,
+        )
+
+        call_kwargs = stream_mock.call_args.kwargs
+        assert call_kwargs["context_management"] == {
+            "edits": [
+                {
+                    "type": "compact_20260112",
+                    "trigger": {
+                        "type": "input_tokens",
+                        "value": client.config.compact_trigger_tokens,
+                    },
+                }
+            ]
+        }
+        assert call_kwargs["betas"] == ["compact-2026-01-12"]
+
 
 class TestLLMClientRetry:
     @pytest.mark.asyncio
     async def test_retries_on_transient_error(self, client):
-        import openai as oai
+        import anthropic as anth
 
-        mock_resp = _make_mock_response("ok")
-        client._client.chat.completions.create = AsyncMock(
-            side_effect=[oai.APIConnectionError(request=MagicMock()), mock_resp]
+        mock = _install_stream_mock(
+            client,
+            anth.APIConnectionError(request=MagicMock()),
+            _make_mock_response("ok"),
         )
 
         result = await client.complete(
@@ -211,35 +324,37 @@ class TestLLMClientRetry:
         )
 
         assert result.content == "ok"
-        assert client._client.chat.completions.create.call_count == 2
+        assert mock.call_count == 2
 
     @pytest.mark.asyncio
     async def test_raises_after_max_retries(self, client):
-        import openai as oai
+        import anthropic as anth
 
-        client._client.chat.completions.create = AsyncMock(
-            side_effect=oai.APIConnectionError(request=MagicMock())
+        mock = _install_stream_mock(
+            client,
+            anth.APIConnectionError(request=MagicMock()),
+            anth.APIConnectionError(request=MagicMock()),
         )
 
-        with pytest.raises(oai.APIConnectionError):
+        with pytest.raises(anth.APIConnectionError):
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "hi"}],
             )
 
         # 1 initial + 1 retry = 2 attempts (max_retries=1)
-        assert client._client.chat.completions.create.call_count == 2
+        assert mock.call_count == 2
 
 
-# --- Integration tests (require live gateway) ---
+# --- Integration tests (require live API) ---
 
 @pytest.mark.integration
 class TestLLMClientIntegration:
     @pytest.fixture
     def live_client(self):
         config = LLMConfig.from_env()
-        if not config.subscription_key:
-            pytest.skip("LLM_GATEWAY_KEY not set")
+        if not config.api_key:
+            pytest.skip("ANTHROPIC_API_KEY not set")
         return LLMClient(config=config)
 
     @pytest.mark.asyncio
@@ -272,7 +387,6 @@ class TestLLMClientIntegration:
             role="narrator",
             messages=messages,
             response_model=CanonicalEvent,
-            temperature=0.3,
         )
 
         assert isinstance(result.parsed, CanonicalEvent)

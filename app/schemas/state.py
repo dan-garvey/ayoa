@@ -7,10 +7,10 @@ from pydantic import BaseModel, Field
 
 
 class ModelConfig(BaseModel):
-    event_router: str = "GPT-oss-120B"
-    narrator: str = "GPT-oss-120B"
-    discriminator: str = "GPT-oss-120B"
-    agent_default: str = "GPT-oss-120B"
+    event_router: str = "claude-sonnet-4-6"
+    narrator: str = "claude-sonnet-4-6"
+    discriminator: str = "claude-sonnet-4-6"
+    agent_default: str = "claude-sonnet-4-6"
 
 
 class SessionConfig(BaseModel):

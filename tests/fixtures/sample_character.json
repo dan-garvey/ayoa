@@ -1,0 +1,12 @@
+{
+  "name": "Eleanor Blackwood",
+  "background": "A former court physician who discovered a conspiracy and now seeks evidence while maintaining their cover.",
+  "traits": ["analytical", "cautious", "compassionate"],
+  "motivations": ["uncover the truth", "protect the innocent"],
+  "appearance": "Tall with silver-streaked dark hair, sharp green eyes, and a physician's steady hands",
+  "skills": ["medicine", "diplomacy", "observation", "herbalism"],
+  "relationships": {
+    "King Edmund": "trusted physician",
+    "Lord Ashford": "suspicious adversary"
+  }
+}

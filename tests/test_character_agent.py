@@ -1,26 +1,24 @@
-"""Tests for the Character Agent engine."""
+"""Tests for the Character Agent engine (rolling-conversation architecture)."""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
+    _attitude_label,
     build_character_packet,
+    build_character_state,
     build_scene_context,
     build_world_context,
     format_observed_facts,
-    _attitude_label,
+    format_pending_observations_block,
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
-from app.schemas.characters import (
-    CharacterRecord,
-    CharacterMemory,
-    PublicSheet,
-    PrivateState,
-)
+from app.schemas.agents import CharacterAgentOutput, PrivateUpdates, PublicResponse
+from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.state import (
     LocationState,
     SessionState,
@@ -43,6 +41,18 @@ def mock_client():
     return client
 
 
+def _llm_response(parsed) -> LLMResponse:
+    """Build the LLMResponse shape the new engine expects (includes raw_response.content)."""
+    raw = MagicMock()
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "{}"
+    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    raw.content = [text_block]
+    raw.model = "claude-haiku-4-5"
+    return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-haiku-4-5")
+
+
 @pytest.fixture
 def guard_character():
     return CharacterRecord(
@@ -61,9 +71,6 @@ def guard_character():
             attitudes={"user": -0.1, "servant_01": 0.3},
             secrets=["knows about the hidden passage"],
             intentions_enabled=True,
-        ),
-        memory=CharacterMemory(
-            episodic=["Saw the player enter the courtyard earlier."],
         ),
         backstory="Served the estate for twenty years. Rose from foot soldier to captain.",
         personality="Stoic exterior hiding genuine care for those under his protection.",
@@ -115,27 +122,27 @@ def sample_agent_output():
 # --- Context builder tests ---
 
 class TestContextBuilder:
-    def test_build_character_packet(self, guard_character):
+    def test_build_character_packet_identity(self, guard_character):
         packet = build_character_packet(guard_character)
         assert packet["character_id"] == "guard_17"
         assert packet["character_name"] == "Captain Vero"
         assert "disciplined" in packet["character_traits"]
         assert "clipped" in packet["character_voice"]
-        assert "hidden passage" in packet["character_secrets"]
-        assert "user" in packet["character_attitudes"]
         assert "twenty years" in packet["character_backstory"]
         assert "right hand twitches" in packet["character_narrative_notes"]
 
-    def test_build_character_packet_with_memories(self, guard_character):
-        packet = build_character_packet(guard_character)
-        assert "enter the courtyard" in packet["character_memories"]
+    def test_build_character_state_dynamic(self, guard_character):
+        state = build_character_state(guard_character)
+        assert "maintain order" in state["character_goals"]
+        assert "hidden passage" in state["character_secrets"]
+        assert "user" in state["character_attitudes"]
 
-    def test_build_character_packet_empty(self):
+    def test_build_character_state_empty(self):
         char = CharacterRecord(character_id="minimal", name="Nobody")
-        packet = build_character_packet(char)
-        assert packet["character_goals"] == "None specified."
-        assert packet["character_secrets"] == "None."
-        assert "No prior memories" in packet["character_memories"]
+        state = build_character_state(char)
+        assert state["character_goals"] == "None specified."
+        assert state["character_secrets"] == "None."
+        assert state["character_attitudes"] == "No strong opinions."
 
     def test_build_scene_context(self, sample_checkpoint):
         context = build_scene_context(sample_checkpoint)
@@ -157,6 +164,19 @@ class TestContextBuilder:
         formatted = format_observed_facts([])
         assert "nothing unusual" in formatted
 
+    def test_format_pending_empty(self, guard_character):
+        assert format_pending_observations_block(guard_character) == ""
+
+    def test_format_pending_nonempty(self, guard_character):
+        guard_character.pending_observations = [
+            "[Turn 3] A shout in the hall.",
+            "[Turn 4] Footsteps receding.",
+        ]
+        block = format_pending_observations_block(guard_character)
+        assert "Since your last response" in block
+        assert "shout in the hall" in block
+        assert "Footsteps receding" in block
+
     def test_attitude_labels(self):
         assert _attitude_label(0.8) == "strong affinity"
         assert _attitude_label(0.5) == "positive"
@@ -173,9 +193,9 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_basic_response(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output
+        sample_checkpoint, sample_agent_output,
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         result = await agent.respond(
@@ -190,37 +210,37 @@ class TestCharacterAgent:
 
     @pytest.mark.asyncio
     async def test_character_id_enforced(
-        self, mock_client, prompt_manager, guard_character, sample_checkpoint
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
-        """Agent should enforce character_id even if LLM returns wrong one."""
         wrong_output = CharacterAgentOutput(
             character_id="wrong_id",
             public_response=PublicResponse(dialogue=["test"]),
         )
-        mock_client.complete.return_value = LLMResponse(parsed=wrong_output)
+        mock_client.complete.return_value = _llm_response(wrong_output)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         result = await agent.respond(
-            guard_character, ["fact"], sample_checkpoint
+            guard_character, ["fact"], sample_checkpoint,
         )
         assert result.character_id == "guard_17"
 
     @pytest.mark.asyncio
     async def test_prompt_contains_character_context(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output
+        sample_checkpoint, sample_agent_output,
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(
-            guard_character,
-            ["Player looks around."],
-            sample_checkpoint,
+            guard_character, ["Player looks around."], sample_checkpoint,
         )
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "Captain Vero" in prompt
         assert "guard captain" in prompt
         assert "clipped and formal" in prompt
@@ -231,9 +251,9 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_prompt_contains_observed_facts(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output
+        sample_checkpoint, sample_agent_output,
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(
@@ -243,16 +263,19 @@ class TestCharacterAgent:
         )
 
         call_args = mock_client.complete.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = "\n".join(
+            m["content"] for m in call_args.kwargs["messages"]
+            if isinstance(m["content"], str)
+        )
         assert "picks up a rock" in prompt
         assert "throws the rock" in prompt
 
     @pytest.mark.asyncio
     async def test_uses_agent_role(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output
+        sample_checkpoint, sample_agent_output,
     ):
-        mock_client.complete.return_value = LLMResponse(parsed=sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(guard_character, ["fact"], sample_checkpoint)
@@ -260,3 +283,73 @@ class TestCharacterAgent:
         call_args = mock_client.complete.call_args
         assert call_args.kwargs["role"] == "agent"
         assert call_args.kwargs["response_model"] == CharacterAgentOutput
+        assert call_args.kwargs["compact"] is True
+
+    @pytest.mark.asyncio
+    async def test_appends_to_rolling_conversation(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_output,
+    ):
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        assert sample_checkpoint.character_conversations == {}
+
+        await agent.respond(
+            guard_character, ["fact1"], sample_checkpoint,
+        )
+
+        convo = sample_checkpoint.character_conversations["guard_17"]
+        assert len(convo) == 2
+        assert convo[0].role == "user"
+        assert convo[1].role == "assistant"
+
+    @pytest.mark.asyncio
+    async def test_pending_observations_flushed_and_cleared(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_output,
+    ):
+        guard_character.pending_observations = [
+            "[Turn 2] A door slammed.",
+            "[Turn 3] Footsteps in the hall.",
+        ]
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(
+            guard_character, ["current fact"], sample_checkpoint,
+        )
+
+        # User message should contain the flushed observations.
+        call_args = mock_client.complete.call_args
+        user_msg = call_args.kwargs["messages"][-1]["content"]
+        user_text = user_msg if isinstance(user_msg, str) else user_msg[0]["text"]
+        assert "door slammed" in user_text
+        assert "Footsteps" in user_text
+        # And the pending list is cleared on the character.
+        assert guard_character.pending_observations == []
+
+    @pytest.mark.asyncio
+    async def test_sends_prior_conversation_as_history(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_output,
+    ):
+        sample_checkpoint.character_conversations["guard_17"] = [
+            ConversationMessage(role="user", content="prior user content"),
+            ConversationMessage(
+                role="assistant",
+                content=[{"type": "text", "text": "prior response"}],
+            ),
+        ]
+        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, ["fact"], sample_checkpoint)
+
+        # Expect: system, prior user, prior assistant, current user
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert messages[1]["content"] == "prior user content"
+        assert messages[2]["role"] == "assistant"
+        assert messages[3]["role"] == "user"

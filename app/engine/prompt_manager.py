@@ -3,6 +3,10 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.schemas.conversation import ConversationMessage
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,46 @@ class PromptManager:
             )
 
         return raw.format(**variables)
+
+    def render_messages(self, template_name: str, **variables) -> list[dict[str, str]]:
+        """Render a template and split it into system + user messages on `<<<USER>>>`.
+
+        The text before the delimiter becomes the system message (frozen, cacheable)
+        and the text after becomes the user message (volatile per turn). Templates
+        without the delimiter are rejected — every engine template must declare
+        which portion is the stable prefix, or caching cannot work.
+        """
+        rendered = self.render(template_name, **variables)
+        marker = "<<<USER>>>"
+        if marker not in rendered:
+            raise ValueError(
+                f"Template '{template_name}' must contain the `{marker}` delimiter "
+                f"separating the frozen system prefix from the per-turn user body."
+            )
+        system, user = rendered.split(marker, 1)
+        return [
+            {"role": "system", "content": system.strip()},
+            {"role": "user", "content": user.strip()},
+        ]
+
+    def render_conversation(
+        self,
+        template_name: str,
+        history: list["ConversationMessage"],
+        **variables,
+    ) -> list[dict]:
+        """Render system + user template, inserting a rolling conversation history.
+
+        Result: `[system, *history, current_user_message]`. Used for rolling-
+        conversation call sites (EventRouter, CharacterAgent, Narrator phase 2).
+        """
+        messages = self.render_messages(template_name, **variables)
+        system_msg, user_msg = messages[0], messages[1]
+        result: list[dict] = [system_msg]
+        for m in history:
+            result.append({"role": m.role, "content": m.content})
+        result.append(user_msg)
+        return result
 
     def get_version(self, template_name: str) -> str:
         """Get the version string for a template.

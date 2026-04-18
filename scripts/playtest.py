@@ -24,6 +24,8 @@ import time
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, field, asdict
+
+import anthropic
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -63,8 +65,7 @@ PERSONALIZE_URL = f"{BASE_URL}/v1/story/personalize"
 
 PLAYER_NAMES = ["Alice", "Bob", "Charlie", "Diana", "Echo"]
 
-LLM_GATEWAY_URL = "https://llm-api.amd.com/OnPrem/chat/completions"
-LLM_MODEL = "GPT-oss-120B"
+LLM_MODEL = "claude-haiku-4-5"
 
 
 # ---------------------------------------------------------------------------
@@ -360,41 +361,22 @@ AGENT_PERSONAS = {
 
 
 def _llm_call(system_prompt: str, user_prompt: str) -> str:
-    """Make a direct call to the LLM gateway."""
-    api_key = os.environ.get("LLM_GATEWAY_KEY", "")
-    if not api_key:
-        raise RuntimeError("LLM_GATEWAY_KEY not set in environment")
+    """Make a direct call to the Anthropic Messages API."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RuntimeError("ANTHROPIC_API_KEY not set in environment")
 
-    body = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.7,
-        "max_tokens": 200,
-    }
-
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        LLM_GATEWAY_URL,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Ocp-Apim-Subscription-Key": api_key,
-        },
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model=LLM_MODEL,
+        max_tokens=200,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
     )
 
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        result = json.loads(resp.read())
-
-    choices = result.get("choices") or []
-    if not choices:
-        return "I look around."
-    content = choices[0].get("message", {}).get("content")
-    if not content:
-        return "I look around."
-    return content.strip()
+    text = "".join(
+        block.text for block in response.content if getattr(block, "type", "") == "text"
+    ).strip()
+    return text or "I look around."
 
 
 class AgentPlayer:

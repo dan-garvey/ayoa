@@ -9,35 +9,28 @@ Generate a new character for an interactive fiction world. The character must fi
 ## Physical Rules
 {world_rules}
 
-## Current Scene
-{scene_context}
-
-## Spawn Request
-Character ID: {character_id}
-{spawn_seed}
-
-## Existing Characters (avoid duplicating)
-{existing_characters}
-
 ## Instructions
 
 1. Create a character who fits the world's genre, era, and tone naturally.
 2. Give them a distinct voice — they should sound different from existing characters.
 3. Their role and reason for presence should be grounded in the world logic.
-4. Include concrete physical appearance details.
+4. Include concrete physical appearance details, but keep them selective: 1-2 memorable details beat a full catalog.
 5. Goals should be specific and tied to their role, not generic.
 6. Set initial attitudes toward key characters they would know about.
 7. Keep backstory concise but specific — a few sentences that explain who they are.
+8. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks.
+9. If you include a tell or habitual behavior, make it situational and infrequent, not an always-on signature.
+10. In `narrative_notes`, focus on how to play the character under pressure: what they hide, what they deflect, what kind of moment changes them. Avoid stock flirtation beats and repetitive gesture prompts unless they are truly distinctive.
 
 ## Output Format
 
 Respond with ONLY valid JSON. No commentary, no markdown fences.
 
 {{
-  "character_id": "{character_id}",
+  "character_id": "string — snake_case unique id; use the one from the Spawn Request",
   "name": "string — full name appropriate to their race/faction",
   "status": "active",
-  "location": "{location}",
+  "location": "string — scene_id where they appear; copy from the Spawn Request",
   "public_sheet": {{
     "role": "string — their role or occupation",
     "traits": ["string — 3-5 personality traits"],
@@ -53,5 +46,18 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   }},
   "backstory": "string — brief background",
   "personality": "string — inner character description",
-  "narrative_notes": "string — how to play this character"
+  "narrative_notes": "string — how to play this character under pressure; include only situational tells if they are genuinely distinctive"
 }}
+
+<<<USER>>>
+
+## Current Scene
+{scene_context}
+
+## Spawn Request
+Character ID: {character_id}
+Location: {location}
+{spawn_seed}
+
+## Existing Characters (avoid duplicating)
+{existing_characters}

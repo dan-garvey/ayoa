@@ -3,8 +3,8 @@
 ## Dev Environment
 
 - Use `.venv/bin/python` and `.venv/bin/pytest` directly instead of sourcing the venv activate script.
-- API key is in `.env` as `LLM_GATEWAY_KEY`. Never commit `.env`.
-- LLM gateway: `https://llm-api.amd.com/OnPrem`, OpenAI-compatible, auth via `Ocp-Apim-Subscription-Key` header.
+- API key is in `.env` as `ANTHROPIC_API_KEY`. Never commit `.env`.
+- LLM: Anthropic Messages API via the `anthropic` Python SDK. Player sessions default to `claude-sonnet-4-6`; test and playtest scripts default to `claude-haiku-4-5`.
 
 ## Project Structure
 

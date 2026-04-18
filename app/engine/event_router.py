@@ -1,6 +1,9 @@
-"""Merged NP1 + discriminator prototype.
+"""Merged adjudication + perception routing — single LLM call per turn.
 
-Produces the canonical event and observation routing in a single LLM call.
+EventRouter maintains a session-wide rolling conversation on the checkpoint.
+Each call sees every prior turn's routing decisions as real conversational
+history, which lets it remember commitments, who's where, and unfinished
+threads across the entire session.
 """
 
 from __future__ import annotations
@@ -8,38 +11,43 @@ from __future__ import annotations
 import logging
 
 from app.engine.prompt_manager import PromptManager
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, serialize_assistant_content
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
 
 logger = logging.getLogger(__name__)
 
 
 class EventRouter:
-    """Single-pass event adjudication + perception routing."""
+    """Single-pass event adjudication + perception routing over a rolling session history."""
 
     def __init__(self, client: LLMClient, prompt_manager: PromptManager):
         self.client = client
         self.prompt_manager = prompt_manager
+        # Usage from the most recent run() call, for debug introspection.
+        self.last_usage: dict[str, int] = {}
 
     async def run(
         self,
         user_input: str,
         checkpoint: CheckpointFile,
-        max_transcript_entries: int = 10,
     ) -> EventRouterOutput:
-        """Return both canonical event data and observer routing."""
-        prompt = self.prompt_manager.render(
+        """Return both canonical event data and observer routing.
+
+        Appends the current turn's user message and the assistant response (as
+        raw content blocks, preserving any compaction blocks) to
+        `checkpoint.session_conversation`.
+        """
+        messages = self.prompt_manager.render_conversation(
             "event_router",
+            history=checkpoint.session_conversation,
             setting_summary=self._build_setting_summary(checkpoint),
             world_lore=checkpoint.world_state.lore or "No detailed lore available.",
             world_rules=self._build_world_rules(checkpoint),
             current_scene=self._build_scene_context(checkpoint),
             scene_graph=self._build_scene_graph(checkpoint),
             characters_present=self._build_characters_present(checkpoint),
-            recent_transcript=self._build_recent_transcript(
-                checkpoint, max_entries=max_transcript_entries
-            ),
             world_facts=self._build_world_facts(checkpoint),
             hidden_lore=checkpoint.world_state.hidden_lore or "None.",
             hidden_facts=self._build_hidden_facts(checkpoint),
@@ -48,19 +56,35 @@ class EventRouter:
             player_name=checkpoint.session.player_name or "the protagonist",
         )
 
+        # Capture the plain-text user content before LLMClient wraps it with
+        # cache_control for this call — we persist the plain text.
+        user_content = messages[-1]["content"]
+
         logger.info("EventRouter: adjudicating + routing action: %s", user_input[:80])
 
         response = await self.client.complete(
             role="event_router",
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             response_model=EventRouterOutput,
             temperature=0.35,
             max_tokens=5000,
+            cache=True,
+            compact=True,
         )
         result: EventRouterOutput = response.parsed
+        self.last_usage = response.usage
 
         if not result.canonical_event.event_id:
             result.canonical_event.event_id = f"evt_{checkpoint.session.turn_index:04d}"
+
+        # Persist the user/assistant pair to the rolling session conversation.
+        assistant_content = serialize_assistant_content(response.raw_response.content)
+        checkpoint.session_conversation.append(
+            ConversationMessage(role="user", content=user_content)
+        )
+        checkpoint.session_conversation.append(
+            ConversationMessage(role="assistant", content=assistant_content)
+        )
 
         logger.info(
             "EventRouter result: feasible=%s, facts=%d, observers=%d, spawns=%d",
@@ -153,20 +177,6 @@ class EventRouter:
         if not present:
             return "No other characters are present in this scene."
         return "\n".join(present)
-
-    def _build_recent_transcript(
-        self, checkpoint: CheckpointFile, max_entries: int = 10
-    ) -> str:
-        if not checkpoint.transcript:
-            return "This is the beginning of the story. No prior actions have been taken."
-
-        entries = checkpoint.transcript[-max_entries:]
-        lines = []
-        for entry in entries:
-            lines.append(f"Player: {entry.user}")
-            lines.append(f"Narrator: {entry.assistant}")
-            lines.append("")
-        return "\n".join(lines).strip()
 
     def _build_world_facts(self, checkpoint: CheckpointFile) -> str:
         facts = checkpoint.world_state.facts

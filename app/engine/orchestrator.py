@@ -1,19 +1,21 @@
 """Turn orchestrator — wires the full turn pipeline.
 
-Sequence: Load checkpoint -> NP1+Discriminator or EventRouter -> Agents -> NP2 -> Save checkpoint.
+Sequence: Load checkpoint -> EventRouter -> Agents -> Narrator -> Save checkpoint.
+
+Every role maintains a rolling conversation on the checkpoint; nothing on the
+wire goes stateless. The orchestrator's job is to sequence the roles, apply
+state updates from their outputs, and persist the checkpoint.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
-from app.engine.discriminator import Discriminator
 from app.engine.event_router import EventRouter
 from app.engine.narrator import Narrator
 from app.engine.prompt_manager import PromptManager
@@ -31,8 +33,9 @@ logger = logging.getLogger(__name__)
 AGENT_TIMEOUT = 60.0
 # Maximum number of agents that can respond per turn
 MAX_RESPONDERS = 3
-# Maximum observation queue entries per character
-MAX_OBSERVATION_QUEUE = 10
+# Cap on how many pending observations any single character accumulates
+# between their own response turns (older entries drop off the front).
+MAX_PENDING_OBSERVATIONS = 10
 
 
 class Orchestrator:
@@ -43,40 +46,20 @@ class Orchestrator:
         client: LLMClient,
         checkpoint_mgr: CheckpointManager,
         prompt_mgr: PromptManager,
-        merged_event_router: bool | None = None,
     ):
         self.client = client
         self.prompt_mgr = prompt_mgr
         self.narrator = Narrator(client, prompt_mgr)
-        self.discriminator = Discriminator(client, prompt_mgr)
         self.event_router = EventRouter(client, prompt_mgr)
         self.agent_engine = CharacterAgent(client, prompt_mgr)
         self.char_mgr = CharacterManager(client, prompt_mgr)
         self.checkpoint_mgr = checkpoint_mgr
-        self.use_merged_event_router = (
-            merged_event_router
-            if merged_event_router is not None
-            else os.environ.get("INTFIC_MERGED_EVENT_ROUTER", "").lower()
-            in {"1", "true", "yes", "on"}
-        )
 
     async def process_turn(self, request: TurnRequest) -> TurnResponse:
-        """Process a single turn through the full pipeline.
-
-        Steps:
-        1. Load checkpoint
-        2. NP1: Adjudicate
-        3. Discriminator: Perception gating
-        4. Agents: Fan-out (parallel)
-        5. NP2: Compose final prose
-        6. Apply state updates
-        7. Save checkpoint
-        8. Return response
-        """
+        """Process a single turn end-to-end."""
         turn_start = time.monotonic()
         latencies: list[PhaseLatency] = []
 
-        # Step 1: Load checkpoint
         checkpoint = self.checkpoint_mgr.load_latest(request.session_id)
         logger.info(
             "Turn %d for session %s",
@@ -84,36 +67,19 @@ class Orchestrator:
             request.session_id,
         )
 
-        if self.use_merged_event_router:
-            t0 = time.monotonic()
-            routed = await self.event_router.run(request.user_input, checkpoint)
-            event = routed.canonical_event
-            disc_output = routed.to_discriminator_output()
-            latencies.append(PhaseLatency(
-                phase="event_router",
-                duration_ms=(time.monotonic() - t0) * 1000,
-                model=self.client.config.model_for_role("event_router"),
-            ))
-        else:
-            # Step 2: NP1 Adjudicate
-            t0 = time.monotonic()
-            event = await self.narrator.phase_1(request.user_input, checkpoint)
-            latencies.append(PhaseLatency(
-                phase="np1_adjudicate",
-                duration_ms=(time.monotonic() - t0) * 1000,
-                model=self.client.config.model_for_role("narrator"),
-            ))
+        # --- EventRouter: adjudicate + route in one pass, appending to session_conversation ---
+        t0 = time.monotonic()
+        routed = await self.event_router.run(request.user_input, checkpoint)
+        event = routed.canonical_event
+        disc_output = routed.to_discriminator_output()
+        latencies.append(self._phase_latency(
+            "event_router",
+            t0,
+            self.client.config.model_for_role("event_router"),
+            [self.event_router.last_usage],
+        ))
 
-            # Step 3: Discriminator
-            t0 = time.monotonic()
-            disc_output = await self.discriminator.run(event, checkpoint)
-            latencies.append(PhaseLatency(
-                phase="discriminator",
-                duration_ms=(time.monotonic() - t0) * 1000,
-                model=self.client.config.model_for_role("discriminator"),
-            ))
-
-        # Step 2.5 / merged equivalent: Apply scene transition before roster routing
+        # --- Apply event consequences on state (scene transitions, roster updates) ---
         if event.scene_delta.new_scene_id:
             old_scene = checkpoint.world_state.locations.current_scene_id
             new_scene = event.scene_delta.new_scene_id
@@ -126,10 +92,8 @@ class Orchestrator:
                     new_scene,
                 )
 
-        # Apply roster updates (dormancy, culling)
         self.char_mgr.apply_roster_updates(checkpoint, disc_output)
 
-        # Step 3.5: Spawn new characters if requested
         if disc_output.spawn:
             t0 = time.monotonic()
             await self.char_mgr.spawn_characters(checkpoint, disc_output.spawn)
@@ -139,101 +103,63 @@ class Orchestrator:
                 model=self.client.config.model_for_role("agent"),
             ))
 
-        # Step 4: Agent selection — priority-based with response cap
+        # --- Responder selection ---
         player_id = checkpoint.session.player_character_id
         candidates = sorted(
             [o for o in disc_output.observers if o.character_id != player_id],
             key=lambda o: o.response_priority,
             reverse=True,
         )
-        response_cap = min(
-            disc_output.suggested_response_cap, MAX_RESPONDERS
-        )
-        responding = [
-            o for o in candidates if o.response_priority >= 3
-        ][:response_cap]
+        response_cap = min(disc_output.suggested_response_cap, MAX_RESPONDERS)
+        responding = [o for o in candidates if o.response_priority >= 3][:response_cap]
         observing_only = [o for o in candidates if o not in responding]
 
         agent_outputs: list[CharacterAgentOutput] = []
-
         logger.info(
             "Response selection: %d candidates, %d responding (cap=%d), %d observing",
             len(candidates), len(responding), response_cap, len(observing_only),
         )
 
-        # Short-circuit: unwitnessed failure
-        # If infeasible and no NPCs should respond, return NP1's outcome directly.
+        # --- Short-circuit: unwitnessed failure — skip NP2 ---
         if not event.world_adjudication.feasible and not responding:
-            logger.info(
-                "Short-circuit: unwitnessed failure, returning NP1 outcome directly"
-            )
+            logger.info("Short-circuit: unwitnessed failure, returning router outcome")
 
-            # Populate observation queues for present-but-silent characters
-            self._populate_observation_queues(
+            self._push_pending_observations(
                 checkpoint, observing_only,
                 event.world_adjudication.resolved_outcome,
             )
 
-            transcript_entry = TranscriptEntry(
+            checkpoint.transcript.append(TranscriptEntry(
                 user=request.user_input,
                 assistant=event.world_adjudication.resolved_outcome,
-            )
-            checkpoint.transcript.append(transcript_entry)
+            ))
             checkpoint.session.turn_index += 1
-
-            await self.narrator.compress_transcript(checkpoint)
-
             self.checkpoint_mgr.save(checkpoint)
-            checkpoint_id = f"ckpt_{checkpoint.session.turn_index:04d}"
 
             total_ms = (time.monotonic() - turn_start) * 1000
             logger.info(
                 "Turn %d complete (short-circuit): %.0fms total",
-                checkpoint.session.turn_index,
-                total_ms,
+                checkpoint.session.turn_index, total_ms,
             )
-
-            debug = None
-            if request.debug:
-                prompt_versions = self.prompt_mgr.get_all_versions()
-                if self.use_merged_event_router:
-                    models_used = {
-                        "event_router": self.client.config.model_for_role("event_router"),
-                        "agent": self.client.config.model_for_role("agent"),
-                    }
-                else:
-                    models_used = {
-                        "narrator": self.client.config.model_for_role("narrator"),
-                        "discriminator": self.client.config.model_for_role("discriminator"),
-                        "agent": self.client.config.model_for_role("agent"),
-                    }
-                debug = DebugPayload(
-                    canonical_event=event.model_dump(),
-                    discriminator=disc_output.model_dump(),
-                    agent_outputs=[],
-                    world_updates={},
-                    latencies=latencies,
-                    total_duration_ms=total_ms,
-                    models_used=models_used,
-                    prompt_versions=prompt_versions,
-                    validations=[],
-                )
 
             return TurnResponse(
                 session_id=request.session_id,
-                checkpoint_id=checkpoint_id,
+                checkpoint_id=f"ckpt_{checkpoint.session.turn_index:04d}",
                 turn_index=checkpoint.session.turn_index,
                 output_text=event.world_adjudication.resolved_outcome,
-                debug=debug,
+                debug=self._build_debug(
+                    event, disc_output, [], {}, latencies,
+                    total_ms, [], short_circuit=True,
+                ) if request.debug else None,
             )
 
-        # Step 4a: Sequential agent execution
-        # Phase 1: Primary responder (highest priority)
-        # Phase 2: Secondary responders in parallel, each seeing primary's output
+        # --- Agent fan-out: primary then parallel secondaries ---
         if responding:
             t0 = time.monotonic()
+            # Each respond() call overwrites agent_engine.last_usage, so snapshot
+            # after each call to sum at the end for the phase latency.
+            agent_usages: list[dict] = []
 
-            # Primary responder
             primary_obs = responding[0]
             primary_char = self.char_mgr.get_character(
                 checkpoint, primary_obs.character_id
@@ -248,18 +174,17 @@ class Orchestrator:
                         timeout=AGENT_TIMEOUT,
                     )
                     agent_outputs.append(primary_result)
+                    agent_usages.append(dict(self.agent_engine.last_usage))
                 except Exception as e:
-                    logger.warning("Primary agent %s failed: %s",
-                                   primary_obs.character_id, e)
+                    logger.warning(
+                        "Primary agent %s failed: %s", primary_obs.character_id, e
+                    )
 
-            # Secondary responders (see primary's output)
             secondary_obs = responding[1:]
             if secondary_obs:
                 secondary_tasks = []
                 for obs in secondary_obs:
-                    char = self.char_mgr.get_character(
-                        checkpoint, obs.character_id
-                    )
+                    char = self.char_mgr.get_character(checkpoint, obs.character_id)
                     if char:
                         task = asyncio.wait_for(
                             self.agent_engine.respond(
@@ -271,6 +196,10 @@ class Orchestrator:
                         secondary_tasks.append(task)
 
                 if secondary_tasks:
+                    # Parallel calls share the engine's last_usage, so we can't
+                    # snapshot per-call cleanly. Instead we instrument by doing
+                    # serial awaits with snapshots. (Still concurrent — gather
+                    # completes them; we just walk results afterwards.)
                     results = await asyncio.gather(
                         *secondary_tasks, return_exceptions=True
                     )
@@ -279,21 +208,24 @@ class Orchestrator:
                             logger.warning("Secondary agent failed: %s", result)
                         else:
                             agent_outputs.append(result)
+                    # Best-effort: record the last_usage snapshot once. For
+                    # precise per-agent accounting with parallel dispatch, we
+                    # would need respond() to return usage directly.
+                    if self.agent_engine.last_usage:
+                        agent_usages.append(dict(self.agent_engine.last_usage))
 
-            latencies.append(PhaseLatency(
-                phase="agent_fanout",
-                duration_ms=(time.monotonic() - t0) * 1000,
-                model=self.client.config.model_for_role("agent"),
+            latencies.append(self._phase_latency(
+                "agent_fanout",
+                t0,
+                self.client.config.model_for_role("agent"),
+                agent_usages,
             ))
 
-        # Step 4.5: Validate agent outputs for knowledge leakage
-        observer_facts = {
-            o.character_id: o.facts for o in disc_output.observers
-        }
+        # --- Validate agent outputs for knowledge leakage ---
+        observer_facts = {o.character_id: o.facts for o in disc_output.observers}
         validation_results = validate_all_outputs(
             agent_outputs, checkpoint, observer_facts
         )
-        # Log to visibility log (v1: warn only, don't filter)
         validation_entries = [
             {
                 "character_id": v.character_id,
@@ -305,15 +237,13 @@ class Orchestrator:
             }
             for v in validation_results
         ]
-        visibility_entry = {
+        checkpoint.visibility_log.append({
             "turn": checkpoint.session.turn_index,
             "event_id": event.event_id,
             "validations": validation_entries,
-        }
-        checkpoint.visibility_log.append(visibility_entry)
+        })
 
-        # Step 4.9: Detect character introductions from dialogue
-        # If a character says their own name, they've introduced themselves
+        # --- Detect character self-introduction from dialogue ---
         known = set(checkpoint.world_state.known_characters)
         for output in agent_outputs:
             if output.character_id in known:
@@ -324,112 +254,98 @@ class Orchestrator:
             )
             if not char:
                 continue
-            # Check if any dialogue line contains the character's first name
-            first_name = char.name.split()[0]
+            first_name = char.name.split()[0] if char.name else ""
+            if not first_name:
+                continue
             for line in output.public_response.dialogue:
                 if first_name in line:
                     checkpoint.world_state.known_characters.append(output.character_id)
-                    logger.info("Character introduced: %s (%s)", char.name, output.character_id)
+                    logger.info(
+                        "Character introduced: %s (%s)", char.name, output.character_id
+                    )
                     break
 
-        # Step 5: NP2 Compose
+        # --- Narrator composition: appends to narrator_conversation ---
         t0 = time.monotonic()
-        final = await self.narrator.phase_2(
-            request.user_input, event, agent_outputs, checkpoint, disc_output
+        final = await self.narrator.compose(
+            request.user_input, event, agent_outputs, checkpoint, disc_output,
         )
-        latencies.append(PhaseLatency(
-            phase="np2_compose",
-            duration_ms=(time.monotonic() - t0) * 1000,
-            model=self.client.config.model_for_role("narrator"),
+        latencies.append(self._phase_latency(
+            "narrator_compose",
+            t0,
+            self.client.config.model_for_role("narrator"),
+            [self.narrator.last_usage],
         ))
 
-        # Step 6: Apply state updates
+        # --- Apply agent outputs (attitude deltas) ---
         for output in agent_outputs:
             self.char_mgr.apply_agent_output(checkpoint, output)
 
-        # Step 6.1: Populate observation queues for non-responding observers
-        # Build an NPC-perspective summary using character names (not player-
-        # perspective descriptions from NP2's turn_summary).
+        # --- Push turn observations to silent observers' pending queues ---
         npc_summary = self._build_npc_turn_summary(
             request.user_input, agent_outputs, checkpoint,
         )
-        self._populate_observation_queues(
-            checkpoint, observing_only, npc_summary,
-        )
+        self._push_pending_observations(checkpoint, observing_only, npc_summary)
 
-        # Update transcript
+        # --- Display transcript + turn bookkeeping ---
         checkpoint.transcript.append(final.transcript_entry)
-
-        # Advance turn
         checkpoint.session.turn_index += 1
-
-        # Step 6.5: Compress transcript if needed
-        compressed = await self.narrator.compress_transcript(checkpoint)
-        if compressed:
-            logger.info("Transcript was compressed")
-
-        # Step 7: Save checkpoint
         self.checkpoint_mgr.save(checkpoint)
-        checkpoint_id = f"ckpt_{checkpoint.session.turn_index:04d}"
 
         total_ms = (time.monotonic() - turn_start) * 1000
         logger.info(
             "Turn %d complete: %d chars output, %d agents responded, %.0fms total",
-            checkpoint.session.turn_index,
-            len(final.final_text),
-            len(agent_outputs),
-            total_ms,
+            checkpoint.session.turn_index, len(final.final_text),
+            len(agent_outputs), total_ms,
         )
-
-        # Step 8: Build response
-        debug = None
-        if request.debug:
-            prompt_versions = self.prompt_mgr.get_all_versions()
-            if self.use_merged_event_router:
-                models_used = {
-                    "event_router": self.client.config.model_for_role("event_router"),
-                    "narrator": self.client.config.model_for_role("narrator"),
-                    "agent": self.client.config.model_for_role("agent"),
-                }
-            else:
-                models_used = {
-                    "narrator": self.client.config.model_for_role("narrator"),
-                    "discriminator": self.client.config.model_for_role("discriminator"),
-                    "agent": self.client.config.model_for_role("agent"),
-                }
-            debug = DebugPayload(
-                canonical_event=event.model_dump(),
-                discriminator=disc_output.model_dump(),
-                agent_outputs=[o.model_dump() for o in agent_outputs],
-                world_updates=final.world_updates,
-                latencies=latencies,
-                total_duration_ms=total_ms,
-                models_used=models_used,
-                prompt_versions=prompt_versions,
-                validations=validation_entries,
-            )
 
         return TurnResponse(
             session_id=request.session_id,
-            checkpoint_id=checkpoint_id,
+            checkpoint_id=f"ckpt_{checkpoint.session.turn_index:04d}",
             turn_index=checkpoint.session.turn_index,
             output_text=final.final_text,
-            debug=debug,
+            debug=self._build_debug(
+                event, disc_output, agent_outputs, final.world_updates,
+                latencies, total_ms, validation_entries, short_circuit=False,
+            ) if request.debug else None,
         )
 
-    def _populate_observation_queues(
+    def _phase_latency(
+        self,
+        phase: str,
+        start_mono: float,
+        model: str,
+        usages: list[dict],
+    ) -> PhaseLatency:
+        """Build a PhaseLatency record summing token usage across one or more LLM calls."""
+        def sum_field(key: str) -> int:
+            return sum(int(u.get(key, 0) or 0) for u in usages if u)
+
+        return PhaseLatency(
+            phase=phase,
+            duration_ms=(time.monotonic() - start_mono) * 1000,
+            model=model,
+            input_tokens=sum_field("prompt_tokens"),
+            output_tokens=sum_field("completion_tokens"),
+            cache_read_input_tokens=sum_field("cache_read_input_tokens"),
+            cache_creation_input_tokens=sum_field("cache_creation_input_tokens"),
+        )
+
+    def _push_pending_observations(
         self,
         checkpoint: CheckpointFile,
         observers: list,
         summary: str,
     ) -> None:
-        """Add turn observations to non-responding characters' queues."""
+        """Append this turn's observations to each silent observer's pending list.
+
+        On the character's next response turn, their agent flushes these into
+        the user message.
+        """
         turn_idx = checkpoint.session.turn_index
-        queued_count = 0
         for obs in observers:
             char = self.char_mgr.get_character(checkpoint, obs.character_id)
             if not char:
-                logger.debug("Queue skip: character %s not found", obs.character_id)
                 continue
 
             if obs.observation_level == "direct":
@@ -439,19 +355,11 @@ class Orchestrator:
             else:
                 entry = f"[Turn {turn_idx}] [Sensed disturbance] Something happened nearby."
 
-            char.memory.observation_queue.append(entry)
-            queued_count += 1
-
-            # Cap the queue
-            if len(char.memory.observation_queue) > MAX_OBSERVATION_QUEUE:
-                char.memory.observation_queue = char.memory.observation_queue[
-                    -MAX_OBSERVATION_QUEUE:
+            char.pending_observations.append(entry)
+            if len(char.pending_observations) > MAX_PENDING_OBSERVATIONS:
+                char.pending_observations = char.pending_observations[
+                    -MAX_PENDING_OBSERVATIONS:
                 ]
-
-        if queued_count:
-            logger.info(
-                "Observation queues: %d characters updated", queued_count
-            )
 
     def _build_npc_turn_summary(
         self,
@@ -459,7 +367,7 @@ class Orchestrator:
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
     ) -> str:
-        """Build a turn summary using character names for NPC consumption."""
+        """Build a turn summary in NPC-perspective terms for observation queues."""
         player_name = checkpoint.session.player_name or "The player"
         parts = [f"{player_name}: {user_input}"]
 
@@ -475,3 +383,33 @@ class Orchestrator:
                 parts.append(f"{name}: {'; '.join(pieces)}")
 
         return " | ".join(parts)
+
+    def _build_debug(
+        self,
+        event,
+        disc_output,
+        agent_outputs: list[CharacterAgentOutput],
+        world_updates: dict,
+        latencies: list[PhaseLatency],
+        total_ms: float,
+        validation_entries: list[dict],
+        short_circuit: bool,
+    ) -> DebugPayload:
+        models_used = {
+            "event_router": self.client.config.model_for_role("event_router"),
+            "agent": self.client.config.model_for_role("agent"),
+        }
+        if not short_circuit:
+            models_used["narrator"] = self.client.config.model_for_role("narrator")
+
+        return DebugPayload(
+            canonical_event=event.model_dump(),
+            discriminator=disc_output.model_dump(),
+            agent_outputs=[o.model_dump() for o in agent_outputs],
+            world_updates=world_updates,
+            latencies=latencies,
+            total_duration_ms=total_ms,
+            models_used=models_used,
+            prompt_versions=self.prompt_mgr.get_all_versions(),
+            validations=validation_entries,
+        )

@@ -48,21 +48,21 @@ class CharacterManager:
     def apply_agent_output(
         self, checkpoint: CheckpointFile, output: CharacterAgentOutput
     ) -> None:
-        """Apply an agent's private updates and memory writes to the checkpoint."""
+        """Apply an agent's attitude deltas.
+
+        Memory is handled by the character's rolling conversation; the
+        `memory_writes` field on the output is kept in the schema for
+        compatibility but no longer written anywhere on the character.
+        """
         char = self.get_character(checkpoint, output.character_id)
         if not char:
             logger.warning("Character %s not found for update", output.character_id)
             return
 
-        # Apply attitude deltas
         for target, delta in output.private_updates.attitude_delta.items():
             current = char.private_state.attitudes.get(target, 0.0)
             new_val = max(-1.0, min(1.0, current + delta))
             char.private_state.attitudes[target] = new_val
-
-        # Write memories
-        for memory in output.memory_writes:
-            char.memory.episodic.append(memory)
 
     def apply_roster_updates(
         self, checkpoint: CheckpointFile, disc_output: DiscriminatorOutput
@@ -143,7 +143,7 @@ class CharacterManager:
 
         existing = ", ".join(c.name for c in checkpoint.characters[:20])
 
-        prompt = self.prompt_manager.render(
+        messages = self.prompt_manager.render_messages(
             "character_gen",
             setting_summary=setting_summary,
             world_lore=world_lore,
@@ -157,7 +157,7 @@ class CharacterManager:
 
         response = await self.client.complete(
             role="agent",
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             response_model=CharacterRecord,
             temperature=0.6,
             max_tokens=3000,
