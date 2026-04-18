@@ -8,7 +8,9 @@ from typing import Optional, Tuple
 from core.agents.manager import AgentManager
 from core.config import engine_config
 from core.engine.information_router import InformationRouter
+from core.llm_client import llm_client
 from core.models.schemas import (
+    CharacterConcept,
     Scene,
     StoryConfig,
     StoryOutline,
@@ -101,8 +103,12 @@ class Orchestrator:
         )
         self.world_state["world_context"] = world_context
 
-        # Spawn character agents
-        agent_ids = await self.agent_manager.spawn_agents(self.current_outline.major_characters)
+        # Spawn character agents (EXCLUDE player character - they're controlled by the user!)
+        npc_characters = [
+            char for char in self.current_outline.major_characters
+            if char.name.lower() != self.current_config.player_character.name.lower()
+        ]
+        agent_ids = await self.agent_manager.spawn_agents(npc_characters)
 
         # Create opening scene
         opening_scene = await self.storyteller.create_opening_scene(
@@ -113,6 +119,14 @@ class Orchestrator:
 
         # Compose opening narrative
         opening_output = await self.storyteller.compose_opening(opening_scene, self.current_outline)
+
+        # Update scene based on opening narrative (add any characters mentioned)
+        self.current_scene = await self.director.update_scene_from_narrative(
+            narrative=opening_output.narrative,
+            user_action="Story begins",
+            current_scene=self.current_scene,
+            available_agents=self.agent_manager.agent_states,
+        )
 
         # Record in history
         self.turn_history.append(
@@ -128,6 +142,93 @@ class Orchestrator:
         self._save_story_state(story_id)
 
         return opening_output
+
+    def _is_question(self, user_input: str) -> bool:
+        """
+        Detect if user input is a question rather than an action.
+
+        Args:
+            user_input: User's input
+
+        Returns:
+            True if this appears to be a question
+        """
+        input_lower = user_input.lower().strip()
+
+        # Question markers
+        if input_lower.endswith("?"):
+            return True
+
+        # Common question starters
+        question_words = [
+            "who", "what", "where", "when", "why", "how",
+            "can i", "could i", "should i", "would",
+            "is there", "are there", "do i", "does",
+            "am i", "will i", "have i"
+        ]
+
+        for word in question_words:
+            if input_lower.startswith(word + " "):
+                return True
+
+        return False
+
+    async def _handle_question(self, question: str, story_id: str) -> StoryOutput:
+        """
+        Handle a question from the player without progressing the narrative.
+
+        Args:
+            question: Player's question
+            story_id: Active story
+
+        Returns:
+            Answer without advancing the story
+        """
+        import json
+
+        # Build context about current scene and recent events
+        recent_narrative = self.storyteller.conversation_history[-2:] if self.storyteller.conversation_history else []
+        recent_text = "\n".join([msg["content"] for msg in recent_narrative])
+
+        prompt = f"""The player has asked a question about the current situation. Answer it directly without progressing the narrative.
+
+CURRENT SCENE:
+Where: {self.current_scene.where}
+When: {self.current_scene.when}
+Atmosphere: {self.current_scene.atmosphere}
+Present characters: {', '.join(self.current_scene.present_characters)}
+Nearby characters: {', '.join(self.current_scene.nearby_characters) if self.current_scene.nearby_characters else 'None'}
+
+RECENT NARRATIVE:
+{recent_text}
+
+PLAYER'S QUESTION: {question}
+
+Provide a direct, informative answer (100-200 words) that:
+- Answers the question based on what the player character would know
+- Does NOT advance time or the narrative
+- Uses second-person present tense ("You see..." "You notice...")
+- References details from the current scene and recent events
+- If the player wouldn't know something, say so clearly
+
+This is purely informational - no new events occur."""
+
+        messages = [
+            {"role": "system", "content": self.storyteller.system_prompt},
+        ]
+
+        if self.storyteller.world_context:
+            world_context_str = json.dumps(self.storyteller.world_context, indent=2)
+            messages.append({
+                "role": "system",
+                "content": f"WORLD CONTEXT:\n{world_context_str}"
+            })
+
+        messages.append({"role": "user", "content": prompt})
+
+        answer = await llm_client.complete(messages, self.storyteller.params)
+
+        return StoryOutput(narrative=answer, visible_moves=[], scene_update=None)
 
     async def process_turn(self, story_id: str, user_input: str) -> StoryOutput:
         """
@@ -150,6 +251,10 @@ class Orchestrator:
         # Handle meta commands
         if user_input.startswith("/"):
             return await self._handle_meta_command(user_input, story_id)
+
+        # Handle questions without progressing narrative
+        if self._is_question(user_input):
+            return await self._handle_question(user_input, story_id)
 
         turn_number = len(self.turn_history) + 1
 
@@ -183,7 +288,15 @@ class Orchestrator:
             world_state=self.world_state,
         )
 
-        # 5. Update agent memories
+        # 5. Update scene based on narrative (critical for character tracking!)
+        self.current_scene = await self.director.update_scene_from_narrative(
+            narrative=story_output.narrative,
+            user_action=user_input,
+            current_scene=self.current_scene,
+            available_agents=self.agent_manager.agent_states,
+        )
+
+        # 6. Update agent memories
         turn_data = {
             "turn": turn_number,
             "user_action": user_input,
@@ -194,17 +307,107 @@ class Orchestrator:
         for agent_id in self.agent_manager.agents.keys():
             self.agent_manager.update_agent_memory(agent_id, turn_data)
 
-        # 6. Update scene if provided
-        if story_output.scene_update:
-            self.current_scene = story_output.scene_update
-
         # 7. Record history
         self.turn_history.append(turn_data)
 
-        # 8. Persist
+        # 8. Check for and spawn new characters dynamically
+        await self._spawn_new_characters_if_needed(story_output.narrative)
+
+        # 9. Persist
         self._save_story_state(story_id)
 
         return story_output
+
+    async def _spawn_new_characters_if_needed(self, narrative: str):
+        """
+        Detect new significant characters in narrative and spawn agents for them.
+
+        Args:
+            narrative: The just-generated narrative text
+        """
+        # Get list of existing character names
+        existing_names = [state.dossier.name for state in self.agent_manager.agent_states.values()]
+        if self.current_config:
+            existing_names.append(self.current_config.player_character.name)
+
+        # Ask Director to identify new characters
+        prompt = f"""Analyze this narrative passage and identify any NEW significant characters that are introduced.
+
+EXISTING CHARACTERS (already tracked): {', '.join(existing_names)}
+
+NARRATIVE:
+{narrative}
+
+Identify any NEW named characters who:
+- Have a name (not just "a guard" or "the innkeeper")
+- Speak dialogue or take significant action
+- Seem like they could appear again (not just background mentions)
+
+Do NOT include:
+- Characters already in the existing list
+- The player character
+- Generic unnamed NPCs ("a guard", "the bartender")
+- Historical or past-tense references to people not present
+
+Return JSON:
+{{
+  "new_characters": [
+    {{
+      "name": "Character Name",
+      "role": "ally/antagonist/rival/neutral/other",
+      "brief_description": "One sentence about who they are",
+      "personality_hints": ["trait1", "trait2"],
+      "apparent_goals": ["goal1"]
+    }}
+  ]
+}}
+
+If no new significant characters, return: {{"new_characters": []}}"""
+
+        messages = [
+            {"role": "system", "content": self.director.system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+
+        try:
+            from pydantic import BaseModel
+
+            class NewCharacter(BaseModel):
+                name: str
+                role: str
+                brief_description: str
+                personality_hints: list[str]
+                apparent_goals: list[str]
+
+            class NewCharacterList(BaseModel):
+                new_characters: list[NewCharacter]
+
+            result = await llm_client.complete_json(messages, self.director.params, NewCharacterList)
+
+            # Spawn agents for new characters
+            from core.config import engine_config
+            for char in result.new_characters:
+                # Create CharacterConcept
+                concept = CharacterConcept(
+                    name=char.name,
+                    role=char.role,
+                    description=char.brief_description,
+                    personality=char.personality_hints,
+                    goals=char.apparent_goals,
+                    secrets=[],  # Will develop over time
+                    relationship_to_player="newly met"
+                )
+
+                # Spawn agent
+                agent_id = await self.agent_manager.spawn_agent(concept)
+
+                if engine_config.debug_agent_activity:
+                    print(f"[DEBUG] 🎭 Dynamically spawned agent: {char.name} ({char.role}) [{agent_id}]")
+
+        except Exception as e:
+            # Don't fail the turn if character detection fails
+            if engine_config.debug_agent_activity:
+                print(f"[DEBUG] ⚠️  Failed to detect new characters: {e}")
 
     async def _handle_meta_command(self, command: str, story_id: str) -> StoryOutput:
         """

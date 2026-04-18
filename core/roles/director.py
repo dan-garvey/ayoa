@@ -125,6 +125,16 @@ Return JSON:
             decisions: list[RoutingDecision]
 
         result = await llm_client.complete_json(messages, self.params, RoutingDecisionList)
+
+        # Debug output for routing decisions
+        if engine_config.debug_agent_activity:
+            print(f"[DEBUG] 🎬 Director routing: {len(result.decisions)} character(s) evaluated")
+            for decision in result.decisions:
+                if decision.receives_packet:
+                    print(f"[DEBUG]    ✓ {decision.character} ({decision.attention_level}) - {decision.reason}")
+                else:
+                    print(f"[DEBUG]    ✗ {decision.character} (no info) - {decision.reason}")
+
         return result.decisions
 
     async def validate_moves(
@@ -221,4 +231,109 @@ Return JSON:
         ]
 
         decision = await llm_client.complete_json(messages, self.params, DirectorDecision)
+
+        # Debug output for move validation
+        if engine_config.debug_agent_activity:
+            print(f"[DEBUG] 🎬 Director validation: {len(decision.accepted_moves)} accepted, {len(decision.rejected_moves)} rejected")
+            for move in decision.accepted_moves:
+                action_str = f" | Action: {move.action}" if move.action else ""
+                dialogue_str = f" | Says: \"{move.dialogue}\"" if move.dialogue else ""
+                print(f"[DEBUG]    ✓ {move.character}: {move.intent}{action_str}{dialogue_str}")
+            for validation in decision.rejected_moves:
+                print(f"[DEBUG]    ✗ {validation.move.character}: {validation.reason}")
+            if decision.npc_actions_needed:
+                print(f"[DEBUG]    NPC actions needed: {', '.join(decision.npc_actions_needed)}")
+
         return decision
+
+    async def update_scene_from_narrative(
+        self,
+        narrative: str,
+        user_action: str,
+        current_scene: Scene,
+        available_agents: dict[str, "AgentState"],
+    ) -> Scene:
+        """
+        Analyze narrative and update scene with present/nearby characters.
+
+        Args:
+            narrative: The composed narrative text
+            user_action: Player's action that led to this narrative
+            current_scene: Current scene state
+            available_agents: All available character agents
+
+        Returns:
+            Updated scene with correct character positions
+        """
+        # Build agent summary
+        agent_list = []
+        for agent_id, agent_state in available_agents.items():
+            agent_list.append({
+                "name": agent_state.dossier.name,
+                "role": agent_state.dossier.character_concept.role,
+                "description": agent_state.dossier.character_concept.description,
+            })
+
+        agent_summary = "\n".join([
+            f"- {a['name']} ({a['role']}): {a['description']}"
+            for a in agent_list
+        ])
+
+        prompt = f"""Analyze this narrative and determine which characters are present or nearby.
+
+NARRATIVE:
+{narrative}
+
+PLAYER ACTION: {user_action}
+
+CURRENT SCENE: {current_scene.where}
+
+AVAILABLE CHARACTERS:
+{agent_summary}
+
+Based on the narrative, determine:
+1. Which characters are PRESENT (actively in the scene, interacting, speaking)
+2. Which characters are NEARBY (mentioned as nearby, could potentially join, observing from distance)
+3. Which characters are mentioned but NOT physically present (memories, references, etc.)
+
+IMPORTANT:
+- Match narrative descriptions to character names (e.g., "a group of female students" might be Elara, Seraphine, Elysia)
+- If narrative describes people generically but existing characters fit, include them
+- If narrative says player approaches a character, that character becomes present
+- Always include the player character in present_characters
+- Be generous - if unsure whether someone is present, include them
+
+Return JSON:
+{{
+  "scene_id": "{current_scene.scene_id}",
+  "where": "{current_scene.where}",
+  "when": "{current_scene.when}",
+  "atmosphere": "{current_scene.atmosphere}",
+  "present_characters": ["Character 1", "Character 2"],
+  "nearby_characters": ["Character 3"],
+  "facts": {list(current_scene.facts)}
+}}"""
+
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        from core.models.schemas import Scene
+        updated_scene = await llm_client.complete_json(messages, self.params, Scene)
+
+        # Debug output
+        if engine_config.debug_agent_activity:
+            added_present = set(updated_scene.present_characters) - set(current_scene.present_characters)
+            removed_present = set(current_scene.present_characters) - set(updated_scene.present_characters)
+
+            if added_present or removed_present:
+                print(f"[DEBUG] 🎬 Scene update:")
+                if added_present:
+                    print(f"[DEBUG]    + Present: {', '.join(added_present)}")
+                if removed_present:
+                    print(f"[DEBUG]    - Left: {', '.join(removed_present)}")
+                if updated_scene.nearby_characters:
+                    print(f"[DEBUG]    ~ Nearby: {', '.join(updated_scene.nearby_characters)}")
+
+        return updated_scene

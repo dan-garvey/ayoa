@@ -19,6 +19,7 @@ class LLMClient:
         self.model_name = None  # Will be fetched
         self.max_context_tokens = llm_config.max_context_tokens
         self._model_fetched = False
+        self._model_printed = False  # Track if we've printed the model name
 
     async def _fetch_model(self):
         """Fetch available model from the server."""
@@ -36,16 +37,13 @@ class LLMClient:
                 data = response.json()
                 if data.get("data") and len(data["data"]) > 0:
                     self.model_name = data["data"][0]["id"]
-                    print(f"Auto-detected model: {self.model_name}")
                 else:
                     # Fallback to config if available
                     self.model_name = llm_config.model_name or "unknown"
-                    print(f"No models found, using: {self.model_name}")
 
                 self._model_fetched = True
         except Exception as e:
-            print(f"Warning: Could not fetch models from server: {e}")
-            # Fallback to config
+            # Silent fallback - don't spam the user with warnings
             self.model_name = llm_config.model_name or "unknown"
             self._model_fetched = True
 

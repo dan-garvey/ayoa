@@ -160,10 +160,39 @@ def start(
 
 @app.command()
 def continue_story(
-    story_id: str, input_text: Optional[str] = typer.Option(None, "--input", "-i", help="Your action")
+    story_id: str,
+    input_text: Optional[str] = typer.Option(None, "--input", "-i", help="Your action"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Show agent activity debug output"),
 ):
     """Continue an active story."""
     try:
+        # Enable debug mode if requested
+        if debug:
+            from core import config
+            config.engine_config = config.engine_config.__class__(
+                max_active_characters_per_turn=config.engine_config.max_active_characters_per_turn,
+                rng_seed=config.engine_config.rng_seed,
+                storyteller_max_history_turns=config.engine_config.storyteller_max_history_turns,
+                debug_agent_activity=True,
+                director_params=config.engine_config.director_params,
+                storyteller_params=config.engine_config.storyteller_params,
+                character_default_params=config.engine_config.character_default_params,
+            )
+            console.print("[dim]Debug mode enabled[/dim]\n")
+
+        # Load story state if needed
+        if orchestrator.current_story_id != story_id:
+            orchestrator._load_story_state(story_id)
+
+        # Show previous narrative if this is a continuation
+        if orchestrator.turn_history and input_text is None:
+            last_turn = orchestrator.turn_history[-1]
+            console.print("\n" + "=" * 80)
+            console.print("[dim]Previous:[/dim]")
+            console.print("=" * 80 + "\n")
+            console.print(last_turn.get("narrative", ""))
+            console.print("\n" + "=" * 80 + "\n")
+
         if input_text is None:
             console.print(
                 f"[bold]Story {story_id}[/bold] - What do you do? (Type /quit to exit)\n"
@@ -333,8 +362,17 @@ def retry_outline(story_id: str):
         # Regenerate outline
         outline = run_async(orchestrator.storyteller.generate_outline(orchestrator.current_config))
 
-        # Update and save
+        # CRITICAL: Clean up polluted state from previous attempts
+        console.print("[dim]Cleaning up old story data...[/dim]")
         orchestrator.current_outline = outline
+        orchestrator.current_scene = None  # Will be regenerated on start
+        orchestrator.turn_history = []  # Clear old turns
+        orchestrator.agent_manager.agents = {}  # Clear old agents
+        orchestrator.agent_manager.agent_states = {}
+        orchestrator.storyteller.conversation_history = []  # Clear storyteller memory
+        orchestrator.storyteller.world_context = None  # Will be regenerated on start
+
+        # Save clean state
         orchestrator._save_story_state(story_id)
 
         console.print(f"\n[bold green]Successfully generated outline for {story_id}[/bold green]")

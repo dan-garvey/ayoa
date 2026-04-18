@@ -62,11 +62,12 @@ Length: {prefs.length}
 Generate a story outline with:
 1. A compelling premise that incorporates the player character
 2. 3-5 act structure appropriate for the story length
-3. 2-4 major characters (allies, rivals, antagonists, etc.) who will interact with the player
+3. 2-4 major NPC characters (allies, rivals, antagonists, etc.) who will interact with the player
+   NOTE: Do NOT include the player character ({player.name}) in major_characters - only NPCs!
 4. Key locations where the story unfolds
 5. 2-3 potential endings based on different paths
 
-Ensure the major characters have clear goals that will create dramatic tension with the player.
+Ensure the major NPC characters have clear goals that will create dramatic tension with the player.
 
 Return JSON matching this structure:
 {{
@@ -245,14 +246,15 @@ Ongoing: {', '.join(scene.ongoing_events)}
 
 PREMISE: {outline.premise}
 
-Write 300-500 words of engaging third-person past tense narrative that:
+Write 300-500 words of engaging second-person present tense narrative that:
 - Establishes the setting vividly
-- Introduces the player character in action
+- Introduces the player character in action (address them as "you")
 - Creates hooks and questions that make the player want to explore
 - Ends on a moment where the player can naturally make a choice
 
 Do not include dialogue from major characters (they'll be introduced later).
-Focus on atmosphere, sensory details, and the player's situation."""
+Focus on atmosphere, sensory details, and the player's immediate experience.
+Use present tense: "You step forward" not "You stepped forward"."""
 
         # Initialize conversation history with world context
         messages = [
@@ -303,6 +305,15 @@ Focus on atmosphere, sensory details, and the player's situation."""
             Composed narrative output
         """
         import json
+        from core.config import engine_config
+
+        # Debug logging for character moves
+        if engine_config.debug_agent_activity and character_moves:
+            print(f"[DEBUG] 📝 Using {len(character_moves)} agent response(s) in narrative:")
+            for move in character_moves:
+                action_str = f" (action: {move.action})" if move.action else ""
+                dialogue_str = f" (dialogue: \"{move.dialogue}\")" if move.dialogue else ""
+                print(f"[DEBUG]    - {move.character}: {move.intent}{action_str}{dialogue_str}")
 
         # Build current turn context (character moves used here, but NOT stored in history)
         moves_text = "\n".join(
@@ -325,20 +336,23 @@ PRESENT: {', '.join(scene.present_characters)}
 PLAYER ACTION: {user_action}
 
 CHARACTER RESPONSES (for this turn only):
-{moves_text if character_moves else "None - characters observe silently"}
+{moves_text if character_moves else "None - major characters didn't respond (they may be remote or observing)"}
 
 NPC REACTIONS NEEDED:
 {npc_text}
 
 Write 200-500 words of narrative that:
-- Describes the player's action and its immediate effects
+- Describes the player's action and its immediate effects (address player as "you")
 - Integrates character responses naturally (preserve exact dialogue!)
 - Shows NPC reactions as needed
+- If player addresses people and no character responses provided, YOU create appropriate NPC responses with names and dialogue
+  (These become minor NPCs under your control)
 - Maintains the scene's atmosphere and continuity with previous narrative
-- Uses third-person past tense
+- Uses second-person present tense ("You move" not "You moved")
 - Ends on a natural pause for the next player input
 
-Preserve character dialogue EXACTLY as provided. Describe actions cinematically."""
+CRITICAL: If the player asks people for their names and no character responses are provided,
+invent interesting named NPCs with appropriate dialogue. Make the world feel populated and alive!"""
 
         # Build messages with full conversation history
         messages = self._build_messages_with_history(current_turn_prompt)

@@ -46,6 +46,11 @@ class AgentManager:
         )
         self.agent_states[agent_id] = state
 
+        # Debug logging
+        from core.config import engine_config
+        if engine_config.debug_agent_activity:
+            print(f"[DEBUG] 🎭 Spawned agent: {concept.name} ({concept.role}) [{agent_id}]")
+
         return agent_id
 
     async def spawn_agents(self, concepts: list[CharacterConcept]) -> list[str]:
@@ -82,6 +87,8 @@ class AgentManager:
 
         # Process in batches to respect max_concurrent
         responses = []
+        from core.config import engine_config
+
         for i in range(0, len(active_decisions), max_concurrent):
             batch = active_decisions[i : i + max_concurrent]
 
@@ -89,6 +96,10 @@ class AgentManager:
             for decision in batch:
                 agent = self.agents.get(decision.agent_id)
                 if agent:
+                    # Debug logging
+                    if engine_config.debug_agent_activity:
+                        print(f"[DEBUG] 📨 Querying agent: {decision.character} [{decision.agent_id}] (attention: {decision.attention_level})")
+
                     task = agent.perceive_and_respond(
                         packet=decision.packet,  # type: ignore
                         attention_level=decision.attention_level,
