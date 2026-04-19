@@ -153,27 +153,39 @@ class EngineBridge:
 
 
 # ---- personalize helper -----------------------------------------------------
-# Mirrors the logic in app/api/story_routes.py::personalize_story so the bot
-# does not depend on the FastAPI route.
-
-_PLACEHOLDER_CHAR_ID_SUFFIX = "_garvey"
-_PLACEHOLDER_CHAR_ID = "player_name" + _PLACEHOLDER_CHAR_ID_SUFFIX
+# Finds the player character via the roster's is_player flag (not a
+# hard-coded id suffix), rewrites character_id/name/PLAYER_NAME, and keeps
+# the runtime checkpoint schema consistent. Mirrors
+# app/api/story_routes.py::_apply_personalize so the bot does not depend on
+# the FastAPI route.
 
 
 def _personalize(checkpoint: CheckpointFile, player_name: str) -> CheckpointFile:
-    """Replace PLAYER_NAME placeholder with the given display name and set
-    player_character_id from the slugged name."""
     name = player_name.strip()
     if not name:
         raise ValueError("player_name cannot be empty")
 
-    new_char_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") + _PLACEHOLDER_CHAR_ID_SUFFIX
+    player_chars = [c for c in checkpoint.characters if c.is_player]
+    if not player_chars:
+        raise ValueError(
+            "Roster has no is_player=true character. Re-import the master "
+            "prompt with a protagonist explicitly designated."
+        )
+    if len(player_chars) > 1:
+        logger.warning(
+            "Roster has %d is_player characters; personalize binds only the first "
+            "(%s). Multi-player support lands in Phase 3.",
+            len(player_chars), player_chars[0].name,
+        )
 
-    data: dict[str, Any] = json.loads(checkpoint.model_dump_json())
-    raw = json.dumps(data)
+    pc = player_chars[0]
+    old_char_id = pc.character_id
+    new_char_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "player"
+
+    raw = checkpoint.model_dump_json()
     raw = raw.replace("PLAYER_NAME", name)
-    raw = raw.replace(_PLACEHOLDER_CHAR_ID, new_char_id)
-    data = json.loads(raw)
+    raw = raw.replace(f'"{old_char_id}"', f'"{new_char_id}"')
+    data: dict[str, Any] = json.loads(raw)
 
     data["session"]["player_name"] = name
     data["session"]["player_character_id"] = new_char_id
@@ -183,4 +195,4 @@ def _personalize(checkpoint: CheckpointFile, player_name: str) -> CheckpointFile
         known.append(new_char_id)
     data.setdefault("world_state", {})["known_characters"] = known
 
-    return CheckpointFile(**data)
+    return CheckpointFile.model_validate(data)

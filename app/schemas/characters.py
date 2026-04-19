@@ -33,6 +33,11 @@ class CharacterRecord(BaseModel):
     name: str
     status: CharacterStatus = CharacterStatus.active
     location: str = ""
+    # True if this character is a human-player slot. The personalize flow
+    # finds the player character by this flag (not by id suffix), and the
+    # orchestrator excludes is_player characters from agent fan-out. Multi-
+    # player stories can have multiple is_player=True entries.
+    is_player: bool = False
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
     private_state: PrivateState = Field(default_factory=PrivateState)
     # Staging area for observations the character witnessed silently (turns where

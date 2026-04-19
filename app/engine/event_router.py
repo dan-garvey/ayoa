@@ -170,7 +170,7 @@ class EventRouter:
             if char.location == scene_id and char.status.value == "active":
                 role = char.public_sheet.role or "unknown role"
                 traits = (
-                    ", ".join(char.public_sheet.traits[:3])
+                    ", ".join(char.public_sheet.traits)
                     if char.public_sheet.traits
                     else "no notable traits"
                 )
@@ -211,16 +211,16 @@ class EventRouter:
 
             goals_str = ""
             if char.private_state and char.private_state.goals:
-                goals_str = "; ".join(char.private_state.goals[:3])
+                goals_str = "; ".join(char.private_state.goals)
 
             attitudes_str = ""
             if char.private_state and char.private_state.attitudes:
-                items = list(char.private_state.attitudes.items())[:4]
+                items = list(char.private_state.attitudes.items())
                 attitudes_str = "; ".join(f"{k}={v:+.1f}" for k, v in items)
 
             secrets_str = ""
             if char.private_state and char.private_state.secrets:
-                secrets_str = "; ".join(char.private_state.secrets[:2])
+                secrets_str = "; ".join(char.private_state.secrets)
 
             entry = (
                 f"- {char.name} (id: {char.character_id})\n"

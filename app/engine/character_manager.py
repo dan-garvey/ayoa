@@ -141,7 +141,7 @@ class CharacterManager:
             seed_lines.append(f"{k}: {v}")
         spawn_seed = "\n".join(seed_lines) if seed_lines else "No specific seed provided."
 
-        existing = ", ".join(c.name for c in checkpoint.characters[:20])
+        existing = ", ".join(c.name for c in checkpoint.characters)
 
         messages = self.prompt_manager.render_messages(
             "character_gen",

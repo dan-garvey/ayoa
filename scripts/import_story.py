@@ -1,15 +1,21 @@
-"""Import a monolithic single-agent IF prompt into engine-consumable structures.
+"""Import a monolithic single- or multi-agent IF prompt into engine-consumable structures.
 
 Usage:
-    .venv/bin/python scripts/import_story.py story_prompt.txt [--output saves/my_story.json]
+    .venv/bin/python scripts/import_story.py story_prompt.txt [--output path] [--story-id id]
 
-Takes a single-agent interactive fiction prompt and decomposes it into:
-- WorldState (setting, lore, physics, locations, facts)
-- CharacterRecords (one per NPC, with rich text fields)
-- Narrative rules (prose discipline, pacing, style)
-- SessionConfig
+Takes a master prompt and decomposes it via three sequential LLM calls that
+share a cached source prefix. Outputs a CheckpointFile JSON the engine can load.
 
-Outputs a CheckpointFile JSON that the engine can load.
+Design notes:
+- All three calls use `response_model=<Pydantic class>` so the API enforces
+  schema validity server-side — no more JSONDecodeError paths.
+- Runs sequentially to let the shared source prompt cache hit on calls 2 and 3
+  (write once, read twice at ~0.1x input rate). Halves token cost on the
+  dominant source-prompt input.
+- No max_tokens caps below the model's ceiling — whatever the master prompt
+  warrants gets through, not whatever survives an arbitrary clip.
+- No soft-limit language ("1-3 sentences", "3-6 traits", "3-5 paragraphs")
+  in the extraction prompts. Thoroughness is the only directive.
 """
 
 from __future__ import annotations
@@ -20,9 +26,7 @@ import json
 import logging
 import os
 import sys
-import uuid
 
-# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
@@ -36,7 +40,12 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.narrator import TranscriptEntry
+from app.schemas.import_extraction import (
+    CharacterExtraction,
+    CharacterListExtraction,
+    OpeningExtraction,
+    WorldExtraction,
+)
 from app.schemas.state import (
     LocationState,
     PhysicsRuleset,
@@ -50,309 +59,449 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+# Sonnet 4.6 max output tokens. The extractions don't hit this in practice, but
+# setting it at the ceiling means soft-budget truncation never happens — the
+# model outputs what the source warrants, no more, no less.
+MAX_EXTRACTION_TOKENS = 64_000
+
+
 # --- Extraction prompts ---
 #
-# The three extraction calls below share one large piece of context — the source
-# prompt — and differ only in the task-specific instructions. To let the Anthropic
-# prompt cache kick in (source cached once, reused on retries within 5 minutes),
-# the source prompt is sent as a stable `system` message and each call's user
-# message holds only the task-specific instructions.
+# Each call shares a `system` message containing the source prompt. Running
+# sequentially lets the second and third calls read the source from cache at
+# ~0.1x the normal input rate.
 
 SHARED_SOURCE_SYSTEM = """\
-You extract structured data from monolithic interactive-fiction source prompts for an
-interactive-fiction engine. The source prompt below is the single authoritative input
-for this import run — every extraction task you receive will ask for a different slice
-of it.
+You extract structured data from a master interactive-fiction prompt.
+
+The source prompt below is the single authoritative input. Every extraction
+task you receive will ask for a different slice of it. Your outputs must be
+faithful to the source: preserve every distinct detail, relationship,
+personality beat, faction, secret, and motivation the source describes.
+Compression, summarization, or rounding is a quality defect — the engine
+consumes your output verbatim, so anything you drop is permanently lost.
 
 ## Source Prompt
 {source_prompt}"""
 
 
-WORLD_EXTRACTION_PROMPT = """\
-Extract the world state from the source prompt. Respond with ONLY valid JSON matching this schema:
+WORLD_EXTRACTION_INSTRUCTIONS = """\
+Extract the world state from the source prompt into the requested schema.
 
-{{
-  "setting": {{
-    "genre": "string — e.g. fantasy, sci-fi, historical",
-    "era": "string — time period or equivalent",
-    "tone": "string — e.g. dark political intrigue, lighthearted adventure",
-    "premise": "string — 1-3 sentence premise of the story"
-  }},
-  "lore": "string — COMMON KNOWLEDGE world lore only: history, factions, political systems, laws, magic systems, religions, key events that are publicly known. Do NOT include hidden conspiracies, secret plots, true causes of mysterious events, or information that characters would need to discover through play. If something is a mystery in the story (e.g. the true cause of a plague), describe it as a mystery — do not reveal the answer here. This should be thorough — multiple paragraphs.",
-  "facts": ["string — discrete current-state facts about the world that are publicly known at story start. Do NOT include secret or hidden facts."],
-  "physics_ruleset": {{
-    "strength_limits": "string — baseline physical capability",
-    "magic_enabled": true/false
-  }},
-  "locations": {{
-    "current_scene_id": "string — starting location ID",
-    "scene_graph": {{
-      "location_id": {{
-        "name": "string",
-        "description": "string",
-        "connected_to": ["location_id"],
-        "properties": {{}}
-      }}
-    }}
-  }},
-  "narrative_rules": "string — all prose discipline rules, pacing guidelines, style rules, dialogue rules, success/failure metrics for the narrator. Include everything about HOW to narrate, not WHAT to narrate. This should be thorough."
-}}"""
+For each field, be exhaustive. If the source describes five factions, all five
+appear; if it names nine locations, all nine appear in the scene graph; if the
+narrative-style rules cover ten pages, all ten pages become `narrative_rules`.
+There is no length limit — produce whatever volume the source warrants.
 
-CHARACTER_EXTRACTION_PROMPT = """\
-Extract every named character from the source prompt (NPCs, love interests, rivals, supporting cast, faculty, political figures) into structured records. For each character, capture their full depth.
+## Field guidance
 
-Respond with ONLY valid JSON — an array of character objects:
+- **setting.premise**: Capture the story's core situation with enough detail
+  for someone who has never read the source to understand who is involved,
+  what's at stake, and what tension drives the story. Brevity is not a virtue
+  here; clarity is.
 
-[
-  {{
-    "character_id": "string — lowercase_snake_case unique ID",
-    "name": "string — full name",
-    "status": "active" or "dormant",
-    "location": "string — starting location ID",
-    "public_sheet": {{
-      "role": "string — their role/title",
-      "traits": ["string — personality traits, 3-6"],
-      "voice": "string — how they speak, their verbal style",
-      "appearance": "string — full physical description",
-      "faction": "string — faction/house/group affiliation"
-    }},
-    "private_state": {{
-      "goals": ["string — what they want"],
-      "attitudes": {{"character_id_or_user": float_between_neg1_and_1}},
-      "secrets": ["string — things they know but hide"],
-      "intentions_enabled": true/false
-    }},
-    "backstory": "string — character history as THEY understand it, from THEIR perspective. Include only what this character knows or believes about themselves and their past. Do NOT include hidden plot information, conspiracy details, or secrets that this character is unaware of.",
-    "personality": "string — deep personality description, inner world, private self, what they want and fear",
-    "narrative_notes": "string — how to play this character in scenes: what they hide, what pressures them, how they deflect, what kind of interaction changes them, and what narrative role they serve. If the source clearly contains a distinctive tell, include it as situational rather than always-on."
-  }}
-]
+- **lore**: COMMON-KNOWLEDGE world lore only — history, factions, political
+  systems, laws, magic systems, religions, key publicly-known events. If the
+  master prompt's lore section is long and detailed, your `lore` field should
+  match that length and detail. If something in the source is described as
+  mysterious to the in-world public, describe it as a mystery here — do not
+  explain the resolution.
 
-Important:
-- Include ALL characters mentioned in the prompt, not just love interests
-- Set attitudes between characters where the prompt describes relationships (use character_id as key)
-- Set attitude toward the protagonist as "user"
-- Capture the FULL depth of each character — personality essays, backstories, narrative notes should be thorough
-- For characters described briefly (supporting cast), still create a record with what's available
-- Set intentions_enabled=true for characters with hidden agendas or complex inner lives
-- In `narrative_notes`, prioritize pressure points, contradictions, social constraints, and dramatic function over surface quirks
-- Do NOT manufacture stock mannerisms such as repeated smiles, hair touches, brow lifts, ring touches, or "sparkling eyes" unless the source prompt makes them specifically important
-- Do NOT restate appearance details as behavior notes unless the source explicitly ties them to a meaningful, situational tell
-- If romance is present, capture the constraints, risks, and what earns trust; do not reduce the character to canned flirtation beats
+- **facts**: Each fact is one concrete, publicly-known current-state
+  observation about the world. Include every such fact the source describes.
 
-## Information Isolation — CRITICAL
-The source prompt may contain hidden plot details, conspiracies, and secrets. You MUST separate what each character KNOWS from what the READER knows:
-- **backstory**: Write ONLY what the character themselves knows or believes. If the protagonist doesn't know a plague was engineered, their backstory says "the plague" not "the engineered plague." If an NPC is secretly a spy, their backstory should read like a normal person's history — the spy role goes in `secrets`.
-- **public_sheet**: Contains ONLY what is observable to others (role, appearance, traits, voice, faction).
-- **private_state.secrets**: This is where hidden knowledge, true allegiances, conspiracies, and plot-relevant information belongs. A character who is secretly an agent of a conspiracy has that fact HERE, not in their backstory or personality.
-- **narrative_notes**: May reference hidden dynamics for the author's benefit, but should not state secrets as if the character is aware of them (unless they are)."""
+- **hidden_lore**: Spoiler-tier world information the in-world public does
+  NOT know: engineered plagues, conspiracies, secret factions, the real causes
+  of mysteries, hidden histories. This is for the engine's adjudication layer
+  only and is never shown to the player. If the source describes hidden
+  history, conspiracies, or plot-level secrets, capture them here in full.
+  If the source has no hidden information, leave this empty.
+
+- **hidden_facts**: Each hidden fact is one concrete, non-public truth about
+  the current state of the world. Parallel to `facts` but for the adjudication
+  layer only.
+
+- **physics_ruleset.strength_limits**: A short phrase describing the baseline
+  physical capability of the story's characters ("human_baseline",
+  "augmented_human", "low_magic_enhanced", etc.).
+
+- **physics_ruleset.magic_enabled**: true if the story has any supernatural
+  force the characters use or encounter; false otherwise.
+
+- **locations.current_scene_id**: The scene_id (lowercase snake_case) of the
+  scene where the story begins. This scene_id MUST match an entry in
+  `scene_graph`.
+
+- **locations.scene_graph**: A list with one entry per location the source
+  describes — named rooms, wings, districts, outdoor spaces, anywhere the
+  player might be or move to. Each entry:
+    - `scene_id`: lowercase snake_case unique identifier (e.g. `diplomatic_quarter`)
+    - `name`: human-readable label
+    - `description`: full sensory description as the source presents it
+    - `connected_to`: list of other scene_ids reachable directly from here
+  Do not invent connections the source does not describe; do not omit
+  connections the source does describe. All scene_ids in `connected_to`
+  should match an existing entry's `scene_id`.
+
+- **narrative_rules**: Prose discipline, pacing, style, dialogue, subtext,
+  success/failure metrics — everything about HOW to narrate this story.
+  This is the author's voice and direction for the engine's narrator. If the
+  source has extensive style guidance, all of it belongs here verbatim or
+  near-verbatim."""
 
 
-OPENING_NARRATIVE_PROMPT = """\
-Write the opening narrative for the source prompt — the first thing the player reads. This sets the scene, establishes who they are and why they're here, and ends at a moment where they can choose what to do.
+CHARACTER_EXTRACTION_INSTRUCTIONS = """\
+Extract every named character from the source prompt into structured records.
+Return them in a `characters` array.
 
-## Rules
-1. Write in **second person present tense**: "You step off the bridge..." not "The player steps..."
-2. Use **PLAYER_NAME** as a placeholder for the character's name (it will be replaced later). The name already exists as a placeholder — do NOT ask the user to provide it.
-3. Begin immediately in-fiction. Do NOT use preambles like "Before we begin," and do NOT ask setup questions about name, appearance, or backstory.
-4. Write **3-5 paragraphs** of polished prose
-5. Establish:
-   - Who PLAYER_NAME is and why they are arriving at this place
-   - What they see, hear, and feel — sensory grounding in the starting location
-   - The stakes: what's at risk, what they don't know, what looms ahead
-   - A sense of being an outsider entering an unfamiliar world
-6. End at a **natural decision point** — PLAYER_NAME has arrived, taken in the scene, and can now choose what to do. Do NOT make any choices for them (don't decide where they sit, what they pick up, who they talk to)
-7. Include ONLY **common knowledge**. No conspiracy details, no hidden lore, no secret plots. PLAYER_NAME doesn't know the dark history yet — they're a newcomer
-8. Do NOT use the word "you" in the very first word — start with something more evocative
-9. Never break the fourth wall. Never mention prompts, players, character creation, or what the reader should supply.
+Include EVERY named character: protagonists, NPCs, love interests, rivals,
+supporting cast, faculty, political figures, servants, background figures
+named in passing. If the source introduces a character, they belong in the
+output. A roster of 20 characters in the source produces a roster of 20
+characters here. Brevity is not a virtue — capture each character's full
+depth as the source describes them.
 
-## Output
-Return ONLY the prose text. No JSON, no markdown fences, no commentary. Just the narrative passage with paragraph breaks."""
+## Field guidance per character
+
+- **character_id**: lowercase snake_case, unique across the roster. Derive
+  from the character's name (e.g. "Captain Jorin Vael" → `captain_vael` or
+  `jorin_vael`).
+
+- **name**: Full name as the source presents it.
+
+- **status**: "active" for characters currently in play; "dormant" for named
+  characters who exist in the world but are not expected to appear in scenes
+  (off-planet contacts, distant figures). Default to "active" unless the
+  source signals otherwise.
+
+- **location**: starting scene_id. Leave empty if the source does not anchor
+  them to a specific starting scene.
+
+- **is_player**: **true** for the protagonist / player character — the one
+  the human player controls. Multi-protagonist stories can mark multiple
+  characters as `is_player: true` (one per player slot). Every other
+  character is `is_player: false`. If no character is clearly the protagonist
+  (e.g. a fully-NPC ensemble), leave all false.
+
+- **public_sheet**:
+  - `role`: their role, title, or occupation.
+  - `traits`: every distinct personality trait the source describes. Not a
+    capped list — include them all.
+  - `voice`: how they speak. Verbal tics, register, cadence, lexicon.
+  - `appearance`: every physical detail the source gives. Height, build,
+    hair, eyes, clothing, bearing, signatures. Full.
+  - `faction`: faction/house/group affiliation.
+
+- **private_state**:
+  - `goals`: every goal, want, or drive the source attributes to them.
+    All of them.
+  - `attitudes`: keyed by `character_id` of the target, or `"user"` for the
+    player character (before is_player-based personalize replaces this).
+    Value is a float in [-1, 1]. Include every attitude the source describes
+    — affection, resentment, rivalry, respect, contempt.
+  - `secrets`: every secret the source says this character keeps. Not just
+    the dramatic ones; include minor private truths too if the source names
+    them.
+  - `intentions_enabled`: true if the character has a hidden agenda, secret
+    goal, or complex inner life that should drive proactive behavior.
+
+- **backstory**: character history from THEIR perspective — only what THEY
+  know or believe about themselves. If the source says an NPC is secretly a
+  spy, that fact goes in `secrets`, not `backstory`. If the source
+  describes a character's past in depth, your backstory field mirrors that
+  depth.
+
+- **personality**: deep personality description — inner world, private self,
+  what they want and fear, contradictions, how they behave under pressure.
+  Extract as much as the source offers.
+
+- **narrative_notes**: how to play this character in scenes. What they hide,
+  what pressures them, how they deflect, what kind of interaction changes
+  them, what narrative role they serve. Prioritize pressure points,
+  contradictions, social constraints, and dramatic function. Include
+  situational tells if the source makes them distinctive; do not invent
+  stock mannerisms the source does not mention.
+
+## Information isolation — critical
+
+The source may contain hidden plot details, conspiracies, and secrets.
+Separate what each character KNOWS from what the READER knows:
+
+- **backstory, personality, public_sheet**: ONLY what this character knows
+  or others can observe. If the protagonist is unaware a plague was
+  engineered, their backstory says "the plague", not "the engineered plague".
+
+- **private_state.secrets**: where hidden knowledge, true allegiances,
+  conspiracies, and plot-relevant information belongs. A character who is
+  secretly an agent of a conspiracy has that fact here, not in their
+  backstory or personality.
+
+- **narrative_notes**: may reference hidden dynamics for the engine's
+  benefit but should not state secrets as if the character is aware of
+  them (unless they are)."""
 
 
-async def extract_world(client: LLMClient, source: str) -> dict:
-    """Extract world state and narrative rules from the source prompt."""
+OPENING_EXTRACTION_INSTRUCTIONS = """\
+Render the opening scene of the story — the first passage the player reads
+when the story begins.
+
+Write prose, not exposition. This is authorial guidance the engine's narrator
+reads when rendering the player's first turn in-scene; the text you produce
+here shapes tone, atmosphere, and sensory grounding.
+
+## Directives
+
+1. Write in **second person present tense** addressing the player character
+   as "you." Other characters in third person as normal.
+
+2. Use `PLAYER_NAME` as a placeholder for the player character's name — the
+   personalize step replaces it with the Discord user's chosen name.
+
+3. Begin immediately in-fiction. No preambles, no setup questions to the
+   player, no "before we begin."
+
+4. Establish — with whatever depth and length the source's opening warrants:
+   - Who PLAYER_NAME is and why they are here
+   - Sensory grounding in the starting location (sight, sound, smell, air,
+     light, texture as appropriate)
+   - The stakes: what's at risk, what they don't yet know, what looms
+   - The sense of being an outsider or arrival (when the source supports it)
+
+5. End at a **natural decision point** — the player has arrived, taken in
+   the scene, and can now choose what to do. Do not make choices on their
+   behalf (don't decide where they sit, what they pick up, who they talk to).
+
+6. Include ONLY common knowledge. No conspiracy details, no hidden lore,
+   no secret plots. The player character is a newcomer and the opening
+   reflects what they know or can observe.
+
+7. Do not open with the word "you" — lead with something more evocative.
+
+8. Never break the fourth wall — no references to prompts, players,
+   character creation, or anything out-of-story.
+
+Produce the prose in the `text` field. No JSON structure beyond that, no
+markdown fences, no meta-commentary."""
+
+
+# --- Extraction calls ---
+
+async def extract_world(client: LLMClient, source: str) -> WorldExtraction:
     logger.info("Extracting world state...")
-    result = await client.complete(
+    response = await client.complete(
         role="narrator",
         messages=[
             {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
-            {"role": "user", "content": WORLD_EXTRACTION_PROMPT},
+            {"role": "user", "content": WORLD_EXTRACTION_INSTRUCTIONS},
         ],
+        response_model=WorldExtraction,
         temperature=0.3,
-        max_tokens=8000,
+        max_tokens=MAX_EXTRACTION_TOKENS,
     )
-    from app.llm.client import extract_json
-    data = json.loads(extract_json(result.content))
-    logger.info(f"  Setting: {data.get('setting', {}).get('genre', '?')} / {data.get('setting', {}).get('tone', '?')}")
-    logger.info(f"  Locations: {len(data.get('locations', {}).get('scene_graph', {}))} extracted")
-    logger.info(f"  Facts: {len(data.get('facts', []))} extracted")
+    data: WorldExtraction = response.parsed
+    logger.info(
+        "  Setting: %s / %s", data.setting.genre or "?", data.setting.tone or "?"
+    )
+    logger.info(
+        "  Locations: %d scenes, Facts: %d, Hidden facts: %d",
+        len(data.locations.scene_graph), len(data.facts), len(data.hidden_facts),
+    )
+    logger.info(
+        "  Lore: %d chars, Hidden lore: %d chars, Narrative rules: %d chars",
+        len(data.lore), len(data.hidden_lore), len(data.narrative_rules),
+    )
     return data
 
 
-async def extract_characters(client: LLMClient, source: str) -> list[dict]:
-    """Extract all character records from the source prompt."""
+async def extract_characters(client: LLMClient, source: str) -> CharacterListExtraction:
     logger.info("Extracting characters...")
-    result = await client.complete(
+    response = await client.complete(
         role="narrator",
         messages=[
             {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
-            {"role": "user", "content": CHARACTER_EXTRACTION_PROMPT},
+            {"role": "user", "content": CHARACTER_EXTRACTION_INSTRUCTIONS},
         ],
+        response_model=CharacterListExtraction,
         temperature=0.3,
-        max_tokens=16000,
+        max_tokens=MAX_EXTRACTION_TOKENS,
     )
-    from app.llm.client import extract_json
-    raw_json = extract_json(result.content)
-    characters = json.loads(raw_json)
-    # Unwrap if LLM returned {"characters": [...]} or {"key": [...]}
-    if isinstance(characters, dict):
-        if "characters" in characters:
-            characters = characters["characters"]
-        else:
-            # Find the first list value
-            for v in characters.values():
-                if isinstance(v, list):
-                    characters = v
-                    break
-    # Filter to only dict entries (LLM sometimes includes string labels in arrays)
-    characters = [c for c in characters if isinstance(c, dict)]
-    logger.info(f"  Characters: {len(characters)} extracted")
-    for c in characters:
-        logger.info(f"    - {c.get('name', '?')} ({c.get('character_id', '?')}) [{c.get('public_sheet', {}).get('role', '?')}]")
-    return characters
+    data: CharacterListExtraction = response.parsed
+    logger.info("  Characters: %d extracted", len(data.characters))
+    for c in data.characters:
+        player_tag = " [PLAYER]" if c.is_player else ""
+        logger.info(
+            "    - %s (%s) [%s]%s",
+            c.name, c.character_id, c.public_sheet.role or "?", player_tag,
+        )
+    return data
 
 
-async def extract_opening(client: LLMClient, source: str) -> str:
-    """Generate the opening narrative passage from the source prompt."""
+async def extract_opening(client: LLMClient, source: str) -> OpeningExtraction:
     logger.info("Generating opening narrative...")
-    result = await client.complete(
+    response = await client.complete(
         role="narrator",
         messages=[
             {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
-            {"role": "user", "content": OPENING_NARRATIVE_PROMPT},
+            {"role": "user", "content": OPENING_EXTRACTION_INSTRUCTIONS},
         ],
+        response_model=OpeningExtraction,
         temperature=0.5,
-        max_tokens=4000,
+        max_tokens=MAX_EXTRACTION_TOKENS,
     )
-    text = result.content.strip()
-    # Strip markdown fences if the LLM wrapped it
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-    if text.endswith("```"):
-        text = text[:-3].rstrip()
-    logger.info(f"  Opening narrative: {len(text)} chars")
-    return text
+    data: OpeningExtraction = response.parsed
+    logger.info("  Opening narrative: %d chars", len(data.text))
+    return data
 
 
-def build_checkpoint(world_data: dict, characters_data: list[dict], story_id: str, opening_narrative: str = "") -> CheckpointFile:
-    """Assemble extracted data into a CheckpointFile."""
+# --- Checkpoint assembly ---
+
+def build_checkpoint(
+    world: WorldExtraction,
+    roster: CharacterListExtraction,
+    opening: OpeningExtraction,
+    story_id: str,
+) -> CheckpointFile:
     session = SessionState(
         session_id=story_id,
         story_id=story_id,
         turn_index=0,
     )
 
-    setting_data = world_data.get("setting", {})
     setting = StorySetting(
-        genre=setting_data.get("genre", ""),
-        era=setting_data.get("era", ""),
-        tone=setting_data.get("tone", ""),
-        premise=setting_data.get("premise", ""),
+        genre=world.setting.genre,
+        era=world.setting.era,
+        tone=world.setting.tone,
+        premise=world.setting.premise,
     )
 
-    locations_data = world_data.get("locations", {})
+    # Scene list → dict keyed by scene_id for runtime consumption.
+    scene_graph: dict[str, dict] = {}
+    for scene in world.locations.scene_graph:
+        if not scene.scene_id:
+            logger.warning("Scene with empty scene_id dropped: name=%r", scene.name)
+            continue
+        if scene.scene_id in scene_graph:
+            logger.warning("Duplicate scene_id %r — keeping first occurrence", scene.scene_id)
+            continue
+        scene_graph[scene.scene_id] = {
+            "name": scene.name,
+            "description": scene.description,
+            "connected_to": scene.connected_to,
+            "properties": {},
+        }
     locations = LocationState(
-        current_scene_id=locations_data.get("current_scene_id", ""),
-        scene_graph=locations_data.get("scene_graph", {}),
+        current_scene_id=world.locations.current_scene_id,
+        scene_graph=scene_graph,
     )
 
-    physics_data = world_data.get("physics_ruleset", {})
     physics = PhysicsRuleset(
-        strength_limits=physics_data.get("strength_limits", "human_baseline"),
-        magic_enabled=physics_data.get("magic_enabled", False),
+        strength_limits=world.physics_ruleset.strength_limits,
+        magic_enabled=world.physics_ruleset.magic_enabled,
     )
 
     world_state = WorldState(
         locations=locations,
-        facts=world_data.get("facts", []),
+        facts=world.facts,
         physics_ruleset=physics,
         setting=setting,
-        lore=world_data.get("lore", ""),
+        lore=world.lore,
+        hidden_lore=world.hidden_lore,
+        hidden_facts=world.hidden_facts,
     )
 
-    config = SessionConfig(
-        narrative_rules=world_data.get("narrative_rules", ""),
-    )
+    config = SessionConfig(narrative_rules=world.narrative_rules)
 
-    # Build character records
-    characters = []
-    for cd in characters_data:
-        ps_data = cd.get("public_sheet", {})
-        priv_data = cd.get("private_state", {})
+    characters: list[CharacterRecord] = []
+    seen_ids: set[str] = set()
+    for cd in roster.characters:
+        if cd.character_id in seen_ids:
+            logger.warning("Duplicate character_id %r — keeping first occurrence", cd.character_id)
+            continue
+        seen_ids.add(cd.character_id)
 
-        # Clamp attitudes to [-1, 1]
-        attitudes = {}
-        for k, v in priv_data.get("attitudes", {}).items():
-            try:
-                attitudes[k] = max(-1.0, min(1.0, float(v)))
-            except (ValueError, TypeError):
-                attitudes[k] = 0.0
+        attitudes = {
+            k: max(-1.0, min(1.0, float(v))) for k, v in cd.private_state.attitudes.items()
+        }
 
-        cr = CharacterRecord(
-            character_id=cd.get("character_id", "unknown"),
-            name=cd.get("name", "Unknown"),
-            status=CharacterStatus(cd.get("status", "active")),
-            location=cd.get("location", ""),
-            public_sheet=PublicSheet(
-                role=ps_data.get("role", ""),
-                traits=ps_data.get("traits", []),
-                voice=ps_data.get("voice", ""),
-                appearance=ps_data.get("appearance", ""),
-                faction=ps_data.get("faction", ""),
-            ),
-            private_state=PrivateState(
-                goals=priv_data.get("goals", []),
-                attitudes=attitudes,
-                secrets=priv_data.get("secrets", []),
-                intentions_enabled=priv_data.get("intentions_enabled", False),
-            ),
-            backstory=cd.get("backstory", ""),
-            personality=cd.get("personality", ""),
-            narrative_notes=cd.get("narrative_notes", ""),
+        characters.append(
+            CharacterRecord(
+                character_id=cd.character_id,
+                name=cd.name,
+                status=CharacterStatus(cd.status),
+                location=cd.location,
+                is_player=cd.is_player,
+                public_sheet=PublicSheet(
+                    role=cd.public_sheet.role,
+                    traits=cd.public_sheet.traits,
+                    voice=cd.public_sheet.voice,
+                    appearance=cd.public_sheet.appearance,
+                    faction=cd.public_sheet.faction,
+                ),
+                private_state=PrivateState(
+                    goals=cd.private_state.goals,
+                    attitudes=attitudes,
+                    secrets=cd.private_state.secrets,
+                    intentions_enabled=cd.private_state.intentions_enabled,
+                ),
+                backstory=cd.backstory,
+                personality=cd.personality,
+                narrative_notes=cd.narrative_notes,
+            )
         )
-        characters.append(cr)
+
+    # Simple integrity warnings (non-fatal — the engine will cope, but these
+    # signal an underspecified source prompt).
+    if world.locations.current_scene_id and world.locations.current_scene_id not in scene_graph:
+        logger.warning(
+            "current_scene_id %r is not in scene_graph — runtime will fall back to empty scene context",
+            world.locations.current_scene_id,
+        )
+    for scene in world.locations.scene_graph:
+        for target in scene.connected_to:
+            if target not in scene_graph:
+                logger.warning(
+                    "Scene %r connects to %r but %r is not defined in scene_graph",
+                    scene.scene_id, target, target,
+                )
+
+    player_chars = [c for c in roster.characters if c.is_player]
+    if player_chars:
+        logger.info(
+            "Player character slot(s): %s",
+            ", ".join(f"{c.name} ({c.character_id})" for c in player_chars),
+        )
+    else:
+        logger.info("No character marked is_player=true — roster is fully NPC")
 
     return CheckpointFile(
         session=session,
-        opening_narrative=opening_narrative,
+        opening_narrative=opening.text,
         world_state=world_state,
         characters=characters,
         config=config,
     )
 
 
+# --- Main pipeline ---
+
 async def import_story(source_path: str, output_path: str, story_id: str) -> CheckpointFile:
-    """Main import pipeline: read source, extract via LLM, assemble checkpoint."""
     with open(source_path, "r") as f:
         source = f.read()
 
     logger.info(f"Source prompt: {len(source)} chars, ~{len(source.split())} words")
 
-    config = LLMConfig.from_env()
-    client = LLMClient(config=config)
+    client = LLMClient(config=LLMConfig.from_env())
 
     try:
-        # Run world, character, and opening extraction in parallel
-        world_data, characters_data, opening_text = await asyncio.gather(
-            extract_world(client, source),
-            extract_characters(client, source),
-            extract_opening(client, source),
-        )
+        # Sequential with shared-cache source prompt: call 1 writes to cache,
+        # calls 2 and 3 read at ~0.1x rate. Halves cost on the source-prompt
+        # input (the dominant term).
+        world = await extract_world(client, source)
+        roster = await extract_characters(client, source)
+        opening = await extract_opening(client, source)
 
-        checkpoint = build_checkpoint(world_data, characters_data, story_id, opening_narrative=opening_text)
+        checkpoint = build_checkpoint(world, roster, opening, story_id)
 
-        # Write output
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "w") as f:
             f.write(checkpoint.model_dump_json(indent=2))
@@ -362,7 +511,10 @@ async def import_story(source_path: str, output_path: str, story_id: str) -> Che
         logger.info(f"  Characters: {len(checkpoint.characters)}")
         logger.info(f"  Genre: {checkpoint.world_state.setting.genre}")
         logger.info(f"  Lore length: {len(checkpoint.world_state.lore)} chars")
-        logger.info(f"  Narrative rules length: {len(checkpoint.config.narrative_rules)} chars")
+        logger.info(f"  Hidden lore length: {len(checkpoint.world_state.hidden_lore)} chars")
+        logger.info(
+            f"  Narrative rules length: {len(checkpoint.config.narrative_rules)} chars"
+        )
 
         return checkpoint
     finally:
@@ -370,7 +522,7 @@ async def import_story(source_path: str, output_path: str, story_id: str) -> Che
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import a single-agent IF prompt into engine format")
+    parser = argparse.ArgumentParser(description="Import a master IF prompt into engine format")
     parser.add_argument("source", help="Path to the source prompt text file")
     parser.add_argument("--output", "-o", default=None, help="Output checkpoint JSON path")
     parser.add_argument("--story-id", default=None, help="Story ID for the checkpoint")
