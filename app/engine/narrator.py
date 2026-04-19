@@ -57,9 +57,24 @@ class Narrator:
         if not checkpoint.narrator_conversation and checkpoint.opening_narrative:
             opening_directive = (
                 "## Opening Scene Directive\n"
-                "This is the OPENING of the story. Write a rich, immersive scene-setting passage. "
-                "Use the following guidance from the story author to shape tone, atmosphere, and detail. "
-                "This should feel like the opening of a novel — evocative and grounding.\n\n"
+                "This is the OPENING of the story. Render the full opening passage "
+                "from the author's guidance below — IN ITS ENTIRETY. If the guidance "
+                "describes a journey, approach, border crossing, or any movement INTO "
+                "the starting scene, render that sequence from its actual start — "
+                "not in media res with the player already settled. The canonical "
+                "event from the router describes the arrival moment; your job is to "
+                "render everything leading up to and including it, grounded in the "
+                "author's opening prose.\n"
+                "\n"
+                "Write this as the opening of a novel — evocative, grounding, giving "
+                "the player a clear sense of who they are, where they are, how they "
+                "got here, and what looms. Weave in the player character's physical "
+                "presence (from the system prompt's Player Character block) so "
+                "observers naturally see them as described.\n"
+                "\n"
+                "End at a natural first decision point for the player.\n"
+                "\n"
+                "## Author's Opening Guidance\n"
                 f"{checkpoint.opening_narrative}\n"
             )
 

@@ -46,19 +46,32 @@ physically doing. When the user_input is fully parenthesized OOC:
 - **feasible**: always `true` — these are directorial, not physical.
 - **attempted_action**: a short paraphrase of the directive.
 - **resolved_outcome**: a one-line neutral description of the transition
-  being set up. For `(begin)`: something like "the story opens with the
-  player's arrival at the starting scene" — do NOT write polished prose,
-  the narrator will render the actual opening using the scene state and
-  the author's opening directive.
-- **observable_facts**: whatever the characters present would naturally
-  experience given the directive. For `(begin)`, this is the observable
-  side of the player's arrival at the current scene (entering, presenting
-  themselves, first visible presence). For `(fade to black)` or
-  `(end scene)`, leave empty. For time skips, empty.
-- **scene_delta.time_advanced_seconds**: set per the directive (e.g.
-  `(skip to morning)` advances many hours; `(begin)` = 0).
+  being set up. CRITICAL for `(begin)`: frame this as arrival-in-progress,
+  not arrival-already-completed. Correct framing: "The player character
+  is just now arriving at the starting scene — crossing the threshold,
+  taking their first steps into the space." Wrong framing: "The player
+  is installed at the starting scene, having already arrived." The
+  narrator will render the full journey/arrival sequence described in
+  the author's opening directive; if you write the player as
+  already-here, the narrator loses the approach and has to pick up in
+  media res.
+- **observable_facts**: facts about the arrival IN PROGRESS, described in
+  the present moment — entering, crossing, presenting, first visible
+  actions of taking the space in. NOT stationary observations of a player
+  who's already been there. For `(fade to black)` / `(end scene)`, leave
+  empty. For time skips, empty.
+- **scene_delta**:
+  - `time_advanced_seconds`: set per the directive (e.g. `(skip to
+    morning)` advances many hours; `(begin)` = 0 since the arrival IS
+    the turn).
+  - `new_scene_id`: for `(begin)`, set this to the starting scene's id.
+    This marks the arrival as a transition INTO the starting scene from
+    elsewhere, which tells the narrator the approach still needs to
+    render. For other OOC directives, follow normal rules.
 - **observers**: route per the scene state after the transition. For
-  `(begin)`, NPCs present at the starting scene can observe the arrival.
+  `(begin)`, NPCs present at the starting scene observe the arrival as it
+  happens — a newcomer entering their space, not a roommate they've been
+  standing with.
 - Partial parentheses inside otherwise normal in-character text (e.g. an
   aside like `"I approach the gate (cautiously)"`) are NOT OOC — those
   are just stylistic. Only treat fully-parenthesized user_input as OOC.
