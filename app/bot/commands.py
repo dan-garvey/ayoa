@@ -1,12 +1,16 @@
 """Slash commands for the narrative-engine Discord bot.
 
 Commands:
-    /story list                — list available stories
-    /story start <story_id>    — create a session in this channel, post opening
-    /story resume              — show the last scene from an existing session
-    /story end                 — detach this channel from its session
-    /act <action>              — submit a turn (defer + followup embed)
-    /status                    — summarize current state
+    /story list                           — list available stories
+    /story start <story_id> <name>        — create a session in this channel
+    /story resume                         — show the last scene
+    /story end                            — detach this channel's session
+    /story info <story_id>                — show briefing for a source story
+    /story import <attachment> [id]       — import a master prompt
+    /story delete <story_id>              — admin-only, delete a story
+    /describe <traits>                    — set player appearance; opens scene
+    /act <action>                         — submit a turn
+    /status                               — summarize current state
 
 The bot calls the engine in-process (no HTTP). Each turn runs under a
 per-session lock so concurrent /act commands on the same channel serialize.
@@ -15,17 +19,42 @@ per-session lock so concurrent /act commands on the same channel serialize.
 from __future__ import annotations
 
 import logging
+import os
+import re
 import time
 
 import discord
 from discord import app_commands
 
-from app.bot.embed import render_error, render_info, render_turn
+from app.bot.embed import render_briefing, render_error, render_info, render_turn
 from app.bot.engine_bridge import EngineBridge
 from app.bot.session_map import SessionMap
 from app.schemas.checkpoint import CheckpointFile
 
 logger = logging.getLogger(__name__)
+
+# Attachments above this are rejected in /story import to bound token cost.
+# Real master prompts are ~100KB; this leaves headroom.
+MAX_IMPORT_BYTES = 500_000
+
+
+def _is_admin(user_id: int) -> bool:
+    """True if the Discord user ID is in DISCORD_ADMIN_USER_IDS (comma-sep env)."""
+    raw = os.environ.get("DISCORD_ADMIN_USER_IDS", "").strip()
+    if not raw:
+        return False
+    try:
+        admin_ids = {int(x) for x in raw.split(",") if x.strip()}
+    except ValueError:
+        logger.warning("DISCORD_ADMIN_USER_IDS contains a non-integer; ignoring all")
+        return False
+    return user_id in admin_ids
+
+
+def _sanitize_story_id(raw: str) -> str:
+    """Lowercase + replace non-alnum with underscores; strip leading/trailing _."""
+    slug = re.sub(r"[^a-z0-9_]+", "_", raw.lower()).strip("_")
+    return slug
 
 
 def register(
@@ -180,6 +209,181 @@ def register(
         await smap.delete(inter.channel_id)
         await inter.response.send_message(
             f"Detached from `{row.session_id}`. Checkpoint files are kept on disk.",
+            ephemeral=True,
+        )
+
+    # ---- /story info --------------------------------------------------------
+
+    @story_group.command(name="info", description="Show details for a story.")
+    @app_commands.describe(story_id="A story ID from /story list.")
+    async def _info(inter: discord.Interaction, story_id: str):
+        story_id = story_id.strip()
+        if story_id not in engine.list_story_ids():
+            await inter.response.send_message(
+                f"Unknown story `{story_id}`. Try `/story list`.",
+                ephemeral=True,
+            )
+            return
+        try:
+            ckpt = engine.load_story_ckpt(story_id)
+        except Exception as e:
+            logger.exception("load_story_ckpt failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(
+            embed=render_briefing(ckpt, story_id),
+            ephemeral=True,
+        )
+
+    # ---- /story import ------------------------------------------------------
+
+    @story_group.command(
+        name="import",
+        description="Import a master prompt attachment as a new story.",
+    )
+    @app_commands.describe(
+        attachment="A plain-text .txt file containing the master prompt.",
+        story_id="Optional override for the story id (default: derived from filename).",
+    )
+    async def _import(
+        inter: discord.Interaction,
+        attachment: discord.Attachment,
+        story_id: str | None = None,
+    ):
+        # Size + type guardrails.
+        if attachment.size > MAX_IMPORT_BYTES:
+            await inter.response.send_message(
+                f"Attachment too large ({attachment.size} bytes). "
+                f"Max is {MAX_IMPORT_BYTES} bytes (~500KB).",
+                ephemeral=True,
+            )
+            return
+        fname = (attachment.filename or "").lower()
+        if not fname.endswith(".txt"):
+            await inter.response.send_message(
+                "Only `.txt` attachments are supported.",
+                ephemeral=True,
+            )
+            return
+
+        # Derive story_id if not given.
+        if not story_id:
+            base = os.path.splitext(attachment.filename)[0]
+            story_id = _sanitize_story_id(base)
+        else:
+            story_id = _sanitize_story_id(story_id)
+        if not story_id:
+            await inter.response.send_message(
+                "Could not derive a story_id. Pass `story_id` explicitly.",
+                ephemeral=True,
+            )
+            return
+
+        if story_id in engine.list_story_ids():
+            await inter.response.send_message(
+                f"A story with id `{story_id}` already exists. "
+                f"Pick a different id or have an admin run `/story delete {story_id}` first.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True)
+
+        # Download attachment and import. 3 sequential LLM calls take 3–8
+        # minutes; Discord's followup window is 15 min so we're comfortable.
+        try:
+            raw = await attachment.read()
+            source_text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            await inter.followup.send(
+                embed=render_error(
+                    "Attachment is not valid UTF-8. Save the file as plain text."
+                )
+            )
+            return
+        except Exception as e:
+            logger.exception("attachment download failed")
+            await inter.followup.send(
+                embed=render_error(f"Attachment download failed: `{e}`")
+            )
+            return
+
+        logger.info(
+            "Importing story %s from attachment %r (%d bytes) by %s",
+            story_id, attachment.filename, attachment.size, inter.user.display_name,
+        )
+        start = time.monotonic()
+        try:
+            ckpt = await engine.import_story(source_text, story_id)
+        except FileExistsError as e:
+            await inter.followup.send(embed=render_error(str(e)))
+            return
+        except Exception as e:
+            logger.exception("import_story failed")
+            await inter.followup.send(
+                embed=render_error(f"Import failed: `{type(e).__name__}: {e}`")
+            )
+            return
+
+        elapsed = time.monotonic() - start
+        logger.info(
+            "Imported %s in %.1fs: %d chars, %d scenes, %d characters",
+            story_id, elapsed,
+            len(ckpt.opening_narrative),
+            len(ckpt.world_state.locations.scene_graph),
+            len(ckpt.characters),
+        )
+
+        # Post the resulting briefing so the user sees what got extracted.
+        intro = (
+            f"Imported **{story_id}** in {int(elapsed)}s — "
+            f"{len(ckpt.characters)} characters, "
+            f"{len(ckpt.world_state.locations.scene_graph)} scenes. "
+            f"Start a session with `/story start {story_id} \"<Your Name>\"`."
+        )
+        await inter.followup.send(content=intro, embed=render_briefing(ckpt, story_id))
+
+    # ---- /story delete (admin-gated) ---------------------------------------
+
+    @story_group.command(
+        name="delete",
+        description="Delete a story and all sessions derived from it. Admin-only.",
+    )
+    @app_commands.describe(story_id="The story ID to delete.")
+    async def _delete(inter: discord.Interaction, story_id: str):
+        if not _is_admin(inter.user.id):
+            await inter.response.send_message(
+                "Only admins can delete stories. Set `DISCORD_ADMIN_USER_IDS` "
+                "in the bot's env to grant access.",
+                ephemeral=True,
+            )
+            return
+        story_id = story_id.strip()
+        if story_id not in engine.list_story_ids():
+            await inter.response.send_message(
+                f"Unknown story `{story_id}`.", ephemeral=True,
+            )
+            return
+        try:
+            sessions_removed, files_removed = engine.delete_story(story_id)
+        except Exception as e:
+            logger.exception("delete_story failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        # Any channel-mapping rows pointing at derived sessions become stale;
+        # since session_id patterns are deterministic, just leave them — a
+        # future /story start or /story resume on those channels will error
+        # cleanly with "no checkpoint found" and the user can /story end them.
+        await inter.response.send_message(
+            f"Deleted `{story_id}` and {sessions_removed} derived session dir(s) "
+            f"({files_removed} files).",
             ephemeral=True,
         )
 

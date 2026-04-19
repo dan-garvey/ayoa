@@ -20,6 +20,7 @@ from typing import Any
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
+from app.engine.story_importer import run_import
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
@@ -70,6 +71,76 @@ class EngineBridge:
             if (child / "ckpt_0000.json").exists():
                 ids.append(child.name)
         return ids
+
+    def load_story_ckpt(self, story_id: str) -> CheckpointFile:
+        """Load a story's source ckpt_0000 (pristine, not a session checkpoint)."""
+        path = self.saves_dir / story_id / "ckpt_0000.json"
+        if not path.exists():
+            raise FileNotFoundError(f"Story '{story_id}' not found at {path}")
+        return CheckpointFile.model_validate_json(path.read_text())
+
+    async def import_story(
+        self,
+        source_text: str,
+        story_id: str,
+    ) -> CheckpointFile:
+        """Run the three-stage import pipeline and save the resulting
+        ckpt_0000.json under saves/<story_id>/.
+
+        Refuses to overwrite an existing story — caller should delete first
+        or pick a different story_id. Raises FileExistsError in that case.
+        """
+        dst_dir = self.saves_dir / story_id
+        dst_ckpt = dst_dir / "ckpt_0000.json"
+        if dst_ckpt.exists():
+            raise FileExistsError(
+                f"Story '{story_id}' already exists at {dst_ckpt}. "
+                f"Delete it first or pick a different story_id."
+            )
+
+        checkpoint = await run_import(self.client, source_text, story_id)
+
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
+        logger.info("Imported story %s → %s", story_id, dst_ckpt)
+        return checkpoint
+
+    def delete_story(self, story_id: str) -> tuple[int, int]:
+        """Delete a story's source dir AND any discord_* session dirs derived
+        from it. Returns (session_dirs_removed, total_files_removed).
+
+        Raises FileNotFoundError if the source story does not exist.
+        """
+        source_dir = self.saves_dir / story_id
+        if not source_dir.exists():
+            raise FileNotFoundError(f"Story '{story_id}' not found at {source_dir}")
+
+        sessions_removed = 0
+        files_removed = 0
+
+        # Derived discord sessions have name pattern
+        # discord_<channel_id>_<story_slug> where story_slug is the sluggified
+        # story_id. Match by suffix for safety.
+        slug = re.sub(r"[^a-z0-9_]+", "_", story_id.lower()).strip("_")
+        suffix = f"_{slug}"
+        for child in self.saves_dir.iterdir():
+            if not child.is_dir():
+                continue
+            if child.name.startswith("discord_") and child.name.endswith(suffix):
+                file_count = sum(1 for _ in child.iterdir())
+                shutil.rmtree(child)
+                sessions_removed += 1
+                files_removed += file_count
+
+        file_count = sum(1 for _ in source_dir.iterdir())
+        shutil.rmtree(source_dir)
+        files_removed += file_count
+
+        logger.info(
+            "Deleted story %s and %d derived session dir(s), %d files total",
+            story_id, sessions_removed, files_removed,
+        )
+        return sessions_removed, files_removed
 
     def session_id_for_channel(self, channel_id: int, story_id: str) -> str:
         """Deterministic session id for (channel, story). Stable across /resume."""
