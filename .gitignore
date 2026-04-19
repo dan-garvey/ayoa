@@ -6,5 +6,9 @@ __pycache__/
 .codex
 .demo.log
 .server.log
+.bot.log
 app/storage/playtest_reports/
 app/storage/saves/*
+app/storage/bot/
+core.egg-info/
+.coverage

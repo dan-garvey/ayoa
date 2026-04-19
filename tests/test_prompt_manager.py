@@ -97,11 +97,13 @@ class TestPromptManagerWithRealTemplates:
             character_registry="- guard_17 Captain Vero",
             user_input="I try to lift the building.",
             player_name="Aldric",
+            player_character_description="Tall, broad-shouldered, grey-streaked hair.",
         )
         assert "I try to lift the building" in result
         assert "Aldric" in result
         assert "No magic" in result
         assert "Captain Vero" in result
+        assert "Tall, broad-shouldered" in result
 
     def test_agent_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")
@@ -126,10 +128,13 @@ class TestPromptManagerWithRealTemplates:
             character_id="guard_17",
             prior_character_responses="No other characters have responded yet.",
             pending_observations_block="",
+            player_name="Aldric",
+            player_character_description="Tall, in rain-darkened traveling clothes.",
         )
         assert "Captain Vero" in result
         assert "guard_17" in result
         assert "hidden passage" in result
+        assert "rain-darkened traveling clothes" in result
 
     def test_render_messages_requires_delimiter(self):
         mgr = PromptManager(prompts_dir="app/prompts")
@@ -140,6 +145,7 @@ class TestPromptManagerWithRealTemplates:
             scene_graph="x", current_scene="x", characters_present="x",
             world_facts="x", hidden_lore="x", hidden_facts="x",
             character_registry="x", user_input="x", player_name="x",
+            player_character_description="x",
         )
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
@@ -165,6 +171,7 @@ class TestPromptManagerWithRealTemplates:
             scene_graph="x", current_scene="x", characters_present="x",
             world_facts="x", hidden_lore="x", hidden_facts="x",
             character_registry="x", user_input="x", player_name="x",
+            player_character_description="x",
         )
         assert len(messages) == 4
         assert messages[0]["role"] == "system"

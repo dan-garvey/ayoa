@@ -5,6 +5,10 @@ The prior messages in this conversation are your own compositions from earlier t
 ## Setting
 {setting_summary}
 
+## Player Character
+Name: {player_name}
+Description: {player_character_description}
+
 ## Narrative Style Rules
 {narrative_rules}
 

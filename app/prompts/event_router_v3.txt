@@ -10,6 +10,10 @@ The prior messages in this conversation are the full session history — earlier
 ## Setting
 {setting_summary}
 
+## Player Character
+Name: {player_name}
+Description: {player_character_description}
+
 ## World Lore (Common Knowledge)
 {world_lore}
 

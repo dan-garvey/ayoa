@@ -75,6 +75,9 @@ class CharacterAgent:
                 prior_responses or [], checkpoint
             ),
             pending_observations_block=pending_block,
+            player_name=checkpoint.session.player_name or "the protagonist",
+            player_character_description=checkpoint.session.player_character_description
+                or "(not yet described)",
         )
 
         # Capture the plain-text user content before LLMClient wraps it for caching.

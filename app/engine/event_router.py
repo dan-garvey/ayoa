@@ -54,6 +54,8 @@ class EventRouter:
             character_registry=self._build_character_registry(checkpoint),
             user_input=user_input,
             player_name=checkpoint.session.player_name or "the protagonist",
+            player_character_description=checkpoint.session.player_character_description
+                or "(not yet described)",
         )
 
         # Capture the plain-text user content before LLMClient wraps it with

@@ -73,6 +73,8 @@ class Narrator:
             scene_context=scene_context,
             user_input=user_input,
             player_name=player_name,
+            player_character_description=checkpoint.session.player_character_description
+                or "(not yet described)",
             opening_directive=opening_directive,
         )
 

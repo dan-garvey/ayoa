@@ -27,6 +27,11 @@ class SessionState(BaseModel):
     turn_index: int = 0
     player_name: str = ""
     player_character_id: str = ""
+    # Freeform description of the player character's physical presence: height,
+    # build, hair, clothing, voice quality, notable features. Plumbed into the
+    # system prompts of all three engine roles so everyone references the
+    # character consistently. Empty until the player runs /describe.
+    player_character_description: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
