@@ -13,6 +13,7 @@ from app.schemas.checkpoint import CheckpointFile
 
 MAX_DESCRIPTION = 4096
 MAX_TOTAL = 6000
+_FIELD_VALUE_MAX = 1024  # Discord's per-field value limit
 EMBED_COLOR_STORY = 0x5865F2  # Discord blurple
 EMBED_COLOR_ERROR = 0xED4245  # Discord red
 EMBED_COLOR_INFO = 0x57F287   # Discord green
@@ -81,9 +82,69 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
     setting = ckpt.world_state.setting
     player_char = _find_player_character(ckpt)
 
-    parts: list[str] = []
+    story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
+    title = f"Briefing · {story_title}"
+    footer = f"{story_id} · /describe <traits> to open the scene"
 
-    # World framing
+    # Build the fields first so we can reserve the description budget based on
+    # their actual size. The "How to play" fields MUST always render — that's
+    # the whole reason for this briefing — so they get priority over the
+    # premise when the budget gets tight.
+    fields: list[tuple[str, str]] = []  # (name, value) pairs, in render order
+
+    if player_char is not None:
+        role = player_char.public_sheet.role or "(role unspecified)"
+        backstory = (player_char.backstory or "").strip()
+        role_value = f"**{player_char.name}** — {role}"
+        if backstory:
+            remaining = _FIELD_VALUE_MAX - len(role_value) - 4
+            if len(backstory) > remaining:
+                backstory = backstory[:remaining].rstrip() + "…"
+            role_value += f"\n\n{backstory}"
+        fields.append(("Your role", role_value))
+
+    facts = ckpt.world_state.facts[:6]
+    if facts:
+        facts_value = "\n".join(f"• {f}" for f in facts)
+        if len(facts_value) > _FIELD_VALUE_MAX:
+            facts_value = facts_value[: _FIELD_VALUE_MAX - 1] + "…"
+        fields.append(("What you know", facts_value))
+
+    fields.append((
+        "1. Describe your character",
+        "Run `/describe <traits>` to set the physical presence the world will "
+        "react to. Include whatever detail you want seen, heard, or remembered "
+        "— height, build, age, clothing, bearing, voice, distinctive features. "
+        "Be as specific as you like; the narrator uses this verbatim.\n"
+        "_Examples_\n"
+        "> `/describe tall, early forties, grey at the temples, travel-worn "
+        "wool coat, ink-stained fingers, a quiet voice that rarely rises`\n"
+        "> `/describe short and wiry, close-cropped dark hair, formal black "
+        "robe with silver clasps, walks with a slight limp`"
+    ))
+    fields.append((
+        "2. Your first /describe opens the scene",
+        "The narrator renders your arrival in-fiction, incorporating "
+        "everything you wrote. You'll see the opening as a reply."
+    ))
+    fields.append((
+        "3. From then on, /act <what you do>",
+        "One `/act` per turn. Speak, move, observe, improvise — first person "
+        "is natural. Turns take ~20–40 seconds; the bot shows a thinking "
+        "indicator while composing. `/status` shows the current scene and "
+        "roster; `/story end` closes the session."
+    ))
+
+    fields_total = sum(len(n) + len(v) for n, v in fields)
+
+    # Build description (genre/era/tone + premise) within the remaining budget.
+    # MAX_TOTAL - title - footer - fields - 50 safety → description cap.
+    description_budget = min(
+        MAX_DESCRIPTION,
+        MAX_TOTAL - len(title) - len(footer) - fields_total - 50,
+    )
+
+    description_parts: list[str] = []
     setting_bits = []
     if setting.genre:
         setting_bits.append(f"**Genre** · {setting.genre}")
@@ -92,51 +153,39 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
     if setting.tone:
         setting_bits.append(f"**Tone** · {setting.tone}")
     if setting_bits:
-        parts.append("\n".join(setting_bits))
-
+        description_parts.append("\n".join(setting_bits))
     if setting.premise:
-        parts.append(f"**Premise**\n{setting.premise}")
+        description_parts.append(f"**Premise**\n{setting.premise}")
 
-    # Player role
-    if player_char is not None:
-        role = player_char.public_sheet.role or "(role unspecified)"
-        backstory = (player_char.backstory or "").strip()
-        role_block = f"**You are {player_char.name}** — {role}"
-        if backstory:
-            # Cap backstory to keep the briefing readable
-            if len(backstory) > 900:
-                backstory = backstory[:900].rstrip() + "…"
-            role_block += f"\n\n{backstory}"
-        parts.append(role_block)
+    description = "\n\n".join(description_parts)
+    if len(description) > description_budget:
+        description = description[: description_budget - 1].rstrip() + "…"
 
-    # A handful of grounding facts (common knowledge the PC would have)
-    facts = ckpt.world_state.facts[:6]
-    if facts:
-        facts_block = "**What you know**\n" + "\n".join(f"• {f}" for f in facts)
-        parts.append(facts_block)
-
-    description = "\n\n".join(parts)
-    # Keep under Discord's embed description limit.
-    if len(description) > MAX_DESCRIPTION:
-        description = description[: MAX_DESCRIPTION - 1] + "…"
-
-    story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
     embed = discord.Embed(
-        title=f"Briefing · {story_title}",
+        title=title,
         description=description,
         color=EMBED_COLOR_STORY,
     )
-    embed.set_footer(text=f"{story_id} · `/act <your first move>` to begin")
+    for name, value in fields:
+        embed.add_field(name=name, value=value, inline=False)
+    embed.set_footer(text=footer)
     return embed
 
 
 def _find_player_character(ckpt: CheckpointFile):
-    """Locate the player's CharacterRecord, if present."""
+    """Locate the player's CharacterRecord.
+
+    Prefers the character whose id matches `session.player_character_id`
+    (post-personalize), falling back to the first `is_player=True` character
+    (for pristine / pre-personalize checkpoints).
+    """
     pcid = ckpt.session.player_character_id
-    if not pcid:
-        return None
+    if pcid:
+        for c in ckpt.characters:
+            if c.character_id == pcid:
+                return c
     for c in ckpt.characters:
-        if c.character_id == pcid:
+        if c.is_player:
             return c
     return None
 

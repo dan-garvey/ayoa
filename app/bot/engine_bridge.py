@@ -85,13 +85,28 @@ class EngineBridge:
         player_display_name: str,
     ) -> CheckpointFile:
         """Copy the story's ckpt_0000 into a new session dir, personalize it,
-        and return the resulting checkpoint. Safe to call again (overwrites)."""
+        and return the resulting checkpoint.
+
+        Since session_id is deterministic from (channel, story), re-running
+        /story start on the same channel/story would land in a directory that
+        may contain stale ckpt_NNNN.json files from a prior play-through.
+        We wipe those so the new session starts clean — otherwise load_latest
+        picks up an old pre-schema-migration checkpoint and personalize fails.
+        """
         src = self.saves_dir / story_id / "ckpt_0000.json"
         if not src.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {src}")
 
         dst_dir = self.saves_dir / session_id
         dst_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clear any stale checkpoint files in this session dir — user called
+        # /story start expecting a fresh start (they'd have used /story resume
+        # to continue). Only touches ckpt_*.json, leaves any other files alone
+        # (e.g. .pre_conv_migration backups).
+        for old in dst_dir.glob("ckpt_*.json"):
+            old.unlink()
+
         dst = dst_dir / "ckpt_0000.json"
         shutil.copy2(src, dst)
 
@@ -101,10 +116,9 @@ class EngineBridge:
         data["session"]["session_id"] = session_id
         dst.write_text(json.dumps(data, indent=2))
 
-        # Personalize in-place, save as ckpt_0001 (keeps ckpt_0000 pristine).
-        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        # Personalize the pristine ckpt_0000, save as ckpt_0001.
+        ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
         personalized = _personalize(ckpt, player_display_name)
-        # Bump the turn index so save() lands at ckpt_0001.
         if personalized.session.turn_index == 0:
             personalized.session.turn_index = 1
         self.checkpoint_mgr.save(personalized)
@@ -118,9 +132,24 @@ class EngineBridge:
         session_id: str,
         description: str,
     ) -> CheckpointFile:
-        """Update session.player_character_description in-place and save."""
+        """Update the player character's appearance on the checkpoint and save.
+
+        Writes to both `session.player_character_description` (used by the
+        narrator/router/agent system prompts' Player Character block) AND
+        the player character's `public_sheet.appearance` (used by the
+        agent context builder's 'Characters Present' summary that NPCs see).
+        Master prompts often leave appearance as a placeholder like
+        'Defined by player input' which would otherwise leak into NPC context.
+        """
+        description = description.strip()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        ckpt.session.player_character_description = description.strip()
+        ckpt.session.player_character_description = description
+
+        pc_id = ckpt.session.player_character_id
+        for char in ckpt.characters:
+            if char.character_id == pc_id or char.is_player:
+                char.public_sheet.appearance = description
+
         self.checkpoint_mgr.save(ckpt)
         return ckpt
 

@@ -33,9 +33,40 @@ Hidden facts:
 
 ## Instructions
 
+### Out-of-character input
+
+Text the player wraps entirely in parentheses — e.g. `(begin)`, `(skip to
+morning)`, `(fade to black)`, `(two hours later)` — is an out-of-character
+author's note, not an in-fiction attempt. It is a directive to the narrator
+about how the story should proceed, not something the player character is
+physically doing. When the user_input is fully parenthesized OOC:
+
+- **user_intent**: restate the narrative directive plainly ("Open the
+  story", "Advance time to morning", "Fade to black and end the scene").
+- **feasible**: always `true` — these are directorial, not physical.
+- **attempted_action**: a short paraphrase of the directive.
+- **resolved_outcome**: a one-line neutral description of the transition
+  being set up. For `(begin)`: something like "the story opens with the
+  player's arrival at the starting scene" — do NOT write polished prose,
+  the narrator will render the actual opening using the scene state and
+  the author's opening directive.
+- **observable_facts**: whatever the characters present would naturally
+  experience given the directive. For `(begin)`, this is the observable
+  side of the player's arrival at the current scene (entering, presenting
+  themselves, first visible presence). For `(fade to black)` or
+  `(end scene)`, leave empty. For time skips, empty.
+- **scene_delta.time_advanced_seconds**: set per the directive (e.g.
+  `(skip to morning)` advances many hours; `(begin)` = 0).
+- **observers**: route per the scene state after the transition. For
+  `(begin)`, NPCs present at the starting scene can observe the arrival.
+- Partial parentheses inside otherwise normal in-character text (e.g. an
+  aside like `"I approach the gate (cautiously)"`) are NOT OOC — those
+  are just stylistic. Only treat fully-parenthesized user_input as OOC.
+
 ### Part A: Canonical Event
 
-1. Interpret the player's intent plainly.
+1. Interpret the player's intent plainly. (If the input is OOC per the
+   section above, follow that guidance instead.)
 
 2. Check feasibility against:
    - physical constraints

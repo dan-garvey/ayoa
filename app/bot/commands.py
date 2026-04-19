@@ -121,17 +121,12 @@ def register(
             story_id=story_id,
         )
 
-        # Post a factual briefing so the player has world/role/stakes context.
-        # The player now runs `/describe <traits>` to set their character's
-        # physical presence, which triggers the narrator-rendered opening scene.
+        # The briefing embed carries the full first-time-user onboarding
+        # (setting, role, facts, and a "How to play" block). Keep the
+        # content message terse so they don't fight for attention.
         from app.bot.embed import render_briefing
         briefing = render_briefing(ckpt, story_id)
-        intro = (
-            f"**{character_name}** begins **{story_id}**. "
-            f"Next: `/describe <traits>` — describe your character's physical "
-            f"presence (height, build, clothing, bearing) so the world can "
-            f"react to them. The opening scene will render from that."
-        )
+        intro = f"**{character_name}** begins **{story_id}**."
         await inter.followup.send(content=intro, embed=briefing)
 
     # ---- /story resume ------------------------------------------------------
@@ -242,11 +237,13 @@ def register(
             )
             return
 
-        # Pre-play: fire the opening turn using a neutral arrival prompt.
-        arrival_action = (
-            "I take a steadying breath and step fully into the space, "
-            "letting my eyes move across the room to see what is actually here."
-        )
+        # Pre-play: fire the opening turn using the OOC meta-channel. The
+        # EventRouter prompt recognizes fully-parenthesized input as an
+        # author's directive rather than an in-character attempt, so
+        # `(begin)` cleanly maps to "open the story from the scene's actual
+        # start per the opening_directive" without the narrator compressing
+        # arrival into hallucinated subtext.
+        arrival_action = "(begin)"
         logger.info(
             "Describe+open for %s by %s: traits=%r",
             row.session_id, inter.user.display_name, traits[:200],
