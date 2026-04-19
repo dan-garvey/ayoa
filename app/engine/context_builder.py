@@ -171,6 +171,62 @@ def format_prior_responses(
     return "\n".join(parts)
 
 
+def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
+    """Every character_id that belongs to a human player (bound or flagged).
+
+    Used across the engine to keep player-controlled characters out of NPC
+    routing, agent fan-out, and background observation queues. Unions:
+    - session.character_bindings keys (the canonical source)
+    - session.player_character_id (creator binding, for legacy/pre-bindings
+      checkpoints that haven't had their bindings populated)
+    - every CharacterRecord.is_player=True in the roster (for pristine
+      checkpoints with no session bindings yet)
+    """
+    ids: set[str] = set(checkpoint.session.character_bindings or {})
+    if checkpoint.session.player_character_id:
+        ids.add(checkpoint.session.player_character_id)
+    for c in checkpoint.characters:
+        if c.is_player:
+            ids.add(c.character_id)
+    return ids
+
+
+def build_player_characters_block(
+    checkpoint: CheckpointFile,
+    acting_character_id: str,
+) -> str:
+    """Render a markdown list of every player character for the prompt header.
+
+    Appears in the frozen (cached) system prompt of the router, narrator, and
+    each agent. Marks the turn's acting character so downstream prose knows
+    whose action to center. Falls back to the is_player roster entries if
+    character_bindings is empty (covers pristine checkpoints and tests).
+    """
+    bindings = checkpoint.session.character_bindings or {}
+    bound_ids = list(bindings.keys()) if bindings else [
+        c.character_id for c in checkpoint.characters if c.is_player
+    ]
+    if not bound_ids:
+        pcid = checkpoint.session.player_character_id
+        bound_ids = [pcid] if pcid else []
+
+    lines: list[str] = []
+    for char_id in bound_ids:
+        char = next(
+            (c for c in checkpoint.characters if c.character_id == char_id), None
+        )
+        if char is None:
+            continue
+        role = char.public_sheet.role or "unspecified role"
+        appearance = (char.public_sheet.appearance or "not yet described").strip()
+        marker = " (acting this turn)" if char.character_id == acting_character_id else ""
+        lines.append(f"- **{char.name}**{marker} — {role}. {appearance}")
+
+    if not lines:
+        return "- No player characters bound to this session."
+    return "\n".join(lines)
+
+
 def format_pending_observations_block(character: CharacterRecord) -> str:
     """Render the pending-observations markdown block for the agent user message.
 

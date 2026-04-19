@@ -96,8 +96,8 @@ class TestPromptManagerWithRealTemplates:
             hidden_facts="- Hidden fact one",
             character_registry="- guard_17 Captain Vero",
             user_input="I try to lift the building.",
-            player_name="Aldric",
-            player_character_description="Tall, broad-shouldered, grey-streaked hair.",
+            acting_character_name="Aldric",
+            player_characters_block="- **Aldric** (acting this turn) — scholar. Tall, broad-shouldered, grey-streaked hair.",
         )
         assert "I try to lift the building" in result
         assert "Aldric" in result
@@ -118,18 +118,18 @@ class TestPromptManagerWithRealTemplates:
             character_backstory="Twenty years of service.",
             character_personality="Stoic but caring.",
             character_goals="- maintain order",
-            character_attitudes="- user: -0.1 (neutral)",
+            character_attitudes="- aldric: -0.1 (neutral)",
             character_secrets="- knows the hidden passage",
             character_narrative_notes="Right hand twitches when lying.",
             world_context="Genre: fantasy",
-            observed_facts="The user strains against the building.",
+            observed_facts="Aldric strains against the building.",
             scene_context="Estate courtyard, raining.",
             characters_present="No other characters are present.",
             character_id="guard_17",
             prior_character_responses="No other characters have responded yet.",
             pending_observations_block="",
-            player_name="Aldric",
-            player_character_description="Tall, in rain-darkened traveling clothes.",
+            acting_character_name="Aldric",
+            player_characters_block="- **Aldric** (acting this turn) — scholar. Tall, in rain-darkened traveling clothes.",
         )
         assert "Captain Vero" in result
         assert "guard_17" in result
@@ -144,8 +144,8 @@ class TestPromptManagerWithRealTemplates:
             setting_summary="x", world_lore="x", world_rules="x",
             scene_graph="x", current_scene="x", characters_present="x",
             world_facts="x", hidden_lore="x", hidden_facts="x",
-            character_registry="x", user_input="x", player_name="x",
-            player_character_description="x",
+            character_registry="x", user_input="x",
+            acting_character_name="x", player_characters_block="x",
         )
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
@@ -170,8 +170,8 @@ class TestPromptManagerWithRealTemplates:
             setting_summary="x", world_lore="x", world_rules="x",
             scene_graph="x", current_scene="x", characters_present="x",
             world_facts="x", hidden_lore="x", hidden_facts="x",
-            character_registry="x", user_input="x", player_name="x",
-            player_character_description="x",
+            character_registry="x", user_input="x",
+            acting_character_name="x", player_characters_block="x",
         )
         assert len(messages) == 4
         assert messages[0]["role"] == "system"

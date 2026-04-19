@@ -42,14 +42,26 @@ class Narrator:
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
         disc_output: DiscriminatorOutput | None = None,
+        acting_character_id: str = "",
     ) -> NarratorFinalOutput:
         """Compose final narrative prose and append the turn to narrator_conversation."""
+        from app.engine.context_builder import build_player_characters_block
+
         setting_summary = self._build_setting_summary(checkpoint)
         narrative_rules = checkpoint.config.narrative_rules or "No specific narrative rules."
         scene_context = self._build_scene_context(checkpoint)
         canonical_event = json.dumps(event.model_dump(), indent=2, sort_keys=True)
         formatted_agents = self._format_agent_outputs(agent_outputs, checkpoint, disc_output)
-        player_name = checkpoint.session.player_name or "the protagonist"
+
+        acting_id = acting_character_id or checkpoint.session.player_character_id
+        acting_char = next(
+            (c for c in checkpoint.characters if c.character_id == acting_id), None
+        )
+        acting_name = (
+            acting_char.name if acting_char
+            else (checkpoint.session.player_name or "the protagonist")
+        )
+        player_characters_block = build_player_characters_block(checkpoint, acting_id)
 
         # Opening directive fires only on the very first turn of the story
         # (when the narrator has no prior turns to draw from).
@@ -61,18 +73,18 @@ class Narrator:
                 "from the author's guidance below — IN ITS ENTIRETY. If the guidance "
                 "describes a journey, approach, border crossing, or any movement INTO "
                 "the starting scene, render that sequence from its actual start — "
-                "not in media res with the player already settled. The canonical "
-                "event from the router describes the arrival moment; your job is to "
-                "render everything leading up to and including it, grounded in the "
-                "author's opening prose.\n"
+                "not in media res with the player characters already settled. The "
+                "canonical event from the router describes the arrival moment; your "
+                "job is to render everything leading up to and including it, "
+                "grounded in the author's opening prose.\n"
                 "\n"
                 "Write this as the opening of a novel — evocative, grounding, giving "
-                "the player a clear sense of who they are, where they are, how they "
-                "got here, and what looms. Weave in the player character's physical "
-                "presence (from the system prompt's Player Character block) so "
-                "observers naturally see them as described.\n"
+                "the reader a clear sense of who the acting character is, where they "
+                "are, how they got here, and what looms. Weave in each listed player "
+                "character's physical presence (from the system prompt's Player "
+                "Characters block) so observers naturally see them as described.\n"
                 "\n"
-                "End at a natural first decision point for the player.\n"
+                "End at a natural first decision point for the acting character.\n"
                 "\n"
                 "## Author's Opening Guidance\n"
                 f"{checkpoint.opening_narrative}\n"
@@ -87,9 +99,8 @@ class Narrator:
             agent_outputs=formatted_agents,
             scene_context=scene_context,
             user_input=user_input,
-            player_name=player_name,
-            player_character_description=checkpoint.session.player_character_description
-                or "(not yet described)",
+            acting_character_name=acting_name,
+            player_characters_block=player_characters_block,
             opening_directive=opening_directive,
         )
 

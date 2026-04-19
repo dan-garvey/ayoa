@@ -323,7 +323,7 @@ class TestCheckpointFile:
         assert ckpt.schema_version == "2.0"
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        assert ckpt.prompt_versions["event_router"] == "v3"
+        assert ckpt.prompt_versions["event_router"] == "v4"
 
     def test_round_trip(self):
         ckpt = CheckpointFile(

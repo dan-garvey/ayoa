@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,26 @@ from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
+
+
+@dataclass(frozen=True)
+class CharacterSummary:
+    """Spoiler-free summary of a character for /story characters and /join.
+
+    Only fields from `public_sheet` plus status/name/binding — nothing from
+    private_state, backstory, personality, narrative_notes, or hidden lore.
+    `bound_user_id` is populated when reading a session checkpoint; empty on
+    pristine story-level lookups.
+    """
+    character_id: str
+    name: str
+    role: str
+    faction: str
+    traits: list[str]
+    appearance: str
+    status: str  # "active" | "dormant" | "culled"
+    is_player: bool
+    bound_user_id: str = ""
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +175,7 @@ class EngineBridge:
         story_id: str,
         session_id: str,
         player_display_name: str,
+        creator_user_id: int | None = None,
     ) -> CheckpointFile:
         """Copy the story's ckpt_0000 into a new session dir, personalize it,
         and return the resulting checkpoint.
@@ -192,37 +214,194 @@ class EngineBridge:
         personalized = _personalize(ckpt, player_display_name)
         if personalized.session.turn_index == 0:
             personalized.session.turn_index = 1
+
+        # Auto-bind the creator to the is_player character so /act works
+        # without requiring a separate /join from them.
+        if creator_user_id is not None and personalized.session.player_character_id:
+            personalized.session.character_bindings[
+                personalized.session.player_character_id
+            ] = str(creator_user_id)
+
         self.checkpoint_mgr.save(personalized)
         return personalized
 
     def load_latest(self, session_id: str) -> CheckpointFile:
         return self.checkpoint_mgr.load_latest(session_id)
 
-    def set_player_character_description(
+    def set_character_appearance(
         self,
         session_id: str,
+        character_id: str,
         description: str,
     ) -> CheckpointFile:
-        """Update the player character's appearance on the checkpoint and save.
+        """Update a single character's public appearance and save.
 
-        Writes to both `session.player_character_description` (used by the
-        narrator/router/agent system prompts' Player Character block) AND
-        the player character's `public_sheet.appearance` (used by the
-        agent context builder's 'Characters Present' summary that NPCs see).
-        Master prompts often leave appearance as a placeholder like
-        'Defined by player input' which would otherwise leak into NPC context.
+        This replaces the old single-player set_player_character_description.
+        For multi-player sessions the caller passes the character_id of
+        whichever player character owns the description (their own binding).
+        The appearance string is used by the Player Characters block in all
+        engine prompts, and by the agent context builder's Characters Present
+        summary that NPCs see.
         """
         description = description.strip()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        ckpt.session.player_character_description = description
-
-        pc_id = ckpt.session.player_character_id
-        for char in ckpt.characters:
-            if char.character_id == pc_id or char.is_player:
-                char.public_sheet.appearance = description
-
+        target = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None
+        )
+        if target is None:
+            raise ValueError(
+                f"Character '{character_id}' not found in session '{session_id}'"
+            )
+        target.public_sheet.appearance = description
         self.checkpoint_mgr.save(ckpt)
         return ckpt
+
+    # ---- character catalog (spoiler-free) ------------------------------------
+
+    def list_session_characters(self, session_id: str) -> list[CharacterSummary]:
+        """Spoiler-free roster for the session's current checkpoint, annotated
+        with binding state. Used by /story characters when a session exists."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        return _summaries_from_checkpoint(ckpt)
+
+    def list_story_characters(self, story_id: str) -> list[CharacterSummary]:
+        """Spoiler-free roster from the source ckpt_0000 (no session needed)."""
+        ckpt = self.load_story_ckpt(story_id)
+        return _summaries_from_checkpoint(ckpt)
+
+    # ---- bindings ------------------------------------------------------------
+
+    def get_user_binding(self, session_id: str, user_id: int) -> str | None:
+        """Return the character_id bound to this Discord user, or None."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        uid = str(user_id)
+        for char_id, bound in ckpt.session.character_bindings.items():
+            if bound == uid:
+                return char_id
+        return None
+
+    def bind_user(
+        self,
+        session_id: str,
+        user_id: int,
+        character_id: str,
+    ) -> CheckpointFile:
+        """Bind a Discord user to a roster character.
+
+        Refuses if the user already has a different binding, if the character
+        doesn't exist, if the character is culled, or if another user is
+        already bound to it. Dormant characters are allowed — binding doesn't
+        wake them; the fiction decides reactivation.
+        """
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        uid = str(user_id)
+
+        target = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None
+        )
+        if target is None:
+            raise ValueError(f"No character '{character_id}' in this session.")
+        if target.status.value == "culled":
+            raise ValueError(
+                f"Character '{target.name}' is no longer in the story (culled)."
+            )
+
+        existing_for_char = ckpt.session.character_bindings.get(character_id)
+        if existing_for_char and existing_for_char != uid:
+            raise ValueError(
+                f"Character '{target.name}' is already bound to another player."
+            )
+
+        existing_for_user = next(
+            (cid for cid, bound in ckpt.session.character_bindings.items()
+             if bound == uid and cid != character_id),
+            None,
+        )
+        if existing_for_user:
+            raise ValueError(
+                f"You are already bound to '{existing_for_user}'. "
+                f"Run /leave first if you want to switch."
+            )
+
+        ckpt.session.character_bindings[character_id] = uid
+        self.checkpoint_mgr.save(ckpt)
+        return ckpt
+
+    def unbind_user(self, session_id: str, user_id: int) -> str | None:
+        """Remove this user's binding. Returns the freed character_id, or None
+        if they had no binding."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        uid = str(user_id)
+        freed = None
+        for char_id, bound in list(ckpt.session.character_bindings.items()):
+            if bound == uid:
+                freed = char_id
+                del ckpt.session.character_bindings[char_id]
+        if freed is not None:
+            self.checkpoint_mgr.save(ckpt)
+        return freed
+
+    def build_character_dossier(
+        self,
+        session_id: str,
+        character_id: str,
+    ) -> str:
+        """Build the private DM dossier a joining player needs to RP this
+        character faithfully. Includes goals, secrets, attitudes, backstory,
+        personality, narrative notes, plus the world's hidden lore and facts
+        (since the character is presumed to know whatever their author built
+        in for them). Returned as markdown for direct embed/DM delivery."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        char = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None
+        )
+        if char is None:
+            raise ValueError(f"No character '{character_id}' in this session.")
+
+        lines: list[str] = [f"# Dossier · {char.name}"]
+
+        sheet = char.public_sheet
+        sheet_bits: list[str] = []
+        if sheet.role:
+            sheet_bits.append(f"**Role** — {sheet.role}")
+        if sheet.faction:
+            sheet_bits.append(f"**Faction** — {sheet.faction}")
+        if sheet.traits:
+            sheet_bits.append(f"**Traits** — {', '.join(sheet.traits)}")
+        if sheet.voice:
+            sheet_bits.append(f"**Voice** — {sheet.voice}")
+        if sheet.appearance:
+            sheet_bits.append(f"**Appearance** — {sheet.appearance}")
+        if sheet_bits:
+            lines.append("\n".join(sheet_bits))
+
+        if char.backstory:
+            lines.append(f"## Backstory\n{char.backstory}")
+        if char.personality:
+            lines.append(f"## Personality\n{char.personality}")
+        if char.narrative_notes:
+            lines.append(f"## Narrative Notes\n{char.narrative_notes}")
+
+        ps = char.private_state
+        if ps.goals:
+            lines.append("## Goals\n" + "\n".join(f"- {g}" for g in ps.goals))
+        if ps.secrets:
+            lines.append("## Secrets\n" + "\n".join(f"- {s}" for s in ps.secrets))
+        if ps.attitudes:
+            att_lines = [
+                f"- {k}: {v:+.1f}" for k, v in ps.attitudes.items()
+            ]
+            lines.append("## Attitudes\n" + "\n".join(att_lines))
+
+        if ckpt.world_state.hidden_lore:
+            lines.append(f"## Hidden Lore\n{ckpt.world_state.hidden_lore}")
+        if ckpt.world_state.hidden_facts:
+            lines.append(
+                "## Hidden Facts\n"
+                + "\n".join(f"- {f}" for f in ckpt.world_state.hidden_facts)
+            )
+
+        return "\n\n".join(lines)
 
     # ---- turn execution ------------------------------------------------------
 
@@ -239,6 +418,7 @@ class EngineBridge:
         *,
         session_id: str,
         user_input: str,
+        acting_character_id: str = "",
         debug: bool = False,
     ) -> TurnResponse:
         """Process one turn under a per-session lock. Subsequent concurrent calls
@@ -248,6 +428,7 @@ class EngineBridge:
             return await self.orchestrator.process_turn(TurnRequest(
                 session_id=session_id,
                 user_input=user_input,
+                acting_character_id=acting_character_id,
                 debug=debug,
             ))
 
@@ -258,6 +439,25 @@ class EngineBridge:
 # the runtime checkpoint schema consistent. Mirrors
 # app/api/story_routes.py::_apply_personalize so the bot does not depend on
 # the FastAPI route.
+
+
+def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
+    """Render a roster's spoiler-free summaries from any checkpoint."""
+    bindings = ckpt.session.character_bindings or {}
+    summaries: list[CharacterSummary] = []
+    for char in ckpt.characters:
+        summaries.append(CharacterSummary(
+            character_id=char.character_id,
+            name=char.name,
+            role=char.public_sheet.role or "",
+            faction=char.public_sheet.faction or "",
+            traits=list(char.public_sheet.traits),
+            appearance=char.public_sheet.appearance or "",
+            status=char.status.value,
+            is_player=char.is_player,
+            bound_user_id=bindings.get(char.character_id, ""),
+        ))
+    return summaries
 
 
 def _personalize(checkpoint: CheckpointFile, player_name: str) -> CheckpointFile:

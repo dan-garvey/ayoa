@@ -15,6 +15,7 @@ from app.engine.context_builder import (
     build_character_packet,
     build_character_state,
     build_characters_present,
+    build_player_characters_block,
     build_scene_context,
     build_world_context,
     format_observed_facts,
@@ -46,6 +47,7 @@ class CharacterAgent:
         observed_facts: list[str],
         checkpoint: CheckpointFile,
         prior_responses: list[CharacterAgentOutput] | None = None,
+        acting_character_id: str = "",
     ) -> CharacterAgentOutput:
         """Generate an in-character response and append it to the rolling conversation.
 
@@ -62,6 +64,15 @@ class CharacterAgent:
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
 
+        acting_id = acting_character_id or checkpoint.session.player_character_id
+        acting_char = next(
+            (c for c in checkpoint.characters if c.character_id == acting_id), None
+        )
+        acting_name = (
+            acting_char.name if acting_char
+            else (checkpoint.session.player_name or "the protagonist")
+        )
+
         messages = self.prompt_manager.render_conversation(
             "agent",
             history=history,
@@ -75,9 +86,10 @@ class CharacterAgent:
                 prior_responses or [], checkpoint
             ),
             pending_observations_block=pending_block,
-            player_name=checkpoint.session.player_name or "the protagonist",
-            player_character_description=checkpoint.session.player_character_description
-                or "(not yet described)",
+            acting_character_name=acting_name,
+            player_characters_block=build_player_characters_block(
+                checkpoint, acting_id
+            ),
         )
 
         # Capture the plain-text user content before LLMClient wraps it for caching.

@@ -26,7 +26,7 @@ class CheckpointFile(BaseModel):
     visibility_log: list[dict[str, Any]] = Field(default_factory=list)
     config: SessionConfig = Field(default_factory=SessionConfig)
     prompt_versions: dict[str, str] = Field(default_factory=lambda: {
-        "event_router": "v3",
-        "agent": "v5",
-        "narrator_phase2": "v4",
+        "event_router": "v4",
+        "agent": "v6",
+        "narrator_phase2": "v5",
     })

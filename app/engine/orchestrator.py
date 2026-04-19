@@ -16,6 +16,7 @@ import time
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.context_builder import collect_player_ids
 from app.engine.event_router import EventRouter
 from app.engine.narrator import Narrator
 from app.engine.prompt_manager import PromptManager
@@ -61,15 +62,26 @@ class Orchestrator:
         latencies: list[PhaseLatency] = []
 
         checkpoint = self.checkpoint_mgr.load_latest(request.session_id)
+
+        # Resolve the acting character — whose action drives this turn. Falls
+        # back to the creator's binding for single-player / legacy call sites
+        # that don't pass acting_character_id on the request.
+        acting_character_id = (
+            request.acting_character_id
+            or checkpoint.session.player_character_id
+        )
         logger.info(
-            "Turn %d for session %s",
+            "Turn %d for session %s (acting=%s)",
             checkpoint.session.turn_index,
             request.session_id,
+            acting_character_id or "(none)",
         )
 
         # --- EventRouter: adjudicate + route in one pass, appending to session_conversation ---
         t0 = time.monotonic()
-        routed = await self.event_router.run(request.user_input, checkpoint)
+        routed = await self.event_router.run(
+            request.user_input, checkpoint, acting_character_id=acting_character_id,
+        )
         event = routed.canonical_event
         disc_output = routed.to_discriminator_output()
         latencies.append(self._phase_latency(
@@ -104,9 +116,11 @@ class Orchestrator:
             ))
 
         # --- Responder selection ---
-        player_id = checkpoint.session.player_character_id
+        # Exclude every player-controlled character, not just the creator's.
+        # Other bound characters are humans too and never get AI responses.
+        player_ids = collect_player_ids(checkpoint)
         candidates = sorted(
-            [o for o in disc_output.observers if o.character_id != player_id],
+            [o for o in disc_output.observers if o.character_id not in player_ids],
             key=lambda o: o.response_priority,
             reverse=True,
         )
@@ -170,6 +184,7 @@ class Orchestrator:
                         self.agent_engine.respond(
                             primary_char, primary_obs.facts, checkpoint,
                             prior_responses=[],
+                            acting_character_id=acting_character_id,
                         ),
                         timeout=AGENT_TIMEOUT,
                     )
@@ -190,6 +205,7 @@ class Orchestrator:
                             self.agent_engine.respond(
                                 char, obs.facts, checkpoint,
                                 prior_responses=list(agent_outputs),
+                                acting_character_id=acting_character_id,
                             ),
                             timeout=AGENT_TIMEOUT,
                         )
@@ -269,6 +285,7 @@ class Orchestrator:
         t0 = time.monotonic()
         final = await self.narrator.compose(
             request.user_input, event, agent_outputs, checkpoint, disc_output,
+            acting_character_id=acting_character_id,
         )
         latencies.append(self._phase_latency(
             "narrator_compose",
@@ -284,6 +301,7 @@ class Orchestrator:
         # --- Push turn observations to silent observers' pending queues ---
         npc_summary = self._build_npc_turn_summary(
             request.user_input, agent_outputs, checkpoint,
+            acting_character_id=acting_character_id,
         )
         self._push_pending_observations(checkpoint, observing_only, npc_summary)
 
@@ -366,10 +384,18 @@ class Orchestrator:
         user_input: str,
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
+        acting_character_id: str = "",
     ) -> str:
         """Build a turn summary in NPC-perspective terms for observation queues."""
-        player_name = checkpoint.session.player_name or "The player"
-        parts = [f"{player_name}: {user_input}"]
+        acting_char = next(
+            (c for c in checkpoint.characters if c.character_id == acting_character_id),
+            None,
+        )
+        acting_name = (
+            acting_char.name if acting_char
+            else (checkpoint.session.player_name or "The player")
+        )
+        parts = [f"{acting_name}: {user_input}"]
 
         for output in agent_outputs:
             char = self.char_mgr.get_character(checkpoint, output.character_id)

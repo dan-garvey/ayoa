@@ -32,6 +32,7 @@ class EventRouter:
         self,
         user_input: str,
         checkpoint: CheckpointFile,
+        acting_character_id: str = "",
     ) -> EventRouterOutput:
         """Return both canonical event data and observer routing.
 
@@ -39,6 +40,17 @@ class EventRouter:
         raw content blocks, preserving any compaction blocks) to
         `checkpoint.session_conversation`.
         """
+        from app.engine.context_builder import build_player_characters_block
+
+        acting_id = acting_character_id or checkpoint.session.player_character_id
+        acting_char = next(
+            (c for c in checkpoint.characters if c.character_id == acting_id), None
+        )
+        acting_name = (
+            acting_char.name if acting_char
+            else (checkpoint.session.player_name or "the protagonist")
+        )
+
         messages = self.prompt_manager.render_conversation(
             "event_router",
             history=checkpoint.session_conversation,
@@ -53,9 +65,10 @@ class EventRouter:
             hidden_facts=self._build_hidden_facts(checkpoint),
             character_registry=self._build_character_registry(checkpoint),
             user_input=user_input,
-            player_name=checkpoint.session.player_name or "the protagonist",
-            player_character_description=checkpoint.session.player_character_description
-                or "(not yet described)",
+            acting_character_name=acting_name,
+            player_characters_block=build_player_characters_block(
+                checkpoint, acting_id
+            ),
         )
 
         # Capture the plain-text user content before LLMClient wraps it with
@@ -197,11 +210,16 @@ class EventRouter:
             return "No characters in the registry."
 
         entries = []
-        player_id = checkpoint.session.player_character_id
+        # Player-bound characters are rendered in the Player Characters block
+        # instead — omit them here so the router doesn't route observations
+        # to humans. Falls back to the creator's binding + is_player roster
+        # entries when character_bindings is empty (pristine / legacy saves).
+        from app.engine.context_builder import collect_player_ids
+        player_ids = collect_player_ids(checkpoint)
         scene_graph = checkpoint.world_state.locations.scene_graph
 
         for char in checkpoint.characters:
-            if char.character_id == player_id:
+            if char.character_id in player_ids:
                 continue
 
             location = char.location or "unknown"

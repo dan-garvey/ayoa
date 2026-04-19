@@ -57,6 +57,58 @@ def _sanitize_story_id(raw: str) -> str:
     return slug
 
 
+def _chunks(text: str, size: int) -> list[str]:
+    """Split text into chunks of at most `size` chars, breaking on paragraph
+    or newline boundaries when possible. Used for DM'ing dossiers that blow
+    through Discord's 2000-char message cap."""
+    if len(text) <= size:
+        return [text]
+    out: list[str] = []
+    remaining = text
+    while len(remaining) > size:
+        window = remaining[:size]
+        cut = window.rfind("\n\n")
+        if cut == -1 or cut < size // 2:
+            cut = window.rfind("\n")
+        if cut == -1:
+            cut = size
+        out.append(remaining[:cut].rstrip())
+        remaining = remaining[cut:].lstrip()
+    if remaining:
+        out.append(remaining)
+    return out
+
+
+def _format_character_list(summaries) -> str:
+    """Render a CharacterSummary list as a compact markdown block for an
+    info embed. Active characters first, then dormant, then culled. Bound
+    characters get a human-visible marker so joiners know who's claimed."""
+    order = {"active": 0, "dormant": 1, "culled": 2}
+    sorted_summaries = sorted(summaries, key=lambda s: (order.get(s.status, 3), s.name))
+
+    lines: list[str] = []
+    for s in sorted_summaries:
+        bits: list[str] = [f"**{s.name}** · `{s.character_id}`"]
+        tags: list[str] = []
+        if s.status != "active":
+            tags.append(s.status)
+        if s.is_player:
+            tags.append("player slot")
+        if s.bound_user_id:
+            tags.append(f"bound: <@{s.bound_user_id}>")
+        if tags:
+            bits.append(f"*[{' · '.join(tags)}]*")
+        line = " ".join(bits)
+        if s.role:
+            line += f" — {s.role}"
+        if s.faction:
+            line += f" ({s.faction})"
+        if s.appearance:
+            line += f"\n  {s.appearance}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def register(
     tree: app_commands.CommandTree,
     engine: EngineBridge,
@@ -134,6 +186,7 @@ def register(
                 story_id=story_id,
                 session_id=session_id,
                 player_display_name=character_name,
+                creator_user_id=inter.user.id,
             )
         except Exception as e:
             logger.exception("create_session failed")
@@ -238,6 +291,73 @@ def register(
             ephemeral=True,
         )
 
+    # ---- /story characters --------------------------------------------------
+
+    @story_group.command(
+        name="characters",
+        description="List characters in this channel's story (spoiler-free).",
+    )
+    @app_commands.describe(
+        story_id="Optional story_id to inspect before starting a session.",
+    )
+    async def _characters(
+        inter: discord.Interaction,
+        story_id: str | None = None,
+    ):
+        # Prefer the live session so bindings/statuses reflect actual play;
+        # fall back to story_id for pre-session browsing.
+        summaries = None
+        source_label = ""
+        row = await smap.get(inter.channel_id)
+        if story_id:
+            story_id = story_id.strip()
+            if story_id not in engine.list_story_ids():
+                await inter.response.send_message(
+                    f"Unknown story `{story_id}`. Try `/story list`.",
+                    ephemeral=True,
+                )
+                return
+            try:
+                summaries = engine.list_story_characters(story_id)
+                source_label = f"`{story_id}` (source roster)"
+            except Exception as e:
+                logger.exception("list_story_characters failed")
+                await inter.response.send_message(
+                    embed=render_error(f"`{type(e).__name__}: {e}`"),
+                    ephemeral=True,
+                )
+                return
+        elif row is not None:
+            try:
+                summaries = engine.list_session_characters(row.session_id)
+                source_label = f"`{row.story_id}` (this session)"
+            except Exception as e:
+                logger.exception("list_session_characters failed")
+                await inter.response.send_message(
+                    embed=render_error(f"`{type(e).__name__}: {e}`"),
+                    ephemeral=True,
+                )
+                return
+        else:
+            await inter.response.send_message(
+                "No session here and no `story_id` given. "
+                "Pass one, or run `/story start` first.",
+                ephemeral=True,
+            )
+            return
+
+        if not summaries:
+            await inter.response.send_message(
+                "No characters in the roster.", ephemeral=True,
+            )
+            return
+
+        body = _format_character_list(summaries)
+        await inter.response.send_message(
+            embed=render_info(f"Characters · {source_label}", body),
+            ephemeral=True,
+        )
+
     # ---- /story import ------------------------------------------------------
 
     @story_group.command(
@@ -245,7 +365,7 @@ def register(
         description="Import a master prompt attachment as a new story.",
     )
     @app_commands.describe(
-        attachment="A plain-text .txt file containing the master prompt.",
+        attachment="A .txt, .md, or .markdown file containing the master prompt.",
         story_id="Optional override for the story id (default: derived from filename).",
     )
     async def _import(
@@ -262,9 +382,9 @@ def register(
             )
             return
         fname = (attachment.filename or "").lower()
-        if not fname.endswith(".txt"):
+        if not fname.endswith((".txt", ".md", ".markdown")):
             await inter.response.send_message(
-                "Only `.txt` attachments are supported.",
+                "Only `.txt`, `.md`, or `.markdown` attachments are supported.",
                 ephemeral=True,
             )
             return
@@ -337,14 +457,15 @@ def register(
             len(ckpt.characters),
         )
 
-        # Post the resulting briefing so the user sees what got extracted.
+        # No briefing here — the checkpoint still has PLAYER_NAME placeholders
+        # that only get substituted at /story start time.
         intro = (
             f"Imported **{story_id}** in {int(elapsed)}s — "
             f"{len(ckpt.characters)} characters, "
             f"{len(ckpt.world_state.locations.scene_graph)} scenes. "
             f"Start a session with `/story start {story_id} \"<Your Name>\"`."
         )
-        await inter.followup.send(content=intro, embed=render_briefing(ckpt, story_id))
+        await inter.followup.send(content=intro)
 
     # ---- /story delete (admin-gated) ---------------------------------------
 
@@ -387,6 +508,125 @@ def register(
             ephemeral=True,
         )
 
+    # ---- /join --------------------------------------------------------------
+
+    @tree.command(
+        name="join",
+        description="Claim an unbound character so you can /act as them.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        character_id="The character_id to claim (see /story characters).",
+    )
+    async def _join(inter: discord.Interaction, character_id: str):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. `/story start` first.", ephemeral=True,
+            )
+            return
+
+        character_id = character_id.strip()
+        try:
+            ckpt = engine.bind_user(row.session_id, inter.user.id, character_id)
+        except ValueError as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("bind_user failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        char = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None
+        )
+        char_name = char.name if char else character_id
+
+        # Build dossier. Send as DM; if DM fails, tell them in-channel.
+        try:
+            dossier = engine.build_character_dossier(
+                row.session_id, character_id
+            )
+        except Exception as e:
+            logger.exception("build_character_dossier failed")
+            dossier = f"(dossier unavailable: `{e}`)"
+
+        dm_ok = True
+        try:
+            # Discord DMs cap at 2000 chars per message; chunk the dossier.
+            for chunk in _chunks(dossier, 1900):
+                await inter.user.send(chunk)
+        except discord.Forbidden:
+            dm_ok = False
+        except Exception:
+            logger.exception("DM send failed")
+            dm_ok = False
+
+        logger.info(
+            "Bound %s to %s in %s (DM ok=%s)",
+            inter.user.display_name, character_id, row.session_id, dm_ok,
+        )
+
+        lines = [f"You are now playing **{char_name}** (`{character_id}`)."]
+        if char and char.status.value == "dormant":
+            lines.append(
+                "⚠️ This character is currently **dormant** — they're off-screen "
+                "in the fiction and can't `/act` until the story brings them "
+                "back. Your binding is saved and you'll be ready when they return."
+            )
+        if dm_ok:
+            lines.append("I DM'd you your private dossier — read it before you /act.")
+        else:
+            lines.append(
+                "⚠️ I couldn't DM your dossier (server DMs disabled). "
+                "Enable DMs from this server and run `/join` again to receive it."
+            )
+        lines.append("Use `/describe` to set your appearance, then `/act` to play.")
+        await inter.response.send_message(
+            embed=render_info("Joined", "\n".join(lines)),
+            ephemeral=True,
+        )
+
+    # ---- /leave -------------------------------------------------------------
+
+    @tree.command(
+        name="leave",
+        description="Release your character binding in this channel's story.",
+        guild=guild,
+    )
+    async def _leave(inter: discord.Interaction):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here.", ephemeral=True,
+            )
+            return
+
+        try:
+            freed = engine.unbind_user(row.session_id, inter.user.id)
+        except Exception as e:
+            logger.exception("unbind_user failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        if freed is None:
+            await inter.response.send_message(
+                "You weren't bound to a character.", ephemeral=True,
+            )
+            return
+        await inter.response.send_message(
+            f"Released `{freed}`. Other players can now `/join` them.",
+            ephemeral=True,
+        )
+
     # ---- /describe ----------------------------------------------------------
 
     @tree.command(
@@ -415,11 +655,24 @@ def register(
 
         await inter.response.defer(thinking=True)
 
-        # Save the description first.
+        # Each player describes their own bound character. /describe without
+        # a binding is ambiguous in multi-player — refuse.
+        binding = engine.get_user_binding(row.session_id, inter.user.id)
+        if binding is None:
+            await inter.followup.send(
+                embed=render_error(
+                    "You aren't bound to a character. Run `/story characters` "
+                    "and then `/join <character_id>` first."
+                )
+            )
+            return
+
         try:
-            ckpt = engine.set_player_character_description(row.session_id, traits)
+            ckpt = engine.set_character_appearance(
+                row.session_id, binding, traits,
+            )
         except Exception as e:
-            logger.exception("set_player_character_description failed")
+            logger.exception("set_character_appearance failed")
             await inter.followup.send(embed=render_error(
                 f"`{type(e).__name__}: {e}`"
             ))
@@ -457,6 +710,7 @@ def register(
             response = await engine.run_turn(
                 session_id=row.session_id,
                 user_input=arrival_action,
+                acting_character_id=binding,
                 debug=True,
             )
         except Exception as e:
@@ -504,6 +758,15 @@ def register(
             )
             return
 
+        binding = engine.get_user_binding(row.session_id, inter.user.id)
+        if binding is None:
+            await inter.response.send_message(
+                "You're not bound to a character in this story. "
+                "Run `/story characters` then `/join <character_id>`.",
+                ephemeral=True,
+            )
+            return
+
         await inter.response.defer(thinking=True)
         start = time.monotonic()
 
@@ -511,6 +774,7 @@ def register(
             response = await engine.run_turn(
                 session_id=row.session_id,
                 user_input=action,
+                acting_character_id=binding,
                 debug=True,   # keeps per-phase cache/latency metrics server-side
             )
         except Exception as e:
@@ -576,21 +840,103 @@ def register(
         if isinstance(scene, dict) and scene.get("name"):
             scene_name = scene["name"]
 
+        bound_ids = set(ckpt.session.character_bindings.keys())
         present = [
             c.name for c in ckpt.characters
             if c.location == scene_id and c.status.value == "active"
-            and c.character_id != ckpt.session.player_character_id
+            and c.character_id not in bound_ids
         ]
+
+        bindings_lines: list[str] = []
+        for char_id, user_id in ckpt.session.character_bindings.items():
+            char = next(
+                (c for c in ckpt.characters if c.character_id == char_id), None
+            )
+            char_name = char.name if char else char_id
+            bindings_lines.append(f"• <@{user_id}> — **{char_name}** (`{char_id}`)")
+        if not bindings_lines:
+            bindings_lines.append("• (no players bound — `/join` to claim one)")
 
         body_lines = [
             f"**Story:** `{row.story_id}`",
-            f"**Player:** {ckpt.session.player_name or '(unknown)'}",
             f"**Turn:** {ckpt.session.turn_index}",
             f"**Scene:** {scene_name}",
-            f"**Present:** {', '.join(present) if present else 'no one else'}",
+            f"**Present (NPCs):** {', '.join(present) if present else 'no one else'}",
+            "",
+            "**Players:**",
+            *bindings_lines,
         ]
         await inter.response.send_message(
             embed=render_info("Session status", "\n".join(body_lines)),
+            ephemeral=True,
+        )
+
+    # ---- /clear (admin-gated) -----------------------------------------------
+
+    @tree.command(
+        name="clear",
+        description="Delete recent messages in this channel. Admin-only.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        count="How many messages to delete (1-1000, default 100).",
+    )
+    async def _clear(
+        inter: discord.Interaction,
+        count: app_commands.Range[int, 1, 1000] = 100,
+    ):
+        if not _is_admin(inter.user.id):
+            await inter.response.send_message(
+                "Only admins can clear the channel.", ephemeral=True,
+            )
+            return
+
+        # DM channels don't allow bulk-delete; TextChannel does.
+        channel = inter.channel
+        if not isinstance(channel, discord.TextChannel):
+            await inter.response.send_message(
+                "`/clear` only works in text channels, not DMs or threads.",
+                ephemeral=True,
+            )
+            return
+
+        # Check bot permissions before attempting — prevents a half-baked error.
+        me = channel.guild.me
+        perms = channel.permissions_for(me)
+        if not perms.manage_messages:
+            await inter.response.send_message(
+                "I need the **Manage Messages** permission in this channel to "
+                "delete messages. Ask an admin to grant it.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True, ephemeral=True)
+
+        try:
+            # purge() uses bulk_delete for messages < 14 days and falls back
+            # to per-message delete for older ones (slow, rate-limited).
+            deleted = await channel.purge(limit=count)
+        except discord.Forbidden:
+            await inter.followup.send(
+                "Forbidden — Manage Messages permission got revoked mid-call.",
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("channel.purge failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        logger.info(
+            "Cleared %d messages in #%s by %s",
+            len(deleted), channel.name, inter.user.display_name,
+        )
+        await inter.followup.send(
+            f"Deleted {len(deleted)} message(s).",
             ephemeral=True,
         )
 
