@@ -419,6 +419,19 @@ def register(
                 ephemeral=True,
             )
             return
+        # Content-type check when Discord populates it — catches binaries
+        # renamed to .txt. Some clients omit content_type entirely, so
+        # missing is allowed; the extension check is the primary guard
+        # and the UTF-8 decode below is the final defense.
+        content_type = (attachment.content_type or "").lower().split(";")[0].strip()
+        if content_type and not content_type.startswith("text/"):
+            await inter.response.send_message(
+                f"Attachment content_type `{content_type}` isn't a text type. "
+                f"Upload the raw master prompt as a text file, not a rendered "
+                f"document or archive.",
+                ephemeral=True,
+            )
+            return
 
         # Derive story_id if not given.
         if not story_id:
@@ -793,8 +806,9 @@ def register(
         if response.debug is not None:
             for lat in response.debug.latencies:
                 logger.info(
-                    "  phase=%-18s %5.0fms  in=%4d out=%4d cache_read=%5d cache_write=%5d  (%s)",
-                    lat.phase, lat.duration_ms,
+                    "  phase=%-18s %5.0fms (render %4.0fms)  "
+                    "in=%4d out=%4d cache_read=%5d cache_write=%5d  (%s)",
+                    lat.phase, lat.duration_ms, lat.prompt_render_ms,
                     lat.input_tokens, lat.output_tokens,
                     lat.cache_read_input_tokens, lat.cache_creation_input_tokens,
                     lat.model,

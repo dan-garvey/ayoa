@@ -37,8 +37,12 @@ logger = logging.getLogger(__name__)
 
 # Per-agent timeout in seconds
 AGENT_TIMEOUT = 60.0
-# Maximum number of agents that can respond per turn
-MAX_RESPONDERS = 3
+# Safety cap above per-session settings: even if someone cranks
+# max_responders or tick_concurrency to a ridiculous value, we don't
+# want to dispatch hundreds of parallel LLM calls from one turn. Real
+# orgs should lower session settings, not raise this ceiling.
+RESPONDERS_HARD_CAP = 8
+TICK_CONCURRENCY_HARD_CAP = 16
 # Cap on how many pending observations any single character accumulates
 # between their own response turns (older entries drop off the front).
 MAX_PENDING_OBSERVATIONS = 10
@@ -47,6 +51,11 @@ MAX_PENDING_OBSERVATIONS = 10
 # too many hops. Depth 1 = directive sent by an agent acting spontaneously.
 DIRECTIVE_DEPTH_WARN = 2
 DIRECTIVE_DEPTH_CAP = 10
+# Content-length at which we warn about a runaway directive. Not a hard
+# cap — legitimate in-character messages might be a paragraph or two.
+# But a 1KB directive is a signal the agent is drifting into monologue
+# territory and we want it visible in logs. No truncation.
+DIRECTIVE_LENGTH_WARN = 1000
 
 
 def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
@@ -272,7 +281,15 @@ class Orchestrator:
             key=lambda o: o.response_priority,
             reverse=True,
         )
-        response_cap = min(routed.suggested_response_cap, MAX_RESPONDERS)
+        # Three clamps stack: the router's suggestion, the session
+        # setting (operator tunable via /settings), and the module hard
+        # cap (safety rail so a bad setting can't fan out to 200 agents).
+        settings = checkpoint.session.config.settings
+        response_cap = min(
+            routed.suggested_response_cap,
+            max(0, settings.max_responders),
+            RESPONDERS_HARD_CAP,
+        )
         responding = [o for o in candidates if o.response_priority >= 3][:response_cap]
         observing_only = [o for o in candidates if o not in responding]
 
@@ -473,14 +490,12 @@ class Orchestrator:
         # --- Display transcript + turn bookkeeping ---
         checkpoint.transcript.append(final.transcript_entry)
         checkpoint.session.turn_index += 1
-        self.checkpoint_mgr.save(checkpoint)
 
         # --- Off-stage tick pass. Fires on cadence OR on scene change,
         # whichever comes first. Scene-change reset keeps the world moving
         # when the player jumps between spaces; cadence keeps it moving
-        # when the player sits in one scene for a while. Ticks run after
-        # the turn's player-visible state is saved so the player sees the
-        # scene first, and any tick side-effects land on the FOLLOWING turn.
+        # when the player sits in one scene for a while. Tick effects
+        # land on the FOLLOWING turn the player sees (no prose this turn).
         acted_this_turn = {o.character_id for o in agent_outputs}
         acted_this_turn.add(acting_character_id)
         t0 = time.monotonic()
@@ -495,7 +510,15 @@ class Orchestrator:
                 self.client.config.model_for_role("agent"),
                 tick_usages,
             ))
-            self.checkpoint_mgr.save(checkpoint)
+
+        # Single save at the end of the turn. Previously we saved after
+        # narrator compose AND after ticks, which left a crash window:
+        # the turn persisted but tick effects didn't, and a replay on
+        # restart would re-run ticks non-idempotently. One save here
+        # means the turn is atomic — either the whole turn (including
+        # tick state) lands on disk, or none of it does, and a retry
+        # replays cleanly from the prior checkpoint.
+        self.checkpoint_mgr.save(checkpoint)
 
         total_ms = (time.monotonic() - turn_start) * 1000
         logger.info(
@@ -522,18 +545,25 @@ class Orchestrator:
         model: str,
         usages: list[dict],
     ) -> PhaseLatency:
-        """Build a PhaseLatency record summing token usage across one or more LLM calls."""
-        def sum_field(key: str) -> int:
+        """Build a PhaseLatency record summing token usage across one or
+        more LLM calls. Each role stuffs a `prompt_render_ms` key alongside
+        token counts in its `last_usage` dict, which we sum here so
+        render overhead is visible as its own column in debug logs."""
+        def sum_int(key: str) -> int:
             return sum(int(u.get(key, 0) or 0) for u in usages if u)
+
+        def sum_float(key: str) -> float:
+            return sum(float(u.get(key, 0.0) or 0.0) for u in usages if u)
 
         return PhaseLatency(
             phase=phase,
             duration_ms=(time.monotonic() - start_mono) * 1000,
             model=model,
-            input_tokens=sum_field("prompt_tokens"),
-            output_tokens=sum_field("completion_tokens"),
-            cache_read_input_tokens=sum_field("cache_read_input_tokens"),
-            cache_creation_input_tokens=sum_field("cache_creation_input_tokens"),
+            input_tokens=sum_int("prompt_tokens"),
+            output_tokens=sum_int("completion_tokens"),
+            cache_read_input_tokens=sum_int("cache_read_input_tokens"),
+            cache_creation_input_tokens=sum_int("cache_creation_input_tokens"),
+            prompt_render_ms=sum_float("prompt_render_ms"),
         )
 
     async def _run_ticks(
@@ -599,7 +629,14 @@ class Orchestrator:
             for c in eligible
         }
 
-        semaphore = asyncio.Semaphore(4)
+        # Concurrency cap: session setting, clamped to a hard ceiling
+        # so a misconfigured setting doesn't fire dozens of parallel
+        # agent calls. Min of 1 so the semaphore is never nonsensical.
+        tick_conc = max(
+            1,
+            min(session.config.settings.tick_concurrency, TICK_CONCURRENCY_HARD_CAP),
+        )
+        semaphore = asyncio.Semaphore(tick_conc)
 
         async def _tick_one(char):
             async with semaphore:
@@ -714,6 +751,16 @@ class Orchestrator:
                     character.character_id, directive.to,
                 )
                 continue
+            # Delivered either way; length cap is advisory, not enforcing.
+            # A runaway agent producing 5KB messages is a signal worth
+            # surfacing without blocking legitimate longer communications.
+            if len(directive.content) > DIRECTIVE_LENGTH_WARN:
+                logger.warning(
+                    "Long directive from %s -> %s: %d chars "
+                    "(advisory threshold %d); still delivered.",
+                    character.character_id, directive.to,
+                    len(directive.content), DIRECTIVE_LENGTH_WARN,
+                )
             target.incoming_directives.append(IncomingDirective(
                 from_character_id=character.character_id,
                 content=directive.content,

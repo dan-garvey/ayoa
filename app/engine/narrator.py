@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import append_turn_to_conversation
@@ -84,6 +85,7 @@ class Narrator:
                 f"{checkpoint.opening_narrative}\n"
             )
 
+        render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "narrator_phase2",
             history=checkpoint.narrator_conversation,
@@ -97,6 +99,7 @@ class Narrator:
             player_characters_block=player_characters_block,
             opening_directive=opening_directive,
         )
+        render_ms = (time.monotonic() - render_t0) * 1000
 
         user_content = messages[-1]["content"]
 
@@ -116,7 +119,7 @@ class Narrator:
             compact=True,
         )
         result: NarratorFinalOutput = response.parsed
-        self.last_usage = response.usage
+        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         append_turn_to_conversation(
             checkpoint.narrator_conversation, user_content, response,

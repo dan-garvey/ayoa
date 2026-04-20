@@ -50,6 +50,26 @@ def _render_bool(value: bool) -> str:
     return "on" if value else "off"
 
 
+def _parse_int_nonneg(raw: str) -> int:
+    """Parse a non-negative integer. Rejects floats and negatives."""
+    s = raw.strip()
+    try:
+        n = int(s)
+    except ValueError as e:
+        raise ValueError(f"Cannot interpret {raw!r} as an integer.") from e
+    if n < 0:
+        raise ValueError(f"Value must be zero or positive, got {n}.")
+    return n
+
+
+def _parse_int_positive(raw: str) -> int:
+    """Parse a positive (>0) integer."""
+    n = _parse_int_nonneg(raw)
+    if n == 0:
+        raise ValueError("Value must be at least 1.")
+    return n
+
+
 SETTINGS: list[SettingDef] = [
     SettingDef(
         key="agents_can_create_scenes",
@@ -62,6 +82,27 @@ SETTINGS: list[SettingDef] = [
         ),
         parse=_parse_bool,
         render=_render_bool,
+    ),
+    SettingDef(
+        key="max_responders",
+        default=3,
+        description=(
+            "Max NPC agents that may respond to a single player action. "
+            "The router's suggested_response_cap is clamped against this. "
+            "Higher = richer multi-party scenes at more tokens/latency. "
+            "0 silences all NPC responses (useful for diagnostics)."
+        ),
+        parse=_parse_int_nonneg,
+    ),
+    SettingDef(
+        key="tick_concurrency",
+        default=4,
+        description=(
+            "Max parallel off-stage tick calls. Ticks are independent so "
+            "the only cost of raising this is API rate usage; lowering "
+            "trades latency for safety on small quotas. Must be >= 1."
+        ),
+        parse=_parse_int_positive,
     ),
 ]
 

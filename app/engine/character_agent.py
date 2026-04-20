@@ -10,6 +10,7 @@ character has said across the session.
 from __future__ import annotations
 
 import logging
+import time
 
 from app.engine.context_builder import (
     append_turn_to_conversation,
@@ -90,6 +91,7 @@ class CharacterAgent:
             checkpoint, acting_character_id,
         )
 
+        render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "agent",
             history=history,
@@ -108,6 +110,7 @@ class CharacterAgent:
                 checkpoint, acting_id
             ),
         )
+        render_ms = (time.monotonic() - render_t0) * 1000
 
         # Capture the plain-text user content before LLMClient wraps it for caching.
         user_content = messages[-1]["content"]
@@ -131,7 +134,7 @@ class CharacterAgent:
         )
         result: CharacterAgentOutput = response.parsed
         result.character_id = character.character_id
-        self.last_usage = response.usage
+        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],
@@ -194,6 +197,7 @@ class CharacterAgent:
         # clear about what the agent is or isn't allowed to do.
         scene_creation_block = _build_scene_creation_block(checkpoint)
 
+        render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "agent_tick",
             history=history,
@@ -208,6 +212,7 @@ class CharacterAgent:
             ),
             scene_creation_block=scene_creation_block,
         )
+        render_ms = (time.monotonic() - render_t0) * 1000
 
         user_content = messages[-1]["content"]
 
@@ -227,7 +232,7 @@ class CharacterAgent:
         )
         result: CharacterAgentOutput = response.parsed
         result.character_id = character.character_id
-        self.last_usage = response.usage
+        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],

@@ -21,6 +21,33 @@ validity server-side.
 Used by both `scripts/import_story.py` (CLI) and
 `app/bot/engine_bridge.py` (Discord /story import).
 
+## TODO: single-call import experiment
+
+The current 4-stage pipeline was chosen for cache-friendly, focused
+prompts — each call narrows the LLM onto one extraction task with the
+shared source prefix cached. A tempting optimization: collapse stages
+1-4 into one structured-output call that emits `{world, characters,
+opening, envelopes}` as a single JSON blob. That would cut per-stage
+setup/teardown, halve or quarter API round trips, and let the model
+reason about cross-stage consistency (e.g., character envelopes
+informed by the world it just extracted) in one pass.
+
+The reason it isn't done: we have no ground-truth measurement of
+extraction quality. A drop in lore fidelity, character nuance, or
+knowledge-envelope distinctness is easy to produce and hard to detect
+from an automated metric — the preservation analysis catches topic-level
+drops but not subtle-but-critical compressions. Running A/B would
+require:
+  1. A fixed set of master prompts with hand-graded extraction quality
+     rubrics (faction coverage, character voice preservation, secret
+     placement, envelope distinctness).
+  2. Running both pipelines on each and scoring against the rubric.
+  3. Token and wall-clock deltas per pipeline.
+
+If the comparison shows the single-call pipeline within ~5% of the
+4-stage pipeline on quality for meaningful savings in cost or latency,
+ship it. Until that measurement exists, don't refactor blindly.
+
 ## Versioning
 
 `IMPORTER_VERSION` below stamps every checkpoint this pipeline produces.

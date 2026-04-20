@@ -26,6 +26,15 @@ class SessionSettings(BaseModel):
     # in the baseline pipeline. Flip on to experiment with more
     # emergent world-building from character-level intent.
     agents_can_create_scenes: bool = False
+    # Max NPC agents that may respond to a single player action. The
+    # router's suggested_response_cap is clamped against this; higher
+    # values mean richer multi-party scenes at more tokens/latency.
+    # 0 is legal (silences all NPC responses — useful for diagnostics).
+    max_responders: int = 3
+    # Concurrency cap for the off-stage tick pass. Ticks are independent
+    # so the only cost of raising this is API rate usage; lowering
+    # trades latency for safety on small quotas.
+    tick_concurrency: int = 4
 
 
 class SessionConfig(BaseModel):

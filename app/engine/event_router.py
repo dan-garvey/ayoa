@@ -9,6 +9,7 @@ threads across the entire session.
 from __future__ import annotations
 
 import logging
+import time
 
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
@@ -91,6 +92,7 @@ class EventRouter:
         if acting_char is not None:
             clear_character_inbox(acting_char)
 
+        render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "event_router",
             history=checkpoint.session_conversation,
@@ -111,6 +113,7 @@ class EventRouter:
             ),
             since_last_turn_block=since_last_turn_block,
         )
+        render_ms = (time.monotonic() - render_t0) * 1000
 
         # Capture the plain-text user content before LLMClient wraps it with
         # cache_control for this call — we persist the plain text.
@@ -128,7 +131,7 @@ class EventRouter:
             compact=True,
         )
         result: EventRouterOutput = response.parsed
-        self.last_usage = response.usage
+        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         if not result.canonical_event.event_id:
             result.canonical_event.event_id = f"evt_{checkpoint.session.turn_index:04d}"

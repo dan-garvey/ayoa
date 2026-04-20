@@ -18,6 +18,11 @@ class PhaseLatency(BaseModel):
     output_tokens: int = 0
     cache_read_input_tokens: int = 0
     cache_creation_input_tokens: int = 0
+    # Time spent building the prompt (context gathering, template render)
+    # before the LLM call fired. Separated from duration_ms so you can
+    # spot rendering-heavy turns that weren't caused by slow API time.
+    # Summed across calls the same way as token counts.
+    prompt_render_ms: float = 0.0
 
 
 class DebugPayload(BaseModel):
