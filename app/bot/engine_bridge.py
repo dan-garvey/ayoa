@@ -16,7 +16,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.orchestrator import Orchestrator
@@ -30,7 +30,7 @@ from app.engine.settings import (
 from app.engine.story_importer import run_import, run_preservation_analysis
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.checkpoint import CheckpointFile
+from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 
@@ -110,10 +110,19 @@ class EngineBridge:
         self,
         source_text: str,
         story_id: str,
+        on_analysis_complete: Callable[
+            [ImportAnalysis | None, Exception | None], Awaitable[None]
+        ] | None = None,
     ) -> CheckpointFile:
         """Run the import pipeline and save the resulting ckpt_0000.json
         under saves/<story_id>/. Fires preservation analysis as a
         background task that patches the checkpoint when it completes.
+
+        `on_analysis_complete`, if provided, is awaited after the analysis
+        pass finishes (or fails). The callback receives `(analysis, error)`
+        where exactly one is non-None. The bot uses this to DM the user
+        who ran /story import with the coverage outcome — close the loop
+        so the user knows analysis finished without polling the file.
 
         Refuses to overwrite an existing story — caller should delete first
         or pick a different story_id. Raises FileExistsError in that case.
@@ -140,6 +149,7 @@ class EngineBridge:
         asyncio.create_task(
             self._background_preservation_analysis(
                 source_text, story_id, dst_ckpt,
+                on_complete=on_analysis_complete,
             )
         )
         return checkpoint
@@ -149,9 +159,16 @@ class EngineBridge:
         source_text: str,
         story_id: str,
         dst_ckpt: Path,
+        on_complete: Callable[
+            [ImportAnalysis | None, Exception | None], Awaitable[None]
+        ] | None = None,
     ) -> None:
         """Run preservation analysis and patch the checkpoint on disk.
-        Errors are logged and swallowed — this is best-effort metadata."""
+        Any analysis error is caught and surfaced to `on_complete` so the
+        frontend can notify the user — best-effort metadata should not
+        crash the task loop."""
+        analysis: ImportAnalysis | None = None
+        err: Exception | None = None
         try:
             checkpoint = CheckpointFile.model_validate_json(dst_ckpt.read_text())
             analysis = await run_preservation_analysis(
@@ -170,10 +187,19 @@ class EngineBridge:
                 analysis.source_words, analysis.output_words,
                 len(analysis.dropped_topics), len(analysis.compressed_topics),
             )
-        except Exception:
+        except Exception as e:
+            err = e
             logger.exception(
                 "Preservation analysis failed for %s (non-fatal)", story_id,
             )
+
+        if on_complete is not None:
+            try:
+                await on_complete(analysis, err)
+            except Exception:
+                logger.exception(
+                    "on_analysis_complete callback raised for %s", story_id,
+                )
 
     def delete_story(self, story_id: str) -> tuple[int, int]:
         """Delete a story's source dir AND any discord_* session dirs derived

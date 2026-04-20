@@ -38,17 +38,43 @@ logger = logging.getLogger(__name__)
 MAX_IMPORT_BYTES = 500_000
 
 
+# Cache the parsed admin set per env-value so we only log about invalid
+# entries once per unique DISCORD_ADMIN_USER_IDS string. Tests can
+# mutate the env between calls; the cache key is the raw string so
+# changes cause a re-parse automatically.
+_ADMIN_CACHE: tuple[str, frozenset[int]] | None = None
+
+
 def _is_admin(user_id: int) -> bool:
-    """True if the Discord user ID is in DISCORD_ADMIN_USER_IDS (comma-sep env)."""
+    """True if the Discord user ID is in DISCORD_ADMIN_USER_IDS (comma-sep env).
+
+    Parses best-effort: non-integer entries are skipped with a one-time
+    warning, and the remaining valid IDs still grant admin access. A typo
+    in the env no longer nukes every admin's access.
+    """
+    global _ADMIN_CACHE
     raw = os.environ.get("DISCORD_ADMIN_USER_IDS", "").strip()
-    if not raw:
-        return False
-    try:
-        admin_ids = {int(x) for x in raw.split(",") if x.strip()}
-    except ValueError:
-        logger.warning("DISCORD_ADMIN_USER_IDS contains a non-integer; ignoring all")
-        return False
-    return user_id in admin_ids
+    if _ADMIN_CACHE is None or _ADMIN_CACHE[0] != raw:
+        admin_ids: set[int] = set()
+        bad: list[str] = []
+        for part in raw.split(","):
+            s = part.strip()
+            if not s:
+                continue
+            try:
+                admin_ids.add(int(s))
+            except ValueError:
+                bad.append(s)
+        if bad:
+            logger.warning(
+                "DISCORD_ADMIN_USER_IDS skipped %d non-integer entr%s (%s); "
+                "the %d valid ID(s) still grant admin access.",
+                len(bad), "y" if len(bad) == 1 else "ies",
+                ", ".join(repr(b) for b in bad),
+                len(admin_ids),
+            )
+        _ADMIN_CACHE = (raw, frozenset(admin_ids))
+    return user_id in _ADMIN_CACHE[1]
 
 
 def _sanitize_story_id(raw: str) -> str:
@@ -225,9 +251,15 @@ def register(
         try:
             ckpt = engine.load_latest(existing.session_id)
         except FileNotFoundError:
+            # Orphaned mapping — the on-disk checkpoint was deleted out
+            # from under us. Purge the row so the next /story start on
+            # this channel doesn't hit "session already bound" on the
+            # way in.
+            await smap.delete(inter.channel_id)
             await inter.response.send_message(
-                f"Session `{existing.session_id}` mapping exists but no checkpoint "
-                f"found. Run `/story end` to clean up.",
+                f"Session `{existing.session_id}` had no checkpoint on disk; "
+                f"the channel mapping has been purged. Run `/story start "
+                f"<story_id> \"<Name>\"` to begin fresh.",
                 ephemeral=True,
             )
             return
@@ -435,8 +467,44 @@ def register(
             story_id, attachment.filename, attachment.size, inter.user.display_name,
         )
         start = time.monotonic()
+
+        # DM the invoker when the background preservation analysis
+        # finishes so they don't have to poll the file to know it's
+        # done. Closures capture `inter.user` + story_id by reference,
+        # which is fine — the task fires with whatever those refs point
+        # at the moment analysis completes.
+        async def _notify(analysis, err):
+            try:
+                if err is not None:
+                    await inter.user.send(
+                        f"Preservation analysis for `{story_id}` failed: "
+                        f"`{type(err).__name__}: {err}` — the import itself "
+                        f"succeeded, only the coverage audit is missing."
+                    )
+                    return
+                if analysis is None:
+                    return
+                summary = (
+                    f"Preservation analysis for `{story_id}` is complete — "
+                    f"coverage **{analysis.coverage_rating}**, "
+                    f"{len(analysis.dropped_topics)} dropped topic(s), "
+                    f"{len(analysis.compressed_topics)} compressed. "
+                    f"Run `/story info {story_id}` for the full picture."
+                )
+                await inter.user.send(summary)
+            except discord.Forbidden:
+                logger.warning(
+                    "Could not DM %s about analysis completion (server DMs off)",
+                    inter.user.display_name,
+                )
+            except Exception:
+                logger.exception("analysis-complete DM failed")
+
         try:
-            ckpt = await engine.import_story(source_text, story_id)
+            ckpt = await engine.import_story(
+                source_text, story_id,
+                on_analysis_complete=_notify,
+            )
         except FileExistsError as e:
             await inter.followup.send(embed=render_error(str(e)))
             return
@@ -525,17 +593,20 @@ def register(
             )
             return
 
+        # Defer up front — binding + dossier-building both do checkpoint
+        # I/O plus a chunked DM, any of which could blow past the 3s
+        # interaction window on a large checkpoint or a slow network.
+        await inter.response.defer(thinking=True, ephemeral=True)
+
         character_id = character_id.strip()
         try:
             ckpt = engine.bind_user(row.session_id, inter.user.id, character_id)
         except ValueError as e:
-            await inter.response.send_message(
-                embed=render_error(str(e)), ephemeral=True,
-            )
+            await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
             return
         except Exception as e:
             logger.exception("bind_user failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
@@ -586,7 +657,7 @@ def register(
                 "Enable DMs from this server and run `/join` again to receive it."
             )
         lines.append("Use `/describe` to set your appearance, then `/act` to play.")
-        await inter.response.send_message(
+        await inter.followup.send(
             embed=render_info("Joined", "\n".join(lines)),
             ephemeral=True,
         )
@@ -827,8 +898,13 @@ def register(
         try:
             ckpt: CheckpointFile = engine.load_latest(row.session_id)
         except FileNotFoundError:
+            # Orphaned mapping — purge and tell the user so they can
+            # start fresh without bumping into a stale binding.
+            await smap.delete(inter.channel_id)
             await inter.response.send_message(
-                "Session mapping exists but no checkpoint found.",
+                f"Session `{row.session_id}` had no checkpoint on disk; "
+                f"the channel mapping has been purged. Run `/story start` "
+                f"to begin fresh.",
                 ephemeral=True,
             )
             return

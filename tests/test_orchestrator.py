@@ -342,7 +342,7 @@ class TestCharacterSpawn:
     def test_spawn_without_client(self, sample_checkpoint):
         mgr = CharacterManager()
         import asyncio
-        spawned = asyncio.get_event_loop().run_until_complete(
+        spawned = asyncio.run(
             mgr.spawn_characters(
                 sample_checkpoint,
                 [SpawnRequest(character_id="test", seed={})],
