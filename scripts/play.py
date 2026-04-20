@@ -54,6 +54,9 @@ Commands:
   /leave [character_id]       Release a claim (default: current actor)
   /as <character_id>          Switch which claimed character acts next
   /describe <traits>          Set appearance of the current actor
+  /settings                   Show experimental settings for this session
+  /settings <key>             Show one setting's current value
+  /settings <key> <value>     Update a setting
   /status                     Session summary
   /quit                       Exit (Ctrl-D also works)
 
@@ -232,6 +235,51 @@ class CLIState:
         if not ckpt.narrator_conversation:
             print("opening scene…")
             await self._act("(begin)")
+
+    def cmd_settings(self, arg: str) -> None:
+        """
+        /settings                 → list all
+        /settings <key>           → show one value
+        /settings <key> <value>   → set (value may be multi-word)
+        """
+        parts = arg.split(maxsplit=1) if arg.strip() else []
+
+        if not parts:
+            view = self.engine.list_settings(self.session_id)
+            if not view:
+                print("(no tunable settings registered)")
+                return
+            for s in view:
+                modified = "" if s["value"] == s["default"] else "  (modified)"
+                print(
+                    f"  {s['key']} = {s['rendered_value']}  "
+                    f"[default: {s['rendered_default']}]{modified}"
+                )
+                print(f"    {s['description']}")
+            return
+
+        key = parts[0]
+        if len(parts) == 1:
+            try:
+                value = self.engine.get_setting(self.session_id, key)
+            except KeyError:
+                valid = ", ".join(self.engine.known_setting_keys()) or "(none)"
+                print(f"unknown setting: {key}. valid: {valid}")
+                return
+            print(f"{key} = {value}")
+            return
+
+        raw_value = parts[1]
+        try:
+            new_value = self.engine.set_setting(self.session_id, key, raw_value)
+        except KeyError:
+            valid = ", ".join(self.engine.known_setting_keys()) or "(none)"
+            print(f"unknown setting: {key}. valid: {valid}")
+            return
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        print(f"{key} = {new_value}")
 
     def cmd_quit(self, arg: str) -> None:
         self.running = False

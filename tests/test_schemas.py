@@ -334,7 +334,7 @@ class TestCheckpointFile:
         assert ckpt.schema_version == "2.0"
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        assert ckpt.prompt_versions["event_router"] == "v4"
+        assert ckpt.prompt_versions["event_router"] == "v5"
         # Pre-versioning / hand-built checkpoints have empty importer_version;
         # the importer stamps it on build.
         assert ckpt.importer_version == ""

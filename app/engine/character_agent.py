@@ -34,6 +34,24 @@ from app.schemas.checkpoint import CheckpointFile
 logger = logging.getLogger(__name__)
 
 
+_SCENE_CREATION_BLOCK_ENABLED = """\
+6. **Create a new scene if the fiction genuinely needs one.** You may populate `private_updates.scenes_created` with spaces the scene graph doesn't yet contain — a private study you retreat to, a courier route between courts, a room in your household. Each entry needs a snake_case `scene_id`, a `name`, a short sensory `description`, and `connected_to` listing scene_ids this new space is reachable from (existing scenes or other newly-created ones). Reverse edges are added automatically. If you create a scene you want to move into, set `moved_to` to its id on the same tick. Use this sparingly — only when your off-stage action genuinely requires a space that doesn't exist yet. Empty `scenes_created` is the common case."""
+
+_SCENE_CREATION_BLOCK_DISABLED = """\
+6. **Do not invent new scenes.** `scenes_created` must be empty. If your planning requires a space that isn't in the graph, adjust your plan to use existing scenes; the router (not you) is responsible for growing world topology. If you genuinely need a new space, the narrator will pick it up from your objectives and route it through the router on a later turn."""
+
+
+def _build_scene_creation_block(checkpoint: CheckpointFile) -> str:
+    """Render the scene-creation instruction block for an agent tick
+    prompt. Gated on the session's `agents_can_create_scenes` setting.
+    Default is disabled (the router owns world topology in the baseline
+    pipeline); operators flip the flag via /settings to experiment with
+    more emergent world-building."""
+    if checkpoint.session.config.settings.agents_can_create_scenes:
+        return _SCENE_CREATION_BLOCK_ENABLED
+    return _SCENE_CREATION_BLOCK_DISABLED
+
+
 class CharacterAgent:
     """Generates in-character responses over a per-character rolling conversation."""
 
@@ -170,6 +188,12 @@ class CharacterAgent:
         else:
             scene_ctx = "Off-screen / unspecified location."
 
+        # Gate agent-side scene creation on a per-session setting. The
+        # block is rendered either as encouragement + mechanics when the
+        # flag is on, or an explicit ban when off — keeps the prompt
+        # clear about what the agent is or isn't allowed to do.
+        scene_creation_block = _build_scene_creation_block(checkpoint)
+
         messages = self.prompt_manager.render_conversation(
             "agent_tick",
             history=history,
@@ -182,6 +206,7 @@ class CharacterAgent:
             player_characters_block=build_player_characters_block(
                 checkpoint, acting_id,
             ),
+            scene_creation_block=scene_creation_block,
         )
 
         user_content = messages[-1]["content"]

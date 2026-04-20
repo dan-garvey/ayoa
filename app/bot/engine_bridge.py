@@ -21,6 +21,12 @@ from typing import Any
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
+from app.engine.settings import (
+    SETTINGS_BY_KEY,
+    get_setting,
+    list_settings_view,
+    set_setting,
+)
 from app.engine.story_importer import run_import, run_preservation_analysis
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
@@ -462,6 +468,37 @@ class EngineBridge:
             lines.append("## How You See Others\n" + "\n".join(att_lines))
 
         return "\n\n".join(lines)
+
+    # ---- settings -----------------------------------------------------------
+
+    def list_settings(self, session_id: str) -> list[dict[str, Any]]:
+        """Return the full settings view (keys, current + default values,
+        descriptions) for the /settings list command."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        return list_settings_view(ckpt)
+
+    def get_setting(self, session_id: str, key: str) -> Any:
+        """Return the current value of a single setting by key.
+        Raises UnknownSettingError if the key isn't registered."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        return get_setting(ckpt, key)
+
+    def set_setting(self, session_id: str, key: str, raw_value: str) -> Any:
+        """Update a setting from its string representation and persist.
+        Returns the parsed new value. Raises UnknownSettingError for an
+        unregistered key, or ValueError if the raw value can't be parsed."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        new_value = set_setting(ckpt, key, raw_value)
+        self.checkpoint_mgr.save(ckpt)
+        logger.info(
+            "Setting updated in %s: %s = %r", session_id, key, new_value,
+        )
+        return new_value
+
+    def known_setting_keys(self) -> list[str]:
+        """Exposed so bot command autocomplete and CLI can surface the
+        valid keys without each frontend importing the registry."""
+        return list(SETTINGS_BY_KEY.keys())
 
     # ---- turn execution ------------------------------------------------------
 

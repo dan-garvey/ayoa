@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.event_router import SceneCreation
+
 
 class PublicResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -39,6 +41,13 @@ class PrivateUpdates(BaseModel):
     # ("I go to the garden to wait"). Must be a valid scene_id. Ignored
     # when empty. Applied after the public_response lands.
     moved_to: str = ""
+    # Scenes the agent is inventing on a tick — only honored when
+    # session setting `agents_can_create_scenes` is True, and only on
+    # the tick path (during respond() the router owns world topology).
+    # Applied BEFORE moved_to on the same tick, so `moved_to` may
+    # reference a scene this list introduces. Same shape and
+    # bidirectional-edge handling as the router's scenes_created.
+    scenes_created: list[SceneCreation] = Field(default_factory=list)
 
 
 class CharacterAgentOutput(BaseModel):

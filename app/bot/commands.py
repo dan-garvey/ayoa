@@ -939,8 +939,106 @@ def register(
             ephemeral=True,
         )
 
-    # Attach the /story group to the tree last, once its subcommands are defined.
+    # ---- /settings ----------------------------------------------------------
+
+    settings_group = app_commands.Group(
+        name="settings",
+        description="View or change experimental per-session settings.",
+    )
+
+    @settings_group.command(
+        name="list",
+        description="Show all experimental settings for this session.",
+    )
+    async def _settings_list(inter: discord.Interaction):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/story start` first.", ephemeral=True,
+            )
+            return
+        try:
+            view = engine.list_settings(row.session_id)
+        except Exception as e:
+            logger.exception("list_settings failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        if not view:
+            await inter.response.send_message(
+                "No tunable settings registered.", ephemeral=True,
+            )
+            return
+
+        lines: list[str] = []
+        for s in view:
+            marker = "" if s["value"] == s["default"] else "  *(modified)*"
+            lines.append(
+                f"**`{s['key']}`** · `{s['rendered_value']}`  "
+                f"(default `{s['rendered_default']}`){marker}\n"
+                f"  {s['description']}"
+            )
+        await inter.response.send_message(
+            embed=render_info("Session settings", "\n\n".join(lines)),
+            ephemeral=True,
+        )
+
+    @settings_group.command(
+        name="set",
+        description="Change an experimental setting for this session.",
+    )
+    @app_commands.describe(
+        key="The setting key (see /settings list).",
+        value="New value. Booleans accept true/false, on/off, yes/no, 1/0.",
+    )
+    async def _settings_set(
+        inter: discord.Interaction,
+        key: str,
+        value: str,
+    ):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/story start` first.", ephemeral=True,
+            )
+            return
+        try:
+            new_value = engine.set_setting(row.session_id, key, value)
+        except KeyError:
+            valid = ", ".join(engine.known_setting_keys()) or "(none)"
+            await inter.response.send_message(
+                embed=render_error(
+                    f"Unknown setting `{key}`. Valid keys: {valid}"
+                ),
+                ephemeral=True,
+            )
+            return
+        except ValueError as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("set_setting failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.send_message(
+            f"Setting `{key}` → `{new_value}`.",
+            ephemeral=True,
+        )
+
+    # Attach the /story and /settings groups to the tree last, once
+    # their subcommands are defined.
     if guild is not None:
         tree.add_command(story_group, guild=guild)
+        tree.add_command(settings_group, guild=guild)
     else:
         tree.add_command(story_group)
+        tree.add_command(settings_group)

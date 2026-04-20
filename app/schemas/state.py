@@ -13,12 +13,30 @@ class ModelConfig(BaseModel):
     agent_default: str = "claude-sonnet-4-6"
 
 
+class SessionSettings(BaseModel):
+    """User-tunable experimental toggles exposed via /settings.
+
+    Kept separate from the static SessionConfig (models, stream_mode,
+    narrative_rules) so the command surface can introspect exactly the
+    fields meant for live tuning. Add new toggles here and they become
+    automatically available in /settings list / set.
+    """
+    # Allow off-stage NPC ticks to invent new scenes via their output's
+    # scenes_created field. Default off — the router owns world topology
+    # in the baseline pipeline. Flip on to experiment with more
+    # emergent world-building from character-level intent.
+    agents_can_create_scenes: bool = False
+
+
 class SessionConfig(BaseModel):
     models: ModelConfig = Field(default_factory=ModelConfig)
     debug: bool = False
     stream_mode: str = "final_only"
     # Long-form narrator style rules: prose discipline, pacing, subtext philosophy
     narrative_rules: str = ""
+    # User-tunable experimental settings. Expanding this is an
+    # additive change; do not break existing defaults.
+    settings: SessionSettings = Field(default_factory=SessionSettings)
 
 
 class SessionState(BaseModel):

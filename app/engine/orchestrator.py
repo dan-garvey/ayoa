@@ -49,6 +49,98 @@ DIRECTIVE_DEPTH_WARN = 2
 DIRECTIVE_DEPTH_CAP = 10
 
 
+def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
+    """Grow the scene graph with router-created scenes.
+
+    Two passes:
+      1. Create each scene: validate id uniqueness, filter connected_to
+         refs to scenes that exist (either pre-existing or elsewhere in
+         this same batch), dedupe.
+      2. Enforce bidirectionality: for every forward edge A → B in the
+         graph, ensure B → A also exists. This covers both directions
+         of batch-internal edges regardless of declaration order, and
+         closes the reverse edge when a new scene connects to a
+         pre-existing one.
+
+    Runs before any movement logic on the turn so downstream code can
+    treat the new scenes as real.
+    """
+    if not creations:
+        return
+
+    scene_graph = checkpoint.world_state.locations.scene_graph
+    batch_ids = {s.scene_id for s in creations if s.scene_id}
+    created_ids: list[str] = []
+
+    # Pass 1: create each new scene with its declared (and filtered)
+    # connected_to list.
+    for scene in creations:
+        if not scene.scene_id:
+            logger.warning("Scene creation with empty scene_id — ignored")
+            continue
+        if scene.scene_id in scene_graph:
+            logger.warning(
+                "Router tried to create scene %r but it already exists — ignored",
+                scene.scene_id,
+            )
+            continue
+
+        valid_connections: list[str] = []
+        for conn in scene.connected_to:
+            if conn == scene.scene_id:
+                continue  # self-reference is nonsense, drop silently
+            if conn in scene_graph or conn in batch_ids:
+                if conn not in valid_connections:
+                    valid_connections.append(conn)
+            else:
+                logger.warning(
+                    "New scene %r connects to unknown scene %r — edge dropped",
+                    scene.scene_id, conn,
+                )
+
+        scene_graph[scene.scene_id] = {
+            "name": scene.name,
+            "description": scene.description,
+            "connected_to": valid_connections,
+            "properties": {},
+        }
+        created_ids.append(scene.scene_id)
+        logger.info(
+            "Scene created: %s (id: %s, connects to: %s)",
+            scene.name, scene.scene_id,
+            ", ".join(valid_connections) or "(none)",
+        )
+
+    # Pass 2: ensure bidirectionality for edges touching any newly-
+    # created scene. Iterating over both endpoints catches the case
+    # where A was declared with connected_to=[B] but B was declared
+    # with connected_to=[] — B still gains the reverse edge here.
+    for new_id in created_ids:
+        new_scene = scene_graph.get(new_id)
+        if not isinstance(new_scene, dict):
+            continue
+
+        # Forward edges from the new scene: mirror onto each neighbor.
+        for conn in new_scene.get("connected_to", []) or []:
+            neighbor = scene_graph.get(conn)
+            if not isinstance(neighbor, dict):
+                continue
+            n_conns = list(neighbor.get("connected_to", []) or [])
+            if new_id not in n_conns:
+                n_conns.append(new_id)
+                neighbor["connected_to"] = n_conns
+
+        # Incoming edges from any other scene: mirror onto the new one.
+        for other_id, other in scene_graph.items():
+            if other_id == new_id or not isinstance(other, dict):
+                continue
+            if new_id in (other.get("connected_to", []) or []):
+                my_conns = list(new_scene.get("connected_to", []) or [])
+                if other_id not in my_conns:
+                    my_conns.append(other_id)
+                    new_scene["connected_to"] = my_conns
+
+
 class Orchestrator:
     """Orchestrates a full turn through the pipeline."""
 
@@ -99,7 +191,13 @@ class Orchestrator:
             [self.event_router.last_usage],
         ))
 
-        # --- Apply event consequences on state (scene transitions, roster updates) ---
+        # --- Apply event consequences on state ---
+        # Order matters: (1) create new scenes FIRST so downstream movement
+        # and spawn logic can target them this same turn, then
+        # (2) scene transition, (3) roster status updates, (4) NPC moves,
+        # (5) spawns.
+        _apply_scene_creations(checkpoint, routed.scenes_created)
+
         if event.scene_delta.new_scene_id:
             old_scene = checkpoint.world_state.locations.current_scene_id
             new_scene = event.scene_delta.new_scene_id
@@ -108,7 +206,10 @@ class Orchestrator:
                 logger.info("Scene transition: %s -> %s", old_scene, new_scene)
             else:
                 logger.warning(
-                    "Event analysis suggested scene %s but it's not in the scene graph",
+                    "Event analysis suggested scene %s but it's not in the "
+                    "scene graph and the router did not include it in "
+                    "scenes_created — likely a hallucinated id; movement "
+                    "ignored",
                     new_scene,
                 )
 
@@ -516,10 +617,29 @@ class Orchestrator:
 
         results = await asyncio.gather(*[_tick_one(c) for c in eligible])
 
+        # Whether the session has opted into agent-driven scene creation.
+        # When True, tick outputs' scenes_created are applied (before the
+        # per-character moved_to so the character can walk INTO the scene
+        # they just invented). When False, non-empty scenes_created is
+        # dropped with a warning — the agent shouldn't have emitted any.
+        allow_agent_scenes = checkpoint.session.config.settings.agents_can_create_scenes
+
         usages: list[dict] = []
         for char, output, usage in results:
             if output is None:
                 continue
+
+            scenes = output.private_updates.scenes_created
+            if scenes:
+                if allow_agent_scenes:
+                    _apply_scene_creations(checkpoint, scenes)
+                else:
+                    logger.warning(
+                        "Tick from %s emitted %d scenes_created but the "
+                        "agents_can_create_scenes setting is off — dropped",
+                        char.character_id, len(scenes),
+                    )
+
             self._apply_agent_private_updates(
                 checkpoint, char, output,
                 base_depth=base_depths.get(char.character_id, 0),
