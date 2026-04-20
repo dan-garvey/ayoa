@@ -98,6 +98,7 @@ class TestPromptManagerWithRealTemplates:
             user_input="I try to lift the building.",
             acting_character_name="Aldric",
             player_characters_block="- **Aldric** (acting this turn) — scholar. Tall, broad-shouldered, grey-streaked hair.",
+            since_last_turn_block="",
         )
         assert "I try to lift the building" in result
         assert "Aldric" in result
@@ -118,6 +119,7 @@ class TestPromptManagerWithRealTemplates:
             character_backstory="Twenty years of service.",
             character_personality="Stoic but caring.",
             character_goals="- maintain order",
+            character_current_objectives="- monitor the new arrival",
             character_attitudes="- aldric: -0.1 (neutral)",
             character_secrets="- knows the hidden passage",
             character_narrative_notes="Right hand twitches when lying.",
@@ -146,6 +148,7 @@ class TestPromptManagerWithRealTemplates:
             world_facts="x", hidden_lore="x", hidden_facts="x",
             character_registry="x", user_input="x",
             acting_character_name="x", player_characters_block="x",
+            since_last_turn_block="",
         )
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
@@ -172,6 +175,7 @@ class TestPromptManagerWithRealTemplates:
             world_facts="x", hidden_lore="x", hidden_facts="x",
             character_registry="x", user_input="x",
             acting_character_name="x", player_characters_block="x",
+            since_last_turn_block="",
         )
         assert len(messages) == 4
         assert messages[0]["role"] == "system"

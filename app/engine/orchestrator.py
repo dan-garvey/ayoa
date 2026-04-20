@@ -23,6 +23,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.validators import validate_all_outputs
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
+from app.schemas.characters import CharacterRecord, IncomingDirective
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -37,6 +38,11 @@ MAX_RESPONDERS = 3
 # Cap on how many pending observations any single character accumulates
 # between their own response turns (older entries drop off the front).
 MAX_PENDING_OBSERVATIONS = 10
+# Directive delegation depth: warn above this, drop above the hard cap.
+# Catches chains like A → B → C → D where intent gets laundered through
+# too many hops. Depth 1 = directive sent by an agent acting spontaneously.
+DIRECTIVE_DEPTH_WARN = 2
+DIRECTIVE_DEPTH_CAP = 10
 
 
 class Orchestrator:
@@ -106,6 +112,42 @@ class Orchestrator:
 
         self.char_mgr.apply_roster_updates(checkpoint, disc_output)
 
+        # Apply router-directed NPC movement. Player-bound characters are
+        # skipped defensively — the router prompt forbids moving them, but
+        # we don't trust the model to respect that every turn.
+        player_ids_for_moves = collect_player_ids(checkpoint)
+        scene_graph = checkpoint.world_state.locations.scene_graph
+        for move in routed.roster_moves:
+            if move.character_id in player_ids_for_moves:
+                logger.warning(
+                    "Router tried to move player-bound character %s; ignored",
+                    move.character_id,
+                )
+                continue
+            if move.to_scene not in scene_graph:
+                logger.warning(
+                    "Router roster_move to unknown scene %r for %s; ignored",
+                    move.to_scene, move.character_id,
+                )
+                continue
+            target = next(
+                (c for c in checkpoint.characters if c.character_id == move.character_id),
+                None,
+            )
+            if target is None:
+                logger.warning(
+                    "Router roster_move for unknown character %s; ignored",
+                    move.character_id,
+                )
+                continue
+            old = target.location
+            target.location = move.to_scene
+            logger.info(
+                "Roster move: %s %s -> %s (%s)",
+                target.name, old or "(unset)", move.to_scene,
+                move.reason or "no reason given",
+            )
+
         if disc_output.spawn:
             t0 = time.monotonic()
             await self.char_mgr.spawn_characters(checkpoint, disc_output.spawn)
@@ -129,6 +171,7 @@ class Orchestrator:
         observing_only = [o for o in candidates if o not in responding]
 
         agent_outputs: list[CharacterAgentOutput] = []
+        base_depths: dict[str, int] = {}
         logger.info(
             "Response selection: %d candidates, %d responding (cap=%d), %d observing",
             len(candidates), len(responding), response_cap, len(observing_only),
@@ -173,6 +216,16 @@ class Orchestrator:
             # Each respond() call overwrites agent_engine.last_usage, so snapshot
             # after each call to sum at the end for the phase latency.
             agent_usages: list[dict] = []
+
+            # Capture base directive depths BEFORE fan-out, because respond()
+            # clears each character's incoming_directives during flush.
+            # Outgoing directives get stamped at max(flushed) + 1.
+            for obs in responding:
+                char = self.char_mgr.get_character(checkpoint, obs.character_id)
+                if char:
+                    base_depths[obs.character_id] = max(
+                        (d.depth for d in char.incoming_directives), default=0,
+                    )
 
             primary_obs = responding[0]
             primary_char = self.char_mgr.get_character(
@@ -294,9 +347,15 @@ class Orchestrator:
             [self.narrator.last_usage],
         ))
 
-        # --- Apply agent outputs (attitude deltas) ---
+        # --- Apply agent outputs (attitude deltas + objectives + directives) ---
         for output in agent_outputs:
             self.char_mgr.apply_agent_output(checkpoint, output)
+            char = self.char_mgr.get_character(checkpoint, output.character_id)
+            if char:
+                self._apply_agent_private_updates(
+                    checkpoint, char, output,
+                    base_depth=base_depths.get(output.character_id, 0),
+                )
 
         # --- Push turn observations to silent observers' pending queues ---
         npc_summary = self._build_npc_turn_summary(
@@ -309,6 +368,27 @@ class Orchestrator:
         checkpoint.transcript.append(final.transcript_entry)
         checkpoint.session.turn_index += 1
         self.checkpoint_mgr.save(checkpoint)
+
+        # --- Off-stage tick pass. Fires on cadence OR on scene change,
+        # whichever comes first. Scene-change reset keeps the world moving
+        # when the player jumps between spaces; cadence keeps it moving
+        # when the player sits in one scene for a while. Ticks run after
+        # the turn's player-visible state is saved so the player sees the
+        # scene first, and any tick side-effects land on the FOLLOWING turn.
+        acted_this_turn = {o.character_id for o in agent_outputs}
+        acted_this_turn.add(acting_character_id)
+        t0 = time.monotonic()
+        tick_usages = await self._run_ticks(
+            checkpoint, acted_this_turn, acting_character_id,
+        )
+        if tick_usages:
+            latencies.append(self._phase_latency(
+                "off_stage_ticks",
+                t0,
+                self.client.config.model_for_role("agent"),
+                tick_usages,
+            ))
+            self.checkpoint_mgr.save(checkpoint)
 
         total_ms = (time.monotonic() - turn_start) * 1000
         logger.info(
@@ -348,6 +428,173 @@ class Orchestrator:
             cache_read_input_tokens=sum_field("cache_read_input_tokens"),
             cache_creation_input_tokens=sum_field("cache_creation_input_tokens"),
         )
+
+    async def _run_ticks(
+        self,
+        checkpoint: CheckpointFile,
+        acted_this_turn: set[str],
+        acting_character_id: str,
+    ) -> list[dict]:
+        """Off-stage tick pass. Returns the list of per-tick usage dicts
+        so the caller can fold them into phase latencies; empty list when
+        no ticks fired."""
+        session = checkpoint.session
+        current_scene = checkpoint.world_state.locations.current_scene_id
+        scene_changed = (
+            session.tick_last_scene_id != ""
+            and current_scene != session.tick_last_scene_id
+        )
+
+        session.tick_turn_counter += 1
+        cadence_hit = session.tick_turn_counter >= session.tick_cadence
+
+        if not (cadence_hit or scene_changed):
+            # Keep last_scene_id seeded on the very first turn so the
+            # scene-change comparison has a baseline going forward.
+            if not session.tick_last_scene_id:
+                session.tick_last_scene_id = current_scene
+            return []
+
+        # Reset regardless of which trigger fired.
+        session.tick_turn_counter = 0
+        session.tick_last_scene_id = current_scene
+
+        player_ids = collect_player_ids(checkpoint)
+        eligible = [
+            c for c in checkpoint.characters
+            if c.private_state.intentions_enabled
+            and c.status.value == "active"
+            and c.character_id not in player_ids
+            and c.character_id not in acted_this_turn
+        ]
+        if not eligible:
+            logger.info(
+                "Tick trigger fired (cadence=%s scene_changed=%s) but no eligible characters",
+                cadence_hit, scene_changed,
+            )
+            return []
+
+        logger.info(
+            "Off-stage tick: %d eligible (cadence=%s scene_changed=%s)",
+            len(eligible), cadence_hit, scene_changed,
+        )
+
+        # Capture base depths before tick() clears each character's
+        # incoming_directives. Same pattern as the response fan-out.
+        base_depths = {
+            c.character_id: max(
+                (d.depth for d in c.incoming_directives), default=0,
+            )
+            for c in eligible
+        }
+
+        semaphore = asyncio.Semaphore(4)
+
+        async def _tick_one(char):
+            async with semaphore:
+                try:
+                    return char, await asyncio.wait_for(
+                        self.agent_engine.tick(
+                            char, checkpoint,
+                            acting_character_id=acting_character_id,
+                        ),
+                        timeout=AGENT_TIMEOUT,
+                    ), dict(self.agent_engine.last_usage)
+                except Exception as e:
+                    logger.warning("Tick failed for %s: %s", char.character_id, e)
+                    return char, None, {}
+
+        results = await asyncio.gather(*[_tick_one(c) for c in eligible])
+
+        usages: list[dict] = []
+        for char, output, usage in results:
+            if output is None:
+                continue
+            self._apply_agent_private_updates(
+                checkpoint, char, output,
+                base_depth=base_depths.get(char.character_id, 0),
+            )
+            usages.append(usage)
+
+        return usages
+
+    def _apply_agent_private_updates(
+        self,
+        checkpoint: CheckpointFile,
+        character: CharacterRecord,
+        output: CharacterAgentOutput,
+        base_depth: int,
+    ) -> None:
+        """Persist objectives and route directives after an agent response.
+
+        - Authoritative whole-list replacement for current_objectives.
+        - Routes outgoing directives to targets' incoming queues, stamping
+          from/turn/depth. Depth = max(flushed incoming depth) + 1, so a
+          directive A sends purely from its own initiative has depth 1; a
+          directive A sends in response to receiving B's directive has
+          depth B.depth + 1.
+        - Warns above DIRECTIVE_DEPTH_WARN, drops above DIRECTIVE_DEPTH_CAP.
+        """
+        private = output.private_updates
+
+        # Whole-list replacement. Agent emits the complete set of objectives
+        # it's still pursuing; anything missing is considered dropped.
+        character.private_state.current_objectives = list(private.current_objectives)
+
+        # Self-initiated movement (primarily from ticks). Validated against
+        # the scene graph; ignored if unknown to avoid corrupting location.
+        if private.moved_to:
+            scene_graph = checkpoint.world_state.locations.scene_graph
+            if private.moved_to in scene_graph:
+                old = character.location
+                character.location = private.moved_to
+                logger.info(
+                    "Character %s moved self: %s -> %s",
+                    character.character_id, old or "(unset)", private.moved_to,
+                )
+            else:
+                logger.warning(
+                    "Character %s tried to move to unknown scene %r; ignored",
+                    character.character_id, private.moved_to,
+                )
+
+        if not private.directives_sent:
+            return
+
+        new_depth = base_depth + 1
+        if new_depth > DIRECTIVE_DEPTH_CAP:
+            logger.warning(
+                "Directive chain from %s exceeded depth cap %d; dropping %d outgoing",
+                character.character_id, DIRECTIVE_DEPTH_CAP,
+                len(private.directives_sent),
+            )
+            return
+        if new_depth > DIRECTIVE_DEPTH_WARN:
+            logger.warning(
+                "Deep directive chain from %s (depth=%d, cap=%d)",
+                character.character_id, new_depth, DIRECTIVE_DEPTH_CAP,
+            )
+
+        turn_idx = checkpoint.session.turn_index
+        for directive in private.directives_sent:
+            target = self.char_mgr.get_character(checkpoint, directive.to)
+            if target is None:
+                logger.warning(
+                    "Directive from %s to unknown character %s — dropped",
+                    character.character_id, directive.to,
+                )
+                continue
+            target.incoming_directives.append(IncomingDirective(
+                from_character_id=character.character_id,
+                content=directive.content,
+                turn=turn_idx,
+                depth=new_depth,
+            ))
+            logger.info(
+                "Directive routed: %s -> %s (depth %d): %s",
+                character.character_id, directive.to, new_depth,
+                directive.content[:80],
+            )
 
     def _push_pending_observations(
         self,

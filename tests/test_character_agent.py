@@ -112,7 +112,7 @@ def sample_agent_output():
             expression="eyes narrow slightly, scanning the perimeter",
         ),
         private_updates=PrivateUpdates(
-            intentions=["watch this newcomer more closely"],
+            current_objectives=["watch this newcomer more closely"],
             attitude_delta={"user": -0.05},
         ),
         memory_writes=["The player looked around the courtyard. Seemed lost."],
@@ -149,10 +149,21 @@ class TestContextBuilder:
         assert "Estate Courtyard" in context
         assert "dry fountain" in context
 
-    def test_build_world_context(self, sample_checkpoint):
-        context = build_world_context(sample_checkpoint)
+    def test_build_world_context_legacy_fallback(self, sample_checkpoint, guard_character):
+        """Pre-v2 characters (known_context=="") fall back to global lore/facts."""
+        assert guard_character.known_context == ""
+        context = build_world_context(guard_character, sample_checkpoint)
         assert "fantasy" in context
         assert "fountain is dry" in context
+
+    def test_build_world_context_uses_envelope(self, sample_checkpoint, guard_character):
+        """When the character carries a known_context envelope, that IS the
+        world context — global lore doesn't bleed in."""
+        guard_character.known_context = "The courtyard is wet. You heard shouting earlier."
+        context = build_world_context(guard_character, sample_checkpoint)
+        assert context == guard_character.known_context
+        # Global lore/premise absent
+        assert "fantasy" not in context
 
     def test_format_observed_facts(self):
         facts = ["Player looks around.", "Player touches the wall."]

@@ -6,6 +6,17 @@ from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry, SpawnR
 from app.schemas.events import CanonicalEvent
 
 
+class RosterMove(BaseModel):
+    """Router-directed character movement between scenes. Applied by the
+    orchestrator — updates the target character's `location` field. Empty
+    list on turns where nobody's moving."""
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: str
+    to_scene: str  # scene_id (must exist in scene_graph)
+    reason: str = ""
+
+
 class EventRouterOutput(BaseModel):
     """Merged adjudication + perception output."""
 
@@ -17,6 +28,11 @@ class EventRouterOutput(BaseModel):
     spawn: list[SpawnRequest] = Field(default_factory=list)
     dormant: list[str] = Field(default_factory=list)
     cull: list[str] = Field(default_factory=list)
+    # NPC-to-scene movement, applied after the event itself. Lets the
+    # router animate the world — characters arrive, depart, go off-stage.
+    # Spawns use `spawn` for new characters; roster_moves is for existing
+    # characters changing scenes.
+    roster_moves: list[RosterMove] = Field(default_factory=list)
 
     def to_discriminator_output(self) -> DiscriminatorOutput:
         """Project the merged output onto the legacy discriminator schema."""

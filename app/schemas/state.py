@@ -35,6 +35,12 @@ class SessionState(BaseModel):
     # the JSON is stable across the int-sized Discord ids). A character with
     # no entry here is AI-driven. Updated by /join, /leave, and /story start.
     character_bindings: dict[str, str] = Field(default_factory=dict)
+    # Off-stage tick scheduler state. Counter increments each player turn
+    # and fires a tick pass when it hits tick_cadence OR on scene change
+    # (whichever comes first). Both cases reset the counter.
+    tick_turn_counter: int = 0
+    tick_cadence: int = 5
+    tick_last_scene_id: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)

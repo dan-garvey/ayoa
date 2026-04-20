@@ -90,7 +90,7 @@ AGENT_OUTPUT_EXAMPLE = {
         "expression": "one brow lifts",
     },
     "private_updates": {
-        "intentions": ["monitor the user more closely"],
+        "current_objectives": ["monitor the user more closely"],
         "attitude_delta": {"user": -0.05},
     },
     "memory_writes": ["Observed the user attempt an impossible physical feat and fail."],
@@ -324,6 +324,9 @@ class TestCheckpointFile:
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
         assert ckpt.prompt_versions["event_router"] == "v4"
+        # Pre-versioning / hand-built checkpoints have empty importer_version;
+        # the importer stamps it on build.
+        assert ckpt.importer_version == ""
 
     def test_round_trip(self):
         ckpt = CheckpointFile(

@@ -21,7 +21,7 @@ from typing import Any
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
-from app.engine.story_importer import run_import
+from app.engine.story_importer import run_import, run_preservation_analysis
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
@@ -105,8 +105,9 @@ class EngineBridge:
         source_text: str,
         story_id: str,
     ) -> CheckpointFile:
-        """Run the three-stage import pipeline and save the resulting
-        ckpt_0000.json under saves/<story_id>/.
+        """Run the import pipeline and save the resulting ckpt_0000.json
+        under saves/<story_id>/. Fires preservation analysis as a
+        background task that patches the checkpoint when it completes.
 
         Refuses to overwrite an existing story — caller should delete first
         or pick a different story_id. Raises FileExistsError in that case.
@@ -124,7 +125,49 @@ class EngineBridge:
         dst_dir.mkdir(parents=True, exist_ok=True)
         dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
         logger.info("Imported story %s → %s", story_id, dst_ckpt)
+
+        # Fire preservation analysis in the background. The bot keeps an
+        # event loop running for the duration of the process, so the task
+        # has a home. It reloads the saved checkpoint, runs the audit,
+        # patches import_analysis back to disk. We don't await — the
+        # import command returns to the user immediately.
+        asyncio.create_task(
+            self._background_preservation_analysis(
+                source_text, story_id, dst_ckpt,
+            )
+        )
         return checkpoint
+
+    async def _background_preservation_analysis(
+        self,
+        source_text: str,
+        story_id: str,
+        dst_ckpt: Path,
+    ) -> None:
+        """Run preservation analysis and patch the checkpoint on disk.
+        Errors are logged and swallowed — this is best-effort metadata."""
+        try:
+            checkpoint = CheckpointFile.model_validate_json(dst_ckpt.read_text())
+            analysis = await run_preservation_analysis(
+                self.client, source_text, checkpoint,
+            )
+            # Re-read before patching in case other writes happened — ckpt_0000
+            # is pristine source, typically untouched after the initial write,
+            # but be safe anyway.
+            checkpoint = CheckpointFile.model_validate_json(dst_ckpt.read_text())
+            checkpoint.import_analysis = analysis
+            dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
+            logger.info(
+                "Preservation analysis for %s patched to disk: coverage=%s, "
+                "source=%dw, output=%dw, dropped=%d, compressed=%d",
+                story_id, analysis.coverage_rating,
+                analysis.source_words, analysis.output_words,
+                len(analysis.dropped_topics), len(analysis.compressed_topics),
+            )
+        except Exception:
+            logger.exception(
+                "Preservation analysis failed for %s (non-fatal)", story_id,
+            )
 
     def delete_story(self, story_id: str) -> tuple[int, int]:
         """Delete a story's source dir AND any discord_* session dirs derived
@@ -346,11 +389,21 @@ class EngineBridge:
         session_id: str,
         character_id: str,
     ) -> str:
-        """Build the private DM dossier a joining player needs to RP this
-        character faithfully. Includes goals, secrets, attitudes, backstory,
-        personality, narrative notes, plus the world's hidden lore and facts
-        (since the character is presumed to know whatever their author built
-        in for them). Returned as markdown for direct embed/DM delivery."""
+        """Build the private DM a joining player needs to play this character.
+
+        Strictly character-interior: who they are, what they want, what they
+        know, what they're keeping to themselves. The player should learn
+        the WORLD through play, not through the dossier.
+
+        Deliberately excludes:
+        - `narrative_notes` — authorial portrayal direction ("reached through
+          sustained non-demanding sincerity") collapses discovery if the
+          player reads it upfront. Kept on the character for AI agent use.
+        - `world_state.hidden_lore` / `hidden_facts` — engine-wide secrets.
+          Most characters don't know most of these; dumping them spoils
+          the plot. If a specific character genuinely knows a specific
+          secret, it belongs in `private_state.secrets` at import time.
+        """
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         char = next(
             (c for c in ckpt.characters if c.character_id == character_id), None
@@ -358,7 +411,12 @@ class EngineBridge:
         if char is None:
             raise ValueError(f"No character '{character_id}' in this session.")
 
-        lines: list[str] = [f"# Dossier · {char.name}"]
+        lines: list[str] = [
+            f"# Dossier · {char.name}",
+            "_This is what your character knows about themselves, wants, and "
+            "keeps private. The world beyond this page is for you to discover "
+            "through play._",
+        ]
 
         sheet = char.public_sheet
         sheet_bits: list[str] = []
@@ -376,30 +434,32 @@ class EngineBridge:
             lines.append("\n".join(sheet_bits))
 
         if char.backstory:
-            lines.append(f"## Backstory\n{char.backstory}")
+            lines.append(f"## Your Backstory\n{char.backstory}")
         if char.personality:
-            lines.append(f"## Personality\n{char.personality}")
-        if char.narrative_notes:
-            lines.append(f"## Narrative Notes\n{char.narrative_notes}")
+            lines.append(f"## How You Think & Feel\n{char.personality}")
+        if char.known_context:
+            lines.append(f"## The World As You Know It\n{char.known_context}")
 
         ps = char.private_state
         if ps.goals:
-            lines.append("## Goals\n" + "\n".join(f"- {g}" for g in ps.goals))
+            lines.append(
+                "## What Drives You\n" + "\n".join(f"- {g}" for g in ps.goals)
+            )
+        if ps.current_objectives:
+            lines.append(
+                "## What You're Working On\n"
+                + "\n".join(f"- {o}" for o in ps.current_objectives)
+            )
         if ps.secrets:
-            lines.append("## Secrets\n" + "\n".join(f"- {s}" for s in ps.secrets))
+            lines.append(
+                "## What You Keep To Yourself\n"
+                + "\n".join(f"- {s}" for s in ps.secrets)
+            )
         if ps.attitudes:
             att_lines = [
                 f"- {k}: {v:+.1f}" for k, v in ps.attitudes.items()
             ]
-            lines.append("## Attitudes\n" + "\n".join(att_lines))
-
-        if ckpt.world_state.hidden_lore:
-            lines.append(f"## Hidden Lore\n{ckpt.world_state.hidden_lore}")
-        if ckpt.world_state.hidden_facts:
-            lines.append(
-                "## Hidden Facts\n"
-                + "\n".join(f"- {f}" for f in ckpt.world_state.hidden_facts)
-            )
+            lines.append("## How You See Others\n" + "\n".join(att_lines))
 
         return "\n\n".join(lines)
 

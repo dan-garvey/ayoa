@@ -84,7 +84,10 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
 
     story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
     title = f"Briefing · {story_title}"
-    footer = f"{story_id} · /describe <traits> to open the scene"
+    importer_tag = ckpt.importer_version or "v0"
+    coverage = ckpt.import_analysis.coverage_rating if ckpt.import_analysis else ""
+    coverage_tag = f" · coverage {coverage}" if coverage and coverage != "unknown" else ""
+    footer = f"{story_id} · importer {importer_tag}{coverage_tag} · /describe <traits> to open the scene"
 
     # Build the fields first so we can reserve the description budget based on
     # their actual size. The "How to play" fields MUST always render — that's

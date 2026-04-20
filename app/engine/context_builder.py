@@ -44,6 +44,11 @@ def build_character_state(char: CharacterRecord) -> dict[str, str]:
         if char.private_state.goals
         else "None specified."
     )
+    objectives = (
+        "\n".join(f"- {o}" for o in char.private_state.current_objectives)
+        if char.private_state.current_objectives
+        else "None active — let your response emerge from your goals and the moment."
+    )
     secrets = (
         "\n".join(f"- {s}" for s in char.private_state.secrets)
         if char.private_state.secrets
@@ -58,6 +63,7 @@ def build_character_state(char: CharacterRecord) -> dict[str, str]:
 
     return {
         "character_goals": goals,
+        "character_current_objectives": objectives,
         "character_attitudes": attitudes,
         "character_secrets": secrets,
     }
@@ -80,16 +86,33 @@ def build_scene_context(checkpoint: CheckpointFile) -> str:
     return "\n".join(parts)
 
 
-def build_world_context(checkpoint: CheckpointFile) -> str:
-    """Build a condensed world context for character agents."""
+def build_world_context(
+    character: CharacterRecord,
+    checkpoint: CheckpointFile,
+) -> str:
+    """World context as THIS character perceives it.
+
+    With v2 imports, every character carries a `known_context` envelope —
+    the filtered slice of world lore/facts/rumors they plausibly know,
+    written from their POV by a dedicated extraction pass. That envelope
+    is authoritative when present.
+
+    Legacy fallback (pre-v2 checkpoints) concatenates the genre/tone plus
+    the global public lore and facts, shared across all characters.
+    `setting.premise` is deliberately excluded — it's authorial meta that
+    routinely leaks plot-level secrets into every agent's prompt. Router
+    and narrator (omniscient roles) still get the premise through their
+    own setting summaries.
+    """
+    if character.known_context:
+        return character.known_context
+
     setting = checkpoint.world_state.setting
-    parts = []
+    parts: list[str] = []
     if setting.genre:
         parts.append(f"Genre: {setting.genre}")
     if setting.tone:
         parts.append(f"Tone: {setting.tone}")
-    if setting.premise:
-        parts.append(f"Premise: {setting.premise}")
 
     if checkpoint.world_state.facts:
         parts.append("\nKey world facts:")
@@ -228,18 +251,23 @@ def build_player_characters_block(
 
 
 def format_pending_observations_block(character: CharacterRecord) -> str:
-    """Render the pending-observations markdown block for the agent user message.
+    """Render the "Since your last response" block for the agent user message.
 
-    Returns an empty string when there's nothing pending (so the template
-    renders cleanly without a dangling header). The orchestrator flushes and
-    clears `character.pending_observations` around this call.
+    Combines silent observations (things this character witnessed) with
+    incoming directives (messages other characters sent them). Both flush
+    on the agent's next response. Returns empty string when nothing is
+    pending so the template doesn't render a dangling header.
     """
-    if not character.pending_observations:
+    if not character.pending_observations and not character.incoming_directives:
         return ""
 
     lines = ["## Since your last response"]
     for entry in character.pending_observations:
         lines.append(f"- {entry}")
+    for d in character.incoming_directives:
+        lines.append(
+            f"- **Message from {d.from_character_id}** (turn {d.turn}): {d.content}"
+        )
     lines.append("")  # trailing blank line before next section
     return "\n".join(lines) + "\n"
 

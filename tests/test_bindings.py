@@ -153,13 +153,34 @@ class TestBindUnbind:
 
 
 class TestDossier:
-    def test_includes_private_and_hidden_content(self, bridge: EngineBridge):
+    def test_includes_character_interior(self, bridge: EngineBridge):
+        """Dossier surfaces what the CHARACTER knows about themselves."""
         dossier = bridge.build_character_dossier(SESSION_ID, "aldric")
         assert "Raised by wolves" in dossier  # backstory
         assert "survive" in dossier           # goal
-        assert "royal sigil" in dossier       # secret
-        assert "throne is cursed" in dossier  # world hidden_lore
-        assert "Thane poisoned" in dossier    # world hidden_fact
+        assert "royal sigil" in dossier       # secret THIS character keeps
+
+    def test_excludes_world_hidden_content(self, bridge: EngineBridge):
+        """World-wide hidden lore/facts are engine secrets, not per-character
+        knowledge. Including them spoils the plot for players whose
+        characters wouldn't actually know them."""
+        dossier = bridge.build_character_dossier(SESSION_ID, "aldric")
+        assert "throne is cursed" not in dossier
+        assert "Thane poisoned" not in dossier
+
+    def test_excludes_narrative_notes(self, bridge: EngineBridge):
+        """narrative_notes is authorial portrayal direction — useful for the
+        AI agent, but it tells a human player what the character SHOULD do
+        from the outside, collapsing the discovery the story intends."""
+        # The aldric fixture doesn't have narrative_notes set; add one and
+        # verify it stays out.
+        ckpt = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+        aldric = next(c for c in ckpt.characters if c.character_id == "aldric")
+        aldric.narrative_notes = "Best reached by treating their questions as genuine."
+        bridge.checkpoint_mgr.save(ckpt)
+
+        dossier = bridge.build_character_dossier(SESSION_ID, "aldric")
+        assert "treating their questions as genuine" not in dossier
 
     def test_unknown_character_raises(self, bridge: EngineBridge):
         with pytest.raises(ValueError, match="No character"):

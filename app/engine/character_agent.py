@@ -58,8 +58,11 @@ class CharacterAgent:
         history = checkpoint.character_conversations.get(character.character_id, [])
 
         pending_block = format_pending_observations_block(character)
-        # Clear pending now that we're flushing into this turn's user message.
+        # Clear the pending queues now that we're flushing into this turn's
+        # user message. Both observations and directives are one-shot — once
+        # delivered to the agent, they belong to its rolling conversation.
         character.pending_observations = []
+        character.incoming_directives = []
 
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
@@ -78,7 +81,7 @@ class CharacterAgent:
             history=history,
             **char_identity,
             **char_state,
-            world_context=build_world_context(checkpoint),
+            world_context=build_world_context(character, checkpoint),
             scene_context=build_scene_context(checkpoint),
             characters_present=build_characters_present(character, checkpoint),
             observed_facts=format_observed_facts(observed_facts),
@@ -129,6 +132,105 @@ class CharacterAgent:
             character.name,
             len(result.public_response.actions),
             len(result.public_response.dialogue),
+        )
+
+        return result
+
+    async def tick(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str = "",
+    ) -> CharacterAgentOutput:
+        """Off-stage tick: character advances their objectives without being in
+        a scene with the player. Appended to the same rolling conversation as
+        regular responses so continuity holds across ticks and responses.
+
+        Uses the `agent_tick` prompt variant — same character identity and
+        same Player Characters block (so caching still lines up), but the
+        user message tells the agent they're off-stage and to produce only
+        private updates (objectives / directives / movement), no public
+        response prose.
+        """
+        history = checkpoint.character_conversations.get(character.character_id, [])
+
+        pending_block = format_pending_observations_block(character)
+        character.pending_observations = []
+        character.incoming_directives = []
+
+        char_identity = build_character_packet(character)
+        char_state = build_character_state(character)
+
+        acting_id = acting_character_id or checkpoint.session.player_character_id
+        acting_char = next(
+            (c for c in checkpoint.characters if c.character_id == acting_id), None
+        )
+        acting_name = (
+            acting_char.name if acting_char
+            else (checkpoint.session.player_name or "the protagonist")
+        )
+
+        # Scene context for the tick is the character's OWN location, not
+        # the active player scene — the character is off-stage, reasoning
+        # from wherever they actually are.
+        own_scene_id = character.location or ""
+        own_scene = checkpoint.world_state.locations.scene_graph.get(own_scene_id, {})
+        if own_scene_id and isinstance(own_scene, dict):
+            scene_ctx = (
+                f"Location: {own_scene.get('name', own_scene_id)} (id: {own_scene_id})\n"
+                f"{own_scene.get('description', '') or ''}"
+            ).strip()
+        else:
+            scene_ctx = "Off-screen / unspecified location."
+
+        messages = self.prompt_manager.render_conversation(
+            "agent_tick",
+            history=history,
+            **char_identity,
+            **char_state,
+            world_context=build_world_context(character, checkpoint),
+            scene_context=scene_ctx,
+            pending_observations_block=pending_block,
+            acting_character_name=acting_name,
+            player_characters_block=build_player_characters_block(
+                checkpoint, acting_id,
+            ),
+        )
+
+        user_content = messages[-1]["content"]
+
+        logger.info(
+            "Agent %s (%s): off-stage tick (history=%d msgs)",
+            character.name, character.character_id, len(history),
+        )
+
+        response = await self.client.complete(
+            role="agent",
+            messages=messages,
+            response_model=CharacterAgentOutput,
+            temperature=0.6,
+            max_tokens=3000,
+            cache=True,
+            compact=True,
+        )
+        result: CharacterAgentOutput = response.parsed
+        result.character_id = character.character_id
+        self.last_usage = response.usage
+
+        assistant_content = serialize_assistant_content(response.raw_response.content)
+        new_history = list(history)
+        new_history.append(ConversationMessage(role="user", content=user_content))
+        new_history.append(
+            ConversationMessage(role="assistant", content=assistant_content)
+        )
+        checkpoint.character_conversations[character.character_id] = new_history
+
+        logger.info(
+            "Agent %s tick: %d objectives, %d directives, moved_to=%r",
+            character.name,
+            len(result.private_updates.current_objectives),
+            len(result.private_updates.directives_sent),
+            result.private_updates.moved_to,
         )
 
         return result

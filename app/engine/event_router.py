@@ -19,6 +19,34 @@ from app.schemas.event_router import EventRouterOutput
 logger = logging.getLogger(__name__)
 
 
+def _build_since_last_turn_block(acting_char) -> str:
+    """Markdown block listing arrived messages + silent observations for the
+    acting character. Rendered in the router's user message; the router
+    weaves any visible items into observable_facts so the narrator can
+    surface them (a note on the desk, a whispered aside, a sealed letter).
+
+    Returns empty string when the character has nothing queued — the
+    template then renders cleanly without a dangling header.
+    """
+    if acting_char is None:
+        return ""
+    if not acting_char.pending_observations and not acting_char.incoming_directives:
+        return ""
+
+    lines = [
+        "## Arrived For You Since Last Turn",
+        "Weave visible items into observable_facts so the narrator can surface them.",
+    ]
+    for obs in acting_char.pending_observations:
+        lines.append(f"- {obs}")
+    for d in acting_char.incoming_directives:
+        lines.append(
+            f"- **Message from {d.from_character_id}** (turn {d.turn}): {d.content}"
+        )
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 class EventRouter:
     """Single-pass event adjudication + perception routing over a rolling session history."""
 
@@ -51,6 +79,18 @@ class EventRouter:
             else (checkpoint.session.player_name or "the protagonist")
         )
 
+        # Flush any messages / observations that arrived for this player
+        # character between their last action and now. NPCs can send
+        # directives to player-bound characters (notes, whispers, letters)
+        # via directives_sent, and off-stage ticks or scene pushes can
+        # stack pending_observations. The router gets them as a distinct
+        # context block so it can fold them into the canonical event
+        # (e.g., "Johnny notices the note on his desk as he enters").
+        since_last_turn_block = _build_since_last_turn_block(acting_char)
+        if acting_char is not None:
+            acting_char.pending_observations = []
+            acting_char.incoming_directives = []
+
         messages = self.prompt_manager.render_conversation(
             "event_router",
             history=checkpoint.session_conversation,
@@ -69,6 +109,7 @@ class EventRouter:
             player_characters_block=build_player_characters_block(
                 checkpoint, acting_id
             ),
+            since_last_turn_block=since_last_turn_block,
         )
 
         # Capture the plain-text user content before LLMClient wraps it with

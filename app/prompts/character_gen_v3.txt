@@ -15,12 +15,14 @@ Generate a new character for an interactive fiction world. The character must fi
 2. Give them a distinct voice — they should sound different from existing characters.
 3. Their role and reason for presence should be grounded in the world logic.
 4. Include concrete physical appearance details, but keep them selective: 1-2 memorable details beat a full catalog.
-5. Goals should be specific and tied to their role, not generic.
-6. Set initial attitudes toward key characters they would know about.
-7. Keep backstory concise but specific — a few sentences that explain who they are.
-8. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks.
-9. If you include a tell or habitual behavior, make it situational and infrequent, not an always-on signature.
-10. In `narrative_notes`, focus on how to play the character under pressure: what they hide, what they deflect, what kind of moment changes them. Avoid stock flirtation beats and repetitive gesture prompts unless they are truly distinctive.
+5. Goals are **existential drives** — who this character is at their core. Stable across the story. Do NOT put pursuable tasks here.
+6. Current objectives are **actionable pursuits** — 1-3 concrete things this character is trying to accomplish right now, with a target and time horizon. Seed these from the Spawn Request's `objectives` (if provided) or infer from the reason the character is appearing.
+7. Set initial attitudes toward key characters they would know about.
+8. Keep backstory concise but specific — a few sentences that explain who they are.
+9. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks.
+10. If you include a tell or habitual behavior, make it situational and infrequent, not an always-on signature.
+11. In `narrative_notes`, focus on how to play the character under pressure: what they hide, what they deflect, what kind of moment changes them. Avoid stock flirtation beats and repetitive gesture prompts unless they are truly distinctive.
+12. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
 
 ## Output Format
 
@@ -39,7 +41,8 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
     "faction": "string — faction or group affiliation"
   }},
   "private_state": {{
-    "goals": ["string — what they want"],
+    "goals": ["string — existential drives, who they are at core"],
+    "current_objectives": ["string — 1-3 actionable pursuits they're working on right now"],
     "attitudes": {{"user": 0.0}},
     "secrets": [],
     "intentions_enabled": false

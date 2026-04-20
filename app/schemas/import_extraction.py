@@ -73,11 +73,19 @@ class PublicSheetExtraction(BaseModel):
 
 
 class PrivateStateExtraction(BaseModel):
+    # Existential drives — who they are at core. Stable across the story.
     goals: list[str] = Field(default_factory=list)
-    # Keys: "user" for the player character, or a character_id. Values clamped
-    # to [-1, 1] during checkpoint build.
+    # Active, actionable pursuits — what they are trying to DO right now,
+    # with a target and a time horizon. Seeded by the importer; the
+    # character agent revises these at runtime via its output.
+    current_objectives: list[str] = Field(default_factory=list)
+    # Keys: character_id. Values clamped to [-1, 1] during checkpoint build.
     attitudes: dict[str, float] = Field(default_factory=dict)
     secrets: list[str] = Field(default_factory=list)
+    # Marks this character as significant enough to warrant off-stage ticks
+    # — they'll pursue their objectives while the player isn't watching.
+    # Set true for antagonists, rivals, faction leaders; false for
+    # background/incidental characters.
     intentions_enabled: bool = False
 
 
@@ -99,6 +107,25 @@ class CharacterExtraction(BaseModel):
 class CharacterListExtraction(BaseModel):
     """Wrapper so the extraction returns a JSON object (required by output_format)."""
     characters: list[CharacterExtraction] = Field(default_factory=list)
+
+
+# ---------------- Character knowledge envelope ----------------
+
+class CharacterKnowledgeEnvelope(BaseModel):
+    """The filtered slice of world knowledge one character plausibly has.
+
+    Produced by a batch pass that sees the omniscient world (public +
+    hidden) and every character's role/backstory/secrets, and decides for
+    each character what they would plausibly know. `known_context` is a
+    single freeform field on purpose — the LLM picks the shape that best
+    conveys what this character takes for granted.
+    """
+    character_id: str
+    known_context: str = ""
+
+
+class CharacterKnowledgeListExtraction(BaseModel):
+    envelopes: list[CharacterKnowledgeEnvelope] = Field(default_factory=list)
 
 
 # ---------------- Opening extraction ----------------
