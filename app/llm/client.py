@@ -153,9 +153,10 @@ class LLMClient:
         self,
         role: str,
         messages: list[dict[str, str]],
+        *,
+        temperature: float,
+        max_tokens: int,
         response_model: type[T] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
         cache: bool = True,
         compact: bool = False,
         stream: bool = False,
@@ -170,9 +171,10 @@ class LLMClient:
             response_model: If provided, the API is asked to emit JSON matching this
                             Pydantic model's schema. The SDK parses and validates the
                             response — no client-side repair loop is needed.
-            temperature: Sampling temperature. Defaults to config value. Not supported
-                         on Opus 4.7 — switch the role's model if you need sampling control.
-            max_tokens: Max output tokens. Defaults to config value.
+            temperature: Sampling temperature. Required — each call site picks
+                         a task-appropriate value. Not supported on Opus 4.7
+                         — switch the role's model if you need sampling control.
+            max_tokens: Max output tokens. Required — pick per task.
             cache: If True and a `system` message is present, place an ephemeral cache
                    breakpoint at the end of the system block so calls that share the
                    same system (but differ in the user tail) hit the same cache entry.
@@ -189,8 +191,8 @@ class LLMClient:
         """
         del stream
         model_name = self.config.model_for_role(role)
-        temp = temperature if temperature is not None else self.config.default_temperature
-        max_tok = max_tokens if max_tokens is not None else self.config.default_max_tokens
+        temp = temperature
+        max_tok = max_tokens
         system, conversation = _split_system(messages)
 
         raw_response = await self._call_with_retry(

@@ -11,7 +11,7 @@ from app.schemas.characters import (
     CharacterRecord, CharacterStatus, PublicSheet, PrivateState,
 )
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
-from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry, SpawnRequest
+from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
 from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest, DebugFlags
@@ -63,8 +63,18 @@ CANONICAL_EVENT_EXAMPLE = {
     ],
 }
 
-DISCRIMINATOR_EXAMPLE = {
-    "event_id": "evt_0042",
+ROUTER_OUTPUT_EXAMPLE = {
+    "canonical_event": {
+        "event_id": "evt_0042",
+        "user_intent": "try to lift the building",
+        "world_adjudication": {
+            "attempted_action": "lift the building",
+            "feasible": False,
+            "resolved_outcome": "You strain; the building does not move.",
+        },
+        "scene_delta": {"time_advanced_seconds": 0, "new_scene_id": ""},
+        "observable_facts": [],
+    },
     "observers": [
         {
             "character_id": "guard_17",
@@ -80,6 +90,7 @@ DISCRIMINATOR_EXAMPLE = {
     "spawn": [],
     "dormant": [],
     "cull": [],
+    "roster_moves": [],
 }
 
 AGENT_OUTPUT_EXAMPLE = {
@@ -93,7 +104,6 @@ AGENT_OUTPUT_EXAMPLE = {
         "current_objectives": ["monitor the user more closely"],
         "attitude_delta": {"user": -0.05},
     },
-    "memory_writes": ["Observed the user attempt an impossible physical feat and fail."],
 }
 
 NARRATOR_FINAL_EXAMPLE = {
@@ -215,31 +225,32 @@ class TestCanonicalEvent:
             CanonicalEvent(**data)
 
 
-class TestDiscriminatorOutput:
+class TestEventRouterOutput:
     def test_construct(self):
-        do = DiscriminatorOutput(**DISCRIMINATOR_EXAMPLE)
-        assert len(do.observers) == 1
-        assert do.observers[0].character_id == "guard_17"
-        assert do.observers[0].response_priority == 5
+        r = EventRouterOutput(**ROUTER_OUTPUT_EXAMPLE)
+        assert len(r.observers) == 1
+        assert r.observers[0].character_id == "guard_17"
+        assert r.observers[0].response_priority == 5
+        assert r.canonical_event.event_id == "evt_0042"
 
     def test_round_trip(self):
-        do = DiscriminatorOutput(**DISCRIMINATOR_EXAMPLE)
-        rebuilt = DiscriminatorOutput(**do.model_dump())
-        assert rebuilt == do
+        r = EventRouterOutput(**ROUTER_OUTPUT_EXAMPLE)
+        rebuilt = EventRouterOutput(**r.model_dump())
+        assert rebuilt == r
 
     def test_rejects_extra_fields_on_observer(self):
-        bad_observer = {**DISCRIMINATOR_EXAMPLE["observers"][0], "secret": "leaked"}
-        data = {**DISCRIMINATOR_EXAMPLE, "observers": [bad_observer]}
+        bad_observer = {**ROUTER_OUTPUT_EXAMPLE["observers"][0], "secret": "leaked"}
+        data = {**ROUTER_OUTPUT_EXAMPLE, "observers": [bad_observer]}
         with pytest.raises(ValidationError):
-            DiscriminatorOutput(**data)
+            EventRouterOutput(**data)
 
     def test_spawn_request(self):
         data = {
-            **DISCRIMINATOR_EXAMPLE,
+            **ROUTER_OUTPUT_EXAMPLE,
             "spawn": [{"character_id": "stablehand_03", "seed": {"role": "stablehand"}}],
         }
-        do = DiscriminatorOutput(**data)
-        assert do.spawn[0].character_id == "stablehand_03"
+        r = EventRouterOutput(**data)
+        assert r.spawn[0].character_id == "stablehand_03"
 
 
 class TestCharacterAgentOutput:

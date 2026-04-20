@@ -11,8 +11,61 @@ import logging
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 
 logger = logging.getLogger(__name__)
+
+
+def iter_agent_beats(
+    agent_outputs: list[CharacterAgentOutput],
+    checkpoint: CheckpointFile,
+):
+    """Yield `(output, character | None)` pairs for each agent output.
+
+    Two consumers format agent beats differently — narrator produces
+    multi-section markdown with visibility-aware labels (name vs
+    appearance vs role, depending on whether the player has met the
+    character), while orchestrator's `_build_npc_turn_summary` produces
+    a single-line digest for silent observers' pending queues. The
+    formatting intentionally diverges because those consumers serve
+    different readers, but BOTH need the same roster lookup + the same
+    missing-character semantics.
+
+    This helper is the shared kernel: walk outputs, resolve characters
+    once via a dict (not N linear scans), hand back a tuple the caller
+    shapes as it wishes. If at some point a consumer needs different
+    missing-character behavior or a different character-id source, fork
+    here — but today they're aligned and a shared iterator keeps them
+    aligned.
+    """
+    chars_by_id = {c.character_id: c for c in checkpoint.characters}
+    for output in agent_outputs:
+        yield output, chars_by_id.get(output.character_id)
+
+
+def append_turn_to_conversation(
+    conversation: list[ConversationMessage],
+    user_content: str,
+    response,
+) -> None:
+    """Append one (user, assistant) exchange to a rolling conversation.
+
+    Every engine role (event_router, narrator, character_agent both in
+    respond + tick) persists its turn the same way: capture the user
+    message before the LLM call wrapped it with cache_control, then
+    re-serialize the raw assistant content blocks from the response and
+    append both. Keeping the pattern in one place means any future
+    tweak (e.g. truncation, summarization, different cache handling)
+    lands once.
+
+    `response` is an LLMResponse; imported lazily to avoid a module-level
+    dependency from context_builder on the LLM client.
+    """
+    from app.llm.client import serialize_assistant_content
+
+    assistant_content = serialize_assistant_content(response.raw_response.content)
+    conversation.append(ConversationMessage(role="user", content=user_content))
+    conversation.append(ConversationMessage(role="assistant", content=assistant_content))
 
 
 def build_character_packet(char: CharacterRecord) -> dict[str, str]:
@@ -194,6 +247,29 @@ def format_prior_responses(
     return "\n".join(parts)
 
 
+def resolve_acting_character(
+    checkpoint: CheckpointFile,
+    requested: str,
+) -> tuple[str, CharacterRecord | None, str]:
+    """Return `(acting_id, acting_char, acting_name)` for a turn.
+
+    Centralizes the fallback chain every role used to re-implement:
+      requested id ▶ session.player_character_id ▶ "the protagonist".
+    `acting_char` is None when the resolved id has no matching record
+    (legacy checkpoints, cull edge cases); name falls back to
+    session.player_name in that case, then to a neutral string.
+    """
+    acting_id = requested or checkpoint.session.player_character_id
+    acting_char = next(
+        (c for c in checkpoint.characters if c.character_id == acting_id), None
+    )
+    acting_name = (
+        acting_char.name if acting_char
+        else (checkpoint.session.player_name or "the protagonist")
+    )
+    return acting_id, acting_char, acting_name
+
+
 def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
     """Every character_id that belongs to a human player (bound or flagged).
 
@@ -248,6 +324,31 @@ def build_player_characters_block(
     if not lines:
         return "- No player characters bound to this session."
     return "\n".join(lines)
+
+
+def clear_character_inbox(character: CharacterRecord) -> None:
+    """Clear a character's inbox queues after they've been flushed into a
+    prompt's user message.
+
+    A character carries two per-turn queues:
+      - `pending_observations: list[str]` — things they witnessed silently
+        between their own turns. Each entry is rendered prose with a
+        `[Turn N]` prefix embedded inline.
+      - `incoming_directives: list[IncomingDirective]` — messages sent to
+        them by another character, stamped structurally with
+        `from_character_id`, `turn`, and `depth` (for delegation-chain
+        tracking).
+
+    The two queues diverge intentionally in shape — observations are
+    free-text, directives need structured depth-tracking so we can warn
+    and cap deep delegation chains. Their LIFECYCLE is symmetric: both
+    accumulate silently, both flush on the character's next response or
+    tick, both clear at the same moment. This helper guarantees they
+    stay in lockstep so nothing can flush one queue while leaving the
+    other stale.
+    """
+    character.pending_observations = []
+    character.incoming_directives = []
 
 
 def format_pending_observations_block(character: CharacterRecord) -> str:

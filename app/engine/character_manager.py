@@ -19,7 +19,7 @@ from app.schemas.characters import (
     PrivateState,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.discriminator import DiscriminatorOutput, SpawnRequest
+from app.schemas.event_router import EventRouterOutput, SpawnRequest
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,7 @@ class CharacterManager:
     ) -> None:
         """Apply an agent's attitude deltas.
 
-        Memory is handled by the character's rolling conversation; the
-        `memory_writes` field on the output is kept in the schema for
-        compatibility but no longer written anywhere on the character.
+        Memory is carried entirely by the character's rolling conversation.
         """
         char = self.get_character(checkpoint, output.character_id)
         if not char:
@@ -65,16 +63,16 @@ class CharacterManager:
             char.private_state.attitudes[target] = new_val
 
     def apply_roster_updates(
-        self, checkpoint: CheckpointFile, disc_output: DiscriminatorOutput
+        self, checkpoint: CheckpointFile, routed: EventRouterOutput,
     ) -> None:
-        """Apply discriminator roster changes (dormancy, culling)."""
-        for char_id in disc_output.dormant:
+        """Apply router-directed roster status changes (dormancy, culling)."""
+        for char_id in routed.dormant:
             char = self.get_character(checkpoint, char_id)
             if char:
                 char.status = CharacterStatus.dormant
                 logger.info("Character %s set to dormant", char_id)
 
-        for char_id in disc_output.cull:
+        for char_id in routed.cull:
             char = self.get_character(checkpoint, char_id)
             if char:
                 char.status = CharacterStatus.culled

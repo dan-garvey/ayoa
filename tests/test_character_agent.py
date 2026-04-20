@@ -115,7 +115,6 @@ def sample_agent_output():
             current_objectives=["watch this newcomer more closely"],
             attitude_delta={"user": -0.05},
         ),
-        memory_writes=["The player looked around the courtyard. Seemed lost."],
     )
 
 

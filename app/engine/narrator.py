@@ -11,17 +11,13 @@ import json
 import logging
 
 from app.engine.prompt_manager import PromptManager
-from app.llm.client import LLMClient, serialize_assistant_content
+from app.engine.context_builder import append_turn_to_conversation
+from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.conversation import ConversationMessage
+from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent
 from app.schemas.narrator import NarratorFinalOutput
-
-# DiscriminatorOutput is still used as an input hint (observation levels) — its
-# per-observer annotations inform NP2's prose. We don't depend on the Discriminator
-# class itself; the EventRouter produces a compatible shape.
-from app.schemas.discriminator import DiscriminatorOutput
 
 logger = logging.getLogger(__name__)
 
@@ -41,25 +37,23 @@ class Narrator:
         event: CanonicalEvent,
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
-        disc_output: DiscriminatorOutput | None = None,
+        routed: EventRouterOutput | None = None,
         acting_character_id: str = "",
     ) -> NarratorFinalOutput:
         """Compose final narrative prose and append the turn to narrator_conversation."""
-        from app.engine.context_builder import build_player_characters_block
+        from app.engine.context_builder import (
+            build_player_characters_block,
+            resolve_acting_character,
+        )
 
         setting_summary = self._build_setting_summary(checkpoint)
         narrative_rules = checkpoint.config.narrative_rules or "No specific narrative rules."
         scene_context = self._build_scene_context(checkpoint)
         canonical_event = json.dumps(event.model_dump(), indent=2, sort_keys=True)
-        formatted_agents = self._format_agent_outputs(agent_outputs, checkpoint, disc_output)
+        formatted_agents = self._format_agent_outputs(agent_outputs, checkpoint, routed)
 
-        acting_id = acting_character_id or checkpoint.session.player_character_id
-        acting_char = next(
-            (c for c in checkpoint.characters if c.character_id == acting_id), None
-        )
-        acting_name = (
-            acting_char.name if acting_char
-            else (checkpoint.session.player_name or "the protagonist")
+        acting_id, _, acting_name = resolve_acting_character(
+            checkpoint, acting_character_id,
         )
         player_characters_block = build_player_characters_block(checkpoint, acting_id)
 
@@ -124,12 +118,8 @@ class Narrator:
         result: NarratorFinalOutput = response.parsed
         self.last_usage = response.usage
 
-        assistant_content = serialize_assistant_content(response.raw_response.content)
-        checkpoint.narrator_conversation.append(
-            ConversationMessage(role="user", content=user_content)
-        )
-        checkpoint.narrator_conversation.append(
-            ConversationMessage(role="assistant", content=assistant_content)
+        append_turn_to_conversation(
+            checkpoint.narrator_conversation, user_content, response,
         )
 
         logger.info(
@@ -144,25 +134,22 @@ class Narrator:
         self,
         agent_outputs: list[CharacterAgentOutput],
         checkpoint: CheckpointFile,
-        disc_output: DiscriminatorOutput | None = None,
+        routed: EventRouterOutput | None = None,
     ) -> str:
         """Format agent outputs for the NP2 prompt."""
         if not agent_outputs:
             return "No characters responded to this event."
 
         obs_levels: dict[str, str] = {}
-        if disc_output:
-            for obs in disc_output.observers:
+        if routed:
+            for obs in routed.observers:
                 obs_levels[obs.character_id] = obs.observation_level
+
+        from app.engine.context_builder import iter_agent_beats
 
         known = set(checkpoint.world_state.known_characters)
         sections = []
-        for output in agent_outputs:
-            char = next(
-                (c for c in checkpoint.characters if c.character_id == output.character_id),
-                None,
-            )
-
+        for output, char in iter_agent_beats(agent_outputs, checkpoint):
             # Use name only if player has met this character; otherwise describe them
             if output.character_id in known:
                 label = char.name if char else output.character_id

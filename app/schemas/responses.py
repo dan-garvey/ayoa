@@ -22,7 +22,10 @@ class PhaseLatency(BaseModel):
 
 class DebugPayload(BaseModel):
     canonical_event: dict[str, Any] = Field(default_factory=dict)
-    discriminator: dict[str, Any] = Field(default_factory=dict)
+    # Full router output (observers, spawns, dormant/cull, roster_moves).
+    # Historically this was a separate "discriminator" pass — hence the
+    # legacy key name, retained to keep downstream log consumers working.
+    router_output: dict[str, Any] = Field(default_factory=dict)
     agent_outputs: list[dict[str, Any]] = Field(default_factory=list)
     world_updates: dict[str, Any] = Field(default_factory=dict)
     latencies: list[PhaseLatency] = Field(default_factory=list)

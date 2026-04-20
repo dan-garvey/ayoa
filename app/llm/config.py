@@ -8,17 +8,16 @@ from pydantic import BaseModel, Field
 class LLMConfig(BaseModel):
     api_key: str = ""
 
+    # The discriminator role was merged into the event router in v2; no
+    # caller asks for role="discriminator" anymore, so it's omitted here.
     role_models: dict[str, str] = Field(default_factory=lambda: {
         "event_router": "claude-sonnet-4-6",
         "narrator": "claude-sonnet-4-6",
-        "discriminator": "claude-sonnet-4-6",
         "agent": "claude-sonnet-4-6",
         "character_gen": "claude-sonnet-4-6",
     })
 
     default_model: str = "claude-sonnet-4-6"
-    default_temperature: float = 0.7
-    default_max_tokens: int = 1000
     max_retries: int = 2
     retry_base_delay: float = 1.0
     timeout: float = 60.0

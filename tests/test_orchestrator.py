@@ -11,8 +11,7 @@ from app.llm.config import LLMConfig
 from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.discriminator import DiscriminatorOutput, ObserverEntry, SpawnRequest
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -121,8 +120,18 @@ class TestCharacterManager:
 
     def test_apply_roster_dormant(self, sample_checkpoint):
         mgr = CharacterManager()
-        disc = DiscriminatorOutput(dormant=["guard_17"])
-        mgr.apply_roster_updates(sample_checkpoint, disc)
+        routed = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                event_id="e1",
+                user_intent="wait",
+                world_adjudication=WorldAdjudication(
+                    attempted_action="wait", feasible=True, resolved_outcome="",
+                ),
+                scene_delta=SceneDelta(),
+            ),
+            dormant=["guard_17"],
+        )
+        mgr.apply_roster_updates(sample_checkpoint, routed)
         char = mgr.get_character(sample_checkpoint, "guard_17")
         assert char.status.value == "dormant"
 
@@ -158,7 +167,6 @@ class TestOrchestrator:
                 dialogue=["Everything alright?"],
             ),
             private_updates=PrivateUpdates(attitude_delta={"user": 0.05}),
-            memory_writes=["The player looked around."],
         )
 
         narrator_out = NarratorFinalOutput(
@@ -265,7 +273,7 @@ class TestOrchestrator:
 
         assert response.debug is not None
         assert "event_id" in response.debug.canonical_event
-        assert "observers" in response.debug.discriminator
+        assert "observers" in response.debug.router_output
         assert response.debug.total_duration_ms > 0
         assert any(lat.phase == "event_router" for lat in response.debug.latencies)
         assert "event_router" in response.debug.models_used

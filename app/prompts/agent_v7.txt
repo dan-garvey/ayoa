@@ -84,8 +84,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
         "content": "string — the message or instruction you are sending"
       }}
     ]
-  }},
-  "memory_writes": ["string — first-person memory of what truly stood out (kept for compatibility; your conversation history is now your primary memory)"]
+  }}
 }}
 
 <<<USER>>>

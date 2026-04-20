@@ -49,4 +49,3 @@ class CharacterAgentOutput(BaseModel):
     character_id: str
     public_response: PublicResponse = Field(default_factory=PublicResponse)
     private_updates: PrivateUpdates = Field(default_factory=PrivateUpdates)
-    memory_writes: list[str] = Field(default_factory=list)

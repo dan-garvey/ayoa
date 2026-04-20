@@ -11,9 +11,12 @@ from __future__ import annotations
 import logging
 
 from app.engine.prompt_manager import PromptManager
-from app.llm.client import LLMClient, serialize_assistant_content
+from app.engine.context_builder import (
+    append_turn_to_conversation,
+    clear_character_inbox,
+)
+from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
 
 logger = logging.getLogger(__name__)
@@ -68,15 +71,13 @@ class EventRouter:
         raw content blocks, preserving any compaction blocks) to
         `checkpoint.session_conversation`.
         """
-        from app.engine.context_builder import build_player_characters_block
-
-        acting_id = acting_character_id or checkpoint.session.player_character_id
-        acting_char = next(
-            (c for c in checkpoint.characters if c.character_id == acting_id), None
+        from app.engine.context_builder import (
+            build_player_characters_block,
+            resolve_acting_character,
         )
-        acting_name = (
-            acting_char.name if acting_char
-            else (checkpoint.session.player_name or "the protagonist")
+
+        acting_id, acting_char, acting_name = resolve_acting_character(
+            checkpoint, acting_character_id,
         )
 
         # Flush any messages / observations that arrived for this player
@@ -88,8 +89,7 @@ class EventRouter:
         # (e.g., "Johnny notices the note on his desk as he enters").
         since_last_turn_block = _build_since_last_turn_block(acting_char)
         if acting_char is not None:
-            acting_char.pending_observations = []
-            acting_char.incoming_directives = []
+            clear_character_inbox(acting_char)
 
         messages = self.prompt_manager.render_conversation(
             "event_router",
@@ -134,12 +134,8 @@ class EventRouter:
             result.canonical_event.event_id = f"evt_{checkpoint.session.turn_index:04d}"
 
         # Persist the user/assistant pair to the rolling session conversation.
-        assistant_content = serialize_assistant_content(response.raw_response.content)
-        checkpoint.session_conversation.append(
-            ConversationMessage(role="user", content=user_content)
-        )
-        checkpoint.session_conversation.append(
-            ConversationMessage(role="assistant", content=assistant_content)
+        append_turn_to_conversation(
+            checkpoint.session_conversation, user_content, response,
         )
 
         logger.info(

@@ -206,7 +206,6 @@ def register(
         # The briefing embed carries the full first-time-user onboarding
         # (setting, role, facts, and a "How to play" block). Keep the
         # content message terse so they don't fight for attention.
-        from app.bot.embed import render_briefing
         briefing = render_briefing(ckpt, story_id)
         intro = f"**{character_name}** begins **{story_id}**."
         await inter.followup.send(content=intro, embed=briefing)

@@ -12,22 +12,24 @@ from __future__ import annotations
 import logging
 
 from app.engine.context_builder import (
+    append_turn_to_conversation,
     build_character_packet,
     build_character_state,
     build_characters_present,
     build_player_characters_block,
     build_scene_context,
     build_world_context,
+    clear_character_inbox,
     format_observed_facts,
     format_pending_observations_block,
     format_prior_responses,
+    resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
-from app.llm.client import LLMClient, serialize_assistant_content
+from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.conversation import ConversationMessage
 
 logger = logging.getLogger(__name__)
 
@@ -61,19 +63,13 @@ class CharacterAgent:
         # Clear the pending queues now that we're flushing into this turn's
         # user message. Both observations and directives are one-shot — once
         # delivered to the agent, they belong to its rolling conversation.
-        character.pending_observations = []
-        character.incoming_directives = []
+        clear_character_inbox(character)
 
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
 
-        acting_id = acting_character_id or checkpoint.session.player_character_id
-        acting_char = next(
-            (c for c in checkpoint.characters if c.character_id == acting_id), None
-        )
-        acting_name = (
-            acting_char.name if acting_char
-            else (checkpoint.session.player_name or "the protagonist")
+        acting_id, _, acting_name = resolve_acting_character(
+            checkpoint, acting_character_id,
         )
 
         messages = self.prompt_manager.render_conversation(
@@ -119,13 +115,10 @@ class CharacterAgent:
         result.character_id = character.character_id
         self.last_usage = response.usage
 
-        assistant_content = serialize_assistant_content(response.raw_response.content)
-        new_history = list(history)
-        new_history.append(ConversationMessage(role="user", content=user_content))
-        new_history.append(
-            ConversationMessage(role="assistant", content=assistant_content)
+        conv = checkpoint.character_conversations.setdefault(
+            character.character_id, [],
         )
-        checkpoint.character_conversations[character.character_id] = new_history
+        append_turn_to_conversation(conv, user_content, response)
 
         logger.info(
             "Agent %s: %d actions, %d dialogue lines",
@@ -155,19 +148,13 @@ class CharacterAgent:
         history = checkpoint.character_conversations.get(character.character_id, [])
 
         pending_block = format_pending_observations_block(character)
-        character.pending_observations = []
-        character.incoming_directives = []
+        clear_character_inbox(character)
 
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
 
-        acting_id = acting_character_id or checkpoint.session.player_character_id
-        acting_char = next(
-            (c for c in checkpoint.characters if c.character_id == acting_id), None
-        )
-        acting_name = (
-            acting_char.name if acting_char
-            else (checkpoint.session.player_name or "the protagonist")
+        acting_id, _, acting_name = resolve_acting_character(
+            checkpoint, acting_character_id,
         )
 
         # Scene context for the tick is the character's OWN location, not
@@ -217,13 +204,10 @@ class CharacterAgent:
         result.character_id = character.character_id
         self.last_usage = response.usage
 
-        assistant_content = serialize_assistant_content(response.raw_response.content)
-        new_history = list(history)
-        new_history.append(ConversationMessage(role="user", content=user_content))
-        new_history.append(
-            ConversationMessage(role="assistant", content=assistant_content)
+        conv = checkpoint.character_conversations.setdefault(
+            character.character_id, [],
         )
-        checkpoint.character_conversations[character.character_id] = new_history
+        append_turn_to_conversation(conv, user_content, response)
 
         logger.info(
             "Agent %s tick: %d objectives, %d directives, moved_to=%r",

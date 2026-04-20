@@ -63,8 +63,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences. `public_respons
       }}
     ],
     "moved_to": "string — scene_id if you are relocating yourself, else empty string"
-  }},
-  "memory_writes": []
+  }}
 }}
 
 <<<USER>>>

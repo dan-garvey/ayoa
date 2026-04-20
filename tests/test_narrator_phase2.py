@@ -94,7 +94,6 @@ def sample_agent_outputs():
                 expression="eyes narrow, scanning the perimeter",
             ),
             private_updates=PrivateUpdates(attitude_delta={"user": -0.05}),
-            memory_writes=["Saw the player looking around."],
         ),
     ]
 

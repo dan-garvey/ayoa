@@ -16,7 +16,11 @@ import time
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
-from app.engine.context_builder import collect_player_ids
+from app.engine.context_builder import (
+    collect_player_ids,
+    iter_agent_beats,
+    resolve_acting_character,
+)
 from app.engine.event_router import EventRouter
 from app.engine.narrator import Narrator
 from app.engine.prompt_manager import PromptManager
@@ -72,9 +76,8 @@ class Orchestrator:
         # Resolve the acting character — whose action drives this turn. Falls
         # back to the creator's binding for single-player / legacy call sites
         # that don't pass acting_character_id on the request.
-        acting_character_id = (
-            request.acting_character_id
-            or checkpoint.session.player_character_id
+        acting_character_id, _, _ = resolve_acting_character(
+            checkpoint, request.acting_character_id,
         )
         logger.info(
             "Turn %d for session %s (acting=%s)",
@@ -89,7 +92,6 @@ class Orchestrator:
             request.user_input, checkpoint, acting_character_id=acting_character_id,
         )
         event = routed.canonical_event
-        disc_output = routed.to_discriminator_output()
         latencies.append(self._phase_latency(
             "event_router",
             t0,
@@ -110,15 +112,19 @@ class Orchestrator:
                     new_scene,
                 )
 
-        self.char_mgr.apply_roster_updates(checkpoint, disc_output)
+        self.char_mgr.apply_roster_updates(checkpoint, routed)
+
+        # Collect player-controlled character_ids once and reuse. Bindings
+        # don't mutate during a turn, so recomputing on each consumer would
+        # just re-scan the whole roster N times.
+        player_ids = collect_player_ids(checkpoint)
 
         # Apply router-directed NPC movement. Player-bound characters are
         # skipped defensively — the router prompt forbids moving them, but
         # we don't trust the model to respect that every turn.
-        player_ids_for_moves = collect_player_ids(checkpoint)
         scene_graph = checkpoint.world_state.locations.scene_graph
         for move in routed.roster_moves:
-            if move.character_id in player_ids_for_moves:
+            if move.character_id in player_ids:
                 logger.warning(
                     "Router tried to move player-bound character %s; ignored",
                     move.character_id,
@@ -148,9 +154,9 @@ class Orchestrator:
                 move.reason or "no reason given",
             )
 
-        if disc_output.spawn:
+        if routed.spawn:
             t0 = time.monotonic()
-            await self.char_mgr.spawn_characters(checkpoint, disc_output.spawn)
+            await self.char_mgr.spawn_characters(checkpoint, routed.spawn)
             latencies.append(PhaseLatency(
                 phase="character_spawn",
                 duration_ms=(time.monotonic() - t0) * 1000,
@@ -160,13 +166,12 @@ class Orchestrator:
         # --- Responder selection ---
         # Exclude every player-controlled character, not just the creator's.
         # Other bound characters are humans too and never get AI responses.
-        player_ids = collect_player_ids(checkpoint)
         candidates = sorted(
-            [o for o in disc_output.observers if o.character_id not in player_ids],
+            [o for o in routed.observers if o.character_id not in player_ids],
             key=lambda o: o.response_priority,
             reverse=True,
         )
-        response_cap = min(disc_output.suggested_response_cap, MAX_RESPONDERS)
+        response_cap = min(routed.suggested_response_cap, MAX_RESPONDERS)
         responding = [o for o in candidates if o.response_priority >= 3][:response_cap]
         observing_only = [o for o in candidates if o not in responding]
 
@@ -205,7 +210,7 @@ class Orchestrator:
                 turn_index=checkpoint.session.turn_index,
                 output_text=event.world_adjudication.resolved_outcome,
                 debug=self._build_debug(
-                    event, disc_output, [], {}, latencies,
+                    event, routed, [], {}, latencies,
                     total_ms, [], short_circuit=True,
                 ) if request.debug else None,
             )
@@ -291,7 +296,7 @@ class Orchestrator:
             ))
 
         # --- Validate agent outputs for knowledge leakage ---
-        observer_facts = {o.character_id: o.facts for o in disc_output.observers}
+        observer_facts = {o.character_id: o.facts for o in routed.observers}
         validation_results = validate_all_outputs(
             agent_outputs, checkpoint, observer_facts
         )
@@ -337,7 +342,7 @@ class Orchestrator:
         # --- Narrator composition: appends to narrator_conversation ---
         t0 = time.monotonic()
         final = await self.narrator.compose(
-            request.user_input, event, agent_outputs, checkpoint, disc_output,
+            request.user_input, event, agent_outputs, checkpoint, routed,
             acting_character_id=acting_character_id,
         )
         latencies.append(self._phase_latency(
@@ -380,6 +385,7 @@ class Orchestrator:
         t0 = time.monotonic()
         tick_usages = await self._run_ticks(
             checkpoint, acted_this_turn, acting_character_id,
+            player_ids=player_ids,
         )
         if tick_usages:
             latencies.append(self._phase_latency(
@@ -403,7 +409,7 @@ class Orchestrator:
             turn_index=checkpoint.session.turn_index,
             output_text=final.final_text,
             debug=self._build_debug(
-                event, disc_output, agent_outputs, final.world_updates,
+                event, routed, agent_outputs, final.world_updates,
                 latencies, total_ms, validation_entries, short_circuit=False,
             ) if request.debug else None,
         )
@@ -434,10 +440,13 @@ class Orchestrator:
         checkpoint: CheckpointFile,
         acted_this_turn: set[str],
         acting_character_id: str,
+        player_ids: set[str] | None = None,
     ) -> list[dict]:
         """Off-stage tick pass. Returns the list of per-tick usage dicts
         so the caller can fold them into phase latencies; empty list when
-        no ticks fired."""
+        no ticks fired. `player_ids` may be passed by the caller to avoid
+        re-scanning the roster; falls back to computing it here for tests
+        that invoke _run_ticks directly."""
         session = checkpoint.session
         current_scene = checkpoint.world_state.locations.current_scene_id
         scene_changed = (
@@ -459,7 +468,8 @@ class Orchestrator:
         session.tick_turn_counter = 0
         session.tick_last_scene_id = current_scene
 
-        player_ids = collect_player_ids(checkpoint)
+        if player_ids is None:
+            player_ids = collect_player_ids(checkpoint)
         eligible = [
             c for c in checkpoint.characters
             if c.private_state.intentions_enabled
@@ -644,14 +654,10 @@ class Orchestrator:
         )
         parts = [f"{acting_name}: {user_input}"]
 
-        for output in agent_outputs:
-            char = self.char_mgr.get_character(checkpoint, output.character_id)
+        for output, char in iter_agent_beats(agent_outputs, checkpoint):
             name = char.name if char else output.character_id
-            pieces = []
-            for action in output.public_response.actions:
-                pieces.append(action)
-            for line in output.public_response.dialogue:
-                pieces.append(f'said "{line}"')
+            pieces = list(output.public_response.actions)
+            pieces.extend(f'said "{line}"' for line in output.public_response.dialogue)
             if pieces:
                 parts.append(f"{name}: {'; '.join(pieces)}")
 
@@ -660,7 +666,7 @@ class Orchestrator:
     def _build_debug(
         self,
         event,
-        disc_output,
+        routed,
         agent_outputs: list[CharacterAgentOutput],
         world_updates: dict,
         latencies: list[PhaseLatency],
@@ -677,7 +683,7 @@ class Orchestrator:
 
         return DebugPayload(
             canonical_event=event.model_dump(),
-            discriminator=disc_output.model_dump(),
+            router_output=routed.model_dump(),
             agent_outputs=[o.model_dump() for o in agent_outputs],
             world_updates=world_updates,
             latencies=latencies,

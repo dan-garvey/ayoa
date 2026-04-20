@@ -134,6 +134,8 @@ class TestLLMClientComplete:
         result = await client.complete(
             role="narrator",
             messages=[{"role": "user", "content": "Hi"}],
+            temperature=0.5,
+            max_tokens=100,
         )
 
         assert isinstance(result, LLMResponse)
@@ -153,6 +155,8 @@ class TestLLMClientComplete:
                 {"role": "user", "content": "Sing."},
             ],
             cache=False,
+            temperature=0.5,
+            max_tokens=100,
         )
 
         call_kwargs = mock.call_args.kwargs
@@ -169,6 +173,8 @@ class TestLLMClientComplete:
                 {"role": "system", "content": "You are a bard."},
                 {"role": "user", "content": "Sing."},
             ],
+            temperature=0.5,
+            max_tokens=100,
         )
 
         call_kwargs = mock.call_args.kwargs
@@ -189,6 +195,8 @@ class TestLLMClientComplete:
         await client.complete(
             role="narrator",
             messages=[{"role": "user", "content": "Hi"}],
+            temperature=0.5,
+            max_tokens=100,
         )
 
         call_kwargs = mock.call_args.kwargs
@@ -206,6 +214,8 @@ class TestLLMClientComplete:
                 {"role": "user", "content": "Hi"},
             ],
             cache=False,
+            temperature=0.5,
+            max_tokens=100,
         )
 
         call_kwargs = mock.call_args.kwargs
@@ -232,6 +242,8 @@ class TestLLMClientComplete:
             role="narrator",
             messages=[{"role": "user", "content": "open door"}],
             response_model=CanonicalEvent,
+            temperature=0.5,
+            max_tokens=100,
         )
 
         assert mock.call_args.kwargs["output_format"] is CanonicalEvent
@@ -249,6 +261,8 @@ class TestLLMClientComplete:
                 role="narrator",
                 messages=[{"role": "user", "content": "x"}],
                 response_model=CanonicalEvent,
+                temperature=0.5,
+                max_tokens=100,
             )
 
     @pytest.mark.asyncio
@@ -258,6 +272,8 @@ class TestLLMClientComplete:
         await client.complete(
             role="narrator",
             messages=[{"role": "user", "content": "hi"}],
+            temperature=0.5,
+            max_tokens=100,
         )
 
         call_kwargs = mock.call_args.kwargs
@@ -290,6 +306,8 @@ class TestLLMClientComplete:
             role="narrator",
             messages=[{"role": "user", "content": "hi"}],
             compact=True,
+            temperature=0.5,
+            max_tokens=100,
         )
 
         call_kwargs = stream_mock.call_args.kwargs
@@ -321,6 +339,8 @@ class TestLLMClientRetry:
         result = await client.complete(
             role="narrator",
             messages=[{"role": "user", "content": "hi"}],
+            temperature=0.5,
+            max_tokens=100,
         )
 
         assert result.content == "ok"
@@ -340,6 +360,8 @@ class TestLLMClientRetry:
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "hi"}],
+                temperature=0.5,
+                max_tokens=100,
             )
 
         # 1 initial + 1 retry = 2 attempts (max_retries=1)
