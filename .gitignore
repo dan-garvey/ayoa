@@ -9,6 +9,10 @@ __pycache__/
 .bot.log
 app/storage/playtest_reports/
 app/storage/saves/*
+app/storage/stories/*
+app/storage/sessions/*
+!app/storage/stories/.gitkeep
+!app/storage/sessions/.gitkeep
 app/storage/bot/
 core.egg-info/
 .coverage
