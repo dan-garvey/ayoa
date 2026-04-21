@@ -175,9 +175,6 @@ class EventRouter:
         result: EventRouterOutput = response.parsed
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
-        if not result.canonical_event.event_id:
-            result.canonical_event.event_id = f"evt_{checkpoint.session.turn_index:04d}"
-
         # Persist the user/assistant pair to the rolling session conversation.
         append_turn_to_conversation(
             checkpoint.session_conversation, user_content, response,

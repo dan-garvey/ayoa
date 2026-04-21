@@ -30,7 +30,6 @@ from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import LocationState, SessionState, WorldState
 
-
 def _ckpt(*, player_location: str = "hall") -> CheckpointFile:
     return CheckpointFile(
         session=SessionState(
@@ -57,7 +56,6 @@ def _ckpt(*, player_location: str = "hall") -> CheckpointFile:
         ],
     )
 
-
 def _llm_response(parsed):
     raw = MagicMock()
     text_block = MagicMock()
@@ -68,7 +66,6 @@ def _llm_response(parsed):
     raw.model = "claude-sonnet-4-6"
     from app.llm.client import LLMResponse
     return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
-
 
 class TestPlayerLocationFollowsScene:
     """Core fix: when scene_delta.new_scene_id fires, the acting
@@ -91,8 +88,6 @@ class TestPlayerLocationFollowsScene:
 
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
-                event_id="e1",
-                user_intent="walk to garden",
                 world_adjudication=WorldAdjudication(
                     attempted_action="go to the garden",
                     feasible=True,
@@ -137,8 +132,6 @@ class TestPlayerLocationFollowsScene:
 
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
-                event_id="e1",
-                user_intent="teleport",
                 world_adjudication=WorldAdjudication(
                     attempted_action="teleport",
                     feasible=False,
@@ -164,7 +157,6 @@ class TestPlayerLocationFollowsScene:
         assert ckpt.world_state.locations.current_scene_id == "hall"
         aldric = next(c for c in ckpt.characters if c.character_id == "aldric")
         assert aldric.location == "hall"
-
 
 class TestOpeningDirectivePresence:
     """The router's opening_directive template var is populated only on

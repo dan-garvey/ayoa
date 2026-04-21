@@ -8,15 +8,22 @@ from app.schemas.events import CanonicalEvent
 
 
 class ObserverEntry(BaseModel):
-    """Which characters observed the event, at what fidelity, and how
-    strongly the fiction expects them to respond."""
+    """Which characters observed the event and how strongly they should
+    respond. Observers at priority 0 should be omitted entirely — they're
+    routing noise, not silent responders.
+
+    Observation level is a single-char enum: "d" = direct (in the scene),
+    "i" = indirect (adjacent, heard/saw spillover), "f" = inferred
+    (aftermath or ambient inference only). Agents see `observable_facts`
+    from the canonical event; the level is used downstream to filter that
+    set, not to duplicate it per-observer."""
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
-    observation_level: str = "direct"
-    facts: list[str] = Field(default_factory=list)
-    # 0=silent, 1=minimal, 2=low, 3=moderate, 4=high, 5=compelled
-    response_priority: int = 0
+    observation_level: str = "d"
+    # 1=minimal, 2=low, 3=moderate, 4=high, 5=compelled. Omit 0-priority
+    # observers from the output entirely.
+    response_priority: int = 1
 
 
 class SpawnRequest(BaseModel):
@@ -80,7 +87,6 @@ class EventRouterOutput(BaseModel):
 
     canonical_event: CanonicalEvent
     observers: list[ObserverEntry] = Field(default_factory=list)
-    suggested_response_cap: int = 2
     spawn: list[SpawnRequest] = Field(default_factory=list)
     dormant: list[str] = Field(default_factory=list)
     cull: list[str] = Field(default_factory=list)

@@ -15,11 +15,8 @@ from app.schemas.events import (
     WorldAdjudication,
 )
 
-
 def _canonical() -> CanonicalEvent:
     return CanonicalEvent(
-        event_id="e1",
-        user_intent="look around",
         world_adjudication=WorldAdjudication(
             attempted_action="survey the room",
             feasible=True,
@@ -27,7 +24,6 @@ def _canonical() -> CanonicalEvent:
         ),
         scene_delta=SceneDelta(),
     )
-
 
 def _llm_response(parsed):
     from app.llm.client import LLMResponse
@@ -39,7 +35,6 @@ def _llm_response(parsed):
     raw.content = [text_block]
     raw.model = "claude-haiku-4-5"
     return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-haiku-4-5")
-
 
 class TestSummarizeTurn:
     def _run(self, coro):
@@ -100,7 +95,6 @@ class TestSummarizeTurn:
         call_kwargs = client.complete.await_args.kwargs
         assert call_kwargs["role"] == "summarizer"
 
-
 class TestRouterConsumesPendingRecap:
     """event_router builds the recent_turn_recap block from
     checkpoint.session.pending_recap and clears the buffer after
@@ -143,7 +137,6 @@ class TestRouterConsumesPendingRecap:
             recent_turn_recap="",
         )
         assert "Previous Turn — Narrator Delta Note" not in rendered
-
 
 class TestPendingRecapField:
     def test_defaults_empty(self):

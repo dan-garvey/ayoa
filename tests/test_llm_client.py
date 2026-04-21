@@ -226,8 +226,6 @@ class TestLLMClientComplete:
     async def test_structured_output_passes_output_format(self, client):
         """When response_model is set, we hand the Pydantic class to the SDK via output_format."""
         event = CanonicalEvent.model_validate({
-            "event_id": "evt_001",
-            "user_intent": "open the door",
             "world_adjudication": {
                 "attempted_action": "user opens door",
                 "feasible": True,
@@ -248,8 +246,8 @@ class TestLLMClientComplete:
 
         assert mock.call_args.kwargs["output_format"] is CanonicalEvent
         assert isinstance(result.parsed, CanonicalEvent)
-        assert result.parsed.user_intent == "open the door"
         assert result.parsed.world_adjudication.feasible is True
+        assert result.parsed.world_adjudication.attempted_action == "user opens door"
 
     @pytest.mark.asyncio
     async def test_structured_output_missing_parsed_raises(self, client):

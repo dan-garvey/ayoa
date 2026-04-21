@@ -47,8 +47,6 @@ CHARACTER_EXAMPLE = {
 }
 
 CANONICAL_EVENT_EXAMPLE = {
-    "event_id": "evt_0042",
-    "user_intent": "lift the building with bare hands",
     "world_adjudication": {
         "attempted_action": "user attempts impossible feat",
         "feasible": False,
@@ -64,8 +62,6 @@ CANONICAL_EVENT_EXAMPLE = {
 
 ROUTER_OUTPUT_EXAMPLE = {
     "canonical_event": {
-        "event_id": "evt_0042",
-        "user_intent": "try to lift the building",
         "world_adjudication": {
             "attempted_action": "lift the building",
             "feasible": False,
@@ -77,12 +73,7 @@ ROUTER_OUTPUT_EXAMPLE = {
     "observers": [
         {
             "character_id": "guard_17",
-            "observation_level": "direct",
-            "facts": [
-                "The user braces against the building.",
-                "The building does not move.",
-                "The user visibly strains.",
-            ],
+            "observation_level": "d",
             "response_priority": 5,
         }
     ],
@@ -204,7 +195,7 @@ class TestCharacterRecord:
 class TestCanonicalEvent:
     def test_construct(self):
         ce = CanonicalEvent(**CANONICAL_EVENT_EXAMPLE)
-        assert ce.user_intent == "lift the building with bare hands"
+        assert ce.world_adjudication.attempted_action.startswith("user attempts")
         assert ce.world_adjudication.feasible is False
         assert ce.scene_delta.time_advanced_seconds == 6
         assert len(ce.observable_facts) == 3
@@ -226,7 +217,7 @@ class TestEventRouterOutput:
         assert len(r.observers) == 1
         assert r.observers[0].character_id == "guard_17"
         assert r.observers[0].response_priority == 5
-        assert r.canonical_event.event_id == "evt_0042"
+        assert r.observers[0].observation_level == "d"
 
     def test_round_trip(self):
         r = EventRouterOutput(**ROUTER_OUTPUT_EXAMPLE)

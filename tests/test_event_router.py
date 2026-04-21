@@ -18,18 +18,15 @@ from app.schemas.state import (
     WorldState,
 )
 
-
 @pytest.fixture
 def prompt_manager():
     return PromptManager("app/prompts")
-
 
 @pytest.fixture
 def mock_client():
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock()
     return client
-
 
 def _llm_response(parsed) -> LLMResponse:
     """Build an LLMResponse with a mocked raw_response.content so engine code
@@ -42,7 +39,6 @@ def _llm_response(parsed) -> LLMResponse:
     raw.content = [text_block]
     raw.model = "claude-sonnet-4-6"
     return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
-
 
 @pytest.fixture
 def sample_checkpoint():
@@ -90,13 +86,10 @@ def sample_checkpoint():
         ],
     )
 
-
 @pytest.fixture
 def sample_router_output():
     return EventRouterOutput(
         canonical_event=CanonicalEvent(
-            event_id="",
-            user_intent="Look around the courtyard",
             world_adjudication=WorldAdjudication(
                 attempted_action="Player surveys the courtyard",
                 feasible=True,
@@ -110,7 +103,6 @@ def sample_router_output():
         ),
     )
 
-
 class TestEventRouterRun:
     @pytest.mark.asyncio
     async def test_basic_run(
@@ -121,8 +113,8 @@ class TestEventRouterRun:
 
         result = await router.run("I look around.", sample_checkpoint)
 
-        assert result.canonical_event.event_id == "evt_0003"
         assert result.canonical_event.world_adjudication.feasible is True
+        assert result.canonical_event.world_adjudication.attempted_action.startswith("Player surveys")
 
     @pytest.mark.asyncio
     async def test_prompt_contains_routing_context(

@@ -147,10 +147,15 @@ class Narrator:
         if not agent_outputs:
             return "No characters responded to this event."
 
+        # Router emits single-char codes (d/i/f); expand to human-readable
+        # words for the narrator's rule-5 language.
+        _level_names = {"d": "direct", "i": "indirect", "f": "inferred"}
         obs_levels: dict[str, str] = {}
         if routed:
             for obs in routed.observers:
-                obs_levels[obs.character_id] = obs.observation_level
+                obs_levels[obs.character_id] = _level_names.get(
+                    obs.observation_level, obs.observation_level
+                )
 
         from app.engine.context_builder import iter_agent_beats
 

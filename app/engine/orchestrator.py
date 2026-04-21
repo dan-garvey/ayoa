@@ -293,12 +293,11 @@ class Orchestrator:
             key=lambda o: o.response_priority,
             reverse=True,
         )
-        # Three clamps stack: the router's suggestion, the session
-        # setting (operator tunable via /settings), and the module hard
-        # cap (safety rail so a bad setting can't fan out to 200 agents).
+        # Two clamps stack: the session setting (operator tunable via
+        # /settings) and the module hard cap (safety rail so a bad
+        # setting can't fan out to 200 agents).
         settings = checkpoint.session.config.settings
         response_cap = min(
-            routed.suggested_response_cap,
             max(0, settings.max_responders),
             RESPONDERS_HARD_CAP,
         )
@@ -370,7 +369,7 @@ class Orchestrator:
                 try:
                     primary_result = await asyncio.wait_for(
                         self.agent_engine.respond(
-                            primary_char, primary_obs.facts, checkpoint,
+                            primary_char, event.observable_facts, checkpoint,
                             prior_responses=[],
                             acting_character_id=acting_character_id,
                         ),
@@ -391,7 +390,7 @@ class Orchestrator:
                     if char:
                         task = asyncio.wait_for(
                             self.agent_engine.respond(
-                                char, obs.facts, checkpoint,
+                                char, event.observable_facts, checkpoint,
                                 prior_responses=list(agent_outputs),
                                 acting_character_id=acting_character_id,
                             ),
@@ -426,7 +425,11 @@ class Orchestrator:
             ))
 
         # --- Validate agent outputs for knowledge leakage ---
-        observer_facts = {o.character_id: o.facts for o in routed.observers}
+        # Every responding observer saw the canonical event's observable
+        # facts (the router no longer per-character-filters them).
+        observer_facts = {
+            o.character_id: event.observable_facts for o in routed.observers
+        }
         validation_results = validate_all_outputs(
             agent_outputs, checkpoint, observer_facts
         )
@@ -443,7 +446,7 @@ class Orchestrator:
         ]
         checkpoint.visibility_log.append({
             "turn": checkpoint.session.turn_index,
-            "event_id": event.event_id,
+            "event_id": f"evt_{checkpoint.session.turn_index:04d}",
             "validations": validation_entries,
         })
 
@@ -826,9 +829,9 @@ class Orchestrator:
             if not char:
                 continue
 
-            if obs.observation_level == "direct":
+            if obs.observation_level == "d":
                 entry = f"[Turn {turn_idx}] {summary}"
-            elif obs.observation_level == "indirect":
+            elif obs.observation_level == "i":
                 entry = f"[Turn {turn_idx}] [Heard nearby] {summary}"
             else:
                 entry = f"[Turn {turn_idx}] [Sensed disturbance] Something happened nearby."

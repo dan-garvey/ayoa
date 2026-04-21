@@ -18,20 +18,17 @@ from app.schemas.state import (
     WorldState,
 )
 
-
 # --- Fixtures ---
 
 @pytest.fixture
 def prompt_manager():
     return PromptManager("app/prompts")
 
-
 @pytest.fixture
 def mock_client():
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock()
     return client
-
 
 def _llm_response(parsed) -> LLMResponse:
     raw = MagicMock()
@@ -42,7 +39,6 @@ def _llm_response(parsed) -> LLMResponse:
     raw.content = [text_block]
     raw.model = "claude-sonnet-4-6"
     return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
-
 
 @pytest.fixture
 def sample_checkpoint():
@@ -64,12 +60,9 @@ def sample_checkpoint():
         config=SessionConfig(narrative_rules="Concise prose. No clichés."),
     )
 
-
 @pytest.fixture
 def sample_event():
     return CanonicalEvent(
-        event_id="evt_0003",
-        user_intent="Look around the courtyard",
         world_adjudication=WorldAdjudication(
             attempted_action="Player surveys the courtyard",
             feasible=True,
@@ -81,7 +74,6 @@ def sample_event():
             "The player glances at the dry fountain.",
         ],
     )
-
 
 @pytest.fixture
 def sample_agent_outputs():
@@ -97,7 +89,6 @@ def sample_agent_outputs():
         ),
     ]
 
-
 @pytest.fixture
 def sample_narrator_output():
     return NarratorFinalOutput(
@@ -111,7 +102,6 @@ def sample_narrator_output():
             assistant="You scan the courtyard...",
         ),
     )
-
 
 # --- Tests ---
 
@@ -151,7 +141,6 @@ class TestNarratorPhase2:
             m["content"] for m in call_args.kwargs["messages"]
             if isinstance(m["content"], str)
         )
-        assert "evt_0003" in prompt
         assert "dry fountain" in prompt
 
     @pytest.mark.asyncio
@@ -229,7 +218,6 @@ class TestNarratorPhase2:
         call_args = mock_client.complete.call_args
         assert call_args.kwargs["role"] == "narrator"
         assert call_args.kwargs["response_model"] == NarratorFinalOutput
-
 
 class TestFormatAgentOutputs:
     def test_single_agent(self, mock_client, prompt_manager, sample_checkpoint):

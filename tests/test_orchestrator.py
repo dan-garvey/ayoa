@@ -18,7 +18,6 @@ from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import LocationState, SessionState, WorldState
 
-
 # --- Fixtures ---
 
 @pytest.fixture
@@ -27,7 +26,6 @@ def mock_client():
     client.complete = AsyncMock()
     client.config = LLMConfig()
     return client
-
 
 @pytest.fixture
 def sample_checkpoint():
@@ -56,14 +54,12 @@ def sample_checkpoint():
         ],
     )
 
-
 @pytest.fixture
 def mock_checkpoint_mgr(sample_checkpoint):
     mgr = MagicMock()
     mgr.load_latest.return_value = sample_checkpoint
     mgr.save.return_value = None
     return mgr
-
 
 def _llm_response(parsed) -> LLMResponse:
     """Shape the LLMResponse like the new engine expects (with raw_response.content)."""
@@ -76,11 +72,9 @@ def _llm_response(parsed) -> LLMResponse:
     raw.model = "claude-sonnet-4-6"
     return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
 
-
 @pytest.fixture
 def prompt_manager():
     return PromptManager("app/prompts")
-
 
 # --- Tests ---
 
@@ -100,8 +94,6 @@ class TestCharacterManager:
         mgr = CharacterManager()
         routed = EventRouterOutput(
             canonical_event=CanonicalEvent(
-                event_id="e1",
-                user_intent="wait",
                 world_adjudication=WorldAdjudication(
                     attempted_action="wait", feasible=True, resolved_outcome="",
                 ),
@@ -113,7 +105,6 @@ class TestCharacterManager:
         char = mgr.get_character(sample_checkpoint, "guard_17")
         assert char.status.value == "dormant"
 
-
 class TestOrchestrator:
     @pytest.mark.asyncio
     async def test_full_turn(self, mock_client, mock_checkpoint_mgr, prompt_manager):
@@ -121,8 +112,6 @@ class TestOrchestrator:
         # 3 LLM calls: EventRouter (merged NP1+Disc), Agent, NP2.
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
-                event_id="evt_0000",
-                user_intent="look around",
                 world_adjudication=WorldAdjudication(
                     attempted_action="survey area",
                     feasible=True,
@@ -133,7 +122,6 @@ class TestOrchestrator:
             observers=[
                 ObserverEntry(
                     character_id="guard_17",
-                    facts=["Player looks around."],
                     response_priority=5,
                 ),
             ],
@@ -182,8 +170,6 @@ class TestOrchestrator:
         """Turn where no characters respond — EventRouter returns no observers."""
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
-                event_id="evt_0000",
-                user_intent="think quietly",
                 world_adjudication=WorldAdjudication(
                     attempted_action="internal reflection",
                     feasible=True,
@@ -222,8 +208,6 @@ class TestOrchestrator:
         """Debug mode includes internal artifacts on the merged path."""
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
-                event_id="evt_0000",
-                user_intent="test",
                 world_adjudication=WorldAdjudication(
                     attempted_action="test",
                     feasible=True,
@@ -252,13 +236,12 @@ class TestOrchestrator:
         response = await orchestrator.process_turn(request)
 
         assert response.debug is not None
-        assert "event_id" in response.debug.canonical_event
+        assert "world_adjudication" in response.debug.canonical_event
         assert "observers" in response.debug.router_output
         assert response.debug.total_duration_ms > 0
         assert any(lat.phase == "event_router" for lat in response.debug.latencies)
         assert "event_router" in response.debug.models_used
         assert isinstance(response.debug.validations, list)
-
 
 class TestCharacterSpawn:
     @pytest.mark.asyncio

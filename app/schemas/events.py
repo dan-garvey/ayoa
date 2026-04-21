@@ -19,12 +19,15 @@ class SceneDelta(BaseModel):
 
 
 class CanonicalEvent(BaseModel):
-    """Produced by Narrator Phase 1. LLM output target."""
+    """Produced by the event router's adjudication pass. LLM output target.
+
+    `user_intent` was dropped in favor of `world_adjudication.attempted_action`
+    — the latter is the normalized form the pipeline actually uses. `event_id`
+    was dropped too; the orchestrator tags the visibility log directly from
+    turn_index so there's no need for the router to emit one."""
 
     model_config = ConfigDict(extra="forbid")
 
-    event_id: str = ""
-    user_intent: str
     world_adjudication: WorldAdjudication
     scene_delta: SceneDelta = Field(default_factory=SceneDelta)
     observable_facts: list[str] = Field(default_factory=list)

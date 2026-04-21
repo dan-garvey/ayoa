@@ -40,10 +40,8 @@ author's note, not an in-fiction attempt. It is a directive to the narrator
 about how the story should proceed, not something the acting character is
 physically doing. When the user_input is fully parenthesized OOC:
 
-- **user_intent**: restate the narrative directive plainly ("Open the
-  story", "Advance time to morning", "Fade to black and end the scene").
 - **feasible**: always `true` — these are directorial, not physical.
-- **attempted_action**: a short paraphrase of the directive.
+- **attempted_action**: a short paraphrase of the directive ("Open the story", "Advance time to morning", "Fade to black and end the scene"). This is the single normalized field — the old `user_intent` field is gone.
 - **resolved_outcome**: a one-line neutral description of the transition
   being set up. CRITICAL for `(begin)`: frame this as arrival-in-progress,
   not arrival-already-completed. Correct framing: "{acting_character_name}
@@ -115,11 +113,11 @@ physically doing. When the user_input is fully parenthesized OOC:
 
 4. Build `canonical_event`.
    - `world_adjudication.resolved_outcome` must be in third person present tense, referring to the acting character by name ({acting_character_name}). Other player characters, when they appear, are also named in third person.
-   - Keep it plain, causal, and compact. Do not write the final polished scene here.
+   - **Be as short as the moment demands.** One or two sentences is typical. If the player's action is "walk to the gate" the resolved outcome is a single line. Reserve longer prose only for moments where the physical detail genuinely carries consequence. Do not narrate the polished scene — that's the narrator's job, not yours. Every extra sentence here compounds into the rolling history on every subsequent turn.
    - Never break the fourth wall.
    - Never make new choices for any player character.
    - `scene_delta.new_scene_id` should be the destination scene_id when the acting character clearly moves.
-   - `observable_facts` must contain only concrete, sensory-level facts that nearby characters could perceive.
+   - `observable_facts` must contain only concrete, sensory-level facts that nearby characters could perceive. These are the ground truth every present character shares — the pipeline hands the full list to every observer. Do not duplicate or pre-filter them per-character; that's done downstream based on observation level.
    - Include the acting character's spoken words verbatim when they speak.
    - Prefer facts caused directly by the acting character's action or immediate environmental change.
    - Do NOT pre-write decorative NPC reaction beats such as widened eyes, tilted heads, smiles, or other expressive micro-reactions unless that NPC physically already acted as part of the resolved outcome.
@@ -139,19 +137,17 @@ physically doing. When the user_input is fully parenthesized OOC:
    - Dormant characters do not observe anything and should not appear in `observers`.
    - Other player characters present at the scene DO observe the event as well (they are people in the room), but they never appear in `observers` — their responses come from their human players, not from you. Silently skip them.
 
-7. For each observer, include only the subset of `canonical_event.observable_facts` that this specific character could plausibly perceive.
+7. Every present character receives the full `canonical_event.observable_facts` downstream — you do NOT emit per-character filtered facts. The `observation_level` field on each observer ("d" direct / "i" indirect / "f" inferred) is the only per-character signal you produce for perception; the pipeline uses it to shape rendering.
 
-8. Assign `response_priority` from 0-5.
+8. Assign `response_priority` from 1-5. Only emit observers you would expect to react. Characters who are present but have no reason to react this turn are simply omitted — there is no "priority 0" entry.
    - 5 = compelled: directly addressed, directly asked, or explicit target
    - 4 = high: event directly affects goals, duties, or secrets
    - 3 = moderate: socially relevant and they would naturally react
    - 2 = low: noticeable but not compelling
    - 1 = minimal: barely registers
-   - 0 = silent: no reason to react
 
 9. Keep the scene focused.
    - Most turns should have 0-2 responders at priority 3+.
-   - Use `suggested_response_cap` to keep the eventual fan-out tight.
    - **Rotate who speaks.** Check the session history above: if a
      character responded in either of the last two turns, drop their
      `response_priority` by 1–2 unless the current event is directly
@@ -197,30 +193,26 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 
 {{
   "canonical_event": {{
-    "event_id": "",
-    "user_intent": "string — plain-language restatement of what the acting character is trying to do",
     "world_adjudication": {{
       "attempted_action": "string — normalized description of the physical/social action",
       "feasible": true or false,
-      "resolved_outcome": "string — what actually happens in the world, in third person present tense, naming the acting character"
+      "resolved_outcome": "string — what actually happens in the world, third person present tense, naming the acting character. As short as the moment demands — one or two sentences is typical."
     }},
     "scene_delta": {{
       "time_advanced_seconds": integer,
       "new_scene_id": "string — destination scene_id if movement occurred, else empty string"
     }},
     "observable_facts": [
-      "string — concrete, sensory-level observation"
+      "string — concrete, sensory-level observation. Every present character receives the full list; do not duplicate or pre-filter."
     ]
   }},
   "observers": [
     {{
       "character_id": "string — must match a character_id from the registry, and must NOT be any player-bound character_id",
-      "observation_level": "direct" or "indirect" or "inferred",
-      "facts": ["string — only the observable facts this character could perceive"],
-      "response_priority": 0-5
+      "observation_level": "d" or "i" or "f" (direct / indirect / inferred — single-char codes),
+      "response_priority": 1-5 (omit this observer entirely if priority would be 0)
     }}
   ],
-  "suggested_response_cap": 2,
   "spawn": [
     {{
       "character_id": "string — a snake_case unique id for the new character",
