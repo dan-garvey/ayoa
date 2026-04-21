@@ -95,7 +95,7 @@ def main() -> None:
 
     base = os.path.splitext(os.path.basename(args.source))[0]
     story_id = args.story_id or base
-    output_path = args.output or f"app/storage/saves/{story_id}/ckpt_0000.json"
+    output_path = args.output or f"app/storage/stories/{story_id}/ckpt_0000.json"
 
     asyncio.run(main_async(
         args.source, output_path, story_id,
