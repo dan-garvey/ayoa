@@ -317,14 +317,7 @@ class LLMClient:
                 kwargs["messages"] = messages
 
         if response_model is not None:
-            # output_format is the SDK's convenience kwarg: the Python class
-            # gets its JSON schema extracted locally AND parsed_output wired
-            # to the response. output_config is where the wire-level
-            # parameters live; we use it to request "high" compile effort,
-            # which gives Anthropic's grammar compiler more headroom than
-            # the default. The SDK merges the two at request time.
             kwargs["output_format"] = response_model
-            kwargs["output_config"] = {"effort": "high"}
 
         # Route through the beta client whenever we're using a beta
         # feature (compaction, structured output). Anthropic's
