@@ -194,11 +194,45 @@ There is no length limit — produce whatever volume the source warrants.
   connections the source does describe. All scene_ids in `connected_to`
   should match an existing entry's `scene_id`.
 
-- **narrative_rules**: Prose discipline, pacing, style, dialogue, subtext,
-  success/failure metrics — everything about HOW to narrate this story.
-  This is the author's voice and direction for the engine's narrator. If the
-  source has extensive style guidance, all of it belongs here verbatim or
-  near-verbatim."""
+- **narrative_rules**: ONLY the story-specific narrative delta. The
+  engine's narrator, router, and character-agent prompts already handle
+  the generic craft discipline that every literary story shares — prose
+  rules against stock phrases and filler, pacing (0-5 short paragraphs
+  per response, stop when an NPC finishes speaking), information
+  asymmetry enforced structurally by the pipeline, earned-outcomes /
+  deferral posture, "never speak for the player," no menu options, no
+  unearned sycophancy, no consolation signals on failure, rivals played
+  to win, NPCs-have-lives-between-turns. **Do not restate any of that
+  here.**
+
+  What DOES belong in `narrative_rules`:
+    - The story's signature structural constraint (Article Nineteen / a
+      ticking clock / Price of Crossing / an Isolation Mandate — the
+      named, world-specific pressure that shapes every scene).
+    - Faction-response triggers and escalation logic specific to this
+      conspiracy or antagonist structure.
+    - Per-story tone or POV deviations from engine defaults (e.g.
+      second-person-present, an unusual narrator posture).
+    - Moral framing of antagonists that's unique to this world's ethics
+      (e.g. "the conspirators' arguments should be genuinely
+      compelling, not simple villainy" when the story demands it).
+
+  What does NOT belong (already handled by engine prompts):
+    - Forbidden stock phrases lists ("mask slips," "flickers in her
+      eyes") — in narrator prompt.
+    - Dialogue-and-pacing rules — in narrator prompt.
+    - Love-interest / rival structural requirements as generic patterns
+      — handled per-character via `narrative_notes` and via agent
+      prompt discipline.
+    - Information-asymmetry rules — structurally enforced.
+    - Success/failure evaluation metrics — these are authoring rubrics,
+      not runtime instructions.
+
+  Be aggressive about keeping this field minimal. A 10,000-word
+  `narrative_rules` block is a signal the extraction didn't understand
+  which parts the engine already handles. Target: the story's
+  distinguishing craft guidance only — often 500-2000 characters, not
+  10,000+."""
 
 
 CHARACTER_EXTRACTION_INSTRUCTIONS = """\
@@ -289,6 +323,36 @@ depth as the source describes them.
   contradictions, social constraints, and dramatic function. Include
   situational tells if the source makes them distinctive; do not invent
   stock mannerisms the source does not mention.
+
+## Preserve authored interior passages verbatim — do NOT bullet-compress
+
+If the source prompt contains clearly-authored sections of interior
+prose about a character — for example sections explicitly labeled
+"Private Sensuality," "Emotional Interior," "Hidden Feelings," "Inner
+Life," "Sensual Geography," "What Drives Them," or similar — preserve
+that prose **verbatim** into `personality` or `narrative_notes`. Do not
+flatten it to a bullet list. Do not rewrite it into your own voice. Do
+not abstract the specific sensory, emotional, or psychological detail
+into a summary.
+
+Rule of thumb: if the source wrote a paragraph, your field carries a
+paragraph. If the source wrote a list of specific erogenous zones or
+emotional tells or private habits with rich context, your field
+carries that list with its context intact. The engine's character
+agent reads these fields directly and needs the specificity —
+"Aldric's two suppressed attractions to Seraphel (curse-driven verse
+she won't explain) and Thessaly (psychological strangeness he cannot
+categorize), each suppressed for a different reason" is not
+interchangeable with "Aldric is attracted to Seraphel and Thessaly."
+The importer's preservation-analysis pass explicitly calls out
+compression of these passages as a quality defect, so this is not
+optional craft advice.
+
+Which field gets it: authored sections about intimate/sensual
+specifics go in `narrative_notes` (portrayal direction). Authored
+sections about the character's inner psychology go in `personality`.
+When the source doesn't name the section but writes a long
+uninterrupted passage of interior texture, treat it the same way.
 
 ## Information isolation — critical
 
