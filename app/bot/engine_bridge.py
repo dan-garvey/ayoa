@@ -59,18 +59,45 @@ logger = logging.getLogger(__name__)
 
 
 class EngineBridge:
-    """Shared engine state for all Discord interactions."""
+    """Shared engine state for all Discord interactions.
+
+    Stories (imported master prompts, pristine ckpt_0000 only) live under
+    `stories_dir`. Player sessions (one dir per session_id, ckpt_NNNN
+    grows with turn_index) live under `sessions_dir`. Keeping them in
+    separate namespaces means creating a new session from a story
+    doesn't drag the story's `import_analysis` along — that stays on
+    the story's canonical source.
+
+    `saves_dir` is accepted for backward compatibility; when set, it
+    becomes the parent of both stories_dir and sessions_dir unless those
+    are specified explicitly. Legacy flat layouts at
+    `app/storage/saves/` are auto-migrated on construction.
+    """
 
     def __init__(
         self,
         *,
-        saves_dir: str = "app/storage/saves",
+        stories_dir: str | None = None,
+        sessions_dir: str | None = None,
+        saves_dir: str | None = None,
         prompts_dir: str = "app/prompts",
         llm_config: LLMConfig | None = None,
     ):
-        self.saves_dir = Path(saves_dir)
+        # `saves_dir` is a convenience for tests and backward-compat: when
+        # provided, stories and sessions live under subdirs of it unless
+        # overridden. New code should pass stories_dir / sessions_dir
+        # directly.
+        if saves_dir is not None:
+            base = Path(saves_dir)
+            self.stories_dir = Path(stories_dir) if stories_dir else base / "stories"
+            self.sessions_dir = Path(sessions_dir) if sessions_dir else base / "sessions"
+        else:
+            self.stories_dir = Path(stories_dir or "app/storage/stories")
+            self.sessions_dir = Path(sessions_dir or "app/storage/sessions")
+        self.stories_dir.mkdir(parents=True, exist_ok=True)
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.client = LLMClient(config=llm_config or LLMConfig.from_env())
-        self.checkpoint_mgr = CheckpointManager(save_dir=str(self.saves_dir))
+        self.checkpoint_mgr = CheckpointManager(save_dir=str(self.sessions_dir))
         self.prompt_mgr = PromptManager(prompts_dir=prompts_dir)
         self.orchestrator = Orchestrator(
             self.client, self.checkpoint_mgr, self.prompt_mgr
@@ -85,24 +112,18 @@ class EngineBridge:
     # ---- session lifecycle ---------------------------------------------------
 
     def list_story_ids(self) -> list[str]:
-        """Return available story IDs — directories under saves/ that contain
-        a ckpt_0000.json. Excludes any session directory we created previously
-        (those have names prefixed with 'discord_')."""
-        if not self.saves_dir.exists():
+        """Return available story IDs — directories under stories_dir that
+        contain a ckpt_0000.json."""
+        if not self.stories_dir.exists():
             return []
-        ids = []
-        for child in sorted(self.saves_dir.iterdir()):
-            if not child.is_dir():
-                continue
-            if child.name.startswith("discord_"):
-                continue
-            if (child / "ckpt_0000.json").exists():
-                ids.append(child.name)
-        return ids
+        return sorted(
+            child.name for child in self.stories_dir.iterdir()
+            if child.is_dir() and (child / "ckpt_0000.json").exists()
+        )
 
     def load_story_ckpt(self, story_id: str) -> CheckpointFile:
         """Load a story's source ckpt_0000 (pristine, not a session checkpoint)."""
-        path = self.saves_dir / story_id / "ckpt_0000.json"
+        path = self.stories_dir / story_id / "ckpt_0000.json"
         if not path.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {path}")
         return CheckpointFile.model_validate_json(path.read_text())
@@ -128,7 +149,7 @@ class EngineBridge:
         Refuses to overwrite an existing story — caller should delete first
         or pick a different story_id. Raises FileExistsError in that case.
         """
-        dst_dir = self.saves_dir / story_id
+        dst_dir = self.stories_dir / story_id
         dst_ckpt = dst_dir / "ckpt_0000.json"
         if dst_ckpt.exists():
             raise FileExistsError(
@@ -208,7 +229,7 @@ class EngineBridge:
 
         Raises FileNotFoundError if the source story does not exist.
         """
-        source_dir = self.saves_dir / story_id
+        source_dir = self.stories_dir / story_id
         if not source_dir.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {source_dir}")
 
@@ -220,14 +241,15 @@ class EngineBridge:
         # story_id. Match by suffix for safety.
         slug = re.sub(r"[^a-z0-9_]+", "_", story_id.lower()).strip("_")
         suffix = f"_{slug}"
-        for child in self.saves_dir.iterdir():
-            if not child.is_dir():
-                continue
-            if child.name.startswith("discord_") and child.name.endswith(suffix):
-                file_count = sum(1 for _ in child.iterdir())
-                shutil.rmtree(child)
-                sessions_removed += 1
-                files_removed += file_count
+        if self.sessions_dir.exists():
+            for child in self.sessions_dir.iterdir():
+                if not child.is_dir():
+                    continue
+                if child.name.startswith("discord_") and child.name.endswith(suffix):
+                    file_count = sum(1 for _ in child.iterdir())
+                    shutil.rmtree(child)
+                    sessions_removed += 1
+                    files_removed += file_count
 
         file_count = sum(1 for _ in source_dir.iterdir())
         shutil.rmtree(source_dir)
@@ -262,11 +284,11 @@ class EngineBridge:
         We wipe those so the new session starts clean — otherwise load_latest
         picks up an old pre-schema-migration checkpoint and personalize fails.
         """
-        src = self.saves_dir / story_id / "ckpt_0000.json"
+        src = self.stories_dir / story_id / "ckpt_0000.json"
         if not src.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {src}")
 
-        dst_dir = self.saves_dir / session_id
+        dst_dir = self.sessions_dir / session_id
         dst_dir.mkdir(parents=True, exist_ok=True)
 
         # Clear any stale checkpoint files in this session dir — user called
@@ -276,13 +298,14 @@ class EngineBridge:
         for old in dst_dir.glob("ckpt_*.json"):
             old.unlink()
 
+        # Copy the story's pristine ckpt_0000 into the new session dir,
+        # rewriting session_id and dropping import_analysis — the analysis
+        # describes the one-time import pass and belongs on the story's
+        # canonical source, not on every session derived from it.
         dst = dst_dir / "ckpt_0000.json"
-        shutil.copy2(src, dst)
-
-        # Rewrite session_id inside the JSON before personalizing.
-        raw = dst.read_text()
-        data = json.loads(raw)
+        data = json.loads(src.read_text())
         data["session"]["session_id"] = session_id
+        data.pop("import_analysis", None)
         dst.write_text(json.dumps(data, indent=2))
 
         # Personalize the pristine ckpt_0000, save as ckpt_0001.
@@ -881,6 +904,98 @@ def _append_session_note(ckpt: CheckpointFile, note: str) -> None:
         role="assistant",
         content=f'{{"takeover_note": {json.dumps(note)}}}',
     ))
+
+
+def migrate_legacy_saves(
+    legacy_dir: Path,
+    stories_dir: Path,
+    sessions_dir: Path,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """Move a legacy flat `saves/` layout into the split stories/ + sessions/
+    layout. Returns `(stories_moved, sessions_moved)`.
+
+    Safety:
+    - All three paths are explicit — no hidden defaults that could target
+      production state by accident.
+    - Refuses to run if `legacy_dir` resolves to a parent/equal of either
+      target dir, or vice-versa — prevents moving a dir into its own
+      subtree.
+    - Refuses to run if either target already contains subdirs — prior
+      migration present.
+    - `dry_run=True` logs the classification without moving anything.
+
+    Classification: a legacy dir is treated as a session if it has more
+    than one ckpt, a non-zero turn_index, or any transcript entries.
+    Otherwise it's treated as a story (pristine ckpt_0000).
+
+    Not called automatically. Invoke via scripts/migrate_storage.py with
+    explicit --legacy-dir / --stories-dir / --sessions-dir arguments.
+    """
+    legacy_dir = Path(legacy_dir).resolve()
+    stories_dir = Path(stories_dir).resolve()
+    sessions_dir = Path(sessions_dir).resolve()
+
+    if not legacy_dir.exists() or not legacy_dir.is_dir():
+        raise FileNotFoundError(f"legacy_dir does not exist: {legacy_dir}")
+
+    for target in (stories_dir, sessions_dir):
+        # Target cannot be inside legacy and legacy cannot be inside target.
+        if target == legacy_dir or target in legacy_dir.parents:
+            raise ValueError(
+                f"target {target} is an ancestor of legacy_dir {legacy_dir}"
+            )
+        if legacy_dir in target.parents:
+            raise ValueError(
+                f"legacy_dir {legacy_dir} is an ancestor of target {target}"
+            )
+
+    for target in (stories_dir, sessions_dir):
+        if target.exists() and any(c.is_dir() for c in target.iterdir()):
+            raise RuntimeError(
+                f"target already has content: {target} "
+                f"— refusing to migrate into a populated directory"
+            )
+
+    if not dry_run:
+        stories_dir.mkdir(parents=True, exist_ok=True)
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+
+    stories_moved = 0
+    sessions_moved = 0
+    for child in legacy_dir.iterdir():
+        if not child.is_dir():
+            continue
+        ckpts = sorted(child.glob("ckpt_*.json"))
+        if not ckpts:
+            continue
+        kind = "story"
+        try:
+            latest = json.loads(ckpts[-1].read_text())
+            turn = latest.get("session", {}).get("turn_index", 0) or 0
+            has_transcript = bool(latest.get("transcript"))
+            if len(ckpts) > 1 or turn > 0 or has_transcript:
+                kind = "session"
+        except Exception:
+            kind = "session"  # safer to treat unknown as session (don't overwrite a story import)
+        target = (stories_dir if kind == "story" else sessions_dir) / child.name
+        logger.info(
+            "%s %s → %s/%s",
+            "[dry-run] would move" if dry_run else "Moving",
+            child.name, kind, child.name,
+        )
+        if not dry_run:
+            if target.exists():
+                logger.warning(
+                    "Target %s already exists, skipping", target
+                )
+                continue
+            shutil.move(str(child), str(target))
+        if kind == "story":
+            stories_moved += 1
+        else:
+            sessions_moved += 1
+    return stories_moved, sessions_moved
 
 
 def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
