@@ -26,7 +26,13 @@ class LLMConfig(BaseModel):
     default_model: str = "claude-sonnet-4-6"
     max_retries: int = 2
     retry_base_delay: float = 1.0
-    timeout: float = 60.0
+    # Anthropic's server-side deadline for a single request is 10 minutes.
+    # Client timeouts shorter than that truncate long structured-output
+    # grammar-compilation passes and surface as "Request timed out or
+    # interrupted." See https://docs.anthropic.com/en/api/errors#long-requests
+    # — they explicitly recommend using streaming (we do) plus not undercutting
+    # the server's own deadline with a shorter client-side one.
+    timeout: float = 600.0
     # Compaction trigger (beta). Sonnet 4.6 has a 1M context window with no
     # long-context pricing tier, so we defer compaction until we're within
     # ~100K tokens of the window limit. Tune down for smaller-window models.
