@@ -246,14 +246,15 @@ class TestOrchestrator:
 class TestCharacterSpawn:
     @pytest.mark.asyncio
     async def test_spawn_character(self, mock_client, sample_checkpoint):
+        from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
-        new_char = CharacterRecord(
-            character_id="stablehand_01",
+        authored = AuthoredCharacter(
             name="Tom the Stablehand",
             location="courtyard",
-            public_sheet=PublicSheet(role="stablehand", traits=["nervous"]),
+            role="stablehand",
+            traits=["nervous"],
         )
-        mock_client.complete.return_value = _llm_response(new_char)
+        mock_client.complete.return_value = _llm_response(authored)
 
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 
@@ -283,13 +284,10 @@ class TestCharacterSpawn:
 
     @pytest.mark.asyncio
     async def test_spawn_limit(self, mock_client, sample_checkpoint):
+        from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
-        new_char = CharacterRecord(
-            character_id="npc",
-            name="NPC",
-            location="courtyard",
-        )
-        mock_client.complete.return_value = _llm_response(new_char)
+        authored = AuthoredCharacter(name="NPC", location="courtyard")
+        mock_client.complete.return_value = _llm_response(authored)
 
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 

@@ -136,17 +136,20 @@ class CharacterManager:
             location=scene_id,
         )
 
+        # Use the flat AuthoredCharacter response model — the full
+        # CharacterRecord grammar (enum, nested queues, nested sub-models)
+        # pushes Anthropic's structured-output compiler past its deadline.
+        from app.schemas.takeover import AuthoredCharacter
         response = await self.client.complete(
             role="agent",
             messages=messages,
-            response_model=CharacterRecord,
+            response_model=AuthoredCharacter,
             temperature=0.6,
             max_tokens=3000,
         )
-        char: CharacterRecord = response.parsed
-
-        # Enforce character_id and location from request
-        char.character_id = req.character_id
+        authored: AuthoredCharacter = response.parsed
+        char = authored.to_record(character_id=req.character_id)
+        # Enforce location from request
         char.location = scene_id
 
         return char

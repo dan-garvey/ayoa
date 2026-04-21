@@ -165,16 +165,15 @@ class TestCreateCustomCharacter:
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
 
-        authored = CharacterRecord(
-            character_id="",  # engine will overwrite
+        from app.schemas.takeover import AuthoredCharacter
+        authored = AuthoredCharacter(
             name="Tessa",
-            public_sheet=PublicSheet(role="scout", traits=["quick"]),
+            role="scout",
+            traits=["quick"],
             backstory="Trained in the hills.",
             personality="Wary.",
-            private_state=PrivateState(
-                goals=["find the informant"],
-                secrets=["carries a forged seal"],
-            ),
+            goals=["find the informant"],
+            secrets=["carries a forged seal"],
             location="courtyard",
         )
         out = TakeoverAuthoredOutput(character=authored, session_note="")
@@ -209,11 +208,8 @@ class TestCreateCustomCharacter:
         ckpt = _make_checkpoint(characters=[existing])
         _seed(bridge, ckpt)
 
-        authored = CharacterRecord(
-            character_id="tessa",  # what the router might hand back
-            name="Tessa",
-            public_sheet=PublicSheet(role="scout"),
-        )
+        from app.schemas.takeover import AuthoredCharacter
+        authored = AuthoredCharacter(name="Tessa", role="scout")
         out = TakeoverAuthoredOutput(character=authored, session_note="")
         bridge.client.complete = AsyncMock(return_value=_llm_response(out))
 
@@ -327,25 +323,23 @@ class TestReplaceWithCustom:
         ]
         _seed(bridge, ckpt)
 
-        authored = CharacterRecord(
-            character_id="anything",  # ignored — engine keeps target id
+        from app.schemas.takeover import AuthoredCharacter
+        authored = AuthoredCharacter(
             name="Brooding Rival",
             location="somewhere_else",  # ignored — location preserved
-            public_sheet=PublicSheet(
-                role="brooder", faction="loners", traits=["quiet"],
-            ),
+            role="brooder",
+            faction="loners",
+            traits=["quiet"],
             backstory="A new, grim history.",
             personality="Cold and calculating.",
             narrative_notes="Portray with long silences.",
             known_context="Knows the new truth.",
-            private_state=PrivateState(
-                goals=["new vendetta"],
-                secrets=["hides a dagger"],
-                intentions_enabled=True,
-                # These would be ignored — the authored value for
-                # current_objectives shouldn't overwrite the target's.
-                current_objectives=["unused"],
-            ),
+            goals=["new vendetta"],
+            secrets=["hides a dagger"],
+            intentions_enabled=True,
+            # Ignored — the authored value for current_objectives
+            # shouldn't overwrite the target's.
+            current_objectives=["unused"],
         )
         out = TakeoverAuthoredOutput(
             character=authored, session_note="The rival has changed.",

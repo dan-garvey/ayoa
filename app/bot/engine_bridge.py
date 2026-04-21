@@ -30,7 +30,7 @@ from app.engine.settings import (
 from app.engine.story_importer import run_import, run_preservation_analysis
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord
+from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
@@ -497,11 +497,11 @@ class EngineBridge:
             mode="describe",
             description=description,
         )
-        new_char = out.character
-        new_char.character_id = _pick_unused_character_id(ckpt, new_char.name)
+        new_id = _pick_unused_character_id(ckpt, out.character.name)
+        new_char = out.character.to_record(character_id=new_id)
         new_char.is_player = True
         ckpt.characters.append(new_char)
-        ckpt.session.character_bindings[new_char.character_id] = str(user_id)
+        ckpt.session.character_bindings[new_id] = str(user_id)
 
         if out.session_note:
             _append_session_note(ckpt, out.session_note)
@@ -579,18 +579,23 @@ class EngineBridge:
         )
         authored = out.character
 
-        # Identity overwrite from authored; circumstances preserved from target.
+        # Identity overwrite from authored (flat shape); circumstances
+        # preserved from target.
         target.name = authored.name
-        target.public_sheet = authored.public_sheet
+        target.public_sheet = PublicSheet(
+            role=authored.role,
+            traits=list(authored.traits),
+            voice=authored.voice,
+            appearance=authored.appearance,
+            faction=authored.faction,
+        )
         target.backstory = authored.backstory
         target.personality = authored.personality
         target.narrative_notes = authored.narrative_notes
         target.known_context = authored.known_context
-        target.private_state.goals = list(authored.private_state.goals)
-        target.private_state.secrets = list(authored.private_state.secrets)
-        target.private_state.intentions_enabled = (
-            authored.private_state.intentions_enabled
-        )
+        target.private_state.goals = list(authored.goals)
+        target.private_state.secrets = list(authored.secrets)
+        target.private_state.intentions_enabled = authored.intentions_enabled
         # Keep target's location, status, incoming_directives,
         # pending_observations, current_objectives as-is — those are the
         # "circumstances" the player inherits.
