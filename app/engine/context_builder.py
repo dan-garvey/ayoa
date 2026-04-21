@@ -71,7 +71,7 @@ def append_turn_to_conversation(
 def build_character_packet(char: CharacterRecord) -> dict[str, str]:
     """Build the stable character-identity variables for the agent system prompt.
 
-    Dynamic state (goals/attitudes/secrets) is rendered into the per-turn user
+    Dynamic state (goals/objectives/secrets) is rendered into the per-turn user
     message separately; this function covers the frozen-identity portion.
     """
     traits = ", ".join(char.public_sheet.traits) if char.public_sheet.traits else "none noted"
@@ -108,16 +108,9 @@ def build_character_state(char: CharacterRecord) -> dict[str, str]:
         else "None."
     )
 
-    attitudes_lines = []
-    for target, value in char.private_state.attitudes.items():
-        label = _attitude_label(value)
-        attitudes_lines.append(f"- {target}: {value:+.1f} ({label})")
-    attitudes = "\n".join(attitudes_lines) if attitudes_lines else "No strong opinions."
-
     return {
         "character_goals": goals,
         "character_current_objectives": objectives,
-        "character_attitudes": attitudes,
         "character_secrets": secrets,
     }
 
@@ -197,15 +190,7 @@ def build_characters_present(
 
         role = char.public_sheet.role or "unknown role"
         appearance = char.public_sheet.appearance or "nondescript"
-        attitude = character.private_state.attitudes.get(char.character_id)
-        att_note = ""
-        if attitude is not None and abs(attitude) >= 0.1:
-            if attitude > 0:
-                att_note = " (you regard them positively)"
-            else:
-                att_note = " (you regard them negatively)"
-
-        present.append(f"- {char.name}: {role}, {appearance}{att_note}")
+        present.append(f"- {char.name}: {role}, {appearance}")
 
     if not present:
         return "No other characters are present."
@@ -371,21 +356,3 @@ def format_pending_observations_block(character: CharacterRecord) -> str:
         )
     lines.append("")  # trailing blank line before next section
     return "\n".join(lines) + "\n"
-
-
-def _attitude_label(value: float) -> str:
-    """Convert attitude float to a human-readable label."""
-    if value >= 0.7:
-        return "strong affinity"
-    elif value >= 0.3:
-        return "positive"
-    elif value >= 0.1:
-        return "mildly positive"
-    elif value > -0.1:
-        return "neutral"
-    elif value > -0.3:
-        return "mildly negative"
-    elif value > -0.7:
-        return "negative"
-    else:
-        return "hostile"

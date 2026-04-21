@@ -62,8 +62,6 @@ def _print_tick(idx: int, assistant_text: str) -> None:
         print(f"    moved_to: {pu['moved_to']}")
     for s in pu.get("scenes_created", []) or []:
         print(f"    scenes_created: {s.get('scene_id')} — {s.get('name', '')}")
-    if pu.get("attitude_delta"):
-        print(f"    attitude_delta: {pu['attitude_delta']}")
 
 
 def main() -> int:

@@ -62,7 +62,6 @@ Commands:
   /settings <key> <value>           Update a setting
   /status                           Session summary
   /history [N]                      Print all turns, or last N
-  /attitudes [character_id]         Print attitude map (all, or one character)
   /quit                             Exit (Ctrl-D also works)
 
 Plain text is an in-character action for the current actor. Use "(begin)"
@@ -549,40 +548,6 @@ class CLIState:
                 print(f"> {entry.user}")
             print(entry.assistant)
         print()
-
-    def cmd_attitudes(self, arg: str) -> None:
-        """Print the attitude graph for debugging. No arg: every character
-        with non-empty attitudes. With a character_id: just that one."""
-        from app.engine.context_builder import _attitude_label
-
-        ckpt = self.engine.load_latest(self.session_id)
-        target = arg.strip()
-
-        if target:
-            char = next(
-                (c for c in ckpt.characters if c.character_id == target), None,
-            )
-            if char is None:
-                print(f"no character: {target}")
-                return
-            chars = [char]
-        else:
-            chars = [
-                c for c in ckpt.characters
-                if c.private_state and c.private_state.attitudes
-            ]
-            if not chars:
-                print("(no attitudes recorded yet)")
-                return
-
-        for c in chars:
-            atts = c.private_state.attitudes if c.private_state else {}
-            print(f"{c.name} ({c.character_id}):")
-            if not atts:
-                print("  (no opinions)")
-                continue
-            for tgt, v in sorted(atts.items(), key=lambda kv: kv[1]):
-                print(f"  {tgt:30s}  {v:+.2f}  ({_attitude_label(v)})")
 
     def cmd_quit(self, arg: str) -> None:
         self.running = False

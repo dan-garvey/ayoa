@@ -506,7 +506,7 @@ class EngineBridge:
     ) -> CharacterRecord:
         """Mode='replace': graft a player-authored character onto an
         existing NPC's slot. Preserves circumstances (location, status,
-        attitudes toward others, incoming_directives, pending_observations)
+        incoming_directives, pending_observations, current_objectives)
         and overwrites identity (name, sheet, backstory, personality,
         goals, known_context, secrets, narrative_notes). Clears the
         target's rolling character_conversation so the new self starts
@@ -554,7 +554,7 @@ class EngineBridge:
         target.private_state.intentions_enabled = (
             authored.private_state.intentions_enabled
         )
-        # Keep target's location, status, attitudes, incoming_directives,
+        # Keep target's location, status, incoming_directives,
         # pending_observations, current_objectives as-is — those are the
         # "circumstances" the player inherits.
         target.is_player = True
@@ -689,11 +689,6 @@ class EngineBridge:
                 "## What You Keep To Yourself\n"
                 + "\n".join(f"- {s}" for s in ps.secrets)
             )
-        if ps.attitudes:
-            att_lines = [
-                f"- {k}: {v:+.1f}" for k, v in ps.attitudes.items()
-            ]
-            lines.append("## How You See Others\n" + "\n".join(att_lines))
 
         return "\n\n".join(lines)
 

@@ -77,7 +77,6 @@ def build_known_entities(
     Includes:
     - Their own name and details
     - Names from observed facts
-    - Characters they have attitudes toward
     - Their own backstory and personality
     - World facts (common knowledge)
     """
@@ -96,20 +95,6 @@ def build_known_entities(
         for word in fact.lower().split():
             if len(word) > 3:
                 known.add(word)
-
-    # Characters they know about (from attitudes)
-    for target_id in character.private_state.attitudes:
-        known.add(target_id.replace("_", " "))
-        for part in target_id.split("_"):
-            if len(part) > 2:
-                known.add(part)
-        # Also find the actual character name
-        for ch in checkpoint.characters:
-            if ch.character_id == target_id:
-                known.add(ch.name.lower())
-                for part in ch.name.lower().split():
-                    if len(part) > 2:
-                        known.add(part)
 
     # Character's own backstory entities
     known |= extract_entities(character.backstory)

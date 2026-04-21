@@ -57,7 +57,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences. `public_respons
   }},
   "private_updates": {{
     "current_objectives": ["string — FULL authoritative list of what you are pursuing right now"],
-    "attitude_delta": {{}},
     "directives_sent": [
       {{
         "to": "string — character_id of the recipient",
@@ -84,9 +83,6 @@ Goals (who you are):
 
 Current Objectives (what you're pursuing right now):
 {character_current_objectives}
-
-Attitudes:
-{character_attitudes}
 
 Secrets:
 {character_secrets}

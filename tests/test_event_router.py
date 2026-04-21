@@ -79,7 +79,7 @@ def sample_checkpoint():
                 name="Captain Vero",
                 location="courtyard",
                 public_sheet=PublicSheet(role="guard captain", traits=["disciplined"]),
-                private_state=PrivateState(attitudes={"user": 0.0}),
+                private_state=PrivateState(),
             ),
             CharacterRecord(
                 character_id="servant_01",

@@ -93,7 +93,7 @@ def sample_agent_outputs():
                 dialogue=["Storm's coming. Best head inside."],
                 expression="eyes narrow, scanning the perimeter",
             ),
-            private_updates=PrivateUpdates(attitude_delta={"user": -0.05}),
+            private_updates=PrivateUpdates(),
         ),
     ]
 

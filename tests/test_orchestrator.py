@@ -51,7 +51,7 @@ def sample_checkpoint():
                 name="Captain Vero",
                 location="courtyard",
                 public_sheet=PublicSheet(role="guard captain"),
-                private_state=PrivateState(attitudes={"user": 0.0}),
+                private_state=PrivateState(),
             ),
         ],
     )
@@ -95,29 +95,6 @@ class TestCharacterManager:
         mgr = CharacterManager()
         char = mgr.get_character(sample_checkpoint, "nonexistent")
         assert char is None
-
-    def test_apply_attitude_delta(self, sample_checkpoint):
-        mgr = CharacterManager()
-        output = CharacterAgentOutput(
-            character_id="guard_17",
-            private_updates=PrivateUpdates(attitude_delta={"user": -0.1}),
-        )
-        mgr.apply_agent_output(sample_checkpoint, output)
-        char = mgr.get_character(sample_checkpoint, "guard_17")
-        assert char.private_state.attitudes["user"] == pytest.approx(-0.1)
-
-    def test_apply_attitude_clamped(self, sample_checkpoint):
-        mgr = CharacterManager()
-        # Set initial attitude to 0.9
-        char = mgr.get_character(sample_checkpoint, "guard_17")
-        char.private_state.attitudes["user"] = 0.9
-        # Apply delta that would exceed 1.0
-        output = CharacterAgentOutput(
-            character_id="guard_17",
-            private_updates=PrivateUpdates(attitude_delta={"user": 0.5}),
-        )
-        mgr.apply_agent_output(sample_checkpoint, output)
-        assert char.private_state.attitudes["user"] == 1.0
 
     def test_apply_roster_dormant(self, sample_checkpoint):
         mgr = CharacterManager()
@@ -167,7 +144,7 @@ class TestOrchestrator:
             public_response=PublicResponse(
                 dialogue=["Everything alright?"],
             ),
-            private_updates=PrivateUpdates(attitude_delta={"user": 0.05}),
+            private_updates=PrivateUpdates(),
         )
 
         narrator_out = NarratorFinalOutput(

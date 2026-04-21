@@ -482,9 +482,8 @@ class Orchestrator:
             [self.narrator.last_usage],
         ))
 
-        # --- Apply agent outputs (attitude deltas + objectives + directives) ---
+        # --- Apply agent outputs (objectives + directives) ---
         for output in agent_outputs:
-            self.char_mgr.apply_agent_output(checkpoint, output)
             char = self.char_mgr.get_character(checkpoint, output.character_id)
             if char:
                 self._apply_agent_private_updates(

@@ -79,8 +79,6 @@ class PrivateStateExtraction(BaseModel):
     # with a target and a time horizon. Seeded by the importer; the
     # character agent revises these at runtime via its output.
     current_objectives: list[str] = Field(default_factory=list)
-    # Keys: character_id. Values clamped to [-1, 1] during checkpoint build.
-    attitudes: dict[str, float] = Field(default_factory=dict)
     secrets: list[str] = Field(default_factory=list)
     # Marks this character as significant enough to warrant off-stage ticks
     # — they'll pursue their objectives while the player isn't watching.

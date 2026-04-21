@@ -307,7 +307,6 @@ class TestReplaceWithCustom:
             private_state=PrivateState(
                 goals=["old goal"],
                 current_objectives=["win the duel"],
-                attitudes={"playerX": -0.3},
                 secrets=["old secret"],
                 intentions_enabled=False,
             ),
@@ -343,9 +342,8 @@ class TestReplaceWithCustom:
                 goals=["new vendetta"],
                 secrets=["hides a dagger"],
                 intentions_enabled=True,
-                # These would be ignored/preserved — the authored values
-                # for attitudes/current_objectives shouldn't overwrite.
-                attitudes={"someone_else": 0.5},
+                # These would be ignored — the authored value for
+                # current_objectives shouldn't overwrite the target's.
                 current_objectives=["unused"],
             ),
         )
@@ -377,7 +375,6 @@ class TestReplaceWithCustom:
 
         # Circumstances preserved
         assert updated.location == "garden"
-        assert updated.private_state.attitudes == {"playerX": -0.3}
         assert updated.private_state.current_objectives == ["win the duel"]
         assert updated.pending_observations == ["saw the flash"]
         assert len(updated.incoming_directives) == 1

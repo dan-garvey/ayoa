@@ -4,7 +4,7 @@ Three modes, one prompt (`takeover_v1`), three output shapes:
 
 - **describe** — user hands the router a character concept. The router
   spins up a full character record (name, role, backstory, objectives,
-  attitudes, placement) that fits the world. No existing NPC is touched.
+  placement) that fits the world. No existing NPC is touched.
 
 - **suggest** — user hands the router a character concept plus "I want
   to replace someone." The router surveys the roster and returns 2–4
@@ -14,7 +14,7 @@ Three modes, one prompt (`takeover_v1`), three output shapes:
   The router returns the final authored character (same shape as
   describe) which the engine will graft onto the chosen NPC's slot —
   name and appearance overwritten, everything else (location,
-  attitudes toward them, objectives, directives) preserved.
+  objectives, directives) preserved.
 """
 
 from __future__ import annotations

@@ -122,7 +122,6 @@ class TestPromptManagerWithRealTemplates:
             character_personality="Stoic but caring.",
             character_goals="- maintain order",
             character_current_objectives="- monitor the new arrival",
-            character_attitudes="- aldric: -0.1 (neutral)",
             character_secrets="- knows the hidden passage",
             character_narrative_notes="Right hand twitches when lying.",
             world_context="Genre: fantasy",

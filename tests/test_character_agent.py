@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
-    _attitude_label,
     build_character_packet,
     build_character_state,
     build_scene_context,
@@ -68,7 +67,6 @@ def guard_character():
         ),
         private_state=PrivateState(
             goals=["maintain order", "protect the estate"],
-            attitudes={"user": -0.1, "servant_01": 0.3},
             secrets=["knows about the hidden passage"],
             intentions_enabled=True,
         ),
@@ -113,7 +111,6 @@ def sample_agent_output():
         ),
         private_updates=PrivateUpdates(
             current_objectives=["watch this newcomer more closely"],
-            attitude_delta={"user": -0.05},
         ),
     )
 
@@ -134,14 +131,12 @@ class TestContextBuilder:
         state = build_character_state(guard_character)
         assert "maintain order" in state["character_goals"]
         assert "hidden passage" in state["character_secrets"]
-        assert "user" in state["character_attitudes"]
 
     def test_build_character_state_empty(self):
         char = CharacterRecord(character_id="minimal", name="Nobody")
         state = build_character_state(char)
         assert state["character_goals"] == "None specified."
         assert state["character_secrets"] == "None."
-        assert state["character_attitudes"] == "No strong opinions."
 
     def test_build_scene_context(self, sample_checkpoint):
         context = build_scene_context(sample_checkpoint)
@@ -186,15 +181,6 @@ class TestContextBuilder:
         assert "Since your last response" in block
         assert "shout in the hall" in block
         assert "Footsteps receding" in block
-
-    def test_attitude_labels(self):
-        assert _attitude_label(0.8) == "strong affinity"
-        assert _attitude_label(0.5) == "positive"
-        assert _attitude_label(0.15) == "mildly positive"
-        assert _attitude_label(0.0) == "neutral"
-        assert _attitude_label(-0.2) == "mildly negative"
-        assert _attitude_label(-0.5) == "negative"
-        assert _attitude_label(-0.8) == "hostile"
 
 
 # --- Character agent tests ---

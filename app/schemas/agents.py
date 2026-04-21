@@ -35,7 +35,6 @@ class PrivateUpdates(BaseModel):
     # in place, new sub-goals get added. Whole-list replacement keeps the
     # schema simple and avoids diff machinery.
     current_objectives: list[str] = Field(default_factory=list)
-    attitude_delta: dict[str, float] = Field(default_factory=dict)
     directives_sent: list[DirectiveSend] = Field(default_factory=list)
     # Self-initiated movement — typically emitted during off-stage ticks
     # ("I go to the garden to wait"). Must be a valid scene_id. Ignored

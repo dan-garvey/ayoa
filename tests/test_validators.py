@@ -43,7 +43,6 @@ def checkpoint():
                 location="courtyard",
                 public_sheet=PublicSheet(role="guard captain"),
                 private_state=PrivateState(
-                    attitudes={"user": 0.0},
                     secrets=["knows about the hidden passage beneath the armory"],
                 ),
                 backstory="Served the estate for twenty years.",
@@ -54,7 +53,6 @@ def checkpoint():
                 location="tower",
                 public_sheet=PublicSheet(role="visiting diplomat"),
                 private_state=PrivateState(
-                    attitudes={"user": -0.5, "guard_17": 0.2},
                     secrets=["is actually an assassin sent to kill the heir"],
                 ),
                 backstory="Born in the southern kingdoms.",
@@ -123,11 +121,6 @@ class TestBuildKnownEntities:
         known = build_known_entities(guard_character, [], checkpoint)
         assert "covenant" in known or "article" in known
 
-    def test_includes_attitude_targets(self, spy_character, checkpoint):
-        known = build_known_entities(spy_character, [], checkpoint)
-        # spy has attitude toward guard_17
-        assert "vero" in known
-
 
 # --- Validation tests ---
 
@@ -159,7 +152,7 @@ class TestValidateAgentOutput:
             ["Player looks around."],
             checkpoint,
         )
-        # Nightshade is not in guard's attitudes or observation set
+        # Nightshade is not in guard's observation set
         assert result.passed is False
         assert any("nightshade" in f.leaked_text.lower() for f in result.flags)
 

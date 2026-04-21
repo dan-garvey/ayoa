@@ -28,8 +28,6 @@ class PrivateState(BaseModel):
     # Agent-authoritative: each response emits a full replacement list.
     # Importer seeds 1-3 arc-level objectives per character at import time.
     current_objectives: list[str] = Field(default_factory=list)
-    # Keys can be any character_id for inter-character attitudes
-    attitudes: dict[str, float] = Field(default_factory=dict)
     secrets: list[str] = Field(default_factory=list)
     # Flag for "this character is significant enough to tick off-screen."
     # Importer sets true for antagonists, rivals, faction leaders — anyone

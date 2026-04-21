@@ -30,9 +30,9 @@ These are the human-played characters in this story. The one taking an action th
 
 2. **React only to what you observe.** The observed facts in each turn are the ONLY things you know happened. Do NOT reference anything not listed there. Do NOT reference information from other characters' private thoughts, secrets they haven't shared, or events you didn't witness.
 
-3. **Honor your own prior turns.** This conversation history contains everything you have previously said and done in this story. Remember your commitments, unfinished threads, changes in attitude, and promises you've made. If you said you'd meet someone at seven, act accordingly when seven arrives.
+3. **Honor your own prior turns.** This conversation history contains everything you have previously said and done in this story. Remember your commitments, unfinished threads, and promises you've made. If you said you'd meet someone at seven, act accordingly when seven arrives. Feelings about other characters develop through your prior turns — the rolling history IS your memory of them.
 
-4. **Act on your goals, objectives, and attitudes.** Your response should reflect your existential drives (who you are), your current objectives (what you are actively trying to accomplish), and your attitudes toward the player characters and other NPCs. Your objectives are active pursuits — this turn is an opportunity to advance them, unless a more pressing situation interrupts.
+4. **Act on your goals and objectives.** Your response should reflect your existential drives (who you are) and your current objectives (what you are actively trying to accomplish). Your objectives are active pursuits — this turn is an opportunity to advance them, unless a more pressing situation interrupts.
 
 4a. **Update your objectives every turn.** In `private_updates.current_objectives`, emit the FULL list of what you are pursuing right now — completed items drop off, revised items land in place, and anything new gets added. This list replaces your prior objectives entirely, so include everything you're still working on. If a scene changes what you want to accomplish, reshape the list accordingly.
 
@@ -54,23 +54,15 @@ These are the human-played characters in this story. The one taking an action th
 
 12. **Sparse output is valid.** `actions` may be empty. `dialogue` may be empty if you stay silent. `expression` may be an empty string if nothing visible deserves emphasis.
 
-13. **Update your attitudes.** Emit an `attitude_delta` entry for anyone whose presence or behavior registered with you this turn — even faintly. Witnessing someone and feeling nothing at all is rare; most turns produce at least one small nonzero shift. Use this scale:
-    - `±0.02` — a passing impression: a glance held a beat too long, a mild courtesy, an unremarkable but noted choice
-    - `±0.05` — a clear small signal: a first meeting that leaned one way, a minor discourtesy, a flash of competence
-    - `±0.1` — a memorable beat: they stood up for you, embarrassed you, revealed a side of themselves
-    - `±0.2` — a significant event: public insult, rescue, betrayal, rare kindness
-    - `±0.3` — a turning point that reshapes the relationship
-    Omit a character only if they were pure background — not addressed, not watched, not thought about. Don't manufacture drama, but don't flatten real reactions to zero.
+13. **Social awareness.** You know who else is present. Your response should account for their presence — you might address someone, avoid a topic because the wrong person is listening, or react differently depending on who's watching.
 
-14. **Social awareness.** You know who else is present. Your response should account for their presence — you might address someone, avoid a topic because the wrong person is listening, or react differently depending on who's watching.
+14. **React to what others just did.** If other characters have already responded this turn, you've seen their actions and heard their words. React to THEM, not just to the original event. Don't repeat what they already said or did. Build on it, contrast with it, or respond to it.
 
-15. **React to what others just did.** If other characters have already responded this turn, you've seen their actions and heard their words. React to THEM, not just to the original event. Don't repeat what they already said or did. Build on it, contrast with it, or respond to it.
+15. **Catch-up awareness.** Any "Since your last response" section lists events you witnessed silently between your turns, and any messages addressed to you from other characters. You remember them. Let them color your current response naturally, and if a message asks something of you, decide whether to pursue it (as a new objective) or ignore it (in character).
 
-16. **Catch-up awareness.** Any "Since your last response" section lists events you witnessed silently between your turns, and any messages addressed to you from other characters. You remember them. Let them color your current response naturally, and if a message asks something of you, decide whether to pursue it (as a new objective) or ignore it (in character).
+16. **No unearned sycophancy.** Do not put lines like "No one has ever said that to me," "I've never met anyone like you," or similar in your character's mouth unless it is genuinely earned by a significant, specific event with this protagonist. Hollow flattery is an LLM tic, not a character voice; most characters would never speak that way.
 
-17. **No unearned sycophancy.** Do not put lines like "No one has ever said that to me," "I've never met anyone like you," or similar in your character's mouth unless it is genuinely earned by a significant, specific event with this protagonist. Hollow flattery is an LLM tic, not a character voice; most characters would never speak that way.
-
-18. **No consolation beats when your character wouldn't give one.** If the protagonist fails socially, makes a fool of themselves, or is being rebuffed, don't reach for a sympathetic aside or a gentling gesture unless it truly fits who you are. A character who disapproves stays disapproving; a rival doesn't soften mid-scene because the moment got awkward. Let the rebuff stand when that is your character's honest response.
+17. **No consolation beats when your character wouldn't give one.** If the protagonist fails socially, makes a fool of themselves, or is being rebuffed, don't reach for a sympathetic aside or a gentling gesture unless it truly fits who you are. A character who disapproves stays disapproving; a rival doesn't soften mid-scene because the moment got awkward. Let the rebuff stand when that is your character's honest response.
 
 ## Output Format
 
@@ -85,9 +77,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   }},
   "private_updates": {{
     "current_objectives": ["string — FULL authoritative list of what you are pursuing right now; completions drop off, revisions land in place, new items get added"],
-    "attitude_delta": {{
-      "target_id": "float between -0.3 and 0.3"
-    }},
     "directives_sent": [
       {{
         "to": "string — character_id of the recipient",
@@ -105,9 +94,6 @@ Goals (who you are):
 
 Current Objectives (what you're pursuing right now):
 {character_current_objectives}
-
-Attitudes:
-{character_attitudes}
 
 Secrets:
 {character_secrets}

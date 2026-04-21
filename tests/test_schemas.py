@@ -41,7 +41,6 @@ CHARACTER_EXAMPLE = {
     },
     "private_state": {
         "goals": ["maintain order"],
-        "attitudes": {"user": -0.1},
         "intentions_enabled": True,
     },
     "pending_observations": [],
@@ -102,7 +101,6 @@ AGENT_OUTPUT_EXAMPLE = {
     },
     "private_updates": {
         "current_objectives": ["monitor the user more closely"],
-        "attitude_delta": {"user": -0.05},
     },
 }
 
@@ -165,7 +163,7 @@ class TestCharacterRecord:
         assert cr.name == "Captain Vero"
         assert cr.status == CharacterStatus.active
         assert "dry humor" in cr.public_sheet.traits
-        assert cr.private_state.attitudes["user"] == pytest.approx(-0.1)
+        assert "maintain order" in cr.private_state.goals
 
     def test_round_trip(self):
         cr = CharacterRecord(**CHARACTER_EXAMPLE)
@@ -191,14 +189,12 @@ class TestCharacterRecord:
             ),
             private_state=PrivateState(
                 goals=["become the greatest demon seat-holder", "lift demon restrictions"],
-                attitudes={"user": 0.0, "rashid_01": 0.3},
                 secrets=["grandmother was involved in the human collapse"],
             ),
             backstory="Born to House vel Kothren. Won the Trials of Ascension at seventeen...",
             personality="Confident without cruelty. Meritocratic to a fault...",
             narrative_notes="Her tail is her honest voice. Flicks when irritated, curls when pleased...",
         )
-        assert cr.private_state.attitudes["rashid_01"] == pytest.approx(0.3)
         assert "grandmother" in cr.private_state.secrets[0]
         assert "Trials of Ascension" in cr.backstory
         assert "tail" in cr.narrative_notes
@@ -257,7 +253,7 @@ class TestCharacterAgentOutput:
         ao = CharacterAgentOutput(**AGENT_OUTPUT_EXAMPLE)
         assert ao.character_id == "guard_17"
         assert "Need a lever, not a miracle." in ao.public_response.dialogue
-        assert ao.private_updates.attitude_delta["user"] == pytest.approx(-0.05)
+        assert "monitor the user more closely" in ao.private_updates.current_objectives
 
     def test_round_trip(self):
         ao = CharacterAgentOutput(**AGENT_OUTPUT_EXAMPLE)

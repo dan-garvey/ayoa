@@ -314,31 +314,12 @@ class EventRouter:
             role = char.public_sheet.role or "unknown role"
             status = char.status.value
 
-            goals_str = ""
-            if char.private_state and char.private_state.goals:
-                goals_str = "; ".join(char.private_state.goals)
-
-            attitudes_str = ""
-            if char.private_state and char.private_state.attitudes:
-                items = list(char.private_state.attitudes.items())
-                attitudes_str = "; ".join(f"{k}={v:+.1f}" for k, v in items)
-
-            secrets_str = ""
-            if char.private_state and char.private_state.secrets:
-                secrets_str = "; ".join(char.private_state.secrets)
-
             entry = (
                 f"- {char.name} (id: {char.character_id})\n"
                 f"  Status: {status}\n"
                 f"  Location: {loc_name} ({location})\n"
                 f"  Role: {role}"
             )
-            if goals_str:
-                entry += f"\n  Goals: {goals_str}"
-            if attitudes_str:
-                entry += f"\n  Attitudes: {attitudes_str}"
-            if secrets_str:
-                entry += f"\n  Secrets: {secrets_str}"
             entries.append(entry)
 
         return "\n".join(entries)

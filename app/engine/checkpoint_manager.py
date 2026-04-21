@@ -98,42 +98,8 @@ class CheckpointManager:
         try:
             raw = path.read_text()
             data = json.loads(raw)
-            _migrate_legacy_attitudes(data)
             return CheckpointFile.model_validate(data)
         except json.JSONDecodeError as e:
             raise ValueError(f"Corrupt checkpoint file {path}: {e}") from e
         except Exception as e:
             raise ValueError(f"Invalid checkpoint file {path}: {e}") from e
-
-
-def _migrate_legacy_attitudes(data: dict) -> None:
-    """Rewrite character.private_state.attitudes["user"] → the bound player
-    character_id, for checkpoints produced before attitudes were keyed by
-    character_id throughout.
-
-    No-op when no legacy keys are present or no player binding is set.
-    Safe to run on every load; O(n) over the roster with zero allocations
-    in the clean case.
-    """
-    session = data.get("session") or {}
-    player_id = session.get("player_character_id")
-    if not player_id:
-        return
-    migrated = 0
-    for char in data.get("characters", []) or []:
-        ps = char.get("private_state") or {}
-        attitudes = ps.get("attitudes") or {}
-        if "user" not in attitudes:
-            continue
-        # Prefer existing char_id-keyed value if both somehow exist;
-        # otherwise lift "user" into the char_id slot.
-        existing = attitudes.get(player_id)
-        legacy = attitudes.pop("user")
-        if existing is None:
-            attitudes[player_id] = legacy
-        migrated += 1
-    if migrated:
-        logger.info(
-            "Migrated legacy 'user' attitude key on %d character(s) to %r",
-            migrated, player_id,
-        )

@@ -261,10 +261,6 @@ depth as the source describes them.
     Leave empty for purely reactive background characters. If the source
     gives the character arc-level drivers (someone wants X, is pursuing
     Y, has been tasked with Z), those belong here.
-  - `attitudes`: keyed by `character_id` of the target, or `"user"` for the
-    player character (before is_player-based personalize replaces this).
-    Value is a float in [-1, 1]. Include every attitude the source describes
-    — affection, resentment, rivalry, respect, contempt.
   - `secrets`: every secret the source says this character keeps. Not just
     the dramatic ones; include minor private truths too if the source names
     them.
@@ -652,10 +648,6 @@ def build_checkpoint(
             continue
         seen_ids.add(cd.character_id)
 
-        attitudes = {
-            k: max(-1.0, min(1.0, float(v))) for k, v in cd.private_state.attitudes.items()
-        }
-
         envelope = envelopes_by_id.get(cd.character_id)
         if envelope is None:
             logger.warning(
@@ -680,7 +672,6 @@ def build_checkpoint(
                 private_state=PrivateState(
                     goals=cd.private_state.goals,
                     current_objectives=cd.private_state.current_objectives,
-                    attitudes=attitudes,
                     secrets=cd.private_state.secrets,
                     intentions_enabled=cd.private_state.intentions_enabled,
                 ),

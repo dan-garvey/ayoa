@@ -1,4 +1,4 @@
-"""Character manager — registry operations, memory/attitude updates, spawning.
+"""Character manager — registry operations, roster updates, spawning.
 
 Handles character lookup, state mutations after agent responses,
 roster changes from discriminator output, and LLM-powered character genesis.
@@ -44,23 +44,6 @@ class CharacterManager:
             if char.character_id == character_id:
                 return char
         return None
-
-    def apply_agent_output(
-        self, checkpoint: CheckpointFile, output: CharacterAgentOutput
-    ) -> None:
-        """Apply an agent's attitude deltas.
-
-        Memory is carried entirely by the character's rolling conversation.
-        """
-        char = self.get_character(checkpoint, output.character_id)
-        if not char:
-            logger.warning("Character %s not found for update", output.character_id)
-            return
-
-        for target, delta in output.private_updates.attitude_delta.items():
-            current = char.private_state.attitudes.get(target, 0.0)
-            new_val = max(-1.0, min(1.0, current + delta))
-            char.private_state.attitudes[target] = new_val
 
     def apply_roster_updates(
         self, checkpoint: CheckpointFile, routed: EventRouterOutput,
