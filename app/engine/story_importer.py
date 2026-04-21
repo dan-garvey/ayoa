@@ -408,6 +408,24 @@ markdown fences, no meta-commentary."""
 
 # ---------------- Per-stage extractions ----------------
 
+def _log_usage(stage: str, response) -> None:
+    """Log cache hit/write telemetry so we can see at a glance whether the
+    shared-source prefix is actually cache-sharing. Silent on responses
+    without usage (tests)."""
+    u = getattr(response, "usage", None) or {}
+    if not u:
+        return
+    logger.info(
+        "  usage[%s]: in=%d out=%d cache_read=%d cache_write=%d full=%d",
+        stage,
+        u.get("prompt_tokens", 0),
+        u.get("completion_tokens", 0),
+        u.get("cache_read_input_tokens", 0),
+        u.get("cache_creation_input_tokens", 0),
+        u.get("full_input_tokens", 0),
+    )
+
+
 async def extract_world(client: LLMClient, source: str) -> WorldExtraction:
     logger.info("Extracting world state...")
     response = await client.complete(
@@ -420,6 +438,7 @@ async def extract_world(client: LLMClient, source: str) -> WorldExtraction:
         temperature=0.3,
         max_tokens=MAX_EXTRACTION_TOKENS,
     )
+    _log_usage("world", response)
     data: WorldExtraction = response.parsed
     logger.info(
         "  Setting: %s / %s", data.setting.genre or "?", data.setting.tone or "?"
@@ -447,6 +466,7 @@ async def extract_characters(client: LLMClient, source: str) -> CharacterListExt
         temperature=0.3,
         max_tokens=MAX_EXTRACTION_TOKENS,
     )
+    _log_usage("characters", response)
     data: CharacterListExtraction = response.parsed
     logger.info("  Characters: %d extracted", len(data.characters))
     for c in data.characters:
@@ -486,6 +506,7 @@ async def extract_character_knowledge(
         temperature=0.3,
         max_tokens=MAX_EXTRACTION_TOKENS,
     )
+    _log_usage("knowledge", response)
     data: CharacterKnowledgeListExtraction = response.parsed
     logger.info("  Envelopes: %d produced", len(data.envelopes))
     return data
@@ -555,6 +576,7 @@ async def extract_opening(client: LLMClient, source: str) -> OpeningExtraction:
         temperature=0.5,
         max_tokens=MAX_EXTRACTION_TOKENS,
     )
+    _log_usage("opening", response)
     data: OpeningExtraction = response.parsed
     logger.info("  Opening narrative: %d chars", len(data.text))
     return data
