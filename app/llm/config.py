@@ -15,6 +15,9 @@ class LLMConfig(BaseModel):
         "narrator": "claude-sonnet-4-6",
         "agent": "claude-sonnet-4-6",
         "character_gen": "claude-sonnet-4-6",
+        # Terse post-turn summarization (delta notes for the router).
+        # Cheap, narrow task — Haiku is plenty.
+        "summarizer": "claude-haiku-4-5",
     })
 
     default_model: str = "claude-sonnet-4-6"

@@ -110,7 +110,6 @@ def sample_narrator_output():
             user="I look around.",
             assistant="You scan the courtyard...",
         ),
-        turn_summary="Player surveyed the courtyard; Captain Vero warned about approaching storm.",
     )
 
 
@@ -134,7 +133,6 @@ class TestNarratorPhase2:
 
         assert "courtyard" in result.final_text.lower()
         assert result.transcript_entry.user == "I look around."
-        assert result.turn_summary != ""
 
     @pytest.mark.asyncio
     async def test_prompt_contains_event(

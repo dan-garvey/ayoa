@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app.engine.character_manager import CharacterManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
+from app.engine.turn_recap import _TurnRecapOutput
 from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
 from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
@@ -175,13 +176,13 @@ class TestOrchestrator:
                 user="I look around.",
                 assistant="You look around. \"Everything alright?\" Captain Vero asks.",
             ),
-            turn_summary="Player surveyed area; guard responded.",
         )
 
         mock_client.complete.side_effect = [
             _llm_response(merged),
             _llm_response(agent_out),
             _llm_response(narrator_out),
+            _llm_response(_TurnRecapOutput(note="Captain Vero watched.")),
         ]
 
         orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
@@ -193,7 +194,8 @@ class TestOrchestrator:
         assert "look around" in response.output_text.lower()
         assert response.turn_index == 1
         assert response.debug is None
-        assert mock_client.complete.call_count == 3
+        # 4 LLM calls: router + agent + narrator + turn-recap summarizer.
+        assert mock_client.complete.call_count == 4
         mock_checkpoint_mgr.save.assert_called_once()
 
     @pytest.mark.asyncio
@@ -220,12 +222,12 @@ class TestOrchestrator:
                 user="I think about things.",
                 assistant="You stand quietly, collecting your thoughts.",
             ),
-            turn_summary="Player reflected.",
         )
 
         mock_client.complete.side_effect = [
             _llm_response(merged),
             _llm_response(narrator_out),
+            _llm_response(_TurnRecapOutput(note="")),
         ]
 
         orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
@@ -235,7 +237,8 @@ class TestOrchestrator:
 
         assert "quietly" in response.output_text.lower()
         # 2 LLM calls: EventRouter, NP2 (no agents)
-        assert mock_client.complete.call_count == 2
+        # router + narrator + turn-recap (no agents this turn).
+        assert mock_client.complete.call_count == 3
 
     @pytest.mark.asyncio
     async def test_debug_mode(self, mock_client, mock_checkpoint_mgr, prompt_manager):
@@ -256,12 +259,12 @@ class TestOrchestrator:
         narrator_out = NarratorFinalOutput(
             final_text="Test.",
             transcript_entry=TranscriptEntry(user="test", assistant="Test."),
-            turn_summary="test",
         )
 
         mock_client.complete.side_effect = [
             _llm_response(merged),
             _llm_response(narrator_out),
+            _llm_response(_TurnRecapOutput(note="")),
         ]
 
         orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)

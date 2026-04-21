@@ -68,6 +68,13 @@ class SessionState(BaseModel):
     tick_turn_counter: int = 0
     tick_cadence: int = 5
     tick_last_scene_id: str = ""
+    # One-slot rolling buffer for the router's missing-narrator-context
+    # problem. A Haiku summarizer produces a terse delta note at end of
+    # turn N describing what the narrator rendered that the router
+    # needs to know. That note is consumed by turn N+1's router call
+    # (embedded in its user message, which then archives into
+    # session_conversation) and cleared. Empty on a fresh session.
+    pending_recap: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)

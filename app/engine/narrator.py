@@ -64,24 +64,32 @@ class Narrator:
         if not checkpoint.narrator_conversation and checkpoint.opening_narrative:
             opening_directive = (
                 "## Opening Scene Directive\n"
-                "This is the OPENING of the story. Render the full opening passage "
-                "from the author's guidance below — IN ITS ENTIRETY. If the guidance "
-                "describes a journey, approach, border crossing, or any movement INTO "
-                "the starting scene, render that sequence from its actual start — "
-                "not in media res with the player characters already settled. The "
-                "canonical event from the router describes the arrival moment; your "
-                "job is to render everything leading up to and including it, "
-                "grounded in the author's opening prose.\n"
+                "This is the OPENING of the story. Use the author's opening "
+                "guidance below for TONE, sensory grounding, environmental "
+                "framing, and the felt weight of arrival. If the guidance "
+                "describes a journey, approach, or movement INTO the starting "
+                "scene, render that approach — not in media res with the "
+                "player characters already settled.\n"
                 "\n"
-                "Write this as the opening of a novel — evocative, grounding, giving "
-                "the reader a clear sense of who the acting character is, where they "
-                "are, how they got here, and what looms. Weave in each listed player "
-                "character's physical presence (from the system prompt's Player "
-                "Characters block) so observers naturally see them as described.\n"
+                "**Do NOT transcribe dialogue from the opening prose.** Any "
+                "speech on this turn comes from a character agent in the "
+                "Character Responses section, exactly like every other turn. "
+                "If the opening prose has an NPC speak but you see no agent "
+                "output for them here, they do not speak this turn — the "
+                "router places characters and their agents produce dialogue; "
+                "your job is to render the result. If the author's opening "
+                "described someone arriving or speaking and the router did "
+                "not place or call them, treat the scene as quieter than the "
+                "author's prose suggests and end at a decision point sooner.\n"
+                "\n"
+                "Weave in each listed player character's physical presence "
+                "(from the system prompt's Player Characters block) so "
+                "observers naturally see them as described.\n"
                 "\n"
                 "End at a natural first decision point for the acting character.\n"
                 "\n"
-                "## Author's Opening Guidance\n"
+                "## Author's Opening Guidance (tone and framing reference — "
+                "NOT a script to transcribe)\n"
                 f"{checkpoint.opening_narrative}\n"
             )
 
@@ -125,11 +133,7 @@ class Narrator:
             checkpoint.narrator_conversation, user_content, response,
         )
 
-        logger.info(
-            "Narrator result: %d chars, summary: %s",
-            len(result.final_text),
-            result.turn_summary[:80] if result.turn_summary else "(none)",
-        )
+        logger.info("Narrator result: %d chars", len(result.final_text))
 
         return result
 

@@ -92,6 +92,46 @@ class EventRouter:
         if acting_char is not None:
             clear_character_inbox(acting_char)
 
+        # Opening-turn hand-off: on the very first turn of the session
+        # (session_conversation empty), surface the author's opening prose
+        # to the router as population-guidance. It's the router's job to
+        # place characters the opening describes — the narrator will be
+        # told to use the opening for tone only and to render dialogue
+        # exclusively from agent output, so the router has to put the
+        # characters in scene or they won't speak at all.
+        opening_directive = ""
+        if not checkpoint.session_conversation and checkpoint.opening_narrative:
+            opening_directive = (
+                "## Author's Opening Scene Guidance\n"
+                "This is the first turn. Read the passage below and apply "
+                "rule 13: any character the opening names as present in the "
+                "starting scene must be placed via `roster_moves` or `spawn` "
+                "and listed in `observers` with priority ≥ 3 so their agent "
+                "produces dialogue. The narrator will NOT transcribe dialogue "
+                "from this prose — only you can make characters speak this "
+                "turn, by placing them here.\n\n"
+                f"{checkpoint.opening_narrative}\n\n"
+            )
+
+        # Recap of the previous turn's narrator prose (a terse Haiku-
+        # generated delta note). Closes the narrator-context gap: the
+        # router normally never sees the narrator's final prose, so any
+        # state-level beats the narrator rendered beyond the prior
+        # canonical_event are invisible to it. This one-slot buffer
+        # carries those beats forward by one turn.
+        recent_turn_recap = ""
+        recap_note = checkpoint.session.pending_recap
+        if recap_note:
+            recent_turn_recap = (
+                "## Previous Turn — Narrator Delta Note\n"
+                "A terse summary of state-level beats the narrator rendered "
+                "last turn that aren't already in your prior `canonical_event` "
+                "(environmental changes, completed NPC actions, implicit "
+                "movement, objects placed). Factor these into this turn's "
+                "adjudication.\n\n"
+                f"- {recap_note}\n\n"
+            )
+
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "event_router",
@@ -112,6 +152,8 @@ class EventRouter:
                 checkpoint, acting_id
             ),
             since_last_turn_block=since_last_turn_block,
+            opening_directive=opening_directive,
+            recent_turn_recap=recent_turn_recap,
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -140,6 +182,11 @@ class EventRouter:
         append_turn_to_conversation(
             checkpoint.session_conversation, user_content, response,
         )
+        # Clear the recap buffer now that its content is archived in the
+        # just-appended user message. Next turn's router will see it in
+        # session_conversation history, and a fresh recap will be
+        # generated at end of this turn to populate pending_recap again.
+        checkpoint.session.pending_recap = ""
 
         logger.info(
             "EventRouter result: feasible=%s, facts=%d, observers=%d, spawns=%d",

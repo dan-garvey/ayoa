@@ -212,6 +212,18 @@ class Orchestrator:
             new_scene = event.scene_delta.new_scene_id
             if new_scene in checkpoint.world_state.locations.scene_graph:
                 checkpoint.world_state.locations.current_scene_id = new_scene
+                # Move the acting character along with the scene. Without
+                # this, character.location stays at whatever was assigned
+                # at import time while current_scene_id moves, so scene-
+                # presence checks (characters_present, observer routing)
+                # see the player as off-stage even when they're the only
+                # one on it.
+                acting_char = next(
+                    (c for c in checkpoint.characters if c.character_id == acting_character_id),
+                    None,
+                )
+                if acting_char is not None:
+                    acting_char.location = new_scene
                 logger.info("Scene transition: %s -> %s", old_scene, new_scene)
             else:
                 logger.warning(
@@ -491,6 +503,16 @@ class Orchestrator:
         checkpoint.transcript.append(final.transcript_entry)
         checkpoint.session.turn_index += 1
 
+        # --- Turn recap (kicked off now, awaited after tick pass so the
+        # two run in parallel when both fire). A terse Haiku summary of
+        # narrator state-level deltas; consumed by next turn's router.
+        from app.engine.turn_recap import summarize_turn
+        recap_task = asyncio.create_task(
+            summarize_turn(
+                self.client, self.prompt_mgr, event, final.final_text,
+            )
+        )
+
         # --- Off-stage tick pass. Fires on cadence OR on scene change,
         # whichever comes first. Scene-change reset keeps the world moving
         # when the player jumps between spaces; cadence keeps it moving
@@ -510,6 +532,16 @@ class Orchestrator:
                 self.client.config.model_for_role("agent"),
                 tick_usages,
             ))
+
+        # Await the recap that was kicked off before the tick pass.
+        # Errors here shouldn't fail the turn — an empty recap just means
+        # next turn's router runs without the delta note, same as today.
+        try:
+            recap_note = await recap_task
+        except Exception:
+            logger.exception("turn_recap failed; pending_recap left empty")
+            recap_note = ""
+        checkpoint.session.pending_recap = recap_note
 
         # Single save at the end of the turn. Previously we saved after
         # narrator compose AND after ticks, which left a crash window:

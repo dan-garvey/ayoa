@@ -12,6 +12,7 @@ Usage:
     .venv/bin/python scripts/play.py --story <story_id>
     .venv/bin/python scripts/play.py --story <story_id> --session <session_id>
     .venv/bin/python scripts/play.py --story <story_id> --name "Aldric"
+    .venv/bin/python scripts/play.py --session <session_id>    # resume only
 
 Commands inside the REPL:
     /help                       Show commands
@@ -58,6 +59,8 @@ Commands:
   /settings <key>             Show one setting's current value
   /settings <key> <value>     Update a setting
   /status                     Session summary
+  /history [N]                Print all turns, or last N
+  /attitudes [character_id]   Print attitude map (all, or one character)
   /quit                       Exit (Ctrl-D also works)
 
 Plain text is an in-character action for the current actor. Use "(begin)"
@@ -281,6 +284,71 @@ class CLIState:
             return
         print(f"{key} = {new_value}")
 
+    def cmd_history(self, arg: str) -> None:
+        """Print the transcript. With no arg, emits every turn; with an
+        integer N, emits the last N turns."""
+        ckpt = self.engine.load_latest(self.session_id)
+        transcript = ckpt.transcript
+        if not transcript:
+            print("(no turns yet)")
+            return
+
+        limit: int | None = None
+        raw = arg.strip()
+        if raw:
+            try:
+                limit = int(raw)
+            except ValueError:
+                print(f"usage: /history [N]  (N is an integer, got {raw!r})")
+                return
+            if limit <= 0:
+                print("usage: /history [N]  (N must be positive)")
+                return
+
+        entries = transcript[-limit:] if limit else transcript
+        start = len(transcript) - len(entries) + 1
+        for i, entry in enumerate(entries, start=start):
+            print()
+            print(f"--- Turn {i} ---")
+            if entry.user:
+                print(f"> {entry.user}")
+            print(entry.assistant)
+        print()
+
+    def cmd_attitudes(self, arg: str) -> None:
+        """Print the attitude graph for debugging. No arg: every character
+        with non-empty attitudes. With a character_id: just that one."""
+        from app.engine.context_builder import _attitude_label
+
+        ckpt = self.engine.load_latest(self.session_id)
+        target = arg.strip()
+
+        if target:
+            char = next(
+                (c for c in ckpt.characters if c.character_id == target), None,
+            )
+            if char is None:
+                print(f"no character: {target}")
+                return
+            chars = [char]
+        else:
+            chars = [
+                c for c in ckpt.characters
+                if c.private_state and c.private_state.attitudes
+            ]
+            if not chars:
+                print("(no attitudes recorded yet)")
+                return
+
+        for c in chars:
+            atts = c.private_state.attitudes if c.private_state else {}
+            print(f"{c.name} ({c.character_id}):")
+            if not atts:
+                print("  (no opinions)")
+                continue
+            for tgt, v in sorted(atts.items(), key=lambda kv: kv[1]):
+                print(f"  {tgt:30s}  {v:+.2f}  ({_attitude_label(v)})")
+
     def cmd_quit(self, arg: str) -> None:
         self.running = False
 
@@ -379,25 +447,51 @@ async def main_async(args: argparse.Namespace) -> int:
         stream=sys.stderr,
     )
 
-    if story_id := args.story:
-        pass
-    else:
-        print("--story is required", file=sys.stderr)
-        return 2
-
-    session_id = args.session or f"cli_{story_id}"
-    player_name = args.name or "Player"
-
     engine = EngineBridge()
 
-    if story_id not in engine.list_story_ids():
-        print(
-            f"unknown story `{story_id}`. Available: "
-            f"{', '.join(engine.list_story_ids()) or '(none)'}",
-            file=sys.stderr,
-        )
-        await engine.close()
-        return 2
+    session_id: str | None = args.session
+    story_id: str | None = args.story
+
+    # Resume path: if the named session is already on disk, derive story_id
+    # from its checkpoint so the caller can omit --story on resume.
+    resumed = False
+    if session_id:
+        try:
+            ckpt = engine.load_latest(session_id)
+            resumed = True
+            existing = ckpt.session.story_id
+            if story_id and existing and existing != story_id:
+                print(
+                    f"session `{session_id}` belongs to story `{existing}`, "
+                    f"not `{story_id}`",
+                    file=sys.stderr,
+                )
+                await engine.close()
+                return 2
+            story_id = story_id or existing
+        except FileNotFoundError:
+            pass
+
+    if not resumed:
+        if not story_id:
+            print(
+                "--story is required when starting a new session "
+                "(pass --session <existing> to resume)",
+                file=sys.stderr,
+            )
+            await engine.close()
+            return 2
+        if story_id not in engine.list_story_ids():
+            print(
+                f"unknown story `{story_id}`. Available: "
+                f"{', '.join(engine.list_story_ids()) or '(none)'}",
+                file=sys.stderr,
+            )
+            await engine.close()
+            return 2
+
+    session_id = session_id or f"cli_{story_id}"
+    player_name = args.name or "Player"
 
     try:
         await _ensure_session(engine, story_id, session_id, player_name)
@@ -437,12 +531,14 @@ def main() -> None:
         description="Interactive CLI frontend for the narrative engine.",
     )
     parser.add_argument(
-        "--story", required=True,
-        help="Story ID (directory under app/storage/saves).",
+        "--story",
+        help="Story ID (directory under app/storage/saves). "
+             "Required for new sessions; omit when resuming via --session.",
     )
     parser.add_argument(
         "--session",
-        help="Session ID. Defaults to cli_<story_id> (resume if it exists).",
+        help="Session ID. Defaults to cli_<story_id>. "
+             "If the session already exists on disk, --story can be omitted.",
     )
     parser.add_argument(
         "--name", default=None,

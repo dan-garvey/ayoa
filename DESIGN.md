@@ -396,8 +396,7 @@ Produced by Narrator Phase 1.
   "transcript_entry": {
     "user": "I lift the building with my bare hands.",
     "assistant": "You plant both palms..."
-  },
-  "turn_summary": "User attempted impossible physical action; failed publicly; nearby guard observed and commented."
+  }
 }
 ```
 

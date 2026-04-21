@@ -18,4 +18,3 @@ class NarratorFinalOutput(BaseModel):
     final_text: str
     world_updates: dict[str, Any] = Field(default_factory=dict)
     transcript_entry: TranscriptEntry
-    turn_summary: str = ""

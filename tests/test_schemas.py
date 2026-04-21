@@ -117,7 +117,6 @@ NARRATOR_FINAL_EXAMPLE = {
         "user": "I lift the building with my bare hands.",
         "assistant": "You plant both palms...",
     },
-    "turn_summary": "User attempted impossible physical action; failed publicly; nearby guard observed and commented.",
 }
 
 
@@ -276,7 +275,6 @@ class TestNarratorFinalOutput:
         nfo = NarratorFinalOutput(**NARRATOR_FINAL_EXAMPLE)
         assert "Captain Vero" in nfo.final_text
         assert nfo.transcript_entry.user == "I lift the building with my bare hands."
-        assert nfo.turn_summary != ""
 
     def test_round_trip(self):
         nfo = NarratorFinalOutput(**NARRATOR_FINAL_EXAMPLE)
@@ -334,7 +332,7 @@ class TestCheckpointFile:
         assert ckpt.schema_version == "2.0"
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        assert ckpt.prompt_versions["event_router"] == "v5"
+        assert ckpt.prompt_versions["event_router"] == "v8"
         # Pre-versioning / hand-built checkpoints have empty importer_version;
         # the importer stamps it on build.
         assert ckpt.importer_version == ""
