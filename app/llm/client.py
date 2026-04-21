@@ -358,6 +358,24 @@ class LLMClient:
                     delay = self.config.retry_base_delay * (2 ** attempt)
                     logger.warning(f"LLM call failed (attempt {attempt + 1}), retrying in {delay:.1f}s: {e}")
                     await asyncio.sleep(delay)
+            except anthropic.BadRequestError as e:
+                # Anthropic's server-side grammar compilation for
+                # structured output occasionally times out as a 400 — it
+                # is NOT a schema bug, just a transient on their
+                # compilation side, and retries succeed. Retry only this
+                # specific message; other 400s (schema errors, invalid
+                # params) should surface immediately.
+                msg = str(e) or ""
+                if "Grammar compilation timed out" not in msg:
+                    raise
+                last_error = e
+                if attempt < self.config.max_retries:
+                    delay = self.config.retry_base_delay * (2 ** attempt)
+                    logger.warning(
+                        "Grammar compilation timeout (attempt %d), retrying in %.1fs",
+                        attempt + 1, delay,
+                    )
+                    await asyncio.sleep(delay)
         assert last_error is not None
         raise last_error
 
