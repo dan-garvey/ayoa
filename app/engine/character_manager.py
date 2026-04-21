@@ -136,19 +136,15 @@ class CharacterManager:
             location=scene_id,
         )
 
-        # Skip structured-output enforcement — the AuthoredCharacter
-        # schema is flat but still trips Anthropic's "schema is too
-        # complex" ceiling when expressed as an output_format grammar.
-        # The prompt pins the LLM to JSON-only output; we parse post-hoc.
         from app.schemas.takeover import AuthoredCharacter
-        from app.bot.engine_bridge import _parse_model_json
         response = await self.client.complete(
             role="agent",
             messages=messages,
+            response_model=AuthoredCharacter,
             temperature=0.6,
             max_tokens=3000,
         )
-        authored = _parse_model_json(AuthoredCharacter, response.content)
+        authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
         # Enforce location from request
         char.location = scene_id

@@ -319,6 +319,13 @@ class LLMClient:
         if response_model is not None:
             kwargs["output_format"] = response_model
 
+        # Route through the beta client whenever we're using a beta
+        # feature (compaction, structured output). Anthropic's
+        # output_format grammar compiler lives on the beta path; the
+        # non-beta messages.stream rejects schemas it treats as "too
+        # complex" which the beta path compiles without issue. So beta
+        # routing is gated on *either* compact OR a response_model.
+        needs_beta = compact or response_model is not None
         if compact:
             kwargs["context_management"] = {
                 "edits": [
@@ -332,6 +339,7 @@ class LLMClient:
                 ]
             }
             kwargs["betas"] = ["compact-2026-01-12"]
+        if needs_beta:
             stream_ctx = self._client.beta.messages.stream
         else:
             stream_ctx = self._client.messages.stream

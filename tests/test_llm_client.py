@@ -39,6 +39,9 @@ def _install_stream_mock(client, *responses):
 
     mock = MagicMock(side_effect=stream_factory)
     client._client.messages.stream = mock
+    # Structured-output and compaction calls route through the beta
+    # client; wire the same mock there so tests hit both paths uniformly.
+    client._client.beta.messages.stream = mock
     return mock
 
 
