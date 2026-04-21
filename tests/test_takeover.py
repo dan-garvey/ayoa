@@ -39,18 +39,21 @@ SESSION_ID = "test_session"
 
 
 def _llm_response(parsed) -> LLMResponse:
-    """Shape an LLMResponse the way EngineBridge expects."""
+    """Shape an LLMResponse. Takeover paths parse JSON from response.content
+    (structured output disabled — see benchmark), so content must contain
+    the pydantic model's JSON."""
+    text = parsed.model_dump_json() if hasattr(parsed, "model_dump_json") else "{}"
     raw = MagicMock()
     text_block = MagicMock()
     text_block.type = "text"
-    text_block.text = "{}"
-    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    text_block.text = text
+    text_block.model_dump = lambda: {"type": "text", "text": text}
     raw.content = [text_block]
     raw.model = "claude-sonnet-4-6"
     return LLMResponse(
         parsed=parsed,
         raw_response=raw,
-        content="{}",
+        content=text,
         model="claude-sonnet-4-6",
     )
 

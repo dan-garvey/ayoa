@@ -62,15 +62,18 @@ def mock_checkpoint_mgr(sample_checkpoint):
     return mgr
 
 def _llm_response(parsed) -> LLMResponse:
-    """Shape the LLMResponse like the new engine expects (with raw_response.content)."""
+    """Shape the LLMResponse. Character spawn parses JSON from
+    response.content (structured output disabled — see benchmark), so
+    content round-trips through the parsed model."""
+    text = parsed.model_dump_json() if hasattr(parsed, "model_dump_json") else "{}"
     raw = MagicMock()
     text_block = MagicMock()
     text_block.type = "text"
-    text_block.text = "{}"
-    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    text_block.text = text
+    text_block.model_dump = lambda: {"type": "text", "text": text}
     raw.content = [text_block]
     raw.model = "claude-sonnet-4-6"
-    return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
+    return LLMResponse(parsed=parsed, raw_response=raw, content=text, model="claude-sonnet-4-6")
 
 @pytest.fixture
 def prompt_manager():

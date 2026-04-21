@@ -654,11 +654,10 @@ class EngineBridge:
         response = await self.client.complete(
             role="event_router",
             messages=messages,
-            response_model=response_model,
             temperature=0.7,
             max_tokens=4000,
         )
-        return response.parsed
+        return _parse_model_json(response_model, response.content)
 
     def build_character_dossier(
         self,
@@ -923,6 +922,36 @@ def _append_session_note(ckpt: CheckpointFile, note: str) -> None:
         role="assistant",
         content=f'{{"takeover_note": {json.dumps(note)}}}',
     ))
+
+
+def _parse_model_json(model_cls, content: str):
+    """Parse a Pydantic model from the LLM's free-form JSON output.
+
+    Used when we can't enforce structured output via output_format. A
+    live benchmark (tests/test_structured_output_benchmark.py) showed
+    the enforced path 400s with "Schema is too complex" 0/3 times for
+    AuthoredCharacter after ~180s of hanging, while raw JSON + this
+    helper succeeded 3/3 times in ~29s. output_format is also marked
+    deprecated by the SDK, so we're on the sunset path using it.
+
+    Strips common LLM envelope noise (markdown fences) and parses with
+    Pydantic. Raises ValueError on unparseable output with a 500-char
+    snippet so call sites surface something diagnostic.
+    """
+    import re
+
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
+    try:
+        return model_cls.model_validate_json(text)
+    except Exception as e:
+        snippet = text[:500]
+        raise ValueError(
+            f"Failed to parse {model_cls.__name__} from LLM output: {e} "
+            f"— first 500 chars: {snippet!r}"
+        ) from e
 
 
 def migrate_legacy_saves(
