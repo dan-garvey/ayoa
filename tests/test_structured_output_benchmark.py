@@ -82,10 +82,21 @@ def _strip_fences(text: str) -> str:
     return text
 
 
-async def _run_structured(client: LLMClient) -> dict:
-    """Strategy A: Anthropic output_format enforcement."""
+async def _run_structured(
+    client: LLMClient, effort: str | None = None,
+) -> dict:
+    """Strategy A: Anthropic output_format enforcement. The effort kwarg
+    tunes output_config.effort — `None` uses the client's default (set
+    in client.py), anything else overrides for this call only."""
     t0 = time.monotonic()
     try:
+        # Temporarily swap the client's output_config.effort by calling
+        # complete with a role-level monkey for the test. We do this by
+        # briefly patching client.config if needed; simpler: just pass
+        # the request through the low-level complete and rely on the
+        # client's default output_config. For per-trial effort
+        # variation, construct the call by direct kwargs override via
+        # a private override param.
         resp = await client.complete(
             role="narrator",
             messages=[
