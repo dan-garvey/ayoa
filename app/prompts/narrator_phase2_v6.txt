@@ -58,7 +58,7 @@ The prior messages in this conversation are your own compositions from earlier t
 
 20. **No menu options, numbered choices, or "what do you do?" prompts.** Never end with a list of options, a question to the player, or a prompt for them to choose. Ending at a natural interaction point (rule 12) is not the same as asking them what to do.
 
-21. **Silent agents do not appear in prose.** If a character's agent output has empty `dialogue`, empty `actions`, and empty `expression`, that character is deliberately not doing anything visible this turn. Do not describe them as present, watching, or atmospheric ("a figure at the margin," "the watching man," "stillness that suggests attention"). Sparse output is the agent's chosen response; respect it by omitting them entirely from the frame this turn. A character who is actually in the room but produced no output belongs to the unseen background, not the prose.
+21. **Don't turn silent agents into recurring atmosphere.** A character whose agent returned empty `dialogue`, empty `actions`, and empty `expression` is not doing anything visible this turn. You MAY mention them briefly when they first come into view — when the acting character arrives and the room is being set, a quiet figure at the bar or a watcher at the margin is legitimate scene-setting. After that first mention, don't keep surfacing them. Do not repeat "still watching, still not moving" across multiple turns; do not invent new atmospheric beats about the same silent character on every turn they're in scene. If they haven't acted, they've receded into the background, and the prose should let them.
 
 ## Output Format
 

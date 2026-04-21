@@ -895,20 +895,41 @@ class Orchestrator:
 
 
 def _log_cache_summary(latencies: list[PhaseLatency]) -> None:
-    """One-line-per-phase cache readout at INFO. Fires every turn so the
-    hit rate is visible in normal logs, not only when debug=True. The
-    'hit_rate' column is cache_read / (cache_read + cache_write + input)
-    — fraction of this phase's total prompt that was served from cache."""
+    """Per-turn cache + spend readout at INFO. Fires every turn so both
+    hit rate and where-the-dollars-went are visible in normal logs.
+
+    `hit_rate` is cache_read / (cache_read + cache_write + input) — the
+    fraction of total prompt tokens that were served from cache. `share`
+    is each phase's cost-weighted contribution to the turn's total:
+    input_tokens + 1.25*cache_write + 0.1*cache_read + output_tokens.
+    The weighting reflects Anthropic's billing ratios (cache writes are
+    1.25x, reads are ~0.1x), so `share` tells you where dollars actually
+    went, not just where raw tokens went."""
     if not latencies:
         return
+
+    def cost_units(l: PhaseLatency) -> float:
+        return (
+            l.input_tokens
+            + 1.25 * l.cache_creation_input_tokens
+            + 0.1 * l.cache_read_input_tokens
+            + l.output_tokens
+        )
+
     total_read = sum(l.cache_read_input_tokens for l in latencies)
     total_write = sum(l.cache_creation_input_tokens for l in latencies)
     total_in = sum(l.input_tokens for l in latencies)
+    total_out = sum(l.output_tokens for l in latencies)
     total_prompt = total_read + total_write + total_in
     turn_rate = (total_read / total_prompt) if total_prompt else 0.0
+    turn_cost = sum(cost_units(l) for l in latencies) or 1.0
+    top = max(latencies, key=cost_units)
     logger.info(
-        "Cache usage this turn: read=%d write=%d fresh=%d  hit_rate=%.1f%%",
-        total_read, total_write, total_in, turn_rate * 100,
+        "Cache usage this turn: read=%d write=%d fresh=%d out=%d  "
+        "hit_rate=%.1f%%  top_spender=%s (%.0f%%)",
+        total_read, total_write, total_in, total_out,
+        turn_rate * 100,
+        top.phase, cost_units(top) / turn_cost * 100,
     )
     for l in latencies:
         prompt_tot = (
@@ -917,11 +938,15 @@ def _log_cache_summary(latencies: list[PhaseLatency]) -> None:
             + l.input_tokens
         )
         rate = (l.cache_read_input_tokens / prompt_tot) if prompt_tot else 0.0
+        share = cost_units(l) / turn_cost
         logger.info(
-            "  phase=%-16s read=%5d write=%5d fresh=%5d  hit=%.1f%%",
+            "  phase=%-16s read=%5d write=%5d fresh=%5d out=%5d  "
+            "hit=%.1f%%  share=%.0f%%",
             l.phase,
             l.cache_read_input_tokens,
             l.cache_creation_input_tokens,
             l.input_tokens,
+            l.output_tokens,
             rate * 100,
+            share * 100,
         )
