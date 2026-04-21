@@ -241,6 +241,7 @@ class TestTickSceneCreationGate:
     def test_flag_off_drops_scenes_with_warning(self, caplog):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         # Flag default is False.
         orch = _orch()
@@ -262,6 +263,7 @@ class TestTickSceneCreationGate:
     def test_flag_on_creates_scenes_before_moved_to(self):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         ckpt.session.config.settings.agents_can_create_scenes = True
 
@@ -291,6 +293,7 @@ class TestTickSceneCreationGate:
     def test_flag_on_with_no_scenes_emitted_is_noop(self):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         ckpt.session.config.settings.agents_can_create_scenes = True
 

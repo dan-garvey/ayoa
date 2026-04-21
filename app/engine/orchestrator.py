@@ -613,9 +613,13 @@ class Orchestrator:
         that invoke _run_ticks directly."""
         session = checkpoint.session
         current_scene = checkpoint.world_state.locations.current_scene_id
-        scene_changed = (
+        scene_changed_raw = (
             session.tick_last_scene_id != ""
             and current_scene != session.tick_last_scene_id
+        )
+        scene_changed = (
+            scene_changed_raw
+            and session.config.settings.ticks_on_scene_change
         )
 
         session.tick_turn_counter += 1

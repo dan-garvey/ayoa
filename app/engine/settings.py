@@ -104,6 +104,18 @@ SETTINGS: list[SettingDef] = [
         ),
         parse=_parse_int_positive,
     ),
+    SettingDef(
+        key="ticks_on_scene_change",
+        default=True,
+        description=(
+            "Whether the off-stage tick pass fires on scene change in "
+            "addition to the cadence counter. On = extra tick every time "
+            "the active scene shifts (more world liveness, more cost). "
+            "Off = only the cadence counter triggers ticks."
+        ),
+        parse=_parse_bool,
+        render=_render_bool,
+    ),
 ]
 
 SETTINGS_BY_KEY: dict[str, SettingDef] = {s.key: s for s in SETTINGS}

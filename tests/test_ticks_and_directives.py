@@ -310,6 +310,7 @@ class TestTickScheduler:
     def test_skips_player_bound(self, orch_with_mock_tick):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         ckpt.world_state.locations.current_scene_id = "hall"
         # Bind lira to a human — she should NOT tick even though she's
@@ -325,6 +326,7 @@ class TestTickScheduler:
     def test_skips_already_acted(self, orch_with_mock_tick):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         ckpt.world_state.locations.current_scene_id = "hall"
 
@@ -339,6 +341,7 @@ class TestTickScheduler:
     def test_skips_not_intentions_enabled(self, orch_with_mock_tick):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         ckpt.world_state.locations.current_scene_id = "hall"
 
@@ -350,6 +353,7 @@ class TestTickScheduler:
     def test_skips_dormant(self, orch_with_mock_tick):
         ckpt = _ckpt()
         ckpt.session.tick_turn_counter = 4
+        ckpt.session.tick_cadence = 5
         ckpt.session.tick_last_scene_id = "hall"
         ckpt.world_state.locations.current_scene_id = "hall"
         regent = next(c for c in ckpt.characters if c.character_id == "regent")

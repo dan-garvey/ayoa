@@ -35,6 +35,11 @@ class SessionSettings(BaseModel):
     # so the only cost of raising this is API rate usage; lowering
     # trades latency for safety on small quotas.
     tick_concurrency: int = 4
+    # When True, the tick pass also fires on scene change (in addition to
+    # the cadence counter). Scene changes happen frequently in play, so
+    # this doubles the tick budget in practice. Default True to preserve
+    # the old behavior; flip off to save tokens during playtesting.
+    ticks_on_scene_change: bool = True
 
 
 class SessionConfig(BaseModel):
@@ -66,7 +71,7 @@ class SessionState(BaseModel):
     # and fires a tick pass when it hits tick_cadence OR on scene change
     # (whichever comes first). Both cases reset the counter.
     tick_turn_counter: int = 0
-    tick_cadence: int = 5
+    tick_cadence: int = 10
     tick_last_scene_id: str = ""
     # One-slot rolling buffer for the router's missing-narrator-context
     # problem. A Haiku summarizer produces a terse delta note at end of
