@@ -28,26 +28,22 @@ from app.schemas.characters import (
 )
 
 
+# One entry in a suggest-mode response.
 class ReplacementCandidate(BaseModel):
-    """One entry in a suggest-mode response."""
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
     name: str
-    fit_rationale: str = Field(
-        description=(
-            "Why this NPC would be an interesting or appropriate replacement "
-            "for the user's concept, and what narrative consequences the "
-            "takeover implies. Player-facing; keep it tight and honest — one "
-            "to three sentences."
-        ),
-    )
+    # Prompt instructs: "1-3 sentences on why this is a good replacement
+    # AND what narrative consequences follow." Description kept out of
+    # the schema to minimize grammar-compile cost.
+    fit_rationale: str
 
 
+# Router output for mode='suggest'. A short list of candidate NPCs the
+# router thinks would work as replacement targets for the user's
+# described concept.
 class TakeoverSuggestOutput(BaseModel):
-    """Router output for mode='suggest'. A short list of candidate NPCs
-    the router thinks would work as replacement targets for the user's
-    described concept."""
     model_config = ConfigDict(extra="forbid")
 
     candidates: list[ReplacementCandidate] = Field(default_factory=list)
@@ -57,15 +53,16 @@ class TakeoverSuggestOutput(BaseModel):
     preamble: str = ""
 
 
+# Flat authoring shape for LLM output. Kept intentionally simple: the
+# full CharacterRecord has an enum field (status), nested queue lists
+# (incoming_directives, pending_observations), and nested sub-models
+# (PublicSheet, PrivateState) that pushed Anthropic's structured-output
+# grammar compiler past its limits even on the beta endpoint. Flattening
+# into a single-level struct AND keeping the class docstring out of the
+# generated JSON schema (via no-docstring-on-the-class) makes the grammar
+# compile. The engine maps the result back into a CharacterRecord via
+# to_record() before persisting.
 class AuthoredCharacter(BaseModel):
-    """Flat authoring shape for LLM output. Kept intentionally simple —
-    the full CharacterRecord has an enum field (status), nested queue
-    lists (incoming_directives, pending_observations), and nested
-    sub-models (PublicSheet, PrivateState) that pushed Anthropic's
-    structured-output grammar compiler past its server-side deadline.
-    Flattening into a single-level struct makes the grammar compile
-    fast enough, and the engine maps the result back into a
-    CharacterRecord before persisting."""
     model_config = ConfigDict(extra="forbid")
 
     name: str
@@ -115,10 +112,11 @@ class AuthoredCharacter(BaseModel):
         )
 
 
+# Router output for mode='describe' or mode='replace'. Returns a flat
+# AuthoredCharacter; the engine maps it onto a CharacterRecord before
+# persisting. Docstring kept off the class so it doesn't get baked into
+# the JSON schema as a "description" the grammar compiler has to handle.
 class TakeoverAuthoredOutput(BaseModel):
-    """Router output for mode='describe' or mode='replace'. Returns a
-    flat AuthoredCharacter; the engine maps it onto a CharacterRecord
-    before persisting."""
     model_config = ConfigDict(extra="forbid")
 
     character: AuthoredCharacter
