@@ -558,6 +558,7 @@ class Orchestrator:
             checkpoint.session.turn_index, len(final.final_text),
             len(agent_outputs), total_ms,
         )
+        _log_cache_summary(latencies)
 
         return TurnResponse(
             session_id=request.session_id,
@@ -890,4 +891,37 @@ class Orchestrator:
             models_used=models_used,
             prompt_versions=self.prompt_mgr.get_all_versions(),
             validations=validation_entries,
+        )
+
+
+def _log_cache_summary(latencies: list[PhaseLatency]) -> None:
+    """One-line-per-phase cache readout at INFO. Fires every turn so the
+    hit rate is visible in normal logs, not only when debug=True. The
+    'hit_rate' column is cache_read / (cache_read + cache_write + input)
+    — fraction of this phase's total prompt that was served from cache."""
+    if not latencies:
+        return
+    total_read = sum(l.cache_read_input_tokens for l in latencies)
+    total_write = sum(l.cache_creation_input_tokens for l in latencies)
+    total_in = sum(l.input_tokens for l in latencies)
+    total_prompt = total_read + total_write + total_in
+    turn_rate = (total_read / total_prompt) if total_prompt else 0.0
+    logger.info(
+        "Cache usage this turn: read=%d write=%d fresh=%d  hit_rate=%.1f%%",
+        total_read, total_write, total_in, turn_rate * 100,
+    )
+    for l in latencies:
+        prompt_tot = (
+            l.cache_read_input_tokens
+            + l.cache_creation_input_tokens
+            + l.input_tokens
+        )
+        rate = (l.cache_read_input_tokens / prompt_tot) if prompt_tot else 0.0
+        logger.info(
+            "  phase=%-16s read=%5d write=%5d fresh=%5d  hit=%.1f%%",
+            l.phase,
+            l.cache_read_input_tokens,
+            l.cache_creation_input_tokens,
+            l.input_tokens,
+            rate * 100,
         )

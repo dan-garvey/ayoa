@@ -112,15 +112,22 @@ def serialize_assistant_content(raw_content: list) -> list[dict]:
     serialized: list[dict] = []
     for block in raw_content:
         block_type = getattr(block, "type", "")
-        dumped = block.model_dump() if hasattr(block, "model_dump") else dict(block)
         if block_type == "text":
-            # Only `type` and `text` are valid on input TextBlockParam.
-            serialized.append({"type": "text", "text": dumped.get("text", "")})
+            # Only `type` and `text` are valid on input TextBlockParam. Read
+            # text directly instead of model_dump(), which triggers a pydantic
+            # serialization warning because the SDK's ParsedTextBlock declares
+            # parsed_output as None-typed but attaches a real Pydantic model
+            # when output_format is used.
+            serialized.append({"type": "text", "text": getattr(block, "text", "") or ""})
         else:
             # For compaction and other block types, pass through unchanged —
             # but still remove parsed_output/citations defensively if present.
-            dumped.pop("parsed_output", None)
-            dumped.pop("citations", None)
+            if hasattr(block, "model_dump"):
+                dumped = block.model_dump(exclude={"parsed_output", "citations"})
+            else:
+                dumped = dict(block)
+                dumped.pop("parsed_output", None)
+                dumped.pop("citations", None)
             serialized.append(dumped)
     return serialized
 

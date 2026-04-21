@@ -152,6 +152,14 @@ physically doing. When the user_input is fully parenthesized OOC:
 9. Keep the scene focused.
    - Most turns should have 0-2 responders at priority 3+.
    - Use `suggested_response_cap` to keep the eventual fan-out tight.
+   - **Rotate who speaks.** Check the session history above: if a
+     character responded in either of the last two turns, drop their
+     `response_priority` by 1–2 unless the current event is directly
+     about them (addressed by name, target of the action, or
+     mechanically affected). NPCs that have been quiet for several
+     turns should get preference when their presence and interest
+     are comparable. A single NPC dominating four turns in a row is
+     a routing failure — spread the voice.
 
 10. Spawn, dormancy, and culling.
    - Spawn only if the scene logically requires a new person not already in the registry.
