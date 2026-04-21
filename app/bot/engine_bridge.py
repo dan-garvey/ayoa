@@ -624,11 +624,20 @@ class EngineBridge:
         description: str,
         picked_target: CharacterRecord | None = None,
     ):
-        """Render the takeover prompt, dispatch to the LLM with the
-        mode-appropriate response model, and return the parsed output.
+        """Render the takeover prompt, dispatch to the LLM, and parse the
+        JSON response into the mode-appropriate pydantic model.
 
         mode: 'describe' | 'suggest' | 'replace'
         picked_target: required only for mode='replace'.
+
+        Why not use structured-output enforcement: the takeover response
+        models have enough fields to trip Anthropic's "schema is too
+        complex" rejection (and earlier, grammar-compilation timeouts).
+        The prompt instructs the model to emit ONLY valid JSON with no
+        fences; parse the result post-hoc with Pydantic. Anthropic
+        produces well-formed JSON for prompts this specific, and if the
+        parse ever fails we surface it as a tight error the caller can
+        retry.
         """
         from app.schemas.takeover import (
             TakeoverAuthoredOutput,
@@ -654,11 +663,10 @@ class EngineBridge:
         response = await self.client.complete(
             role="event_router",
             messages=messages,
-            response_model=response_model,
             temperature=0.7,
             max_tokens=4000,
         )
-        return response.parsed
+        return _parse_model_json(response_model, response.content)
 
     def build_character_dossier(
         self,
@@ -923,6 +931,34 @@ def _append_session_note(ckpt: CheckpointFile, note: str) -> None:
         role="assistant",
         content=f'{{"takeover_note": {json.dumps(note)}}}',
     ))
+
+
+def _parse_model_json(model_cls, content: str):
+    """Parse a Pydantic model from the LLM's free-form JSON output.
+
+    Used when we can't enforce structured output via the API (schemas
+    too complex for Anthropic's grammar compiler) and instead rely on
+    prompt-level "respond with only valid JSON" instructions. Strips
+    common LLM envelope noise (markdown fences, "```json" prefixes) and
+    parses with Pydantic. Raises ValueError on unparseable output with
+    the leading chunk of content attached so callers can surface
+    something diagnostic.
+    """
+    import re
+
+    text = (content or "").strip()
+    # Strip markdown fences if the model added them despite being told not to.
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
+    try:
+        return model_cls.model_validate_json(text)
+    except Exception as e:
+        snippet = text[:500]
+        raise ValueError(
+            f"Failed to parse {model_cls.__name__} from LLM output: {e} "
+            f"— first 500 chars: {snippet!r}"
+        ) from e
 
 
 def migrate_legacy_saves(
