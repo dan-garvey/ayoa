@@ -270,9 +270,6 @@ depth as the source describes them.
 
 - **public_sheet**:
   - `role`: their role, title, or occupation.
-  - `traits`: every distinct personality trait the source describes. Not a
-    capped list — include them all.
-  - `voice`: how they speak. Verbal tics, register, cadence, lexicon.
   - `appearance`: every physical detail the source gives. Height, build,
     hair, eyes, clothing, bearing, signatures. Full.
   - `faction`: faction/house/group affiliation.
@@ -313,16 +310,18 @@ depth as the source describes them.
   describes a character's past in depth, your backstory field mirrors that
   depth.
 
-- **personality**: deep personality description — inner world, private self,
-  what they want and fear, contradictions, how they behave under pressure.
-  Extract as much as the source offers.
-
-- **narrative_notes**: how to play this character in scenes. What they hide,
-  what pressures them, how they deflect, what kind of interaction changes
-  them, what narrative role they serve. Prioritize pressure points,
-  contradictions, social constraints, and dramatic function. Include
-  situational tells if the source makes them distinctive; do not invent
-  stock mannerisms the source does not mention.
+- **personality**: ONE prose block that covers three things at once:
+    1. Inner world and private self — what they want, fear, believe;
+       their contradictions; how they behave under pressure.
+    2. Voice — how they speak, verbal tics, register, cadence, lexicon.
+    3. Portrayal direction — how to play them in scenes. What they hide,
+       what pressures them, how they deflect, what kind of interaction
+       changes them, what narrative role they serve. Situational tells
+       if the source makes them distinctive.
+  Do not split these into separate paragraphs unless the source does.
+  Prioritize pressure points, contradictions, loyalties, and
+  vulnerabilities over surface quirks. Extract as much as the source
+  offers.
 
 ## Preserve authored interior passages verbatim — do NOT bullet-compress
 
@@ -330,16 +329,16 @@ If the source prompt contains clearly-authored sections of interior
 prose about a character — for example sections explicitly labeled
 "Private Sensuality," "Emotional Interior," "Hidden Feelings," "Inner
 Life," "Sensual Geography," "What Drives Them," or similar — preserve
-that prose **verbatim** into `personality` or `narrative_notes`. Do not
-flatten it to a bullet list. Do not rewrite it into your own voice. Do
-not abstract the specific sensory, emotional, or psychological detail
-into a summary.
+that prose **verbatim** into `personality`. Do not flatten it to a
+bullet list. Do not rewrite it into your own voice. Do not abstract
+the specific sensory, emotional, or psychological detail into a
+summary.
 
 Rule of thumb: if the source wrote a paragraph, your field carries a
 paragraph. If the source wrote a list of specific erogenous zones or
 emotional tells or private habits with rich context, your field
 carries that list with its context intact. The engine's character
-agent reads these fields directly and needs the specificity —
+agent reads `personality` directly and needs the specificity —
 "Aldric's two suppressed attractions to Seraphel (curse-driven verse
 she won't explain) and Thessaly (psychological strangeness he cannot
 categorize), each suppressed for a different reason" is not
@@ -347,12 +346,6 @@ interchangeable with "Aldric is attracted to Seraphel and Thessaly."
 The importer's preservation-analysis pass explicitly calls out
 compression of these passages as a quality defect, so this is not
 optional craft advice.
-
-Which field gets it: authored sections about intimate/sensual
-specifics go in `narrative_notes` (portrayal direction). Authored
-sections about the character's inner psychology go in `personality`.
-When the source doesn't name the section but writes a long
-uninterrupted passage of interior texture, treat it the same way.
 
 ## Information isolation — critical
 
@@ -362,15 +355,14 @@ Separate what each character KNOWS from what the READER knows:
 - **backstory, personality, public_sheet**: ONLY what this character knows
   or others can observe. If the protagonist is unaware a plague was
   engineered, their backstory says "the plague", not "the engineered plague".
+  Portrayal notes in `personality` may reference hidden dynamics for the
+  engine's benefit but should not state secrets as if the character is
+  aware of them (unless they are).
 
 - **private_state.secrets**: where hidden knowledge, true allegiances,
   conspiracies, and plot-relevant information belongs. A character who is
   secretly an agent of a conspiracy has that fact here, not in their
-  backstory or personality.
-
-- **narrative_notes**: may reference hidden dynamics for the engine's
-  benefit but should not state secrets as if the character is aware of
-  them (unless they are)."""
+  backstory or personality."""
 
 
 KNOWLEDGE_EXTRACTION_INSTRUCTIONS = """\
@@ -728,8 +720,6 @@ def build_checkpoint(
                 is_player=cd.is_player,
                 public_sheet=PublicSheet(
                     role=cd.public_sheet.role,
-                    traits=cd.public_sheet.traits,
-                    voice=cd.public_sheet.voice,
                     appearance=cd.public_sheet.appearance,
                     faction=cd.public_sheet.faction,
                 ),
@@ -741,7 +731,6 @@ def build_checkpoint(
                 ),
                 backstory=cd.backstory,
                 personality=cd.personality,
-                narrative_notes=cd.narrative_notes,
                 known_context=envelope.known_context if envelope else "",
             )
         )
@@ -877,16 +866,12 @@ def _serialize_checkpoint_for_analysis(ckpt: CheckpointFile) -> str:
                 char_lines.append(f"Role: {c.public_sheet.role}")
             if c.public_sheet.faction:
                 char_lines.append(f"Faction: {c.public_sheet.faction}")
-            if c.public_sheet.voice:
-                char_lines.append(f"Voice: {c.public_sheet.voice}")
             if c.public_sheet.appearance:
                 char_lines.append(f"Appearance: {c.public_sheet.appearance}")
             if c.backstory:
                 char_lines.append(f"Backstory: {c.backstory}")
             if c.personality:
                 char_lines.append(f"Personality: {c.personality}")
-            if c.narrative_notes:
-                char_lines.append(f"Narrative Notes: {c.narrative_notes}")
             if c.known_context:
                 char_lines.append(f"Known Context: {c.known_context}")
             if c.private_state.goals:

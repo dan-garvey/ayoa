@@ -73,20 +73,18 @@ def build_character_packet(char: CharacterRecord) -> dict[str, str]:
 
     Dynamic state (goals/objectives/secrets) is rendered into the per-turn user
     message separately; this function covers the frozen-identity portion.
-    """
-    traits = ", ".join(char.public_sheet.traits) if char.public_sheet.traits else "none noted"
 
+    Traits, voice, and narrative_notes are gone as separate fields —
+    personality absorbs all of them into one prose block.
+    """
     return {
         "character_id": char.character_id,
         "character_name": char.name,
         "character_role": char.public_sheet.role or "unspecified",
-        "character_traits": traits,
-        "character_voice": char.public_sheet.voice or "natural speech",
         "character_appearance": char.public_sheet.appearance or "unremarkable",
         "character_faction": char.public_sheet.faction or "unaffiliated",
         "character_backstory": char.backstory or "No detailed backstory available.",
         "character_personality": char.personality or "No detailed personality notes.",
-        "character_narrative_notes": char.narrative_notes or "No special narrative guidance.",
     }
 
 

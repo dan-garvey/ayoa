@@ -168,20 +168,6 @@ class TestDossier:
         assert "throne is cursed" not in dossier
         assert "Thane poisoned" not in dossier
 
-    def test_excludes_narrative_notes(self, bridge: EngineBridge):
-        """narrative_notes is authorial portrayal direction — useful for the
-        AI agent, but it tells a human player what the character SHOULD do
-        from the outside, collapsing the discovery the story intends."""
-        # The aldric fixture doesn't have narrative_notes set; add one and
-        # verify it stays out.
-        ckpt = bridge.checkpoint_mgr.load_latest(SESSION_ID)
-        aldric = next(c for c in ckpt.characters if c.character_id == "aldric")
-        aldric.narrative_notes = "Best reached by treating their questions as genuine."
-        bridge.checkpoint_mgr.save(ckpt)
-
-        dossier = bridge.build_character_dossier(SESSION_ID, "aldric")
-        assert "treating their questions as genuine" not in dossier
-
     def test_unknown_character_raises(self, bridge: EngineBridge):
         with pytest.raises(ValueError, match="No character"):
             bridge.build_character_dossier(SESSION_ID, "ghost")

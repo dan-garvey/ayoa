@@ -12,16 +12,13 @@ Generate a new character for an interactive fiction world. The character must fi
 ## Instructions
 
 1. Create a character who fits the world's genre, era, and tone naturally.
-2. Give them a distinct voice — they should sound different from existing characters.
-3. Their role and reason for presence should be grounded in the world logic.
-4. Include concrete physical appearance details, but keep them selective: 1-2 memorable details beat a full catalog.
-5. Goals are **existential drives** — who this character is at their core. Stable across the story. Do NOT put pursuable tasks here.
-6. Current objectives are **actionable pursuits** — 1-3 concrete things this character is trying to accomplish right now, with a target and time horizon. Seed these from the Spawn Request's `objectives` (if provided) or infer from the reason the character is appearing.
-7. Keep backstory concise but specific — a few sentences that explain who they are.
-8. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks.
-9. If you include a tell or habitual behavior, make it situational and infrequent, not an always-on signature.
-10. In `narrative_notes`, focus on how to play the character under pressure: what they hide, what they deflect, what kind of moment changes them. Avoid stock flirtation beats and repetitive gesture prompts unless they are truly distinctive.
-11. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
+2. Their role and reason for presence should be grounded in the world logic.
+3. Include concrete physical appearance details, but keep them selective: 1-2 memorable details beat a full catalog.
+4. Goals are **existential drives** — who this character is at their core. Stable across the story. Do NOT put pursuable tasks here.
+5. Current objectives are **actionable pursuits** — 1-3 concrete things this character is trying to accomplish right now, with a target and time horizon. Seed these from the Spawn Request's `objectives` (if provided) or infer from the reason the character is appearing.
+6. Keep backstory concise but specific — a few sentences that explain who they are.
+7. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
+8. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
 
 ## Output Format
 
@@ -30,20 +27,19 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 {{
   "name": "string — full name appropriate to their race/faction",
   "location": "string — scene_id where they appear; copy from the Spawn Request",
-  "role": "string — their role or occupation",
-  "traits": ["string — 3-5 personality traits"],
-  "voice": "string — how they speak, verbal style",
+  "role": "string — role or occupation",
   "appearance": "string — physical description",
   "faction": "string — faction or group affiliation; empty string if none",
   "backstory": "string — brief background",
-  "personality": "string — inner character description",
-  "narrative_notes": "string — how to play this character under pressure; include only situational tells if they are genuinely distinctive",
+  "personality": "string — one prose block covering who they are, how they speak, how they carry themselves, and how to play them under pressure. Includes trait adjectives, verbal style, and any situational tells if they are genuinely distinctive.",
   "known_context": "string — what this character takes for granted about the world; short paragraph",
   "goals": ["string — existential drives, who they are at core"],
   "current_objectives": ["string — 1-3 actionable pursuits they're working on right now"],
-  "secrets": [],
-  "intentions_enabled": false
+  "secrets": ["string — private truths; empty array if none"],
+  "intentions_enabled": true or false
 }}
+
+**Every field above is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**
 
 <<<USER>>>
 

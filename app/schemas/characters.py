@@ -13,9 +13,11 @@ class CharacterStatus(str, Enum):
 
 
 class PublicSheet(BaseModel):
+    # Trait list and voice absorbed into CharacterRecord.personality as
+    # a single prose block — fewer author-time fields, less token cost,
+    # smaller structured-output grammar. personality now describes who
+    # they are, how they talk, and how to play them.
     role: str = ""
-    traits: list[str] = Field(default_factory=list)
-    voice: str = ""
     appearance: str = ""
     faction: str = ""
 
@@ -68,10 +70,15 @@ class CharacterRecord(BaseModel):
     # Same flush-and-clear pattern as pending_observations but for messages
     # addressed to this character by another NPC (or by the world/narrator).
     incoming_directives: list[IncomingDirective] = Field(default_factory=list)
-    # Long-form text fields for rich character content
+    # Long-form text fields for rich character content. `personality`
+    # now absorbs what used to live in `narrative_notes` + traits/voice
+    # on PublicSheet — one prose block covering who they are, how they
+    # speak, and how to play them. Can be empty for freshly-authored
+    # player characters (the player fills it through play); the /leave
+    # path synthesizes from the character's rolling conversation when
+    # handing back to an agent.
     backstory: str = ""
     personality: str = ""
-    narrative_notes: str = ""
     # Per-character world knowledge envelope: the filtered slice of world
     # lore/facts this character plausibly knows, plus their in-world sense
     # of what's going on. Populated at import time (and at spawn time for

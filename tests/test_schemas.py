@@ -36,8 +36,6 @@ CHARACTER_EXAMPLE = {
     "location": "estate_courtyard",
     "public_sheet": {
         "role": "guard captain",
-        "traits": ["disciplined", "dry humor"],
-        "voice": "clipped and formal",
     },
     "private_state": {
         "goals": ["maintain order"],
@@ -153,7 +151,7 @@ class TestCharacterRecord:
         cr = CharacterRecord(**CHARACTER_EXAMPLE)
         assert cr.name == "Captain Vero"
         assert cr.status == CharacterStatus.active
-        assert "dry humor" in cr.public_sheet.traits
+        assert cr.public_sheet.role == "guard captain"
         assert "maintain order" in cr.private_state.goals
 
     def test_round_trip(self):
@@ -173,8 +171,6 @@ class TestCharacterRecord:
             location="garvey_house",
             public_sheet=PublicSheet(
                 role="demon seat heir-designate",
-                traits=["confident", "meritocratic", "lacks empathy for weakness"],
-                voice="direct and measured, no false modesty",
                 appearance="Tall—6'1\" before the horns. Deep red skin, molten gold eyes.",
                 faction="House vel Kothren",
             ),
@@ -183,12 +179,11 @@ class TestCharacterRecord:
                 secrets=["grandmother was involved in the human collapse"],
             ),
             backstory="Born to House vel Kothren. Won the Trials of Ascension at seventeen...",
-            personality="Confident without cruelty. Meritocratic to a fault...",
-            narrative_notes="Her tail is her honest voice. Flicks when irritated, curls when pleased...",
+            personality="Confident without cruelty. Meritocratic to a fault. Her tail is her honest voice — flicks when irritated, curls when pleased.",
         )
         assert "grandmother" in cr.private_state.secrets[0]
         assert "Trials of Ascension" in cr.backstory
-        assert "tail" in cr.narrative_notes
+        assert "tail" in cr.personality
         assert cr.public_sheet.faction == "House vel Kothren"
 
 

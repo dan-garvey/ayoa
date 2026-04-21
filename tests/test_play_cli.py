@@ -40,13 +40,13 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.list_session_characters.return_value = [
         CharacterSummary(
             character_id="aldric", name="Aldric", role="wanderer",
-            faction="", traits=[], appearance="tall",
+            faction="", appearance="tall",
             status="active", is_player=True,
             bound_user_id=(bindings or {}).get("aldric", ""),
         ),
         CharacterSummary(
             character_id="sera", name="Sera Vance", role="thief",
-            faction="", traits=[], appearance="wiry",
+            faction="", appearance="wiry",
             status="active", is_player=False,
             bound_user_id=(bindings or {}).get("sera", ""),
         ),
@@ -55,6 +55,7 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.unbind_user = MagicMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
     engine.set_character_appearance = MagicMock(return_value=_empty_ckpt(bindings))
+    engine.set_character_identity = MagicMock(return_value=_empty_ckpt(bindings))
     engine.run_turn = AsyncMock()
     return engine
 
@@ -170,19 +171,23 @@ class TestActingDescribe:
         run(state.handle_line("I look around"))
         engine.run_turn.assert_not_called()
 
-    def test_describe_writes_to_current_actor(self, run):
+    def test_describe_writes_to_current_actor(self, run, monkeypatch):
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join aldric"))
-        run(state.handle_line("/describe tall and weary"))
-        engine.set_character_appearance.assert_called_once_with(
-            SESSION_ID, "aldric", "tall and weary",
+        # /describe is now interactive (two prompts). Stub the input
+        # path so the test doesn't hang on stdin.
+        inputs = iter(["Aldric", "tall and weary"])
+        monkeypatch.setattr(
+            "builtins.input", lambda prompt="": next(inputs),
+        )
+        run(state.handle_line("/describe"))
+        engine.set_character_identity.assert_called_once_with(
+            SESSION_ID, "aldric", name="Aldric", appearance="tall and weary",
         )
 
-    def test_describe_preplay_auto_begins(self, run):
+    def test_describe_preplay_auto_begins(self, run, monkeypatch):
         engine = _mock_engine()
-        # set_character_appearance returns a checkpoint with empty
-        # narrator_conversation → pre-play → should fire (begin).
         response = MagicMock()
         response.turn_index = 1
         response.output_text = "opening narration"
@@ -190,7 +195,11 @@ class TestActingDescribe:
 
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join aldric"))
-        run(state.handle_line("/describe tall and weary"))
+        inputs = iter(["", "tall and weary"])
+        monkeypatch.setattr(
+            "builtins.input", lambda prompt="": next(inputs),
+        )
+        run(state.handle_line("/describe"))
         engine.run_turn.assert_awaited_once()
         assert engine.run_turn.await_args.kwargs["user_input"] == "(begin)"
 

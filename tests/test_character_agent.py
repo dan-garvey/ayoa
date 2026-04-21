@@ -60,8 +60,6 @@ def guard_character():
         location="courtyard",
         public_sheet=PublicSheet(
             role="guard captain",
-            traits=["disciplined", "dry humor", "loyal"],
-            voice="clipped and formal",
             appearance="Tall, scarred, in polished armor",
             faction="City Watch",
         ),
@@ -71,8 +69,7 @@ def guard_character():
             intentions_enabled=True,
         ),
         backstory="Served the estate for twenty years. Rose from foot soldier to captain.",
-        personality="Stoic exterior hiding genuine care for those under his protection.",
-        narrative_notes="His right hand twitches when he's lying. Respects competence.",
+        personality="Disciplined guard captain with dry humor, clipped and formal speech. Stoic exterior hiding genuine care for those under his protection. His right hand twitches when he's lying. Respects competence.",
     )
 
 
@@ -122,10 +119,8 @@ class TestContextBuilder:
         packet = build_character_packet(guard_character)
         assert packet["character_id"] == "guard_17"
         assert packet["character_name"] == "Captain Vero"
-        assert "disciplined" in packet["character_traits"]
-        assert "clipped" in packet["character_voice"]
         assert "twenty years" in packet["character_backstory"]
-        assert "right hand twitches" in packet["character_narrative_notes"]
+        assert "right hand twitches" in packet["character_personality"]
 
     def test_build_character_state_dynamic(self, guard_character):
         state = build_character_state(guard_character)

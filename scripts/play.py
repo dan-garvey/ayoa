@@ -419,7 +419,7 @@ class CLIState:
                 f"/as {mutated.character_id} to switch."
             )
 
-    def cmd_leave(self, arg: str) -> None:
+    async def cmd_leave(self, arg: str) -> None:
         target = arg.strip() or self.current_actor
         if target is None:
             print("no character to leave")
@@ -428,6 +428,21 @@ class CLIState:
         if uid is None:
             print(f"not claimed: {target}")
             return
+
+        # Hand back to the agent: synthesize personality from rolling
+        # history if the player never wrote one. Skip silently if it
+        # already has content.
+        try:
+            ckpt = self.engine.load_latest(self.session_id)
+            char = next(
+                (c for c in ckpt.characters if c.character_id == target), None,
+            )
+            if char and not (char.personality and char.personality.strip()):
+                print(f"synthesizing personality for {target}…")
+                await self.engine.synthesize_personality(self.session_id, target)
+        except Exception as e:
+            print(f"warning: personality synthesis failed ({e}); leaving anyway")
+
         self.engine.unbind_user(self.session_id, uid)
         del self.claims[target]
         if self.current_actor == target:
@@ -450,25 +465,39 @@ class CLIState:
         print(f"now acting as {target}")
 
     async def cmd_describe(self, arg: str) -> None:
+        """Prompt for the minimum info needed to play: name + appearance.
+        Both are optional per-prompt — leave blank to keep the existing
+        value. Trailing arg is ignored; this command is always
+        interactive."""
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
-        traits = arg.strip()
-        if not traits:
-            print("usage: /describe <traits>")
+        loop = asyncio.get_event_loop()
+        try:
+            name = (await loop.run_in_executor(
+                None, input, "name (blank to keep existing): ",
+            )).strip()
+            appearance = (await loop.run_in_executor(
+                None, input, "appearance (blank to keep existing): ",
+            )).strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n(cancelled)")
+            return
+        if not name and not appearance:
+            print("(no changes)")
             return
         try:
-            ckpt = self.engine.set_character_appearance(
-                self.session_id, self.current_actor, traits,
+            ckpt = self.engine.set_character_identity(
+                self.session_id, self.current_actor,
+                name=name or None, appearance=appearance or None,
             )
         except Exception as e:
             print(f"error: {e}")
             return
-        print(f"updated appearance for {self.current_actor}")
+        print(f"updated {self.current_actor}")
 
         # Mirror the Discord bot: if no narrator turns yet, fire (begin) so
-        # the scene opens with the description in hand. This is pre-play
-        # auto-open behavior; subsequent /describe just updates the sheet.
+        # the scene opens with the description in hand.
         if not ckpt.narrator_conversation:
             print("opening scene…")
             await self._act("(begin)")

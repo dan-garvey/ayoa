@@ -58,6 +58,19 @@ def _llm_response(parsed) -> LLMResponse:
     )
 
 
+def _authored(**overrides):
+    """Build an AuthoredCharacter with every required field satisfied. Tests
+    override only the ones they care about; the rest default to empty."""
+    from app.schemas.takeover import AuthoredCharacter
+    defaults = dict(
+        name="default", location="", role="", appearance="", faction="",
+        backstory="", personality="", known_context="",
+        goals=[], current_objectives=[], secrets=[], intentions_enabled=False,
+    )
+    defaults.update(overrides)
+    return AuthoredCharacter(**defaults)
+
+
 def _make_checkpoint(characters: list[CharacterRecord] | None = None,
                      bindings: dict[str, str] | None = None) -> CheckpointFile:
     if characters is None:
@@ -168,13 +181,11 @@ class TestCreateCustomCharacter:
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
 
-        from app.schemas.takeover import AuthoredCharacter
-        authored = AuthoredCharacter(
+        authored = _authored(
             name="Tessa",
             role="scout",
-            traits=["quick"],
             backstory="Trained in the hills.",
-            personality="Wary.",
+            personality="Wary, quick on her feet.",
             goals=["find the informant"],
             secrets=["carries a forged seal"],
             location="courtyard",
@@ -211,8 +222,7 @@ class TestCreateCustomCharacter:
         ckpt = _make_checkpoint(characters=[existing])
         _seed(bridge, ckpt)
 
-        from app.schemas.takeover import AuthoredCharacter
-        authored = AuthoredCharacter(name="Tessa", role="scout")
+        authored = _authored(name="Tessa", role="scout")
         out = TakeoverAuthoredOutput(character=authored, session_note="")
         bridge.client.complete = AsyncMock(return_value=_llm_response(out))
 
@@ -301,7 +311,6 @@ class TestReplaceWithCustom:
             public_sheet=PublicSheet(role="old role", faction="old faction"),
             backstory="old backstory",
             personality="old personality",
-            narrative_notes="old notes",
             known_context="old context",
             private_state=PrivateState(
                 goals=["old goal"],
@@ -326,16 +335,13 @@ class TestReplaceWithCustom:
         ]
         _seed(bridge, ckpt)
 
-        from app.schemas.takeover import AuthoredCharacter
-        authored = AuthoredCharacter(
+        authored = _authored(
             name="Brooding Rival",
             location="somewhere_else",  # ignored — location preserved
             role="brooder",
             faction="loners",
-            traits=["quiet"],
             backstory="A new, grim history.",
-            personality="Cold and calculating.",
-            narrative_notes="Portray with long silences.",
+            personality="Cold and calculating. Speaks in long silences.",
             known_context="Knows the new truth.",
             goals=["new vendetta"],
             secrets=["hides a dagger"],
@@ -363,8 +369,7 @@ class TestReplaceWithCustom:
         assert updated.public_sheet.role == "brooder"
         assert updated.public_sheet.faction == "loners"
         assert updated.backstory == "A new, grim history."
-        assert updated.personality == "Cold and calculating."
-        assert updated.narrative_notes == "Portray with long silences."
+        assert updated.personality == "Cold and calculating. Speaks in long silences."
         assert updated.known_context == "Knows the new truth."
         assert updated.private_state.goals == ["new vendetta"]
         assert updated.private_state.secrets == ["hides a dagger"]

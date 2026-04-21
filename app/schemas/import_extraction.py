@@ -65,9 +65,10 @@ class WorldExtraction(BaseModel):
 # ---------------- Character extraction ----------------
 
 class PublicSheetExtraction(BaseModel):
+    # traits and voice absorbed into CharacterExtraction.personality;
+    # importer now emits one prose block covering both (plus portrayal
+    # notes) rather than separate fields.
     role: str = ""
-    traits: list[str] = Field(default_factory=list)
-    voice: str = ""
     appearance: str = ""
     faction: str = ""
 
@@ -98,8 +99,10 @@ class CharacterExtraction(BaseModel):
     public_sheet: PublicSheetExtraction = Field(default_factory=PublicSheetExtraction)
     private_state: PrivateStateExtraction = Field(default_factory=PrivateStateExtraction)
     backstory: str = ""
+    # personality absorbs narrative_notes (portrayal direction) and the
+    # legacy public_sheet traits/voice fields; one prose block per
+    # character.
     personality: str = ""
-    narrative_notes: str = ""
 
 
 class CharacterListExtraction(BaseModel):

@@ -266,12 +266,7 @@ class EventRouter:
         for char in checkpoint.characters:
             if char.location == scene_id and char.status.value == "active":
                 role = char.public_sheet.role or "unknown role"
-                traits = (
-                    ", ".join(char.public_sheet.traits)
-                    if char.public_sheet.traits
-                    else "no notable traits"
-                )
-                present.append(f"- {char.name} ({role}): {traits}")
+                present.append(f"- {char.name} ({role})")
 
         if not present:
             return "No other characters are present in this scene."

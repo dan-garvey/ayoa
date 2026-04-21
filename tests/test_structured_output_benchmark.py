@@ -46,19 +46,16 @@ SYSTEM_PROMPT = (
     "You author fictional character records as JSON. You respond with ONLY "
     "valid JSON — no prose commentary, no markdown fences."
 )
-USER_PROMPT = """Produce a character matching this JSON schema:
+USER_PROMPT = """Produce a character matching this JSON schema (ALL fields required):
 
 {
   "name": "string — full name",
-  "location": "string — scene_id; empty string if not placing",
+  "location": "string — scene_id",
   "role": "string — role or occupation",
-  "traits": ["string — 3-5 personality traits"],
-  "voice": "string — how they speak",
   "appearance": "string — physical description",
   "faction": "string — affiliation or empty string",
   "backstory": "string — their background",
-  "personality": "string — inner world",
-  "narrative_notes": "string — how to play them",
+  "personality": "string — one prose block covering inner world, voice, and how to play them",
   "known_context": "string — what they take for granted about the world",
   "goals": ["string — existential drives"],
   "current_objectives": ["string — 1-3 active pursuits"],

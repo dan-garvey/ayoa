@@ -92,16 +92,13 @@ For mode `suggest`:
 For mode `describe` or `replace`:
 {{
   "character": {{
-    "name": "string — full name",
-    "location": "string — scene_id; empty string if not placing them yet",
-    "role": "string — their role or occupation",
-    "traits": ["string — 3-5 personality traits"],
-    "voice": "string — how they speak, verbal style",
-    "appearance": "string — physical description",
+    "name": "string — full name; use the one the player gave if they specified one",
+    "location": "string — scene_id; empty string if not placing yet",
+    "role": "string — role or occupation",
+    "appearance": "string — physical description; use the player's description verbatim where given",
     "faction": "string — faction / house / group affiliation, or empty string",
-    "backstory": "string — their own knowledge of their history",
-    "personality": "string — inner world, private self, how they think and feel under pressure",
-    "narrative_notes": "string — how to play them in scenes, what they hide, what pressures them",
+    "backstory": "string — their own knowledge of their history, world-consistent",
+    "personality": "string — LEAVE EMPTY for player-authored characters (describe / replace). The player owns how this character speaks, carries themselves, and plays under pressure. Do not write it for them.",
     "known_context": "string — dense paragraph of what this character takes for granted about the world",
     "goals": ["string — existential drives, who they are at core"],
     "current_objectives": ["string — 1-3 actionable pursuits they start with"],
@@ -110,6 +107,8 @@ For mode `describe` or `replace`:
   }},
   "session_note": "string — optional in-fiction bridge sentence; empty string if none"
 }}
+
+**Every field above is REQUIRED in the output. Emit empty string "" for string fields with no content, empty array [] for list fields with no content. Do not omit fields.**
 
 <<<USER>>>
 

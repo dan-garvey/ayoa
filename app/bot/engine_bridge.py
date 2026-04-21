@@ -40,16 +40,15 @@ from app.schemas.responses import TurnResponse
 class CharacterSummary:
     """Spoiler-free summary of a character for /story characters and /join.
 
-    Only fields from `public_sheet` plus status/name/binding — nothing from
-    private_state, backstory, personality, narrative_notes, or hidden lore.
-    `bound_user_id` is populated when reading a session checkpoint; empty on
-    pristine story-level lookups.
+    Public-sheet fields plus status / name / binding — nothing from
+    private_state, backstory, personality, or hidden lore. `bound_user_id`
+    is populated when reading a session checkpoint; empty on pristine
+    story-level lookups.
     """
     character_id: str
     name: str
     role: str
     faction: str
-    traits: list[str]
     appearance: str
     status: str  # "active" | "dormant" | "culled"
     is_player: bool
@@ -369,6 +368,117 @@ class EngineBridge:
         self.checkpoint_mgr.save(ckpt)
         return ckpt
 
+    def set_character_identity(
+        self,
+        session_id: str,
+        character_id: str,
+        *,
+        name: str | None = None,
+        appearance: str | None = None,
+    ) -> CheckpointFile:
+        """Update a character's name and/or appearance. Used by /describe
+        after takeover so the player's name and look land on the record
+        without touching personality (which they'll fill through play,
+        or leave blank for agent handoff)."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None
+        )
+        if target is None:
+            raise ValueError(
+                f"Character '{character_id}' not found in session '{session_id}'"
+            )
+        if name is not None and name.strip():
+            target.name = name.strip()
+        if appearance is not None:
+            target.public_sheet.appearance = appearance.strip()
+        self.checkpoint_mgr.save(ckpt)
+        return ckpt
+
+    async def synthesize_personality(
+        self,
+        session_id: str,
+        character_id: str,
+    ) -> CheckpointFile:
+        """Fill a character's `personality` field by asking the narrator to
+        synthesize one from the rolling conversation history. Called on
+        /leave when a player hands a character back to the agent and
+        personality is still empty (player never wrote it, or played
+        entirely through the rolling conversation).
+
+        No-op if personality is already non-empty. Uses the narrator
+        role (Sonnet) because it has the best grasp of prose voice and
+        character continuity across the transcript.
+        """
+        from pydantic import BaseModel
+
+        class _PersonalityOutput(BaseModel):
+            personality: str
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None,
+        )
+        if target is None:
+            raise ValueError(f"No character '{character_id}' in session.")
+        if target.personality and target.personality.strip():
+            logger.info(
+                "Personality already set on %s; skipping synthesis", character_id,
+            )
+            return ckpt
+
+        # Pull this character's rolling conversation history. On a fresh
+        # /join_custom character who never had an agent turn, the history
+        # is empty — fall back to synthesizing from authored fields only.
+        history = ckpt.character_conversations.get(character_id, [])
+        convo_snippets = []
+        for msg in history[-20:]:
+            content = msg.content if hasattr(msg, "content") else msg.get("content", "")
+            if isinstance(content, list):
+                content = " ".join(
+                    b.get("text", "") for b in content
+                    if isinstance(b, dict) and b.get("type") == "text"
+                )
+            if content:
+                convo_snippets.append(f"[{msg.role if hasattr(msg, 'role') else msg.get('role')}] {content[:500]}")
+        history_block = "\n".join(convo_snippets) or "(no rolling conversation yet)"
+
+        messages = [
+            {"role": "system", "content": (
+                "You distill a character's personality into a single prose block "
+                "for engine-side use. Cover three things in one paragraph (or a "
+                "few): how they speak, how they carry themselves, and how to "
+                "play them under pressure. Base your write-up on the character's "
+                "authored identity and their prior rolling conversation if any. "
+                "No bullet points. No commentary outside the JSON."
+            )},
+            {"role": "user", "content": (
+                f"Character: {target.name} ({character_id})\n"
+                f"Role: {target.public_sheet.role}\n"
+                f"Appearance: {target.public_sheet.appearance}\n"
+                f"Faction: {target.public_sheet.faction}\n"
+                f"Backstory: {target.backstory}\n"
+                f"Known context: {target.known_context}\n"
+                f"Goals: {', '.join(target.private_state.goals)}\n\n"
+                f"Recent conversation (may be empty for freshly-joined characters):\n{history_block}\n\n"
+                'Respond with ONLY valid JSON: {"personality": "<prose>"}'
+            )},
+        ]
+        response = await self.client.complete(
+            role="narrator",
+            messages=messages,
+            temperature=0.5,
+            max_tokens=1500,
+        )
+        out = _parse_model_json(_PersonalityOutput, response.content)
+        target.personality = out.personality.strip()
+        self.checkpoint_mgr.save(ckpt)
+        logger.info(
+            "Synthesized personality for %s (%d chars)",
+            character_id, len(target.personality),
+        )
+        return ckpt
+
     # ---- character catalog (spoiler-free) ------------------------------------
 
     def list_session_characters(self, session_id: str) -> list[CharacterSummary]:
@@ -584,14 +694,11 @@ class EngineBridge:
         target.name = authored.name
         target.public_sheet = PublicSheet(
             role=authored.role,
-            traits=list(authored.traits),
-            voice=authored.voice,
             appearance=authored.appearance,
             faction=authored.faction,
         )
         target.backstory = authored.backstory
         target.personality = authored.personality
-        target.narrative_notes = authored.narrative_notes
         target.known_context = authored.known_context
         target.private_state.goals = list(authored.goals)
         target.private_state.secrets = list(authored.secrets)
@@ -671,9 +778,10 @@ class EngineBridge:
         the WORLD through play, not through the dossier.
 
         Deliberately excludes:
-        - `narrative_notes` — authorial portrayal direction ("reached through
-          sustained non-demanding sincerity") collapses discovery if the
-          player reads it upfront. Kept on the character for AI agent use.
+        - `personality` — now absorbs what used to be narrative_notes
+          (portrayal direction). That's authorial direction for the AI
+          agent; collapses discovery if the player reads it upfront.
+          Kept on the record for agent use only.
         - `world_state.hidden_lore` / `hidden_facts` — engine-wide secrets.
           Most characters don't know most of these; dumping them spoils
           the plot. If a specific character genuinely knows a specific
@@ -699,10 +807,6 @@ class EngineBridge:
             sheet_bits.append(f"**Role** — {sheet.role}")
         if sheet.faction:
             sheet_bits.append(f"**Faction** — {sheet.faction}")
-        if sheet.traits:
-            sheet_bits.append(f"**Traits** — {', '.join(sheet.traits)}")
-        if sheet.voice:
-            sheet_bits.append(f"**Voice** — {sheet.voice}")
         if sheet.appearance:
             sheet_bits.append(f"**Appearance** — {sheet.appearance}")
         if sheet_bits:
@@ -1056,7 +1160,6 @@ def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
             name=char.name,
             role=char.public_sheet.role or "",
             faction=char.public_sheet.faction or "",
-            traits=list(char.public_sheet.traits),
             appearance=char.public_sheet.appearance or "",
             status=char.status.value,
             is_player=char.is_player,

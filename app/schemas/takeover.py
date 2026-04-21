@@ -53,49 +53,51 @@ class TakeoverSuggestOutput(BaseModel):
     preamble: str = ""
 
 
-# Flat authoring shape for LLM output. Kept intentionally simple: the
-# full CharacterRecord has an enum field (status), nested queue lists
-# (incoming_directives, pending_observations), and nested sub-models
-# (PublicSheet, PrivateState) that pushed Anthropic's structured-output
-# grammar compiler past its limits even on the beta endpoint. Flattening
-# into a single-level struct AND keeping the class docstring out of the
-# generated JSON schema (via no-docstring-on-the-class) makes the grammar
-# compile. The engine maps the result back into a CharacterRecord via
-# to_record() before persisting.
+# Flat authoring shape. ALL fields required. Every optional field in a
+# flat struct doubles the grammar states the LLM's schema compiler
+# must enumerate (2^N combinations); with 14 optionals we blew past
+# Anthropic's "Schema is too complex" ceiling. All-required collapses
+# the grammar to a single fixed shape.
+#
+# Fields intentionally merged vs. legacy CharacterRecord:
+#   traits + voice + narrative_notes → rolled into `personality`.
+#   The LLM writes one prose block covering who the character is, how
+#   they talk, and how to play them under pressure. Fewer fields =
+#   fewer author-time decisions, less token cost, simpler prompts.
+#
+# For player-authored characters (takeover describe/replace), the LLM
+# emits personality="" — the prose is the player's to develop. Empty
+# is a legitimate state; /leave triggers a synthesis pass if needed
+# when handing the character back to the agent.
 class AuthoredCharacter(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    location: str = ""
-    # public_sheet fields
-    role: str = ""
-    traits: list[str] = Field(default_factory=list)
-    voice: str = ""
-    appearance: str = ""
-    faction: str = ""
-    # long-form interior prose
-    backstory: str = ""
-    personality: str = ""
-    narrative_notes: str = ""
-    known_context: str = ""
-    # private_state fields
-    goals: list[str] = Field(default_factory=list)
-    current_objectives: list[str] = Field(default_factory=list)
-    secrets: list[str] = Field(default_factory=list)
-    intentions_enabled: bool = False
+    location: str
+    role: str
+    appearance: str
+    faction: str
+    backstory: str
+    # personality now absorbs traits + voice + portrayal notes: "a
+    # disciplined guard captain with dry humor who speaks in clipped
+    # formal sentences; his right hand twitches when he's lying; under
+    # pressure he closes down rather than lashes out."
+    personality: str
+    known_context: str
+    goals: list[str]
+    current_objectives: list[str]
+    secrets: list[str]
+    intentions_enabled: bool
 
     def to_record(self, character_id: str = "") -> CharacterRecord:
-        """Map the authoring shape onto the engine's CharacterRecord.
-        Caller sets character_id, is_player, and bound_user_id afterward
-        if relevant."""
+        """Map onto CharacterRecord. Caller sets character_id, is_player,
+        and binding afterward if relevant."""
         return CharacterRecord(
             character_id=character_id,
             name=self.name,
             location=self.location,
             public_sheet=PublicSheet(
                 role=self.role,
-                traits=list(self.traits),
-                voice=self.voice,
                 appearance=self.appearance,
                 faction=self.faction,
             ),
@@ -107,7 +109,6 @@ class AuthoredCharacter(BaseModel):
             ),
             backstory=self.backstory,
             personality=self.personality,
-            narrative_notes=self.narrative_notes,
             known_context=self.known_context,
         )
 

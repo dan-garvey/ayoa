@@ -255,7 +255,10 @@ class TestCharacterSpawn:
             name="Tom the Stablehand",
             location="courtyard",
             role="stablehand",
-            traits=["nervous"],
+            appearance="", faction="", backstory="",
+            personality="Nervous, avoids eye contact.",
+            known_context="", goals=[], current_objectives=[],
+            secrets=[], intentions_enabled=False,
         )
         mock_client.complete.return_value = _llm_response(authored)
 
@@ -289,7 +292,13 @@ class TestCharacterSpawn:
     async def test_spawn_limit(self, mock_client, sample_checkpoint):
         from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
-        authored = AuthoredCharacter(name="NPC", location="courtyard")
+        authored = AuthoredCharacter(
+            name="NPC", location="courtyard",
+            role="", appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False,
+        )
         mock_client.complete.return_value = _llm_response(authored)
 
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
