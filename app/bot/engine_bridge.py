@@ -761,10 +761,11 @@ class EngineBridge:
         response = await self.client.complete(
             role="event_router",
             messages=messages,
+            response_model=response_model,
             temperature=0.7,
             max_tokens=4000,
         )
-        return _parse_model_json(response_model, response.content)
+        return response.parsed
 
     def build_character_dossier(
         self,

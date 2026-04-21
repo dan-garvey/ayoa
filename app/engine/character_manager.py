@@ -137,14 +137,14 @@ class CharacterManager:
         )
 
         from app.schemas.takeover import AuthoredCharacter
-        from app.bot.engine_bridge import _parse_model_json
         response = await self.client.complete(
             role="agent",
             messages=messages,
+            response_model=AuthoredCharacter,
             temperature=0.6,
             max_tokens=3000,
         )
-        authored = _parse_model_json(AuthoredCharacter, response.content)
+        authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
         # Enforce location from request
         char.location = scene_id
