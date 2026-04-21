@@ -182,7 +182,7 @@ class TestLLMClientComplete:
             {
                 "type": "text",
                 "text": "You are a bard.",
-                "cache_control": {"type": "ephemeral"},
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
             }
         ]
         assert "cache_control" not in call_kwargs

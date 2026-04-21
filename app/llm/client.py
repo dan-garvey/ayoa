@@ -273,6 +273,14 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        cache_control: dict[str, Any] = {"type": "ephemeral"}
+        # Anthropic accepts ttl on the cache_control block. "5m" is the
+        # default (implicit); "1h" extends to one hour at 2x write cost.
+        # We explicitly set it so the TTL is visible in the request and
+        # driven by config rather than relying on server-side defaults.
+        if self.config.cache_ttl in ("5m", "1h"):
+            cache_control = {"type": "ephemeral", "ttl": self.config.cache_ttl}
+
         if system:
             if cache:
                 # Breakpoint at the end of system (the shared prefix). Top-level
@@ -282,7 +290,7 @@ class LLMClient:
                     {
                         "type": "text",
                         "text": system,
-                        "cache_control": {"type": "ephemeral"},
+                        "cache_control": cache_control,
                     }
                 ]
             else:
@@ -302,7 +310,7 @@ class LLMClient:
                         {
                             "type": "text",
                             "text": last["content"],
-                            "cache_control": {"type": "ephemeral"},
+                            "cache_control": cache_control,
                         }
                     ],
                 }
