@@ -308,15 +308,29 @@ class EngineBridge:
         data.pop("import_analysis", None)
         dst.write_text(json.dumps(data, indent=2))
 
-        # Personalize the pristine ckpt_0000, save as ckpt_0001.
+        # Personalize only on single-protagonist stories. Multi-slot
+        # stories (≥2 is_player characters, meant to be takeover targets)
+        # keep their authored names and ids; the player picks one via
+        # /join. Auto-binding the creator to a rename-inferred slot would
+        # be wrong — they haven't chosen yet.
         ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
-        personalized = _personalize(ckpt, player_display_name)
+        player_count = sum(1 for c in ckpt.characters if c.is_player)
+        if player_count <= 1:
+            personalized = _personalize(ckpt, player_display_name)
+        else:
+            personalized = ckpt
+            personalized.session.player_name = ""
+            personalized.session.player_character_id = ""
         if personalized.session.turn_index == 0:
             personalized.session.turn_index = 1
 
-        # Auto-bind the creator to the is_player character so /act works
-        # without requiring a separate /join from them.
-        if creator_user_id is not None and personalized.session.player_character_id:
+        # Auto-bind the creator only on single-protagonist stories. For
+        # multi-slot stories, creator runs /join explicitly.
+        if (
+            creator_user_id is not None
+            and player_count <= 1
+            and personalized.session.player_character_id
+        ):
             personalized.session.character_bindings[
                 personalized.session.player_character_id
             ] = str(creator_user_id)

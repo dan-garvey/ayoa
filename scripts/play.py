@@ -137,18 +137,15 @@ class CLIState:
         scene_id = ckpt.world_state.locations.current_scene_id
         claimed_ids = set(self.claims)
 
-        def _suffix(cid: str) -> str:
-            if cid == self.current_actor:
-                return "  ← acting"
-            if cid in claimed_ids:
-                return "  [claimed]"
-            return ""
-
         here: list[str] = []
         elsewhere: list[str] = []
         dormant: list[str] = []
         culled: list[str] = []
         for c in ckpt.characters:
+            # Claimed characters are shown exclusively in "Claimed by you" so
+            # they don't appear twice in the output.
+            if c.character_id in claimed_ids:
+                continue
             status = c.status.value
             if status == "dormant":
                 dormant.append(c.character_id)
@@ -159,6 +156,9 @@ class CLIState:
                     here.append(c.character_id)
                 else:
                     elsewhere.append(c.character_id)
+
+        def _suffix(cid: str) -> str:
+            return ""
 
         print(f"## Here ({scene_id})")
         for cid in here:
