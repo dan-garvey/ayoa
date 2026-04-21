@@ -30,6 +30,7 @@ from app.engine.settings import (
 from app.engine.story_importer import run_import, run_preservation_analysis
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
+from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
@@ -416,6 +417,207 @@ class EngineBridge:
             self.checkpoint_mgr.save(ckpt)
         return freed
 
+    # ---- takeover -----------------------------------------------------------
+
+    def takeover(
+        self,
+        session_id: str,
+        character_id: str,
+        user_id: int,
+    ) -> CheckpointFile:
+        """Plain takeover: bind the user to an existing character and flip
+        is_player=True. Name, appearance, everything else unchanged.
+
+        This is the default `/join` path — the user becomes the character
+        as-authored. Refuses if already claimed, culled, or nonexistent
+        (via bind_user's checks) and on already-is_player+already-bound."""
+        ckpt = self.bind_user(session_id, user_id, character_id)
+        target = next(
+            (c for c in ckpt.characters if c.character_id == character_id), None,
+        )
+        if target is None:
+            raise ValueError(f"No character '{character_id}' in this session.")
+        if not target.is_player:
+            target.is_player = True
+            self.checkpoint_mgr.save(ckpt)
+        return ckpt
+
+    async def create_custom_character(
+        self,
+        session_id: str,
+        user_id: int,
+        description: str,
+    ) -> CharacterRecord:
+        """Mode='describe': router authors a full new character from the
+        player's concept, lands them in the world, binds to the user. The
+        returned record has its engine-assigned character_id, is_player=True,
+        and is already written to the checkpoint."""
+        from app.schemas.takeover import TakeoverAuthoredOutput
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        out: TakeoverAuthoredOutput = await self._call_takeover(
+            ckpt,
+            mode="describe",
+            description=description,
+        )
+        new_char = out.character
+        new_char.character_id = _pick_unused_character_id(ckpt, new_char.name)
+        new_char.is_player = True
+        ckpt.characters.append(new_char)
+        ckpt.session.character_bindings[new_char.character_id] = str(user_id)
+
+        if out.session_note:
+            _append_session_note(ckpt, out.session_note)
+
+        self.checkpoint_mgr.save(ckpt)
+        logger.info(
+            "Custom character spawned in %s: %s (%s)",
+            session_id, new_char.name, new_char.character_id,
+        )
+        return new_char
+
+    async def suggest_replacement_targets(
+        self,
+        session_id: str,
+        description: str,
+    ) -> dict[str, Any]:
+        """Mode='suggest': router surveys the roster for NPCs worth
+        replacing with the player's concept. Returns the candidate list
+        and an optional preamble. No mutation."""
+        from app.schemas.takeover import TakeoverSuggestOutput
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        out: TakeoverSuggestOutput = await self._call_takeover(
+            ckpt,
+            mode="suggest",
+            description=description,
+        )
+        return {
+            "candidates": [c.model_dump() for c in out.candidates],
+            "preamble": out.preamble,
+        }
+
+    async def replace_with_custom(
+        self,
+        session_id: str,
+        user_id: int,
+        target_character_id: str,
+        description: str,
+    ) -> CharacterRecord:
+        """Mode='replace': graft a player-authored character onto an
+        existing NPC's slot. Preserves circumstances (location, status,
+        attitudes toward others, incoming_directives, pending_observations)
+        and overwrites identity (name, sheet, backstory, personality,
+        goals, known_context, secrets, narrative_notes). Clears the
+        target's rolling character_conversation so the new self starts
+        fresh.
+
+        Binds user, flips is_player, saves."""
+        from app.schemas.takeover import TakeoverAuthoredOutput
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target = next(
+            (c for c in ckpt.characters if c.character_id == target_character_id),
+            None,
+        )
+        if target is None:
+            raise ValueError(
+                f"No character '{target_character_id}' in this session."
+            )
+        if target.is_player:
+            raise ValueError(
+                f"'{target.name}' is already a player character — pick another target."
+            )
+        claimed_by = ckpt.session.character_bindings.get(target_character_id)
+        if claimed_by and claimed_by != str(user_id):
+            raise ValueError(
+                f"'{target.name}' is already bound to another player."
+            )
+
+        out: TakeoverAuthoredOutput = await self._call_takeover(
+            ckpt,
+            mode="replace",
+            description=description,
+            picked_target=target,
+        )
+        authored = out.character
+
+        # Identity overwrite from authored; circumstances preserved from target.
+        target.name = authored.name
+        target.public_sheet = authored.public_sheet
+        target.backstory = authored.backstory
+        target.personality = authored.personality
+        target.narrative_notes = authored.narrative_notes
+        target.known_context = authored.known_context
+        target.private_state.goals = list(authored.private_state.goals)
+        target.private_state.secrets = list(authored.private_state.secrets)
+        target.private_state.intentions_enabled = (
+            authored.private_state.intentions_enabled
+        )
+        # Keep target's location, status, attitudes, incoming_directives,
+        # pending_observations, current_objectives as-is — those are the
+        # "circumstances" the player inherits.
+        target.is_player = True
+
+        # Drop rolling character conversation — the voice has changed.
+        ckpt.character_conversations.pop(target_character_id, None)
+
+        ckpt.session.character_bindings[target_character_id] = str(user_id)
+
+        if out.session_note:
+            _append_session_note(ckpt, out.session_note)
+
+        self.checkpoint_mgr.save(ckpt)
+        logger.info(
+            "Character replaced in %s: %s grafted onto %s",
+            session_id, target.name, target_character_id,
+        )
+        return target
+
+    async def _call_takeover(
+        self,
+        ckpt: CheckpointFile,
+        *,
+        mode: str,
+        description: str,
+        picked_target: CharacterRecord | None = None,
+    ):
+        """Render the takeover prompt, dispatch to the LLM with the
+        mode-appropriate response model, and return the parsed output.
+
+        mode: 'describe' | 'suggest' | 'replace'
+        picked_target: required only for mode='replace'.
+        """
+        from app.schemas.takeover import (
+            TakeoverAuthoredOutput,
+            TakeoverSuggestOutput,
+        )
+
+        if mode not in {"describe", "suggest", "replace"}:
+            raise ValueError(f"Unknown takeover mode: {mode}")
+        if mode == "replace" and picked_target is None:
+            raise ValueError("mode='replace' requires picked_target")
+
+        context = _build_takeover_context(ckpt, description, picked_target)
+
+        response_model = (
+            TakeoverSuggestOutput if mode == "suggest" else TakeoverAuthoredOutput
+        )
+        messages = self.prompt_mgr.render_messages(
+            "takeover",
+            mode=mode,
+            player_description=description,
+            **context,
+        )
+        response = await self.client.complete(
+            role="event_router",
+            messages=messages,
+            response_model=response_model,
+            temperature=0.7,
+            max_tokens=4000,
+        )
+        return response.parsed
+
     def build_character_dossier(
         self,
         session_id: str,
@@ -562,6 +764,128 @@ class EngineBridge:
 # the runtime checkpoint schema consistent. Mirrors
 # app/api/story_routes.py::_apply_personalize so the bot does not depend on
 # the FastAPI route.
+
+
+def _pick_unused_character_id(
+    ckpt: CheckpointFile, name: str,
+) -> str:
+    """Slugify `name` into a snake_case character_id; disambiguate with
+    a numeric suffix if the slug is already in use."""
+    base = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "character"
+    taken = {c.character_id for c in ckpt.characters}
+    if base not in taken:
+        return base
+    i = 2
+    while f"{base}_{i}" in taken:
+        i += 1
+    return f"{base}_{i}"
+
+
+def _build_takeover_context(
+    ckpt: CheckpointFile,
+    description: str,
+    picked_target: "CharacterRecord | None",
+) -> dict[str, str]:
+    """Render the context blocks the takeover prompt expects. Stays
+    router-style: omniscient world state, full roster (spoiler-safe is
+    NOT a constraint here — the router is authoring for itself)."""
+    setting = ckpt.world_state.setting
+    setting_summary = (
+        f"Genre: {setting.genre}\nEra: {setting.era}\n"
+        f"Tone: {setting.tone}\nPremise: {setting.premise}"
+    )
+    world_lore = ckpt.world_state.lore or "No detailed lore."
+    hidden_lore = ckpt.world_state.hidden_lore or "(none)"
+    hidden_facts = (
+        "\n".join(f"- {f}" for f in ckpt.world_state.hidden_facts)
+        or "(none)"
+    )
+    physics = ckpt.world_state.physics_ruleset
+    world_rules = (
+        f"Strength limits: {physics.strength_limits}\n"
+        f"Magic: {'enabled' if physics.magic_enabled else 'disabled'}"
+    )
+
+    locations = ckpt.world_state.locations
+    scene_id = locations.current_scene_id
+    scene = locations.scene_graph.get(scene_id, {}) if scene_id else {}
+    scene_graph_lines = []
+    for sid, sdata in locations.scene_graph.items():
+        if isinstance(sdata, dict):
+            sname = sdata.get("name", sid)
+            conn = sdata.get("connected_to", []) or []
+            scene_graph_lines.append(
+                f"- {sname} (id: {sid})"
+                + (f"; connected to {', '.join(conn)}" if conn else "")
+            )
+    scene_graph = "\n".join(scene_graph_lines) or "(empty)"
+    current_scene = (
+        f"{scene.get('name', scene_id)} (id: {scene_id})\n"
+        f"{scene.get('description', '')}".strip()
+        if scene_id else "(no active scene)"
+    )
+
+    registry_lines = []
+    for c in ckpt.characters:
+        if c.status.value == "culled":
+            continue
+        marker = " [player]" if c.is_player else ""
+        role = f" — {c.public_sheet.role}" if c.public_sheet.role else ""
+        fac = f" ({c.public_sheet.faction})" if c.public_sheet.faction else ""
+        loc = f" @ {c.location}" if c.location else ""
+        registry_lines.append(
+            f"- {c.name} ({c.character_id}){role}{fac}{loc}{marker}"
+        )
+    character_registry = "\n".join(registry_lines) or "(empty)"
+
+    transcript = ckpt.transcript[-6:] if ckpt.transcript else []
+    if transcript:
+        recent_bits = []
+        for entry in transcript:
+            recent_bits.append(f"> {entry.user}\n{entry.assistant}")
+        recent_session_summary = "\n\n".join(recent_bits)
+    else:
+        recent_session_summary = "(no turns played yet)"
+
+    if picked_target is not None:
+        picked_target_block = (
+            "## Picked Target\n"
+            f"character_id: {picked_target.character_id}\n"
+            f"name: {picked_target.name}\n"
+            f"role: {picked_target.public_sheet.role}\n"
+            f"faction: {picked_target.public_sheet.faction}\n"
+            f"location: {picked_target.location}\n"
+            f"backstory: {picked_target.backstory}\n\n"
+        )
+    else:
+        picked_target_block = ""
+
+    return {
+        "setting_summary": setting_summary,
+        "world_lore": world_lore,
+        "hidden_lore": hidden_lore,
+        "hidden_facts": hidden_facts,
+        "world_rules": world_rules,
+        "scene_graph": scene_graph,
+        "current_scene": current_scene,
+        "character_registry": character_registry,
+        "recent_session_summary": recent_session_summary,
+        "picked_target_block": picked_target_block,
+    }
+
+
+def _append_session_note(ckpt: CheckpointFile, note: str) -> None:
+    """Post a router-authored in-fiction note into the session_conversation
+    so the next turn's router sees the new character's arrival. Stored
+    as an assistant-like entry; non-authoritative — purely context."""
+    from app.schemas.conversation import ConversationMessage
+
+    if not note.strip():
+        return
+    ckpt.session_conversation.append(ConversationMessage(
+        role="assistant",
+        content=f'{{"takeover_note": {json.dumps(note)}}}',
+    ))
 
 
 def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:

@@ -51,7 +51,7 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
             bound_user_id=(bindings or {}).get("sera", ""),
         ),
     ]
-    engine.bind_user = MagicMock()
+    engine.takeover = MagicMock()
     engine.unbind_user = MagicMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
     engine.set_character_appearance = MagicMock(return_value=_empty_ckpt(bindings))
@@ -93,7 +93,7 @@ class TestJoinLeave:
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join sera"))
-        engine.bind_user.assert_called_once_with(SESSION_ID, 1, "sera")
+        engine.takeover.assert_called_once_with(SESSION_ID, "sera", 1)
         assert state.claims == {"sera": 1}
         assert state.current_actor == "sera"
 
@@ -109,9 +109,9 @@ class TestJoinLeave:
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join sera"))
-        engine.bind_user.reset_mock()
+        engine.takeover.reset_mock()
         run(state.handle_line("/join sera"))
-        engine.bind_user.assert_not_called()
+        engine.takeover.assert_not_called()
 
     def test_leave_default_is_current_actor(self, run):
         engine = _mock_engine()

@@ -41,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
-from app.bot.engine_bridge import CharacterSummary, EngineBridge
+from app.bot.engine_bridge import EngineBridge
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -49,19 +49,21 @@ logger = logging.getLogger(__name__)
 
 HELP_TEXT = """\
 Commands:
-  /help                       Show this help
-  /characters                 List roster with status and bindings
-  /join <character_id>        Claim a character; prints their dossier
-  /leave [character_id]       Release a claim (default: current actor)
-  /as <character_id>          Switch which claimed character acts next
-  /describe <traits>          Set appearance of the current actor
-  /settings                   Show experimental settings for this session
-  /settings <key>             Show one setting's current value
-  /settings <key> <value>     Update a setting
-  /status                     Session summary
-  /history [N]                Print all turns, or last N
-  /attitudes [character_id]   Print attitude map (all, or one character)
-  /quit                       Exit (Ctrl-D also works)
+  /help                             Show this help
+  /characters                       List roster grouped by location/status
+  /character <id>                   Full dossier for a character
+  /join <character_id>              Claim a character; prints their dossier
+  /join_custom [describe|replace]   Play a character of your own description
+  /leave [character_id]             Release a claim (default: current actor)
+  /as <character_id>                Switch which claimed character acts next
+  /describe <traits>                Set appearance of the current actor
+  /settings                         Show experimental settings for this session
+  /settings <key>                   Show one setting's current value
+  /settings <key> <value>           Update a setting
+  /status                           Session summary
+  /history [N]                      Print all turns, or last N
+  /attitudes [character_id]         Print attitude map (all, or one character)
+  /quit                             Exit (Ctrl-D also works)
 
 Plain text is an in-character action for the current actor. Use "(begin)"
 to open the scene from the author's opening directive."""
@@ -132,8 +134,90 @@ class CLIState:
         print(HELP_TEXT)
 
     def cmd_characters(self, arg: str) -> None:
-        summaries = self.engine.list_session_characters(self.session_id)
-        print(_format_roster(summaries, self.claims))
+        ckpt = self.engine.load_latest(self.session_id)
+        scene_id = ckpt.world_state.locations.current_scene_id
+        claimed_ids = set(self.claims)
+
+        def _suffix(cid: str) -> str:
+            if cid == self.current_actor:
+                return "  ← acting"
+            if cid in claimed_ids:
+                return "  [claimed]"
+            return ""
+
+        here: list[str] = []
+        elsewhere: list[str] = []
+        dormant: list[str] = []
+        culled: list[str] = []
+        for c in ckpt.characters:
+            status = c.status.value
+            if status == "dormant":
+                dormant.append(c.character_id)
+            elif status == "culled":
+                culled.append(c.character_id)
+            else:
+                if c.location == scene_id:
+                    here.append(c.character_id)
+                else:
+                    elsewhere.append(c.character_id)
+
+        print(f"## Here ({scene_id})")
+        for cid in here:
+            print(f"  {cid}{_suffix(cid)}")
+        if not here:
+            print("  (none)")
+
+        print()
+        print("## Claimed by you")
+        if self.claims:
+            for cid, uid in self.claims.items():
+                marker = "  ← acting" if cid == self.current_actor else ""
+                print(f"  {cid}  (uid {uid}){marker}")
+        else:
+            print("  (none)")
+
+        print()
+        print("## Active (elsewhere)")
+        if elsewhere:
+            for cid in elsewhere:
+                print(f"  {cid}{_suffix(cid)}")
+        else:
+            print("  (none)")
+
+        print()
+        print("## Dormant")
+        if dormant:
+            for cid in dormant:
+                print(f"  {cid}{_suffix(cid)}")
+        else:
+            print("  (none)")
+
+        print()
+        print("## Culled")
+        if culled:
+            for cid in culled:
+                print(f"  {cid}{_suffix(cid)}")
+        else:
+            print("  (none)")
+
+    def cmd_character(self, arg: str) -> None:
+        char_id = arg.strip()
+        if not char_id:
+            print("usage: /character <id>")
+            return
+        try:
+            dossier = self.engine.build_character_dossier(
+                self.session_id, char_id,
+            )
+        except ValueError:
+            print(f"no character: {char_id}")
+            return
+        except Exception as e:
+            print(f"error: {e}")
+            return
+        print()
+        print(dossier)
+        print()
 
     def cmd_status(self, arg: str) -> None:
         ckpt = self.engine.load_latest(self.session_id)
@@ -162,7 +246,7 @@ class CLIState:
             return
         uid = self._next_user_id
         try:
-            self.engine.bind_user(self.session_id, uid, char_id)
+            self.engine.takeover(self.session_id, char_id, uid)
         except ValueError as e:
             print(f"error: {e}")
             return
@@ -184,6 +268,157 @@ class CLIState:
             print(f"claimed {char_id} — now acting as {char_id}.")
         else:
             print(f"claimed {char_id}. /as {char_id} to switch.")
+
+    async def cmd_join_custom(self, arg: str) -> None:
+        loop = asyncio.get_event_loop()
+
+        async def _prompt(label: str) -> str | None:
+            try:
+                raw = await loop.run_in_executor(None, input, label)
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return None
+            return raw
+
+        mode = arg.strip().lower()
+        if not mode:
+            resp = await _prompt("describe or replace? > ")
+            if resp is None:
+                print("(cancelled)")
+                return
+            mode = resp.strip().lower()
+        if mode not in {"describe", "replace"}:
+            print("usage: /join_custom [describe|replace]")
+            return
+
+        desc_resp = await _prompt("describe the character you want to play: ")
+        if desc_resp is None:
+            print("(cancelled)")
+            return
+        description = desc_resp.strip()
+        if not description:
+            print("(cancelled — empty description)")
+            return
+
+        uid = self._next_user_id
+
+        if mode == "describe":
+            try:
+                new_char = await self.engine.create_custom_character(
+                    self.session_id, uid, description,
+                )
+            except ValueError as e:
+                print(f"error: {e}")
+                return
+            except Exception as e:
+                print(f"error: {e}")
+                return
+            self.claims[new_char.character_id] = uid
+            self._next_user_id += 1
+            if self.current_actor is None:
+                self.current_actor = new_char.character_id
+            try:
+                dossier = self.engine.build_character_dossier(
+                    self.session_id, new_char.character_id,
+                )
+            except Exception as e:
+                dossier = f"(dossier unavailable: {e})"
+            print()
+            print(dossier)
+            print()
+            if self.current_actor == new_char.character_id:
+                print(
+                    f"created {new_char.character_id} — now acting as "
+                    f"{new_char.character_id}."
+                )
+            else:
+                print(
+                    f"created {new_char.character_id}. "
+                    f"/as {new_char.character_id} to switch."
+                )
+            return
+
+        # replace mode
+        try:
+            suggestion = await self.engine.suggest_replacement_targets(
+                self.session_id, description,
+            )
+        except Exception as e:
+            print(f"error: {e}")
+            return
+
+        preamble = suggestion.get("preamble", "") or ""
+        candidates = suggestion.get("candidates", []) or []
+        if preamble.strip():
+            print()
+            print(preamble.strip())
+        if not candidates:
+            print("(no replacement candidates suggested)")
+            return
+
+        print()
+        for i, cand in enumerate(candidates, start=1):
+            cid = cand.get("character_id", "")
+            name = cand.get("name", "")
+            rationale = (cand.get("fit_rationale") or "").strip().replace("\n", " ")
+            print(f"  [{i}] {cid} — {name} — {rationale}")
+        print()
+
+        pick_resp = await _prompt("pick a number (or blank to cancel): ")
+        if pick_resp is None:
+            print("(cancelled)")
+            return
+        pick_raw = pick_resp.strip()
+        if not pick_raw:
+            print("(cancelled)")
+            return
+        try:
+            idx = int(pick_raw)
+        except ValueError:
+            print(f"(cancelled — not a number: {pick_raw!r})")
+            return
+        if idx < 1 or idx > len(candidates):
+            print(f"(cancelled — out of range: {idx})")
+            return
+        target_id = candidates[idx - 1].get("character_id", "")
+        if not target_id:
+            print("(cancelled — candidate missing character_id)")
+            return
+
+        try:
+            mutated = await self.engine.replace_with_custom(
+                self.session_id, uid, target_id, description,
+            )
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            print(f"error: {e}")
+            return
+
+        self.claims[mutated.character_id] = uid
+        self._next_user_id += 1
+        if self.current_actor is None:
+            self.current_actor = mutated.character_id
+        try:
+            dossier = self.engine.build_character_dossier(
+                self.session_id, mutated.character_id,
+            )
+        except Exception as e:
+            dossier = f"(dossier unavailable: {e})"
+        print()
+        print(dossier)
+        print()
+        if self.current_actor == mutated.character_id:
+            print(
+                f"replaced {mutated.character_id} — now acting as "
+                f"{mutated.character_id}."
+            )
+        else:
+            print(
+                f"replaced {mutated.character_id}. "
+                f"/as {mutated.character_id} to switch."
+            )
 
     def cmd_leave(self, arg: str) -> None:
         target = arg.strip() or self.current_actor
@@ -375,41 +610,6 @@ class CLIState:
         print(f"--- Turn {response.turn_index} · {self.current_actor} ---")
         print(response.output_text)
         print()
-
-
-# ---- formatting helpers -----------------------------------------------------
-
-
-def _format_roster(
-    summaries: list[CharacterSummary],
-    cli_claims: dict[str, int],
-) -> str:
-    """Render the roster with status, bindings, and CLI-claim markers."""
-    if not summaries:
-        return "(roster is empty)"
-
-    order = {"active": 0, "dormant": 1, "culled": 2}
-    rows = sorted(summaries, key=lambda s: (order.get(s.status, 3), s.name))
-
-    lines: list[str] = []
-    for s in rows:
-        tags: list[str] = []
-        if s.status != "active":
-            tags.append(s.status)
-        if s.is_player:
-            tags.append("player slot")
-        if s.bound_user_id:
-            if s.character_id in cli_claims:
-                tags.append(f"bound: cli uid {s.bound_user_id}")
-            else:
-                tags.append(f"bound: discord {s.bound_user_id}")
-        tag_str = f" [{' · '.join(tags)}]" if tags else ""
-        role_str = f" — {s.role}" if s.role else ""
-        line = f"  {s.name} (`{s.character_id}`){role_str}{tag_str}"
-        if s.appearance:
-            line += f"\n    {s.appearance}"
-        lines.append(line)
-    return "\n".join(lines)
 
 
 # ---- bootstrap --------------------------------------------------------------

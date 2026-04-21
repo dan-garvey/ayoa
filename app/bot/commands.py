@@ -105,36 +105,6 @@ def _chunks(text: str, size: int) -> list[str]:
     return out
 
 
-def _format_character_list(summaries) -> str:
-    """Render a CharacterSummary list as a compact markdown block for an
-    info embed. Active characters first, then dormant, then culled. Bound
-    characters get a human-visible marker so joiners know who's claimed."""
-    order = {"active": 0, "dormant": 1, "culled": 2}
-    sorted_summaries = sorted(summaries, key=lambda s: (order.get(s.status, 3), s.name))
-
-    lines: list[str] = []
-    for s in sorted_summaries:
-        bits: list[str] = [f"**{s.name}** · `{s.character_id}`"]
-        tags: list[str] = []
-        if s.status != "active":
-            tags.append(s.status)
-        if s.is_player:
-            tags.append("player slot")
-        if s.bound_user_id:
-            tags.append(f"bound: <@{s.bound_user_id}>")
-        if tags:
-            bits.append(f"*[{' · '.join(tags)}]*")
-        line = " ".join(bits)
-        if s.role:
-            line += f" — {s.role}"
-        if s.faction:
-            line += f" ({s.faction})"
-        if s.appearance:
-            line += f"\n  {s.appearance}"
-        lines.append(line)
-    return "\n".join(lines)
-
-
 def register(
     tree: app_commands.CommandTree,
     engine: EngineBridge,
@@ -326,7 +296,7 @@ def register(
 
     @story_group.command(
         name="characters",
-        description="List characters in this channel's story (spoiler-free).",
+        description="List characters in this channel's story (grouped, terse).",
     )
     @app_commands.describe(
         story_id="Optional story_id to inspect before starting a session.",
@@ -335,10 +305,7 @@ def register(
         inter: discord.Interaction,
         story_id: str | None = None,
     ):
-        # Prefer the live session so bindings/statuses reflect actual play;
-        # fall back to story_id for pre-session browsing.
-        summaries = None
-        source_label = ""
+        # Pre-session browsing path: pristine roster from ckpt_0000.
         row = await smap.get(inter.channel_id)
         if story_id:
             story_id = story_id.strip()
@@ -350,7 +317,6 @@ def register(
                 return
             try:
                 summaries = engine.list_story_characters(story_id)
-                source_label = f"`{story_id}` (source roster)"
             except Exception as e:
                 logger.exception("list_story_characters failed")
                 await inter.response.send_message(
@@ -358,18 +324,22 @@ def register(
                     ephemeral=True,
                 )
                 return
-        elif row is not None:
-            try:
-                summaries = engine.list_session_characters(row.session_id)
-                source_label = f"`{row.story_id}` (this session)"
-            except Exception as e:
-                logger.exception("list_session_characters failed")
+            if not summaries:
                 await inter.response.send_message(
-                    embed=render_error(f"`{type(e).__name__}: {e}`"),
-                    ephemeral=True,
+                    "No characters in the roster.", ephemeral=True,
                 )
                 return
-        else:
+            lines = [f"**{story_id}** (source roster):"]
+            for s in summaries:
+                tag = f"  [{s.status}]" if s.status != "active" else ""
+                lines.append(f"  {s.character_id}{tag}")
+            await inter.response.send_message(
+                embed=render_info("Characters", "\n".join(lines)),
+                ephemeral=True,
+            )
+            return
+
+        if row is None:
             await inter.response.send_message(
                 "No session here and no `story_id` given. "
                 "Pass one, or run `/story start` first.",
@@ -377,15 +347,67 @@ def register(
             )
             return
 
-        if not summaries:
+        # Live-session path: group by location vs. current scene, and
+        # highlight the invoker's own binding.
+        try:
+            ckpt = engine.checkpoint_mgr.load_latest(row.session_id)
+        except Exception as e:
+            logger.exception("load_latest failed")
             await inter.response.send_message(
-                "No characters in the roster.", ephemeral=True,
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
             )
             return
 
-        body = _format_character_list(summaries)
+        scene_id = ckpt.world_state.locations.current_scene_id
+        uid = str(inter.user.id)
+        claimed_by_me = {
+            cid for cid, bound in ckpt.session.character_bindings.items()
+            if bound == uid
+        }
+
+        here: list[str] = []
+        elsewhere: list[str] = []
+        dormant: list[str] = []
+        culled: list[str] = []
+        my_ids: list[str] = []
+
+        for c in ckpt.characters:
+            cid = c.character_id
+            status = c.status.value
+            if cid in claimed_by_me:
+                my_ids.append(cid)
+            if status == "culled":
+                culled.append(cid)
+            elif status == "dormant":
+                dormant.append(cid)
+            else:  # active
+                if c.location == scene_id:
+                    here.append(cid)
+                else:
+                    elsewhere.append(cid)
+
+        def _block(title: str, ids: list[str]) -> str:
+            if not ids:
+                return f"**{title}**:\n  (none)"
+            lines = [f"**{title}**:"]
+            for i in ids:
+                suffix = " ← you" if i in claimed_by_me else ""
+                lines.append(f"  {i}{suffix}")
+            return "\n".join(lines)
+
+        body_parts = [
+            _block(f"Here ({scene_id or 'no scene'})", here),
+            _block("Claimed by you", my_ids),
+            _block("Active (elsewhere)", elsewhere),
+            _block("Dormant", dormant),
+            _block("Culled", culled),
+        ]
         await inter.response.send_message(
-            embed=render_info(f"Characters · {source_label}", body),
+            embed=render_info(
+                f"Characters · `{row.story_id}`",
+                "\n\n".join(body_parts),
+            ),
             ephemeral=True,
         )
 
@@ -613,12 +635,12 @@ def register(
 
         character_id = character_id.strip()
         try:
-            ckpt = engine.bind_user(row.session_id, inter.user.id, character_id)
+            ckpt = engine.takeover(row.session_id, character_id, inter.user.id)
         except ValueError as e:
             await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
             return
         except Exception as e:
-            logger.exception("bind_user failed")
+            logger.exception("takeover failed")
             await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
@@ -709,6 +731,273 @@ def register(
             f"Released `{freed}`. Other players can now `/join` them.",
             ephemeral=True,
         )
+
+    # ---- /join_custom -------------------------------------------------------
+
+    @tree.command(
+        name="join_custom",
+        description="Join with a player-authored character (describe or replace).",
+        guild=guild,
+    )
+    @app_commands.describe(
+        mode="'describe' to spawn a new character; 'replace' to get candidate NPCs to graft onto.",
+        description="Your character concept (free-form).",
+    )
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="describe", value="describe"),
+        app_commands.Choice(name="replace", value="replace"),
+    ])
+    async def _join_custom(
+        inter: discord.Interaction,
+        mode: app_commands.Choice[str],
+        description: str,
+    ):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. `/story start` first.", ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True, ephemeral=True)
+
+        description = description.strip()
+        if not description:
+            await inter.followup.send(
+                embed=render_error("Description cannot be empty."),
+                ephemeral=True,
+            )
+            return
+
+        if mode.value == "describe":
+            try:
+                new_char = await engine.create_custom_character(
+                    row.session_id, inter.user.id, description,
+                )
+            except ValueError as e:
+                await inter.followup.send(
+                    embed=render_error(str(e)), ephemeral=True,
+                )
+                return
+            except Exception as e:
+                logger.exception("create_custom_character failed")
+                await inter.followup.send(
+                    embed=render_error(f"`{type(e).__name__}: {e}`"),
+                    ephemeral=True,
+                )
+                return
+
+            dm_ok = True
+            try:
+                dossier = engine.build_character_dossier(
+                    row.session_id, new_char.character_id,
+                )
+                for chunk in _chunks(dossier, 1900):
+                    await inter.user.send(chunk)
+            except discord.Forbidden:
+                dm_ok = False
+            except Exception:
+                logger.exception("dossier DM failed")
+                dm_ok = False
+
+            msg = (
+                f"You are now **{new_char.name}** (`{new_char.character_id}`). "
+                + ("Dossier DM'd." if dm_ok
+                   else "⚠️ Couldn't DM dossier (server DMs disabled).")
+            )
+            await inter.followup.send(
+                embed=render_info("Joined", msg), ephemeral=True,
+            )
+            return
+
+        # mode == "replace"
+        try:
+            result = await engine.suggest_replacement_targets(
+                row.session_id, description,
+            )
+        except ValueError as e:
+            await inter.followup.send(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("suggest_replacement_targets failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        candidates = result.get("candidates") or []
+        preamble = (result.get("preamble") or "").strip()
+
+        if not candidates:
+            await inter.followup.send(
+                embed=render_info(
+                    "No candidates",
+                    (preamble + "\n\n" if preamble else "")
+                    + "The router found no replaceable NPCs for that concept. "
+                    "Try `/join_custom mode:describe` instead.",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        lines: list[str] = []
+        if preamble:
+            lines.append(preamble)
+            lines.append("")
+        lines.append(
+            "**Candidates** — run `/pick_replacement` with one of these character_ids "
+            "(re-paste your description):"
+        )
+        for c in candidates:
+            cid = c.get("character_id", "?")
+            name = c.get("name", cid)
+            rationale = c.get("fit_rationale", "")
+            lines.append(f"- `{cid}` — {name} — {rationale}")
+
+        await inter.followup.send(
+            embed=render_info("Replacement candidates", "\n".join(lines)),
+            ephemeral=True,
+        )
+
+    # ---- /pick_replacement --------------------------------------------------
+
+    @tree.command(
+        name="pick_replacement",
+        description="Graft your custom character onto one of the candidates from /join_custom.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        character_id="Target character_id from /join_custom candidate list.",
+        description="Same character concept you passed to /join_custom.",
+    )
+    async def _pick_replacement(
+        inter: discord.Interaction,
+        character_id: str,
+        description: str,
+    ):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. `/story start` first.", ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True, ephemeral=True)
+
+        character_id = character_id.strip()
+        description = description.strip()
+        if not character_id or not description:
+            await inter.followup.send(
+                embed=render_error(
+                    "Both `character_id` and `description` are required."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        try:
+            new_char = await engine.replace_with_custom(
+                row.session_id, inter.user.id, character_id, description,
+            )
+        except ValueError as e:
+            await inter.followup.send(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("replace_with_custom failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        dm_ok = True
+        try:
+            dossier = engine.build_character_dossier(
+                row.session_id, new_char.character_id,
+            )
+            for chunk in _chunks(dossier, 1900):
+                await inter.user.send(chunk)
+        except discord.Forbidden:
+            dm_ok = False
+        except Exception:
+            logger.exception("dossier DM failed")
+            dm_ok = False
+
+        msg = (
+            f"You are now **{new_char.name}** "
+            f"(replaced `{character_id}`). "
+            + ("Dossier DM'd." if dm_ok
+               else "⚠️ Couldn't DM dossier (server DMs disabled).")
+        )
+        await inter.followup.send(
+            embed=render_info("Joined", msg), ephemeral=True,
+        )
+
+    # ---- /character ---------------------------------------------------------
+
+    @tree.command(
+        name="character",
+        description="DM the dossier for a character in this channel's story.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        character_id="The character_id (see /story characters).",
+    )
+    async def _character(inter: discord.Interaction, character_id: str):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. `/story start` first.", ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True, ephemeral=True)
+
+        character_id = character_id.strip()
+        try:
+            dossier = engine.build_character_dossier(
+                row.session_id, character_id,
+            )
+        except ValueError as e:
+            await inter.followup.send(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("build_character_dossier failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        dm_ok = True
+        try:
+            for chunk in _chunks(dossier, 1900):
+                await inter.user.send(chunk)
+        except discord.Forbidden:
+            dm_ok = False
+        except Exception:
+            logger.exception("dossier DM failed")
+            dm_ok = False
+
+        if dm_ok:
+            await inter.followup.send(
+                f"Dossier for `{character_id}` DM'd.", ephemeral=True,
+            )
+        else:
+            await inter.followup.send(
+                embed=render_error(
+                    "Couldn't DM the dossier (server DMs disabled). "
+                    "Enable DMs from this server and try again."
+                ),
+                ephemeral=True,
+            )
 
     # ---- /describe ----------------------------------------------------------
 
