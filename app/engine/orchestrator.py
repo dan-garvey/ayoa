@@ -36,11 +36,16 @@ from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import (
+    BeatResult,
     SceneLockManager,
     SlotConflict,
+    broadcast_event,
+    cat_ii_is_ready,
     check_act_slot,
+    close_cat_ii,
     format_slot_rejection,
     run_beat,
+    _end_beat,
 )
 from app.llm.client import LLMClient
 
@@ -259,6 +264,120 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=per_player,
+            beat_ended_reason=beat_result.ended_reason,
+        )
+
+    async def resolve_cat_ii(
+        self, session_id: str, event_id: str,
+    ) -> TurnResponse:
+        """v11-r6b: adjudicate a Cat II event whose responders have all
+        intended (typically after `sweep_stale_pins` synthesized AFK
+        intentions). Used by EngineBridge.run_turn after sweep returns
+        event ids, to close them out BEFORE the current /act processes.
+
+        Acquires the scene lock for the event's scene, re-checks
+        readiness, drives `route_intention` on the adjudication path,
+        closes the event, broadcasts the canonical result, fans renders
+        out via `_end_beat`, applies roster side-effects, and saves.
+        Returns a TurnResponse describing the resolution; if the event
+        was already closed (race) returns an empty "cat_ii_stale"
+        response.
+        """
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        evt = next(
+            (e for e in ckpt.session.open_cat_ii_events if e.event_id == event_id),
+            None,
+        )
+        if evt is None:
+            logger.warning(
+                "resolve_cat_ii called for %s but event not open", event_id,
+            )
+            return TurnResponse(
+                session_id=session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text="",
+                per_player_renders={},
+                beat_ended_reason="cat_ii_stale",
+            )
+
+        scene_id = evt.scene_id
+        lock = await self.scene_locks.get(session_id, scene_id)
+        async with lock:
+            # Re-read: another task may have closed this event while we
+            # were waiting for the lock.
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            evt_live = next(
+                (e for e in ckpt.session.open_cat_ii_events
+                 if e.event_id == event_id),
+                None,
+            )
+            if evt_live is None:
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text="",
+                    per_player_renders={},
+                    beat_ended_reason="cat_ii_stale",
+                )
+
+            dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+
+            if cat_ii_is_ready(evt_live):
+                resolved = await dispatcher.route_intention(
+                    ckpt=ckpt,
+                    actor_id=evt_live.initiator_id,
+                    intention=evt_live.initiator_intention,
+                    scene_id=scene_id,
+                    cat_ii_event=evt_live,
+                )
+                close_cat_ii(ckpt, evt_live.event_id)
+                if resolved.requires_responders:
+                    raise ValueError(
+                        "Cat II resolution returned nested Cat II "
+                        "(Part C invariant violated)."
+                    )
+                broadcast_event(ckpt, resolved, scene_id)
+                beat_result = await _end_beat(
+                    ckpt, dispatcher, scene_id,
+                    ended_reason="cat_ii_resolution",
+                    events_closed=1,
+                )
+            else:
+                # Still pending responders — nothing to adjudicate yet.
+                beat_result = BeatResult(
+                    renders={}, events_closed=0,
+                    ended_reason="cat_ii_pending",
+                )
+
+            # Apply side-effects for each newly closed event.
+            if beat_result.events_closed > 0:
+                closed_this_beat = ckpt.canonical_events[
+                    -beat_result.events_closed:
+                ]
+                for ev in closed_this_beat:
+                    _apply_scene_creations(ckpt, ev.scenes_created)
+                    self.char_mgr.apply_roster_updates(ckpt, ev)
+                    self._apply_roster_moves(ckpt, ev)
+                    if ev.spawn:
+                        await self.char_mgr.spawn_characters(ckpt, ev.spawn)
+
+            if beat_result.events_closed > 0:
+                ckpt.session.turn_index += 1
+            self.checkpoint_mgr.save(ckpt)
+
+        renders = dict(beat_result.renders)
+        actor_id = evt.initiator_id
+        output_text = renders.get(actor_id, "") or (
+            next(iter(renders.values()), "") if renders else ""
+        )
+        return TurnResponse(
+            session_id=session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text=output_text,
+            per_player_renders=renders,
             beat_ended_reason=beat_result.ended_reason,
         )
 

@@ -380,3 +380,106 @@ class TestRosterMoveGuard:
         # Guard fired: alice is still in gatehouse despite the
         # router_move the event carried.
         assert alice.location == "gatehouse"
+
+
+# ---- v11-r6b: resolve_cat_ii ------------------------------------------------
+
+
+class TestResolveCatII:
+    """v11-r6b: Orchestrator.resolve_cat_ii is the hook EngineBridge uses
+    to drive adjudication of Cat II events whose responder intentions
+    have all been collected — typically after sweep_stale_pins
+    synthesizes AFK intentions for humans who timed out. Drives the
+    event through the same "adjudicate + broadcast + _end_beat" tail
+    that run_beat's inline Cat II path uses."""
+
+    @pytest.mark.asyncio
+    async def test_ready_event_closes_and_returns_render(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        # Seed an open Cat II event with every required responder's
+        # intention already collected — the state sweep_stale_pins
+        # leaves behind after synthesizing AFK intentions.
+        from app.engine.turn_loop import open_cat_ii
+        evt = open_cat_ii(
+            ckpt,
+            scene_id="gatehouse",
+            initiator_id="pip",
+            initiator_intention="pip swings at alice",
+            required_responders=["alice"],
+        )
+        evt.collected_intentions["alice"] = "[AFK-swept: no player intention]"
+        evt.swept_responders.append("alice")
+
+        orch, mgr = patched_orchestrator(ckpt)
+
+        # Router adjudicates the Cat II into a single canonical event
+        # that ends the beat.
+        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+
+        response = await orch.resolve_cat_ii("s", evt.event_id)
+
+        # Event closed out.
+        assert response.beat_ended_reason == "cat_ii_resolution"
+        saved = mgr.save.call_args[0][0]
+        assert all(
+            e.event_id != evt.event_id for e in saved.session.open_cat_ii_events
+        )
+        # Render fanned out to the in-scene human (alice).
+        assert "alice" in response.per_player_renders
+        assert response.per_player_renders["alice"] == "POV_RENDER"
+        # One canonical event landed.
+        assert len(saved.canonical_events) == 1
+
+    @pytest.mark.asyncio
+    async def test_nonexistent_event_is_idempotent_noop(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        # No open Cat II events exist; a stale event_id should no-op.
+        response = await orch.resolve_cat_ii("s", "evt_missing")
+
+        assert response.beat_ended_reason == "cat_ii_stale"
+        assert response.per_player_renders == {}
+        assert response.output_text == ""
+        # No checkpoint save on a pure no-op.
+        assert mgr.save.call_count == 0
+        # Dispatcher never reached.
+        assert FakeDispatcher.route_calls == []
+
+
+class TestSlotRejectionReasonSurfacesOnOtherHeld:
+    """v11-r6b: the slot_rejected reason must be set regardless of which
+    conflict path triggers the rejection, so the Discord/CLI branching
+    can act on it without decoding the message string."""
+
+    @pytest.mark.asyncio
+    async def test_cat_ii_other_held_rejection_sets_slot_rejected_reason(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        # Pin alice as a Cat II responder so bob /acts into a scene
+        # held by someone else's response.
+        from app.engine.turn_loop import pin_cat_ii_responder
+        pin_cat_ii_responder(
+            ckpt, "gatehouse", "alice", cat_ii_event_id="evt_other",
+        )
+
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I speak up",
+            acting_character_id="bob",
+        ))
+
+        # Every slot-rejection path carries beat_ended_reason="slot_rejected"
+        # so the frontend doesn't need to decode output_text.
+        assert response.beat_ended_reason == "slot_rejected"
+        assert response.per_player_renders == {}
+        # The rejection echoes the attempted text back for copy-paste.
+        assert "I speak up" in response.output_text
+        assert mgr.save.call_count == 0

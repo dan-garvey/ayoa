@@ -423,3 +423,87 @@ class TestApplyRosterUpdatesPurgesCulled:
             e.initiator_id == "villain"
             for e in ckpt.session.open_cat_ii_events
         )
+
+
+# ---- v11-r6b: sweep drives re-adjudication -----------------------------------
+
+
+class TestSweepDrivesReadjudication:
+    """EngineBridge.run_turn must close out Cat II events that sweep_
+    stale_pins populated with AFK intentions BEFORE running the
+    player's /act. Without this, a scene pinned on an AFK human sits
+    open and every subsequent /act bounces off the pin."""
+
+    def test_sweep_returns_event_ids_triggers_resolve_cat_ii(
+        self, mock_bridge,
+    ):
+        """When sweep_stale_pins returns event ids, run_turn awaits
+        orchestrator.resolve_cat_ii(session_id, event_id) for each
+        before invoking process_turn."""
+        from app.schemas.responses import TurnResponse
+
+        # Stub sweep_stale_pins to return a single stale event id.
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=["evt_x"])
+        # Mock both orchestrator entry points as AsyncMocks; the test
+        # only cares about the call order + arguments.
+        mock_bridge.orchestrator.resolve_cat_ii = AsyncMock(
+            return_value=TurnResponse(
+                session_id="session",
+                beat_ended_reason="cat_ii_resolution",
+            )
+        )
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            return_value=TurnResponse(
+                session_id="session",
+                beat_ended_reason="directed_at_player",
+            )
+        )
+
+        async def run():
+            return await mock_bridge.run_turn(
+                session_id="session",
+                user_input="I look around",
+                acting_character_id="alice",
+            )
+
+        result = asyncio.run(run())
+
+        # resolve_cat_ii was awaited exactly once with the swept event id.
+        mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once_with(
+            "session", "evt_x",
+        )
+        # process_turn still ran after the re-adjudication completed;
+        # the caller's /act should never be silently dropped.
+        assert mock_bridge.orchestrator.process_turn.await_count == 1
+        # run_turn returns the process_turn result, not resolve_cat_ii's.
+        assert result.beat_ended_reason == "directed_at_player"
+
+    def test_resolve_cat_ii_failure_does_not_block_current_act(
+        self, mock_bridge,
+    ):
+        """If resolve_cat_ii raises, the /act still proceeds — one
+        wedged stale event should never permanently block the session."""
+        from app.schemas.responses import TurnResponse
+
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=["evt_bad"])
+        mock_bridge.orchestrator.resolve_cat_ii = AsyncMock(
+            side_effect=RuntimeError("boom"),
+        )
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            return_value=TurnResponse(
+                session_id="session",
+                beat_ended_reason="directed_at_player",
+            )
+        )
+
+        async def run():
+            return await mock_bridge.run_turn(
+                session_id="session",
+                user_input="hi",
+                acting_character_id="alice",
+            )
+
+        result = asyncio.run(run())
+        mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once()
+        assert mock_bridge.orchestrator.process_turn.await_count == 1
+        assert result.beat_ended_reason == "directed_at_player"

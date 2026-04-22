@@ -953,12 +953,30 @@ class EngineBridge:
         lock = await self._lock_for(session_id)
         async with lock:
             try:
-                self.sweep_stale_pins(session_id)
+                event_ids = self.sweep_stale_pins(session_id)
             except Exception:
                 # Best-effort — never let an AFK sweep error crash a turn.
                 logger.exception(
                     "v11 sweep_stale_pins failed for %s", session_id,
                 )
+                event_ids = []
+
+            # v11-r6b: drive adjudication of any events the sweep filled.
+            # Without this, a scene pinned on an AFK human sits open
+            # indefinitely — the next /act would bounce off the pin. By
+            # closing the sweep-populated events first, the hot path
+            # clears their state before the player's /act runs.
+            for event_id in event_ids:
+                try:
+                    await self.orchestrator.resolve_cat_ii(
+                        session_id, event_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "resolve_cat_ii failed for session=%s event=%s",
+                        session_id, event_id,
+                    )
+
             return await self.orchestrator.process_turn(TurnRequest(
                 session_id=session_id,
                 user_input=user_input,

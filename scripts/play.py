@@ -665,6 +665,14 @@ class CLIState:
 
         # Mirror the Discord bot: if no narrator turns yet, fire (begin) so
         # the scene opens with the description in hand.
+        #
+        # v11-r6c note: `(begin)` rides through the normal /act path and
+        # gets wrapped as "{name} attempts: (begin)" by the dispatcher.
+        # The event_router_v9 prompt's Author-directive OOC rule fires on
+        # the parenthesized-input shape itself, independent of the
+        # "attempts:" framing, so OOC routing is correct without a
+        # dedicated CLI code path. Same reasoning as /describe in the
+        # Discord frontend.
         if not ckpt.narrator_conversation:
             print("opening scene…")
             await self._act("(begin)")
@@ -773,6 +781,21 @@ class CLIState:
             logger.exception("run_turn failed")
             print(f"error: {type(e).__name__}: {e}")
             return
+
+        # v11-r6b: mirror the Discord bot's /act branching so the CLI
+        # playtest path surfaces paused scenes and slot rejections with
+        # targeted messages rather than rendering an empty "Turn N" block.
+        if response.beat_ended_reason == "cat_ii_pending":
+            print(
+                "(scene paused — another player is resolving a contested "
+                "action; /act again later to continue)"
+            )
+            return
+
+        if response.beat_ended_reason == "slot_rejected":
+            print(response.output_text)
+            return
+
         print()
         print(f"--- Turn {response.turn_index} · {self.current_actor} ---")
         print(response.output_text)
