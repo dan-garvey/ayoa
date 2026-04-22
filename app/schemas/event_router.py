@@ -1,10 +1,35 @@
 from __future__ import annotations
 
-from typing import Any
+import uuid
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.events import CanonicalEvent
+
+
+# Typed enum for `ends_beat_reason`. Keeps the model grammar-constrained
+# and makes future branching safe. Adding a new reason requires both a
+# schema bump and a prompt update — visible contract.
+EndsBeatReason = Literal[
+    "",  # free-form / not yet set
+    "directed_at_player",
+    "scene_transition",
+    "state_change",
+    "cascade_exhausted",
+    "cat_ii_resolution",
+    "cat_ii_open",
+    "ambient_pause",
+    "max_events_cap",
+    "cat_ii_pending",
+    "cat_ii_stale",
+]
+
+
+def _new_event_id() -> str:
+    """Stable event identifier for the canonical event log + render
+    buffers. Short enough to be dev-readable; unique across sessions."""
+    return f"evt_{uuid.uuid4().hex[:12]}"
 
 
 class ObserverEntry(BaseModel):
@@ -94,6 +119,12 @@ class EventRouterOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # Stable event identifier. Populated at broadcast time (or at parse
+    # time for router outputs that supply one). The render buffers and
+    # canonical-event log both key off this. Never re-use ids across
+    # events — a fresh one per event, full stop.
+    event_id: str = Field(default_factory=_new_event_id)
+
     canonical_event: CanonicalEvent
 
     # ---- v11: Cat I / Cat II intention classification --------------------
@@ -122,11 +153,9 @@ class EventRouterOutput(BaseModel):
     # Cat II adjudication implicitly ends the beat regardless of this
     # value. For Cat I events this is the router's judgment call.
     ends_beat: bool = True
-    # Short tag for telemetry: "directed_at_player" | "scene_transition" |
-    # "state_change" | "cascade_exhausted" | "cat_ii_resolution" |
-    # "cat_ii_open" | "max_events_per_beat" | "ambient_pause". Empty
-    # string is acceptable — used as a free-form override.
-    ends_beat_reason: str = ""
+    # Typed enum; see EndsBeatReason above. Constrained so the grammar
+    # rejects typos and future branching is safe.
+    ends_beat_reason: EndsBeatReason = ""
 
     # ---- Legacy observation / roster plumbing (unchanged) ---------------
     # `observers` is retained for the render-buffer determination: every
@@ -141,3 +170,27 @@ class EventRouterOutput(BaseModel):
     cull: list[str] = Field(default_factory=list)
     roster_moves: list[RosterMove] = Field(default_factory=list)
     scenes_created: list[SceneCreation] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_v11_invariants(self) -> "EventRouterOutput":
+        """Enforce Cat I / Cat II invariants at the schema boundary so
+        the orchestrator never has to defensively re-check them.
+
+        - `requires_responders=true` MUST have at least one
+          `required_responders` entry. The empty-set-ready-on-open bug
+          (edge-case #2) cannot reach the loop.
+        - `required_responders` must be unique; duplicates corrupt the
+          collection set semantics in `cat_ii_is_ready`.
+        """
+        if self.requires_responders and not self.required_responders:
+            raise ValueError(
+                "requires_responders=true but required_responders is empty; "
+                "an empty Cat II has no one to close it. Treat as Cat I at "
+                "the prompt layer."
+            )
+        if len(self.required_responders) != len(set(self.required_responders)):
+            raise ValueError(
+                "required_responders contains duplicates; each responder "
+                "must appear exactly once."
+            )
+        return self

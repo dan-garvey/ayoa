@@ -92,6 +92,14 @@ class SessionSettings(BaseModel):
     # release. Prevents runaway agent cascades. 5 is a reasonable
     # starting point for playtest; tune after observing real runs.
     max_events_per_beat: int = 5
+    # v11: maximum seconds a Cat II pin may hold a human before the
+    # orchestrator's sweep auto-resolves them as "stays out." Default
+    # 24 hours — long enough that async multiplayer (play over a day)
+    # doesn't time out, short enough that abandoned sessions eventually
+    # release. Set to 0 to disable the sweep entirely. The auto-resolve
+    # is visible: the rendered outcome notes that the player did not
+    # act, so everyone sees the fallback happened.
+    cat_ii_human_timeout_seconds: int = 24 * 60 * 60
 
 
 class SessionConfig(BaseModel):

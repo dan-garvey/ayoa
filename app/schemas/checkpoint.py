@@ -75,5 +75,5 @@ class CheckpointFile(BaseModel):
     prompt_versions: dict[str, str] = Field(default_factory=lambda: {
         "event_router": "v9",
         "agent": "v8",
-        "narrator_phase2": "v7",
+        "narrator_phase2": "v8",
     })

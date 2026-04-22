@@ -15,16 +15,21 @@ import pytest
 
 from app.engine import turn_loop
 from app.engine.turn_loop import (
+    SceneLockManager,
     SlotCheck,
     SlotConflict,
+    abort_scene,
     check_act_slot,
     claim_initiator_slot,
     collect_cat_ii_intention,
     format_slot_rejection,
     open_cat_ii,
     pin_cat_ii_responder,
+    purge_character_state,
     release_character_slot,
+    release_scene_slots,
     run_beat,
+    sweep_stale_cat_ii_pins,
 )
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
@@ -187,7 +192,8 @@ class TestRejectionFormatting:
         pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_xyz")
         check = check_act_slot(ckpt, "gatehouse", "bob")
         msg = format_slot_rejection(check, ckpt)
-        assert "contested" in msg.lower() or "responding" in msg.lower()
+        # v11 phrasing drops jargon; look for the pause framing.
+        assert "paused on" in msg.lower() or "waiting on" in msg.lower()
 
 
 # ---- beat cascade tests ----------------------------------------------------
@@ -369,3 +375,189 @@ class TestCatIIBeat:
         ))
         assert result2.ended_reason == "cat_ii_resolution"
         assert len(ckpt.session.open_cat_ii_events) == 0
+
+
+class TestSchemaValidators:
+    def test_requires_responders_without_list_rejected(self):
+        """Schema enforces Cat II cannot have empty required_responders."""
+        with pytest.raises(ValueError, match="empty"):
+            _router_out(
+                requires_responders=True,
+                required_responders=[],
+            )
+
+    def test_required_responders_duplicates_rejected(self):
+        with pytest.raises(ValueError, match="duplicates"):
+            _router_out(
+                requires_responders=True,
+                required_responders=["bob", "bob"],
+            )
+
+    def test_event_id_auto_populated(self):
+        out = _router_out()
+        assert out.event_id.startswith("evt_")
+        assert len(out.event_id) > 4
+
+
+class TestPurgeCharacterState:
+    def test_purge_drops_pin_and_render_buffer(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        evt = open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice", "bob"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", evt.event_id)
+        pin_cat_ii_responder(ckpt, "gatehouse", "bob", evt.event_id)
+        # Fake a render buffer entry for bob.
+        from app.schemas.state import RenderBufferEntry
+        ckpt.session.render_buffers["bob"] = [
+            RenderBufferEntry(event_id="evt_x", observation_level="direct"),
+        ]
+
+        purge_character_state(ckpt, "bob")
+
+        # Bob's pin gone, Alice's intact.
+        slot = ckpt.session.active_act_slots.get("gatehouse", {})
+        assert "bob" not in slot
+        assert "alice" in slot
+        # Bob's render buffer cleared.
+        assert "bob" not in ckpt.session.render_buffers
+        # Bob removed from required responders.
+        live_evts = ckpt.session.open_cat_ii_events
+        assert len(live_evts) == 1
+        assert "bob" not in live_evts[0].required_responders
+        assert "alice" in live_evts[0].required_responders
+
+    def test_purge_initiator_abandons_event(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        purge_character_state(ckpt, "pip")
+        # Event abandoned entirely because initiator is gone.
+        assert ckpt.session.open_cat_ii_events == []
+
+
+class TestReleaseSceneSlotsPreservesOpenCatII:
+    def test_release_leaves_cat_ii_pins_intact(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        # A Cat II is open for alice.
+        evt = open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", evt.event_id)
+        # AND bob has somehow initiated a separate beat (would only
+        # happen through a bug, but we're testing the defensive path).
+        claim_initiator_slot(ckpt, "gatehouse", "bob")
+
+        # Beat ending for bob shouldn't blow away alice's pin.
+        release_scene_slots(ckpt, "gatehouse")
+        slot = ckpt.session.active_act_slots.get("gatehouse", {})
+        assert "bob" not in slot
+        assert "alice" in slot
+        assert slot["alice"].reason == "cat_ii_responder"
+
+
+class TestAbortScene:
+    def test_abort_clears_pins_and_events(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        evt = open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", evt.event_id)
+
+        dropped = abort_scene(ckpt, "gatehouse")
+        assert dropped == 1
+        assert "gatehouse" not in ckpt.session.active_act_slots
+        assert ckpt.session.open_cat_ii_events == []
+
+
+class TestSweepStaleCatIIPins:
+    def test_sweep_disabled_when_timeout_zero(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 0
+        open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        assert sweep_stale_cat_ii_pins(ckpt) == []
+
+    def test_sweep_fills_stale_pin_as_does_not_act(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 1
+        evt = open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        # Backdate the open time.
+        from datetime import datetime, timedelta, timezone
+        past = datetime.now(timezone.utc) - timedelta(seconds=10)
+        evt.opened_at = past.isoformat()
+
+        ids = sweep_stale_cat_ii_pins(ckpt)
+        assert ids == [evt.event_id]
+        assert "alice" in evt.collected_intentions
+        assert "does not act" in evt.collected_intentions["alice"].lower()
+
+
+class TestSceneLockManager:
+    def test_same_scene_returns_same_lock(self):
+        mgr = SceneLockManager()
+        async def run():
+            a = await mgr.get("s", "gatehouse")
+            b = await mgr.get("s", "gatehouse")
+            return a is b
+        assert asyncio.run(run())
+
+    def test_different_scenes_distinct_locks(self):
+        mgr = SceneLockManager()
+        async def run():
+            a = await mgr.get("s", "gatehouse")
+            b = await mgr.get("s", "threshold")
+            return a is not b
+        assert asyncio.run(run())
+
+
+class TestRejectionEchoesText:
+    def test_echo_present_on_initiator_held(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        msg = format_slot_rejection(
+            check, ckpt, attempted_text="I walk outside and look at the stars",
+        )
+        assert "I walk outside" in msg
+
+
+class TestInitiatorExcludedFromCatIIResponders:
+    def test_self_responder_is_filtered_out(self):
+        """If router lists the initiator in required_responders, the loop
+        drops them and proceeds as Cat I (or cascades with remaining)."""
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["alice"],  # self-pin attempt
+            ends_beat=True,
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I punch myself",
+            scene_id="gatehouse",
+        ))
+
+        # No open Cat II — collapsed to Cat I.
+        assert len(ckpt.session.open_cat_ii_events) == 0
+        assert result.events_closed == 1
+        # Slot released at beat end.
+        assert "gatehouse" not in ckpt.session.active_act_slots

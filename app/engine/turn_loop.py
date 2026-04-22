@@ -49,6 +49,7 @@ the old v8 pipeline — the v11 path is gated until it's fully wired.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
@@ -61,6 +62,33 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
 
 logger = logging.getLogger(__name__)
+
+
+class SceneLockManager:
+    """v11: per-scene asyncio.Lock indexed by (session_id, scene_id).
+
+    The orchestrator holds an instance; every /act acquires the lock
+    for its scene before running check_act_slot → run_beat. Prevents
+    the race where two concurrent /acts both see FREE and both claim
+    the initiator slot.
+
+    Locks are created lazily. They are NOT persisted; a process restart
+    starts with no locks held (all scenes implicitly released on
+    startup).
+    """
+
+    def __init__(self):
+        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._mutex = asyncio.Lock()
+
+    async def get(self, session_id: str, scene_id: str) -> asyncio.Lock:
+        key = (session_id, scene_id)
+        async with self._mutex:
+            lock = self._locks.get(key)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._locks[key] = lock
+            return lock
 
 
 class SlotConflict(Enum):
@@ -183,13 +211,164 @@ def pin_cat_ii_responder(
 
 
 def release_scene_slots(ckpt: CheckpointFile, scene_id: str) -> None:
-    """Release every slot entry for a scene. Called at beat end.
+    """Release slot entries for a scene at beat end.
 
-    A scene with no remaining slot entries is popped from the map so
-    `check_act_slot` sees the clean "free" state without iterating a
-    stale empty dict.
+    CRITICAL: this does NOT clobber pins tied to still-open Cat II
+    events. If a beat ends while a different Cat II is still awaiting
+    human responders, the pins for those responders stay. Only initiator
+    slots and responder slots whose owning event has already closed are
+    released.
+    """
+    slot = ckpt.session.active_act_slots.get(scene_id)
+    if not slot:
+        return
+    open_evt_ids = {e.event_id for e in ckpt.session.open_cat_ii_events}
+    keep: dict[str, SlotEntry] = {}
+    for cid, entry in slot.items():
+        if entry.reason == "cat_ii_responder" and entry.cat_ii_event_id in open_evt_ids:
+            keep[cid] = entry
+    if keep:
+        ckpt.session.active_act_slots[scene_id] = keep
+    else:
+        ckpt.session.active_act_slots.pop(scene_id, None)
+
+
+def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
+    """Sweep all v11 bookkeeping when a character leaves/culls/unbinds.
+
+    Called by the roster-move / /leave / cull code paths so state that
+    would otherwise strand (pins, open events they're required in,
+    render buffers) doesn't leak.
+
+    What this does:
+    - Drops the character's entry from every scene's active_act_slots.
+    - Removes the character from every open Cat II event's required
+      responders AND collected intentions. If the event has no
+      remaining required responders missing (all filled / none left),
+      it stays open for the orchestrator to resolve normally. If the
+      initiator is the one leaving, the event is abandoned (closed
+      without resolution).
+    - Empties their render buffer.
+    - Leaves canonical_events + narrator_conversations alone — those
+      are historical, not live state.
+    """
+    # 1. Slots.
+    for scene_id, slot in list(ckpt.session.active_act_slots.items()):
+        if character_id in slot:
+            slot.pop(character_id, None)
+            if not slot:
+                ckpt.session.active_act_slots.pop(scene_id, None)
+
+    # 2. Open Cat II events.
+    remaining_events: list[OpenCatIIEvent] = []
+    for evt in ckpt.session.open_cat_ii_events:
+        if evt.initiator_id == character_id:
+            # Initiator left — abandon the event.
+            logger.info(
+                "Cat II event %s abandoned: initiator %s removed",
+                evt.event_id, character_id,
+            )
+            continue
+        if character_id in evt.required_responders:
+            evt.required_responders = [
+                r for r in evt.required_responders if r != character_id
+            ]
+        evt.collected_intentions.pop(character_id, None)
+        # If all required responders are now gone (removed as they left),
+        # the event is trivially ready — leave it for the orchestrator.
+        remaining_events.append(evt)
+    ckpt.session.open_cat_ii_events = remaining_events
+
+    # 3. Render buffer.
+    ckpt.session.render_buffers.pop(character_id, None)
+
+
+def sweep_stale_cat_ii_pins(
+    ckpt: CheckpointFile,
+    now_iso: str | None = None,
+) -> list[str]:
+    """v11: walk all open Cat II events; for any whose human responders
+    have been pinned longer than `cat_ii_human_timeout_seconds`, auto-
+    resolve them as "stays out" by synthesizing an intention on the
+    human's behalf (visible in the adjudicated event — the fallback is
+    not invisible LLM substitution; the prose will say the character
+    did not act).
+
+    Returns the event_ids of any events that had intentions synthesized.
+    The orchestrator then re-enters run_beat for each (using the Cat II
+    event path) to trigger adjudication. Zero-length list is the normal
+    case.
+
+    Set `cat_ii_human_timeout_seconds = 0` in settings to disable.
+    """
+    timeout = ckpt.session.config.settings.cat_ii_human_timeout_seconds
+    if timeout <= 0:
+        return []
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc) if now_iso is None else _parse_iso(now_iso)
+    bindings = ckpt.session.character_bindings or {}
+
+    to_adjudicate: list[str] = []
+    for evt in ckpt.session.open_cat_ii_events:
+        # Compute how long the event has been open.
+        try:
+            opened = _parse_iso(evt.opened_at)
+        except Exception:
+            continue
+        if (now - opened).total_seconds() < timeout:
+            continue
+
+        # Find pinned humans whose intention is still missing.
+        stale_humans = [
+            r for r in evt.required_responders
+            if r in bindings and r not in evt.collected_intentions
+        ]
+        if not stale_humans:
+            continue
+
+        for h in stale_humans:
+            evt.collected_intentions[h] = "(does not act — away from the scene)"
+            logger.warning(
+                "Cat II event %s: auto-resolved pin on %s after timeout",
+                evt.event_id, h,
+            )
+        to_adjudicate.append(evt.event_id)
+    return to_adjudicate
+
+
+def _parse_iso(s: str):
+    """Tolerant ISO-8601 parse: strips trailing 'Z', accepts naive or
+    aware timestamps."""
+    from datetime import datetime, timezone
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def abort_scene(ckpt: CheckpointFile, scene_id: str) -> int:
+    """Admin-escape: force-release every slot in a scene and abandon
+    every open Cat II event in that scene. Returns the number of events
+    abandoned.
+
+    Used by the `/abort_beat` admin command when a pin gets wedged.
+    Preserves the canonical_events log (we keep history) but the
+    mid-flight Cat II is treated as if it never resolved.
     """
     ckpt.session.active_act_slots.pop(scene_id, None)
+    before = len(ckpt.session.open_cat_ii_events)
+    ckpt.session.open_cat_ii_events = [
+        e for e in ckpt.session.open_cat_ii_events if e.scene_id != scene_id
+    ]
+    dropped = before - len(ckpt.session.open_cat_ii_events)
+    logger.warning(
+        "abort_scene: %s released; %d open Cat II events abandoned",
+        scene_id, dropped,
+    )
+    return dropped
 
 
 def release_character_slot(
@@ -308,16 +487,20 @@ def humans_in_scene(ckpt: CheckpointFile, scene_id: str) -> list[str]:
 def broadcast_event(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
+    scene_id: str,
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
-    every in-scene human's render buffer. Returns the list of human
-    character_ids whose buffer received the event (for the narrator
-    fan-out layer)."""
-    ckpt.canonical_events.append(event)
+    every in-scene human's render buffer.
 
-    scene_id = event.canonical_event.scene_delta.new_scene_id or (
-        ckpt.world_state.locations.current_scene_id
-    )
+    `scene_id` is the caller-authoritative scene — always the beat's
+    scene, never derived from session state, so concurrent scenes
+    can't leak buffers into each other.
+
+    The event's stable `event_id` is what lands in render buffers
+    (not Python object identity) so checkpoints remain resolvable
+    across process restarts.
+    """
+    ckpt.canonical_events.append(event)
     humans = humans_in_scene(ckpt, scene_id)
 
     obs_level_by_char: dict[str, str] = {}
@@ -329,7 +512,7 @@ def broadcast_event(
 
     for h in humans:
         level = obs_level_by_char.get(h, "direct")
-        append_to_render_buffer(ckpt, h, id(event).__str__(), level)
+        append_to_render_buffer(ckpt, h, event.event_id, level)
 
     return humans
 
@@ -465,7 +648,16 @@ async def run_beat(
             cat_ii_event=evt,
         )
         close_cat_ii(ckpt, evt.event_id)
-        broadcast_event(ckpt, resolved)
+        # Defensive guard: if the router's resolution call ever returns
+        # requires_responders=true (contradicting Part C of the prompt),
+        # we refuse the nesting rather than silently dropping it. Raise
+        # loudly so prompt drift gets caught in playtest.
+        if resolved.requires_responders:
+            raise ValueError(
+                "Router returned Cat II nesting on an adjudication call; "
+                "Part C invariant violated."
+            )
+        broadcast_event(ckpt, resolved, scene_id)
         # Cat II adjudication always ends the beat.
         return await _end_beat(
             ckpt, dispatcher, scene_id,
@@ -493,18 +685,65 @@ async def run_beat(
         if result.requires_responders:
             # Cat II: open the event, pin humans, request agent
             # responder intentions immediately (they're fast).
+            # Filter: the initiator can never be their own responder,
+            # even if the router hallucinates it — would either double-
+            # pin them or overwrite the initiator slot.
+            required = [
+                r for r in result.required_responders if r != current_actor
+            ]
+            if not required:
+                # The only "responder" was the initiator themselves; treat
+                # this as Cat I — there's nothing to contest. Broadcast the
+                # canonical event as-is and continue.
+                broadcast_event(ckpt, result, scene_id)
+                events_closed += 1
+                if events_closed >= max_events:
+                    return await _end_beat(
+                        ckpt, dispatcher, scene_id,
+                        ended_reason="max_events_cap",
+                        events_closed=events_closed,
+                    )
+                # Fall through to the standard Cat I ends_beat check.
+                if result.ends_beat:
+                    return await _end_beat(
+                        ckpt, dispatcher, scene_id,
+                        ended_reason=result.ends_beat_reason
+                            or "cascade_exhausted",
+                        events_closed=events_closed,
+                    )
+                # Keep cascading via picks — reuse the normal path by
+                # letting the loop iterate. Break out of the inner if
+                # and continue.
+                picks = [
+                    rid for rid in result.agent_responder_picks
+                    if rid not in (ckpt.session.character_bindings or {})
+                ]
+                if not picks:
+                    return await _end_beat(
+                        ckpt, dispatcher, scene_id,
+                        ended_reason="cascade_exhausted",
+                        events_closed=events_closed,
+                    )
+                next_actor = picks[0]
+                next_intention = await dispatcher.agent_intend(
+                    ckpt=ckpt, character_id=next_actor, scene_id=scene_id,
+                )
+                current_actor = next_actor
+                current_intention = next_intention
+                continue
+
             evt = open_cat_ii(
                 ckpt=ckpt,
                 scene_id=scene_id,
                 initiator_id=current_actor,
                 initiator_intention=current_intention,
-                required_responders=result.required_responders,
+                required_responders=required,
             )
 
             # Agents among required_responders intend immediately; their
             # intentions are collected into the same Cat II event.
             bindings = ckpt.session.character_bindings or {}
-            for rid in result.required_responders:
+            for rid in required:
                 if rid in bindings:
                     # Human — pin slot, wait.
                     pin_cat_ii_responder(ckpt, scene_id, rid, evt.event_id)
@@ -529,7 +768,12 @@ async def run_beat(
                     cat_ii_event=evt,
                 )
                 close_cat_ii(ckpt, evt.event_id)
-                broadcast_event(ckpt, resolved)
+                if resolved.requires_responders:
+                    raise ValueError(
+                        "Router returned Cat II nesting on an adjudication "
+                        "call; Part C invariant violated."
+                    )
+                broadcast_event(ckpt, resolved, scene_id)
                 events_closed += 1
                 return await _end_beat(
                     ckpt, dispatcher, scene_id,
@@ -545,7 +789,7 @@ async def run_beat(
             )
 
         # Cat I path — canonical event closes immediately.
-        broadcast_event(ckpt, result)
+        broadcast_event(ckpt, result, scene_id)
         events_closed += 1
 
         # Ends-beat decision.
@@ -618,11 +862,18 @@ async def _end_beat(
 # ---- Error-message shaping for rejected /acts ------------------------------
 
 
-def format_slot_rejection(check: SlotCheck, ckpt: CheckpointFile) -> str:
+def format_slot_rejection(
+    check: SlotCheck,
+    ckpt: CheckpointFile,
+    attempted_text: str = "",
+) -> str:
     """Render a user-facing message explaining why an /act was rejected.
 
     The SlotCheck carries the holder's character_id; we look up their
-    display name from the roster to make the message friendly.
+    display name from the roster to make the message friendly. If
+    `attempted_text` is provided, the rejection echoes it back so the
+    player can copy-paste on retry — solves the "Discord ate my three
+    sentences" pain point.
     """
     holder_name = check.holder_id
     for c in ckpt.characters:
@@ -630,21 +881,41 @@ def format_slot_rejection(check: SlotCheck, ckpt: CheckpointFile) -> str:
             holder_name = c.name
             break
 
+    base: str
     if check.conflict == SlotConflict.INITIATOR_HELD:
-        return (
-            f"**{holder_name}** is taking their turn right now — their /act is "
-            f"being processed. Your move wasn't submitted. The scene will open "
-            f"up when their beat resolves."
+        base = (
+            f"**{holder_name}** is taking their turn — your move wasn't "
+            f"submitted. You'll see a new render appear when the scene "
+            f"re-opens; try again then."
         )
-    if check.conflict == SlotConflict.CAT_II_OTHER_HELD:
-        return (
-            f"A contested action is unfolding — **{holder_name}** is responding "
-            f"to an ongoing event. The scene is frozen on that resolution. "
-            f"Your move wasn't submitted. Try again when it closes."
+    elif check.conflict == SlotConflict.CAT_II_OTHER_HELD:
+        base = (
+            f"The scene is paused on **{holder_name}** — someone's action "
+            f"is waiting on their response. Your move wasn't submitted. "
+            f"You'll see a new render when the beat closes."
         )
-    if check.conflict == SlotConflict.SELF_BUSY:
-        return (
-            "Your previous /act is still being processed. Give the scene a "
-            "moment to resolve before submitting again."
+    elif check.conflict == SlotConflict.SELF_BUSY:
+        base = (
+            "Your previous /act is still processing. Give the scene a "
+            "moment before submitting again."
         )
-    return "Your /act could not be accepted right now."
+    elif check.conflict == SlotConflict.CAT_II_SELF_RESPONDER:
+        # Not an error — this is the "your /act was accepted as your Cat II
+        # response" case. Callers usually don't render this path, but
+        # provide a friendly confirmation if they do.
+        base = (
+            "Your /act was accepted as your response to the current contested "
+            "action. The scene will resolve once all responders have moved."
+        )
+    else:
+        base = "Your /act could not be accepted right now."
+
+    if attempted_text:
+        # Echo the player's text so they don't lose it. Truncate long
+        # inputs so the rejection doesn't run off the screen; blockquote
+        # so they can easily copy-paste.
+        preview = attempted_text.strip()
+        if len(preview) > 500:
+            preview = preview[:497] + "..."
+        base += f"\n\n> Your submitted text:\n> {preview}"
+    return base

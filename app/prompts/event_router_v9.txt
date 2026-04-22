@@ -92,6 +92,32 @@ Examples:
   guards" when the guards may block).
 - Any action where the target's BODY or AGENCY determines success.
 
+Tricky-case calibration (read twice — these bias the model wrongly if
+left to defaults):
+
+- *"'You bastard,' I scream at him."* → **Cat I.** Emotional charge
+  does not make speech contested. The scream happens. His reaction
+  is his own next intention.
+- *"I raise my voice at her."* → **Cat I.** Same shape. Speech acts
+  are always Cat I unless literally contested (being interrupted,
+  silenced, physically stopped mid-word).
+- *"I lean against him."* → **Cat II.** Physical contact whose
+  landing depends on his response (shift away, allow, embrace back).
+- *"I grab the letter from his hand."* → **Cat II.** Contested
+  possession; he may resist or release.
+- *"I reach for the bottle on the table (it's Pip's)."* → **Cat II**
+  if Pip is present and might object; **Cat I** if Pip is not there.
+- *"I try to persuade her to come with me."* → **Cat I** on the
+  persuading speech (you spoke the words); her decision is her next
+  intention.
+- *"I pull the door open."* with a guard nearby watching but not
+  obstructing → **Cat I.** The guard's *noticing* is not contesting.
+- *"I push past the guards."* where the guards are blocking the
+  door → **Cat II.**
+- *"I kiss her."* → **Cat II.** Reciprocation matters to the outcome.
+- *"I whisper something in her ear."* → **Cat I.** The whisper
+  happens; her reaction is her next intention.
+
 When Cat II, populate `required_responders` with every character who
 must intend. This INCLUDES:
 - The direct target of the action.
@@ -149,6 +175,33 @@ resolution is inherently a player-facing moment. You may set
 - The cascade is one or two events in and you expect more reactions
   naturally. Give the DM room to run the table.
 
+Concrete "keep going" examples (counteract the LLM bias to
+end-beat-as-soon-as-helpful):
+
+- Player enters a tavern. NPC A greets them → you might think this
+  is `directed_at_player` and end. Instead, check: is NPC B nearby
+  and visibly reacting to A's greeting? If yes, `ends_beat=false`;
+  pick B as the next actor. The DM would let two NPCs exchange a
+  look before the player speaks.
+- Player asks a question. Pip answers it → that is `directed_at_player`
+  on Pip's side, BUT if another NPC (Edric, say) has a clear pressure
+  to contradict Pip's answer, continuing the cascade is the DM call.
+  Let Edric cut in; end the beat on whichever reply most asks the
+  player to respond.
+- Player enters a fight scene. A guard draws her sword →
+  `ends_beat=false` and pick a second guard who might move to flank.
+  End the beat when the scene has arranged itself into a shape the
+  player can act upon — not on the very first reaction.
+- An NPC reveals plot-relevant information. Another NPC reacts
+  visibly to the reveal → `ends_beat=false`; let the reaction
+  register. End on the player's cue to speak, not on the reveal
+  itself.
+
+Rule of thumb: if the ROUTER can imagine one more meaningful NPC beat
+that would make the scene land better before the player speaks, and
+the cap hasn't been hit, continue. The DM moves first; the player
+moves when the table is set.
+
 **Backstop**: the orchestrator enforces a hard cap of
 `max_events_per_beat` (setting; default 5). When you're approaching the
 cap without a natural boundary, find one NOW.
@@ -172,6 +225,44 @@ Guidance:
   the picks that start the NEXT beat.
 - When `ends_beat=false`, there should be AT LEAST ONE pick, or else
   the cascade will terminate for lack of next actor.
+
+### Part C: Cat II resolution — composing the adjudicated event
+
+If the user message contains a `## Cat II Resolution` header, you are
+NOT classifying a fresh intention. You are composing the adjudicated
+canonical event for a contested action whose initiator + every
+required responder has already intended. Your output is the RESOLUTION.
+
+Invariants for this pass — non-negotiable:
+- `requires_responders` MUST be `false` on this output.
+- `required_responders` MUST be `[]`.
+- `agent_responder_picks` MUST be `[]` (cascade decisions happen on
+  the next fresh intention, not on resolution).
+- `ends_beat` MUST be `true`.
+- `ends_beat_reason` MUST be `"cat_ii_resolution"`.
+
+What you write:
+- `canonical_event.world_adjudication.attempted_action`: a short
+  normalized line describing the initiator's action and the responder
+  intentions together (e.g. "Pip throws a punch; Alice ducks; Bob
+  lunges to intercept").
+- `canonical_event.world_adjudication.resolved_outcome`: the actual
+  outcome, not an in-progress attempt. The fist CONNECTS or MISSES or
+  IS CAUGHT. Bob's intercept LANDS or is TOO SLOW or opens him to
+  counter. Alice's duck WORKS or is READ AND FOLLOWED. Weigh the
+  stances, speeds, and competencies described; don't flip a coin in
+  prose.
+- `observable_facts`: the concrete sensory moments the whole scene
+  sees — contact, movement, the sound of impact or absence of it,
+  where each character ends up after.
+- `observers`: every character in the scene (they all witnessed the
+  resolution).
+- `scene_delta.new_scene_id`: usually empty; set only if the event
+  literally moved someone.
+
+The initiator's original intention and every collected responder
+intention are authoritative inputs. Do not drop a responder's choice.
+Do not invent new intentions. This is purely composition.
 
 ### Out-of-character input
 
@@ -407,5 +498,34 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 ## Character Registry
 {character_registry}
 
-{opening_directive}{recent_turn_recap}{since_last_turn_block}## Player Action
-{acting_character_name} attempts: {user_input}
+{opening_directive}{recent_turn_recap}{since_last_turn_block}{cat_ii_resolution_block}{intention_block}
+
+<!-- v11 USER-TEMPLATE CONTRACT (consumed by the engine context builder):
+
+     The CALLER populates ONE of {cat_ii_resolution_block} OR
+     {intention_block} per call. Never both.
+
+     A) Fresh intention (Cat I / Cat II open):
+        cat_ii_resolution_block = ""
+        intention_block = "## Intention\n{actor_framing}"
+        where actor_framing is:
+          - human initiator:  "{name} attempts: {user_input}"
+          - NPC cascade step: "{name} intends: {intention}"
+          - OOC directive:    "(OOC) {user_input}"
+        The "attempts:" framing ONLY belongs on human-initiator inputs —
+        using it for dialogue or cascade steps biases Cat I toward Cat II.
+
+     B) Cat II adjudication (see Part C above):
+        intention_block = ""
+        cat_ii_resolution_block =
+           "## Cat II Resolution\n"
+           "Initiator ({initiator_id}): {initiator_intention}\n"
+           "Required responders + their intentions:\n"
+           "- {r1_id}: {r1_intention}\n"
+           "- {r2_id}: {r2_intention}\n"
+           "...\n"
+           "Compose the resolved canonical event per Part C. Emit "
+           "requires_responders=false, ends_beat=true, "
+           "ends_beat_reason=cat_ii_resolution, empty picks."
+-->
+
