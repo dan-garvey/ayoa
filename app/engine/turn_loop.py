@@ -66,25 +66,64 @@ def _utcnow_iso() -> str:
 
 
 _REFUSAL_PATTERNS = (
-    "i can't", "i cannot", "i'm unable", "i am unable",
-    "sorry, i", "i'm not able", "i am not able",
-    "as an ai", "i do not have", "i don't have",
+    # Refusal+meta shapes: specific enough that they don't collide with
+    # legitimate in-character dialogue like "I can't see them from here."
+    "i can't help", "i can't assist", "i can't comply", "i can't generate",
+    "i cannot help", "i cannot assist", "i cannot comply",
+    "i cannot generate", "i cannot provide",
+    "i'm unable to", "i am unable to",
+    "i'm not able to", "i am not able to",
+    "sorry, i can't", "sorry, i cannot", "sorry, but i",
+    "as an ai", "as a language model",
+    "i don't have access", "i do not have access",
+    "i need to decline",
 )
 
 
 def _is_agent_refusal(text: str) -> bool:
-    """v11-r3c: detect stock LLM refusal phrasings so we can skip the
+    """v11-r4c: detect stock LLM refusal phrasings so we can skip the
     pick rather than routing "I cannot help with that" as an intention
-    through the adjudicator. Conservative: match only short, refusal-
-    shaped outputs — a long narrative that happens to contain "I can't"
-    as dialogue should NOT be flagged.
+    through the adjudicator.
+
+    Narrowed rules (v11-r4c):
+
+    1. **Sentence-start anchor only.** A refusal phrase must appear at
+       the very start of the output or at a sentence boundary (after
+       ``. ``, ``! ``, ``? ``, or a newline). Mid-sentence occurrences
+       of "i can't" in dialogue (e.g. "I can't see them from here.")
+       are NOT refusals.
+
+    2. **Refusal+meta patterns only.** The pattern list is specific
+       enough ("i can't help", "i'm unable to", "as an ai", ...) that
+       in-character terse dialogue like "I can't allow that, my lord."
+       slips through unflagged.
+
+    3. **Length cap.** Outputs longer than 200 chars are never flagged
+       — long narratives that happen to contain "I can't" as dialogue
+       are preserved.
+
+    4. **Empty/whitespace** is always a refusal (agent failure).
     """
     t = (text or "").strip().lower()
     if not t:
         return True
     if len(t) > 200:
         return False  # Long outputs are not refusals.
-    return any(p in t for p in _REFUSAL_PATTERNS)
+    # Build the set of sentence-start offsets: position 0, plus every
+    # offset immediately following ". ", "! ", "? ", or a newline.
+    starts = [0]
+    for i in range(len(t) - 1):
+        ch = t[i]
+        nxt = t[i + 1]
+        if ch == "\n":
+            starts.append(i + 1)
+        elif ch in ".!?" and nxt == " ":
+            starts.append(i + 2)
+    for pat in _REFUSAL_PATTERNS:
+        for s in starts:
+            if t.startswith(pat, s):
+                return True
+    return False
 
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -390,14 +429,28 @@ def _parse_iso(s: str):
 
 
 def abort_scene(ckpt: CheckpointFile, scene_id: str) -> int:
-    """Admin-escape: force-release every slot in a scene and abandon
-    every open Cat II event in that scene. Returns the number of events
+    """Admin-escape: force-release every slot in a scene, abandon every
+    open Cat II event in that scene, AND flush render buffers for every
+    human currently in the scene. Returns the number of events
     abandoned.
 
     Used by the `/abort_beat` admin command when a pin gets wedged.
     Preserves the canonical_events log (we keep history) but the
-    mid-flight Cat II is treated as if it never resolved.
+    mid-flight Cat II is treated as if it never resolved. Render buffers
+    are flushed so mid-beat aborts don't leak stale events into the next
+    beat's render fan-out.
     """
+    # Snapshot in-scene humans BEFORE slots are popped — humans_in_scene
+    # derives from character location + bindings, so slot state doesn't
+    # affect it, but pinning this ordering keeps intent clear.
+    in_scene_humans = humans_in_scene(ckpt, scene_id)
+    buffers_cleared = 0
+    for h in in_scene_humans:
+        existing = ckpt.session.render_buffers.get(h)
+        if existing:
+            buffers_cleared += 1
+        ckpt.session.render_buffers[h] = []
+
     ckpt.session.active_act_slots.pop(scene_id, None)
     before = len(ckpt.session.open_cat_ii_events)
     ckpt.session.open_cat_ii_events = [
@@ -405,8 +458,9 @@ def abort_scene(ckpt: CheckpointFile, scene_id: str) -> int:
     ]
     dropped = before - len(ckpt.session.open_cat_ii_events)
     logger.warning(
-        "abort_scene: %s released; %d open Cat II events abandoned",
-        scene_id, dropped,
+        "abort_scene: %s released; %d open Cat II events abandoned; "
+        "%d render buffers cleared",
+        scene_id, dropped, buffers_cleared,
     )
     return dropped
 
@@ -950,14 +1004,14 @@ def format_slot_rejection(
     base: str
     if check.conflict == SlotConflict.INITIATOR_HELD:
         base = (
-            f"**{holder_name}** is taking their turn — your move wasn't "
-            f"submitted. You'll see a new render appear when the scene "
+            f"**{holder_name}** is taking their turn — your /act didn't "
+            f"go through. You'll see a new render appear when the scene "
             f"re-opens; try again then."
         )
     elif check.conflict == SlotConflict.CAT_II_OTHER_HELD:
         base = (
             f"The scene is paused on **{holder_name}** — someone's action "
-            f"is waiting on their response. Your move wasn't submitted. "
+            f"is waiting on their response. Your /act didn't go through. "
             f"You'll see a new render when the beat closes."
         )
     elif check.conflict == SlotConflict.SELF_BUSY:
@@ -979,9 +1033,10 @@ def format_slot_rejection(
     if attempted_text:
         # Echo the player's text so they don't lose it. Truncate long
         # inputs so the rejection doesn't run off the screen; blockquote
-        # so they can easily copy-paste.
+        # so they can easily copy-paste. Discord's raw message limit is
+        # ~2000 chars; 1500 leaves headroom for the rejection preamble.
         preview = attempted_text.strip()
-        if len(preview) > 500:
-            preview = preview[:497] + "..."
+        if len(preview) > 1500:
+            preview = preview[:1497] + "..."
         base += f"\n\n> Your submitted text:\n> {preview}"
     return base

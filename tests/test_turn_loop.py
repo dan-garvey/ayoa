@@ -640,3 +640,81 @@ class TestInitiatorExcludedFromCatIIResponders:
         assert result.events_closed == 1
         # Slot released at beat end.
         assert "gatehouse" not in ckpt.session.active_act_slots
+
+
+class TestRefusalDetectorNarrowed:
+    def test_in_character_i_cant_preserved(self):
+        # Legitimate NPC dialogue containing "I can't" mid-sentence is NOT a refusal.
+        from app.engine.turn_loop import _is_agent_refusal
+        assert not _is_agent_refusal("I can't see them from here.")
+        assert not _is_agent_refusal("I cannot allow that, my lord.")
+
+    def test_refusal_shape_still_detected(self):
+        from app.engine.turn_loop import _is_agent_refusal
+        assert _is_agent_refusal("I can't help with that request.")
+        assert _is_agent_refusal("As an AI, I shouldn't generate this.")
+        assert _is_agent_refusal("I'm unable to comply with that.")
+        assert _is_agent_refusal("Sorry, I can't do that.")
+
+    def test_empty_still_detected(self):
+        from app.engine.turn_loop import _is_agent_refusal
+        assert _is_agent_refusal("")
+        assert _is_agent_refusal("   ")
+
+    def test_long_narrative_with_i_cant_preserved(self):
+        # A 400-char narrative paragraph that happens to include "I can't"
+        # is never flagged (length cap).
+        from app.engine.turn_loop import _is_agent_refusal
+        long = "She walked slowly through the market, thinking. " * 10
+        long = long + " I can't believe what happens next."
+        assert not _is_agent_refusal(long)
+
+
+class TestAbortSceneFlushesBuffers:
+    def test_abort_clears_in_scene_humans_buffers(self):
+        from app.engine.turn_loop import abort_scene, open_cat_ii, pin_cat_ii_responder
+        from app.schemas.state import RenderBufferEntry
+        # Use the same _ckpt helper pattern the rest of the file uses.
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        evt = open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", evt.event_id)
+        # Queue buffered events for both in-scene humans.
+        ckpt.session.render_buffers["alice"] = [
+            RenderBufferEntry(event_id="evt_x", observation_level="direct"),
+        ]
+        ckpt.session.render_buffers["bob"] = [
+            RenderBufferEntry(event_id="evt_y", observation_level="direct"),
+        ]
+
+        abort_scene(ckpt, "gatehouse")
+
+        # Both in-scene humans' buffers cleared.
+        assert ckpt.session.render_buffers.get("alice", []) == []
+        assert ckpt.session.render_buffers.get("bob", []) == []
+
+
+class TestRejectionTruncationBumpAndPhrasing:
+    def test_rejection_truncates_at_1500_not_500(self):
+        from app.engine.turn_loop import check_act_slot, claim_initiator_slot, format_slot_rejection
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        long_text = "I walk " * 300  # ~2100 chars
+        msg = format_slot_rejection(check, ckpt, attempted_text=long_text)
+        # The echoed text should preserve more than 500 chars now.
+        assert "I walk " * 100 in msg  # ~700 chars worth
+        # Still truncates somewhere below the full length.
+        assert len(msg) < 2500
+
+    def test_rejection_phrasing_not_gaslighty(self):
+        from app.engine.turn_loop import check_act_slot, claim_initiator_slot, format_slot_rejection
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        msg = format_slot_rejection(check, ckpt)
+        assert "didn't go through" in msg
+        assert "wasn't submitted" not in msg  # Old phrasing gone.
