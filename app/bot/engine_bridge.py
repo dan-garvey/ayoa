@@ -966,23 +966,33 @@ class EngineBridge:
             # indefinitely — the next /act would bounce off the pin. By
             # closing the sweep-populated events first, the hot path
             # clears their state before the player's /act runs.
+            #
+            # v11-r7a: capture each resolution's TurnResponse so the
+            # frontend can fan its per-POV renders out. Previously the
+            # responses were dropped and pinned humans never saw their
+            # AFK-resolved beats.
+            pre_turn: list[TurnResponse] = []
             for event_id in event_ids:
                 try:
-                    await self.orchestrator.resolve_cat_ii(
+                    resp = await self.orchestrator.resolve_cat_ii(
                         session_id, event_id,
                     )
+                    if resp.per_player_renders:
+                        pre_turn.append(resp)
                 except Exception:
                     logger.exception(
                         "resolve_cat_ii failed for session=%s event=%s",
                         session_id, event_id,
                     )
 
-            return await self.orchestrator.process_turn(TurnRequest(
+            response = await self.orchestrator.process_turn(TurnRequest(
                 session_id=session_id,
                 user_input=user_input,
                 acting_character_id=acting_character_id,
                 debug=debug,
             ))
+            response.pre_turn_resolutions = pre_turn
+            return response
 
 
 # ---- personalize helper -----------------------------------------------------

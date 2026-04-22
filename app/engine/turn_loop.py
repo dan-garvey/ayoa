@@ -655,7 +655,7 @@ class Dispatcher(Protocol):
 
 
 def _build_open_attempt_event(
-    initiator_id: str,
+    initiator_name: str,
     initiator_intention: str,
     scene_id: str,
 ) -> EventRouterOutput:
@@ -664,13 +664,18 @@ def _build_open_attempt_event(
     the initiator if human).
 
     The attempt is IN PROGRESS. resolved_outcome describes the attempt
-    mid-flight ('{initiator} attempts: ...') — the narrator's PARTIAL
-    mode ends the prose on that moment. This IS appended to
+    mid-flight ('{initiator_name} attempts: ...') — the narrator's
+    PARTIAL mode ends the prose on that moment. This IS appended to
     canonical_events so the narrator's event-id lookup resolves; on
     resolution the adjudicated event lands separately in the log. The
     resulting "two events per Cat II" shape reflects historical truth —
     an attempt WAS made pre-resolution — at the cost of one extra event
     entry per Cat II.
+
+    `initiator_name` MUST be the display name (e.g. "Pip"), NOT the
+    character_id (e.g. "char_0dab1f"). The narrator reads
+    resolved_outcome as a prose seed; passing the id leaks engine
+    structure into the cliffhanger.
     """
     # Use contracts helper so the resolved_outcome prefix is consistent
     # with the router's own Part C framing.
@@ -681,7 +686,7 @@ def _build_open_attempt_event(
                 attempted_action=initiator_intention,
                 feasible=True,
                 resolved_outcome=format_open_attempt_outcome(
-                    initiator_id, initiator_intention,
+                    initiator_name, initiator_intention,
                 ),
             ),
             scene_delta=SceneDelta(
@@ -913,8 +918,13 @@ async def run_beat(
             # — but with release_slots=False (keep pins alive) and
             # force_partial=True (every render gets partial_mode=True
             # even though the initiator isn't pinned themselves).
+            initiator_name = current_actor
+            for c in ckpt.characters:
+                if c.character_id == current_actor:
+                    initiator_name = c.name
+                    break
             open_attempt = _build_open_attempt_event(
-                initiator_id=current_actor,
+                initiator_name=initiator_name,
                 initiator_intention=current_intention,
                 scene_id=scene_id,
             )

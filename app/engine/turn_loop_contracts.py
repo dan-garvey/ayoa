@@ -81,12 +81,16 @@ def format_partial_render_marker() -> str:
     return PARTIAL_MODE_MARKER
 
 
-def format_open_attempt_outcome(actor_id: str, intention: str) -> str:
+def format_open_attempt_outcome(actor_name: str, intention: str) -> str:
     """v11-r6a: the `resolved_outcome` string for a synthetic 'open Cat
     II attempt' canonical event. The attempt is IN PROGRESS — the
     narrator's PARTIAL mode ends prose on the cliffhanger moment so
     pinned humans see the open attempt before they respond.
 
+    `actor_name` MUST be the display name (e.g. "Pip"), NOT the
+    character_id (e.g. "char_0dab1f"). The narrator reads this as
+    a prose seed; an id leaks engine structure into the cliffhanger.
+
     Centralized so tests can pattern-match the shape without hardcoding
     the format."""
-    return f"{actor_id} attempts: {intention}"
+    return f"{actor_name} attempts: {intention}"

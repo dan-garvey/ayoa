@@ -62,4 +62,11 @@ class TurnResponse(BaseModel):
     # Cat II pending state with `not per_player_renders` +
     # `beat_ended_reason == "cat_ii_pending"`.
     beat_ended_reason: str = ""
+    # v11-r7a: pre-turn AFK-sweep resolutions. When the per-session lock
+    # holder runs `sweep_stale_pins`, each event the sweep fills is
+    # closed by `Orchestrator.resolve_cat_ii`, producing a TurnResponse
+    # of its own. Those responses are appended here so the frontend can
+    # fan their per-POV renders out before showing the actor their own
+    # /act result. Empty in the common case (no stale pins).
+    pre_turn_resolutions: list["TurnResponse"] = Field(default_factory=list)
     debug: DebugPayload | None = None

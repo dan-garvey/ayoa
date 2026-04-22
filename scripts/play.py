@@ -673,7 +673,7 @@ class CLIState:
         # "attempts:" framing, so OOC routing is correct without a
         # dedicated CLI code path. Same reasoning as /describe in the
         # Discord frontend.
-        if not ckpt.narrator_conversation:
+        if not any(ckpt.narrator_conversations.values()):
             print("opening scene…")
             await self._act("(begin)")
 
@@ -782,24 +782,55 @@ class CLIState:
             print(f"error: {type(e).__name__}: {e}")
             return
 
-        # v11-r6b: mirror the Discord bot's /act branching so the CLI
-        # playtest path surfaces paused scenes and slot rejections with
-        # targeted messages rather than rendering an empty "Turn N" block.
-        if response.beat_ended_reason == "cat_ii_pending":
-            print(
-                "(scene paused — another player is resolving a contested "
-                "action; /act again later to continue)"
-            )
-            return
-
+        # v11-r6b/r7a: mirror the Discord bot's /act branching so the
+        # CLI playtest path surfaces paused scenes and slot rejections
+        # with targeted messages, AND prints the PARTIAL cliffhanger
+        # render when one is available (cat_ii_pending).
         if response.beat_ended_reason == "slot_rejected":
             print(response.output_text)
             return
 
-        print()
-        print(f"--- Turn {response.turn_index} · {self.current_actor} ---")
-        print(response.output_text)
-        print()
+        # Print pre-turn AFK-sweep resolutions first so in-CLI ordering
+        # matches story time.
+        for pre_resp in (response.pre_turn_resolutions or []):
+            for cid, prose in (pre_resp.per_player_renders or {}).items():
+                if not prose or cid not in self.claims:
+                    continue
+                print(f"--- AFK auto-resolution · POV {cid} ---")
+                print(prose)
+                print()
+
+        per_player = response.per_player_renders or {}
+
+        if response.beat_ended_reason == "cat_ii_pending":
+            actor_render = per_player.get(self.current_actor) or ""
+            print()
+            print(
+                "(scene paused — another player is resolving a contested "
+                "action; /act again later to continue)"
+            )
+            if actor_render:
+                print()
+                print(f"--- Turn {response.turn_index} · "
+                      f"{self.current_actor} (partial) ---")
+                print(actor_render)
+            print()
+        else:
+            print()
+            print(f"--- Turn {response.turn_index} · {self.current_actor} ---")
+            print(response.output_text)
+            print()
+
+        # Print POVs for any other characters this CLI session has
+        # /join'd locally so the playtester sees the multi-POV output
+        # without spinning up Discord.
+        joined = set(self.claims or {})
+        for cid, prose in per_player.items():
+            if cid == self.current_actor or not prose or cid not in joined:
+                continue
+            print(f"--- POV · {cid} ---")
+            print(prose)
+            print()
 
 
 # ---- bootstrap --------------------------------------------------------------

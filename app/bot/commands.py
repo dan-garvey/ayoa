@@ -1235,7 +1235,9 @@ def register(
         # synthetic arrival action so the narrator renders the opening scene
         # with the description in hand. Otherwise this is just a mid-story
         # update and we don't trigger anything.
-        is_pre_play = not ckpt.narrator_conversation
+        # v11: narrator_conversations is per-POV dict keyed by character_id.
+        # "no turns yet" = no POV has any narrator history.
+        is_pre_play = not any(ckpt.narrator_conversations.values())
 
         changed_bits = []
         if name:
@@ -1306,9 +1308,15 @@ def register(
             turn_index=response.turn_index,
             story_id=row.story_id,
         )
+        intro_bits: list[str] = []
+        if name:
+            intro_bits.append(f"**{name}**")
+        if appearance:
+            intro_bits.append(f"*{appearance}*")
+        intro_line = " — ".join(intro_bits)
         intro = (
-            f"*{traits}*\n\n"
-            f"The scene opens. Use `/act <action>` from here on."
+            (f"{intro_line}\n\n" if intro_line else "")
+            + "The scene opens. Use `/act <action>` from here on."
         )
         await inter.followup.send(content=intro, embeds=embeds)
 
@@ -1374,24 +1382,16 @@ def register(
                     lat.model,
                 )
 
-        # v11-r6b: branch on beat_ended_reason. Two short-circuits before
-        # the normal embed render + per-POV fan-out:
-        #   - cat_ii_pending: another player's response is owed; this
-        #     /act produced no prose (per_player_renders is empty). Tell
-        #     the actor the scene is paused so they don't think the bot
-        #     silently swallowed the submission.
+        # v11-r6b/r7a: branch on beat_ended_reason.
         #   - slot_rejected: the orchestrator rejected the /act on slot
         #     grounds; response.output_text carries the user-facing
         #     explanation (with the attempted_text echoed for copy-
         #     paste). Send plain ephemeral — no embed, no fan-out.
-        if response.beat_ended_reason == "cat_ii_pending":
-            await inter.followup.send(
-                "The scene is paused — waiting on another player's "
-                "response. You'll see the beat when they /act.",
-                ephemeral=True,
-            )
-            return
-
+        #   - cat_ii_pending: r6a renders a PARTIAL cliffhanger to the
+        #     initiator (if human) and pinned responders. Show the
+        #     initiator their cliffhanger if present, prefix with a
+        #     pause notice, then fan-out the pinned humans below.
+        #   - other: normal render to actor + fan-out to non-actors.
         if response.beat_ended_reason == "slot_rejected":
             await inter.followup.send(
                 response.output_text or "Your /act could not be accepted.",
@@ -1399,36 +1399,33 @@ def register(
             )
             return
 
-        embeds = render_turn(
-            output_text=response.output_text,
-            turn_index=response.turn_index,
-            story_id=row.story_id,
-        )
-        await inter.followup.send(embeds=embeds)
+        # Load bindings + roster ONCE for both fan-outs (pre-turn
+        # resolutions + the actor's beat). Failure here only kills DMs,
+        # not the actor's followup.
+        try:
+            ckpt_for_fanout = engine.load_latest(row.session_id)
+            bindings = ckpt_for_fanout.session.character_bindings or {}
+            roster = list(ckpt_for_fanout.characters or [])
+        except Exception:
+            logger.exception(
+                "per-POV fan-out: load_latest failed; skipping DMs",
+            )
+            bindings = {}
+            roster = []
 
-        # v11-r6a: fan-out per-POV renders to non-actor humans in the
-        # scene. Previously the /act handler posted ONLY the actor's
-        # render and silently dropped every other in-scene player's
-        # POV — the single biggest multiplayer blocker. Now each
-        # non-actor human whose binding resolves to a Discord user id
-        # receives their render via DM. Failures are isolated so one
-        # broken DM doesn't block the rest.
-        per_player = response.per_player_renders or {}
-        if per_player:
-            try:
-                ckpt_for_fanout = engine.load_latest(row.session_id)
-                bindings = ckpt_for_fanout.session.character_bindings or {}
-            except Exception:
-                logger.exception(
-                    "per-POV fan-out: load_latest failed; skipping DMs",
-                )
-                bindings = {}
-
-            notified_names: list[str] = []
-            for cid, prose in per_player.items():
-                if cid == binding:
-                    continue  # Actor already saw their render on the followup.
-                if not prose:
+        async def _dm_per_pov(
+            renders: dict[str, str],
+            *,
+            skip_cid: str | None,
+            note_prefix: str = "",
+        ) -> list[str]:
+            """DM each (cid, prose) in `renders` to that character's
+            bound user. Returns the list of character display names that
+            were successfully notified. `skip_cid` skips the actor (who
+            already saw their render in-channel)."""
+            notified: list[str] = []
+            for cid, prose in renders.items():
+                if cid == skip_cid or not prose:
                     continue
                 uid_str = bindings.get(cid, "")
                 if not uid_str:
@@ -1441,21 +1438,68 @@ def register(
                     user = inter.client.get_user(uid)
                     if user is None:
                         user = await inter.client.fetch_user(uid)
-                    for chunk in _chunks(prose, 1900):
-                        await user.send(chunk)
-                    # Find the character's display name for the ack.
-                    char = next(
-                        (c for c in (ckpt_for_fanout.characters or [])
-                         if c.character_id == cid),
-                        None,
+                    payload = (
+                        f"{note_prefix}\n\n{prose}" if note_prefix else prose
                     )
-                    notified_names.append(char.name if char else cid)
+                    for chunk in _chunks(payload, 1900):
+                        await user.send(chunk)
+                    char = next(
+                        (c for c in roster if c.character_id == cid), None,
+                    )
+                    notified.append(char.name if char else cid)
                 except Exception:
                     logger.exception(
                         "per-POV fan-out: DM to uid=%s (char=%s) failed",
                         uid, cid,
                     )
+            return notified
 
+        # Step 1: fan out pre-turn AFK-sweep resolutions BEFORE the
+        # actor's /act render so the in-DM order matches story time.
+        # The acting user gets their own DM here too (they may have
+        # been the AFK pin holder).
+        for pre_resp in (response.pre_turn_resolutions or []):
+            await _dm_per_pov(
+                pre_resp.per_player_renders or {},
+                skip_cid=None,
+                note_prefix=(
+                    "_(Auto-resolved while you were away — your prior "
+                    "scene closed out.)_"
+                ),
+            )
+
+        # Step 2: actor's /act result.
+        per_player = response.per_player_renders or {}
+        if response.beat_ended_reason == "cat_ii_pending":
+            actor_render = per_player.get(binding) or ""
+            pause_note = (
+                "_Scene paused — waiting on another player's response. "
+                "You'll see the beat continue when they /act._"
+            )
+            if actor_render:
+                embeds = render_turn(
+                    output_text=actor_render,
+                    turn_index=response.turn_index,
+                    story_id=row.story_id,
+                )
+                await inter.followup.send(content=pause_note, embeds=embeds)
+            else:
+                await inter.followup.send(content=pause_note, ephemeral=True)
+        else:
+            embeds = render_turn(
+                output_text=response.output_text,
+                turn_index=response.turn_index,
+                story_id=row.story_id,
+            )
+            await inter.followup.send(embeds=embeds)
+
+        # Step 3: DM the actor's beat to the OTHER bound humans in the
+        # scene. Acting user already saw it in-channel above, so
+        # skip_cid=binding.
+        if per_player:
+            notified_names = await _dm_per_pov(
+                per_player, skip_cid=binding,
+            )
             if notified_names:
                 try:
                     notified_phrase = ", ".join(
