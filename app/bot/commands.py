@@ -1600,6 +1600,47 @@ def register(
             ephemeral=True,
         )
 
+    # v11-r3d: /abort_beat admin recovery command. A wedged Cat II event
+    # (responder disconnected, session frozen) can only be cleared by an
+    # admin invoking this command; it force-releases the scene's slot
+    # state and abandons any open Cat II events in that scene. The
+    # event LOG is preserved — this does not rewrite history, just
+    # unblocks the next /act.
+    @tree.command(
+        name="abort_beat",
+        description="[Admin] Force-unwedge the current scene's beat.",
+        guild=guild,
+    )
+    async def _abort_beat(inter: discord.Interaction):
+        if not _is_admin(inter.user.id):
+            await inter.response.send_message(
+                "Admin-only command.", ephemeral=True,
+            )
+            return
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session bound to this channel.", ephemeral=True,
+            )
+            return
+        try:
+            from app.engine.turn_loop import abort_scene
+            ckpt = engine.load_latest(row.session_id)
+            scene_id = ckpt.world_state.locations.current_scene_id
+            dropped = abort_scene(ckpt, scene_id)
+            engine.checkpoint_mgr.save(ckpt)
+        except Exception as e:
+            logger.exception("abort_beat failed")
+            await inter.response.send_message(
+                f"abort failed: `{type(e).__name__}: {e}`", ephemeral=True,
+            )
+            return
+        await inter.response.send_message(
+            f"Scene `{scene_id}` released. {dropped} open Cat II event(s) "
+            f"abandoned. Next /act can claim the slot.",
+            ephemeral=True,
+        )
+
     # Attach the /story and /settings groups to the tree last, once
     # their subcommands are defined.
     if guild is not None:

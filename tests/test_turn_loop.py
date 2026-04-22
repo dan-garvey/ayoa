@@ -505,8 +505,12 @@ class TestSweepStaleCatIIPins:
 
         ids = sweep_stale_cat_ii_pins(ckpt)
         assert ids == [evt.event_id]
-        assert "alice" in evt.collected_intentions
-        assert "does not act" in evt.collected_intentions["alice"].lower()
+        # Structured marker — router prompt skips these rather than
+        # parsing the intention text.
+        assert "alice" in evt.swept_responders
+        # Intention sentinel is still stored (for debug) but no longer
+        # the human-leaking "does not act — away from the scene" text.
+        assert "AFK-swept" in evt.collected_intentions["alice"]
 
 
 class TestSceneLockManager:
@@ -536,6 +540,81 @@ class TestRejectionEchoesText:
             check, ckpt, attempted_text="I walk outside and look at the stars",
         )
         assert "I walk outside" in msg
+
+
+class TestValidationHardening:
+    def test_unknown_ends_beat_reason_coerced_to_empty(self):
+        # ends_beat_reason typo: should be clamped to "" with warn-log,
+        # not raise ValidationError that would crash a beat.
+        out = _router_out(ends_beat=True)
+        out_dict = out.model_dump()
+        out_dict["ends_beat_reason"] = "scene-transition"  # typo
+        from app.schemas.event_router import EventRouterOutput
+        rebuilt = EventRouterOutput.model_validate(out_dict)
+        assert rebuilt.ends_beat_reason == ""
+
+    def test_empty_agent_intention_drops_pick_and_ends_beat(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_picks=["pip"], ends_beat=False,
+        ))
+        # Agent returns an empty string — should be treated as failure,
+        # beat ends cascade_exhausted rather than routing the empty
+        # intention through adjudication.
+        fake.queue_agent("")
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="wait",
+            scene_id="gatehouse",
+        ))
+        assert result.ended_reason == "cascade_exhausted"
+
+    def test_refusal_intention_drops_pick(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_picks=["pip"], ends_beat=False,
+        ))
+        fake.queue_agent("I cannot comply with that request.")
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="wait",
+            scene_id="gatehouse",
+        ))
+        assert result.ended_reason == "cascade_exhausted"
+
+
+class TestSweepStructuredMarker:
+    def test_sweep_records_swept_responders_list(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 1
+        evt = open_cat_ii(
+            ckpt, scene_id="gatehouse",
+            initiator_id="pip", initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        from datetime import datetime, timedelta, timezone
+        evt.opened_at = (
+            datetime.now(timezone.utc) - timedelta(seconds=10)
+        ).isoformat()
+
+        sweep_stale_cat_ii_pins(ckpt)
+        assert "alice" in evt.swept_responders
+        # Sentinel kept in collected_intentions for debug, but the
+        # structured marker is what the router prompt reads.
+        assert "AFK-swept" in evt.collected_intentions["alice"]
+
+
+class TestTimezoneAwareTimestamps:
+    def test_claimed_at_is_tz_aware(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        entry = ckpt.session.active_act_slots["gatehouse"]["alice"]
+        # ISO string contains TZ info ("+00:00" or "Z").
+        assert "+" in entry.claimed_at or entry.claimed_at.endswith("Z")
 
 
 class TestInitiatorExcludedFromCatIIResponders:

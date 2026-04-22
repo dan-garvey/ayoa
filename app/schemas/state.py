@@ -45,6 +45,13 @@ class OpenCatIIEvent(BaseModel):
     required_responders: list[str] = Field(default_factory=list)
     # Intentions collected so far: responder_id -> intention text.
     collected_intentions: dict[str, str] = Field(default_factory=dict)
+    # v11-r3a: responder_ids whose intention was SYNTHESIZED by the AFK
+    # sweep, not submitted by the human. The Cat II resolution prompt
+    # (Part C) skips these responders entirely — they're rendered as
+    # present-but-non-reactive rather than having the sentinel string
+    # leak into `resolved_outcome`. This is cleaner than parsing a
+    # magic-string marker on the intention text.
+    swept_responders: list[str] = Field(default_factory=list)
     opened_at: str = ""
 
 

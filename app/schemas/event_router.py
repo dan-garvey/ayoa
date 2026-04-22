@@ -171,6 +171,27 @@ class EventRouterOutput(BaseModel):
     roster_moves: list[RosterMove] = Field(default_factory=list)
     scenes_created: list[SceneCreation] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _clamp_unknown_reason(cls, data: Any) -> Any:
+        """Pydantic's Literal[] validation rejects unknown values with a
+        ValidationError. For a field whose purpose is telemetry, that's
+        too harsh — a model typo ("scene-transition" vs "scene_transition")
+        should be a warn-log, not a crash. Coerce any unknown string to
+        "" and log; the caller will see the beat close correctly.
+        """
+        if isinstance(data, dict) and "ends_beat_reason" in data:
+            valid = set(EndsBeatReason.__args__)
+            val = data["ends_beat_reason"]
+            if isinstance(val, str) and val not in valid:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Unknown ends_beat_reason %r coerced to empty; "
+                    "valid values: %s", val, sorted(valid),
+                )
+                data["ends_beat_reason"] = ""
+        return data
+
     @model_validator(mode="after")
     def _validate_v11_invariants(self) -> "EventRouterOutput":
         """Enforce Cat I / Cat II invariants at the schema boundary so

@@ -264,6 +264,32 @@ The initiator's original intention and every collected responder
 intention are authoritative inputs. Do not drop a responder's choice.
 Do not invent new intentions. This is purely composition.
 
+**Rule 2b is SUPERSEDED here.** The rest of this prompt's rule 2b
+says "render the attempt, not the completion." That rule applies
+to Cat II OPEN calls. On this (resolution) call, you DO write the
+completion — because the resolution IS the outcome. "The fist
+connects" / "Alice ducks in time" / "Bob's hand closes on air"
+are exactly what goes in `resolved_outcome` here. Don't retreat to
+attempt-prose.
+
+**Nested Cat II is forbidden.** Even if a responder's intention
+would itself be Cat II in isolation (Bob's intercept could be read
+as its own attack), do NOT open a nested event. Fold the responder's
+action into `resolved_outcome` as a now-completed beat. A single
+Cat II resolves to a single adjudicated canonical event, period.
+
+**Swept responders — render as present-but-non-reactive.** If the
+`## Cat II Resolution` section lists any responders under a
+`## Swept Responders (AFK)` sub-header, those players failed to
+intend within the session's timeout. Their character is PRESENT
+in the scene but did NOT act — they froze, flinched, stared, or
+were caught flat-footed. Render this in-fiction only — NEVER write
+"away from the scene," "does not act," "timed out," "AFK," or any
+meta framing. Write: *"Bob stands rooted"*, *"caught flat-footed"*,
+*"staring, gone somewhere behind his eyes"* — the character is
+visibly there but their body did nothing. Do not single them out
+unnecessarily; one short beat of non-reaction is enough.
+
 ### Out-of-character input
 
 Text the player wraps entirely in parentheses — e.g. `(begin)`, `(skip to

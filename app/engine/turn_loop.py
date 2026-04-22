@@ -53,9 +53,38 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Awaitable, Callable, Protocol
+
+
+def _utcnow_iso() -> str:
+    """v11-r3c: timezone-aware UTC ISO-8601 timestamp. Never use
+    datetime.utcnow() (deprecated in 3.12, naive, and miscomputes
+    staleness under non-UTC hosts)."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+_REFUSAL_PATTERNS = (
+    "i can't", "i cannot", "i'm unable", "i am unable",
+    "sorry, i", "i'm not able", "i am not able",
+    "as an ai", "i do not have", "i don't have",
+)
+
+
+def _is_agent_refusal(text: str) -> bool:
+    """v11-r3c: detect stock LLM refusal phrasings so we can skip the
+    pick rather than routing "I cannot help with that" as an intention
+    through the adjudicator. Conservative: match only short, refusal-
+    shaped outputs — a long narrative that happens to contain "I can't"
+    as dialogue should NOT be flagged.
+    """
+    t = (text or "").strip().lower()
+    if not t:
+        return True
+    if len(t) > 200:
+        return False  # Long outputs are not refusals.
+    return any(p in t for p in _REFUSAL_PATTERNS)
 
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -190,7 +219,7 @@ def claim_initiator_slot(
     slot[character_id] = SlotEntry(
         reason="initiator",
         cat_ii_event_id=None,
-        claimed_at=datetime.utcnow().isoformat(),
+        claimed_at=_utcnow_iso(),
     )
 
 
@@ -206,7 +235,7 @@ def pin_cat_ii_responder(
     slot[character_id] = SlotEntry(
         reason="cat_ii_responder",
         cat_ii_event_id=cat_ii_event_id,
-        claimed_at=datetime.utcnow().isoformat(),
+        claimed_at=_utcnow_iso(),
     )
 
 
@@ -328,7 +357,18 @@ def sweep_stale_cat_ii_pins(
             continue
 
         for h in stale_humans:
-            evt.collected_intentions[h] = "(does not act — away from the scene)"
+            # Structured marker, not a magic string. Part C of the router
+            # prompt skips swept responders entirely — they don't end up
+            # in the adjudication input, so no meta text can leak into
+            # `resolved_outcome`. The rendered scene will show the
+            # character as present-but-non-reactive via narrator
+            # guidance, never as "does not act — away from the scene".
+            if h not in evt.swept_responders:
+                evt.swept_responders.append(h)
+            # Sentinel string still recorded in collected_intentions for
+            # debug inspection, but adjudication will filter these out
+            # via swept_responders.
+            evt.collected_intentions[h] = "[AFK-swept: no player intention]"
             logger.warning(
                 "Cat II event %s: auto-resolved pin on %s after timeout",
                 evt.event_id, h,
@@ -408,7 +448,7 @@ def open_cat_ii(
         initiator_intention=initiator_intention,
         required_responders=list(required_responders),
         collected_intentions={},
-        opened_at=datetime.utcnow().isoformat(),
+        opened_at=_utcnow_iso(),
     )
     ckpt.session.open_cat_ii_events.append(evt)
     return evt
@@ -640,11 +680,17 @@ async def run_beat(
                 ended_reason="cat_ii_pending",
             )
         # All responders in — adjudicate.
+        # Use evt.scene_id (where the event opened) rather than the
+        # caller's scene_id — the responder may have moved scenes
+        # between pin and /act (unlikely but possible via admin or
+        # roster_move), and the canonical event belongs to the scene
+        # where it originated.
+        resolution_scene = evt.scene_id
         resolved = await dispatcher.route_intention(
             ckpt=ckpt,
             actor_id=evt.initiator_id,
             intention=evt.initiator_intention,
-            scene_id=scene_id,
+            scene_id=resolution_scene,
             cat_ii_event=evt,
         )
         close_cat_ii(ckpt, evt.event_id)
@@ -657,7 +703,7 @@ async def run_beat(
                 "Router returned Cat II nesting on an adjudication call; "
                 "Part C invariant violated."
             )
-        broadcast_event(ckpt, resolved, scene_id)
+        broadcast_event(ckpt, resolved, resolution_scene)
         # Cat II adjudication always ends the beat.
         return await _end_beat(
             ckpt, dispatcher, scene_id,
@@ -820,12 +866,32 @@ async def run_beat(
         # v11 first cut: chain one pick at a time. Multi-pick fan-out can
         # come later; for now, the first pick acts, we re-route, the
         # router can emit fresh picks on its next output.
-        next_actor = picks[0]
-        next_intention = await dispatcher.agent_intend(
-            ckpt=ckpt,
-            character_id=next_actor,
-            scene_id=scene_id,
-        )
+        # Try picks in order; skip any that return an empty/refusal
+        # intention (agent failure mode: an unconfigured model emits "",
+        # a whitespace string, or a refusal sentinel). Failed picks are
+        # silently dropped; if all fail, the beat ends as cascade_
+        # exhausted rather than routing garbage through the adjudicator.
+        next_actor = None
+        next_intention: str | None = None
+        for candidate in picks:
+            raw = await dispatcher.agent_intend(
+                ckpt=ckpt,
+                character_id=candidate,
+                scene_id=scene_id,
+            )
+            if raw and raw.strip() and not _is_agent_refusal(raw):
+                next_actor = candidate
+                next_intention = raw
+                break
+            logger.warning(
+                "Dropped empty/refusal intention from agent %s", candidate,
+            )
+        if next_actor is None or next_intention is None:
+            return await _end_beat(
+                ckpt, dispatcher, scene_id,
+                ended_reason="cascade_exhausted",
+                events_closed=events_closed,
+            )
         current_actor = next_actor
         current_intention = next_intention
 

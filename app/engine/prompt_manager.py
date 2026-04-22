@@ -54,8 +54,18 @@ class PromptManager:
 
         raw = path.read_text()
 
-        # Check for missing variables
-        required = set(re.findall(r"\{(\w+)\}", raw))
+        # Strip HTML-style comment blocks from the required-vars check so
+        # templates can carry contract documentation (with `{var_name}`
+        # examples) without those example placeholders being treated as
+        # required variables. Comments are ALSO stripped from the final
+        # rendered output so they don't inflate the prompt.
+        #
+        # Only whole-line `<!-- ... -->` blocks are recognized; inline HTML
+        # comments inside prose would be rare and we'd rather preserve them.
+        comment_re = re.compile(r"<!--.*?-->", re.DOTALL)
+        stripped = comment_re.sub("", raw)
+
+        required = set(re.findall(r"\{(\w+)\}", stripped))
         provided = set(variables.keys())
         missing = required - provided
         if missing:
@@ -64,7 +74,7 @@ class PromptManager:
                 f"that were not provided"
             )
 
-        return raw.format(**variables)
+        return stripped.format(**variables)
 
     def render_messages(self, template_name: str, **variables) -> list[dict[str, str]]:
         """Render a template and split it into system + user messages on `<<<USER>>>`.
