@@ -32,6 +32,10 @@ Hidden facts:
 
 ## Instructions
 
+**If the user message contains a `## Cat II Resolution` header, SKIP
+directly to Part C. Otherwise, the Part A → Part B sequence applies
+and Part C is IRRELEVANT.**
+
 ### v11 — What you are doing on this call
 
 You are running as part of a DM-paced loop. The current call handles ONE
@@ -226,6 +230,11 @@ Guidance:
 - When `ends_beat=false`, there should be AT LEAST ONE pick, or else
   the cascade will terminate for lack of next actor.
 
+INVARIANT: every character_id in `agent_responder_picks` MUST also
+appear in `observers`. You cannot dispatch a cascade to an agent who
+didn't perceive the event. If you want an agent to act, put them in
+observers too.
+
 ### Part C: Cat II resolution — composing the adjudicated event
 
 If the user message contains a `## Cat II Resolution` header, you are
@@ -264,19 +273,28 @@ The initiator's original intention and every collected responder
 intention are authoritative inputs. Do not drop a responder's choice.
 Do not invent new intentions. This is purely composition.
 
-**Rule 2b is SUPERSEDED here.** The rest of this prompt's rule 2b
-says "render the attempt, not the completion." That rule applies
-to Cat II OPEN calls. On this (resolution) call, you DO write the
-completion — because the resolution IS the outcome. "The fist
-connects" / "Alice ducks in time" / "Bob's hand closes on air"
-are exactly what goes in `resolved_outcome` here. Don't retreat to
-attempt-prose.
+**Rule 2b is SUPERSEDED here.** Earlier in this prompt, rule 2b says
+"render the attempt, not the completion" — that guidance applies to
+Cat II OPEN calls. On this (resolution) call, you DO write the
+completion. Where 2b says write *"drives a fist toward her jaw"*,
+THIS section requires *"the fist connects"* / *"the fist misses by
+inches"* / *"Alice catches his forearm mid-strike"*. Use past-
+completed or present-completed verbs — NEVER present-progressive
+attempt-prose. If you find yourself writing "is driving / is
+reaching / begins to / starts to", stop — you're applying rule 2b
+when Part C applies.
 
 **Nested Cat II is forbidden.** Even if a responder's intention
 would itself be Cat II in isolation (Bob's intercept could be read
 as its own attack), do NOT open a nested event. Fold the responder's
 action into `resolved_outcome` as a now-completed beat. A single
 Cat II resolves to a single adjudicated canonical event, period.
+
+Example: if Bob's collected intention was "block and then strike
+back," fold the strike-back into `resolved_outcome` as a completed
+beat — *"Bob's forearm catches the blow, and his shield-arm follows
+through, opening Pip's stance"* — rather than opening a fresh Cat II
+against Pip. The beat resolves here.
 
 **Swept responders — render as present-but-non-reactive.** If the
 `## Cat II Resolution` section lists any responders under a
@@ -285,10 +303,21 @@ intend within the session's timeout. Their character is PRESENT
 in the scene but did NOT act — they froze, flinched, stared, or
 were caught flat-footed. Render this in-fiction only — NEVER write
 "away from the scene," "does not act," "timed out," "AFK," or any
-meta framing. Write: *"Bob stands rooted"*, *"caught flat-footed"*,
-*"staring, gone somewhere behind his eyes"* — the character is
-visibly there but their body did nothing. Do not single them out
-unnecessarily; one short beat of non-reaction is enough.
+meta framing.
+
+Write in any of these shapes — ROTATE; do not reuse the same phrase
+twice in one session:
+- *"Bob stands rooted."*
+- *"Bob's eyes are on the floor, focus gone somewhere far."*
+- *"Bob doesn't move — hands still at his sides, caught flat-footed."*
+- *"Bob's mouth opens but the breath doesn't become words."*
+- *"Bob is quiet in the way of someone who hasn't realized they should have answered."*
+- *"Bob stays where he was, frozen mid-gesture."*
+- *"Bob watches without reacting, a beat behind the moment."*
+
+Whatever shape you pick, the character is VISIBLY PRESENT, body-still,
+non-reactive. Do not single them out more than one short beat of
+non-reaction; do not over-frame.
 
 ### Out-of-character input
 
@@ -367,6 +396,7 @@ physically doing. When the user_input is fully parenthesized OOC:
     list (the target is elsewhere or isn't registered), render the
     attempt breaking off in-fiction — reaching for air, the words
     running out — and let the narrator render the empty moment.
+    (Exception: during Cat II RESOLUTION calls — signaled by a "## Cat II Resolution" header in the user message — rule 2b is SUSPENDED. See Part C.)
 
 3. Respect established world state.
    - Do NOT invent obstacles, guards, locks, barriers, or restrictions that are not supported by the scene, world facts, world lore, or hidden facts.
