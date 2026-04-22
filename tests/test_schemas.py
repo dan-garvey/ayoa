@@ -311,10 +311,10 @@ class TestCheckpointFile:
             world_state=WorldState(**WORLD_STATE_EXAMPLE),
             characters=[CharacterRecord(**CHARACTER_EXAMPLE)],
         )
-        assert ckpt.schema_version == "2.0"
+        assert ckpt.schema_version == "3.0"  # v11 hard break
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        assert ckpt.prompt_versions["event_router"] == "v8"
+        assert ckpt.prompt_versions["event_router"] == "v9"  # v11 default
         # Pre-versioning / hand-built checkpoints have empty importer_version;
         # the importer stamps it on build.
         assert ckpt.importer_version == ""

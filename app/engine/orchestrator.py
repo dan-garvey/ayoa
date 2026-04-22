@@ -44,18 +44,11 @@ from app.engine.turn_loop import (
 )
 from app.llm.client import LLMClient
 
-try:
-    # Sibling v11 module; imported here so tests (and production) can
-    # monkeypatch `app.engine.orchestrator.LLMDispatcher` without
-    # reaching into the adapter module itself. During the v11 landing
-    # sequence this import may transiently fail (the sibling commit lands
-    # separately); the `None` sentinel lets test suites that monkeypatch
-    # the symbol run without requiring the adapter to exist yet. In
-    # production the bridge will raise at instantiation time (far more
-    # actionable than an opaque ImportError at startup).
-    from app.engine.turn_loop_dispatcher import LLMDispatcher
-except ImportError:  # pragma: no cover
-    LLMDispatcher = None  # type: ignore[assignment]
+# Imported at module level so tests can monkeypatch
+# `app.engine.orchestrator.LLMDispatcher` without reaching into the
+# adapter module directly. Hard import now that the Dispatcher has
+# landed — a missing module is a real packaging error.
+from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest

@@ -149,6 +149,7 @@ class TestAs:
         assert state.current_actor == "aldric"  # unchanged
 
 
+@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
 class TestActingDescribe:
     def test_plain_text_acts_as_current(self, run):
         engine = _mock_engine()

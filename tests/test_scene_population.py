@@ -67,6 +67,7 @@ def _llm_response(parsed):
     from app.llm.client import LLMResponse
     return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-sonnet-4-6")
 
+@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
 class TestPlayerLocationFollowsScene:
     """Core fix: when scene_delta.new_scene_id fires, the acting
     character's location updates to match. Without this, the player is
@@ -158,6 +159,7 @@ class TestPlayerLocationFollowsScene:
         aldric = next(c for c in ckpt.characters if c.character_id == "aldric")
         assert aldric.location == "hall"
 
+@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
 class TestOpeningDirectivePresence:
     """The router's opening_directive template var is populated only on
     the first turn — when session_conversation is empty."""

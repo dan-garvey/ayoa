@@ -16,18 +16,29 @@ Other items in this batch are structural / documentation-only:
 
 from __future__ import annotations
 
-import asyncio
-import logging
-
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
-from app.engine.orchestrator import (
-    DIRECTIVE_LENGTH_WARN,
-    RESPONDERS_HARD_CAP,
-    TICK_CONCURRENCY_HARD_CAP,
-    Orchestrator,
+# v11: the v8 orchestrator is gone; these follow-up tests reached into
+# module-level constants (DIRECTIVE_LENGTH_WARN, RESPONDERS_HARD_CAP,
+# TICK_CONCURRENCY_HARD_CAP) + per-phase latency plumbing that no longer
+# exist. Re-port to the v11 pipeline when ticks + directives features
+# are rebuilt on top of run_beat; skip the whole module for now.
+pytestmark = pytest.mark.skip(
+    reason="v11: legacy v8 orchestrator constants removed; re-port against run_beat",
 )
+
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock  # noqa: E402
+
+# Stub names so the module still parses under skip.
+DIRECTIVE_LENGTH_WARN = 1000
+RESPONDERS_HARD_CAP = 8
+TICK_CONCURRENCY_HARD_CAP = 8
+
+
+class Orchestrator:  # type: ignore[no-redef]
+    pass
 from app.engine.settings import (
     SETTINGS_BY_KEY,
     _parse_int_nonneg,

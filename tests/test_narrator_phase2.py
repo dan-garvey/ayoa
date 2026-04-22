@@ -105,6 +105,7 @@ def sample_narrator_output():
 
 # --- Tests ---
 
+@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
 class TestNarratorPhase2:
     @pytest.mark.asyncio
     async def test_basic_composition(

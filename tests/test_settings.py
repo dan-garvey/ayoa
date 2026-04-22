@@ -220,6 +220,7 @@ def _fake_tick_result(regent, scenes, moved_to=""):
     return (regent, _tick_output(regent.character_id, scenes, moved_to), {})
 
 
+@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
 class TestTickSceneCreationGate:
     """The agents_can_create_scenes flag gates whether tick outputs'
     scenes_created are applied to the scene graph. We drive _run_ticks

@@ -101,6 +101,12 @@ class TestPromptManagerWithRealTemplates:
             since_last_turn_block="",
             opening_directive="",
             recent_turn_recap="",
+            # v11: the user-message body is now built from the
+            # intention_block OR cat_ii_resolution_block caller-supplied
+            # strings; legacy `user_input` and `acting_character_name`
+            # still appear in the system block for context.
+            cat_ii_resolution_block="",
+            intention_block="## Intention\nAldric attempts: I try to lift the building.",
         )
         assert "I try to lift the building" in result
         assert "Aldric" in result
@@ -149,6 +155,8 @@ class TestPromptManagerWithRealTemplates:
             since_last_turn_block="",
             opening_directive="",
             recent_turn_recap="",
+            cat_ii_resolution_block="",
+            intention_block="",
         )
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
@@ -178,6 +186,8 @@ class TestPromptManagerWithRealTemplates:
             since_last_turn_block="",
             opening_directive="",
             recent_turn_recap="",
+            cat_ii_resolution_block="",
+            intention_block="",
         )
         assert len(messages) == 4
         assert messages[0]["role"] == "system"
