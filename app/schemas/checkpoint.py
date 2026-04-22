@@ -74,6 +74,6 @@ class CheckpointFile(BaseModel):
     config: SessionConfig = Field(default_factory=SessionConfig)
     prompt_versions: dict[str, str] = Field(default_factory=lambda: {
         "event_router": "v9",
-        "agent": "v8",
+        "agent": "v9",
         "narrator_phase2": "v8",
     })

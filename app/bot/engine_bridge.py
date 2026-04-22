@@ -580,11 +580,13 @@ class EngineBridge:
         for char_id, bound in list(ckpt.session.character_bindings.items()):
             if bound == uid:
                 freed = char_id
-                del ckpt.session.character_bindings[char_id]
         if freed is not None:
-            # Purge BEFORE save so slot/event/buffer cleanup lands in the
-            # same checkpoint write as the binding removal.
+            # v11-r5: purge v11 state BEFORE removing the binding so no
+            # reader can observe an unbound character with a stale pin.
+            # Purge is a pure in-memory mutation; del + save follow
+            # atomically on the same checkpoint write.
             purge_character_state(ckpt, freed)
+            del ckpt.session.character_bindings[freed]
             self.checkpoint_mgr.save(ckpt)
         return freed
 
@@ -939,23 +941,24 @@ class EngineBridge:
         """Process one turn under a per-session lock. Subsequent concurrent calls
         for the same session_id queue and run in order.
 
-        v11-A5: runs `sweep_stale_pins` before acquiring the orchestrator.
-        Any event IDs returned are logged at INFO so operators can see the
-        sweep firing; actual re-adjudication is wired in the follow-up
-        orchestrator-bind commit.
+        v11-A5 / r5: `sweep_stale_pins` runs INSIDE the per-session lock
+        so it cannot race with a concurrent orchestrator turn. Two /acts
+        arriving at the same moment serialize: the lock-holder sweeps
+        (no-op if nothing stale) then runs the orchestrator; the second
+        /act then sees the already-swept state and its own sweep is a
+        no-op. This is a narrow path — sweeps usually don't mutate —
+        but moving it inside the lock eliminates the clobber race
+        flagged by the round-4 edge review.
         """
-        # Sweep outside the lock so AFK cleanup never blocks a concurrent
-        # submitter holding the lock; the per-session save is re-read on
-        # the orchestrator side, so a race here just means the sweep
-        # lands on the following turn.
-        try:
-            self.sweep_stale_pins(session_id)
-        except Exception:
-            # Best-effort — never let an AFK sweep error crash a turn.
-            logger.exception("v11 sweep_stale_pins failed for %s", session_id)
-
         lock = await self._lock_for(session_id)
         async with lock:
+            try:
+                self.sweep_stale_pins(session_id)
+            except Exception:
+                # Best-effort — never let an AFK sweep error crash a turn.
+                logger.exception(
+                    "v11 sweep_stale_pins failed for %s", session_id,
+                )
             return await self.orchestrator.process_turn(TurnRequest(
                 session_id=session_id,
                 user_input=user_input,

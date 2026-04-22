@@ -1649,8 +1649,8 @@ def register(
             inter.user.id, inter.channel_id, row.session_id, scene_id, dropped,
         )
         await inter.response.send_message(
-            f"Scene `{scene_id}` released. {dropped} open Cat II event(s) "
-            f"abandoned. Next /act can claim the slot.",
+            f"Scene `{scene_id}` released. {dropped} pending reaction(s) "
+            f"cancelled. Next /act can claim the slot.",
             ephemeral=True,
         )
         # v11-A5: thread-visible notification so players see that the
@@ -1660,8 +1660,9 @@ def register(
         if dropped > 0:
             try:
                 await inter.followup.send(
-                    f"Scene released by admin. {dropped} open Cat II "
-                    f"event(s) abandoned. Next /act will continue.",
+                    f"⚠️ Scene released by admin. {dropped} pending "
+                    f"reaction(s) cancelled — the next /act reopens the "
+                    f"scene.",
                     ephemeral=False,
                 )
             except Exception:

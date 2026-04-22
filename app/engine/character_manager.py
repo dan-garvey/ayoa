@@ -27,6 +27,20 @@ logger = logging.getLogger(__name__)
 MAX_SPAWNS_PER_TURN = 3
 
 
+def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
+    """v11: ids currently holding a scene's active_act_slot OR listed as a
+    required responder on an open Cat II event. Used to guard roster
+    changes that would incoherently move/dormant/cull a character the
+    engine is waiting on."""
+    pinned: set[str] = set()
+    for slot in checkpoint.session.active_act_slots.values():
+        pinned.update(slot.keys())
+    for evt in checkpoint.session.open_cat_ii_events:
+        pinned.add(evt.initiator_id)
+        pinned.update(evt.required_responders)
+    return pinned
+
+
 class CharacterManager:
     """Manages character registry and state updates."""
 
@@ -57,13 +71,44 @@ class CharacterManager:
         """
         from app.engine.turn_loop import purge_character_state
 
+        # v11: a character who is currently pinned in a scene (initiator
+        # or Cat II responder) cannot coherently be dormanted or culled
+        # mid-beat — the fiction has them actively engaged. The router
+        # should not produce this shape; if it does, we skip the status
+        # change and log loudly so prompt drift is visible.
+        pinned_ids = _pinned_character_ids(checkpoint)
+
         for char_id in routed.dormant:
+            if char_id in pinned_ids:
+                logger.warning(
+                    "Ignored dormant on %s: character is currently pinned in "
+                    "a scene's active_act_slot or as a Cat II responder. "
+                    "The router should resolve the open event before "
+                    "dormanting them.",
+                    char_id,
+                )
+                continue
             char = self.get_character(checkpoint, char_id)
             if char:
                 char.status = CharacterStatus.dormant
                 logger.info("Character %s set to dormant", char_id)
 
         for char_id in routed.cull:
+            # Cull is terminal — unlike dormant, the character is gone
+            # for good. If they were pinned, `purge_character_state`
+            # already handles the cleanup (abandons open Cat II events
+            # they initiated; removes them from responder lists;
+            # clears their buffer). Warn but proceed; the alternative
+            # would leave the character both dead-in-fiction AND
+            # perpetually pinned, which is worse.
+            if char_id in pinned_ids:
+                logger.warning(
+                    "Culling %s mid-pin: their open Cat II event will be "
+                    "abandoned / they'll be removed from any responder "
+                    "list. The router should normally resolve the event "
+                    "before culling.",
+                    char_id,
+                )
             char = self.get_character(checkpoint, char_id)
             if char:
                 char.status = CharacterStatus.culled

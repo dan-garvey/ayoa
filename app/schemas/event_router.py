@@ -202,6 +202,14 @@ class EventRouterOutput(BaseModel):
           (edge-case #2) cannot reach the loop.
         - `required_responders` must be unique; duplicates corrupt the
           collection set semantics in `cat_ii_is_ready`.
+        - `agent_responder_picks` must be a subset of the `observers`
+          list. An agent the router picks for cascade must also be
+          perceiving the event — otherwise they're reacting to something
+          they couldn't see. The router prompt declares this as an
+          INVARIANT; the schema here CLAMPS by silently dropping any
+          pick not in observers and logs a warning. Clamp rather than
+          raise because this is prompt drift, not a user-facing error —
+          the beat should still run.
         """
         if self.requires_responders and not self.required_responders:
             raise ValueError(
@@ -214,4 +222,16 @@ class EventRouterOutput(BaseModel):
                 "required_responders contains duplicates; each responder "
                 "must appear exactly once."
             )
+        if self.agent_responder_picks:
+            observer_ids = {o.character_id for o in self.observers}
+            dropped = [p for p in self.agent_responder_picks if p not in observer_ids]
+            if dropped:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "agent_responder_picks ⊆ observers invariant violated; "
+                    "dropping picks not in observers: %s", dropped,
+                )
+                self.agent_responder_picks = [
+                    p for p in self.agent_responder_picks if p in observer_ids
+                ]
         return self

@@ -306,14 +306,19 @@ were caught flat-footed. Render this in-fiction only — NEVER write
 meta framing.
 
 Write in any of these shapes — ROTATE; do not reuse the same phrase
-twice in one session:
-- *"Bob stands rooted."*
-- *"Bob's eyes are on the floor, focus gone somewhere far."*
-- *"Bob doesn't move — hands still at his sides, caught flat-footed."*
-- *"Bob's mouth opens but the breath doesn't become words."*
-- *"Bob is quiet in the way of someone who hasn't realized they should have answered."*
-- *"Bob stays where he was, frozen mid-gesture."*
-- *"Bob watches without reacting, a beat behind the moment."*
+twice in one session. The set intentionally mixes physical, cognitive,
+auditory, and social freezes so the prose doesn't collapse into a
+single template:
+- *"Bob stands rooted."* (physical freeze)
+- *"Bob's eyes are on the floor, focus gone somewhere far."* (visual)
+- *"Bob doesn't move — hands still at his sides, caught flat-footed."* (physical)
+- *"Bob's mouth opens but the breath doesn't become words."* (social freeze)
+- *"Bob is still processing the previous sentence."* (cognitive)
+- *"Bob stays where he was, frozen mid-gesture."* (physical)
+- *"Bob watches without reacting, a beat behind the moment."* (temporal)
+- *"Bob's answer arrives a beat too late, into a room already moving on."* (auditory)
+- *"The question passes Bob by; no one waits on him."* (social)
+- *"Bob is there, but not in this conversation."* (presence-only)
 
 Whatever shape you pick, the character is VISIBLY PRESENT, body-still,
 non-reactive. Do not single them out more than one short beat of

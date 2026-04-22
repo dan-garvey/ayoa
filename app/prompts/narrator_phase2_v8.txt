@@ -74,15 +74,28 @@ The prior messages in this conversation are your own compositions from earlier t
 
     - **MULTI-EVENT COMPOSITION** (when the buffered event list has more than one entry): compose the events as a single continuous scene — the player experiences a sequence unfolding, not a bullet list. Pick the center-of-gravity event (most likely: the final event that ends the beat, or the event directed at the player). Anchor your prose to it; earlier events orbit as flow-connective setup ("you're still catching your breath from the shout when the door swings open"). Drop low-signal events into subordinate clauses; do not give every event its own paragraph. Dialogue from each event is quoted verbatim — that's the consistency invariant across POVs. If two events are both high-stakes, use the later one as center-of-gravity and frame the earlier one as the thing that *led* to now. MULTI-EVENT composition respects whichever other mode applies (OBSERVATION vs DIALOGUE vs TENSION vs TRANSITION): sentence-count caps still apply, just distributed across the full sequence.
 
-      Example: buffer = [1) Alice shouts at Pip, 2) Pip flinches, 3) Edric
-      enters from the north door, 4) Edric addresses Alice].
-      Center of gravity = event 4 (directed at player + beat-ender).
-      Compose: *"You're still leaning on your own shout when Pip flinches
-      back a half-step — and in that half-step the north door opens. Edric
-      crosses into the light before you've even reset your stance. 'Alice.
-      A word.'"* Four events, one continuous paragraph; the earlier events
-      orbit event 4 as subordinate clauses; dialogue from event 4 is quoted
-      verbatim.
+      Example 1 (4 events, dialogue closer): buffer = [1) Alice shouts
+      at Pip, 2) Pip flinches, 3) Edric enters from the north door,
+      4) Edric addresses Alice]. Center of gravity = event 4 (directed
+      at player + beat-ender). Compose: *"You're still leaning on your
+      own shout when Pip flinches back a half-step — and in that
+      half-step the north door opens. Edric crosses into the light
+      before you've even reset your stance. 'Alice. A word.'"* Four
+      events, one continuous paragraph; earlier events orbit event 4
+      as subordinate clauses; dialogue from event 4 quoted verbatim.
+
+      Example 2 (2 events, no dialogue): buffer = [1) you enter the
+      tavern, 2) the bartender notices you but resumes polishing a
+      glass]. Center of gravity = event 2 (the non-greeting). Compose:
+      *"You push through the tavern door into heat and hum. The
+      bartender's eyes find you, catalogue you, return to the glass he
+      was polishing before you walked in."* Two events, one paragraph;
+      earlier event leads in, later event lands. No dialogue, no
+      forced interaction point — the moment closes itself.
+
+      Across BOTH examples: no paragraph-per-event; use flow
+      connectives; let the center-of-gravity event take the weight,
+      regardless of total count.
 
 16. **Hard rule — dialogue cutoff.** When an NPC says something that demands a response, STOP. Do not fill the silence the player should fill. Do not narrate their internal processing, do not add an observer's reaction, do not close with atmosphere. End the passage on or immediately after the spoken line that asks for a response. This is the single most important pacing constraint in the whole prompt.
 

@@ -79,6 +79,21 @@ def _router_out(
     ends_beat: bool = True,
     scene: str = "gatehouse",
 ) -> EventRouterOutput:
+    # v11-r5: the schema validator clamps picks to observers. Auto-add
+    # every pick to observers here so tests can specify picks without
+    # manually curating the observer list — matches what the router
+    # prompt's "picks ⊆ observers" invariant requires in production.
+    picks = agent_picks or []
+    observers = [
+        ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
+    ]
+    existing = {o.character_id for o in observers}
+    for p in picks:
+        if p not in existing:
+            observers.append(
+                ObserverEntry(character_id=p, observation_level="d", response_priority=3)
+            )
+            existing.add(p)
     return EventRouterOutput(
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
@@ -91,12 +106,10 @@ def _router_out(
             ),
             observable_facts=[],
         ),
-        observers=[
-            ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
-        ],
+        observers=observers,
         requires_responders=requires_responders,
         required_responders=required_responders or [],
-        agent_responder_picks=agent_picks or [],
+        agent_responder_picks=picks,
         ends_beat=ends_beat,
         ends_beat_reason="directed_at_player" if ends_beat else "",
     )
@@ -571,20 +584,33 @@ class TestValidationHardening:
         ))
         assert result.ended_reason == "cascade_exhausted"
 
-    def test_refusal_intention_drops_pick(self):
+    def test_refusal_text_no_longer_drops_pick(self):
+        """v11-r5: refusal detection moved to the prompt (agent_v9 rule
+        18). If a misbehaving model returns refusal text anyway, the
+        engine does NOT quietly swallow it — the text is routed through
+        the adjudicator like any other intention, and the bug surfaces
+        visibly in the rendered scene rather than as a mystery
+        cascade_exhausted.
+        """
         ckpt = _ckpt(bindings={"alice": "1"})
         fake = FakeDispatcher()
         fake.queue_route(_router_out(
             agent_picks=["pip"], ends_beat=False,
         ))
         fake.queue_agent("I cannot comply with that request.")
+        # Router will see the refusal as Pip's "intention" and classify
+        # it; for the test we just need to confirm the pick is NOT
+        # dropped by the engine itself.
+        fake.queue_route(_router_out(ends_beat=True))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt, dispatcher=fake,
             actor_id="alice", intention="wait",
             scene_id="gatehouse",
         ))
-        assert result.ended_reason == "cascade_exhausted"
+        # Two events closed: Alice's Cat I + Pip's (refusal-shaped) Cat I.
+        # Not cascade_exhausted — the engine routed the intention.
+        assert result.events_closed == 2
 
 
 class TestSweepStructuredMarker:
@@ -642,32 +668,92 @@ class TestInitiatorExcludedFromCatIIResponders:
         assert "gatehouse" not in ckpt.session.active_act_slots
 
 
-class TestRefusalDetectorNarrowed:
-    def test_in_character_i_cant_preserved(self):
-        # Legitimate NPC dialogue containing "I can't" mid-sentence is NOT a refusal.
-        from app.engine.turn_loop import _is_agent_refusal
-        assert not _is_agent_refusal("I can't see them from here.")
-        assert not _is_agent_refusal("I cannot allow that, my lord.")
+class TestPicksSubsetOfObservers:
+    """v11-r5: the `picks ⊆ observers` invariant is enforced at schema
+    layer by clamping (dropping picks not in observers with a warn)."""
 
-    def test_refusal_shape_still_detected(self):
-        from app.engine.turn_loop import _is_agent_refusal
-        assert _is_agent_refusal("I can't help with that request.")
-        assert _is_agent_refusal("As an AI, I shouldn't generate this.")
-        assert _is_agent_refusal("I'm unable to comply with that.")
-        assert _is_agent_refusal("Sorry, I can't do that.")
+    def test_picks_in_observers_preserved(self):
+        out = _router_out(agent_picks=["alice"])  # alice is default observer
+        assert out.agent_responder_picks == ["alice"]
 
-    def test_empty_still_detected(self):
+    def test_picks_not_in_observers_dropped(self):
+        from app.schemas.event_router import EventRouterOutput, ObserverEntry
+        from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+        # observers = [alice]; picks = [alice, pip]; pip should be dropped.
+        out = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="x", feasible=True, resolved_outcome="x",
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id=""),
+                observable_facts=[],
+            ),
+            observers=[ObserverEntry(character_id="alice", observation_level="d", response_priority=3)],
+            agent_responder_picks=["alice", "pip"],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+        )
+        assert out.agent_responder_picks == ["alice"]  # pip clamped
+
+
+class TestPinnedGuards:
+    """v11-r5: the router cannot dormant/cull/roster_move a character
+    who is currently pinned (initiator or Cat II responder)."""
+
+    def test_dormant_on_pinned_is_skipped(self):
+        from app.engine.character_manager import CharacterManager
+        ckpt = _ckpt(bindings={"alice": "1"})
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_x")
+        # Build a router output saying alice goes dormant.
+        routed = _router_out()
+        routed.dormant = ["alice"]
+        CharacterManager().apply_roster_updates(ckpt, routed)
+        # Alice's status unchanged; pin still intact.
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        assert alice.status.value == "active"
+        assert "alice" in ckpt.session.active_act_slots.get("gatehouse", {})
+
+    def test_cull_on_pinned_proceeds_and_purges(self):
+        """Cull is terminal — unlike dormant, it proceeds even on a
+        pinned character, with purge_character_state cleaning up the
+        pin. The alternative (skipping) would leave the character
+        dead-in-fiction but perpetually pinned."""
+        from app.engine.character_manager import CharacterManager
+        ckpt = _ckpt(bindings={"alice": "1"})
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_x")
+        routed = _router_out()
+        routed.cull = ["alice"]
+        CharacterManager().apply_roster_updates(ckpt, routed)
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        assert alice.status.value == "culled"
+        # Pin released by purge.
+        assert "alice" not in ckpt.session.active_act_slots.get("gatehouse", {})
+
+
+class TestAgentEmptyGuard:
+    """v11-r5: refusal detection moved from pattern matching to
+    prompt-level (agent_v9 rule 18). The engine only guards literal
+    empty/whitespace output now. Legitimate in-character lines
+    containing "I can't" / "I cannot" / "As an AI" (rare but possible
+    when a character IS an AI in-fiction) all pass through.
+    """
+
+    def test_empty_is_treated_as_refusal(self):
         from app.engine.turn_loop import _is_agent_refusal
         assert _is_agent_refusal("")
         assert _is_agent_refusal("   ")
+        assert _is_agent_refusal("\n\n")
 
-    def test_long_narrative_with_i_cant_preserved(self):
-        # A 400-char narrative paragraph that happens to include "I can't"
-        # is never flagged (length cap).
+    def test_in_character_lines_pass_through(self):
         from app.engine.turn_loop import _is_agent_refusal
-        long = "She walked slowly through the market, thinking. " * 10
-        long = long + " I can't believe what happens next."
-        assert not _is_agent_refusal(long)
+        # Legitimate terse in-character dialogue that old regex wrongly dropped.
+        assert not _is_agent_refusal("I can't see them from here.")
+        assert not _is_agent_refusal("I cannot allow that, my lord.")
+        # Real refusal content — the PROMPT is supposed to prevent this,
+        # but if the model emits it anyway, the engine does NOT quietly
+        # drop it; the beat will run and the bug will surface visibly.
+        assert not _is_agent_refusal("I can't help with that request.")
+        assert not _is_agent_refusal("As an AI, I cannot generate this.")
 
 
 class TestAbortSceneFlushesBuffers:

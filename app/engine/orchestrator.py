@@ -245,7 +245,22 @@ class Orchestrator:
         # skipped defensively — the router prompt forbids moving them, but
         # we don't trust the model to respect that every turn.
         scene_graph = checkpoint.world_state.locations.scene_graph
+        # v11: collect ids that are pinned in a scene (initiator or Cat II
+        # responder). A roster move on a pinned character would strand
+        # their pin in the old scene. The router should never do this —
+        # moving a pinned character is itself a contest that should open
+        # a new Cat II — but we skip + warn defensively.
+        from app.engine.character_manager import _pinned_character_ids
+        pinned_ids = _pinned_character_ids(checkpoint)
         for move in routed.roster_moves:
+            if move.character_id in pinned_ids:
+                logger.warning(
+                    "Router tried to move pinned character %s; ignored. "
+                    "Pinned characters must resolve their open event before "
+                    "they can be relocated.",
+                    move.character_id,
+                )
+                continue
             if move.character_id in player_ids:
                 logger.warning(
                     "Router tried to move player-bound character %s; ignored",

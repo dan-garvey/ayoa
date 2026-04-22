@@ -65,65 +65,27 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-_REFUSAL_PATTERNS = (
-    # Refusal+meta shapes: specific enough that they don't collide with
-    # legitimate in-character dialogue like "I can't see them from here."
-    "i can't help", "i can't assist", "i can't comply", "i can't generate",
-    "i cannot help", "i cannot assist", "i cannot comply",
-    "i cannot generate", "i cannot provide",
-    "i'm unable to", "i am unable to",
-    "i'm not able to", "i am not able to",
-    "sorry, i can't", "sorry, i cannot", "sorry, but i",
-    "as an ai", "as a language model",
-    "i don't have access", "i do not have access",
-    "i need to decline",
-)
-
-
 def _is_agent_refusal(text: str) -> bool:
-    """v11-r4c: detect stock LLM refusal phrasings so we can skip the
-    pick rather than routing "I cannot help with that" as an intention
-    through the adjudicator.
+    """v11-r5: empty-output guard only.
 
-    Narrowed rules (v11-r4c):
+    Previous rounds tried to detect LLM refusal phrasings via substring
+    matching so the orchestrator could skip the pick rather than routing
+    "I cannot help with that" as an intention. That was the wrong layer:
+    pattern-matching produced false positives on legitimate terse
+    in-character dialogue ("I can't see them from here," "I cannot allow
+    that, my lord.") and false negatives on real refusals with stylistic
+    variations (em-dashed preambles, quoted wrappers, sorry-prefixes).
+    The correct fix is PROMPT-level: agent_v9 adds rule 18 explicitly
+    forbidding refusals / frame-breaks and tells the agent that an empty
+    output is valid in-character silence. The engine then only needs to
+    guard against literal empty output — a real agent failure. If the
+    agent emits a refusal anyway, the adjudicator treats it as dialogue
+    and the beat reveals the bug loudly in playtest rather than masking
+    it with a drop.
 
-    1. **Sentence-start anchor only.** A refusal phrase must appear at
-       the very start of the output or at a sentence boundary (after
-       ``. ``, ``! ``, ``? ``, or a newline). Mid-sentence occurrences
-       of "i can't" in dialogue (e.g. "I can't see them from here.")
-       are NOT refusals.
-
-    2. **Refusal+meta patterns only.** The pattern list is specific
-       enough ("i can't help", "i'm unable to", "as an ai", ...) that
-       in-character terse dialogue like "I can't allow that, my lord."
-       slips through unflagged.
-
-    3. **Length cap.** Outputs longer than 200 chars are never flagged
-       — long narratives that happen to contain "I can't" as dialogue
-       are preserved.
-
-    4. **Empty/whitespace** is always a refusal (agent failure).
+    Returns True iff the text is empty or whitespace-only.
     """
-    t = (text or "").strip().lower()
-    if not t:
-        return True
-    if len(t) > 200:
-        return False  # Long outputs are not refusals.
-    # Build the set of sentence-start offsets: position 0, plus every
-    # offset immediately following ". ", "! ", "? ", or a newline.
-    starts = [0]
-    for i in range(len(t) - 1):
-        ch = t[i]
-        nxt = t[i + 1]
-        if ch == "\n":
-            starts.append(i + 1)
-        elif ch in ".!?" and nxt == " ":
-            starts.append(i + 2)
-    for pat in _REFUSAL_PATTERNS:
-        for s in starts:
-            if t.startswith(pat, s):
-                return True
-    return False
+    return not (text or "").strip()
 
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -395,6 +357,7 @@ def sweep_stale_cat_ii_pins(
         if not stale_humans:
             continue
 
+        mutated = False
         for h in stale_humans:
             # Structured marker, not a magic string. Part C of the router
             # prompt skips swept responders entirely — they don't end up
@@ -404,6 +367,7 @@ def sweep_stale_cat_ii_pins(
             # guidance, never as "does not act — away from the scene".
             if h not in evt.swept_responders:
                 evt.swept_responders.append(h)
+                mutated = True
             # Sentinel string still recorded in collected_intentions for
             # debug inspection, but adjudication will filter these out
             # via swept_responders.
@@ -412,7 +376,12 @@ def sweep_stale_cat_ii_pins(
                 "Cat II event %s: auto-resolved pin on %s after timeout",
                 evt.event_id, h,
             )
-        to_adjudicate.append(evt.event_id)
+        # v11-r5: only append to to_adjudicate when this call ACTUALLY
+        # mutated the event's swept_responders. Prevents a second call
+        # (e.g. concurrent sweep within the lock, or a retry) from
+        # double-returning the same event id.
+        if mutated and evt.event_id not in to_adjudicate:
+            to_adjudicate.append(evt.event_id)
     return to_adjudicate
 
 
