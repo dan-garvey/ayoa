@@ -1363,12 +1363,101 @@ def register(
                     lat.model,
                 )
 
+        # v11-r6b: branch on beat_ended_reason. Two short-circuits before
+        # the normal embed render + per-POV fan-out:
+        #   - cat_ii_pending: another player's response is owed; this
+        #     /act produced no prose (per_player_renders is empty). Tell
+        #     the actor the scene is paused so they don't think the bot
+        #     silently swallowed the submission.
+        #   - slot_rejected: the orchestrator rejected the /act on slot
+        #     grounds; response.output_text carries the user-facing
+        #     explanation (with the attempted_text echoed for copy-
+        #     paste). Send plain ephemeral — no embed, no fan-out.
+        if response.beat_ended_reason == "cat_ii_pending":
+            await inter.followup.send(
+                "The scene is paused — waiting on another player's "
+                "response. You'll see the beat when they /act.",
+                ephemeral=True,
+            )
+            return
+
+        if response.beat_ended_reason == "slot_rejected":
+            await inter.followup.send(
+                response.output_text or "Your /act could not be accepted.",
+                ephemeral=True,
+            )
+            return
+
         embeds = render_turn(
             output_text=response.output_text,
             turn_index=response.turn_index,
             story_id=row.story_id,
         )
         await inter.followup.send(embeds=embeds)
+
+        # v11-r6a: fan-out per-POV renders to non-actor humans in the
+        # scene. Previously the /act handler posted ONLY the actor's
+        # render and silently dropped every other in-scene player's
+        # POV — the single biggest multiplayer blocker. Now each
+        # non-actor human whose binding resolves to a Discord user id
+        # receives their render via DM. Failures are isolated so one
+        # broken DM doesn't block the rest.
+        per_player = response.per_player_renders or {}
+        if per_player:
+            try:
+                ckpt_for_fanout = engine.load_latest(row.session_id)
+                bindings = ckpt_for_fanout.session.character_bindings or {}
+            except Exception:
+                logger.exception(
+                    "per-POV fan-out: load_latest failed; skipping DMs",
+                )
+                bindings = {}
+
+            notified_names: list[str] = []
+            for cid, prose in per_player.items():
+                if cid == binding:
+                    continue  # Actor already saw their render on the followup.
+                if not prose:
+                    continue
+                uid_str = bindings.get(cid, "")
+                if not uid_str:
+                    continue
+                try:
+                    uid = int(uid_str)
+                except ValueError:
+                    continue
+                try:
+                    user = inter.client.get_user(uid)
+                    if user is None:
+                        user = await inter.client.fetch_user(uid)
+                    for chunk in _chunks(prose, 1900):
+                        await user.send(chunk)
+                    # Find the character's display name for the ack.
+                    char = next(
+                        (c for c in (ckpt_for_fanout.characters or [])
+                         if c.character_id == cid),
+                        None,
+                    )
+                    notified_names.append(char.name if char else cid)
+                except Exception:
+                    logger.exception(
+                        "per-POV fan-out: DM to uid=%s (char=%s) failed",
+                        uid, cid,
+                    )
+
+            if notified_names:
+                try:
+                    notified_phrase = ", ".join(
+                        f"**{n}**" for n in notified_names
+                    )
+                    await inter.followup.send(
+                        f"({notified_phrase} notified via DM.)",
+                        ephemeral=True,
+                    )
+                except Exception:
+                    logger.exception(
+                        "per-POV fan-out: ephemeral ack failed",
+                    )
 
     # ---- /status ------------------------------------------------------------
 

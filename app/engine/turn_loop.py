@@ -89,6 +89,7 @@ def _is_agent_refusal(text: str) -> bool:
 
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
 
 logger = logging.getLogger(__name__)
@@ -638,11 +639,63 @@ class Dispatcher(Protocol):
         ckpt: CheckpointFile,
         character_id: str,
         buffered_events: list[RenderBufferEntry],
+        partial_mode_override: bool | None = None,
     ) -> str:
         """Render this human's POV prose for the beat. Input: their
         buffered events since last render, observation levels tagged.
-        Output: second-person prose per narrator_phase2_v7."""
+        Output: second-person prose per narrator_phase2_v7.
+
+        `partial_mode_override`, when not None, wins over the dispatcher's
+        default slot-scan detection — the v11-r6a Cat II-open render path
+        sets this True for pinned humans + initiator so all of them see
+        the mid-attempt cliffhanger even though the initiator isn't pinned
+        themselves.
+        """
         ...
+
+
+def _build_open_attempt_event(
+    initiator_id: str,
+    initiator_intention: str,
+    scene_id: str,
+) -> EventRouterOutput:
+    """v11-r6a: synthesize a transient 'open Cat II attempt' canonical
+    event for rendering PARTIAL-mode cliffhangers to pinned humans (and
+    the initiator if human).
+
+    The attempt is IN PROGRESS. resolved_outcome describes the attempt
+    mid-flight ('{initiator} attempts: ...') — the narrator's PARTIAL
+    mode ends the prose on that moment. This IS appended to
+    canonical_events so the narrator's event-id lookup resolves; on
+    resolution the adjudicated event lands separately in the log. The
+    resulting "two events per Cat II" shape reflects historical truth —
+    an attempt WAS made pre-resolution — at the cost of one extra event
+    entry per Cat II.
+    """
+    # Use contracts helper so the resolved_outcome prefix is consistent
+    # with the router's own Part C framing.
+    from app.engine.turn_loop_contracts import format_open_attempt_outcome
+    return EventRouterOutput(
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(
+                attempted_action=initiator_intention,
+                feasible=True,
+                resolved_outcome=format_open_attempt_outcome(
+                    initiator_id, initiator_intention,
+                ),
+            ),
+            scene_delta=SceneDelta(
+                time_advanced_seconds=0, new_scene_id=scene_id,
+            ),
+            observable_facts=[],
+        ),
+        observers=[],
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
+        ends_beat=True,
+        ends_beat_reason="cat_ii_open",
+    )
 
 
 @dataclass
@@ -851,10 +904,43 @@ async def run_beat(
                 )
             # Humans are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
-            return BeatResult(
-                renders={},
-                events_closed=events_closed,
+            #
+            # v11-r6a: before returning, render a PARTIAL-mode cliffhanger
+            # for the pinned humans (and the initiator if human) so they
+            # see the mid-attempt moment instead of waiting blind. Synth
+            # an "open attempt" canonical event, buffer it for the render
+            # targets at observation_level "direct", and reuse _end_beat
+            # — but with release_slots=False (keep pins alive) and
+            # force_partial=True (every render gets partial_mode=True
+            # even though the initiator isn't pinned themselves).
+            open_attempt = _build_open_attempt_event(
+                initiator_id=current_actor,
+                initiator_intention=current_intention,
+                scene_id=scene_id,
+            )
+            ckpt.canonical_events.append(open_attempt)
+
+            render_targets: set[str] = set()
+            for rid in required:
+                if rid in bindings:
+                    render_targets.add(rid)
+            if current_actor in bindings:
+                render_targets.add(current_actor)
+
+            for cid in render_targets:
+                append_to_render_buffer(
+                    ckpt, cid, open_attempt.event_id,
+                    observation_level="direct",
+                )
+
+            events_closed += 1
+            return await _end_beat(
+                ckpt, dispatcher, scene_id,
                 ended_reason="cat_ii_pending",
+                events_closed=events_closed,
+                release_slots=False,
+                force_partial=True,
+                render_only=render_targets,
             )
 
         # Cat I path — canonical event closes immediately.
@@ -925,10 +1011,33 @@ async def _end_beat(
     scene_id: str,
     ended_reason: str,
     events_closed: int,
+    *,
+    release_slots: bool = True,
+    force_partial: bool = False,
+    render_only: set[str] | None = None,
 ) -> BeatResult:
-    """Compose per-human renders, flush buffers, release scene slots."""
+    """Compose per-human renders, flush buffers, (optionally) release
+    scene slots.
+
+    v11-r6a params:
+    - `release_slots=False`: used by the Cat II-open render path so the
+      pins we JUST created stay live until responders /act. The normal
+      end-of-beat path leaves this True.
+    - `force_partial=True`: every rendered POV gets partial_mode=True
+      regardless of the dispatcher's default slot-scan detection. Used
+      by the Cat II-open render path so the initiator (who isn't
+      pinned) also sees the cliffhanger.
+    - `render_only=set(...)`: only render POVs whose character_id is in
+      this set. Used by the Cat II-open render path to fan-out only to
+      pinned humans + initiator-if-human, not to other in-scene humans
+      who aren't participants in the open event.
+    """
     renders: dict[str, str] = {}
-    for h in humans_in_scene(ckpt, scene_id):
+    candidates = humans_in_scene(ckpt, scene_id)
+    if render_only is not None:
+        candidates = [h for h in candidates if h in render_only]
+    partial_override: bool | None = True if force_partial else None
+    for h in candidates:
         buf = flush_render_buffer(ckpt, h)
         if not buf:
             continue  # Human had no perceivable events this beat.
@@ -936,12 +1045,16 @@ async def _end_beat(
             ckpt=ckpt,
             character_id=h,
             buffered_events=buf,
+            partial_mode_override=partial_override,
         )
         renders[h] = prose
-    release_scene_slots(ckpt, scene_id)
+    if release_slots:
+        release_scene_slots(ckpt, scene_id)
     logger.info(
-        "Beat closed in %s: events=%d reason=%s renders=%d",
+        "Beat closed in %s: events=%d reason=%s renders=%d "
+        "release_slots=%s force_partial=%s",
         scene_id, events_closed, ended_reason, len(renders),
+        release_slots, force_partial,
     )
     return BeatResult(
         renders=renders, events_closed=events_closed, ended_reason=ended_reason,

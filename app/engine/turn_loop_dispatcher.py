@@ -15,7 +15,6 @@ class is what the orchestrator constructs at wire-up time.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from app.engine import narrator as narrator_module
@@ -272,10 +271,13 @@ def _build_router_context(
 
 
 def _serialize_agent_intention(output) -> str:
-    """Compact JSON-ish serialization of a CharacterAgentOutput for the
-    cascade. The router treats this text as an NPC's intention; flatten
-    the structured response into a terse string so `"{name} intends:
-    {intention}"` reads as sensible prompt input.
+    """v11-r6a: render a CharacterAgentOutput as natural-language prose
+    for the router's `{name} intends: {text}` framing.
+
+    Prior revisions returned json.dumps(...) which landed as literal
+    `{"dialogue":[...]}` tokens inside the router's resolved_outcome —
+    ugly. Natural-language renders let the router's Cat I/II rules
+    pattern-match correctly AND produce clean prose when echoed.
 
     Returns empty string when the agent produced no actionable output —
     turn_loop's empty-only guard then short-circuits the cascade rather
@@ -286,17 +288,22 @@ def _serialize_agent_intention(output) -> str:
     actions = list(pr.actions or [])
     expression = (pr.expression or "").strip()
 
-    if not dialogue and not actions and not expression:
-        return ""
-
-    payload: dict[str, object] = {}
-    if dialogue:
-        payload["dialogue"] = dialogue
-    if actions:
-        payload["actions"] = actions
+    parts: list[str] = []
+    for line in dialogue:
+        line = (line or "").strip()
+        if line:
+            parts.append(f'says: "{line}"')
+    for action in actions:
+        action = (action or "").strip()
+        if action:
+            parts.append(action)
     if expression:
-        payload["expression"] = expression
-    return json.dumps(payload, ensure_ascii=False)
+        parts.append(f"(expression: {expression})")
+
+    if not parts:
+        return ""  # empty-guard path; turn_loop skips empty intentions
+
+    return "; ".join(parts)
 
 
 class LLMDispatcher:
@@ -432,14 +439,22 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         character_id: str,
         buffered_events: list[RenderBufferEntry],
+        partial_mode_override: bool | None = None,
     ) -> str:
         """Render per-POV prose via narrator.compose_pov_render.
 
-        `partial_mode` is True iff this character is currently pinned as
-        a Cat II responder in any scene — the narrator renders a partial
-        view because the beat still has outstanding resolution work.
+        `partial_mode` defaults to True iff this character is currently
+        pinned as a Cat II responder in any scene — the narrator renders
+        a partial view because the beat still has outstanding resolution
+        work. `partial_mode_override`, when not None, wins over the slot
+        scan (v11-r6a: Cat II-open render path sets this True for the
+        initiator + pinned humans so they see the mid-attempt cliffhanger
+        even though the initiator isn't pinned themselves).
         """
-        partial_mode = _is_pinned_as_cat_ii_responder(ckpt, character_id)
+        if partial_mode_override is not None:
+            partial_mode = partial_mode_override
+        else:
+            partial_mode = _is_pinned_as_cat_ii_responder(ckpt, character_id)
 
         final_text = await narrator_module.compose_pov_render(
             client=self.client,

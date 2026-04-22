@@ -146,6 +146,132 @@ class FakeDispatcher:
         return self._narrator_response
 
 
+# ---- r6a partial-mode + natural-prose tests --------------------------------
+
+
+class TestSerializeAgentIntentionNaturalProse:
+    def test_dialogue_actions_expression_rendered_as_prose(self):
+        """v11-r6a: _serialize_agent_intention emits natural prose, not
+        JSON. The rendered string must contain dialogue verbatim AND
+        must NOT contain JSON braces / field-name tokens."""
+        from app.engine.turn_loop_dispatcher import _serialize_agent_intention
+        from app.schemas.agents import CharacterAgentOutput, PublicResponse
+        out = CharacterAgentOutput(
+            character_id="pip",
+            public_response=PublicResponse(
+                dialogue=["Halt there, stranger."],
+                actions=["steps into the torchlight"],
+                expression="wary",
+            ),
+        )
+        text = _serialize_agent_intention(out)
+        assert "Halt there, stranger." in text
+        assert "steps into the torchlight" in text
+        assert "wary" in text
+        # Crucially, NO JSON braces or field names.
+        assert "{" not in text
+        assert "}" not in text
+        assert '"dialogue":' not in text
+        assert '"actions":' not in text
+
+    def test_empty_output_returns_empty_string(self):
+        from app.engine.turn_loop_dispatcher import _serialize_agent_intention
+        from app.schemas.agents import CharacterAgentOutput, PublicResponse
+        out = CharacterAgentOutput(
+            character_id="pip",
+            public_response=PublicResponse(),  # empty actions+dialogue+expr
+        )
+        assert _serialize_agent_intention(out) == ""
+
+
+class TestCatIIOpenPartialRender:
+    """v11-r6a: Cat II open with pinned humans renders a PARTIAL-mode
+    cliffhanger for the pinned humans (and the initiator if human),
+    instead of returning renders={} and leaving them blind."""
+
+    def test_cat_ii_open_with_human_responder_renders_partial(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["bob"],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I attack Bob",
+            scene_id="gatehouse",
+        ))
+
+        assert result.ended_reason == "cat_ii_pending"
+        # Bob (pinned) + Alice (initiator, human) both get a render.
+        assert "bob" in result.renders
+        assert "alice" in result.renders
+        # Pin still intact (release_slots=False on the open path).
+        slot = ckpt.session.active_act_slots.get("gatehouse", {})
+        assert "bob" in slot
+        assert slot["bob"].reason == "cat_ii_responder"
+        # Synthetic open-attempt event was appended to canonical_events
+        # so the narrator's event-id lookup can resolve it.
+        assert any(
+            evt.ends_beat_reason == "cat_ii_open"
+            for evt in ckpt.canonical_events
+        )
+        # Every narrator call used partial_mode_override=True.
+        assert fake.narrator_calls, "expected at least one narrator call"
+        for call in fake.narrator_calls:
+            assert call.get("partial_mode_override") is True
+
+    def test_cat_ii_open_with_only_agent_responder_no_partial_render(self):
+        """Cat II that resolves inline with only agent responders should
+        NOT take the partial-render path — no pins held, no open_attempt
+        synthesized."""
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            ends_beat=False,
+        ))
+        fake.queue_agent("Pip dodges")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I attack Pip",
+            scene_id="gatehouse",
+        ))
+        # Resolved inline.
+        assert result.ended_reason == "cat_ii_resolution"
+        # No open_attempt synthesis.
+        assert not any(
+            evt.ends_beat_reason == "cat_ii_open"
+            for evt in ckpt.canonical_events
+        )
+        # No partial_mode_override on any render (should be None / default).
+        for call in fake.narrator_calls:
+            assert call.get("partial_mode_override") in (None, False)
+
+    def test_end_beat_release_slots_false_keeps_pins_intact(self):
+        """v11-r6a: _end_beat(release_slots=False) does NOT clear pins
+        — used by the Cat II-open render path to compose renders while
+        leaving responder pins alive until they /act."""
+        from app.engine.turn_loop import _end_beat
+        ckpt = _ckpt(bindings={"alice": "1"})
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_xyz")
+        fake = FakeDispatcher()
+        # No renders needed — just verify the pin survives.
+        asyncio.run(_end_beat(
+            ckpt, fake, "gatehouse",
+            ended_reason="cat_ii_pending",
+            events_closed=0,
+            release_slots=False,
+        ))
+        slot = ckpt.session.active_act_slots.get("gatehouse", {})
+        assert "alice" in slot
+        assert slot["alice"].reason == "cat_ii_responder"
+
+
 # ---- slot-check tests ------------------------------------------------------
 
 
@@ -313,7 +439,11 @@ class TestCatIIBeat:
         ))
 
         assert result.ended_reason == "cat_ii_pending"
-        assert result.renders == {}  # nothing rendered mid-open-event
+        # v11-r6a: pinned humans + initiator (if human) now get PARTIAL-
+        # mode cliffhanger renders on Cat II open. Previously returned
+        # an empty dict and left them waiting blind.
+        assert "bob" in result.renders
+        assert "alice" in result.renders
         # Bob should now be pinned.
         slot = ckpt.session.active_act_slots.get("gatehouse", {})
         assert "bob" in slot

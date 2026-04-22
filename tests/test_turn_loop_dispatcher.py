@@ -284,6 +284,9 @@ class TestAgentIntend:
             ckpt=ckpt, character_id="pip", scene_id="gatehouse",
         ))
         assert out
+        # v11-r6a: natural-prose serialization (no JSON braces).
+        assert "{" not in out
+        assert '"dialogue":' not in out
         assert "Hold there." in out
         assert "steps forward" in out
         assert "wary" in out
@@ -373,3 +376,34 @@ class TestNarratorCompose:
             buffered_events=[RenderBufferEntry(event_id="e1")],
         ))
         assert recorded["partial_mode"] is False
+
+    def test_partial_mode_override_wins_over_autodetect(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        """v11-r6a: callers can force partial_mode=True for POVs that
+        aren't pinned (e.g. the initiator of a Cat II open beat)."""
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        # Alice is NOT pinned anywhere — autodetect would return False.
+
+        recorded: dict = {}
+
+        async def _fake_compose_pov_render(
+            *, client, prompt_mgr, ckpt, pov_character_id,
+            buffered_events, partial_mode,
+        ):
+            recorded["partial_mode"] = partial_mode
+            return "RENDERED"
+
+        monkeypatch.setattr(
+            narrator_module, "compose_pov_render",
+            _fake_compose_pov_render, raising=False,
+        )
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        asyncio.run(dispatcher.narrator_compose(
+            ckpt=ckpt, character_id="alice",
+            buffered_events=[RenderBufferEntry(event_id="e1")],
+            partial_mode_override=True,
+        ))
+        # Override wins even though Alice isn't pinned.
+        assert recorded["partial_mode"] is True

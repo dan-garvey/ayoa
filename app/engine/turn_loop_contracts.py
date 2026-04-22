@@ -72,3 +72,14 @@ def format_partial_render_marker() -> str:
     input when the human being rendered to is a pinned Cat II
     responder."""
     return PARTIAL_MODE_MARKER
+
+
+def format_open_attempt_outcome(actor_id: str, intention: str) -> str:
+    """v11-r6a: the `resolved_outcome` string for a synthetic 'open Cat
+    II attempt' canonical event. The attempt is IN PROGRESS — the
+    narrator's PARTIAL mode ends prose on the cliffhanger moment so
+    pinned humans see the open attempt before they respond.
+
+    Centralized so tests can pattern-match the shape without hardcoding
+    the format."""
+    return f"{actor_id} attempts: {intention}"
