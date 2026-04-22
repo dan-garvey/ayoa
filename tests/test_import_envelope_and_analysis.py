@@ -118,11 +118,14 @@ class TestBuildCheckpointEnvelope:
         assert by_id["lira"].known_context == ""
         assert any("No knowledge envelope for lira" in r.message for r in caplog.records)
 
-    def test_stamps_v2(self):
+    def test_stamps_current_version(self):
         ckpt = build_checkpoint(
             _world(), _roster(), _opening(), _envelopes(), "test_story",
         )
-        assert ckpt.importer_version == IMPORTER_VERSION == "v2"
+        assert ckpt.importer_version == IMPORTER_VERSION
+        # Any bump here means the extraction contract changed — re-import
+        # in-flight stories if you rely on a new field.
+        assert IMPORTER_VERSION == "v4"
 
 
 class TestImportAnalysisSchema:

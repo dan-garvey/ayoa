@@ -100,6 +100,21 @@ def _minimal_ckpt(story_id: str) -> CheckpointFile:
     )
 
 
+def _minimal_combined_result(story_id: str):
+    """Match the shape `run_import_combined` returns: checkpoint +
+    priming_messages + assistant_text, so the test can mock the new
+    combined-import path without importing the private result class."""
+    from app.engine.story_importer import _CombinedImportResult
+    return _CombinedImportResult(
+        checkpoint=_minimal_ckpt(story_id),
+        priming_messages=[
+            {"role": "system", "content": "fake system"},
+            {"role": "user", "content": "fake user"},
+        ],
+        assistant_text='{"fake": "assistant echo"}',
+    )
+
+
 class TestImportAnalysisCallback:
     """EngineBridge.import_story fires on_analysis_complete with
     (analysis, None) on success and (None, exception) on failure.
@@ -137,10 +152,10 @@ class TestImportAnalysisCallback:
 
         async def run():
             with patch(
-                "app.bot.engine_bridge.run_import",
-                new=AsyncMock(return_value=_minimal_ckpt(story_id)),
+                "app.bot.engine_bridge.run_import_two_call",
+                new=AsyncMock(return_value=_minimal_combined_result(story_id)),
             ), patch(
-                "app.bot.engine_bridge.run_preservation_analysis",
+                "app.bot.engine_bridge.run_preservation_analysis_continuation",
                 new=AsyncMock(return_value=analysis),
             ):
                 await mock_bridge.import_story(
@@ -169,10 +184,10 @@ class TestImportAnalysisCallback:
 
         async def run():
             with patch(
-                "app.bot.engine_bridge.run_import",
-                new=AsyncMock(return_value=_minimal_ckpt(story_id)),
+                "app.bot.engine_bridge.run_import_two_call",
+                new=AsyncMock(return_value=_minimal_combined_result(story_id)),
             ), patch(
-                "app.bot.engine_bridge.run_preservation_analysis",
+                "app.bot.engine_bridge.run_preservation_analysis_continuation",
                 new=AsyncMock(side_effect=boom),
             ):
                 await mock_bridge.import_story(
@@ -194,10 +209,10 @@ class TestImportAnalysisCallback:
 
         async def run():
             with patch(
-                "app.bot.engine_bridge.run_import",
-                new=AsyncMock(return_value=_minimal_ckpt(story_id)),
+                "app.bot.engine_bridge.run_import_two_call",
+                new=AsyncMock(return_value=_minimal_combined_result(story_id)),
             ), patch(
-                "app.bot.engine_bridge.run_preservation_analysis",
+                "app.bot.engine_bridge.run_preservation_analysis_continuation",
                 new=AsyncMock(return_value=analysis),
             ):
                 ckpt = await mock_bridge.import_story("src", story_id)

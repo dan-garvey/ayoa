@@ -23,7 +23,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 
-from app.engine.story_importer import run_import, run_preservation_analysis
+from app.engine.story_importer import (
+    run_import_two_call,
+    run_preservation_analysis_continuation,
+)
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 
@@ -43,7 +46,8 @@ async def main_async(
 
     client = LLMClient(config=LLMConfig.from_env())
     try:
-        checkpoint = await run_import(client, source, story_id)
+        result = await run_import_two_call(client, source, story_id)
+        checkpoint = result.checkpoint
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "w") as f:
             f.write(checkpoint.model_dump_json(indent=2))
@@ -57,8 +61,14 @@ async def main_async(
         logger.info("  Rules:      %d chars", len(checkpoint.config.narrative_rules))
 
         if run_analysis:
-            logger.info("\nRunning preservation analysis (inline — this adds a minute or two)...")
-            analysis = await run_preservation_analysis(client, source, checkpoint)
+            logger.info("\nRunning preservation analysis (inline continuation — reads combined call as cached history)...")
+            analysis = await run_preservation_analysis_continuation(
+                client,
+                priming_messages=result.priming_messages,
+                assistant_text=result.assistant_text,
+                source_text=source,
+                checkpoint=checkpoint,
+            )
             checkpoint.import_analysis = analysis
             with open(output_path, "w") as f:
                 f.write(checkpoint.model_dump_json(indent=2))

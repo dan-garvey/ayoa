@@ -78,7 +78,7 @@ import logging
 import re
 import time
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.llm.client import LLMClient
 from app.schemas.characters import (
@@ -117,7 +117,46 @@ MAX_EXTRACTION_TOKENS = 64_000
 # v1 → v2: added knowledge envelopes (CharacterRecord.known_context),
 # removed setting.premise from agent context (agent sees only its own
 # envelope), added preservation analysis as a separate pass.
-IMPORTER_VERSION = "v2"
+# v2 → v3: combined single-call pipeline (world+characters+opening+knowledge
+# in one structured-output call); preservation analysis runs as a
+# continuation that reads the first call as cached 1h history.
+# v3 → v4: two-call pipeline. Call 1 extracts world+characters+opening
+# in a single structured-output pass; Call 2 produces knowledge
+# envelopes as a continuation that reads Call 1's conversation as
+# cached history. Motivation: v3 over-compressed knowledge envelopes
+# (−75% vs v2) and dropped cross-character relational secrets. Giving
+# knowledge its own focused pass — while keeping the upstream three
+# together for cross-referencing — restores the attention budget
+# without re-fragmenting into four separate calls.
+IMPORTER_VERSION = "v4"
+
+
+class CombinedImportExtraction(BaseModel):
+    """(v3) Wraps all four extraction outputs in a single structured-output
+    response. Retained so the v3 single-call path stays runnable for
+    quality comparisons; the active importer is v4 (two-call).
+
+    Required fields only — the structured-output grammar compiler
+    handles deeply-nested schemas more reliably when optionals are
+    minimized.
+    """
+    world: WorldExtraction
+    characters: CharacterListExtraction
+    opening: OpeningExtraction
+    knowledge: CharacterKnowledgeListExtraction
+
+
+class CoreImportExtraction(BaseModel):
+    """(v4) First of two calls. Produces world + characters + opening in
+    one structured-output response. Knowledge envelopes are generated
+    by a focused Call 2 that reads this conversation as cached history
+    — the split gives envelopes their own attention budget and
+    preserves cross-character relational detail that the v3 single-
+    call pass compressed out.
+    """
+    world: WorldExtraction
+    characters: CharacterListExtraction
+    opening: OpeningExtraction
 
 
 # ---------------- Extraction prompts ----------------
@@ -193,6 +232,18 @@ There is no length limit — produce whatever volume the source warrants.
   Do not invent connections the source does not describe; do not omit
   connections the source does describe. All scene_ids in `connected_to`
   should match an existing entry's `scene_id`.
+
+  **Sub-scenes are distinct scenes.** Sealed chambers, inner wings,
+  restricted sections, hidden rooms, access tunnels that sit inside a
+  larger district, archive vaults inside an archive — each gets its
+  own entry in `scene_graph`, with its own `scene_id`, and
+  `connected_to` the parent scene. Do NOT fold a sealed chamber into
+  its parent district's description — sealed/restricted sub-scenes
+  are exactly where plot-critical discovery happens, and the engine
+  cannot route a player into a scene that does not exist in the
+  graph. If the source describes `gatehouse_district` AND a
+  `gatehouse_sealed_section` inside it, both must appear as separate
+  entries.
 
 - **narrative_rules**: ONLY the story-specific narrative delta. The
   engine's narrator, router, and character-agent prompts already handle
@@ -362,7 +413,34 @@ Separate what each character KNOWS from what the READER knows:
 - **private_state.secrets**: where hidden knowledge, true allegiances,
   conspiracies, and plot-relevant information belongs. A character who is
   secretly an agent of a conspiracy has that fact here, not in their
-  backstory or personality."""
+  backstory or personality.
+
+## Relational secrets — name the other character explicitly
+
+Many of a story's load-bearing secrets are RELATIONAL: character A
+knows something about, hides something from, or holds an unspoken
+feeling toward character B. Extract every relational secret the
+source describes, and in the secret text, NAME character B
+explicitly — not "her superior," not "the opposing Court's leader,"
+not "the other resident." Examples of the shape to preserve:
+
+- "The sound she hears is the same sound Nyx experiences in
+  nightmares — she does not know this about Nyx, but the
+  connection is real."
+- "She succeeded in Reaching her son once and decided not to try
+  again. She has not told Edric this, because it would devastate
+  him — it would mean the thing he is chasing is real and she
+  chose not to pursue it."
+- "He suspects Captain Vael is feeding information to the Keeper
+  conspiracy but has not confronted her."
+
+Relational secrets are the primary source of in-fiction tension.
+Unnamed abstractions ("she knows her superior is hiding something")
+are not interchangeable with named specifics ("she knows Edric is
+hiding something"); the named form is what the engine's agents
+need to act on subtext. Do not compress relational secrets into
+generic references. If the source names both sides of the
+relationship, your secret names both sides of the relationship."""
 
 
 KNOWLEDGE_EXTRACTION_INSTRUCTIONS = """\
@@ -454,8 +532,138 @@ here shapes tone, atmosphere, and sensory grounding.
 8. Never break the fourth wall — no references to prompts, players,
    character creation, or anything out-of-story.
 
+9. **Match the source's opening in length and texture — do NOT
+   compress.** If the master prompt's opening passage runs 900 words
+   of arrival, atmosphere, and sensory grounding, your `text` runs
+   close to that — same pace, same density of sensory detail, same
+   accumulation of in-fiction setup. A terse five-paragraph summary
+   of a long authored opening is a quality defect: the runtime
+   narrator renders this text on the player's first turn, and
+   everything you trim here is trimmed from the player's arrival
+   experience permanently. Compressing a rich opening into half its
+   length is exactly what this instruction forbids. If the source
+   was rich, your output is rich. If the source was terse, your
+   output is terse. Mirror, don't summarize.
+
 Produce the prose in the `text` field. No JSON structure beyond that, no
 markdown fences, no meta-commentary."""
+
+
+CORE_EXTRACTION_INSTRUCTIONS = """\
+Extract the CORE import bundle for this master prompt in a single
+structured response: `world`, `characters`, and `opening`. Knowledge
+envelopes are produced in a follow-up call that will read your output
+here as cached history — focus THIS call on getting world state,
+characters, and the opening scene extracted as completely and
+faithfully as the source warrants.
+
+Because you are producing world + characters + opening together, use
+the cross-referencing opportunity: the same faction described in
+`world.lore` should land on the right
+`characters[].public_sheet.faction`; the same secret in
+`world.hidden_facts` should be carried on the plausible
+`characters[].private_state.secrets`; characters who would reasonably
+know secrets about ANOTHER character (relationships, hidden
+connections, rivalries, loyalties) should have those relational
+secrets recorded on their own `secrets` list, with the other
+character named. Do not drop cross-character linkages — they are
+the primary source of in-fiction tension and rediscovery.
+
+---
+
+## `world`
+
+{world_instructions}
+
+---
+
+## `characters`
+
+{character_instructions}
+
+---
+
+## `opening`
+
+{opening_instructions}"""
+
+
+KNOWLEDGE_CONTINUATION_INSTRUCTIONS = """\
+You just extracted the `world` and `characters` sections above.
+
+Now produce the `knowledge` envelopes: one `CharacterKnowledgeEnvelope`
+per character in the roster, in the `envelopes` array. Use the world
+state and roster YOU JUST EXTRACTED as ground truth — do not
+re-derive them from the master prompt.
+
+{knowledge_instructions}
+
+## Cross-character relational knowledge — do NOT drop
+
+Because you have the full roster in the conversation above, each
+envelope can and SHOULD reference other characters by name when
+appropriate: "She knows Edric is conducting undisclosed experiments
+— she has observed the substance donations." "She knows most of the
+Deep's secondary access routes — including the sealed tunnel near
+the Gatehouse that the Caretaker does not acknowledge." "He
+believes Laith's arguments about the Periphery even though Laith
+has not made them publicly."
+
+If character A in the roster has a relationship, suspicion,
+admiration, or useful knowledge about character B, that belongs in
+A's `known_context` — with B named. Do not compress these into
+abstract ("she knows about the Return leadership") when the
+specific name and specific knowledge were in the source. The
+texture of this story lives in who knows what about whom.
+
+Every `character_id` from the roster you extracted MUST appear
+exactly once in `envelopes`, and no envelope may reference a
+character_id not in the roster."""
+
+
+COMBINED_EXTRACTION_INSTRUCTIONS = """\
+Extract the COMPLETE import bundle for this master prompt in a single
+structured response. You will produce four sub-objects in one JSON
+output: `world`, `characters`, `opening`, and `knowledge`.
+
+Every sub-object has its own fidelity standard — spelled out below —
+and each should be populated as if it were its own dedicated extraction
+pass. Because you are producing them together, you have the advantage
+of cross-referencing: the same faction described in `world.lore`
+should appear on the right `characters[].public_sheet.faction`; the
+same secret in `world.hidden_facts` should land on the plausible
+`characters[].private_state.secrets`; `knowledge.envelopes` should
+reflect the world you just extracted, not hallucinated parallel
+content.
+
+---
+
+## `world` — World Extraction
+
+{world_instructions}
+
+---
+
+## `characters` — Character Extraction
+
+{character_instructions}
+
+---
+
+## `opening` — Opening Scene
+
+{opening_instructions}
+
+---
+
+## `knowledge` — Character Knowledge Envelopes
+
+{knowledge_instructions}
+
+Every `character_id` in `characters` MUST have exactly one matching
+entry in `knowledge.envelopes`, and no envelope may reference a
+character_id not in `characters`. The two lists are siblings, not
+independent extractions."""
 
 
 # ---------------- Per-stage extractions ----------------
@@ -1015,3 +1223,323 @@ async def run_import(
         len(checkpoint.world_state.locations.scene_graph),
     )
     return checkpoint
+
+
+# ---------------- Combined single-call path ----------------
+
+
+class _CombinedImportResult:
+    """Return bundle for `run_import_combined` — ships the assembled
+    checkpoint plus the priming messages + raw assistant content so the
+    caller can cheaply continue the conversation for the preservation-
+    analysis pass.
+
+    We pack these together so the analysis continuation doesn't have to
+    re-render the source prompt or re-serialize the combined extraction
+    blob — the messages list is the exact conversation to replay."""
+    __slots__ = ("checkpoint", "priming_messages", "assistant_text")
+
+    def __init__(
+        self,
+        checkpoint: CheckpointFile,
+        priming_messages: list[dict[str, str]],
+        assistant_text: str,
+    ):
+        self.checkpoint = checkpoint
+        self.priming_messages = priming_messages
+        self.assistant_text = assistant_text
+
+
+def _combined_user_prompt() -> str:
+    """Assemble the single user message containing all four sets of
+    extraction instructions. Reuses the existing per-stage instruction
+    blocks so there's one source of truth for extraction guidance."""
+    return COMBINED_EXTRACTION_INSTRUCTIONS.format(
+        world_instructions=WORLD_EXTRACTION_INSTRUCTIONS,
+        character_instructions=CHARACTER_EXTRACTION_INSTRUCTIONS,
+        opening_instructions=OPENING_EXTRACTION_INSTRUCTIONS,
+        knowledge_instructions=KNOWLEDGE_EXTRACTION_INSTRUCTIONS,
+    )
+
+
+async def run_import_combined(
+    client: LLMClient,
+    source_text: str,
+    story_id: str,
+) -> _CombinedImportResult:
+    """Single-call importer. Produces world + characters + opening +
+    knowledge in one structured-output response and returns the
+    checkpoint along with the exact messages used so the preservation
+    analysis pass can replay them as cached history.
+
+    Writes a cache breakpoint on the user message (via
+    `cache_user_tail=True`) so the follow-up analysis call reads
+    [system, user] as cached prefix, paying only for the new assistant
+    echo + analysis question.
+
+    Does NOT persist the checkpoint — callers save via CheckpointManager
+    or direct JSON write.
+    """
+    t_start = time.monotonic()
+    logger.info(
+        "Starting combined import (pipeline %s): source prompt %d chars, ~%d words",
+        IMPORTER_VERSION, len(source_text), len(source_text.split()),
+    )
+
+    system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
+    user_text = _combined_user_prompt()
+    priming_messages = [
+        {"role": "system", "content": system_text},
+        {"role": "user", "content": user_text},
+    ]
+
+    response = await client.complete(
+        role="narrator",
+        messages=priming_messages,
+        response_model=CombinedImportExtraction,
+        temperature=0.3,
+        max_tokens=MAX_EXTRACTION_TOKENS,
+        cache_user_tail=True,
+    )
+    _log_usage("combined", response)
+    bundle: CombinedImportExtraction = response.parsed
+
+    logger.info(
+        "  Setting: %s / %s",
+        bundle.world.setting.genre or "?", bundle.world.setting.tone or "?",
+    )
+    logger.info(
+        "  Locations: %d scenes, Facts: %d, Hidden facts: %d",
+        len(bundle.world.locations.scene_graph),
+        len(bundle.world.facts),
+        len(bundle.world.hidden_facts),
+    )
+    logger.info("  Characters: %d extracted", len(bundle.characters.characters))
+    logger.info("  Envelopes: %d produced", len(bundle.knowledge.envelopes))
+    logger.info("  Opening narrative: %d chars", len(bundle.opening.text))
+
+    checkpoint = build_checkpoint(
+        bundle.world,
+        bundle.characters,
+        bundle.opening,
+        bundle.knowledge,
+        story_id,
+    )
+    logger.info(
+        "Combined import complete in %.1fs (%d characters, %d scenes)",
+        time.monotonic() - t_start,
+        len(checkpoint.characters),
+        len(checkpoint.world_state.locations.scene_graph),
+    )
+
+    return _CombinedImportResult(
+        checkpoint=checkpoint,
+        priming_messages=priming_messages,
+        assistant_text=response.content or "",
+    )
+
+
+# ---------------- Two-call path (v4) ----------------
+
+
+def _core_user_prompt() -> str:
+    """Assemble the Call-1 user message: world + characters + opening."""
+    return CORE_EXTRACTION_INSTRUCTIONS.format(
+        world_instructions=WORLD_EXTRACTION_INSTRUCTIONS,
+        character_instructions=CHARACTER_EXTRACTION_INSTRUCTIONS,
+        opening_instructions=OPENING_EXTRACTION_INSTRUCTIONS,
+    )
+
+
+def _knowledge_user_prompt() -> str:
+    """Assemble the Call-2 user message: knowledge envelopes as a
+    continuation. Reuses the per-stage knowledge instructions plus the
+    cross-character relational emphasis that v3's single-call pass
+    tended to drop."""
+    return KNOWLEDGE_CONTINUATION_INSTRUCTIONS.format(
+        knowledge_instructions=KNOWLEDGE_EXTRACTION_INSTRUCTIONS,
+    )
+
+
+async def run_import_two_call(
+    client: LLMClient,
+    source_text: str,
+    story_id: str,
+) -> _CombinedImportResult:
+    """Two-call importer (v4 default). Call 1 extracts world +
+    characters + opening in one structured-output pass; Call 2
+    produces knowledge envelopes as a continuation that reads Call 1's
+    conversation as cached history.
+
+    Returns a `_CombinedImportResult` shaped the same as the v3 path so
+    downstream callers (EngineBridge, preservation continuation) don't
+    care which pipeline produced the checkpoint. `priming_messages`
+    contains the full two-call conversation up through the Call-2 user
+    turn; `assistant_text` is the Call-2 assistant reply — so the
+    preservation analysis can tack itself on as Call 3 with the same
+    continuation helper.
+    """
+    t_start = time.monotonic()
+    logger.info(
+        "Starting two-call import (pipeline %s): source prompt %d chars, ~%d words",
+        IMPORTER_VERSION, len(source_text), len(source_text.split()),
+    )
+
+    system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
+    core_user = _core_user_prompt()
+    core_messages = [
+        {"role": "system", "content": system_text},
+        {"role": "user", "content": core_user},
+    ]
+
+    # Call 1 — core (world + characters + opening)
+    t_core = time.monotonic()
+    core_response = await client.complete(
+        role="narrator",
+        messages=core_messages,
+        response_model=CoreImportExtraction,
+        temperature=0.3,
+        max_tokens=MAX_EXTRACTION_TOKENS,
+        cache_user_tail=True,
+    )
+    _log_usage("core", core_response)
+    core: CoreImportExtraction = core_response.parsed
+    logger.info(
+        "  Core (%.1fs): setting=%s/%s, scenes=%d, facts=%d, characters=%d, opening=%d chars",
+        time.monotonic() - t_core,
+        core.world.setting.genre or "?", core.world.setting.tone or "?",
+        len(core.world.locations.scene_graph),
+        len(core.world.facts),
+        len(core.characters.characters),
+        len(core.opening.text),
+    )
+
+    # Call 2 — knowledge envelopes (continuation; reads Call 1 as cached
+    # history thanks to cache_user_tail on Call 1's user turn).
+    knowledge_user = _knowledge_user_prompt()
+    knowledge_messages = core_messages + [
+        {"role": "assistant", "content": core_response.content or ""},
+        {"role": "user", "content": knowledge_user},
+    ]
+    t_know = time.monotonic()
+    knowledge_response = await client.complete(
+        role="narrator",
+        messages=knowledge_messages,
+        response_model=CharacterKnowledgeListExtraction,
+        temperature=0.3,
+        max_tokens=MAX_EXTRACTION_TOKENS,
+        cache_user_tail=True,
+    )
+    _log_usage("knowledge", knowledge_response)
+    knowledge: CharacterKnowledgeListExtraction = knowledge_response.parsed
+    logger.info(
+        "  Knowledge (%.1fs): %d envelopes produced",
+        time.monotonic() - t_know, len(knowledge.envelopes),
+    )
+
+    checkpoint = build_checkpoint(
+        core.world, core.characters, core.opening, knowledge, story_id,
+    )
+    logger.info(
+        "Two-call import complete in %.1fs (%d characters, %d scenes)",
+        time.monotonic() - t_start,
+        len(checkpoint.characters),
+        len(checkpoint.world_state.locations.scene_graph),
+    )
+
+    # Pack the FULL two-call conversation into priming_messages so the
+    # preservation analysis continuation reads the whole chain as its
+    # cached prefix.
+    return _CombinedImportResult(
+        checkpoint=checkpoint,
+        priming_messages=knowledge_messages,
+        assistant_text=knowledge_response.content or "",
+    )
+
+
+async def run_preservation_analysis_continuation(
+    client: LLMClient,
+    priming_messages: list[dict[str, str]],
+    assistant_text: str,
+    source_text: str,
+    checkpoint: CheckpointFile,
+) -> ImportAnalysis:
+    """Preservation analysis that piggybacks on the combined-import call's
+    conversation. The second call sends
+    [system, user1, assistant1 (combined blob), user2 (analysis question)]
+    which reads [system, user1] as cached prefix and pays fresh only for
+    assistant_text + the analysis prompt.
+
+    Mirrors `run_preservation_analysis` for fields; differs only in how
+    the API call is framed.
+    """
+    t_start = time.monotonic()
+
+    source_chars = len(source_text)
+    source_words = len(source_text.split())
+    output_text = _serialize_checkpoint_for_analysis(checkpoint)
+    output_chars = len(output_text)
+    output_words = len(output_text.split())
+
+    logger.info(
+        "Preservation analysis (continuation): source=%d chars / %d words, "
+        "output=%d chars / %d words",
+        source_chars, source_words, output_chars, output_words,
+    )
+
+    analysis_prompt = (
+        "Now audit what you just extracted against the source master prompt.\n\n"
+        "You are grading your own extraction for fidelity. Rate coverage "
+        "honestly — every dropped topic and every compression is a defect. "
+        "The checkpoint fields you produced are listed below for reference; "
+        "compare them back against the master prompt you were given at the "
+        "start of this conversation.\n\n"
+        f"{PRESERVATION_ANALYSIS_SYSTEM}\n\n"
+        "## Extracted checkpoint contents (for reference)\n\n"
+        f"{output_text}"
+    )
+
+    followup_messages = priming_messages + [
+        {"role": "assistant", "content": assistant_text},
+        {"role": "user", "content": analysis_prompt},
+    ]
+
+    response = await client.complete(
+        role="narrator",
+        messages=followup_messages,
+        response_model=_AnalysisLLMOutput,
+        temperature=0.2,
+        max_tokens=8000,
+    )
+    _log_usage("preservation_analysis", response)
+    llm_out: _AnalysisLLMOutput = response.parsed
+
+    rating = llm_out.coverage_rating.strip().lower()
+    if rating not in ("high", "medium", "low"):
+        logger.warning(
+            "Unexpected coverage_rating %r; coercing to 'unknown'", rating
+        )
+        rating = "unknown"
+
+    duration = time.monotonic() - t_start
+    model_name = getattr(response.raw_response, "model", "") or ""
+
+    logger.info(
+        "Preservation analysis continuation complete: coverage=%s, "
+        "dropped=%d, compressed=%d (%.1fs)",
+        rating, len(llm_out.dropped_topics),
+        len(llm_out.compressed_topics), duration,
+    )
+
+    return ImportAnalysis(
+        source_chars=source_chars,
+        source_words=source_words,
+        output_chars=output_chars,
+        output_words=output_words,
+        coverage_rating=rating,
+        dropped_topics=llm_out.dropped_topics,
+        compressed_topics=llm_out.compressed_topics,
+        preservation_notes=llm_out.preservation_notes,
+        duration_s=duration,
+        model=model_name,
+    )

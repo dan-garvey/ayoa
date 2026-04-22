@@ -27,7 +27,10 @@ from app.engine.settings import (
     list_settings_view,
     set_setting,
 )
-from app.engine.story_importer import run_import, run_preservation_analysis
+from app.engine.story_importer import (
+    run_import_two_call,
+    run_preservation_analysis_continuation,
+)
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, PublicSheet
@@ -156,20 +159,23 @@ class EngineBridge:
                 f"Delete it first or pick a different story_id."
             )
 
-        checkpoint = await run_import(self.client, source_text, story_id)
+        result = await run_import_two_call(self.client, source_text, story_id)
+        checkpoint = result.checkpoint
 
         dst_dir.mkdir(parents=True, exist_ok=True)
         dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
         logger.info("Imported story %s → %s", story_id, dst_ckpt)
 
-        # Fire preservation analysis in the background. The bot keeps an
-        # event loop running for the duration of the process, so the task
-        # has a home. It reloads the saved checkpoint, runs the audit,
-        # patches import_analysis back to disk. We don't await — the
-        # import command returns to the user immediately.
+        # Fire preservation analysis in the background as a CONTINUATION
+        # of the two-call import: the analysis call replays the full
+        # Call-1 + Call-2 conversation as cached prefix (cache_user_tail
+        # on each call's user turn), so the analysis only pays fresh
+        # tokens for the Call-2 assistant echo + the analysis question.
         asyncio.create_task(
             self._background_preservation_analysis(
                 source_text, story_id, dst_ckpt,
+                priming_messages=result.priming_messages,
+                assistant_text=result.assistant_text,
                 on_complete=on_analysis_complete,
             )
         )
@@ -180,20 +186,26 @@ class EngineBridge:
         source_text: str,
         story_id: str,
         dst_ckpt: Path,
+        priming_messages: list[dict[str, str]],
+        assistant_text: str,
         on_complete: Callable[
             [ImportAnalysis | None, Exception | None], Awaitable[None]
         ] | None = None,
     ) -> None:
-        """Run preservation analysis and patch the checkpoint on disk.
-        Any analysis error is caught and surfaced to `on_complete` so the
-        frontend can notify the user — best-effort metadata should not
-        crash the task loop."""
+        """Run preservation analysis as a continuation of the combined-
+        import call and patch the checkpoint on disk. Any analysis error
+        is caught and surfaced to `on_complete` so the frontend can notify
+        the user — best-effort metadata should not crash the task loop."""
         analysis: ImportAnalysis | None = None
         err: Exception | None = None
         try:
             checkpoint = CheckpointFile.model_validate_json(dst_ckpt.read_text())
-            analysis = await run_preservation_analysis(
-                self.client, source_text, checkpoint,
+            analysis = await run_preservation_analysis_continuation(
+                self.client,
+                priming_messages=priming_messages,
+                assistant_text=assistant_text,
+                source_text=source_text,
+                checkpoint=checkpoint,
             )
             # Re-read before patching in case other writes happened — ckpt_0000
             # is pristine source, typically untouched after the initial write,

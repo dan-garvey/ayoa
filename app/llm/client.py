@@ -165,6 +165,7 @@ class LLMClient:
         max_tokens: int,
         response_model: type[T] | None = None,
         cache: bool = True,
+        cache_user_tail: bool = False,
         compact: bool = False,
         stream: bool = False,
     ) -> LLMResponse:
@@ -186,6 +187,12 @@ class LLMClient:
                    breakpoint at the end of the system block so calls that share the
                    same system (but differ in the user tail) hit the same cache entry.
                    No-op when there is no system message (nothing shared to cache).
+            cache_user_tail: If True, force a cache breakpoint on the last user
+                   message even when there's only one user turn (normally breakpoint
+                   on user tail is only added when len(messages) > 1). Use when a
+                   caller expects a follow-up call to read
+                   [system, user1, assistant1] as a cached prefix — e.g. the
+                   two-call importer pattern.
             compact: If True, enable server-side context compaction (beta). The API
                      automatically summarizes earlier context when input tokens cross
                      `config.compact_trigger_tokens`. Callers that send rolling
@@ -209,6 +216,7 @@ class LLMClient:
             temperature=temp,
             max_tokens=max_tok,
             cache=cache,
+            cache_user_tail=cache_user_tail,
             compact=compact,
             response_model=response_model,
         )
@@ -259,6 +267,7 @@ class LLMClient:
         temperature: float,
         max_tokens: int,
         cache: bool,
+        cache_user_tail: bool,
         compact: bool,
         response_model: type[T] | None,
     ) -> Any:
@@ -298,8 +307,11 @@ class LLMClient:
 
         # Rolling-conversation caching: when history exists (messages > 1 pair),
         # also mark the last user message as a cache breakpoint so subsequent
-        # turns read the whole prior conversation at cache-hit price.
-        if cache and len(messages) > 1:
+        # turns read the whole prior conversation at cache-hit price. The
+        # `cache_user_tail` override forces the same breakpoint on single-turn
+        # calls when a follow-up is expected to replay this call as history.
+        should_mark_user = cache and (len(messages) > 1 or cache_user_tail)
+        if should_mark_user and messages:
             last_idx = len(messages) - 1
             last = messages[last_idx]
             if last.get("role") == "user" and isinstance(last.get("content"), str):
