@@ -1612,6 +1612,12 @@ def register(
         guild=guild,
     )
     async def _abort_beat(inter: discord.Interaction):
+        # v11-A5: audit-log entry fires before any work so even a failure
+        # path leaves a trail of who ran it, where, and when.
+        logger.info(
+            "abort_beat invoked: admin_id=%s channel_id=%s",
+            inter.user.id, inter.channel_id,
+        )
         if not _is_admin(inter.user.id):
             await inter.response.send_message(
                 "Admin-only command.", ephemeral=True,
@@ -1635,11 +1641,36 @@ def register(
                 f"abort failed: `{type(e).__name__}: {e}`", ephemeral=True,
             )
             return
+        # v11-A5: audit-log the outcome so ops can correlate an admin
+        # identity with the events that got abandoned.
+        logger.info(
+            "abort_beat completed: admin_id=%s channel_id=%s session_id=%s "
+            "scene_id=%s dropped=%d",
+            inter.user.id, inter.channel_id, row.session_id, scene_id, dropped,
+        )
         await inter.response.send_message(
             f"Scene `{scene_id}` released. {dropped} open Cat II event(s) "
             f"abandoned. Next /act can claim the slot.",
             ephemeral=True,
         )
+        # v11-A5: thread-visible notification so players see that the
+        # scene was released without needing an admin to manually re-echo
+        # the state. Skipped for no-op aborts (nothing to announce when
+        # zero events were dropped).
+        if dropped > 0:
+            try:
+                await inter.followup.send(
+                    f"Scene released by admin. {dropped} open Cat II "
+                    f"event(s) abandoned. Next /act will continue.",
+                    ephemeral=False,
+                )
+            except Exception:
+                # Follow-up posts can fail if the channel permissions
+                # shifted or the interaction expired; swallow so the
+                # admin still sees their ephemeral confirmation.
+                logger.exception(
+                    "abort_beat: thread-visible notification failed",
+                )
 
     # Attach the /story and /settings groups to the tree last, once
     # their subcommands are defined.

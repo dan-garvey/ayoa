@@ -222,3 +222,204 @@ class TestImportAnalysisCallback:
                 assert ckpt.session.story_id == story_id
 
         self._run(run())
+
+
+# ---- v11-A5: sweep hook + purge wire-up --------------------------------------
+
+
+class TestEngineBridgeSweepHook:
+    """EngineBridge exposes a sweep-stale-pins hook the /act hot path can
+    call before running the orchestrator. Invocation happens inside
+    run_turn; tests here drive the primitive directly.
+    """
+
+    def test_sweep_stale_pins_method_exists(self, mock_bridge):
+        """EngineBridge exposes a sweep method that callers can invoke."""
+        assert hasattr(mock_bridge, "sweep_stale_pins")
+        assert callable(mock_bridge.sweep_stale_pins)
+
+    def test_sweep_resolves_expired_pins(self, mock_bridge):
+        """When a session has a Cat II event older than the timeout, the
+        sweep marks its stale responders as swept (via structured list)."""
+        from datetime import datetime, timedelta, timezone
+
+        from app.schemas.checkpoint import CheckpointFile
+        from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
+
+        session_id = "swtest"
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id=session_id,
+                character_bindings={"alice": "1"},
+            ),
+            world_state=WorldState(),
+            characters=[],
+        )
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 1
+        evt = OpenCatIIEvent(
+            event_id="evt_a",
+            scene_id="gate",
+            initiator_id="pip",
+            initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        evt.opened_at = (
+            datetime.now(timezone.utc) - timedelta(seconds=10)
+        ).isoformat()
+        ckpt.session.open_cat_ii_events.append(evt)
+
+        mock_bridge.checkpoint_mgr.save(ckpt)
+
+        swept = mock_bridge.sweep_stale_pins(session_id)
+        assert "evt_a" in swept
+
+        reloaded = mock_bridge.load_latest(session_id)
+        evt_live = next(
+            e for e in reloaded.session.open_cat_ii_events
+            if e.event_id == "evt_a"
+        )
+        assert "alice" in evt_live.swept_responders
+
+    def test_sweep_noop_when_nothing_stale(self, mock_bridge):
+        """Sweep on a session with no open events returns [] and doesn't
+        touch the checkpoint."""
+        from app.schemas.checkpoint import CheckpointFile
+        from app.schemas.state import SessionState, WorldState
+
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="noop_sw"),
+            world_state=WorldState(),
+            characters=[],
+        )
+        mock_bridge.checkpoint_mgr.save(ckpt)
+        assert mock_bridge.sweep_stale_pins("noop_sw") == []
+
+
+class TestPurgeOnUnbind:
+    """unbind_user must call purge_character_state so a /leave mid-beat
+    doesn't strand slot pins, responder entries, or render buffers."""
+
+    def test_unbind_user_calls_purge(self, mock_bridge):
+        from app.schemas.characters import CharacterRecord, PublicSheet
+        from app.schemas.checkpoint import CheckpointFile
+        from app.schemas.state import (
+            OpenCatIIEvent,
+            RenderBufferEntry,
+            SessionState,
+            SlotEntry,
+            WorldState,
+        )
+
+        session_id = "purgetest"
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id=session_id,
+                character_bindings={"bob": "77"},
+            ),
+            world_state=WorldState(),
+            characters=[
+                CharacterRecord(
+                    character_id="bob",
+                    name="Bob",
+                    public_sheet=PublicSheet(role="player"),
+                    location="gate",
+                    is_player=True,
+                ),
+            ],
+        )
+        evt = OpenCatIIEvent(
+            event_id="evt_b",
+            scene_id="gate",
+            initiator_id="pip",
+            initiator_intention="punch",
+            required_responders=["bob"],
+        )
+        ckpt.session.open_cat_ii_events.append(evt)
+        ckpt.session.active_act_slots["gate"] = {
+            "bob": SlotEntry(
+                reason="cat_ii_responder",
+                cat_ii_event_id="evt_b",
+                claimed_at="",
+            ),
+        }
+        ckpt.session.render_buffers["bob"] = [
+            RenderBufferEntry(event_id="evt_prior", observation_level="direct"),
+        ]
+        mock_bridge.checkpoint_mgr.save(ckpt)
+
+        freed = mock_bridge.unbind_user(session_id, 77)
+        assert freed == "bob"
+
+        reloaded = mock_bridge.load_latest(session_id)
+        # Binding gone.
+        assert "bob" not in reloaded.session.character_bindings
+        # Slot pin gone.
+        assert "bob" not in reloaded.session.active_act_slots.get("gate", {})
+        # Bob removed from the open event's required_responders.
+        assert not any(
+            "bob" in e.required_responders
+            for e in reloaded.session.open_cat_ii_events
+        )
+        # Render buffer swept.
+        assert "bob" not in reloaded.session.render_buffers
+
+
+class TestApplyRosterUpdatesPurgesCulled:
+    """Culling a character should purge their v11 slot/event state too."""
+
+    def test_cull_triggers_purge(self):
+        from app.engine.character_manager import CharacterManager
+        from app.schemas.characters import CharacterRecord, PublicSheet
+        from app.schemas.checkpoint import CheckpointFile
+        from app.schemas.event_router import EventRouterOutput
+        from app.schemas.events import (
+            CanonicalEvent,
+            SceneDelta,
+            WorldAdjudication,
+        )
+        from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
+
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="culltest"),
+            world_state=WorldState(),
+            characters=[
+                CharacterRecord(
+                    character_id="villain",
+                    name="Villain",
+                    public_sheet=PublicSheet(role="npc"),
+                    location="gate",
+                    is_player=False,
+                ),
+            ],
+        )
+        ckpt.session.open_cat_ii_events.append(
+            OpenCatIIEvent(
+                event_id="evt_c",
+                scene_id="gate",
+                initiator_id="villain",
+                initiator_intention="swing",
+                required_responders=["hero"],
+            )
+        )
+
+        routed = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="x",
+                    feasible=True,
+                    resolved_outcome="x",
+                ),
+                scene_delta=SceneDelta(
+                    time_advanced_seconds=0, new_scene_id=""
+                ),
+                observable_facts=[],
+            ),
+            cull=["villain"],
+        )
+        mgr = CharacterManager()
+        mgr.apply_roster_updates(ckpt, routed)
+        # Event initiated by the culled character is abandoned.
+        assert not any(
+            e.initiator_id == "villain"
+            for e in ckpt.session.open_cat_ii_events
+        )

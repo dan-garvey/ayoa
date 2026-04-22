@@ -565,7 +565,15 @@ class EngineBridge:
 
     def unbind_user(self, session_id: str, user_id: int) -> str | None:
         """Remove this user's binding. Returns the freed character_id, or None
-        if they had no binding."""
+        if they had no binding.
+
+        v11-A5: purges any v11 state (active_act_slots entries, open Cat II
+        event responder lists/collected intentions, render buffers) the
+        character held before removing the binding. Prevents stranded pins
+        from freezing the scene when a player /leave's mid-beat.
+        """
+        from app.engine.turn_loop import purge_character_state
+
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         uid = str(user_id)
         freed = None
@@ -574,6 +582,9 @@ class EngineBridge:
                 freed = char_id
                 del ckpt.session.character_bindings[char_id]
         if freed is not None:
+            # Purge BEFORE save so slot/event/buffer cleanup lands in the
+            # same checkpoint write as the binding removal.
+            purge_character_state(ckpt, freed)
             self.checkpoint_mgr.save(ckpt)
         return freed
 
@@ -892,6 +903,31 @@ class EngineBridge:
                 self._session_locks[session_id] = lock
             return lock
 
+    # v11-A5 lazy sweep hook.
+    # Invoked from the /act hot path (run_turn) so stale Cat II pins are
+    # surfaced without a background scheduler. The sweep itself is pure
+    # state mutation — synthesizing AFK intentions for humans whose pin
+    # has outlived `cat_ii_human_timeout_seconds`. Re-running run_beat on
+    # the affected event IDs to drive adjudication is wired later in the
+    # full orchestrator-bind commit; for now, logging the IDs at INFO
+    # makes the sweep observable in production.
+    def sweep_stale_pins(self, session_id: str) -> list[str]:
+        """Load the checkpoint, sweep stale Cat II pins, save iff any were
+        swept, and return the list of event IDs that now need
+        re-adjudication. Safe to call with no open events (returns []).
+        """
+        from app.engine.turn_loop import sweep_stale_cat_ii_pins
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        swept = sweep_stale_cat_ii_pins(ckpt)
+        if swept:
+            self.checkpoint_mgr.save(ckpt)
+            logger.info(
+                "v11 sweep: auto-resolved %d Cat II event(s) pre-turn: %s",
+                len(swept), swept,
+            )
+        return swept
+
     async def run_turn(
         self,
         *,
@@ -901,7 +937,23 @@ class EngineBridge:
         debug: bool = False,
     ) -> TurnResponse:
         """Process one turn under a per-session lock. Subsequent concurrent calls
-        for the same session_id queue and run in order."""
+        for the same session_id queue and run in order.
+
+        v11-A5: runs `sweep_stale_pins` before acquiring the orchestrator.
+        Any event IDs returned are logged at INFO so operators can see the
+        sweep firing; actual re-adjudication is wired in the follow-up
+        orchestrator-bind commit.
+        """
+        # Sweep outside the lock so AFK cleanup never blocks a concurrent
+        # submitter holding the lock; the per-session save is re-read on
+        # the orchestrator side, so a race here just means the sweep
+        # lands on the following turn.
+        try:
+            self.sweep_stale_pins(session_id)
+        except Exception:
+            # Best-effort — never let an AFK sweep error crash a turn.
+            logger.exception("v11 sweep_stale_pins failed for %s", session_id)
+
         lock = await self._lock_for(session_id)
         async with lock:
             return await self.orchestrator.process_turn(TurnRequest(

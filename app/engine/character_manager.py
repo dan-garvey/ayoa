@@ -48,7 +48,15 @@ class CharacterManager:
     def apply_roster_updates(
         self, checkpoint: CheckpointFile, routed: EventRouterOutput,
     ) -> None:
-        """Apply router-directed roster status changes (dormancy, culling)."""
+        """Apply router-directed roster status changes (dormancy, culling).
+
+        v11-A5: culled characters also have their v11 slot/event/buffer
+        state purged, so a character removed mid-beat cannot strand a pin
+        or leave their id inside an open Cat II event. Dormant characters
+        are NOT purged — they may return, and their state is still valid.
+        """
+        from app.engine.turn_loop import purge_character_state
+
         for char_id in routed.dormant:
             char = self.get_character(checkpoint, char_id)
             if char:
@@ -60,6 +68,9 @@ class CharacterManager:
             if char:
                 char.status = CharacterStatus.culled
                 logger.info("Character %s culled", char_id)
+            # Purge v11 bookkeeping even if the character record is
+            # already missing — cull + purge must be idempotent.
+            purge_character_state(checkpoint, char_id)
 
     async def spawn_characters(
         self,
