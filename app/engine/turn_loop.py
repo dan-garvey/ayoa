@@ -1037,17 +1037,36 @@ async def _end_beat(
     if render_only is not None:
         candidates = [h for h in candidates if h in render_only]
     partial_override: bool | None = True if force_partial else None
+
+    # v11-r6c: fan out narrator calls in parallel. Independent POVs; no
+    # shared state to mutate mid-call. Trims a 3-human scene from 3×
+    # narrator latency to 1× (slowest POV). Buffers are flushed up front
+    # so the concurrent tasks see consistent inputs and no task observes
+    # a race against another's flush.
+    targets: list[tuple[str, list[RenderBufferEntry]]] = []
     for h in candidates:
         buf = flush_render_buffer(ckpt, h)
         if not buf:
             continue  # Human had no perceivable events this beat.
+        targets.append((h, buf))
+
+    async def _render_one(
+        h: str, buf: list[RenderBufferEntry],
+    ) -> tuple[str, str]:
         prose = await dispatcher.narrator_compose(
             ckpt=ckpt,
             character_id=h,
             buffered_events=buf,
             partial_mode_override=partial_override,
         )
-        renders[h] = prose
+        return h, prose
+
+    if targets:
+        results = await asyncio.gather(
+            *(_render_one(h, buf) for h, buf in targets)
+        )
+        renders = dict(results)
+
     if release_slots:
         release_scene_slots(ckpt, scene_id)
     logger.info(

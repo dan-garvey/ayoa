@@ -251,6 +251,59 @@ class TestRouteIntention:
         assert "alice: dodges" in user_content
         assert "## Swept Responders (AFK)" not in user_content
 
+    def test_session_conversation_passed_as_history(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        """v11-r6c: route_intention uses `render_conversation`, passing
+        `ckpt.session_conversation` as history so the event_router_v9
+        prompt sees the full rolling router history (per its own line 8
+        "The prior messages in this conversation are the full session
+        history"). After the call, the user/assistant pair is appended
+        so continuity compounds across turns."""
+        from app.schemas.conversation import ConversationMessage
+
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        # Pre-populate session_conversation with one prior exchange so
+        # we can verify it's what gets forwarded verbatim as history.
+        ckpt.session_conversation = [
+            ConversationMessage(role="user", content="PRIOR_USER"),
+            ConversationMessage(role="assistant", content="PRIOR_ASSISTANT"),
+        ]
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        # Intercept render_conversation to capture the history kwarg.
+        captured: dict = {}
+        original = prompt_mgr.render_conversation
+
+        def _spy(template_name, history, **variables):
+            captured["history"] = history
+            captured["template"] = template_name
+            return original(template_name, history, **variables)
+
+        monkeypatch.setattr(prompt_mgr, "render_conversation", _spy)
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="examine the lock",
+            scene_id="gatehouse",
+        ))
+
+        assert captured["template"] == "event_router"
+        # History kwarg IS the checkpoint's session_conversation list —
+        # we pass the list itself, not a copy.
+        assert captured["history"] is ckpt.session_conversation
+        # And the prior messages are still the first two entries (post-
+        # append of this turn's pair).
+        assert captured["history"][0].content == "PRIOR_USER"
+        assert captured["history"][1].content == "PRIOR_ASSISTANT"
+        # After the call, session_conversation has grown by 2 entries
+        # (this turn's user + assistant).
+        assert len(ckpt.session_conversation) == 4
+        assert ckpt.session_conversation[-2].role == "user"
+        assert ckpt.session_conversation[-1].role == "assistant"
+
 
 # ---- 5. agent_intend returns a compact string ------------------------------
 

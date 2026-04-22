@@ -17,7 +17,14 @@ INTENTION_BLOCK_HEADER = "## Intention"
 
 
 def format_human_initiator_intention(name: str, user_input: str) -> str:
-    """Cat I / Cat II OPEN path: a human player's /act."""
+    """Cat I / Cat II OPEN path: a human player's /act.
+
+    DO NOT use for NPC cascade intentions — the "attempts:" framing
+    biases the router toward Cat II classification on dialogue (which
+    is Cat I). Use `format_npc_cascade_intention` for cascade steps.
+    See the USER-TEMPLATE CONTRACT block in event_router_v9.txt for
+    the full shape contract.
+    """
     return f"{INTENTION_BLOCK_HEADER}\n{name} attempts: {user_input}"
 
 

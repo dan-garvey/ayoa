@@ -934,3 +934,108 @@ class TestRejectionTruncationBumpAndPhrasing:
         msg = format_slot_rejection(check, ckpt)
         assert "didn't go through" in msg
         assert "wasn't submitted" not in msg  # Old phrasing gone.
+
+
+class TestParallelNarratorFanOut:
+    """v11-r6c: `_end_beat` fans out narrator_compose via asyncio.gather
+    so multi-human scenes don't pay serial latency. With two buffered
+    humans each waiting 0.1s, the total elapsed time should be ~0.1s
+    (parallel) not ~0.2s (serial)."""
+
+    def test_two_humans_renders_in_parallel_not_serial(self):
+        import time
+        from app.engine.turn_loop import _end_beat, append_to_render_buffer
+        from app.schemas.event_router import EventRouterOutput
+        from app.schemas.events import (
+            CanonicalEvent, SceneDelta, WorldAdjudication,
+        )
+
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        # Seed a canonical event and buffer it for both humans so each has
+        # a non-empty render buffer.
+        event = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="x", feasible=True, resolved_outcome="y",
+                ),
+                scene_delta=SceneDelta(
+                    time_advanced_seconds=0, new_scene_id="gatehouse",
+                ),
+                observable_facts=[],
+            ),
+            observers=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+        )
+        ckpt.canonical_events.append(event)
+        append_to_render_buffer(ckpt, "alice", event.event_id, "direct")
+        append_to_render_buffer(ckpt, "bob", event.event_id, "direct")
+
+        class SlowDispatcher(FakeDispatcher):
+            async def narrator_compose(self, **kw):
+                # Each render waits 0.1s before returning. Two serial
+                # calls would take ~0.2s; parallel gather should finish
+                # in ~0.1s.
+                await asyncio.sleep(0.1)
+                self.narrator_calls.append(kw)
+                return "RENDER"
+
+        fake = SlowDispatcher()
+
+        t0 = time.monotonic()
+        result = asyncio.run(_end_beat(
+            ckpt, fake, "gatehouse",
+            ended_reason="directed_at_player",
+            events_closed=1,
+        ))
+        elapsed = time.monotonic() - t0
+
+        # Both POVs rendered.
+        assert "alice" in result.renders
+        assert "bob" in result.renders
+        # Two calls were made.
+        assert len(fake.narrator_calls) == 2
+        # Parallel: under 0.18s (well below 0.2s serial lower bound).
+        # Some headroom for CI jitter; the serial path is 0.2s+.
+        assert elapsed < 0.18, (
+            f"expected parallel fan-out (<0.18s), got {elapsed:.3f}s — "
+            f"likely reverted to serial loop"
+        )
+
+    def test_single_human_still_renders(self):
+        """Sanity check: the asyncio.gather path handles the 1-human case
+        without degrading. Previously the loop was `for h in humans`; now
+        `asyncio.gather(*())` on an empty tuple with a single-element
+        tuple must still produce a render."""
+        from app.engine.turn_loop import _end_beat, append_to_render_buffer
+        from app.schemas.event_router import EventRouterOutput
+        from app.schemas.events import (
+            CanonicalEvent, SceneDelta, WorldAdjudication,
+        )
+
+        ckpt = _ckpt(bindings={"alice": "1"})
+        event = EventRouterOutput(
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="x", feasible=True, resolved_outcome="y",
+                ),
+                scene_delta=SceneDelta(
+                    time_advanced_seconds=0, new_scene_id="gatehouse",
+                ),
+                observable_facts=[],
+            ),
+            observers=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+        )
+        ckpt.canonical_events.append(event)
+        append_to_render_buffer(ckpt, "alice", event.event_id, "direct")
+
+        fake = FakeDispatcher()
+        result = asyncio.run(_end_beat(
+            ckpt, fake, "gatehouse",
+            ended_reason="directed_at_player",
+            events_closed=1,
+        ))
+        assert "alice" in result.renders
+        assert len(fake.narrator_calls) == 1

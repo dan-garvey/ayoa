@@ -1259,6 +1259,17 @@ def register(
         # `(begin)` cleanly maps to "open the story from the scene's actual
         # start per the opening_directive" without the narrator compressing
         # arrival into hallucinated subtext.
+        #
+        # v11-r6c note: we pass `(begin)` as a plain `user_input` through
+        # /act's normal path. The dispatcher's `format_human_initiator_
+        # intention` wraps this as "Alice attempts: (begin)" — visually a
+        # bit odd, but the event_router_v9 prompt's Author-directive OOC
+        # rule (search for "Author-directive OOC" in event_router_v9.txt)
+        # fires on the shape of the content itself (fully parenthesized
+        # input), NOT on the surrounding "attempts:" framing. So OOC
+        # routing is correct here and no code change is needed. If the
+        # router prompt's OOC detection ever narrows, revisit this path
+        # to use `format_ooc_directive` directly instead.
         arrival_action = "(begin)"
         logger.info(
             "Describe+open for %s by %s: %s",

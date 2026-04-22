@@ -20,6 +20,7 @@ import logging
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
+    append_turn_to_conversation,
     build_player_characters_block,
     clear_character_inbox,
     resolve_acting_character,
@@ -374,9 +375,22 @@ class LLMDispatcher:
             "cat_ii_resolution_block": cat_ii_resolution_block,
         }
 
-        messages = self.prompt_mgr.render_messages(
-            "event_router", **template_vars,
+        # v11-r6c: event_router_v9 explicitly expects the prior router
+        # exchanges as conversation history ("The prior messages in this
+        # conversation are the full session history"). Use
+        # render_conversation so the rolling history rides along, and
+        # append this turn's exchange after the call so continuity
+        # compounds across turns. The caller (Orchestrator) persists the
+        # checkpoint after run_beat returns.
+        messages = self.prompt_mgr.render_conversation(
+            "event_router",
+            history=ckpt.session_conversation,
+            **template_vars,
         )
+
+        # Plain-text user content captured before LLMClient wraps with
+        # cache_control for this call.
+        user_content = messages[-1]["content"]
 
         logger.info(
             "LLMDispatcher.route_intention: actor=%s cat_ii=%s",
@@ -393,6 +407,11 @@ class LLMDispatcher:
             compact=True,
         )
         result: EventRouterOutput = response.parsed
+        # Persist the user/assistant pair to the rolling session
+        # conversation so next turn's router sees it as history.
+        append_turn_to_conversation(
+            ckpt.session_conversation, user_content, response,
+        )
         return result
 
     # ------------------------------------------------------------------
