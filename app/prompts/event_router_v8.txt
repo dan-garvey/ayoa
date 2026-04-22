@@ -85,23 +85,27 @@ physically doing. When the user_input is fully parenthesized OOC:
    - social and legal constraints
    - prior commitments from this session (characters who said they'd do something, meetings arranged, promises made)
 
-2a. **Social attempts can fail too.** Feasibility is not limited to
-    physics. Persuasion, seduction, requests, threats, and any action
-    that depends on another character's consent or cooperation can be
-    attempted and not land. Do not treat "the body is capable of the
-    motion" as "the action succeeds." A shove the target blocks, a
-    question the target refuses, a kiss the target ducks — these are all
-    common outcomes.
+2a. **Feasibility is a gate on the ATTEMPT, not the outcome.** Set
+    `feasible=false` only when the attempt literally cannot begin —
+    target not present, no limb for the motion, the physics or world
+    rules forbid even starting. Whether a shove lands, a punch
+    connects, a question gets answered, a kiss is reciprocated — those
+    are OUTCOMES decided by the target, not by feasibility. Violence,
+    persuasion, seduction, threats, requests: all feasible when a
+    valid target is in the scene. Never reject an attack, shove, or
+    strike as infeasible because "the target could block" — that's
+    the target's agent's job downstream. (TODO #110: dedicated violence
+    resolution so combat outcomes aren't left to the target's agent.)
 
-2b. **Consent-dependent actions: render the attempt, not the
-    completion.** When the acting character tries something that needs
-    another person's participation — kissing, embracing, confiding a
-    secret, persuading to break a rule, handing over sensitive info —
-    `resolved_outcome` must describe the attempt in progress, not the
-    completed act. Write "Aldric leans in toward her" not "Aldric kisses
-    her"; write "Aldric begins to lay out the case for breaking the
-    seal" not "Aldric convinces her to break the seal." The target's
-    agent decides what lands. If there is no responder on the observer
+2b. **Render the attempt, not the completion, for contested or
+    consent-dependent actions.** When the acting character tries
+    something that depends on another person's response — a punch, a
+    kiss, a persuasion, a demand — `resolved_outcome` describes the
+    attempt IN PROGRESS, not the outcome. Write "Aldric drives a fist
+    toward her jaw" not "Aldric punches her"; write "Aldric leans in
+    toward her" not "Aldric kisses her"; write "Aldric begins laying
+    out the case" not "Aldric convinces her." The target's agent
+    decides what lands. If there is no responder on the observer
     list (the target is elsewhere or isn't registered), render the
     attempt breaking off in-fiction — reaching for air, the words
     running out — and let the narrator render the empty moment.

@@ -72,22 +72,20 @@ def render_info(title: str, body: str) -> discord.Embed:
 
 
 def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
-    """Factual briefing shown on /story start — world + role + stakes.
+    """Factual briefing shown on /story start — world + stakes + next steps.
 
-    Pulled straight from the checkpoint: setting, premise, player character
-    identity and backstory, plus a handful of common-knowledge facts. Not
-    prose — structured context so the narrator's first-turn rendered opening
-    can land with the player already oriented.
+    Pulled straight from the checkpoint: setting, premise, and a handful of
+    common-knowledge facts. No player character is assigned at /story start —
+    the user picks one with /join or /join_custom after this briefing.
     """
     setting = ckpt.world_state.setting
-    player_char = _find_player_character(ckpt)
 
     story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
     title = f"Briefing · {story_title}"
     importer_tag = ckpt.importer_version or "v0"
     coverage = ckpt.import_analysis.coverage_rating if ckpt.import_analysis else ""
     coverage_tag = f" · coverage {coverage}" if coverage and coverage != "unknown" else ""
-    footer = f"{story_id} · importer {importer_tag}{coverage_tag} · /describe <traits> to open the scene"
+    footer = f"{story_id} · importer {importer_tag}{coverage_tag} · /join or /join_custom to claim a character"
 
     # Build the fields first so we can reserve the description budget based on
     # their actual size. The "How to play" fields MUST always render — that's
@@ -95,47 +93,31 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
     # premise when the budget gets tight.
     fields: list[tuple[str, str]] = []  # (name, value) pairs, in render order
 
-    if player_char is not None:
-        role = player_char.public_sheet.role or "(role unspecified)"
-        backstory = (player_char.backstory or "").strip()
-        role_value = f"**{player_char.name}** — {role}"
-        if backstory:
-            remaining = _FIELD_VALUE_MAX - len(role_value) - 4
-            if len(backstory) > remaining:
-                backstory = backstory[:remaining].rstrip() + "…"
-            role_value += f"\n\n{backstory}"
-        fields.append(("Your role", role_value))
-
     facts = ckpt.world_state.facts[:6]
     if facts:
         facts_value = "\n".join(f"• {f}" for f in facts)
         if len(facts_value) > _FIELD_VALUE_MAX:
             facts_value = facts_value[: _FIELD_VALUE_MAX - 1] + "…"
-        fields.append(("What you know", facts_value))
+        fields.append(("What's known", facts_value))
 
     fields.append((
-        "1. Describe your character",
-        "Run `/describe <traits>` to set the physical presence the world will "
-        "react to. Include whatever detail you want seen, heard, or remembered "
-        "— height, build, age, clothing, bearing, voice, distinctive features. "
-        "Be as specific as you like; the narrator uses this verbatim.\n"
-        "_Examples_\n"
-        "> `/describe tall, early forties, grey at the temples, travel-worn "
-        "wool coat, ink-stained fingers, a quiet voice that rarely rises`\n"
-        "> `/describe short and wiry, close-cropped dark hair, formal black "
-        "robe with silver clasps, walks with a slight limp`"
+        "1. Pick a character",
+        "Run `/story characters` to see the roster, then `/join <character_id>` "
+        "to play as an existing one. Prefer a custom concept? "
+        "`/join_custom mode:describe description:<your concept>` spawns a new "
+        "character, or `mode:replace` grafts your concept onto an existing NPC."
     ))
     fields.append((
-        "2. Your first /describe opens the scene",
-        "The narrator renders your arrival in-fiction, incorporating "
-        "everything you wrote. You'll see the opening as a reply."
+        "2. Describe yourself",
+        "Once claimed, `/describe` prompts you for a name and appearance — the "
+        "physical presence the world will react to. Include whatever detail "
+        "you want seen, heard, or remembered."
     ))
     fields.append((
-        "3. From then on, /act <what you do>",
-        "One `/act` per turn. Speak, move, observe, improvise — first person "
-        "is natural. Turns take ~20–40 seconds; the bot shows a thinking "
-        "indicator while composing. `/status` shows the current scene and "
-        "roster; `/story end` closes the session."
+        "3. Open the scene, then /act",
+        "Your first `/describe` opens the scene in-fiction. From then on, one "
+        "`/act <what you do>` per turn — speak, move, observe, improvise. "
+        "`/status` shows the current scene; `/session end` detaches the save."
     ))
 
     fields_total = sum(len(n) + len(v) for n, v in fields)
@@ -173,24 +155,6 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
         embed.add_field(name=name, value=value, inline=False)
     embed.set_footer(text=footer)
     return embed
-
-
-def _find_player_character(ckpt: CheckpointFile):
-    """Locate the player's CharacterRecord.
-
-    Prefers the character whose id matches `session.player_character_id`
-    (post-personalize), falling back to the first `is_player=True` character
-    (for pristine / pre-personalize checkpoints).
-    """
-    pcid = ckpt.session.player_character_id
-    if pcid:
-        for c in ckpt.characters:
-            if c.character_id == pcid:
-                return c
-    for c in ckpt.characters:
-        if c.is_player:
-            return c
-    return None
 
 
 def render_error(message: str) -> discord.Embed:

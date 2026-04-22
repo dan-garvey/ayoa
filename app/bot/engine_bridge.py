@@ -222,125 +222,93 @@ class EngineBridge:
                     "on_analysis_complete callback raised for %s", story_id,
                 )
 
-    def delete_story(self, story_id: str) -> tuple[int, int]:
-        """Delete a story's source dir AND any discord_* session dirs derived
-        from it. Returns (session_dirs_removed, total_files_removed).
+    # Story imports are treated as permanent: delete_story is gone. Each
+    # import costs real dollars and produces an artifact that's cheaper to
+    # keep around than to recreate. Operators who genuinely need to remove
+    # a story should rm the directory by hand.
 
-        Raises FileNotFoundError if the source story does not exist.
-        """
-        source_dir = self.stories_dir / story_id
-        if not source_dir.exists():
-            raise FileNotFoundError(f"Story '{story_id}' not found at {source_dir}")
+    # ---- session primitives --------------------------------------------------
 
-        sessions_removed = 0
-        files_removed = 0
-
-        # Derived discord sessions have name pattern
-        # discord_<channel_id>_<story_slug> where story_slug is the sluggified
-        # story_id. Match by suffix for safety.
-        slug = re.sub(r"[^a-z0-9_]+", "_", story_id.lower()).strip("_")
-        suffix = f"_{slug}"
-        if self.sessions_dir.exists():
-            for child in self.sessions_dir.iterdir():
-                if not child.is_dir():
-                    continue
-                if child.name.startswith("discord_") and child.name.endswith(suffix):
-                    file_count = sum(1 for _ in child.iterdir())
-                    shutil.rmtree(child)
-                    sessions_removed += 1
-                    files_removed += file_count
-
-        file_count = sum(1 for _ in source_dir.iterdir())
-        shutil.rmtree(source_dir)
-        files_removed += file_count
-
-        logger.info(
-            "Deleted story %s and %d derived session dir(s), %d files total",
-            story_id, sessions_removed, files_removed,
+    def list_session_ids(self) -> list[str]:
+        """Return directory names under sessions_dir. Each entry is a
+        named save the user can resume."""
+        if not self.sessions_dir.exists():
+            return []
+        return sorted(
+            child.name for child in self.sessions_dir.iterdir()
+            if child.is_dir()
         )
-        return sessions_removed, files_removed
+
+    def create_empty_session(self, session_id: str) -> None:
+        """Create a session directory with no checkpoint. The caller
+        runs /story start to load content into it afterward.
+        Raises FileExistsError if the session already exists with ckpts."""
+        dst = self.sessions_dir / session_id
+        if dst.exists() and any(dst.glob("ckpt_*.json")):
+            raise FileExistsError(
+                f"Session '{session_id}' already exists with checkpoints. "
+                f"Run /session resume or pick a different name."
+            )
+        dst.mkdir(parents=True, exist_ok=True)
+        logger.info("Created empty session %s at %s", session_id, dst)
+
+    def load_story_into_session(
+        self,
+        session_id: str,
+        story_id: str,
+    ) -> CheckpointFile:
+        """Copy a story's pristine ckpt_0000 into the named session dir,
+        rewriting session_id and stripping import_analysis. No
+        personalize, no auto-bind — the player picks characters via
+        /join or /join_custom after. Refuses if the session already has
+        a story loaded (run /story delete first)."""
+        src = self.stories_dir / story_id / "ckpt_0000.json"
+        if not src.exists():
+            raise FileNotFoundError(f"Story '{story_id}' not found at {src}")
+
+        dst_dir = self.sessions_dir / session_id
+        if not dst_dir.exists():
+            raise FileNotFoundError(
+                f"Session '{session_id}' does not exist. "
+                f"Run /session start first."
+            )
+        if any(dst_dir.glob("ckpt_*.json")):
+            raise FileExistsError(
+                f"Session '{session_id}' already has a story loaded. "
+                f"Run /story delete first to unload it."
+            )
+
+        data = json.loads(src.read_text())
+        data["session"]["session_id"] = session_id
+        data.pop("import_analysis", None)
+        (dst_dir / "ckpt_0000.json").write_text(json.dumps(data, indent=2))
+        ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
+        if ckpt.session.turn_index == 0:
+            ckpt.session.turn_index = 1
+        self.checkpoint_mgr.save(ckpt)
+        logger.info("Loaded story %s into session %s", story_id, session_id)
+        return ckpt
+
+    def unload_story_from_session(self, session_id: str) -> int:
+        """Wipe all checkpoints from a session dir. Returns files removed.
+        After this, /story start may be run again to load a different
+        story. Bindings and character state are gone — the session is
+        an empty container."""
+        dst = self.sessions_dir / session_id
+        if not dst.exists():
+            raise FileNotFoundError(f"Session '{session_id}' does not exist.")
+        removed = 0
+        for ckpt in dst.glob("ckpt_*.json"):
+            ckpt.unlink()
+            removed += 1
+        logger.info("Unloaded story from session %s (%d files)", session_id, removed)
+        return removed
 
     def session_id_for_channel(self, channel_id: int, story_id: str) -> str:
         """Deterministic session id for (channel, story). Stable across /resume."""
         # Short-hash-free: channel IDs are unique and story id is stable.
         slug = re.sub(r"[^a-z0-9_]+", "_", story_id.lower()).strip("_")
         return f"discord_{channel_id}_{slug}"
-
-    async def create_session(
-        self,
-        *,
-        story_id: str,
-        session_id: str,
-        player_display_name: str,
-        creator_user_id: int | None = None,
-    ) -> CheckpointFile:
-        """Copy the story's ckpt_0000 into a new session dir, personalize it,
-        and return the resulting checkpoint.
-
-        Since session_id is deterministic from (channel, story), re-running
-        /story start on the same channel/story would land in a directory that
-        may contain stale ckpt_NNNN.json files from a prior play-through.
-        We wipe those so the new session starts clean — otherwise load_latest
-        picks up an old pre-schema-migration checkpoint and personalize fails.
-        """
-        src = self.stories_dir / story_id / "ckpt_0000.json"
-        if not src.exists():
-            raise FileNotFoundError(f"Story '{story_id}' not found at {src}")
-
-        dst_dir = self.sessions_dir / session_id
-        dst_dir.mkdir(parents=True, exist_ok=True)
-
-        # Clear any stale checkpoint files in this session dir — user called
-        # /story start expecting a fresh start (they'd have used /story resume
-        # to continue). Only touches ckpt_*.json, leaves any other files alone
-        # (e.g. .pre_conv_migration backups).
-        for old in dst_dir.glob("ckpt_*.json"):
-            old.unlink()
-
-        # Copy the story's pristine ckpt_0000 into the new session dir,
-        # rewriting session_id and dropping import_analysis — the analysis
-        # describes the one-time import pass and belongs on the story's
-        # canonical source, not on every session derived from it.
-        dst = dst_dir / "ckpt_0000.json"
-        data = json.loads(src.read_text())
-        data["session"]["session_id"] = session_id
-        data.pop("import_analysis", None)
-        dst.write_text(json.dumps(data, indent=2))
-
-        # Personalize only when the caller gave us a display name AND
-        # the story has a single-protagonist slot to rename. Otherwise
-        # the session starts with authored names intact — the player
-        # picks a slot via /join (or /join_custom). Matches the CLI
-        # behavior: `play.py --story X` creates a session with no
-        # default character.
-        ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
-        player_count = sum(1 for c in ckpt.characters if c.is_player)
-        should_personalize = (
-            bool(player_display_name and player_display_name.strip())
-            and player_count == 1
-        )
-        if should_personalize:
-            personalized = _personalize(ckpt, player_display_name)
-        else:
-            personalized = ckpt
-            personalized.session.player_name = ""
-            personalized.session.player_character_id = ""
-        if personalized.session.turn_index == 0:
-            personalized.session.turn_index = 1
-
-        # Auto-bind the creator only on single-protagonist stories. For
-        # multi-slot stories, creator runs /join explicitly.
-        if (
-            creator_user_id is not None
-            and player_count <= 1
-            and personalized.session.player_character_id
-        ):
-            personalized.session.character_bindings[
-                personalized.session.player_character_id
-            ] = str(creator_user_id)
-
-        self.checkpoint_mgr.save(personalized)
-        return personalized
 
     def load_latest(self, session_id: str) -> CheckpointFile:
         return self.checkpoint_mgr.load_latest(session_id)

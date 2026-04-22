@@ -325,8 +325,16 @@ class LLMClient:
         # non-beta messages.stream rejects schemas it treats as "too
         # complex" which the beta path compiles without issue. So beta
         # routing is gated on *either* compact OR a response_model.
-        needs_beta = compact or response_model is not None
-        if compact:
+        # Server-side compaction is currently only implemented on Sonnet-class
+        # models. Haiku 4.5 rejects the beta with a 400 ("does not support the
+        # 'compact_20260112' context management strategy"). Silently drop the
+        # feature for unsupported models — the rolling-conversation trimming
+        # we already do keeps inputs far below the 200K/1M ceiling, so the
+        # loss is purely an optimization miss.
+        compact_supported = "sonnet" in model.lower() or "opus" in model.lower()
+        effective_compact = compact and compact_supported
+        needs_beta = effective_compact or response_model is not None
+        if effective_compact:
             kwargs["context_management"] = {
                 "edits": [
                     {

@@ -1,13 +1,15 @@
 """Slash commands for the narrative-engine Discord bot.
 
 Commands:
+    /session start <name>                 — create + bind an empty session to this channel
+    /session end                          — detach this channel's session
+    /session resume                       — show the last scene
+    /session list                         — list existing sessions
     /story list                           — list available stories
-    /story start <story_id> <name>        — create a session in this channel
-    /story resume                         — show the last scene
-    /story end                            — detach this channel's session
+    /story start <story_id>               — load a story into the current session
     /story info <story_id>                — show briefing for a source story
     /story import <attachment> [id]       — import a master prompt
-    /story delete <story_id>              — admin-only, delete a story
+    /story delete                         — unload the story from this session
     /describe <traits>                    — set player appearance; opens scene
     /act <action>                         — submit a turn
     /status                               — summarize current state
@@ -83,10 +85,21 @@ def _sanitize_story_id(raw: str) -> str:
     return slug
 
 
+async def _send_private(inter: discord.Interaction, text: str) -> None:
+    """Post a private block of text back to the invoker as ephemeral
+    followups. Chunks at Discord's 2000-char message cap, breaking on
+    paragraph/newline boundaries when possible. Requires the caller to
+    have already deferred (ephemeral=True) the interaction, or otherwise
+    be in a state where `followup.send` is valid.
+    """
+    for chunk in _chunks(text, 1900):
+        await inter.followup.send(chunk, ephemeral=True)
+
+
 def _chunks(text: str, size: int) -> list[str]:
     """Split text into chunks of at most `size` chars, breaking on paragraph
-    or newline boundaries when possible. Used for DM'ing dossiers that blow
-    through Discord's 2000-char message cap."""
+    or newline boundaries when possible. Used for ephemeral dossier sends
+    that exceed Discord's 2000-char message cap."""
     if len(text) <= size:
         return [text]
     out: list[str] = []
@@ -118,8 +131,136 @@ def register(
     """
     story_group = app_commands.Group(
         name="story",
-        description="Manage the interactive fiction session in this channel.",
+        description="Manage the story loaded into this channel's session.",
     )
+
+    session_group = app_commands.Group(
+        name="session",
+        description="Manage named saves (sessions) bound to this channel.",
+    )
+
+    # ---- /session start / end / resume / list -------------------------------
+
+    @session_group.command(
+        name="start", description="Create a named save and bind this channel.",
+    )
+    @app_commands.describe(name="Save name (directory under sessions/).")
+    async def _session_start(inter: discord.Interaction, name: str):
+        name = name.strip()
+        if not name:
+            await inter.response.send_message(
+                "Session name cannot be empty.", ephemeral=True,
+            )
+            return
+        existing = await smap.get(inter.channel_id)
+        if existing is not None:
+            await inter.response.send_message(
+                f"This channel is already bound to session `{existing.session_id}`. "
+                f"Run `/session end` first.",
+                ephemeral=True,
+            )
+            return
+        try:
+            engine.create_empty_session(name)
+        except FileExistsError as e:
+            await inter.response.send_message(str(e), ephemeral=True)
+            return
+        await smap.upsert(
+            channel_id=inter.channel_id,
+            guild_id=inter.guild_id,
+            session_id=name,
+            owner_user_id=inter.user.id,
+            story_id="",  # no story loaded yet
+        )
+        await inter.response.send_message(
+            f"Session `{name}` created and bound. "
+            f"Run `/story list` then `/story start story_id:<id>`.",
+            ephemeral=True,
+        )
+
+    @session_group.command(
+        name="end", description="Detach this channel from its session (files stay).",
+    )
+    async def _session_end(inter: discord.Interaction):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        await smap.delete(inter.channel_id)
+        await inter.response.send_message(
+            f"Detached from `{row.session_id}`. Files kept on disk; "
+            f"run `/session resume name:{row.session_id}` to rejoin.",
+            ephemeral=True,
+        )
+
+    @session_group.command(
+        name="resume", description="Rebind this channel to an existing session.",
+    )
+    @app_commands.describe(name="Saved session name.")
+    async def _session_resume(inter: discord.Interaction, name: str):
+        name = name.strip()
+        if not name:
+            await inter.response.send_message(
+                "Session name cannot be empty.", ephemeral=True,
+            )
+            return
+        existing = await smap.get(inter.channel_id)
+        if existing is not None:
+            await inter.response.send_message(
+                f"Channel already bound to `{existing.session_id}`. "
+                f"Run `/session end` first.",
+                ephemeral=True,
+            )
+            return
+        if name not in engine.list_session_ids():
+            await inter.response.send_message(
+                f"Unknown session `{name}`. `/session list` to see saves.",
+                ephemeral=True,
+            )
+            return
+
+        story_id = ""
+        last_text = "(empty session — /story start to load content)"
+        try:
+            ckpt = engine.load_latest(name)
+            story_id = ckpt.session.story_id
+            if ckpt.transcript:
+                last_text = ckpt.transcript[-1].assistant
+            elif ckpt.opening_narrative:
+                last_text = ckpt.opening_narrative
+        except FileNotFoundError:
+            pass  # empty session, no ckpt yet
+
+        await smap.upsert(
+            channel_id=inter.channel_id,
+            guild_id=inter.guild_id,
+            session_id=name,
+            owner_user_id=inter.user.id,
+            story_id=story_id,
+        )
+        await inter.response.send_message(
+            f"Resumed session `{name}`"
+            + (f" · story **{story_id}**" if story_id else "")
+            + f".\n\n{last_text[:1800]}",
+            ephemeral=True,
+        )
+
+    @session_group.command(
+        name="list", description="List saved sessions.",
+    )
+    async def _session_list(inter: discord.Interaction):
+        ids = engine.list_session_ids()
+        if not ids:
+            await inter.response.send_message(
+                "No sessions yet. Run `/session start name:<save>`.",
+                ephemeral=True,
+            )
+            return
+        body = "\n".join(f"- `{i}`" for i in ids)
+        await inter.response.send_message(
+            embed=render_info("Saved sessions", body),
+            ephemeral=True,
+        )
 
     # ---- /story list --------------------------------------------------------
 
@@ -140,48 +281,21 @@ def register(
 
     # ---- /story start -------------------------------------------------------
 
-    @story_group.command(name="start", description="Begin a story in this channel.")
-    @app_commands.describe(
-        story_id="The story ID (see /story list).",
-    )
-    async def _start(
+    async def _execute_story_start(
         inter: discord.Interaction,
+        row,
         story_id: str,
-    ):
-        existing = await smap.get(inter.channel_id)
-        if existing is not None:
-            await inter.response.send_message(
-                f"This channel is already bound to session `{existing.session_id}`. "
-                f"Run `/story end` first if you want to switch.",
-                ephemeral=True,
-            )
-            return
-
-        if story_id not in engine.list_story_ids():
-            await inter.response.send_message(
-                f"Unknown story `{story_id}`. Try `/story list`.",
-                ephemeral=True,
-            )
-            return
-
-        await inter.response.defer(thinking=True)
-
-        session_id = engine.session_id_for_channel(inter.channel_id, story_id)
-
-        # Mirror the CLI: creating a session does NOT assign a character
-        # or run the personalize rename. Single-protagonist stories have
-        # one authored is_player slot the caller can /join. Multi-slot
-        # stories have several; the creator chooses via /join or
-        # /join_custom like any other player. No character_name arg.
+    ) -> None:
+        """Shared body for /story start — invoked from the slash command
+        directly when story_id is passed, or from the picker select
+        callback when the user picks from the dropdown."""
         try:
-            ckpt = await engine.create_session(
-                story_id=story_id,
-                session_id=session_id,
-                player_display_name="",
-                creator_user_id=None,
-            )
+            ckpt = engine.load_story_into_session(row.session_id, story_id)
+        except FileExistsError as e:
+            await inter.followup.send(embed=render_error(str(e)))
+            return
         except Exception as e:
-            logger.exception("create_session failed")
+            logger.exception("load_story_into_session failed")
             await inter.followup.send(embed=render_error(
                 f"`{type(e).__name__}: {e}`"
             ))
@@ -190,78 +304,112 @@ def register(
         await smap.upsert(
             channel_id=inter.channel_id,
             guild_id=inter.guild_id,
-            session_id=session_id,
-            owner_user_id=inter.user.id,
+            session_id=row.session_id,
+            owner_user_id=row.owner_user_id,
             story_id=story_id,
         )
 
         briefing = render_briefing(ckpt, story_id)
         intro = (
-            f"Session started for **{story_id}**. "
-            f"Run `/story characters` to see who's available, "
-            f"then `/join <character_id>` to claim one."
+            f"Loaded **{story_id}** into session `{row.session_id}`. "
+            f"Run `/story characters` then `/join <character_id>` to claim one."
         )
         await inter.followup.send(content=intro, embed=briefing)
 
-    # ---- /story resume ------------------------------------------------------
-
-    @story_group.command(name="resume", description="Re-anchor to the existing session.")
-    async def _resume(inter: discord.Interaction):
-        existing = await smap.get(inter.channel_id)
-        if existing is None:
-            await inter.response.send_message(
-                "No session here. Try `/story start <id>`.",
-                ephemeral=True,
+    class _StoryPickerView(discord.ui.View):
+        """Ephemeral dropdown shown when /story start is called without a
+        story_id. The invoker picks, the callback loads + briefs. Limited
+        to 25 stories because that's Discord's Select cap."""
+        def __init__(self, *, session_row, invoker_id: int, story_ids: list[str]):
+            super().__init__(timeout=120)
+            self.session_row = session_row
+            self.invoker_id = invoker_id
+            options = [
+                discord.SelectOption(label=sid[:100], value=sid[:100])
+                for sid in story_ids[:25]
+            ]
+            self._select = discord.ui.Select(
+                placeholder="Pick a story to load...",
+                options=options,
+                min_values=1, max_values=1,
             )
-            return
+            self._select.callback = self._on_pick
+            self.add_item(self._select)
 
-        try:
-            ckpt = engine.load_latest(existing.session_id)
-        except FileNotFoundError:
-            # Orphaned mapping — the on-disk checkpoint was deleted out
-            # from under us. Purge the row so the next /story start on
-            # this channel doesn't hit "session already bound" on the
-            # way in.
-            await smap.delete(inter.channel_id)
-            await inter.response.send_message(
-                f"Session `{existing.session_id}` had no checkpoint on disk; "
-                f"the channel mapping has been purged. Run `/story start "
-                f"<story_id> \"<Name>\"` to begin fresh.",
-                ephemeral=True,
-            )
-            return
+        async def interaction_check(self, check_inter: discord.Interaction) -> bool:
+            if check_inter.user.id != self.invoker_id:
+                await check_inter.response.send_message(
+                    "This picker isn't yours.", ephemeral=True,
+                )
+                return False
+            return True
 
-        last_text = ""
-        if ckpt.transcript:
-            last_text = ckpt.transcript[-1].assistant
-        if not last_text:
-            last_text = ckpt.opening_narrative or "(nothing to show)"
+        async def _on_pick(self, pick_inter: discord.Interaction):
+            picked = self._select.values[0]
+            self._select.disabled = True
+            await pick_inter.response.defer(thinking=True)
+            await _execute_story_start(pick_inter, self.session_row, picked)
+            self.stop()
 
-        embeds = render_turn(
-            output_text=last_text,
-            turn_index=ckpt.session.turn_index,
-            story_id=existing.story_id,
-        )
-        await inter.response.send_message(
-            content=f"Resuming **{existing.story_id}**. Last scene:",
-            embeds=embeds,
-        )
-
-    # ---- /story end ---------------------------------------------------------
-
-    @story_group.command(name="end", description="Detach this channel from its session.")
-    async def _end(inter: discord.Interaction):
+    @story_group.command(
+        name="start",
+        description="Load a story into the current session (pick from a list if omitted).",
+    )
+    @app_commands.describe(
+        story_id="Optional story ID (see /story list). If omitted, shows a picker.",
+    )
+    async def _start(
+        inter: discord.Interaction,
+        story_id: str = "",
+    ):
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No session here.", ephemeral=True,
+                "No session here. Run `/session start name:<save>` first.",
+                ephemeral=True,
             )
             return
-        await smap.delete(inter.channel_id)
-        await inter.response.send_message(
-            f"Detached from `{row.session_id}`. Checkpoint files are kept on disk.",
-            ephemeral=True,
-        )
+
+        story_ids = engine.list_story_ids()
+        story_id = (story_id or "").strip()
+
+        if not story_id:
+            if not story_ids:
+                await inter.response.send_message(
+                    "No stories imported. Run `/story import` first.",
+                    ephemeral=True,
+                )
+                return
+            view = _StoryPickerView(
+                session_row=row,
+                invoker_id=inter.user.id,
+                story_ids=story_ids,
+            )
+            await inter.response.send_message(
+                embed=render_info(
+                    "Pick a story",
+                    f"{len(story_ids)} available — pick one from the dropdown. "
+                    "The briefing will post publicly once loaded.",
+                ),
+                view=view,
+                ephemeral=True,
+            )
+            return
+
+        if story_id not in story_ids:
+            await inter.response.send_message(
+                f"Unknown story `{story_id}`. Try `/story list`.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True)
+        await _execute_story_start(inter, row, story_id)
+
+    # ---- /story resume ------------------------------------------------------
+
+    # /story resume and /story end are gone; see /session resume and
+    # /session end below.
 
     # ---- /story info --------------------------------------------------------
 
@@ -500,18 +648,20 @@ def register(
         )
         start = time.monotonic()
 
-        # DM the invoker when the background preservation analysis
+        # Notify the invoker when the background preservation analysis
         # finishes so they don't have to poll the file to know it's
-        # done. Closures capture `inter.user` + story_id by reference,
-        # which is fine — the task fires with whatever those refs point
-        # at the moment analysis completes.
+        # done. Posted as an ephemeral followup on the original import
+        # interaction — the 15-minute followup window covers typical
+        # analysis latency. Closures capture `inter` + story_id by
+        # reference; Discord keeps the webhook alive for the window.
         async def _notify(analysis, err):
             try:
                 if err is not None:
-                    await inter.user.send(
+                    await inter.followup.send(
                         f"Preservation analysis for `{story_id}` failed: "
                         f"`{type(err).__name__}: {err}` — the import itself "
-                        f"succeeded, only the coverage audit is missing."
+                        f"succeeded, only the coverage audit is missing.",
+                        ephemeral=True,
                     )
                     return
                 if analysis is None:
@@ -523,14 +673,9 @@ def register(
                     f"{len(analysis.compressed_topics)} compressed. "
                     f"Run `/story info {story_id}` for the full picture."
                 )
-                await inter.user.send(summary)
-            except discord.Forbidden:
-                logger.warning(
-                    "Could not DM %s about analysis completion (server DMs off)",
-                    inter.user.display_name,
-                )
+                await inter.followup.send(summary, ephemeral=True)
             except Exception:
-                logger.exception("analysis-complete DM failed")
+                logger.exception("analysis-complete notify failed")
 
         try:
             ckpt = await engine.import_story(
@@ -562,75 +707,151 @@ def register(
             f"Imported **{story_id}** in {int(elapsed)}s — "
             f"{len(ckpt.characters)} characters, "
             f"{len(ckpt.world_state.locations.scene_graph)} scenes. "
-            f"Start a session with `/story start {story_id} \"<Your Name>\"`."
+            f"Start with `/session start name:<save>` then `/story start story_id:{story_id}`."
         )
         await inter.followup.send(content=intro)
 
-    # ---- /story delete (admin-gated) ---------------------------------------
+    # ---- /story delete -----------------------------------------------------
 
     @story_group.command(
         name="delete",
-        description="Delete a story and all sessions derived from it. Admin-only.",
+        description="Unload the current story from this session, leaving it empty.",
     )
-    @app_commands.describe(story_id="The story ID to delete.")
-    async def _delete(inter: discord.Interaction, story_id: str):
-        if not _is_admin(inter.user.id):
+    async def _story_delete(inter: discord.Interaction):
+        row = await smap.get(inter.channel_id)
+        if row is None:
             await inter.response.send_message(
-                "Only admins can delete stories. Set `DISCORD_ADMIN_USER_IDS` "
-                "in the bot's env to grant access.",
-                ephemeral=True,
-            )
-            return
-        story_id = story_id.strip()
-        if story_id not in engine.list_story_ids():
-            await inter.response.send_message(
-                f"Unknown story `{story_id}`.", ephemeral=True,
+                "No session here.", ephemeral=True,
             )
             return
         try:
-            sessions_removed, files_removed = engine.delete_story(story_id)
+            removed = engine.unload_story_from_session(row.session_id)
+        except FileNotFoundError as e:
+            await inter.response.send_message(str(e), ephemeral=True)
+            return
         except Exception as e:
-            logger.exception("delete_story failed")
+            logger.exception("unload_story_from_session failed")
             await inter.response.send_message(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-
-        # Any channel-mapping rows pointing at derived sessions become stale;
-        # since session_id patterns are deterministic, just leave them — a
-        # future /story start or /story resume on those channels will error
-        # cleanly with "no checkpoint found" and the user can /story end them.
+        # Drop story_id from the channel mapping but KEEP the binding —
+        # the user can /story start a different story without /session
+        # end/start. Character bindings and CLI claims reset because
+        # the checkpoint state is gone.
+        await smap.upsert(
+            channel_id=inter.channel_id,
+            guild_id=inter.guild_id,
+            session_id=row.session_id,
+            owner_user_id=row.owner_user_id,
+            story_id="",
+        )
         await inter.response.send_message(
-            f"Deleted `{story_id}` and {sessions_removed} derived session dir(s) "
-            f"({files_removed} files).",
+            f"Unloaded story from `{row.session_id}` ({removed} files removed). "
+            f"Run `/story start story_id:<id>` to load a new one.",
             ephemeral=True,
         )
 
     # ---- /join --------------------------------------------------------------
 
-    @tree.command(
-        name="join",
-        description="Claim an unbound character so you can /act as them.",
-        guild=guild,
-    )
-    @app_commands.describe(
-        character_id="The character_id to claim (see /story characters).",
-    )
-    async def _join(inter: discord.Interaction, character_id: str):
-        row = await smap.get(inter.channel_id)
-        if row is None:
-            await inter.response.send_message(
-                "No session here. `/story start` first.", ephemeral=True,
+    async def _join_custom_describe_submit(
+        submit_inter: discord.Interaction,
+        session_id: str,
+        description: str,
+    ) -> None:
+        """Shared post-submit path for the custom-describe modal fired from
+        /join with no args. Defers ephemeral, spawns a custom character via
+        the engine, and sends the dossier + prompt to /describe."""
+        await submit_inter.response.defer(thinking=True, ephemeral=True)
+        try:
+            new_char = await engine.create_custom_character(
+                session_id, submit_inter.user.id, description,
+            )
+        except ValueError as e:
+            await submit_inter.followup.send(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("modal create_custom_character failed")
+            await submit_inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
             )
             return
 
+        try:
+            dossier = engine.build_character_dossier(
+                session_id, new_char.character_id,
+            )
+        except Exception as e:
+            logger.exception("build_character_dossier failed")
+            dossier = f"(dossier unavailable: `{e}`)"
+
+        msg = (
+            f"You are now **{new_char.name}** (`{new_char.character_id}`). "
+            "Run `/describe` with a name and appearance to set how the "
+            "world sees you, then `/act` to play. Dossier below."
+        )
+        await submit_inter.followup.send(
+            embed=render_info("Joined", msg), ephemeral=True,
+        )
+        await _send_private(submit_inter, dossier)
+
+    class _JoinCustomModal(discord.ui.Modal, title="Create a custom character"):
+        description = discord.ui.TextInput(
+            label="Character concept",
+            style=discord.TextStyle.paragraph,
+            placeholder="Role, background, vibe — freeform.",
+            max_length=1000,
+            required=True,
+        )
+
+        def __init__(self, session_id: str):
+            super().__init__()
+            self._session_id = session_id
+
+        async def on_submit(self, modal_inter: discord.Interaction):
+            desc = (self.description.value or "").strip()
+            if not desc:
+                await modal_inter.response.send_message(
+                    "Description cannot be empty.", ephemeral=True,
+                )
+                return
+            await _join_custom_describe_submit(
+                modal_inter, self._session_id, desc,
+            )
+
+    @tree.command(
+        name="join",
+        description="Claim a character, or open a custom-character prompt if no id is given.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        character_id="Optional character_id (see /story characters). Omit to create a custom character.",
+    )
+    async def _join(inter: discord.Interaction, character_id: str = ""):
+        row = await smap.get(inter.channel_id)
+        if row is None:
+            await inter.response.send_message(
+                "No session here. `/session start` then `/story start` first.", ephemeral=True,
+            )
+            return
+
+        character_id = (character_id or "").strip()
+        if not character_id:
+            # No id → open the custom-describe modal (shortcut for
+            # /join_custom mode:describe). Modal must be the direct
+            # response — cannot be shown after defer.
+            await inter.response.send_modal(_JoinCustomModal(row.session_id))
+            return
+
         # Defer up front — binding + dossier-building both do checkpoint
-        # I/O plus a chunked DM, any of which could blow past the 3s
-        # interaction window on a large checkpoint or a slow network.
+        # I/O plus a chunked ephemeral send, any of which could blow past
+        # the 3s interaction window on a large checkpoint or a slow network.
         await inter.response.defer(thinking=True, ephemeral=True)
 
-        character_id = character_id.strip()
         try:
             ckpt = engine.takeover(row.session_id, character_id, inter.user.id)
         except ValueError as e:
@@ -649,7 +870,6 @@ def register(
         )
         char_name = char.name if char else character_id
 
-        # Build dossier. Send as DM; if DM fails, tell them in-channel.
         try:
             dossier = engine.build_character_dossier(
                 row.session_id, character_id
@@ -658,20 +878,9 @@ def register(
             logger.exception("build_character_dossier failed")
             dossier = f"(dossier unavailable: `{e}`)"
 
-        dm_ok = True
-        try:
-            # Discord DMs cap at 2000 chars per message; chunk the dossier.
-            for chunk in _chunks(dossier, 1900):
-                await inter.user.send(chunk)
-        except discord.Forbidden:
-            dm_ok = False
-        except Exception:
-            logger.exception("DM send failed")
-            dm_ok = False
-
         logger.info(
-            "Bound %s to %s in %s (DM ok=%s)",
-            inter.user.display_name, character_id, row.session_id, dm_ok,
+            "Bound %s to %s in %s",
+            inter.user.display_name, character_id, row.session_id,
         )
 
         lines = [f"You are now playing **{char_name}** (`{character_id}`)."]
@@ -681,18 +890,12 @@ def register(
                 "in the fiction and can't `/act` until the story brings them "
                 "back. Your binding is saved and you'll be ready when they return."
             )
-        if dm_ok:
-            lines.append("I DM'd you your private dossier — read it before you /act.")
-        else:
-            lines.append(
-                "⚠️ I couldn't DM your dossier (server DMs disabled). "
-                "Enable DMs from this server and run `/join` again to receive it."
-            )
-        lines.append("Use `/describe` to set your appearance, then `/act` to play.")
+        lines.append("Your private dossier is below. Read it, then `/describe` to set your appearance and `/act` to play.")
         await inter.followup.send(
             embed=render_info("Joined", "\n".join(lines)),
             ephemeral=True,
         )
+        await _send_private(inter, dossier)
 
     # ---- /leave -------------------------------------------------------------
 
@@ -755,7 +958,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No session here. `/story start` first.", ephemeral=True,
+                "No session here. `/session start` then `/story start` first.", ephemeral=True,
             )
             return
 
@@ -787,27 +990,23 @@ def register(
                 )
                 return
 
-            dm_ok = True
             try:
                 dossier = engine.build_character_dossier(
                     row.session_id, new_char.character_id,
                 )
-                for chunk in _chunks(dossier, 1900):
-                    await inter.user.send(chunk)
-            except discord.Forbidden:
-                dm_ok = False
-            except Exception:
-                logger.exception("dossier DM failed")
-                dm_ok = False
+            except Exception as e:
+                logger.exception("build_character_dossier failed")
+                dossier = f"(dossier unavailable: `{e}`)"
 
             msg = (
                 f"You are now **{new_char.name}** (`{new_char.character_id}`). "
-                + ("Dossier DM'd." if dm_ok
-                   else "⚠️ Couldn't DM dossier (server DMs disabled).")
+                "Run `/describe` with a name and appearance when you're ready. "
+                "Dossier below."
             )
             await inter.followup.send(
                 embed=render_info("Joined", msg), ephemeral=True,
             )
+            await _send_private(inter, dossier)
             return
 
         # mode == "replace"
@@ -881,7 +1080,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No session here. `/story start` first.", ephemeral=True,
+                "No session here. `/session start` then `/story start` first.", ephemeral=True,
             )
             return
 
@@ -915,34 +1114,28 @@ def register(
             )
             return
 
-        dm_ok = True
         try:
             dossier = engine.build_character_dossier(
                 row.session_id, new_char.character_id,
             )
-            for chunk in _chunks(dossier, 1900):
-                await inter.user.send(chunk)
-        except discord.Forbidden:
-            dm_ok = False
-        except Exception:
-            logger.exception("dossier DM failed")
-            dm_ok = False
+        except Exception as e:
+            logger.exception("build_character_dossier failed")
+            dossier = f"(dossier unavailable: `{e}`)"
 
         msg = (
             f"You are now **{new_char.name}** "
-            f"(replaced `{character_id}`). "
-            + ("Dossier DM'd." if dm_ok
-               else "⚠️ Couldn't DM dossier (server DMs disabled).")
+            f"(replaced `{character_id}`). Dossier below."
         )
         await inter.followup.send(
             embed=render_info("Joined", msg), ephemeral=True,
         )
+        await _send_private(inter, dossier)
 
     # ---- /character ---------------------------------------------------------
 
     @tree.command(
         name="character",
-        description="DM the dossier for a character in this channel's story.",
+        description="Show the private dossier for a character in this channel's story.",
         guild=guild,
     )
     @app_commands.describe(
@@ -952,7 +1145,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No session here. `/story start` first.", ephemeral=True,
+                "No session here. `/session start` then `/story start` first.", ephemeral=True,
             )
             return
 
@@ -976,28 +1169,7 @@ def register(
             )
             return
 
-        dm_ok = True
-        try:
-            for chunk in _chunks(dossier, 1900):
-                await inter.user.send(chunk)
-        except discord.Forbidden:
-            dm_ok = False
-        except Exception:
-            logger.exception("dossier DM failed")
-            dm_ok = False
-
-        if dm_ok:
-            await inter.followup.send(
-                f"Dossier for `{character_id}` DM'd.", ephemeral=True,
-            )
-        else:
-            await inter.followup.send(
-                embed=render_error(
-                    "Couldn't DM the dossier (server DMs disabled). "
-                    "Enable DMs from this server and try again."
-                ),
-                ephemeral=True,
-            )
+        await _send_private(inter, dossier)
 
     # ---- /describe ----------------------------------------------------------
 
@@ -1018,7 +1190,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No story here yet. Try `/story start <id>`.",
+                "No session here. Run `/session start` then `/story start`.",
                 ephemeral=True,
             )
             return
@@ -1141,7 +1313,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No story here yet. Try `/story start <id>`.",
+                "No session here. Run `/session start` then `/story start`.",
                 ephemeral=True,
             )
             return
@@ -1221,8 +1393,8 @@ def register(
             await smap.delete(inter.channel_id)
             await inter.response.send_message(
                 f"Session `{row.session_id}` had no checkpoint on disk; "
-                f"the channel mapping has been purged. Run `/story start` "
-                f"to begin fresh.",
+                f"the channel mapping has been purged. Run `/session start` "
+                f"then `/story start` to begin fresh.",
                 ephemeral=True,
             )
             return
@@ -1348,7 +1520,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No session here. Run `/story start` first.", ephemeral=True,
+                "No session here. Run `/session start` first.", ephemeral=True,
             )
             return
         try:
@@ -1396,7 +1568,7 @@ def register(
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No session here. Run `/story start` first.", ephemeral=True,
+                "No session here. Run `/session start` first.", ephemeral=True,
             )
             return
         try:
@@ -1431,8 +1603,10 @@ def register(
     # Attach the /story and /settings groups to the tree last, once
     # their subcommands are defined.
     if guild is not None:
+        tree.add_command(session_group, guild=guild)
         tree.add_command(story_group, guild=guild)
         tree.add_command(settings_group, guild=guild)
     else:
+        tree.add_command(session_group)
         tree.add_command(story_group)
         tree.add_command(settings_group)

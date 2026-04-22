@@ -9,23 +9,34 @@ which exercises the full binding code path and lets you playtest multi-
 character scenes without needing two Discord accounts.
 
 Usage:
-    .venv/bin/python scripts/play.py --story <story_id>
-    .venv/bin/python scripts/play.py --story <story_id> --session <session_id>
-    .venv/bin/python scripts/play.py --story <story_id> --name "Aldric"
-    .venv/bin/python scripts/play.py --session <session_id>    # resume only
+    .venv/bin/python scripts/play.py --session <name>
+
+A named `session` is a persistent save; `story` content is loaded into it.
+If the session doesn't exist yet it's created empty — use `/story list`
+then `/story start <id>` from inside the REPL to load content.
 
 Commands inside the REPL:
     /help                       Show commands
-    /characters                 List roster with status and bindings
+    /story list                 List available stories
+    /story start <id>           Load a story into this session
+    /story info <id>            Show briefing for a story
+    /story delete               Unload the current story (leaves session empty)
+    /session list               List existing sessions
+    /session end                Exit the REPL (save files stay on disk)
+    /characters                 List roster grouped by location/status
+    /character <id>             Full dossier for one character
     /join <character_id>        Claim a character; prints their dossier
+    /join_custom [mode]         Play a custom character (describe/replace)
     /leave [character_id]       Release a claim (default: current actor)
     /as <character_id>          Switch which claimed character acts next
-    /describe <traits>          Set appearance of the current actor
+    /describe                   Set name + appearance of the current actor
+    /settings                   Show / update experimental settings
     /status                     Session summary
+    /history [N]                Print all turns, or last N
     /quit                       Exit (Ctrl-D also works)
 
-Anything else is an in-character action for the current actor. Use "(begin)"
-to open the scene per the author's opening directive.
+Anything not starting with '/' is an in-character action for the current
+actor. Use "(begin)" to open the scene per the author's opening directive.
 """
 
 from __future__ import annotations
@@ -50,13 +61,19 @@ logger = logging.getLogger(__name__)
 HELP_TEXT = """\
 Commands:
   /help                             Show this help
+  /story list                       List available stories
+  /story start <id>                 Load a story into this session
+  /story info <id>                  Show briefing for a story
+  /story delete                     Unload the current story from this session
+  /session list                     List existing sessions
+  /session end                      Exit the REPL (files stay)
   /characters                       List roster grouped by location/status
   /character <id>                   Full dossier for a character
   /join <character_id>              Claim a character; prints their dossier
   /join_custom [describe|replace]   Play a character of your own description
   /leave [character_id]             Release a claim (default: current actor)
   /as <character_id>                Switch which claimed character acts next
-  /describe <traits>                Set appearance of the current actor
+  /describe                         Set name + appearance of the current actor
   /settings                         Show experimental settings for this session
   /settings <key>                   Show one setting's current value
   /settings <key> <value>           Update a setting
@@ -68,12 +85,23 @@ Plain text is an in-character action for the current actor. Use "(begin)"
 to open the scene from the author's opening directive."""
 
 
+def _has_story_loaded(engine: EngineBridge, session_id: str) -> bool:
+    """True iff the session dir has at least one checkpoint on disk."""
+    try:
+        engine.load_latest(session_id)
+        return True
+    except FileNotFoundError:
+        return False
+
+
 class CLIState:
     """Per-session state for the interactive REPL.
 
     Kept separate from the I/O loop so unit tests can drive command handlers
     directly without stdin/stdout. All engine mutation goes through
     EngineBridge, which is the same path the Discord bot uses.
+
+    `story_id` is "" when the session is empty (no story loaded yet).
     """
 
     def __init__(self, engine: EngineBridge, session_id: str, story_id: str):
@@ -88,7 +116,8 @@ class CLIState:
         self._next_user_id = 1
         self.running = True
 
-        self._load_existing_claims()
+        if self.story_id:
+            self._load_existing_claims()
 
     def _load_existing_claims(self) -> None:
         """Adopt any bindings already on disk as CLI claims so /as works on
@@ -127,12 +156,144 @@ class CLIState:
         else:
             await self._act(line)
 
+    # ---- guards --------------------------------------------------------------
+
+    def _require_story(self) -> bool:
+        """Print a helpful message + return False if no story is loaded."""
+        if self.story_id:
+            return True
+        print("no story loaded — /story list then /story start <id>")
+        return False
+
     # ---- commands ------------------------------------------------------------
 
     def cmd_help(self, arg: str) -> None:
         print(HELP_TEXT)
 
+    # ---- story subcommands ---------------------------------------------------
+
+    def cmd_story(self, arg: str) -> None | object:
+        """Dispatcher for `/story <sub>` — forwards to cmd_story_<sub>."""
+        parts = arg.split(maxsplit=1) if arg.strip() else []
+        if not parts:
+            print("usage: /story [list|start|info|delete] ...")
+            return
+        sub = parts[0].lower()
+        rest = parts[1] if len(parts) > 1 else ""
+        handler = getattr(self, f"cmd_story_{sub}", None)
+        if handler is None:
+            print(f"unknown story subcommand: {sub}")
+            return
+        return handler(rest)
+
+    def cmd_story_list(self, arg: str) -> None:
+        ids = self.engine.list_story_ids()
+        if not ids:
+            print("no stories imported — run scripts/import_story.py first")
+            return
+        for sid in ids:
+            print(f"  {sid}")
+
+    def cmd_story_info(self, arg: str) -> None:
+        story_id = arg.strip()
+        if not story_id:
+            print("usage: /story info <story_id>")
+            return
+        if story_id not in self.engine.list_story_ids():
+            print(f"unknown story: {story_id}")
+            return
+        try:
+            ckpt = self.engine.load_story_ckpt(story_id)
+        except Exception as e:
+            print(f"error: {e}")
+            return
+        setting = ckpt.world_state.setting
+        print()
+        print(f"# {story_id}")
+        print(f"Genre: {setting.genre}")
+        print(f"Tone: {setting.tone}")
+        print(f"Premise: {setting.premise}")
+        print(f"Characters: {len(ckpt.characters)}")
+        print(f"Scenes: {len(ckpt.world_state.locations.scene_graph)}")
+        print()
+
+    def cmd_story_start(self, arg: str) -> None:
+        story_id = arg.strip()
+        if not story_id:
+            print("usage: /story start <story_id>")
+            return
+        if self.story_id:
+            print(
+                f"session already has story `{self.story_id}` loaded. "
+                f"/story delete first."
+            )
+            return
+        if story_id not in self.engine.list_story_ids():
+            print(f"unknown story: {story_id}")
+            return
+        try:
+            self.engine.load_story_into_session(self.session_id, story_id)
+        except (FileNotFoundError, FileExistsError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("load_story_into_session failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        self.story_id = story_id
+        self.claims = {}
+        self.current_actor = None
+        self._load_existing_claims()
+        print(f"loaded story `{story_id}` into session `{self.session_id}`")
+        print("run /characters then /join <character_id> to claim one")
+
+    def cmd_story_delete(self, arg: str) -> None:
+        if not self.story_id:
+            print("no story loaded")
+            return
+        try:
+            removed = self.engine.unload_story_from_session(self.session_id)
+        except FileNotFoundError as e:
+            print(f"error: {e}")
+            return
+        self.story_id = ""
+        self.claims = {}
+        self.current_actor = None
+        print(f"unloaded story from `{self.session_id}` ({removed} files removed)")
+
+    # ---- session subcommands -------------------------------------------------
+
+    def cmd_session(self, arg: str) -> None:
+        parts = arg.split(maxsplit=1) if arg.strip() else []
+        if not parts:
+            print("usage: /session [list|end]")
+            return
+        sub = parts[0].lower()
+        rest = parts[1] if len(parts) > 1 else ""
+        handler = getattr(self, f"cmd_session_{sub}", None)
+        if handler is None:
+            print(f"unknown session subcommand: {sub}")
+            return
+        handler(rest)
+
+    def cmd_session_list(self, arg: str) -> None:
+        ids = self.engine.list_session_ids()
+        if not ids:
+            print("no sessions yet")
+            return
+        for sid in ids:
+            marker = "  ← current" if sid == self.session_id else ""
+            print(f"  {sid}{marker}")
+
+    def cmd_session_end(self, arg: str) -> None:
+        print(f"detached from `{self.session_id}` (files kept on disk)")
+        self.running = False
+
+    # ---- gameplay commands ---------------------------------------------------
+
     def cmd_characters(self, arg: str) -> None:
+        if not self._require_story():
+            return
         ckpt = self.engine.load_latest(self.session_id)
         scene_id = ckpt.world_state.locations.current_scene_id
         claimed_ids = set(self.claims)
@@ -200,6 +361,8 @@ class CLIState:
             print("  (none)")
 
     def cmd_character(self, arg: str) -> None:
+        if not self._require_story():
+            return
         char_id = arg.strip()
         if not char_id:
             print("usage: /character <id>")
@@ -219,12 +382,15 @@ class CLIState:
         print()
 
     def cmd_status(self, arg: str) -> None:
+        print(f"session: {self.session_id}")
+        if not self.story_id:
+            print("story: (none loaded) — /story list then /story start <id>")
+            return
         ckpt = self.engine.load_latest(self.session_id)
         scene_id = ckpt.world_state.locations.current_scene_id
         scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
         scene_name = scene.get("name", scene_id) if isinstance(scene, dict) else scene_id
         print(f"story: {self.story_id}")
-        print(f"session: {self.session_id}")
         print(f"turn: {ckpt.session.turn_index}")
         print(f"scene: {scene_name} ({scene_id})")
         if not self.claims:
@@ -236,6 +402,8 @@ class CLIState:
             print(f"  - {char_id} (uid {uid}){marker}")
 
     def cmd_join(self, arg: str) -> None:
+        if not self._require_story():
+            return
         char_id = arg.strip()
         if not char_id:
             print("usage: /join <character_id>")
@@ -269,6 +437,8 @@ class CLIState:
             print(f"claimed {char_id}. /as {char_id} to switch.")
 
     async def cmd_join_custom(self, arg: str) -> None:
+        if not self._require_story():
+            return
         loop = asyncio.get_event_loop()
 
         async def _prompt(label: str) -> str | None:
@@ -420,6 +590,8 @@ class CLIState:
             )
 
     async def cmd_leave(self, arg: str) -> None:
+        if not self._require_story():
+            return
         target = arg.strip() or self.current_actor
         if target is None:
             print("no character to leave")
@@ -462,6 +634,8 @@ class CLIState:
         Both are optional per-prompt — leave blank to keep the existing
         value. Trailing arg is ignored; this command is always
         interactive."""
+        if not self._require_story():
+            return
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
@@ -501,6 +675,8 @@ class CLIState:
         /settings <key>           → show one value
         /settings <key> <value>   → set (value may be multi-word)
         """
+        if not self._require_story():
+            return
         parts = arg.split(maxsplit=1) if arg.strip() else []
 
         if not parts:
@@ -543,6 +719,8 @@ class CLIState:
     def cmd_history(self, arg: str) -> None:
         """Print the transcript. With no arg, emits every turn; with an
         integer N, emits the last N turns."""
+        if not self._require_story():
+            return
         ckpt = self.engine.load_latest(self.session_id)
         transcript = ckpt.transcript
         if not transcript:
@@ -579,6 +757,8 @@ class CLIState:
     # ---- action pipeline -----------------------------------------------------
 
     async def _act(self, text: str) -> None:
+        if not self._require_story():
+            return
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
@@ -602,30 +782,6 @@ class CLIState:
 # ---- bootstrap --------------------------------------------------------------
 
 
-async def _ensure_session(
-    engine: EngineBridge,
-    story_id: str,
-    session_id: str,
-    player_name: str,
-) -> None:
-    """Resume an existing CLI session if present, otherwise create a new one
-    with the caller as creator (synthetic uid 1)."""
-    try:
-        engine.load_latest(session_id)
-        print(f"resumed session `{session_id}`")
-        return
-    except FileNotFoundError:
-        pass
-    print(f"creating new session `{session_id}` for story `{story_id}`…")
-    await engine.create_session(
-        story_id=story_id,
-        session_id=session_id,
-        player_display_name=player_name,
-        creator_user_id=1,
-    )
-    print("session ready — /characters to see the roster")
-
-
 async def main_async(args: argparse.Namespace) -> int:
     level = logging.INFO if args.verbose else logging.WARNING
     logging.basicConfig(
@@ -637,51 +793,38 @@ async def main_async(args: argparse.Namespace) -> int:
     engine = EngineBridge()
 
     session_id: str | None = args.session
-    story_id: str | None = args.story
 
-    # Resume path: if the named session is already on disk, derive story_id
-    # from its checkpoint so the caller can omit --story on resume.
-    resumed = False
-    if session_id:
-        try:
-            ckpt = engine.load_latest(session_id)
-            resumed = True
-            existing = ckpt.session.story_id
-            if story_id and existing and existing != story_id:
-                print(
-                    f"session `{session_id}` belongs to story `{existing}`, "
-                    f"not `{story_id}`",
-                    file=sys.stderr,
-                )
-                await engine.close()
-                return 2
-            story_id = story_id or existing
-        except FileNotFoundError:
-            pass
-
-    if not resumed:
-        if not story_id:
-            print(
-                "--story is required when starting a new session "
-                "(pass --session <existing> to resume)",
-                file=sys.stderr,
-            )
-            await engine.close()
-            return 2
-        if story_id not in engine.list_story_ids():
-            print(
-                f"unknown story `{story_id}`. Available: "
-                f"{', '.join(engine.list_story_ids()) or '(none)'}",
-                file=sys.stderr,
-            )
-            await engine.close()
-            return 2
-
-    session_id = session_id or f"cli_{story_id}"
-    player_name = args.name or "Player"
+    # TODO: interactive menu when --session isn't provided. For now
+    # we require the flag so the script stays scriptable.
+    if not session_id:
+        print(
+            "--session <name> is required. Pick an existing save or a new "
+            f"name.\nExisting sessions: "
+            f"{', '.join(engine.list_session_ids()) or '(none)'}",
+            file=sys.stderr,
+        )
+        await engine.close()
+        return 2
 
     try:
-        await _ensure_session(engine, story_id, session_id, player_name)
+        # Resolve story_id from the latest checkpoint if the session already
+        # has one loaded; otherwise create an empty session to write into.
+        story_id = ""
+        try:
+            ckpt = engine.load_latest(session_id)
+            story_id = ckpt.session.story_id or ""
+            print(f"resumed session `{session_id}`" + (
+                f" · story `{story_id}`" if story_id else " (no story loaded)"
+            ))
+        except FileNotFoundError:
+            try:
+                engine.create_empty_session(session_id)
+            except FileExistsError as e:
+                print(f"error: {e}", file=sys.stderr)
+                await engine.close()
+                return 2
+            print(f"created session `{session_id}` (empty — /story start to load content)")
+
         state = CLIState(engine, session_id, story_id)
 
         print()
@@ -718,18 +861,9 @@ def main() -> None:
         description="Interactive CLI frontend for the narrative engine.",
     )
     parser.add_argument(
-        "--story",
-        help="Story ID (directory under app/storage/saves). "
-             "Required for new sessions; omit when resuming via --session.",
-    )
-    parser.add_argument(
         "--session",
-        help="Session ID. Defaults to cli_<story_id>. "
-             "If the session already exists on disk, --story can be omitted.",
-    )
-    parser.add_argument(
-        "--name", default=None,
-        help="Player display name substituted for PLAYER_NAME on a new session.",
+        help="Session name (directory under sessions/). Created empty if "
+             "new, resumed if existing.",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
