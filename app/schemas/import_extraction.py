@@ -9,27 +9,45 @@ because:
   CharacterRecord (yet).
 - Pydantic V2 schemas generated here flow directly into the Anthropic
   `output_format` path, which enforces JSON validity server-side.
+
+## Schema-shape policy: no Pydantic defaults
+
+Every field is REQUIRED (no `default=`, no `default_factory=`). Anthropic's
+structured-output grammar compiler treats default-bearing fields as
+optionals, and the optional permutations explode for deeply-nested schemas
+— a 95 KB master prompt failed import with `Grammar compilation timed out.
+(400)` after the compiler choked on the WorldExtraction → LocationsExtraction
+→ SceneExtraction tree with optionals at every layer. Making everything
+required collapses the search space; the LLM emits explicit `""` / `[]` /
+`false` for empty content, which downstream `_build_*` helpers handle the
+same way they handled the old defaults.
+
+Pre-r7b this file had defaults on most fields and only `CombinedImportExtraction`
+(the v3 collapsed pass) was annotated as needing required-only — but the v4
+two-call pipeline still hit the timeout because `CoreImportExtraction` wraps
+WorldExtraction/CharacterListExtraction/OpeningExtraction whose nested types
+still carried defaults. Stripping them here fixes both pipelines.
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 # ---------------- World extraction ----------------
 
 class SettingExtraction(BaseModel):
-    genre: str = ""
-    era: str = ""
-    tone: str = ""
-    premise: str = ""
+    genre: str
+    era: str
+    tone: str
+    premise: str
 
 
 class PhysicsRulesetExtraction(BaseModel):
-    strength_limits: str = "human_baseline"
-    magic_enabled: bool = False
+    strength_limits: str
+    magic_enabled: bool
 
 
 class SceneExtraction(BaseModel):
@@ -38,28 +56,29 @@ class SceneExtraction(BaseModel):
     # additionalProperties: $ref which the API's validator strips. Converted
     # to a dict at checkpoint-build time.
     scene_id: str
-    name: str = ""
-    description: str = ""
-    connected_to: list[str] = Field(default_factory=list)
+    name: str
+    description: str
+    connected_to: list[str]
 
 
 class LocationsExtraction(BaseModel):
-    current_scene_id: str = ""
-    scene_graph: list[SceneExtraction] = Field(default_factory=list)
+    current_scene_id: str
+    scene_graph: list[SceneExtraction]
 
 
 class WorldExtraction(BaseModel):
-    setting: SettingExtraction = Field(default_factory=SettingExtraction)
-    lore: str = ""
-    facts: list[str] = Field(default_factory=list)
-    physics_ruleset: PhysicsRulesetExtraction = Field(default_factory=PhysicsRulesetExtraction)
-    locations: LocationsExtraction = Field(default_factory=LocationsExtraction)
-    narrative_rules: str = ""
+    setting: SettingExtraction
+    lore: str
+    facts: list[str]
+    physics_ruleset: PhysicsRulesetExtraction
+    locations: LocationsExtraction
+    narrative_rules: str
     # Spoiler / conspiracy / hidden-plot content. ADJUDICATION ONLY — never
     # reaches the player-facing narrator output. Extracted from the master
-    # prompt when the source contains hidden lore or plot details.
-    hidden_lore: str = ""
-    hidden_facts: list[str] = Field(default_factory=list)
+    # prompt when the source contains hidden lore or plot details. LLM
+    # emits "" / [] when the source has none.
+    hidden_lore: str
+    hidden_facts: list[str]
 
 
 # ---------------- Character extraction ----------------
@@ -68,46 +87,46 @@ class PublicSheetExtraction(BaseModel):
     # traits and voice absorbed into CharacterExtraction.personality;
     # importer now emits one prose block covering both (plus portrayal
     # notes) rather than separate fields.
-    role: str = ""
-    appearance: str = ""
-    faction: str = ""
+    role: str
+    appearance: str
+    faction: str
 
 
 class PrivateStateExtraction(BaseModel):
     # Existential drives — who they are at core. Stable across the story.
-    goals: list[str] = Field(default_factory=list)
+    goals: list[str]
     # Active, actionable pursuits — what they are trying to DO right now,
     # with a target and a time horizon. Seeded by the importer; the
     # character agent revises these at runtime via its output.
-    current_objectives: list[str] = Field(default_factory=list)
-    secrets: list[str] = Field(default_factory=list)
+    current_objectives: list[str]
+    secrets: list[str]
     # Marks this character as significant enough to warrant off-stage ticks
     # — they'll pursue their objectives while the player isn't watching.
     # Set true for antagonists, rivals, faction leaders; false for
     # background/incidental characters.
-    intentions_enabled: bool = False
+    intentions_enabled: bool
 
 
 class CharacterExtraction(BaseModel):
     character_id: str
     name: str
-    status: Literal["active", "dormant"] = "active"
-    location: str = ""
+    status: Literal["active", "dormant"]
+    location: str
     # When True, this character is a human-player slot the personalize flow
     # binds a Discord user to. Master prompts mark the protagonist(s) via this.
-    is_player: bool = False
-    public_sheet: PublicSheetExtraction = Field(default_factory=PublicSheetExtraction)
-    private_state: PrivateStateExtraction = Field(default_factory=PrivateStateExtraction)
-    backstory: str = ""
+    is_player: bool
+    public_sheet: PublicSheetExtraction
+    private_state: PrivateStateExtraction
+    backstory: str
     # personality absorbs narrative_notes (portrayal direction) and the
     # legacy public_sheet traits/voice fields; one prose block per
     # character.
-    personality: str = ""
+    personality: str
 
 
 class CharacterListExtraction(BaseModel):
     """Wrapper so the extraction returns a JSON object (required by output_format)."""
-    characters: list[CharacterExtraction] = Field(default_factory=list)
+    characters: list[CharacterExtraction]
 
 
 # ---------------- Character knowledge envelope ----------------
@@ -122,11 +141,11 @@ class CharacterKnowledgeEnvelope(BaseModel):
     conveys what this character takes for granted.
     """
     character_id: str
-    known_context: str = ""
+    known_context: str
 
 
 class CharacterKnowledgeListExtraction(BaseModel):
-    envelopes: list[CharacterKnowledgeEnvelope] = Field(default_factory=list)
+    envelopes: list[CharacterKnowledgeEnvelope]
 
 
 # ---------------- Opening extraction ----------------
@@ -135,4 +154,4 @@ class OpeningExtraction(BaseModel):
     """The opening scene prose the narrator renders on first turn. Stored as
     authorial guidance; the runtime narrator re-renders it in-scene per the
     rolling-conversation architecture."""
-    text: str = ""
+    text: str

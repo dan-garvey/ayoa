@@ -27,20 +27,31 @@ from app.schemas.import_extraction import (
 )
 
 
+from app.schemas.import_extraction import PhysicsRulesetExtraction
+
+
 def _world() -> WorldExtraction:
     return WorldExtraction(
         setting=SettingExtraction(
             genre="political intrigue",
+            era="",
             tone="tense",
             premise="Full authorial premise including the Aetheri conspiracy.",
         ),
         lore="Public lore describing the known world.",
         facts=["The borders are closed.", "The Athenaeum is sealed."],
+        physics_ruleset=PhysicsRulesetExtraction(
+            strength_limits="human_baseline", magic_enabled=False,
+        ),
+        narrative_rules="",
         hidden_lore="The Aetheri were deliberately erased.",
         hidden_facts=["Regent knows the truth.", "Nessa is a Keeper operative."],
         locations=LocationsExtraction(
             current_scene_id="hall",
-            scene_graph=[SceneExtraction(scene_id="hall", name="Hall")],
+            scene_graph=[SceneExtraction(
+                scene_id="hall", name="Hall",
+                description="", connected_to=[],
+            )],
         ),
     )
 
@@ -50,24 +61,38 @@ def _roster() -> CharacterListExtraction:
         CharacterExtraction(
             character_id="regent",
             name="Emeric Hale",
+            status="active",
+            location="",
             is_player=False,
-            public_sheet=PublicSheetExtraction(role="Regent"),
+            public_sheet=PublicSheetExtraction(
+                role="Regent", appearance="", faction="",
+            ),
             private_state=PrivateStateExtraction(
                 goals=["preserve Mirenza"],
+                current_objectives=[],
                 secrets=["knows the Aetheri truth"],
                 intentions_enabled=True,
             ),
             backstory="Twenty-five years governing the sealed state.",
+            personality="",
         ),
         CharacterExtraction(
             character_id="lira",
             name="Lira Fontaine",
+            status="active",
+            location="",
             is_player=False,
-            public_sheet=PublicSheetExtraction(role="Court Liaison"),
+            public_sheet=PublicSheetExtraction(
+                role="Court Liaison", appearance="", faction="",
+            ),
             private_state=PrivateStateExtraction(
                 goals=["see the world outside"],
+                current_objectives=[],
                 secrets=["never leaves Mirenza"],
+                intentions_enabled=False,
             ),
+            backstory="",
+            personality="",
         ),
     ])
 
@@ -177,10 +202,21 @@ class TestSerializeForAnalysis:
 
     def test_missing_fields_are_silently_skipped(self):
         empty_world = WorldExtraction(
-            setting=SettingExtraction(),
+            setting=SettingExtraction(genre="", era="", tone="", premise=""),
+            lore="",
+            facts=[],
+            physics_ruleset=PhysicsRulesetExtraction(
+                strength_limits="human_baseline", magic_enabled=False,
+            ),
+            narrative_rules="",
+            hidden_lore="",
+            hidden_facts=[],
             locations=LocationsExtraction(
                 current_scene_id="hall",
-                scene_graph=[SceneExtraction(scene_id="hall", name="Hall")],
+                scene_graph=[SceneExtraction(
+                    scene_id="hall", name="Hall",
+                    description="", connected_to=[],
+                )],
             ),
         )
         empty_roster = CharacterListExtraction(characters=[])
