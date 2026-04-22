@@ -66,17 +66,50 @@ class LocationsExtraction(BaseModel):
     scene_graph: list[SceneExtraction]
 
 
+class PublicWorldExtraction(BaseModel):
+    """v7 Call-1 schema: PUBLIC world only. Setting, public lore (one
+    big string), public facts, physics, narrative rules. No locations,
+    no hidden content.
+
+    v6 split locations off and that wasn't enough — for dense
+    conspiracy stories the public lore + hidden lore packed into one
+    schema STILL truncated mid-string at ~265K JSON chars (≈60K
+    output tokens) on a 95KB master prompt. Splitting public from
+    hidden gives each call its own 64K budget. The structural
+    separation also matches the engine's runtime contract: hidden
+    content is adjudication-only (never reaches the player), public
+    content is what player-facing renders may draw on."""
+    setting: SettingExtraction
+    lore: str
+    facts: list[str]
+    physics_ruleset: PhysicsRulesetExtraction
+    narrative_rules: str
+
+
+class HiddenWorldExtraction(BaseModel):
+    """v7 Call-2 schema: HIDDEN world only. Conspiracy / spoiler / plot-
+    secret content extracted into adjudication-only fields. Continuation
+    that reads the public world (Call 1) as cached history.
+
+    LLM emits "" / [] when the source has no hidden content (most
+    stories without conspiracies or secret history)."""
+    hidden_lore: str
+    hidden_facts: list[str]
+
+
 class WorldExtraction(BaseModel):
+    """Merged world bundle consumed by `build_checkpoint`. From v7
+    onwards this is assembled in Python from `PublicWorldExtraction`
+    (Call 1) + `HiddenWorldExtraction` (Call 2) + `LocationsExtraction`
+    (Call 3); the LLM never emits a `WorldExtraction` directly anymore.
+    Retained as a single shape so downstream assembly code stays
+    unchanged across importer versions."""
     setting: SettingExtraction
     lore: str
     facts: list[str]
     physics_ruleset: PhysicsRulesetExtraction
     locations: LocationsExtraction
     narrative_rules: str
-    # Spoiler / conspiracy / hidden-plot content. ADJUDICATION ONLY — never
-    # reaches the player-facing narrator output. Extracted from the master
-    # prompt when the source contains hidden lore or plot details. LLM
-    # emits "" / [] when the source has none.
     hidden_lore: str
     hidden_facts: list[str]
 
@@ -157,14 +190,17 @@ class OpeningExtraction(BaseModel):
     text: str
 
 
-# ---------------- Three-call pipeline (v5) wrapper schemas ----------------
+# ---------------- Five-call pipeline (v7) wrapper schemas ----------------
 
 class CharsAndOpeningExtraction(BaseModel):
-    """v5 Call-2 schema: characters + opening together (continuation that
-    reads world as cached history). Splitting world off into its own
-    Call 1 lets each call use the full 64K Sonnet output budget without
-    truncating mid-JSON, which the v4 single-call CoreImportExtraction
-    pass hit on long master prompts (~14K-word source = ~60K tokens of
-    dense JSON output across world+chars+opening)."""
+    """v7 Call-4 schema (introduced in v5 as Call-2; renumbered each
+    time the world side gained another split). Characters + opening
+    together as a continuation that reads public + hidden world +
+    locations as cached history. Splitting public / hidden / locations
+    / chars+opening across separate calls lets each one use the full
+    64K Sonnet output budget — v4's single combined call truncated
+    mid-JSON on long master prompts, v5's combined-world call did the
+    same on dense scene_graphs, and v6's combined public+hidden
+    skeleton did the same on dense conspiracy lore."""
     characters: CharacterListExtraction
     opening: OpeningExtraction

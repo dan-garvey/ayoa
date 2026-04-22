@@ -150,7 +150,7 @@ class TestBuildCheckpointEnvelope:
         assert ckpt.importer_version == IMPORTER_VERSION
         # Any bump here means the extraction contract changed — re-import
         # in-flight stories if you rely on a new field.
-        assert IMPORTER_VERSION == "v5"
+        assert IMPORTER_VERSION == "v7"
 
 
 class TestImportAnalysisSchema:

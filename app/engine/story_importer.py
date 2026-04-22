@@ -1,19 +1,30 @@
 """Master-prompt → CheckpointFile import pipeline.
 
-Four LLM calls that share a cached source-prompt prefix:
-  1. World extraction (setting, lore, scenes, rules, hidden content) —
-     serial. Primes the shared cache so subsequent calls read instead of
-     re-write.
-  2. Character extraction (full roster, is_player flag) — parallel with 3.
-  3. Opening extraction (author's guidance prose for the narrator) —
-     parallel with 2.
-  4. Knowledge envelope extraction — batch call that sees the omniscient
-     world + full roster and outputs per-character `known_context`. Runs
-     after 2 completes.
+Active path: `run_import_two_call` (name retained for caller
+compatibility; v7 now runs FIVE LLM calls that share a cached
+source-prompt prefix):
+  1. PUBLIC world (setting, public lore, public facts, physics,
+     narrative rules) — serial. Primes the shared cache so subsequent
+     calls read instead of re-write.
+  2. HIDDEN world (hidden_lore, hidden_facts) — continuation that
+     reads Call 1 as cached history. Split off from Call 1 because
+     dense conspiracy stories pack so much into hidden content that
+     a combined public+hidden call still overran the 64K output cap.
+  3. Locations (scene_graph, current_scene_id) — continuation that
+     reads Calls 1+2 as cached history.
+  4. Characters + opening — continuation that reads Calls 1-3.
+  5. Knowledge envelope extraction — continuation that sees the
+     full extracted world + roster and outputs per-character
+     `known_context`.
 
-Preservation analysis (`run_preservation_analysis`) is a separate fifth
-call callers run independently — on the bot path it fires background via
-`asyncio.create_task`; on the CLI path it runs inline.
+Preservation analysis (`run_preservation_analysis_continuation`) is a
+separate sixth call callers run independently — on the bot path it
+fires background via `asyncio.create_task`; on the CLI path it runs
+inline.
+
+Older single-call (`run_import_combined`) and parallel four-stage
+(`run_import`) paths are retained for quality comparisons but are not
+the active pipeline.
 
 All calls use `response_model=<Pydantic class>` so the API enforces schema
 validity server-side.
@@ -92,7 +103,10 @@ from app.schemas.import_extraction import (
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
     CharsAndOpeningExtraction,
+    HiddenWorldExtraction,
+    LocationsExtraction,
     OpeningExtraction,
+    PublicWorldExtraction,
     WorldExtraction,
 )
 from app.schemas.state import (
@@ -137,7 +151,25 @@ MAX_EXTRACTION_TOKENS = 64_000
 # knowledge envelopes as a continuation reading the full chain. Each
 # call now gets the full 64K output budget. Cache-prefix continuity is
 # preserved — every call after Call 1 reads the prior chain warm.
-IMPORTER_VERSION = "v5"
+# v5 → v6: four-call pipeline. v5's Call 1 (`WorldExtraction`) STILL
+# truncated mid-string on the same 95KB master prompt — the dense
+# scene_graph for a multi-district story plus rich lore/hidden_lore
+# overran 64K on its own. Split world into world-skeleton (everything
+# except locations) and locations (scene_graph + current_scene_id) as
+# two consecutive calls. The merged shape `WorldExtraction` is now
+# assembled in Python from the two responses, so downstream
+# `build_checkpoint` does not change. Cache continuity preserved.
+# v6 → v7: five-call pipeline. v6's Call 1 (`WorldSkeletonExtraction`)
+# STILL truncated at column 265,192 of JSON on the same 95KB master
+# prompt — dense conspiracy stories pack so much into lore + hidden_
+# lore + hidden_facts that the skeleton alone overran 64K output
+# tokens. Split skeleton into PUBLIC world (Call 1: setting / lore /
+# facts / physics / narrative_rules) and HIDDEN world (Call 2:
+# hidden_lore / hidden_facts) as two consecutive calls. The structural
+# split also matches the engine's adjudication-vs-public contract.
+# Pipeline is now: public-world → hidden-world → locations → chars+
+# opening → knowledge.
+IMPORTER_VERSION = "v7"
 
 
 class CombinedImportExtraction(BaseModel):
@@ -184,56 +216,176 @@ consumes your output verbatim, so anything you drop is permanently lost.
 {source_prompt}"""
 
 
-WORLD_EXTRACTION_INSTRUCTIONS = """\
-Extract the world state from the source prompt into the requested schema.
+PUBLIC_WORLD_EXTRACTION_INSTRUCTIONS = """\
+Extract the PUBLIC world from the source prompt into the requested
+schema. **This call covers ONLY the publicly-known content** — and
+only the WORLD layer (setting + lore + facts + physics + narrative
+rules). Other layers are produced by focused follow-up calls that
+will read your output here as cached history:
 
-For each field, be exhaustive. If the source describes five factions, all five
-appear; if it names nine locations, all nine appear in the scene graph; if the
-narrative-style rules cover ten pages, all ten pages become `narrative_rules`.
-There is no length limit — produce whatever volume the source warrants.
+- Hidden / spoiler / conspiracy content (hidden_lore, hidden_facts) →
+  Call 2. Do not anticipate it here, do not even hint at it.
+- Locations (scene_graph, current_scene_id) → Call 3.
+- **Characters** (rosters, backstories, personalities, secrets,
+  goals, factions) → Call 4. Do NOT put character profiles into
+  `lore`. Do NOT include character names, character histories, or
+  character-specific detail in any field below. The world layer is
+  about the WORLD; the character layer is about the people IN it.
+- **Opening narrative prose** (the story's authored opening passage,
+  second-person prose addressing the player, scene-setting voice) →
+  Call 4. Do NOT include opening prose, narrative voice, or any
+  passage written in second person here. The world layer is
+  reference material; opening prose is performance material.
+
+## Length budget
+
+Each prose field below has a target size. Going substantially over
+target signals you've conflated layers — you're putting character or
+hidden or opening content into world fields. The 64K output cap
+(hard) means "exhaustive on every detail" is incompatible with
+"single big string fields"; lean into the per-call decomposition
+this pipeline provides.
 
 ## Field guidance
 
-- **setting.premise**: Capture the story's core situation with enough detail
-  for someone who has never read the source to understand who is involved,
-  what's at stake, and what tension drives the story. Brevity is not a virtue
-  here; clarity is.
+- **setting.premise**: 200-1500 chars. The story's core situation
+  with enough detail for someone who has never read the source to
+  understand who is involved, what's at stake, and what tension
+  drives the story. PUBLIC framing — describe the situation as the
+  in-world public understands it, not the authorial-omniscient
+  version. Do NOT recap entire lore sections here — premise is a
+  high-level orientation.
 
-- **lore**: COMMON-KNOWLEDGE world lore only — history, factions, political
-  systems, laws, magic systems, religions, key publicly-known events. If the
-  master prompt's lore section is long and detailed, your `lore` field should
-  match that length and detail. If something in the source is described as
-  mysterious to the in-world public, describe it as a mystery here — do not
-  explain the resolution.
+- **lore**: 3,000-12,000 chars target; HARD CEILING 25,000 chars.
+  COMMON-KNOWLEDGE world lore only — history, factions, political
+  systems, laws, magic systems, religions, key publicly-known
+  events. Organize as focused paragraphs (one per major concept).
+  Mirror the source's depth on world topics, but do NOT echo the
+  source verbatim — extract the substance.
 
-- **facts**: Each fact is one concrete, publicly-known current-state
-  observation about the world. Include every such fact the source describes.
+  If the source has multiple distinct world-content sections (e.g.
+  "The World" + "Currency" + "The Five Courts" + "The Assembly"),
+  cover each in 1-3 focused paragraphs. Don't reproduce 35KB of
+  source text into a 35KB lore field; the runtime narrator reads
+  this material as reference, not as a script. If something in the
+  source is described as mysterious to the in-world public, describe
+  it as a mystery here — do not explain the resolution. (The
+  resolution belongs in Call 2's `hidden_lore`.)
 
-- **hidden_lore**: Spoiler-tier world information the in-world public does
-  NOT know: engineered plagues, conspiracies, secret factions, the real causes
-  of mysteries, hidden histories. This is for the engine's adjudication layer
-  only and is never shown to the player. If the source describes hidden
-  history, conspiracies, or plot-level secrets, capture them here in full.
-  If the source has no hidden information, leave this empty.
+- **facts**: 5-50 entries. Each fact is one concrete, publicly-known
+  current-state observation about the world. Tightly scoped — one
+  proposition per entry. Examples: "The borders are sealed by an
+  Isolation Mandate." "The Athenaeum has been closed for forty
+  years." NOT paragraph-length composites; those go in `lore`.
 
-- **hidden_facts**: Each hidden fact is one concrete, non-public truth about
-  the current state of the world. Parallel to `facts` but for the adjudication
-  layer only.
+- **physics_ruleset.strength_limits**: A short phrase describing the
+  baseline physical capability of the story's characters
+  ("human_baseline", "augmented_human", "low_magic_enhanced", etc.).
 
-- **physics_ruleset.strength_limits**: A short phrase describing the baseline
-  physical capability of the story's characters ("human_baseline",
-  "augmented_human", "low_magic_enhanced", etc.).
+- **physics_ruleset.magic_enabled**: true if the story has any
+  supernatural force the characters use or encounter; false otherwise.
 
-- **physics_ruleset.magic_enabled**: true if the story has any supernatural
-  force the characters use or encounter; false otherwise.
+- **narrative_rules**: ONLY the story-specific narrative delta. The
+  engine's narrator, router, and character-agent prompts already
+  handle the generic craft discipline that every literary story shares
+  — prose rules against stock phrases and filler, pacing (0-5 short
+  paragraphs per response, stop when an NPC finishes speaking),
+  information asymmetry enforced structurally by the pipeline,
+  earned-outcomes / deferral posture, "never speak for the player," no
+  menu options, no unearned sycophancy, no consolation signals on
+  failure, rivals played to win, NPCs-have-lives-between-turns. **Do
+  not restate any of that here.**
 
-- **locations.current_scene_id**: The scene_id (lowercase snake_case) of the
+  What DOES belong in `narrative_rules`:
+    - The story's signature structural constraint (Article Nineteen / a
+      ticking clock / Price of Crossing / an Isolation Mandate — the
+      named, world-specific pressure that shapes every scene).
+    - Faction-response triggers and escalation logic specific to this
+      conspiracy or antagonist structure.
+    - Per-story tone or POV deviations from engine defaults (e.g.
+      second-person-present, an unusual narrator posture).
+    - Moral framing of antagonists that's unique to this world's
+      ethics (e.g. "the conspirators' arguments should be genuinely
+      compelling, not simple villainy" when the story demands it).
+
+  What does NOT belong (already handled by engine prompts):
+    - Forbidden stock phrases lists ("mask slips," "flickers in her
+      eyes") — in narrator prompt.
+    - Dialogue-and-pacing rules — in narrator prompt.
+    - Love-interest / rival structural requirements as generic patterns
+      — handled per-character via `narrative_notes` and via agent
+      prompt discipline.
+    - Information-asymmetry rules — structurally enforced.
+    - Success/failure evaluation metrics — these are authoring rubrics,
+      not runtime instructions.
+
+  Be aggressive about keeping this field minimal. A 10,000-word
+  `narrative_rules` block is a signal the extraction didn't understand
+  which parts the engine already handles. Target: 500-2000 chars;
+  HARD CEILING 5,000 chars."""
+
+
+HIDDEN_WORLD_EXTRACTION_INSTRUCTIONS = """\
+Extract the HIDDEN world content from the source prompt. The PUBLIC
+world (setting, lore, facts, physics, narrative rules) is ALREADY in
+the conversation above — do not re-extract it.
+
+This call's job is the spoiler / conspiracy / plot-secret content
+only. These fields are ADJUDICATION-ONLY — they never reach the
+player-facing narrator output. They power the engine's omniscient
+adjudication layer (so character agents and the router can act with
+full knowledge of the truth even when their characters cannot).
+
+If the source contains no hidden information (a transparent slice-of-
+life story, no conspiracy, no engineered events) leave both fields
+empty (`""` and `[]`).
+
+## Field guidance
+
+- **hidden_lore**: 0-15,000 chars target; HARD CEILING 25,000 chars.
+  Spoiler-tier WORLD information the in-world public does NOT know —
+  engineered plagues, conspiracies, secret factions, the real causes
+  of mysteries, hidden histories. If the source describes a "Deep
+  History" / "What Is Actually Happening" / "Authorial Truth"
+  section or similar, that prose belongs here. If the source
+  describes the *resolution* of a public mystery (Call 1 recorded
+  the public-facing mystery; this field records what's really going
+  on), capture the resolution here.
+
+  Like `lore`, mirror the source's depth on hidden world topics but
+  do NOT echo verbatim — extract the substance. Do NOT re-summarize
+  the public lore here — only the hidden delta. Do NOT include
+  character-specific secrets (those go in Call 4 character
+  extraction); only WORLD-level hidden content belongs here.
+
+- **hidden_facts**: 0-50 entries. Each hidden fact is one concrete,
+  non-public truth about the current state of the world. Parallel to
+  `facts` from Call 1 but for the adjudication layer only. Examples:
+  "The Caretaker is a deposed Warden hiding her identity." "The
+  Aetheri testimony crystals are real and the Regent has read
+  them." Each entry is a single concrete proposition the engine can
+  act on. Aim for granular facts (one truth per entry), not
+  paragraph-length composites — those go in `hidden_lore`."""
+
+
+LOCATIONS_EXTRACTION_INSTRUCTIONS = """\
+Extract the location graph from the source prompt. The world skeleton
+(setting, lore, facts, physics, hidden lore, narrative rules) is
+ALREADY in the conversation above — do not re-extract it.
+
+This call's job is the scene_graph and the starting scene only.
+Be exhaustive: every named room, wing, district, outdoor space, sealed
+chamber, hidden tunnel, archive vault — anywhere the player might be
+or move to — gets its own entry. There is no length limit.
+
+## Field guidance
+
+- **current_scene_id**: The scene_id (lowercase snake_case) of the
   scene where the story begins. This scene_id MUST match an entry in
   `scene_graph`.
 
-- **locations.scene_graph**: A list with one entry per location the source
-  describes — named rooms, wings, districts, outdoor spaces, anywhere the
-  player might be or move to. Each entry:
+- **scene_graph**: A list with one entry per location the source
+  describes. Each entry:
     - `scene_id`: lowercase snake_case unique identifier (e.g. `diplomatic_quarter`)
     - `name`: human-readable label
     - `description`: full sensory description as the source presents it
@@ -252,47 +404,22 @@ There is no length limit — produce whatever volume the source warrants.
   cannot route a player into a scene that does not exist in the
   graph. If the source describes `gatehouse_district` AND a
   `gatehouse_sealed_section` inside it, both must appear as separate
-  entries.
+  entries."""
 
-- **narrative_rules**: ONLY the story-specific narrative delta. The
-  engine's narrator, router, and character-agent prompts already handle
-  the generic craft discipline that every literary story shares — prose
-  rules against stock phrases and filler, pacing (0-5 short paragraphs
-  per response, stop when an NPC finishes speaking), information
-  asymmetry enforced structurally by the pipeline, earned-outcomes /
-  deferral posture, "never speak for the player," no menu options, no
-  unearned sycophancy, no consolation signals on failure, rivals played
-  to win, NPCs-have-lives-between-turns. **Do not restate any of that
-  here.**
 
-  What DOES belong in `narrative_rules`:
-    - The story's signature structural constraint (Article Nineteen / a
-      ticking clock / Price of Crossing / an Isolation Mandate — the
-      named, world-specific pressure that shapes every scene).
-    - Faction-response triggers and escalation logic specific to this
-      conspiracy or antagonist structure.
-    - Per-story tone or POV deviations from engine defaults (e.g.
-      second-person-present, an unusual narrator posture).
-    - Moral framing of antagonists that's unique to this world's ethics
-      (e.g. "the conspirators' arguments should be genuinely
-      compelling, not simple villainy" when the story demands it).
-
-  What does NOT belong (already handled by engine prompts):
-    - Forbidden stock phrases lists ("mask slips," "flickers in her
-      eyes") — in narrator prompt.
-    - Dialogue-and-pacing rules — in narrator prompt.
-    - Love-interest / rival structural requirements as generic patterns
-      — handled per-character via `narrative_notes` and via agent
-      prompt discipline.
-    - Information-asymmetry rules — structurally enforced.
-    - Success/failure evaluation metrics — these are authoring rubrics,
-      not runtime instructions.
-
-  Be aggressive about keeping this field minimal. A 10,000-word
-  `narrative_rules` block is a signal the extraction didn't understand
-  which parts the engine already handles. Target: the story's
-  distinguishing craft guidance only — often 500-2000 characters, not
-  10,000+."""
+# Legacy combined world prompt — used by v3/v4 single-call paths
+# (`extract_world`, `run_import_combined`) that still emit a full
+# `WorldExtraction` with locations in one shot. v7
+# (`run_import_two_call`) splits this into public-world + hidden-world
+# + locations as three separate prompts above to fit each call under
+# the 64K output cap.
+WORLD_EXTRACTION_INSTRUCTIONS = (
+    PUBLIC_WORLD_EXTRACTION_INSTRUCTIONS
+    + "\n\n## Hidden world (also part of this call)\n\n"
+    + HIDDEN_WORLD_EXTRACTION_INSTRUCTIONS
+    + "\n\n## Locations (also part of this call)\n\n"
+    + LOCATIONS_EXTRACTION_INSTRUCTIONS
+)
 
 
 CHARACTER_EXTRACTION_INSTRUCTIONS = """\
@@ -597,15 +724,41 @@ the primary source of in-fiction tension and rediscovery.
 {opening_instructions}"""
 
 
+HIDDEN_WORLD_CONTINUATION_INSTRUCTIONS = """\
+You just extracted the PUBLIC world above (setting, lore, facts,
+physics, narrative rules) — what the in-world public knows.
+
+Now produce the HIDDEN world — the spoiler / conspiracy / plot-secret
+content that powers the engine's adjudication layer but never reaches
+the player. Use the public world YOU JUST EXTRACTED as ground truth
+— do NOT re-extract or summarize it here, only the hidden delta.
+
+{hidden_world_instructions}"""
+
+
+LOCATIONS_CONTINUATION_INSTRUCTIONS = """\
+You just extracted the public and hidden world above (setting, lore,
+facts, physics, narrative rules, hidden_lore, hidden_facts).
+
+Now produce the location graph in this structured response. Use the
+world state YOU JUST EXTRACTED as ground truth — do not re-derive
+it from the master prompt. Keep the same exhaustiveness standard:
+every named location the source describes, every connection it
+spells out.
+
+{locations_instructions}"""
+
+
 CHARS_AND_OPENING_CONTINUATION_INSTRUCTIONS = """\
-You just extracted the `world` section above.
+You just extracted the public + hidden world and the location graph
+above.
 
 Now produce `characters` and `opening` together in this single
 structured response. Use the world state YOU JUST EXTRACTED as
 ground truth — do not re-derive it from the master prompt. Keep
-the same exhaustiveness standard as Call 1: every character the
-source describes, every faction membership, every secret, every
-backstory beat.
+the same exhaustiveness standard as the prior calls: every
+character the source describes, every faction membership, every
+secret, every backstory beat.
 
 Cross-referencing opportunity: factions in `world.lore` should
 land on the right `characters[].public_sheet.faction`; secrets in
@@ -1380,19 +1533,38 @@ async def run_import_combined(
     )
 
 
-# ---------------- Three-call path (v5) ----------------
+# ---------------- Five-call path (v7) ----------------
 
 
-def _world_only_user_prompt() -> str:
-    """Assemble the Call-1 user message: world only. The per-stage
-    WORLD_EXTRACTION_INSTRUCTIONS already cover the entire `world`
-    schema in detail; no extra wrapper is needed."""
-    return WORLD_EXTRACTION_INSTRUCTIONS
+def _public_world_user_prompt() -> str:
+    """Assemble the Call-1 user message: PUBLIC world (setting, lore,
+    facts, physics, narrative_rules). Hidden world and locations are
+    extracted in Calls 2 and 3 to keep each output under Sonnet 4.6's
+    64K cap."""
+    return PUBLIC_WORLD_EXTRACTION_INSTRUCTIONS
+
+
+def _hidden_world_user_prompt() -> str:
+    """Assemble the Call-2 user message: HIDDEN world (hidden_lore,
+    hidden_facts) as a continuation that reads the public world from
+    Call 1 as cached history."""
+    return HIDDEN_WORLD_CONTINUATION_INSTRUCTIONS.format(
+        hidden_world_instructions=HIDDEN_WORLD_EXTRACTION_INSTRUCTIONS,
+    )
+
+
+def _locations_user_prompt() -> str:
+    """Assemble the Call-3 user message: locations as a continuation
+    that reads Calls 1+2 as cached history."""
+    return LOCATIONS_CONTINUATION_INSTRUCTIONS.format(
+        locations_instructions=LOCATIONS_EXTRACTION_INSTRUCTIONS,
+    )
 
 
 def _chars_and_opening_user_prompt() -> str:
-    """Assemble the Call-2 user message: characters + opening as a
-    continuation that reads Call 1's world output as cached history."""
+    """Assemble the Call-4 user message: characters + opening as a
+    continuation that reads the prior chain (public + hidden + locations)
+    as cached history."""
     return CHARS_AND_OPENING_CONTINUATION_INSTRUCTIONS.format(
         character_instructions=CHARACTER_EXTRACTION_INSTRUCTIONS,
         opening_instructions=OPENING_EXTRACTION_INSTRUCTIONS,
@@ -1400,7 +1572,7 @@ def _chars_and_opening_user_prompt() -> str:
 
 
 def _knowledge_user_prompt() -> str:
-    """Assemble the Call-3 user message: knowledge envelopes as a
+    """Assemble the Call-5 user message: knowledge envelopes as a
     continuation. Reuses the per-stage knowledge instructions plus the
     cross-character relational emphasis that v3's single-call pass
     tended to drop."""
@@ -1414,68 +1586,139 @@ async def run_import_two_call(
     source_text: str,
     story_id: str,
 ) -> _CombinedImportResult:
-    """Three-call importer (v5; function name retained for caller
+    """Five-call importer (v7; function name retained for caller
     compatibility — bridge + CLI + tests still import this symbol).
-    Call 1 extracts `world`; Call 2 extracts `characters` + `opening`
-    as a continuation that reads Call 1 as cached history; Call 3
-    extracts `knowledge` envelopes as a continuation that reads the
-    full two-call chain.
+    Call 1 extracts the PUBLIC world; Call 2 extracts the HIDDEN
+    world as a continuation that reads Call 1 as cached history;
+    Call 3 extracts locations reading the prior chain; Call 4
+    extracts `characters` + `opening`; Call 5 extracts `knowledge`
+    envelopes.
 
-    Why three calls instead of v4's two: the combined
-    world+characters+opening pass exceeded Sonnet 4.6's 64K output
-    cap on a 95KB master prompt, truncating the response mid-string
-    around column 303K (~60K tokens of dense JSON). Splitting world
-    off gives each call the full output budget. Cross-referencing
-    quality is preserved because every call after Call 1 reads the
-    prior chain as cached history.
+    Why five calls instead of v6's four: v6 split the combined world
+    into skeleton (public + hidden) and locations, but a 95KB master
+    prompt with deep conspiracy lore (multi-faction, hidden-history
+    section) STILL pushed the skeleton call past Sonnet 4.6's 64K
+    output cap — truncating mid-string around column 265K of JSON.
+    Splitting public from hidden gives each its own budget, and also
+    matches the engine's adjudication-vs-public contract structurally
+    (hidden content is for the omniscient adjudication layer; public
+    content is what player-facing renders may draw on).
 
-    Returns a `_CombinedImportResult` shaped the same as v4 so
+    The merged `WorldExtraction` shape is assembled in Python from
+    the three world responses (public + hidden + locations), so
+    `build_checkpoint` is unchanged.
+
+    Returns a `_CombinedImportResult` shaped the same as v6 so
     downstream callers (EngineBridge, preservation continuation) don't
     care which pipeline produced the checkpoint. `priming_messages`
-    contains the FULL three-call conversation up through Call-3's
-    user turn; `assistant_text` is the Call-3 assistant reply — the
-    preservation analysis tacks itself on as Call 4 with the same
+    contains the FULL five-call conversation up through Call-5's
+    user turn; `assistant_text` is the Call-5 assistant reply — the
+    preservation analysis tacks itself on as Call 6 with the same
     continuation helper.
     """
     t_start = time.monotonic()
     logger.info(
-        "Starting three-call import (pipeline %s): source prompt %d chars, ~%d words",
+        "Starting five-call import (pipeline %s): source prompt %d chars, ~%d words",
         IMPORTER_VERSION, len(source_text), len(source_text.split()),
     )
 
     system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
-    world_user = _world_only_user_prompt()
-    world_messages = [
+    public_user = _public_world_user_prompt()
+    public_messages = [
         {"role": "system", "content": system_text},
-        {"role": "user", "content": world_user},
+        {"role": "user", "content": public_user},
     ]
 
-    # Call 1 — world only.
-    t_world = time.monotonic()
-    world_response = await client.complete(
+    # Call 1 — PUBLIC world (setting, lore, facts, physics, narrative_rules).
+    t_pub = time.monotonic()
+    public_response = await client.complete(
         role="narrator",
-        messages=world_messages,
-        response_model=WorldExtraction,
+        messages=public_messages,
+        response_model=PublicWorldExtraction,
         temperature=0.3,
         max_tokens=MAX_EXTRACTION_TOKENS,
         cache_user_tail=True,
     )
-    _log_usage("world", world_response)
-    world: WorldExtraction = world_response.parsed
+    _log_usage("public_world", public_response)
+    public_world: PublicWorldExtraction = public_response.parsed
     logger.info(
-        "  World (%.1fs): setting=%s/%s, scenes=%d, facts=%d, hidden_facts=%d",
-        time.monotonic() - t_world,
-        world.setting.genre or "?", world.setting.tone or "?",
-        len(world.locations.scene_graph),
-        len(world.facts),
-        len(world.hidden_facts),
+        "  Public world (%.1fs): setting=%s/%s, facts=%d, "
+        "lore=%d chars, narrative_rules=%d chars",
+        time.monotonic() - t_pub,
+        public_world.setting.genre or "?", public_world.setting.tone or "?",
+        len(public_world.facts),
+        len(public_world.lore), len(public_world.narrative_rules),
     )
 
-    # Call 2 — characters + opening (continuation; reads Call 1 as
-    # cached history thanks to cache_user_tail on Call 1's user turn).
+    # Call 2 — HIDDEN world (hidden_lore, hidden_facts) as a
+    # continuation that reads Call 1 as cached history.
+    hidden_user = _hidden_world_user_prompt()
+    hidden_messages = public_messages + [
+        {"role": "assistant", "content": public_response.content or ""},
+        {"role": "user", "content": hidden_user},
+    ]
+    t_hid = time.monotonic()
+    hidden_response = await client.complete(
+        role="narrator",
+        messages=hidden_messages,
+        response_model=HiddenWorldExtraction,
+        temperature=0.3,
+        max_tokens=MAX_EXTRACTION_TOKENS,
+        cache_user_tail=True,
+    )
+    _log_usage("hidden_world", hidden_response)
+    hidden_world: HiddenWorldExtraction = hidden_response.parsed
+    logger.info(
+        "  Hidden world (%.1fs): hidden_facts=%d, hidden_lore=%d chars",
+        time.monotonic() - t_hid,
+        len(hidden_world.hidden_facts), len(hidden_world.hidden_lore),
+    )
+
+    # Call 3 — locations (continuation; reads Calls 1+2 as cached
+    # history thanks to cache_user_tail on each prior user turn).
+    locations_user = _locations_user_prompt()
+    locations_messages = hidden_messages + [
+        {"role": "assistant", "content": hidden_response.content or ""},
+        {"role": "user", "content": locations_user},
+    ]
+    t_loc = time.monotonic()
+    locations_response = await client.complete(
+        role="narrator",
+        messages=locations_messages,
+        response_model=LocationsExtraction,
+        temperature=0.3,
+        max_tokens=MAX_EXTRACTION_TOKENS,
+        cache_user_tail=True,
+    )
+    _log_usage("locations", locations_response)
+    locations: LocationsExtraction = locations_response.parsed
+    logger.info(
+        "  Locations (%.1fs): %d scenes, current=%s",
+        time.monotonic() - t_loc,
+        len(locations.scene_graph),
+        locations.current_scene_id or "?",
+    )
+
+    # Merge public + hidden + locations into the unified WorldExtraction
+    # shape downstream `build_checkpoint` already understands. The LLM
+    # never emits a WorldExtraction directly under v7; this is the
+    # join.
+    world = WorldExtraction(
+        setting=public_world.setting,
+        lore=public_world.lore,
+        facts=public_world.facts,
+        physics_ruleset=public_world.physics_ruleset,
+        locations=locations,
+        narrative_rules=public_world.narrative_rules,
+        hidden_lore=hidden_world.hidden_lore,
+        hidden_facts=hidden_world.hidden_facts,
+    )
+
+    # Call 4 — characters + opening (continuation; reads the full
+    # world (public + hidden + locations) as cached history).
     chars_user = _chars_and_opening_user_prompt()
-    chars_messages = world_messages + [
-        {"role": "assistant", "content": world_response.content or ""},
+    chars_messages = locations_messages + [
+        {"role": "assistant", "content": locations_response.content or ""},
         {"role": "user", "content": chars_user},
     ]
     t_chars = time.monotonic()
@@ -1496,8 +1739,8 @@ async def run_import_two_call(
         len(chars_and_opening.opening.text),
     )
 
-    # Call 3 — knowledge envelopes (continuation; reads the full
-    # two-call chain as cached history).
+    # Call 5 — knowledge envelopes (continuation; reads the full
+    # four-call upstream chain as cached history).
     knowledge_user = _knowledge_user_prompt()
     knowledge_messages = chars_messages + [
         {"role": "assistant", "content": chars_response.content or ""},
@@ -1527,13 +1770,13 @@ async def run_import_two_call(
         story_id,
     )
     logger.info(
-        "Three-call import complete in %.1fs (%d characters, %d scenes)",
+        "Five-call import complete in %.1fs (%d characters, %d scenes)",
         time.monotonic() - t_start,
         len(checkpoint.characters),
         len(checkpoint.world_state.locations.scene_graph),
     )
 
-    # Pack the FULL three-call conversation into priming_messages so
+    # Pack the FULL five-call conversation into priming_messages so
     # the preservation analysis continuation reads the whole chain as
     # its cached prefix.
     return _CombinedImportResult(

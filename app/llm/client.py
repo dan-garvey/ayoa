@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
 import anthropic
+import pydantic
 from pydantic import BaseModel
 
 from app.llm.config import LLMConfig
@@ -374,7 +375,48 @@ class LLMClient:
                         response=None,
                         body=None,
                     )
+                # Detect mid-output truncation on the non-structured path.
+                # When the API hits max_tokens it still returns 200 with
+                # whatever it had so far. For raw responses we can read
+                # stop_reason on the final message and raise a clear error.
+                # NOTE: this branch does NOT trigger on structured-output
+                # calls — the SDK parses content_block.text into
+                # response_model INSIDE accumulate_event() during stream
+                # consumption, so a truncated JSON body raises pydantic's
+                # ValidationError before stream.get_final_message() ever
+                # returns. The structured-output truncation case is
+                # handled in the ValidationError except branch below.
+                if getattr(response, "stop_reason", None) == "max_tokens":
+                    out_tokens = getattr(response.usage, "output_tokens", "?") if response.usage else "?"
+                    raise ValueError(
+                        f"Output truncated at max_tokens={kwargs['max_tokens']} "
+                        f"({out_tokens} tokens emitted, stop_reason='max_tokens'). "
+                        f"Increase max_tokens or split the request into smaller calls."
+                    )
                 return response
+            except pydantic.ValidationError as e:
+                # The SDK's structured-output streaming parser
+                # (anthropic.lib.streaming.accumulate_event) calls
+                # `output_format.validate_json(content_block.text)`
+                # immediately after the content_block_stop SSE event.
+                # When max_tokens truncated mid-string, the resulting
+                # error is "Invalid JSON: EOF while parsing a string at
+                # line 1 column N" which gives no hint that the cause
+                # is output truncation rather than a schema bug.
+                # Re-raise with an actionable message in that specific
+                # case. Real schema mismatches (model emitted wrong
+                # field types, missing required field, etc.) bubble up
+                # unchanged.
+                msg = str(e)
+                if "Invalid JSON" in msg and "EOF" in msg:
+                    raise ValueError(
+                        f"Structured-output JSON truncated at "
+                        f"max_tokens={kwargs['max_tokens']} (parser hit "
+                        f"EOF mid-stream). Increase max_tokens or split "
+                        f"the request into smaller calls. Underlying "
+                        f"pydantic error: {msg.splitlines()[0]}"
+                    ) from e
+                raise
             except (
                 anthropic.APIConnectionError,
                 anthropic.APITimeoutError,
@@ -385,6 +427,36 @@ class LLMClient:
                 if attempt < self.config.max_retries:
                     delay = self.config.retry_base_delay * (2 ** attempt)
                     logger.warning(f"LLM call failed (attempt {attempt + 1}), retrying in {delay:.1f}s: {e}")
+                    await asyncio.sleep(delay)
+            except anthropic.APIStatusError as e:
+                # Mid-stream server errors arrive here with the BASE
+                # APIStatusError class, not InternalServerError, because
+                # the HTTP response already returned 200 before the
+                # stream started — `_make_status_error(response=200)`
+                # falls through to the generic APIStatusError branch
+                # (anthropic/_client.py status-code dispatch only fires
+                # on the actual HTTP status, not on the SSE error body).
+                # The body itself still says
+                # `{'type': 'error', 'error': {'type': 'api_error',
+                # 'message': 'Internal server error'}}` — definitionally
+                # a transient. Retry the same shapes a real 5xx would.
+                body = getattr(e, "body", None) or {}
+                err = body.get("error", {}) if isinstance(body, dict) else {}
+                err_type = err.get("type", "") if isinstance(err, dict) else ""
+                msg = (err.get("message", "") if isinstance(err, dict) else "") or str(e)
+                transient = err_type in {"api_error", "overloaded_error"} or (
+                    "internal server error" in msg.lower()
+                    or "overloaded" in msg.lower()
+                )
+                if not transient:
+                    raise
+                last_error = e
+                if attempt < self.config.max_retries:
+                    delay = self.config.retry_base_delay * (2 ** attempt)
+                    logger.warning(
+                        "Mid-stream API error (attempt %d, type=%r), retrying in %.1fs: %s",
+                        attempt + 1, err_type, delay, msg,
+                    )
                     await asyncio.sleep(delay)
             except anthropic.BadRequestError as e:
                 # Anthropic's server-side grammar compilation for

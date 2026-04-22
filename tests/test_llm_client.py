@@ -325,6 +325,76 @@ class TestLLMClientComplete:
         }
         assert call_kwargs["betas"] == ["compact-2026-01-12"]
 
+    @pytest.mark.asyncio
+    async def test_max_tokens_truncation_raises_clear_error(self, client):
+        """When the API hits max_tokens it returns 200 with a half-written
+        body and stop_reason='max_tokens'. The client must raise an
+        actionable ValueError BEFORE the structured-output parser tries
+        to validate the truncated JSON, otherwise callers see an opaque
+        pydantic 'EOF while parsing a string' error that gives no hint
+        about the real cause. This was the bug that made the importer
+        truncation regression in v5/v6 hard to diagnose.
+
+        This test exercises the RAW-content path (non-structured) where
+        stop_reason is observable on the final message before any
+        parser runs."""
+        truncated = _make_mock_response('{"setting":{"genre":"Dark fantasy",')
+        truncated.stop_reason = "max_tokens"
+        truncated.usage.output_tokens = 64_000
+        _install_stream_mock(client, truncated)
+
+        with pytest.raises(ValueError, match="truncated at max_tokens=100"):
+            await client.complete(
+                role="narrator",
+                messages=[{"role": "user", "content": "extract a huge world"}],
+                temperature=0.3,
+                max_tokens=100,
+            )
+
+    @pytest.mark.asyncio
+    async def test_structured_output_truncation_wraps_validation_error(self, client):
+        """On the STRUCTURED-OUTPUT path, the SDK's stream consumer parses
+        text into the response_model inside accumulate_event() — a
+        truncated JSON body raises pydantic ValidationError BEFORE
+        stream.get_final_message() returns, so we never get to inspect
+        stop_reason on the final message. The client must catch the
+        pydantic 'Invalid JSON: EOF while parsing a string' shape and
+        re-raise with an actionable max_tokens message. Otherwise the
+        importer surfaces an opaque pydantic error that doesn't
+        identify truncation as the cause.
+
+        Reproduces the actual hollowstone v6 import failure shape (EOF
+        at column 265,192 of the structured-output JSON body).
+        """
+        import pydantic as p
+
+        truncated_text = '{"setting":{"genre":"Dark fantasy"' * 100
+        validation_err = p.ValidationError.from_exception_data(
+            "WorldSkeletonExtraction",
+            [
+                {
+                    "type": "json_invalid",
+                    "loc": (),
+                    "input": truncated_text,
+                    "ctx": {
+                        "error": (
+                            "EOF while parsing a string at line 1 column 265192"
+                        )
+                    },
+                }
+            ],
+        )
+        _install_stream_mock(client, validation_err)
+
+        with pytest.raises(ValueError, match="Structured-output JSON truncated"):
+            await client.complete(
+                role="narrator",
+                messages=[{"role": "user", "content": "extract a huge world"}],
+                response_model=CanonicalEvent,
+                temperature=0.3,
+                max_tokens=100,
+            )
+
 
 class TestLLMClientRetry:
     @pytest.mark.asyncio
@@ -367,6 +437,77 @@ class TestLLMClientRetry:
 
         # 1 initial + 1 retry = 2 attempts (max_retries=1)
         assert mock.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retries_on_mid_stream_internal_server_error(self, client):
+        """When Anthropic emits an SSE error event mid-stream, the SDK
+        constructs the exception via _make_status_error(response=200)
+        which falls through the status-code dispatch and surfaces as
+        the BASE APIStatusError class — NOT InternalServerError, even
+        though the body says 'Internal server error'. The retry path
+        must catch this shape; otherwise a single transient kills a
+        long-running batch like the importer.
+
+        Reproduces the shape from req_011CaKVv9PMiXwBZ2Eoay6jd which
+        hit the importer Call 1 on a fresh v6 attempt."""
+        import anthropic as anth
+
+        sse_body = {
+            "type": "error",
+            "error": {
+                "type": "api_error",
+                "message": "Internal server error",
+                "details": None,
+            },
+        }
+        sse_error = anth.APIStatusError(
+            f"{sse_body}", response=MagicMock(), body=sse_body,
+        )
+        mock = _install_stream_mock(
+            client,
+            sse_error,
+            _make_mock_response("ok"),
+        )
+
+        result = await client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        assert result.content == "ok"
+        assert mock.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_does_not_retry_non_transient_api_status_error(self, client):
+        """An APIStatusError whose body indicates a real client-side
+        problem (auth, malformed schema, etc) should NOT be retried —
+        the request will keep failing identically and the retry loop
+        just delays the inevitable. Only api_error / overloaded_error
+        are transient enough to warrant a retry."""
+        import anthropic as anth
+
+        sse_body = {
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "Some structural problem with the request",
+            },
+        }
+        sse_error = anth.APIStatusError(
+            f"{sse_body}", response=MagicMock(), body=sse_body,
+        )
+        mock = _install_stream_mock(client, sse_error)
+
+        with pytest.raises(anth.APIStatusError):
+            await client.complete(
+                role="narrator",
+                messages=[{"role": "user", "content": "hi"}],
+                temperature=0.5,
+                max_tokens=100,
+            )
+        assert mock.call_count == 1
 
 
 # --- Integration tests (require live API) ---
