@@ -429,21 +429,14 @@ class CLIState:
             print(f"not claimed: {target}")
             return
 
-        # Hand back to the agent: synthesize personality from rolling
-        # history if the player never wrote one. Skip silently if it
-        # already has content.
+        # Shared endpoint: synthesizes personality (if empty) then unbinds.
+        # Both frontends take this path so the agent-handoff behavior is
+        # identical whether you leave via CLI or Discord.
         try:
-            ckpt = self.engine.load_latest(self.session_id)
-            char = next(
-                (c for c in ckpt.characters if c.character_id == target), None,
-            )
-            if char and not (char.personality and char.personality.strip()):
-                print(f"synthesizing personality for {target}…")
-                await self.engine.synthesize_personality(self.session_id, target)
+            await self.engine.leave_character(self.session_id, uid)
         except Exception as e:
-            print(f"warning: personality synthesis failed ({e}); leaving anyway")
-
-        self.engine.unbind_user(self.session_id, uid)
+            print(f"warning: leave failed ({e}); unbinding anyway")
+            self.engine.unbind_user(self.session_id, uid)
         del self.claims[target]
         if self.current_actor == target:
             self.current_actor = next(iter(self.claims), None)

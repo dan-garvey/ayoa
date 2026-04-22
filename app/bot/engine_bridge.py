@@ -307,14 +307,19 @@ class EngineBridge:
         data.pop("import_analysis", None)
         dst.write_text(json.dumps(data, indent=2))
 
-        # Personalize only on single-protagonist stories. Multi-slot
-        # stories (≥2 is_player characters, meant to be takeover targets)
-        # keep their authored names and ids; the player picks one via
-        # /join. Auto-binding the creator to a rename-inferred slot would
-        # be wrong — they haven't chosen yet.
+        # Personalize only when the caller gave us a display name AND
+        # the story has a single-protagonist slot to rename. Otherwise
+        # the session starts with authored names intact — the player
+        # picks a slot via /join (or /join_custom). Matches the CLI
+        # behavior: `play.py --story X` creates a session with no
+        # default character.
         ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
         player_count = sum(1 for c in ckpt.characters if c.is_player)
-        if player_count <= 1:
+        should_personalize = (
+            bool(player_display_name and player_display_name.strip())
+            and player_count == 1
+        )
+        if should_personalize:
             personalized = _personalize(ckpt, player_display_name)
         else:
             personalized = ckpt
@@ -394,6 +399,34 @@ class EngineBridge:
             target.public_sheet.appearance = appearance.strip()
         self.checkpoint_mgr.save(ckpt)
         return ckpt
+
+    async def leave_character(
+        self,
+        session_id: str,
+        user_id: int,
+    ) -> str | None:
+        """Unified leave endpoint shared by CLI and Discord.
+
+        Synthesizes `personality` from the rolling conversation if the
+        character's own personality field is empty (fresh takeover by
+        the player who never wrote one), then unbinds the user. The
+        synthesize step lets an agent pick the character up with
+        voice intact; no-op when personality is already set.
+
+        Returns the freed character_id, or None if the user had no
+        binding. Synthesis errors are logged and swallowed — don't
+        block the unbind on a synthesis failure.
+        """
+        binding = self.get_user_binding(session_id, user_id)
+        if binding:
+            try:
+                await self.synthesize_personality(session_id, binding)
+            except Exception:
+                logger.exception(
+                    "personality synthesis failed for %s; unbinding anyway",
+                    binding,
+                )
+        return self.unbind_user(session_id, user_id)
 
     async def synthesize_personality(
         self,

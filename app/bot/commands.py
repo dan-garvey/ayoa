@@ -143,12 +143,10 @@ def register(
     @story_group.command(name="start", description="Begin a story in this channel.")
     @app_commands.describe(
         story_id="The story ID (see /story list).",
-        character_name="The name your character will use in-story (e.g. 'Marcus Hale').",
     )
     async def _start(
         inter: discord.Interaction,
         story_id: str,
-        character_name: str,
     ):
         existing = await smap.get(inter.channel_id)
         if existing is not None:
@@ -166,23 +164,21 @@ def register(
             )
             return
 
-        character_name = character_name.strip()
-        if not character_name:
-            await inter.response.send_message(
-                "Character name cannot be empty.", ephemeral=True,
-            )
-            return
-
         await inter.response.defer(thinking=True)
 
         session_id = engine.session_id_for_channel(inter.channel_id, story_id)
 
+        # Mirror the CLI: creating a session does NOT assign a character
+        # or run the personalize rename. Single-protagonist stories have
+        # one authored is_player slot the caller can /join. Multi-slot
+        # stories have several; the creator chooses via /join or
+        # /join_custom like any other player. No character_name arg.
         try:
             ckpt = await engine.create_session(
                 story_id=story_id,
                 session_id=session_id,
-                player_display_name=character_name,
-                creator_user_id=inter.user.id,
+                player_display_name="",
+                creator_user_id=None,
             )
         except Exception as e:
             logger.exception("create_session failed")
@@ -199,11 +195,12 @@ def register(
             story_id=story_id,
         )
 
-        # The briefing embed carries the full first-time-user onboarding
-        # (setting, role, facts, and a "How to play" block). Keep the
-        # content message terse so they don't fight for attention.
         briefing = render_briefing(ckpt, story_id)
-        intro = f"**{character_name}** begins **{story_id}**."
+        intro = (
+            f"Session started for **{story_id}**. "
+            f"Run `/story characters` to see who's available, "
+            f"then `/join <character_id>` to claim one."
+        )
         await inter.followup.send(content=intro, embed=briefing)
 
     # ---- /story resume ------------------------------------------------------
@@ -712,22 +709,25 @@ def register(
             )
             return
 
+        # Shared endpoint: synthesize personality (if empty) then unbind.
+        # Matches CLI /leave behavior — the agent inherits voice.
+        await inter.response.defer(ephemeral=True, thinking=True)
         try:
-            freed = engine.unbind_user(row.session_id, inter.user.id)
+            freed = await engine.leave_character(row.session_id, inter.user.id)
         except Exception as e:
-            logger.exception("unbind_user failed")
-            await inter.response.send_message(
+            logger.exception("leave_character failed")
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
 
         if freed is None:
-            await inter.response.send_message(
+            await inter.followup.send(
                 "You weren't bound to a character.", ephemeral=True,
             )
             return
-        await inter.response.send_message(
+        await inter.followup.send(
             f"Released `{freed}`. Other players can now `/join` them.",
             ephemeral=True,
         )
@@ -1003,25 +1003,32 @@ def register(
 
     @tree.command(
         name="describe",
-        description="Describe your character's physical presence. Opens the story on first use.",
+        description="Set your character's name and/or appearance. Opens the story on first use.",
         guild=guild,
     )
     @app_commands.describe(
-        traits="Height, build, clothing, voice, notable features — freeform.",
+        name="The name your character will use in-story (optional).",
+        appearance="Height, build, clothing, notable features — freeform (optional).",
     )
-    async def _describe(inter: discord.Interaction, traits: str):
+    async def _describe(
+        inter: discord.Interaction,
+        name: str = "",
+        appearance: str = "",
+    ):
         row = await smap.get(inter.channel_id)
         if row is None:
             await inter.response.send_message(
-                "No story here yet. Try `/story start <id> <name>`.",
+                "No story here yet. Try `/story start <id>`.",
                 ephemeral=True,
             )
             return
 
-        traits = traits.strip()
-        if not traits:
+        name = name.strip()
+        appearance = appearance.strip()
+        if not name and not appearance:
             await inter.response.send_message(
-                "Description cannot be empty.", ephemeral=True,
+                "Provide at least one of `name` or `appearance`.",
+                ephemeral=True,
             )
             return
 
@@ -1040,11 +1047,13 @@ def register(
             return
 
         try:
-            ckpt = engine.set_character_appearance(
-                row.session_id, binding, traits,
+            ckpt = engine.set_character_identity(
+                row.session_id, binding,
+                name=name or None,
+                appearance=appearance or None,
             )
         except Exception as e:
-            logger.exception("set_character_appearance failed")
+            logger.exception("set_character_identity failed")
             await inter.followup.send(embed=render_error(
                 f"`{type(e).__name__}: {e}`"
             ))
@@ -1056,12 +1065,18 @@ def register(
         # update and we don't trigger anything.
         is_pre_play = not ckpt.narrator_conversation
 
+        changed_bits = []
+        if name:
+            changed_bits.append(f"name: **{name}**")
+        if appearance:
+            changed_bits.append(f"appearance: *{appearance}*")
+        changed = " · ".join(changed_bits)
+
         if not is_pre_play:
             await inter.followup.send(
                 embed=render_info(
-                    "Description updated",
-                    f"New description: *{traits}*\n\n"
-                    f"This takes effect on your next `/act`.",
+                    "Character updated",
+                    f"{changed}\n\nThis takes effect on your next `/act`.",
                 )
             )
             return
@@ -1074,8 +1089,8 @@ def register(
         # arrival into hallucinated subtext.
         arrival_action = "(begin)"
         logger.info(
-            "Describe+open for %s by %s: traits=%r",
-            row.session_id, inter.user.display_name, traits[:200],
+            "Describe+open for %s by %s: %s",
+            row.session_id, inter.user.display_name, changed,
         )
 
         try:
