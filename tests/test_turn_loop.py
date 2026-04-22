@@ -1,0 +1,371 @@
+"""v11 turn-loop state-machine tests.
+
+Covers the orchestrator-independent pieces: slot validation, Cat II event
+collection, beat cascade ends, and error-message formatting. A fake
+`Dispatcher` stands in for the real router/agent/narrator so the state
+machine can be exercised without LLM calls.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.engine import turn_loop
+from app.engine.turn_loop import (
+    SlotCheck,
+    SlotConflict,
+    check_act_slot,
+    claim_initiator_slot,
+    collect_cat_ii_intention,
+    format_slot_rejection,
+    open_cat_ii,
+    pin_cat_ii_responder,
+    release_character_slot,
+    run_beat,
+)
+from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.checkpoint import CheckpointFile
+from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.state import SessionState, WorldState
+
+
+# ---- helpers ---------------------------------------------------------------
+
+
+def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
+    return CheckpointFile(
+        session=SessionState(
+            session_id="s",
+            character_bindings=bindings or {},
+        ),
+        world_state=WorldState(),
+        characters=[
+            CharacterRecord(
+                character_id="alice", name="Alice",
+                public_sheet=PublicSheet(role="player"),
+                location="gatehouse",
+                is_player=True,
+            ),
+            CharacterRecord(
+                character_id="bob", name="Bob",
+                public_sheet=PublicSheet(role="player"),
+                location="gatehouse",
+                is_player=True,
+            ),
+            CharacterRecord(
+                character_id="pip", name="Pip",
+                public_sheet=PublicSheet(role="npc"),
+                location="gatehouse",
+                is_player=False,
+            ),
+        ],
+    )
+
+
+def _router_out(
+    *,
+    requires_responders: bool = False,
+    required_responders: list[str] | None = None,
+    agent_picks: list[str] | None = None,
+    ends_beat: bool = True,
+    scene: str = "gatehouse",
+) -> EventRouterOutput:
+    return EventRouterOutput(
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(
+                attempted_action="something",
+                feasible=True,
+                resolved_outcome="something happens",
+            ),
+            scene_delta=SceneDelta(
+                time_advanced_seconds=0, new_scene_id=scene,
+            ),
+            observable_facts=[],
+        ),
+        observers=[
+            ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
+        ],
+        requires_responders=requires_responders,
+        required_responders=required_responders or [],
+        agent_responder_picks=agent_picks or [],
+        ends_beat=ends_beat,
+        ends_beat_reason="directed_at_player" if ends_beat else "",
+    )
+
+
+class FakeDispatcher:
+    """Stubs for Router / Agent / Narrator calls. Each call records its
+    inputs and returns a pre-canned response."""
+
+    def __init__(self):
+        self.route_calls: list[dict] = []
+        self.agent_calls: list[dict] = []
+        self.narrator_calls: list[dict] = []
+        self._route_responses: list[EventRouterOutput] = []
+        self._agent_responses: list[str] = []
+        self._narrator_response: str = "RENDER"
+
+    def queue_route(self, response: EventRouterOutput) -> None:
+        self._route_responses.append(response)
+
+    def queue_agent(self, intention: str) -> None:
+        self._agent_responses.append(intention)
+
+    async def route_intention(self, **kw) -> EventRouterOutput:
+        self.route_calls.append(kw)
+        return self._route_responses.pop(0)
+
+    async def agent_intend(self, **kw) -> str:
+        self.agent_calls.append(kw)
+        return self._agent_responses.pop(0)
+
+    async def narrator_compose(self, **kw) -> str:
+        self.narrator_calls.append(kw)
+        return self._narrator_response
+
+
+# ---- slot-check tests ------------------------------------------------------
+
+
+class TestCheckActSlot:
+    def test_free_when_scene_empty(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        check = check_act_slot(ckpt, "gatehouse", "alice")
+        assert check.conflict == SlotConflict.FREE
+
+    def test_initiator_held_by_other(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        assert check.conflict == SlotConflict.INITIATOR_HELD
+        assert check.holder_id == "alice"
+
+    def test_self_busy_when_same_user_double_acts(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        check = check_act_slot(ckpt, "gatehouse", "alice")
+        assert check.conflict == SlotConflict.SELF_BUSY
+
+    def test_cat_ii_self_responder_pins_to_event(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_xyz")
+        check = check_act_slot(ckpt, "gatehouse", "alice")
+        assert check.conflict == SlotConflict.CAT_II_SELF_RESPONDER
+        assert check.cat_ii_event_id == "evt_xyz"
+
+    def test_cat_ii_other_held_rejects_bystander(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_xyz")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        assert check.conflict == SlotConflict.CAT_II_OTHER_HELD
+        assert check.holder_id == "alice"
+
+    def test_cat_ii_takes_precedence_over_initiator_in_mixed_slot(self):
+        # Contrived but could arise — slot has both reasons.
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2", "pip": "3"})
+        claim_initiator_slot(ckpt, "gatehouse", "pip")
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_xyz")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        # Reports Cat II (more specific) rather than the initiator pin.
+        assert check.conflict == SlotConflict.CAT_II_OTHER_HELD
+
+
+class TestRejectionFormatting:
+    def test_mentions_holder_name_on_initiator_held(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        claim_initiator_slot(ckpt, "gatehouse", "alice")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        msg = format_slot_rejection(check, ckpt)
+        assert "Alice" in msg
+
+    def test_cat_ii_other_message_is_distinct(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_xyz")
+        check = check_act_slot(ckpt, "gatehouse", "bob")
+        msg = format_slot_rejection(check, ckpt)
+        assert "contested" in msg.lower() or "responding" in msg.lower()
+
+
+# ---- beat cascade tests ----------------------------------------------------
+
+
+class TestCatIBeat:
+    def test_single_cat_i_ends_beat_and_renders(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="look around",
+            scene_id="gatehouse",
+        ))
+
+        assert result.events_closed == 1
+        assert "alice" in result.renders
+        assert result.ended_reason == "directed_at_player"
+        assert "gatehouse" not in ckpt.session.active_act_slots
+
+    def test_cat_i_cascades_through_agent_pick(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        # First event: Alice acts, router says don't end, pick Pip.
+        fake.queue_route(_router_out(
+            agent_picks=["pip"], ends_beat=False,
+        ))
+        # Agent Pip intends.
+        fake.queue_agent("Pip polishes the bell")
+        # Router routes Pip's intention, ends beat.
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="wait",
+            scene_id="gatehouse",
+        ))
+
+        assert result.events_closed == 2
+        assert len(fake.agent_calls) == 1
+        assert fake.agent_calls[0]["character_id"] == "pip"
+
+    def test_max_events_per_beat_forces_end(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        ckpt.session.config.settings.max_events_per_beat = 2
+        fake = FakeDispatcher()
+        # Queue an infinite agent cascade that always wants to continue.
+        for _ in range(5):
+            fake.queue_route(_router_out(
+                agent_picks=["pip"], ends_beat=False,
+            ))
+            fake.queue_agent("Pip does something")
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="wait",
+            scene_id="gatehouse",
+        ))
+
+        assert result.events_closed == 2  # capped
+        assert result.ended_reason == "max_events_cap"
+
+
+class TestCatIIBeat:
+    def test_cat_ii_with_agent_responder_resolves_inline(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        # Step 1: Alice initiates Cat II targeting Pip (agent).
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            ends_beat=False,
+        ))
+        # Pip's responder intention.
+        fake.queue_agent("Pip dodges")
+        # Router composes the resolved Cat II event.
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I attack Pip",
+            scene_id="gatehouse",
+        ))
+
+        assert result.events_closed == 1
+        assert result.ended_reason == "cat_ii_resolution"
+        assert len(ckpt.session.open_cat_ii_events) == 0
+
+    def test_cat_ii_with_human_responder_pauses_beat(self):
+        # Alice attacks Bob (human). Beat should pause pending Bob's /act.
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["bob"],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I attack Bob",
+            scene_id="gatehouse",
+        ))
+
+        assert result.ended_reason == "cat_ii_pending"
+        assert result.renders == {}  # nothing rendered mid-open-event
+        # Bob should now be pinned.
+        slot = ckpt.session.active_act_slots.get("gatehouse", {})
+        assert "bob" in slot
+        assert slot["bob"].reason == "cat_ii_responder"
+        # The open event is tracked.
+        assert len(ckpt.session.open_cat_ii_events) == 1
+
+    def test_cat_ii_responder_intention_closes_event_and_renders(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        # Pre-state: the open Cat II event exists, Bob is pinned.
+        evt = open_cat_ii(
+            ckpt,
+            scene_id="gatehouse",
+            initiator_id="alice",
+            initiator_intention="I attack Bob",
+            required_responders=["bob"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "bob", evt.event_id)
+
+        fake = FakeDispatcher()
+        # Resolution routes the Cat II event (single responder filled).
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="bob", intention="I block",
+            scene_id="gatehouse",
+            cat_ii_event_id=evt.event_id,
+        ))
+
+        assert result.events_closed == 1
+        assert result.ended_reason == "cat_ii_resolution"
+        assert len(ckpt.session.open_cat_ii_events) == 0
+        # Slot released.
+        assert "gatehouse" not in ckpt.session.active_act_slots
+
+    def test_cat_ii_multi_responder_pauses_until_all_intentions_in(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        evt = open_cat_ii(
+            ckpt,
+            scene_id="gatehouse",
+            initiator_id="pip",
+            initiator_intention="Pip throws a punch at Alice",
+            required_responders=["alice", "bob"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "alice", evt.event_id)
+        pin_cat_ii_responder(ckpt, "gatehouse", "bob", evt.event_id)
+
+        fake = FakeDispatcher()
+        # First Bob /acts as intercept. This should NOT resolve yet —
+        # Alice's intention is still missing.
+        result1 = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="bob", intention="I lunge to block",
+            scene_id="gatehouse",
+            cat_ii_event_id=evt.event_id,
+        ))
+        assert result1.ended_reason == "cat_ii_pending"
+        assert result1.renders == {}
+        # Bob's pin released, Alice's still held.
+        slot = ckpt.session.active_act_slots.get("gatehouse", {})
+        assert "bob" not in slot
+        assert "alice" in slot
+
+        # Now Alice /acts. This closes the event.
+        fake.queue_route(_router_out(ends_beat=True))
+        result2 = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I duck",
+            scene_id="gatehouse",
+            cat_ii_event_id=evt.event_id,
+        ))
+        assert result2.ended_reason == "cat_ii_resolution"
+        assert len(ckpt.session.open_cat_ii_events) == 0

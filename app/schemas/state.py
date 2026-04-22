@@ -13,6 +13,53 @@ class ModelConfig(BaseModel):
     agent_default: str = "claude-sonnet-4-6"
 
 
+class SlotEntry(BaseModel):
+    """v11: one participant in a scene's active_act_slot. A scene may have
+    zero (free), one (initiator or single Cat II responder), or many
+    entries (multi-character Cat II). The reason determines what /act
+    from that user is allowed to do.
+    """
+    reason: str  # "initiator" | "cat_ii_responder"
+    # When reason=="cat_ii_responder", the open-event id this slot is
+    # pinned to. None for initiator entries.
+    cat_ii_event_id: str | None = None
+    # ISO-8601 timestamp of when the slot was claimed. Used for debug and
+    # for a future "stale slot" cleanup pass.
+    claimed_at: str = ""
+
+
+class OpenCatIIEvent(BaseModel):
+    """v11: a Cat II (contested) event that's collecting responder
+    intentions and hasn't adjudicated yet. The router opens it when an
+    intention classifies as Cat II; the orchestrator closes it when all
+    required_responders have intended.
+    """
+    event_id: str
+    scene_id: str
+    # Character whose initial intention opened this event.
+    initiator_id: str
+    # The intention text that opened the event (for the router's
+    # composition call when it adjudicates).
+    initiator_intention: str
+    # Characters whose intentions are required before this closes.
+    required_responders: list[str] = Field(default_factory=list)
+    # Intentions collected so far: responder_id -> intention text.
+    collected_intentions: dict[str, str] = Field(default_factory=dict)
+    opened_at: str = ""
+
+
+class RenderBufferEntry(BaseModel):
+    """v11: one canonical event queued for a human's next render. Keyed
+    by an event_id stored in canonical_events. The narrator reads these
+    entries + the events themselves to compose per-beat prose.
+    """
+    event_id: str
+    # "direct" | "indirect" | "inferred" — observation level for this
+    # character, copied from the event's observer list at broadcast
+    # time.
+    observation_level: str = "direct"
+
+
 class SessionSettings(BaseModel):
     """User-tunable experimental toggles exposed via /settings.
 
@@ -40,6 +87,11 @@ class SessionSettings(BaseModel):
     # this doubles the tick budget in practice. Default True to preserve
     # the old behavior; flip off to save tokens during playtesting.
     ticks_on_scene_change: bool = True
+    # v11: hard cap on how many canonical events the router may chain
+    # inside a single beat before the orchestrator forces render + slot
+    # release. Prevents runaway agent cascades. 5 is a reasonable
+    # starting point for playtest; tune after observing real runs.
+    max_events_per_beat: int = 5
 
 
 class SessionConfig(BaseModel):
@@ -83,6 +135,24 @@ class SessionState(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
+
+    # v11: beat-pacing state. One active_act_slot per scene_id; an entry's
+    # key within the inner dict is the character_id of the slot-holder.
+    # A scene may have zero, one, or many entries (many = multi-responder
+    # Cat II). An unmapped scene_id means the scene is free.
+    active_act_slots: dict[str, dict[str, SlotEntry]] = Field(default_factory=dict)
+    # v11: in-flight Cat II events awaiting responder intentions.
+    open_cat_ii_events: list[OpenCatIIEvent] = Field(default_factory=list)
+    # v11: per-player queue of canonical events awaiting render. Keyed by
+    # character_id (a human's bound character). Cleared after each render
+    # fires. An agent's "render buffer" is just its observation context
+    # on the next intend() call — no separate store here.
+    render_buffers: dict[str, list[RenderBufferEntry]] = Field(default_factory=dict)
+    # v11: queued /acts that arrived during a moment where they can't be
+    # processed yet — or that may need re-examination once a slot frees.
+    # In the reject-on-conflict model we're shipping, this is usually
+    # empty; kept for future queueing/inspection.
+    pending_intentions: list[dict[str, str]] = Field(default_factory=list)
 
 
 class TimeState(BaseModel):

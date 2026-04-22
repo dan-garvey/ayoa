@@ -91,15 +91,33 @@ class CheckpointManager:
         return checkpoints
 
     def _load_file(self, path: Path) -> CheckpointFile:
-        """Load and validate a checkpoint file."""
+        """Load and validate a checkpoint file.
+
+        v11 hard-break: checkpoints with schema_version < "3.0" fail with
+        an explicit ValueError pointing the user at /story start. No
+        automatic migration.
+        """
         if not path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {path}")
 
         try:
             raw = path.read_text()
             data = json.loads(raw)
-            return CheckpointFile.model_validate(data)
         except json.JSONDecodeError as e:
             raise ValueError(f"Corrupt checkpoint file {path}: {e}") from e
+
+        # Schema version gate — hard break for pre-v11 checkpoints.
+        from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION
+        version = str(data.get("schema_version", "")).strip()
+        if version != CURRENT_SCHEMA_VERSION:
+            raise ValueError(
+                f"Checkpoint {path} has schema_version={version!r}, expected "
+                f"{CURRENT_SCHEMA_VERSION!r}. The v11 turn pipeline is a "
+                f"hard break — old sessions cannot be resumed. Run "
+                f"/story start on a fresh session to continue."
+            )
+
+        try:
+            return CheckpointFile.model_validate(data)
         except Exception as e:
             raise ValueError(f"Invalid checkpoint file {path}: {e}") from e
