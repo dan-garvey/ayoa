@@ -301,10 +301,15 @@ class TestCatIIPending:
             acting_character_id="alice",
         ))
 
-        # Beat paused on the open event.
-        assert response.per_player_renders == {}
-        assert response.output_text == ""
+        # Beat paused on the open event. v11-r6a: pinned humans + the
+        # initiator now get a PARTIAL-mode cliffhanger render instead of
+        # empty, so the responder knows what they're reacting to.
         assert response.beat_ended_reason == "cat_ii_pending"
+        assert "alice" in response.per_player_renders
+        assert "bob" in response.per_player_renders
+        assert response.per_player_renders["bob"]  # non-empty prose
+        # output_text is the actor's (alice's) POV.
+        assert response.output_text == response.per_player_renders["alice"]
         # Checkpoint saved even on pause (the open event + pin must
         # persist across process restarts).
         assert mgr.save.call_count == 1
