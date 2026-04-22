@@ -1,61 +1,67 @@
-"""Turn orchestrator — wires the full turn pipeline.
+"""Turn orchestrator — v11 beat loop binding.
 
-Sequence: Load checkpoint -> EventRouter -> Agents -> Narrator -> Save checkpoint.
+The old v8 pipeline ran a single-pass turn (EventRouter → agents → Narrator)
+and returned one rendered output. v11 shifts to a beat-cascading state
+machine in `app.engine.turn_loop.run_beat`; this module is now a thin
+adapter that:
 
-Every role maintains a rolling conversation on the checkpoint; nothing on the
-wire goes stateless. The orchestrator's job is to sequence the roles, apply
-state updates from their outputs, and persist the checkpoint.
+  1. loads the checkpoint,
+  2. resolves which character is acting,
+  3. acquires the per-(session, scene) scene lock so two concurrent
+     /acts on the same scene serialize,
+  4. validates the incoming /act against the scene's active_act_slot,
+  5. runs one beat to completion via `run_beat`,
+  6. applies roster side-effects of every event that closed this beat,
+  7. saves the checkpoint,
+  8. returns a `TurnResponse` carrying per-POV renders.
+
+The only LLM-facing object the orchestrator constructs directly is the
+`LLMDispatcher` — the single adapter that binds the router, narrator,
+and character_agent modules into the protocol `run_beat` depends on.
+
+Helpers kept from v8:
+  - `_apply_scene_creations` (scene-graph growth is still orchestrator-
+    owned; `run_beat` broadcasts canonical events but doesn't mutate the
+    scene graph).
+  - `_log_cache_summary` (per-turn cache/spend readout; currently unused
+    in the v11 wrapper because per-phase latencies aren't gathered yet —
+    left intact for when they come back).
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 
-from app.engine.character_agent import CharacterAgent
-from app.engine.character_manager import CharacterManager
+from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
-from app.engine.context_builder import (
-    collect_player_ids,
-    iter_agent_beats,
-    resolve_acting_character,
-)
-from app.engine.event_router import EventRouter
-from app.engine.narrator import Narrator
 from app.engine.prompt_manager import PromptManager
-from app.engine.validators import validate_all_outputs
+from app.engine.turn_loop import (
+    SceneLockManager,
+    SlotConflict,
+    check_act_slot,
+    format_slot_rejection,
+    run_beat,
+)
 from app.llm.client import LLMClient
-from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, IncomingDirective
+
+try:
+    # Sibling v11 module; imported here so tests (and production) can
+    # monkeypatch `app.engine.orchestrator.LLMDispatcher` without
+    # reaching into the adapter module itself. During the v11 landing
+    # sequence this import may transiently fail (the sibling commit lands
+    # separately); the `None` sentinel lets test suites that monkeypatch
+    # the symbol run without requiring the adapter to exist yet. In
+    # production the bridge will raise at instantiation time (far more
+    # actionable than an opaque ImportError at startup).
+    from app.engine.turn_loop_dispatcher import LLMDispatcher
+except ImportError:  # pragma: no cover
+    LLMDispatcher = None  # type: ignore[assignment]
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.narrator import TranscriptEntry
+from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
-from app.schemas.responses import DebugPayload, PhaseLatency, TurnResponse
+from app.schemas.responses import PhaseLatency, TurnResponse
 
 logger = logging.getLogger(__name__)
-
-# Per-agent timeout in seconds
-AGENT_TIMEOUT = 60.0
-# Safety cap above per-session settings: even if someone cranks
-# max_responders or tick_concurrency to a ridiculous value, we don't
-# want to dispatch hundreds of parallel LLM calls from one turn. Real
-# orgs should lower session settings, not raise this ceiling.
-RESPONDERS_HARD_CAP = 8
-TICK_CONCURRENCY_HARD_CAP = 16
-# Cap on how many pending observations any single character accumulates
-# between their own response turns (older entries drop off the front).
-MAX_PENDING_OBSERVATIONS = 10
-# Directive delegation depth: warn above this, drop above the hard cap.
-# Catches chains like A → B → C → D where intent gets laundered through
-# too many hops. Depth 1 = directive sent by an agent acting spontaneously.
-DIRECTIVE_DEPTH_WARN = 2
-DIRECTIVE_DEPTH_CAP = 10
-# Content-length at which we warn about a runaway directive. Not a hard
-# cap — legitimate in-character messages might be a paragraph or two.
-# But a 1KB directive is a signal the agent is drifting into monologue
-# territory and we want it visible in logs. No truncation.
-DIRECTIVE_LENGTH_WARN = 1000
 
 
 def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
@@ -71,8 +77,8 @@ def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
          closes the reverse edge when a new scene connects to a
          pre-existing one.
 
-    Runs before any movement logic on the turn so downstream code can
-    treat the new scenes as real.
+    Runs after every closed event in a beat so later events can reference
+    scenes introduced earlier in the same beat.
     """
     if not creations:
         return
@@ -121,15 +127,12 @@ def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
         )
 
     # Pass 2: ensure bidirectionality for edges touching any newly-
-    # created scene. Iterating over both endpoints catches the case
-    # where A was declared with connected_to=[B] but B was declared
-    # with connected_to=[] — B still gains the reverse edge here.
+    # created scene.
     for new_id in created_ids:
         new_scene = scene_graph.get(new_id)
         if not isinstance(new_scene, dict):
             continue
 
-        # Forward edges from the new scene: mirror onto each neighbor.
         for conn in new_scene.get("connected_to", []) or []:
             neighbor = scene_graph.get(conn)
             if not isinstance(neighbor, dict):
@@ -139,7 +142,6 @@ def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
                 n_conns.append(new_id)
                 neighbor["connected_to"] = n_conns
 
-        # Incoming edges from any other scene: mirror onto the new one.
         for other_id, other in scene_graph.items():
             if other_id == new_id or not isinstance(other, dict):
                 continue
@@ -151,7 +153,12 @@ def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
 
 
 class Orchestrator:
-    """Orchestrates a full turn through the pipeline."""
+    """Binds `turn_loop.run_beat` to the LLM/storage layers.
+
+    One instance lives per `EngineBridge`; sessions in the same process
+    share the `SceneLockManager` so concurrent /acts targeting the same
+    scene serialize against a single asyncio.Lock.
+    """
 
     def __init__(
         self,
@@ -161,97 +168,162 @@ class Orchestrator:
     ):
         self.client = client
         self.prompt_mgr = prompt_mgr
-        self.narrator = Narrator(client, prompt_mgr)
-        self.event_router = EventRouter(client, prompt_mgr)
-        self.agent_engine = CharacterAgent(client, prompt_mgr)
-        self.char_mgr = CharacterManager(client, prompt_mgr)
         self.checkpoint_mgr = checkpoint_mgr
+        self.char_mgr = CharacterManager(client, prompt_mgr)
+        # One manager per Orchestrator. Same-scene /acts serialize here;
+        # different scenes acquire independent locks.
+        self.scene_locks = SceneLockManager()
 
     async def process_turn(self, request: TurnRequest) -> TurnResponse:
-        """Process a single turn end-to-end."""
-        turn_start = time.monotonic()
-        latencies: list[PhaseLatency] = []
+        """Process a single turn end-to-end, v11-style.
 
-        checkpoint = self.checkpoint_mgr.load_latest(request.session_id)
+        Steps: load checkpoint → resolve actor & scene → acquire scene
+        lock → slot check → run beat → apply per-event roster side-
+        effects → save → build response.
+        """
+        ckpt = self.checkpoint_mgr.load_latest(request.session_id)
 
-        # Resolve the acting character — whose action drives this turn. Falls
-        # back to the creator's binding for single-player / legacy call sites
-        # that don't pass acting_character_id on the request.
-        acting_character_id, _, _ = resolve_acting_character(
-            checkpoint, request.acting_character_id,
-        )
+        # 1. Resolve the acting character.
+        acting_id = self._resolve_acting_character(ckpt, request)
+
+        # 2. Determine which scene the acting character occupies.
+        scene_id = self._resolve_scene_id(ckpt, acting_id)
+
         logger.info(
-            "Turn %d for session %s (acting=%s)",
-            checkpoint.session.turn_index,
-            request.session_id,
-            acting_character_id or "(none)",
+            "Turn %d for session %s (acting=%s, scene=%s)",
+            ckpt.session.turn_index, request.session_id, acting_id, scene_id,
         )
 
-        # --- EventRouter: adjudicate + route in one pass, appending to session_conversation ---
-        t0 = time.monotonic()
-        routed = await self.event_router.run(
-            request.user_input, checkpoint, acting_character_id=acting_character_id,
+        # 3. Acquire per-scene lock. Prevents two concurrent /acts on the
+        # same scene from both seeing FREE on their check_act_slot.
+        lock = await self.scene_locks.get(request.session_id, scene_id)
+        async with lock:
+            # 4. Validate against the scene's active_act_slot.
+            check = check_act_slot(ckpt, scene_id, acting_id)
+
+            if check.conflict in (SlotConflict.INITIATOR_HELD,
+                                  SlotConflict.CAT_II_OTHER_HELD,
+                                  SlotConflict.SELF_BUSY):
+                msg = format_slot_rejection(
+                    check, ckpt, attempted_text=request.user_input,
+                )
+                # Reject early. Do NOT save — the checkpoint is unchanged.
+                return TurnResponse(
+                    session_id=request.session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=msg,
+                    per_player_renders={},
+                    beat_ended_reason="slot_rejected",
+                )
+
+            cat_ii_event_id = (
+                check.cat_ii_event_id
+                if check.conflict == SlotConflict.CAT_II_SELF_RESPONDER
+                else None
+            )
+
+            # 5. Run the beat.
+            dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            beat_result = await run_beat(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+                actor_id=acting_id,
+                intention=request.user_input,
+                scene_id=scene_id,
+                cat_ii_event_id=cat_ii_event_id,
+            )
+
+            # 6. Apply roster side-effects of every event that closed
+            # this beat. `run_beat` broadcasts + renders but leaves
+            # scene_creations / roster_moves / spawn / dormant / cull
+            # for the orchestrator to apply. Walk the tail of
+            # canonical_events matching the count it reports.
+            closed = beat_result.events_closed
+            if closed > 0:
+                closed_this_beat = ckpt.canonical_events[-closed:]
+                for evt in closed_this_beat:
+                    _apply_scene_creations(ckpt, evt.scenes_created)
+                    self.char_mgr.apply_roster_updates(ckpt, evt)
+                    self._apply_roster_moves(ckpt, evt)
+                    # Spawns remain async LLM calls; if none declared,
+                    # the helper is a no-op.
+                    if evt.spawn:
+                        await self.char_mgr.spawn_characters(ckpt, evt.spawn)
+
+            # 7. Save. run_beat has already mutated active_act_slots,
+            # open_cat_ii_events, render_buffers, canonical_events, and
+            # (through the dispatcher) narrator_conversations.
+            ckpt.session.turn_index += 1
+            self.checkpoint_mgr.save(ckpt)
+
+        # 8. Build the response.
+        per_player = dict(beat_result.renders)
+        output_text = per_player.get(acting_id, "")
+        return TurnResponse(
+            session_id=request.session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text=output_text,
+            per_player_renders=per_player,
+            beat_ended_reason=beat_result.ended_reason,
         )
-        event = routed.canonical_event
-        latencies.append(self._phase_latency(
-            "event_router",
-            t0,
-            self.client.config.model_for_role("event_router"),
-            [self.event_router.last_usage],
-        ))
 
-        # --- Apply event consequences on state ---
-        # Order matters: (1) create new scenes FIRST so downstream movement
-        # and spawn logic can target them this same turn, then
-        # (2) scene transition, (3) roster status updates, (4) NPC moves,
-        # (5) spawns.
-        _apply_scene_creations(checkpoint, routed.scenes_created)
+    # ------------------------------------------------------------------ helpers
 
-        if event.scene_delta.new_scene_id:
-            old_scene = checkpoint.world_state.locations.current_scene_id
-            new_scene = event.scene_delta.new_scene_id
-            if new_scene in checkpoint.world_state.locations.scene_graph:
-                checkpoint.world_state.locations.current_scene_id = new_scene
-                # Move the acting character along with the scene. Without
-                # this, character.location stays at whatever was assigned
-                # at import time while current_scene_id moves, so scene-
-                # presence checks (characters_present, observer routing)
-                # see the player as off-stage even when they're the only
-                # one on it.
-                acting_char = next(
-                    (c for c in checkpoint.characters if c.character_id == acting_character_id),
-                    None,
-                )
-                if acting_char is not None:
-                    acting_char.location = new_scene
-                logger.info("Scene transition: %s -> %s", old_scene, new_scene)
-            else:
-                logger.warning(
-                    "Event analysis suggested scene %s but it's not in the "
-                    "scene graph and the router did not include it in "
-                    "scenes_created — likely a hallucinated id; movement "
-                    "ignored",
-                    new_scene,
-                )
+    def _resolve_acting_character(
+        self, ckpt: CheckpointFile, request: TurnRequest
+    ) -> str:
+        """Pick the acting character id. Request-supplied wins; else fall
+        back to the user's bound character; else session.player_character_id.
+        Raises ValueError if nothing resolves."""
+        if request.acting_character_id:
+            return request.acting_character_id
 
-        self.char_mgr.apply_roster_updates(checkpoint, routed)
+        # Fall back to the session's creator binding. (Legacy single-
+        # player call sites and CLI playtest sessions.)
+        pid = ckpt.session.player_character_id
+        if pid:
+            return pid
 
-        # Collect player-controlled character_ids once and reuse. Bindings
-        # don't mutate during a turn, so recomputing on each consumer would
-        # just re-scan the whole roster N times.
-        player_ids = collect_player_ids(checkpoint)
+        raise ValueError(
+            "process_turn: no acting_character_id resolvable — request did "
+            "not supply one and session.player_character_id is empty. "
+            "Callers must supply a character id for multi-player sessions."
+        )
 
-        # Apply router-directed NPC movement. Player-bound characters are
-        # skipped defensively — the router prompt forbids moving them, but
-        # we don't trust the model to respect that every turn.
-        scene_graph = checkpoint.world_state.locations.scene_graph
-        # v11: collect ids that are pinned in a scene (initiator or Cat II
-        # responder). A roster move on a pinned character would strand
-        # their pin in the old scene. The router should never do this —
-        # moving a pinned character is itself a contest that should open
-        # a new Cat II — but we skip + warn defensively.
-        from app.engine.character_manager import _pinned_character_ids
-        pinned_ids = _pinned_character_ids(checkpoint)
+    def _resolve_scene_id(
+        self, ckpt: CheckpointFile, acting_id: str
+    ) -> str:
+        """The scene the acting character is currently in. Prefers the
+        roster's `location` field; falls back to
+        world_state.locations.current_scene_id for characters that have
+        no location set (legacy imports, newly-spawned)."""
+        for c in ckpt.characters:
+            if c.character_id == acting_id and c.location:
+                return c.location
+        return ckpt.world_state.locations.current_scene_id
+
+    def _apply_roster_moves(
+        self, ckpt: CheckpointFile, routed: EventRouterOutput
+    ) -> None:
+        """Apply router-directed NPC relocations. Guards:
+          - pinned characters (initiator or Cat II responder) are skipped,
+            because moving them would strand their pin.
+          - player-bound characters are skipped; they only move via their
+            own /act.
+          - unknown scene_ids are skipped.
+          - unknown character_ids are skipped.
+        """
+        if not routed.roster_moves:
+            return
+
+        scene_graph = ckpt.world_state.locations.scene_graph
+        pinned_ids = _pinned_character_ids(ckpt)
+        player_ids = set(ckpt.session.character_bindings or {})
+        if ckpt.session.player_character_id:
+            player_ids.add(ckpt.session.player_character_id)
+
         for move in routed.roster_moves:
             if move.character_id in pinned_ids:
                 logger.warning(
@@ -274,7 +346,7 @@ class Orchestrator:
                 )
                 continue
             target = next(
-                (c for c in checkpoint.characters if c.character_id == move.character_id),
+                (c for c in ckpt.characters if c.character_id == move.character_id),
                 None,
             )
             if target is None:
@@ -291,641 +363,13 @@ class Orchestrator:
                 move.reason or "no reason given",
             )
 
-        if routed.spawn:
-            t0 = time.monotonic()
-            await self.char_mgr.spawn_characters(checkpoint, routed.spawn)
-            latencies.append(PhaseLatency(
-                phase="character_spawn",
-                duration_ms=(time.monotonic() - t0) * 1000,
-                model=self.client.config.model_for_role("agent"),
-            ))
-
-        # --- Responder selection ---
-        # Exclude every player-controlled character, not just the creator's.
-        # Other bound characters are humans too and never get AI responses.
-        candidates = sorted(
-            [o for o in routed.observers if o.character_id not in player_ids],
-            key=lambda o: o.response_priority,
-            reverse=True,
-        )
-        # Two clamps stack: the session setting (operator tunable via
-        # /settings) and the module hard cap (safety rail so a bad
-        # setting can't fan out to 200 agents).
-        settings = checkpoint.session.config.settings
-        response_cap = min(
-            max(0, settings.max_responders),
-            RESPONDERS_HARD_CAP,
-        )
-        responding = [o for o in candidates if o.response_priority >= 3][:response_cap]
-        observing_only = [o for o in candidates if o not in responding]
-
-        agent_outputs: list[CharacterAgentOutput] = []
-        base_depths: dict[str, int] = {}
-        logger.info(
-            "Response selection: %d candidates, %d responding (cap=%d), %d observing",
-            len(candidates), len(responding), response_cap, len(observing_only),
-        )
-
-        # --- Short-circuit: unwitnessed failure — skip NP2 ---
-        if not event.world_adjudication.feasible and not responding:
-            logger.info("Short-circuit: unwitnessed failure, returning router outcome")
-
-            self._push_pending_observations(
-                checkpoint, observing_only,
-                event.world_adjudication.resolved_outcome,
-            )
-
-            checkpoint.transcript.append(TranscriptEntry(
-                user=request.user_input,
-                assistant=event.world_adjudication.resolved_outcome,
-            ))
-            checkpoint.session.turn_index += 1
-            self.checkpoint_mgr.save(checkpoint)
-
-            total_ms = (time.monotonic() - turn_start) * 1000
-            logger.info(
-                "Turn %d complete (short-circuit): %.0fms total",
-                checkpoint.session.turn_index, total_ms,
-            )
-
-            return TurnResponse(
-                session_id=request.session_id,
-                checkpoint_id=f"ckpt_{checkpoint.session.turn_index:04d}",
-                turn_index=checkpoint.session.turn_index,
-                output_text=event.world_adjudication.resolved_outcome,
-                debug=self._build_debug(
-                    event, routed, [], {}, latencies,
-                    total_ms, [], short_circuit=True,
-                ) if request.debug else None,
-            )
-
-        # --- Agent fan-out: primary then parallel secondaries ---
-        if responding:
-            t0 = time.monotonic()
-            # Each respond() call overwrites agent_engine.last_usage, so snapshot
-            # after each call to sum at the end for the phase latency.
-            agent_usages: list[dict] = []
-
-            # Capture base directive depths BEFORE fan-out, because respond()
-            # clears each character's incoming_directives during flush.
-            # Outgoing directives get stamped at max(flushed) + 1.
-            for obs in responding:
-                char = self.char_mgr.get_character(checkpoint, obs.character_id)
-                if char:
-                    base_depths[obs.character_id] = max(
-                        (d.depth for d in char.incoming_directives), default=0,
-                    )
-
-            primary_obs = responding[0]
-            primary_char = self.char_mgr.get_character(
-                checkpoint, primary_obs.character_id
-            )
-            if primary_char:
-                try:
-                    primary_result = await asyncio.wait_for(
-                        self.agent_engine.respond(
-                            primary_char, event.observable_facts, checkpoint,
-                            prior_responses=[],
-                            acting_character_id=acting_character_id,
-                        ),
-                        timeout=AGENT_TIMEOUT,
-                    )
-                    agent_outputs.append(primary_result)
-                    agent_usages.append(dict(self.agent_engine.last_usage))
-                except Exception as e:
-                    logger.warning(
-                        "Primary agent %s failed: %s", primary_obs.character_id, e
-                    )
-
-            secondary_obs = responding[1:]
-            if secondary_obs:
-                secondary_tasks = []
-                for obs in secondary_obs:
-                    char = self.char_mgr.get_character(checkpoint, obs.character_id)
-                    if char:
-                        task = asyncio.wait_for(
-                            self.agent_engine.respond(
-                                char, event.observable_facts, checkpoint,
-                                prior_responses=list(agent_outputs),
-                                acting_character_id=acting_character_id,
-                            ),
-                            timeout=AGENT_TIMEOUT,
-                        )
-                        secondary_tasks.append(task)
-
-                if secondary_tasks:
-                    # Parallel calls share the engine's last_usage, so we can't
-                    # snapshot per-call cleanly. Instead we instrument by doing
-                    # serial awaits with snapshots. (Still concurrent — gather
-                    # completes them; we just walk results afterwards.)
-                    results = await asyncio.gather(
-                        *secondary_tasks, return_exceptions=True
-                    )
-                    for result in results:
-                        if isinstance(result, Exception):
-                            logger.warning("Secondary agent failed: %s", result)
-                        else:
-                            agent_outputs.append(result)
-                    # Best-effort: record the last_usage snapshot once. For
-                    # precise per-agent accounting with parallel dispatch, we
-                    # would need respond() to return usage directly.
-                    if self.agent_engine.last_usage:
-                        agent_usages.append(dict(self.agent_engine.last_usage))
-
-            latencies.append(self._phase_latency(
-                "agent_fanout",
-                t0,
-                self.client.config.model_for_role("agent"),
-                agent_usages,
-            ))
-
-        # --- Validate agent outputs for knowledge leakage ---
-        # Every responding observer saw the canonical event's observable
-        # facts (the router no longer per-character-filters them).
-        observer_facts = {
-            o.character_id: event.observable_facts for o in routed.observers
-        }
-        validation_results = validate_all_outputs(
-            agent_outputs, checkpoint, observer_facts
-        )
-        validation_entries = [
-            {
-                "character_id": v.character_id,
-                "passed": v.passed,
-                "flags": [
-                    {"text": f.leaked_text, "reason": f.reason}
-                    for f in v.flags
-                ],
-            }
-            for v in validation_results
-        ]
-        checkpoint.visibility_log.append({
-            "turn": checkpoint.session.turn_index,
-            "event_id": f"evt_{checkpoint.session.turn_index:04d}",
-            "validations": validation_entries,
-        })
-
-        # --- Detect character self-introduction from dialogue ---
-        known = set(checkpoint.world_state.known_characters)
-        for output in agent_outputs:
-            if output.character_id in known:
-                continue
-            char = next(
-                (c for c in checkpoint.characters if c.character_id == output.character_id),
-                None,
-            )
-            if not char:
-                continue
-            first_name = char.name.split()[0] if char.name else ""
-            if not first_name:
-                continue
-            for line in output.public_response.dialogue:
-                if first_name in line:
-                    checkpoint.world_state.known_characters.append(output.character_id)
-                    logger.info(
-                        "Character introduced: %s (%s)", char.name, output.character_id
-                    )
-                    break
-
-        # --- Narrator composition: appends to narrator_conversation ---
-        t0 = time.monotonic()
-        final = await self.narrator.compose(
-            request.user_input, event, agent_outputs, checkpoint, routed,
-            acting_character_id=acting_character_id,
-        )
-        latencies.append(self._phase_latency(
-            "narrator_compose",
-            t0,
-            self.client.config.model_for_role("narrator"),
-            [self.narrator.last_usage],
-        ))
-
-        # --- Apply agent outputs (objectives + directives) ---
-        for output in agent_outputs:
-            char = self.char_mgr.get_character(checkpoint, output.character_id)
-            if char:
-                self._apply_agent_private_updates(
-                    checkpoint, char, output,
-                    base_depth=base_depths.get(output.character_id, 0),
-                )
-
-        # --- Push turn observations to silent observers' pending queues ---
-        npc_summary = self._build_npc_turn_summary(
-            request.user_input, agent_outputs, checkpoint,
-            acting_character_id=acting_character_id,
-        )
-        self._push_pending_observations(checkpoint, observing_only, npc_summary)
-
-        # --- Display transcript + turn bookkeeping ---
-        checkpoint.transcript.append(final.transcript_entry)
-        checkpoint.session.turn_index += 1
-
-        # --- Turn recap (kicked off now, awaited after tick pass so the
-        # two run in parallel when both fire). A terse Haiku summary of
-        # narrator state-level deltas; consumed by next turn's router.
-        from app.engine.turn_recap import summarize_turn
-        recap_task = asyncio.create_task(
-            summarize_turn(
-                self.client, self.prompt_mgr, event, final.final_text,
-            )
-        )
-
-        # --- Off-stage tick pass. Fires on cadence OR on scene change,
-        # whichever comes first. Scene-change reset keeps the world moving
-        # when the player jumps between spaces; cadence keeps it moving
-        # when the player sits in one scene for a while. Tick effects
-        # land on the FOLLOWING turn the player sees (no prose this turn).
-        acted_this_turn = {o.character_id for o in agent_outputs}
-        acted_this_turn.add(acting_character_id)
-        t0 = time.monotonic()
-        tick_usages = await self._run_ticks(
-            checkpoint, acted_this_turn, acting_character_id,
-            player_ids=player_ids,
-        )
-        if tick_usages:
-            latencies.append(self._phase_latency(
-                "off_stage_ticks",
-                t0,
-                self.client.config.model_for_role("agent"),
-                tick_usages,
-            ))
-
-        # Await the recap that was kicked off before the tick pass.
-        # Errors here shouldn't fail the turn — an empty recap just means
-        # next turn's router runs without the delta note, same as today.
-        try:
-            recap_note = await recap_task
-        except Exception:
-            logger.exception("turn_recap failed; pending_recap left empty")
-            recap_note = ""
-        checkpoint.session.pending_recap = recap_note
-
-        # Single save at the end of the turn. Previously we saved after
-        # narrator compose AND after ticks, which left a crash window:
-        # the turn persisted but tick effects didn't, and a replay on
-        # restart would re-run ticks non-idempotently. One save here
-        # means the turn is atomic — either the whole turn (including
-        # tick state) lands on disk, or none of it does, and a retry
-        # replays cleanly from the prior checkpoint.
-        self.checkpoint_mgr.save(checkpoint)
-
-        total_ms = (time.monotonic() - turn_start) * 1000
-        logger.info(
-            "Turn %d complete: %d chars output, %d agents responded, %.0fms total",
-            checkpoint.session.turn_index, len(final.final_text),
-            len(agent_outputs), total_ms,
-        )
-        _log_cache_summary(latencies)
-
-        return TurnResponse(
-            session_id=request.session_id,
-            checkpoint_id=f"ckpt_{checkpoint.session.turn_index:04d}",
-            turn_index=checkpoint.session.turn_index,
-            output_text=final.final_text,
-            debug=self._build_debug(
-                event, routed, agent_outputs, final.world_updates,
-                latencies, total_ms, validation_entries, short_circuit=False,
-            ) if request.debug else None,
-        )
-
-    def _phase_latency(
-        self,
-        phase: str,
-        start_mono: float,
-        model: str,
-        usages: list[dict],
-    ) -> PhaseLatency:
-        """Build a PhaseLatency record summing token usage across one or
-        more LLM calls. Each role stuffs a `prompt_render_ms` key alongside
-        token counts in its `last_usage` dict, which we sum here so
-        render overhead is visible as its own column in debug logs."""
-        def sum_int(key: str) -> int:
-            return sum(int(u.get(key, 0) or 0) for u in usages if u)
-
-        def sum_float(key: str) -> float:
-            return sum(float(u.get(key, 0.0) or 0.0) for u in usages if u)
-
-        return PhaseLatency(
-            phase=phase,
-            duration_ms=(time.monotonic() - start_mono) * 1000,
-            model=model,
-            input_tokens=sum_int("prompt_tokens"),
-            output_tokens=sum_int("completion_tokens"),
-            cache_read_input_tokens=sum_int("cache_read_input_tokens"),
-            cache_creation_input_tokens=sum_int("cache_creation_input_tokens"),
-            prompt_render_ms=sum_float("prompt_render_ms"),
-        )
-
-    async def _run_ticks(
-        self,
-        checkpoint: CheckpointFile,
-        acted_this_turn: set[str],
-        acting_character_id: str,
-        player_ids: set[str] | None = None,
-    ) -> list[dict]:
-        """Off-stage tick pass. Returns the list of per-tick usage dicts
-        so the caller can fold them into phase latencies; empty list when
-        no ticks fired. `player_ids` may be passed by the caller to avoid
-        re-scanning the roster; falls back to computing it here for tests
-        that invoke _run_ticks directly."""
-        session = checkpoint.session
-        current_scene = checkpoint.world_state.locations.current_scene_id
-        scene_changed_raw = (
-            session.tick_last_scene_id != ""
-            and current_scene != session.tick_last_scene_id
-        )
-        scene_changed = (
-            scene_changed_raw
-            and session.config.settings.ticks_on_scene_change
-        )
-
-        session.tick_turn_counter += 1
-        cadence_hit = session.tick_turn_counter >= session.tick_cadence
-
-        if not (cadence_hit or scene_changed):
-            # Keep last_scene_id seeded on the very first turn so the
-            # scene-change comparison has a baseline going forward.
-            if not session.tick_last_scene_id:
-                session.tick_last_scene_id = current_scene
-            return []
-
-        # Reset regardless of which trigger fired.
-        session.tick_turn_counter = 0
-        session.tick_last_scene_id = current_scene
-
-        if player_ids is None:
-            player_ids = collect_player_ids(checkpoint)
-        eligible = [
-            c for c in checkpoint.characters
-            if c.private_state.intentions_enabled
-            and c.status.value == "active"
-            and c.character_id not in player_ids
-            and c.character_id not in acted_this_turn
-        ]
-        if not eligible:
-            logger.info(
-                "Tick trigger fired (cadence=%s scene_changed=%s) but no eligible characters",
-                cadence_hit, scene_changed,
-            )
-            return []
-
-        logger.info(
-            "Off-stage tick: %d eligible (cadence=%s scene_changed=%s)",
-            len(eligible), cadence_hit, scene_changed,
-        )
-
-        # Capture base depths before tick() clears each character's
-        # incoming_directives. Same pattern as the response fan-out.
-        base_depths = {
-            c.character_id: max(
-                (d.depth for d in c.incoming_directives), default=0,
-            )
-            for c in eligible
-        }
-
-        # Concurrency cap: session setting, clamped to a hard ceiling
-        # so a misconfigured setting doesn't fire dozens of parallel
-        # agent calls. Min of 1 so the semaphore is never nonsensical.
-        tick_conc = max(
-            1,
-            min(session.config.settings.tick_concurrency, TICK_CONCURRENCY_HARD_CAP),
-        )
-        semaphore = asyncio.Semaphore(tick_conc)
-
-        async def _tick_one(char):
-            async with semaphore:
-                try:
-                    return char, await asyncio.wait_for(
-                        self.agent_engine.tick(
-                            char, checkpoint,
-                            acting_character_id=acting_character_id,
-                        ),
-                        timeout=AGENT_TIMEOUT,
-                    ), dict(self.agent_engine.last_usage)
-                except Exception as e:
-                    logger.warning("Tick failed for %s: %s", char.character_id, e)
-                    return char, None, {}
-
-        results = await asyncio.gather(*[_tick_one(c) for c in eligible])
-
-        # Whether the session has opted into agent-driven scene creation.
-        # When True, tick outputs' scenes_created are applied (before the
-        # per-character moved_to so the character can walk INTO the scene
-        # they just invented). When False, non-empty scenes_created is
-        # dropped with a warning — the agent shouldn't have emitted any.
-        allow_agent_scenes = checkpoint.session.config.settings.agents_can_create_scenes
-
-        usages: list[dict] = []
-        for char, output, usage in results:
-            if output is None:
-                continue
-
-            scenes = output.private_updates.scenes_created
-            if scenes:
-                if allow_agent_scenes:
-                    _apply_scene_creations(checkpoint, scenes)
-                else:
-                    logger.warning(
-                        "Tick from %s emitted %d scenes_created but the "
-                        "agents_can_create_scenes setting is off — dropped",
-                        char.character_id, len(scenes),
-                    )
-
-            self._apply_agent_private_updates(
-                checkpoint, char, output,
-                base_depth=base_depths.get(char.character_id, 0),
-            )
-            usages.append(usage)
-
-        return usages
-
-    def _apply_agent_private_updates(
-        self,
-        checkpoint: CheckpointFile,
-        character: CharacterRecord,
-        output: CharacterAgentOutput,
-        base_depth: int,
-    ) -> None:
-        """Persist objectives and route directives after an agent response.
-
-        - Authoritative whole-list replacement for current_objectives.
-        - Routes outgoing directives to targets' incoming queues, stamping
-          from/turn/depth. Depth = max(flushed incoming depth) + 1, so a
-          directive A sends purely from its own initiative has depth 1; a
-          directive A sends in response to receiving B's directive has
-          depth B.depth + 1.
-        - Warns above DIRECTIVE_DEPTH_WARN, drops above DIRECTIVE_DEPTH_CAP.
-        """
-        private = output.private_updates
-
-        # Whole-list replacement. Agent emits the complete set of objectives
-        # it's still pursuing; anything missing is considered dropped.
-        character.private_state.current_objectives = list(private.current_objectives)
-
-        # Self-initiated movement (primarily from ticks). Validated against
-        # the scene graph; ignored if unknown to avoid corrupting location.
-        if private.moved_to:
-            scene_graph = checkpoint.world_state.locations.scene_graph
-            if private.moved_to in scene_graph:
-                old = character.location
-                character.location = private.moved_to
-                logger.info(
-                    "Character %s moved self: %s -> %s",
-                    character.character_id, old or "(unset)", private.moved_to,
-                )
-            else:
-                logger.warning(
-                    "Character %s tried to move to unknown scene %r; ignored",
-                    character.character_id, private.moved_to,
-                )
-
-        if not private.directives_sent:
-            return
-
-        new_depth = base_depth + 1
-        if new_depth > DIRECTIVE_DEPTH_CAP:
-            logger.warning(
-                "Directive chain from %s exceeded depth cap %d; dropping %d outgoing",
-                character.character_id, DIRECTIVE_DEPTH_CAP,
-                len(private.directives_sent),
-            )
-            return
-        if new_depth > DIRECTIVE_DEPTH_WARN:
-            logger.warning(
-                "Deep directive chain from %s (depth=%d, cap=%d)",
-                character.character_id, new_depth, DIRECTIVE_DEPTH_CAP,
-            )
-
-        turn_idx = checkpoint.session.turn_index
-        for directive in private.directives_sent:
-            target = self.char_mgr.get_character(checkpoint, directive.to)
-            if target is None:
-                logger.warning(
-                    "Directive from %s to unknown character %s — dropped",
-                    character.character_id, directive.to,
-                )
-                continue
-            # Delivered either way; length cap is advisory, not enforcing.
-            # A runaway agent producing 5KB messages is a signal worth
-            # surfacing without blocking legitimate longer communications.
-            if len(directive.content) > DIRECTIVE_LENGTH_WARN:
-                logger.warning(
-                    "Long directive from %s -> %s: %d chars "
-                    "(advisory threshold %d); still delivered.",
-                    character.character_id, directive.to,
-                    len(directive.content), DIRECTIVE_LENGTH_WARN,
-                )
-            target.incoming_directives.append(IncomingDirective(
-                from_character_id=character.character_id,
-                content=directive.content,
-                turn=turn_idx,
-                depth=new_depth,
-            ))
-            logger.info(
-                "Directive routed: %s -> %s (depth %d): %s",
-                character.character_id, directive.to, new_depth,
-                directive.content[:80],
-            )
-
-    def _push_pending_observations(
-        self,
-        checkpoint: CheckpointFile,
-        observers: list,
-        summary: str,
-    ) -> None:
-        """Append this turn's observations to each silent observer's pending list.
-
-        On the character's next response turn, their agent flushes these into
-        the user message.
-        """
-        turn_idx = checkpoint.session.turn_index
-        for obs in observers:
-            char = self.char_mgr.get_character(checkpoint, obs.character_id)
-            if not char:
-                continue
-
-            if obs.observation_level == "d":
-                entry = f"[Turn {turn_idx}] {summary}"
-            elif obs.observation_level == "i":
-                entry = f"[Turn {turn_idx}] [Heard nearby] {summary}"
-            else:
-                entry = f"[Turn {turn_idx}] [Sensed disturbance] Something happened nearby."
-
-            char.pending_observations.append(entry)
-            if len(char.pending_observations) > MAX_PENDING_OBSERVATIONS:
-                char.pending_observations = char.pending_observations[
-                    -MAX_PENDING_OBSERVATIONS:
-                ]
-
-    def _build_npc_turn_summary(
-        self,
-        user_input: str,
-        agent_outputs: list[CharacterAgentOutput],
-        checkpoint: CheckpointFile,
-        acting_character_id: str = "",
-    ) -> str:
-        """Build a turn summary in NPC-perspective terms for observation queues."""
-        acting_char = next(
-            (c for c in checkpoint.characters if c.character_id == acting_character_id),
-            None,
-        )
-        acting_name = (
-            acting_char.name if acting_char
-            else (checkpoint.session.player_name or "The player")
-        )
-        parts = [f"{acting_name}: {user_input}"]
-
-        for output, char in iter_agent_beats(agent_outputs, checkpoint):
-            name = char.name if char else output.character_id
-            pieces = list(output.public_response.actions)
-            pieces.extend(f'said "{line}"' for line in output.public_response.dialogue)
-            if pieces:
-                parts.append(f"{name}: {'; '.join(pieces)}")
-
-        return " | ".join(parts)
-
-    def _build_debug(
-        self,
-        event,
-        routed,
-        agent_outputs: list[CharacterAgentOutput],
-        world_updates: dict,
-        latencies: list[PhaseLatency],
-        total_ms: float,
-        validation_entries: list[dict],
-        short_circuit: bool,
-    ) -> DebugPayload:
-        models_used = {
-            "event_router": self.client.config.model_for_role("event_router"),
-            "agent": self.client.config.model_for_role("agent"),
-        }
-        if not short_circuit:
-            models_used["narrator"] = self.client.config.model_for_role("narrator")
-
-        return DebugPayload(
-            canonical_event=event.model_dump(),
-            router_output=routed.model_dump(),
-            agent_outputs=[o.model_dump() for o in agent_outputs],
-            world_updates=world_updates,
-            latencies=latencies,
-            total_duration_ms=total_ms,
-            models_used=models_used,
-            prompt_versions=self.prompt_mgr.get_all_versions(),
-            validations=validation_entries,
-        )
-
 
 def _log_cache_summary(latencies: list[PhaseLatency]) -> None:
-    """Per-turn cache + spend readout at INFO. Fires every turn so both
-    hit rate and where-the-dollars-went are visible in normal logs.
-
-    `hit_rate` is cache_read / (cache_read + cache_write + input) — the
-    fraction of total prompt tokens that were served from cache. `share`
-    is each phase's cost-weighted contribution to the turn's total:
-    input_tokens + 1.25*cache_write + 0.1*cache_read + output_tokens.
-    The weighting reflects Anthropic's billing ratios (cache writes are
-    1.25x, reads are ~0.1x), so `share` tells you where dollars actually
-    went, not just where raw tokens went."""
+    """Per-turn cache + spend readout at INFO. Retained from the v8
+    pipeline; currently unused by the v11 wrapper because per-phase
+    latencies aren't yet reconstructed from the dispatcher. Re-enable
+    by feeding latencies collected inside LLMDispatcher/run_beat once
+    that plumbing exists."""
     if not latencies:
         return
 

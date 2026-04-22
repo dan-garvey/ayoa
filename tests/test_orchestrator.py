@@ -1,4 +1,13 @@
-"""Tests for the Orchestrator — turn pipeline integration."""
+"""Tests for the Orchestrator — turn pipeline integration.
+
+v11-A3c: the TestOrchestrator class tests reach into the v8
+process_turn body (EventRouter/Agent/Narrator LLM call sequence,
+per-phase latencies, pending_recap, turn_recap summarizer) that the
+v11 rewrite deleted. Coverage for the new thin-wrapper shape lives in
+tests/test_orchestrator_v11.py. The TestCharacterManager and
+TestCharacterSpawn classes survive — those exercise CharacterManager
+directly and don't depend on the orchestrator path.
+"""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -108,6 +117,10 @@ class TestCharacterManager:
         char = mgr.get_character(sample_checkpoint, "guard_17")
         assert char.status.value == "dormant"
 
+@pytest.mark.skip(
+    reason="v11: legacy orchestrator path superseded; rewrite coverage in "
+    "test_orchestrator_v11.py"
+)
 class TestOrchestrator:
     @pytest.mark.asyncio
     async def test_full_turn(self, mock_client, mock_checkpoint_mgr, prompt_manager):

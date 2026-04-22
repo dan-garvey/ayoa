@@ -44,5 +44,22 @@ class TurnResponse(BaseModel):
     session_id: str
     checkpoint_id: str = ""
     turn_index: int = 0
-    output_text: str
+    # Back-compat single-POV render. For v11 beats this mirrors
+    # `per_player_renders[acting_character_id]` so legacy callers (the
+    # Discord bot's default-channel post, the CLI REPL) keep working
+    # unchanged. New multi-POV callers should walk `per_player_renders`
+    # directly to deliver each player their own prose.
+    output_text: str = ""
+    # v11: per-POV beat renders, keyed by character_id. Populated by
+    # `run_beat`'s fan-out through `Dispatcher.narrator_compose`; one
+    # entry per in-scene human with at least one observed event this
+    # beat. Empty when the beat paused mid-Cat-II (see
+    # `beat_ended_reason`) or nobody was present to observe.
+    per_player_renders: dict[str, str] = Field(default_factory=dict)
+    # v11: why the beat stopped. Values come from `BeatResult.ended_reason`
+    # (e.g. "directed_at_player", "cat_ii_resolution", "cat_ii_pending",
+    # "max_events_cap", "cascade_exhausted"). Callers can detect the
+    # Cat II pending state with `not per_player_renders` +
+    # `beat_ended_reason == "cat_ii_pending"`.
+    beat_ended_reason: str = ""
     debug: DebugPayload | None = None
