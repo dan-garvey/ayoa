@@ -91,6 +91,7 @@ from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.import_extraction import (
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
+    CharsAndOpeningExtraction,
     OpeningExtraction,
     WorldExtraction,
 )
@@ -128,7 +129,15 @@ MAX_EXTRACTION_TOKENS = 64_000
 # knowledge its own focused pass — while keeping the upstream three
 # together for cross-referencing — restores the attention budget
 # without re-fragmenting into four separate calls.
-IMPORTER_VERSION = "v4"
+# v4 → v5: three-call pipeline. The combined world+characters+opening
+# call exceeded Sonnet 4.6's 64K output-token cap on a 95KB master
+# prompt (mid-string truncation at ~303K chars of dense JSON ≈ 60K
+# tokens), so split it: Call 1 = world only; Call 2 = characters +
+# opening as a continuation reading world as cached history; Call 3 =
+# knowledge envelopes as a continuation reading the full chain. Each
+# call now gets the full 64K output budget. Cache-prefix continuity is
+# preserved — every call after Call 1 reads the prior chain warm.
+IMPORTER_VERSION = "v5"
 
 
 class CombinedImportExtraction(BaseModel):
@@ -588,8 +597,40 @@ the primary source of in-fiction tension and rediscovery.
 {opening_instructions}"""
 
 
+CHARS_AND_OPENING_CONTINUATION_INSTRUCTIONS = """\
+You just extracted the `world` section above.
+
+Now produce `characters` and `opening` together in this single
+structured response. Use the world state YOU JUST EXTRACTED as
+ground truth — do not re-derive it from the master prompt. Keep
+the same exhaustiveness standard as Call 1: every character the
+source describes, every faction membership, every secret, every
+backstory beat.
+
+Cross-referencing opportunity: factions in `world.lore` should
+land on the right `characters[].public_sheet.faction`; secrets in
+`world.hidden_facts` should be carried on the plausible
+`characters[].private_state.secrets`; characters who would
+reasonably know secrets about ANOTHER character should record
+those relational secrets on their own `secrets` list, with the
+other character named.
+
+---
+
+## `characters`
+
+{character_instructions}
+
+---
+
+## `opening`
+
+{opening_instructions}"""
+
+
 KNOWLEDGE_CONTINUATION_INSTRUCTIONS = """\
-You just extracted the `world` and `characters` sections above.
+You just extracted `world`, `characters`, and `opening` across the
+two prior calls.
 
 Now produce the `knowledge` envelopes: one `CharacterKnowledgeEnvelope`
 per character in the roster, in the `envelopes` array. Use the world
@@ -1339,20 +1380,27 @@ async def run_import_combined(
     )
 
 
-# ---------------- Two-call path (v4) ----------------
+# ---------------- Three-call path (v5) ----------------
 
 
-def _core_user_prompt() -> str:
-    """Assemble the Call-1 user message: world + characters + opening."""
-    return CORE_EXTRACTION_INSTRUCTIONS.format(
-        world_instructions=WORLD_EXTRACTION_INSTRUCTIONS,
+def _world_only_user_prompt() -> str:
+    """Assemble the Call-1 user message: world only. The per-stage
+    WORLD_EXTRACTION_INSTRUCTIONS already cover the entire `world`
+    schema in detail; no extra wrapper is needed."""
+    return WORLD_EXTRACTION_INSTRUCTIONS
+
+
+def _chars_and_opening_user_prompt() -> str:
+    """Assemble the Call-2 user message: characters + opening as a
+    continuation that reads Call 1's world output as cached history."""
+    return CHARS_AND_OPENING_CONTINUATION_INSTRUCTIONS.format(
         character_instructions=CHARACTER_EXTRACTION_INSTRUCTIONS,
         opening_instructions=OPENING_EXTRACTION_INSTRUCTIONS,
     )
 
 
 def _knowledge_user_prompt() -> str:
-    """Assemble the Call-2 user message: knowledge envelopes as a
+    """Assemble the Call-3 user message: knowledge envelopes as a
     continuation. Reuses the per-stage knowledge instructions plus the
     cross-character relational emphasis that v3's single-call pass
     tended to drop."""
@@ -1366,59 +1414,93 @@ async def run_import_two_call(
     source_text: str,
     story_id: str,
 ) -> _CombinedImportResult:
-    """Two-call importer (v4 default). Call 1 extracts world +
-    characters + opening in one structured-output pass; Call 2
-    produces knowledge envelopes as a continuation that reads Call 1's
-    conversation as cached history.
+    """Three-call importer (v5; function name retained for caller
+    compatibility — bridge + CLI + tests still import this symbol).
+    Call 1 extracts `world`; Call 2 extracts `characters` + `opening`
+    as a continuation that reads Call 1 as cached history; Call 3
+    extracts `knowledge` envelopes as a continuation that reads the
+    full two-call chain.
 
-    Returns a `_CombinedImportResult` shaped the same as the v3 path so
+    Why three calls instead of v4's two: the combined
+    world+characters+opening pass exceeded Sonnet 4.6's 64K output
+    cap on a 95KB master prompt, truncating the response mid-string
+    around column 303K (~60K tokens of dense JSON). Splitting world
+    off gives each call the full output budget. Cross-referencing
+    quality is preserved because every call after Call 1 reads the
+    prior chain as cached history.
+
+    Returns a `_CombinedImportResult` shaped the same as v4 so
     downstream callers (EngineBridge, preservation continuation) don't
     care which pipeline produced the checkpoint. `priming_messages`
-    contains the full two-call conversation up through the Call-2 user
-    turn; `assistant_text` is the Call-2 assistant reply — so the
-    preservation analysis can tack itself on as Call 3 with the same
+    contains the FULL three-call conversation up through Call-3's
+    user turn; `assistant_text` is the Call-3 assistant reply — the
+    preservation analysis tacks itself on as Call 4 with the same
     continuation helper.
     """
     t_start = time.monotonic()
     logger.info(
-        "Starting two-call import (pipeline %s): source prompt %d chars, ~%d words",
+        "Starting three-call import (pipeline %s): source prompt %d chars, ~%d words",
         IMPORTER_VERSION, len(source_text), len(source_text.split()),
     )
 
     system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
-    core_user = _core_user_prompt()
-    core_messages = [
+    world_user = _world_only_user_prompt()
+    world_messages = [
         {"role": "system", "content": system_text},
-        {"role": "user", "content": core_user},
+        {"role": "user", "content": world_user},
     ]
 
-    # Call 1 — core (world + characters + opening)
-    t_core = time.monotonic()
-    core_response = await client.complete(
+    # Call 1 — world only.
+    t_world = time.monotonic()
+    world_response = await client.complete(
         role="narrator",
-        messages=core_messages,
-        response_model=CoreImportExtraction,
+        messages=world_messages,
+        response_model=WorldExtraction,
         temperature=0.3,
         max_tokens=MAX_EXTRACTION_TOKENS,
         cache_user_tail=True,
     )
-    _log_usage("core", core_response)
-    core: CoreImportExtraction = core_response.parsed
+    _log_usage("world", world_response)
+    world: WorldExtraction = world_response.parsed
     logger.info(
-        "  Core (%.1fs): setting=%s/%s, scenes=%d, facts=%d, characters=%d, opening=%d chars",
-        time.monotonic() - t_core,
-        core.world.setting.genre or "?", core.world.setting.tone or "?",
-        len(core.world.locations.scene_graph),
-        len(core.world.facts),
-        len(core.characters.characters),
-        len(core.opening.text),
+        "  World (%.1fs): setting=%s/%s, scenes=%d, facts=%d, hidden_facts=%d",
+        time.monotonic() - t_world,
+        world.setting.genre or "?", world.setting.tone or "?",
+        len(world.locations.scene_graph),
+        len(world.facts),
+        len(world.hidden_facts),
     )
 
-    # Call 2 — knowledge envelopes (continuation; reads Call 1 as cached
-    # history thanks to cache_user_tail on Call 1's user turn).
+    # Call 2 — characters + opening (continuation; reads Call 1 as
+    # cached history thanks to cache_user_tail on Call 1's user turn).
+    chars_user = _chars_and_opening_user_prompt()
+    chars_messages = world_messages + [
+        {"role": "assistant", "content": world_response.content or ""},
+        {"role": "user", "content": chars_user},
+    ]
+    t_chars = time.monotonic()
+    chars_response = await client.complete(
+        role="narrator",
+        messages=chars_messages,
+        response_model=CharsAndOpeningExtraction,
+        temperature=0.3,
+        max_tokens=MAX_EXTRACTION_TOKENS,
+        cache_user_tail=True,
+    )
+    _log_usage("chars+opening", chars_response)
+    chars_and_opening: CharsAndOpeningExtraction = chars_response.parsed
+    logger.info(
+        "  Chars+Opening (%.1fs): characters=%d, opening=%d chars",
+        time.monotonic() - t_chars,
+        len(chars_and_opening.characters.characters),
+        len(chars_and_opening.opening.text),
+    )
+
+    # Call 3 — knowledge envelopes (continuation; reads the full
+    # two-call chain as cached history).
     knowledge_user = _knowledge_user_prompt()
-    knowledge_messages = core_messages + [
-        {"role": "assistant", "content": core_response.content or ""},
+    knowledge_messages = chars_messages + [
+        {"role": "assistant", "content": chars_response.content or ""},
         {"role": "user", "content": knowledge_user},
     ]
     t_know = time.monotonic()
@@ -1438,18 +1520,22 @@ async def run_import_two_call(
     )
 
     checkpoint = build_checkpoint(
-        core.world, core.characters, core.opening, knowledge, story_id,
+        world,
+        chars_and_opening.characters,
+        chars_and_opening.opening,
+        knowledge,
+        story_id,
     )
     logger.info(
-        "Two-call import complete in %.1fs (%d characters, %d scenes)",
+        "Three-call import complete in %.1fs (%d characters, %d scenes)",
         time.monotonic() - t_start,
         len(checkpoint.characters),
         len(checkpoint.world_state.locations.scene_graph),
     )
 
-    # Pack the FULL two-call conversation into priming_messages so the
-    # preservation analysis continuation reads the whole chain as its
-    # cached prefix.
+    # Pack the FULL three-call conversation into priming_messages so
+    # the preservation analysis continuation reads the whole chain as
+    # its cached prefix.
     return _CombinedImportResult(
         checkpoint=checkpoint,
         priming_messages=knowledge_messages,

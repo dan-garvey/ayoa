@@ -155,3 +155,16 @@ class OpeningExtraction(BaseModel):
     authorial guidance; the runtime narrator re-renders it in-scene per the
     rolling-conversation architecture."""
     text: str
+
+
+# ---------------- Three-call pipeline (v5) wrapper schemas ----------------
+
+class CharsAndOpeningExtraction(BaseModel):
+    """v5 Call-2 schema: characters + opening together (continuation that
+    reads world as cached history). Splitting world off into its own
+    Call 1 lets each call use the full 64K Sonnet output budget without
+    truncating mid-JSON, which the v4 single-call CoreImportExtraction
+    pass hit on long master prompts (~14K-word source = ~60K tokens of
+    dense JSON output across world+chars+opening)."""
+    characters: CharacterListExtraction
+    opening: OpeningExtraction
