@@ -8,12 +8,17 @@ its private intent. The engine parses that into the two fields below at
 - `public_text`: everything before the trailing parenthetical. This is
   what flows downstream — narrator phase-1 input, other agents'
   prior-responses cascade input, the router's intention block.
-- `intent`: contents of the trailing parenthetical. Engine + router
-  see it (the router uses it as freshness signal on the actor's
-  CharacterRecord.last_intent); the narrator and other agents NEVER do.
-  The parenthetical is in the agent's own rolling history (so its
-  future self carries continuous interior); it is stripped at every
-  cross-agent / narrator chokepoint.
+- `intent`: contents of the trailing parenthetical. Used for
+  logging and as a parsed handle on what the model put in the
+  parens; NOT mirrored anywhere on the character record. The
+  parenthetical lives verbatim in the agent's own rolling history
+  (so its future self carries continuous interior) and is stripped
+  at every cross-agent / narrator / router chokepoint. No other
+  actor — not the router, not the narrator, not another agent —
+  gets to see this character's parenthetical. That asymmetry is
+  load-bearing; if you want to surface a character's planning to
+  another LLM, do it through in-fiction signals (a courier, a
+  witnessed action, an observable fact) instead.
 
 Why no LLM-target schema:
 - The four `private_updates` fields in v9/v10 were schema-required,

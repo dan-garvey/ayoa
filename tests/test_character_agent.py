@@ -346,10 +346,11 @@ class TestCharacterAgent:
         sample_checkpoint, caplog,
     ):
         """Misbehaving model: omits the trailing parenthetical entirely.
-        Engine must NOT crash — it logs a warning, returns the raw prose
-        as `public_text`, and writes an empty `intent`. Empty intent is
-        what Commit 3's `last_intent` writeback uses to short-circuit a
-        spurious overwrite of the prior turn's interior."""
+        Engine must NOT crash — it logs a warning, returns the raw
+        prose as `public_text`, and writes an empty `intent`. Routing
+        downstream still works on `public_text`; the lost parse only
+        means this turn's parenthetical-vs-prose split is fuzzy for
+        the few consumers that strip the trailing paren."""
         import logging
         mock_client.complete.return_value = _llm_response(
             'He nods curtly. "Move along."'

@@ -134,10 +134,10 @@ class EventRouter:
 
         # Commit-3: drop `character_registry` and `world_facts` (full)
         # from per-turn context. Replace with `initial_roster_block`
-        # (turn-1 only, with goals/objectives/last_intent),
-        # `world_facts_delta` (only newly-surfaced facts), and
-        # `state_changes_block` (engine-applied changes the router
-        # didn't author). The two delta builders MUTATE session state
+        # (turn-1 only, with goals + current_objectives — interior
+        # parentheticals deliberately stay out), `world_facts_delta`
+        # (only newly-surfaced facts), and `state_changes_block`
+        # (engine-applied changes the router didn't author). The two delta builders MUTATE session state
         # in-place during render: `_build_world_facts_delta` extends
         # `session.surfaced_world_facts`, `_build_state_changes_block`
         # drains `session.pending_router_state_changes`. If the LLM
@@ -182,6 +182,7 @@ class EventRouter:
                 world_facts_delta_block=_build_world_facts_delta(checkpoint),
                 initial_roster_block=_build_initial_roster_block(checkpoint),
                 state_changes_block=_build_state_changes_block(checkpoint),
+                tick_fan_in_block="",
             )
             render_ms = (time.monotonic() - render_t0) * 1000
 

@@ -122,6 +122,7 @@ class TestRouterConsumesPendingRecap:
             initial_roster_block="",
             state_changes_block="",
             cat_ii_resolution_block="",
+            tick_fan_in_block="",
             intention_block="## Intention\nAldric attempts: next",
             recent_turn_recap=(
                 "## Previous Turn — Narrator Delta Note\n"
@@ -149,6 +150,7 @@ class TestRouterConsumesPendingRecap:
             initial_roster_block="",
             state_changes_block="",
             cat_ii_resolution_block="",
+            tick_fan_in_block="",
             intention_block="## Intention\nAldric attempts: next",
             recent_turn_recap="",
         )

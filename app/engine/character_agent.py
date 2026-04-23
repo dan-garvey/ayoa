@@ -45,9 +45,11 @@ def _extract_parenthetical(text: str) -> tuple[str, str]:
     trimming trailing whitespace.
 
     On missing or malformed trailing paren, returns `(text, "")` and
-    logs a warning. The empty intent then short-circuits the engine's
-    `last_intent` writeback (Commit 3); routing still works because
-    `public_text` is just the original prose.
+    logs a warning. Routing still works because `public_text` is just
+    the original prose; the parenthetical is preserved verbatim in the
+    rolling conversation history (the agent's own future-self memory),
+    so a missed parse only loses the stripped-vs-prose distinction
+    for one downstream hop.
 
     Mid-prose parentheticals (stage directions like "she pauses (just
     long enough to be noticed)") are preserved in `public_text` —
@@ -178,10 +180,6 @@ class CharacterAgent:
         )
         append_turn_to_conversation(conv, user_content, response)
 
-        if intent:
-            character.last_intent = intent
-            character.last_intent_turn = checkpoint.session.turn_index
-
         logger.info(
             "Agent %s: %d chars public, %d chars intent",
             character.name,
@@ -274,10 +272,6 @@ class CharacterAgent:
             character.character_id, [],
         )
         append_turn_to_conversation(conv, user_content, response)
-
-        if intent:
-            character.last_intent = intent
-            character.last_intent_turn = checkpoint.session.turn_index
 
         logger.info(
             "Agent %s tick: %d chars public, %d chars intent",

@@ -322,20 +322,25 @@ class Orchestrator:
             # speaker for the user-facing log.
             _append_transcript_entry(ckpt, beat_result, acting_id)
 
-            # 6.5. Commit 5: background tick scheduler. Eligible off-
-            # stage NPCs run their `.tick()` after the on-stage beat
-            # closes. Each tick appends to that character's rolling
-            # conversation and writes their `last_intent`/`last_intent_turn`,
-            # so the next router call sees the freshest interior even
-            # for characters who were silent. Tick outputs are NOT
-            # routed in this commit (Commit 6 wires the unified-router
-            # fan-in); this commit only fans out the agent calls and
-            # mutates engine-side state. Errors inside one tick are
-            # logged and swallowed so a single LLM hiccup doesn't
-            # drop a whole beat. Picks up the actor's POST-beat scene
-            # (which may differ from `scene_id` when the actor self-
-            # moved during the beat) so the scheduler tracks where
-            # the player ACTUALLY is now.
+            # 6.5. Commits 5 + 6: background tick fan-out + unified-
+            # router fan-in. Eligible off-stage NPCs run their
+            # `.tick()` after the on-stage beat closes — each tick's
+            # prose + trailing parenthetical lands in that agent's
+            # rolling conversation (the parenthetical never leaves
+            # the agent). Successful ticks are then bundled into ONE
+            # router call in tick mode (the router's user message
+            # gets a `## Off-Stage Tick` block listing each ticker's
+            # public prose + location). The router emits one
+            # canonical event capturing the off-stage developments,
+            # plus any `roster_moves` / `scenes_created` the agents
+            # implied; we apply those mutations to the checkpoint
+            # off-stage (no narrator pass — the player wasn't there).
+            # Per-tick errors and the fan-in router error are both
+            # logged-and-swallowed so a single LLM hiccup doesn't
+            # drop the rest of the turn. Picks up the actor's
+            # POST-beat scene (which may differ from `scene_id`
+            # when the actor self-moved during the beat) so the
+            # scheduler tracks where the player ACTUALLY is now.
             post_beat_scene = self._resolve_scene_id(ckpt, acting_id)
             await self._run_ticks(
                 ckpt,
@@ -622,12 +627,21 @@ class Orchestrator:
     # ---------------------------------------------------------- tick scheduler
 
     def _eligible_for_tick(
-        self, ckpt: CheckpointFile, acted_this_turn: set[str],
+        self,
+        ckpt: CheckpointFile,
+        acted_this_turn: set[str],
+        active_scene: str = "",
     ) -> list[CharacterRecord]:
         """Filter the roster to characters that should run an off-stage
         tick on this beat.
 
-        Five guards (port from pre-v11 with the v11 pin guard added):
+        Tick is for OFF-STAGE characters only. Anyone in the acting
+        player's current scene already had the opportunity to advance
+        the world via the on-stage cascade this turn — if the router
+        didn't pick them, that was the router's call, and ticking
+        them off-stage would step on that decision.
+
+        Six guards:
           - `private_state.intentions_enabled` is True — importer flag
             for "this character matters enough to advance off-screen"
           - `status == active` — dormant/culled don't tick
@@ -637,6 +651,15 @@ class Orchestrator:
             responders this beat) — they already had their say
           - NOT in `_pinned_character_ids(ckpt)` — pinned NPCs are
             mid-Cat-II, ticking races their pending resolution
+          - NOT in `active_scene` — they're on-stage for this turn,
+            cascade is the right channel for them to act
+
+        TODO (world-time coherence, see CLAUDE.md): in multi-player
+        sessions with concurrent scenes, an NPC in *any* currently-
+        bound player's scene is on-stage for someone, not just for
+        the actor of this turn. Today we only exclude the acting
+        player's scene; revisit when multi-scene/multi-player turn
+        ordering gets a real model.
 
         Order is roster order; that's also the order their tick
         outputs will reach the unified router in Commit 6.
@@ -657,6 +680,8 @@ class Orchestrator:
             if char.character_id in acted_this_turn:
                 continue
             if char.character_id in pinned_ids:
+                continue
+            if active_scene and char.location == active_scene:
                 continue
             eligible.append(char)
         return eligible
@@ -692,11 +717,16 @@ class Orchestrator:
         Each tick uses its OWN `CharacterAgent` instance so concurrent
         completions don't race on `agent.last_usage`.
 
-        Returns the list of `(character, output)` pairs from successful
-        ticks (in completion order). Process_turn currently ignores
-        the return; Commit 6 will plumb the list into a single unified-
-        router fan-in call so off-stage moves and canonical events
-        land on the world.
+        After fan-out, Commit 6 bundles every successful tick's
+        `public_text` (parenthetical stripped — interior never leaves
+        the agent) into a single unified-router call in tick mode.
+        The router emits one canonical event capturing off-stage
+        developments + any roster_moves / scenes_created the agents
+        declared. We apply those mutations to the checkpoint and
+        append the canonical event to `ckpt.canonical_events`.
+        Returns the per-character tick outputs primarily for tests
+        and observability; the orchestrator caller doesn't otherwise
+        use them.
         """
         sess = ckpt.session
         settings = sess.config.settings
@@ -733,20 +763,23 @@ class Orchestrator:
             )
             return []
 
-        eligible = self._eligible_for_tick(ckpt, acted_this_turn)
+        eligible = self._eligible_for_tick(
+            ckpt, acted_this_turn, active_scene=current_scene,
+        )
         reason = (
             "scene_change" if scene_change_fires else "stagnation"
         )
         if not eligible:
             # Still reset the counter — we DID try to fire, eligibility
-            # was just empty (e.g. all NPCs are dormant or already
-            # acted). Otherwise an all-on-stage beat would never reset
-            # and the next turn would over-fire.
+            # was just empty (e.g. all NPCs are dormant, on-stage, or
+            # already acted). Otherwise an all-on-stage beat would
+            # never reset and the next turn would over-fire.
             sess.turns_since_last_tick = 0
             logger.info(
                 "Tick scheduler: %s fire but no eligible NPCs "
-                "(roster=%d, acted=%d, pinned, player, dormant, or "
-                "intentions_disabled filtered all out); counter reset.",
+                "(roster=%d, acted=%d; pinned, player, dormant, "
+                "in-scene, or intentions_disabled filtered all out); "
+                "counter reset.",
                 reason, len(ckpt.characters), len(acted_this_turn),
             )
             return []
@@ -803,6 +836,77 @@ class Orchestrator:
             "Tick scheduler: %s fire complete — %d/%d ticks succeeded.",
             reason, len(ticked), len(eligible),
         )
+
+        # Commit 6: tick fan-in to the unified router.
+        # Bundle every successful tick's public prose (parenthetical
+        # stripped — `output.public_text` only) into one router call
+        # in tick mode. The router emits a single canonical event
+        # capturing off-stage developments plus any roster_moves /
+        # scenes_created the agents implied. We apply those mutations
+        # off-stage. No narrator pass — the player wasn't there.
+        if not ticked:
+            return ticked
+
+        tick_outputs = [
+            (
+                char.name,
+                char.character_id,
+                char.location or "",
+                output.public_text,
+            )
+            for char, output in ticked
+        ]
+        dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+        try:
+            routed = await dispatcher.route_tick_intentions(
+                ckpt=ckpt,
+                tick_outputs=tick_outputs,
+                acting_character_id=acting_id,
+            )
+        except Exception:
+            # Same swallow philosophy as per-tick failures — the on-
+            # stage render landed already; ticks are best-effort. If
+            # the fan-in router call fails, the per-character tick
+            # outputs are still in the agents' rolling histories
+            # (their future replays inherit the interior), and the
+            # next /act will go through the on-stage router as
+            # normal. World state just doesn't pick up off-stage
+            # roster_moves on this beat.
+            logger.exception(
+                "Tick fan-in router call failed; off-stage agent "
+                "outputs are in their own conversations but no "
+                "canonical event lands this turn.",
+            )
+            return ticked
+
+        if routed is None:
+            return ticked
+
+        _apply_scene_creations(ckpt, routed.scenes_created)
+        self.char_mgr.apply_roster_updates(ckpt, routed)
+        # actor_id=None — no single off-stage actor; the player-bound
+        # and pinned guards in `_apply_roster_moves` will keep the
+        # router from accidentally relocating any human or any
+        # mid-Cat-II NPC even if it tries.
+        self._apply_roster_moves(ckpt, routed, actor_id=None)
+        if routed.spawn:
+            await self.char_mgr.spawn_characters(ckpt, routed.spawn)
+        # Append the tick canonical event to the world log so future
+        # router calls + recap passes see it as part of session truth.
+        # The narrator never composes off this entry (no human render
+        # for tick events); this append exists for the router's
+        # session_conversation continuity (which the dispatcher's
+        # `route_tick_intentions` already handles) AND for any future
+        # cross-scene observability path that walks the canonical
+        # log.
+        ckpt.canonical_events.append(routed)
+        logger.info(
+            "Tick fan-in routed: %d roster_move(s), %d scene(s) "
+            "created, %d spawn(s); off-stage canonical event appended.",
+            len(routed.roster_moves), len(routed.scenes_created),
+            len(routed.spawn),
+        )
+
         return ticked
 
 

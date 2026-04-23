@@ -14,6 +14,7 @@ PARTIAL_MODE_MARKER = "## Render Mode: PARTIAL"
 CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
 INTENTION_BLOCK_HEADER = "## Intention"
+TICK_FAN_IN_HEADER = "## Off-Stage Tick"
 
 
 def format_human_initiator_intention(name: str, user_input: str) -> str:
@@ -94,3 +95,37 @@ def format_open_attempt_outcome(actor_name: str, intention: str) -> str:
     Centralized so tests can pattern-match the shape without hardcoding
     the format."""
     return f"{actor_name} attempts: {intention}"
+
+
+def format_tick_fan_in_block(
+    entries: list[tuple[str, str, str, str]],
+) -> str:
+    """Commit 6: bundle N off-stage agents' public prose into a single
+    user message for the unified router.
+
+    Each entry is `(name, character_id, location, public_text)`. The
+    parenthetical (private intent) the agent emitted MUST be stripped
+    BEFORE this helper is called — only `public_text` belongs here.
+    The information-asymmetry rule (no agent's interior reaches the
+    router) is enforced at the call site; this helper just renders
+    whatever it's handed.
+
+    Empty list returns "" so the caller can skip the route call when
+    no off-stage activity fired.
+    """
+    if not entries:
+        return ""
+    lines = [TICK_FAN_IN_HEADER, ""]
+    lines.append(
+        f"{len(entries)} off-stage NPC(s) acted between the last "
+        "player /act and now. Compose ONE canonical event capturing "
+        "their actions per the Tick Mode rules in the system prompt. "
+        "The player did not see this beat."
+    )
+    lines.append("")
+    for name, char_id, location, public_text in entries:
+        loc = location or "(unset)"
+        text = (public_text or "").strip() or "(no public action)"
+        lines.append(f"- **{name}** (id: `{char_id}`, at `{loc}`): {text}")
+    lines.append("")
+    return "\n".join(lines)

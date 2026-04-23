@@ -61,17 +61,13 @@ Drop `incoming_directives`, `directives_sent`, `IncomingDirective`, `DIRECTIVE_D
 
 Today the router sees only identity (name, id, role, location, status). This is the single biggest router-quality miss in v11.
 
-Schema additions on `CharacterRecord`:
-```python
-last_intent: str = ""       # written engine-side from agent's parenthetical; never written by the agent itself
-last_intent_turn: int = -1  # turn this intent was emitted; for freshness gating
-```
+**REVISED (post-Commit 5 review)**: the original plan added `last_intent` / `last_intent_turn` mirror fields on `CharacterRecord` so the router could see each NPC's freshest parenthetical. That mirror has been **ripped** — see `CLAUDE.md` "Per-character interior asymmetry is load-bearing." The router does NOT get to see any agent's parenthetical. Period.
 
-After every successful `respond()` and `tick()`, engine writes both fields.
+What the router DOES get on the turn-1 "## Initial Roster" block:
+- `goals` (long-term, importer-seed, static)
+- `current_objectives` (importer-seed, static — agents do NOT write this)
 
-Router's view of NPCs gains: `goals` (long-term, importer-seed, static), `current_objectives` (importer-seed, static — agents do NOT write this anymore), `last_intent` (dynamic, freshest interior).
-
-Initial roster (full identity + interior for every NPC) lands in **turn-1 user message** under a "## Initial Roster" block that only renders when `session_conversation` is empty. After turn 1 it lives in router history. Subsequent turns surface only changes (see #7).
+After turn 1, the router infers interior pressure from public signals only: cascade `intends:` text, prior canonical events, its own past `roster_moves` and `spawn` outputs. There is no "freshest interior" channel from agents to the router. If you find yourself wanting one, surface it in fiction (a courier walks in, a witness sees an action) rather than as a private-data leak.
 
 ### 6. Background ticks go through the SAME router
 
@@ -207,15 +203,16 @@ Commit ordering matters because some commits rely on others.
 - Update importer (`story_importer.py`) and takeover (`takeover_v1.txt`) — directives never reach `CharacterRecord`
 - Drop `DIRECTIVE_DEPTH_WARN`, `DIRECTIVE_DEPTH_CAP`, `DIRECTIVE_LENGTH_WARN` constants
 
-### Commit 3 — `last_intent` plumbing + initial roster + state-changes block
-- Add `last_intent: str = ""` and `last_intent_turn: int = -1` to `CharacterRecord` (top-level, with engine-only semantics comment)
-- Engine writes both fields after every successful `respond()` and `tick()`
-- Add `_build_initial_roster_block(ckpt)` — renders only when `session_conversation` is empty; full identity + goals + current_objectives + initial intent for every non-player character
+### Commit 3 — initial roster + state-changes block (no `last_intent`)
+**REVISED**: the original Commit 3 added `last_intent` / `last_intent_turn` mirror fields on `CharacterRecord` and surfaced them to the router. That mirror has been ripped (see Decision #5 above and `CLAUDE.md` "Per-character interior asymmetry is load-bearing"). DO NOT re-add it; the parenthetical lives in the agent's own rolling history, not on the character record.
+
+The remaining Commit-3 work is what's actually shipped:
+- Add `_build_initial_roster_block(ckpt)` — renders only when `session_conversation` is empty; identity + goals + current_objectives for every non-player character (NO interior parenthetical)
 - Add `_build_state_changes_block(ckpt)` — surfaces spawn outcomes, /takeover, /join changes since last router call. Empty in the common case.
 - Drop `_build_character_registry` from `_build_router_context`
 - Replace `_build_world_facts` (full) with `_build_world_facts_delta` (only new facts)
 - Update `event_router_v9.txt` user-template section to match the new variable set
-- Update router prompt rule about character context: "Goals are long-term drives; current_objectives are importer-seeded active pursuits; last_intent is the freshest interior signal — treat as belief, not fact."
+- Router-prompt rule about character context: "Goals are long-term drives; current_objectives are importer-seeded active pursuits. The router does NOT see any agent's parenthetical; read interior pressure from the cascade `intends:` text and prior canonical events."
 
 ### Commit 4 — Spawn flow generates router summary
 - Update `character_gen_v3.txt` to also produce `router_summary: str` (one or two sentences)
@@ -255,9 +252,9 @@ Commit ordering matters because some commits rely on others.
 ## Files most affected
 
 - `app/schemas/agents.py` (rewrite)
-- `app/schemas/characters.py` (add last_intent fields, drop incoming_directives)
+- `app/schemas/characters.py` (drop incoming_directives; do NOT add `last_intent` — that mirror was ripped, see CLAUDE.md)
 - `app/schemas/state.py` (tick scheduler fields)
-- `app/engine/character_agent.py` (parse parenthetical, write last_intent, drop scene-creation block helper)
+- `app/engine/character_agent.py` (parse parenthetical for engine-side logging only; the parenthetical is preserved verbatim in `character_conversations` for the agent's own future replay; no `last_intent` writeback)
 - `app/engine/orchestrator.py` (`_run_ticks`, `_route_tick_intentions`)
 - `app/engine/turn_loop_dispatcher.py` (drop `_serialize_agent_intention`, drop `_build_character_registry`, add initial-roster + state-changes builders)
 - `app/engine/narrator.py` (consume `public_text`, drop bullet structure)

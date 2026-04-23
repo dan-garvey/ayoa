@@ -85,18 +85,16 @@ class CharacterRecord(BaseModel):
     # a single freeform field on purpose — the LLM picks whatever shape
     # best conveys what THIS character takes for granted.
     known_context: str = ""
-    # Engine-only mirror of this character's most recent agent
-    # parenthetical (the trailing `(...)` from `respond()` or `tick()`
-    # output). Written by the engine in `CharacterAgent` after every
-    # successful agent call; never written by the agent itself. Surfaces
-    # in the router's "## Initial Roster" block on turn 1 (when the agent
-    # has not yet spoken, this is just the empty string) and in the
-    # router's per-turn character context after that. The router may
-    # treat it as the freshest interior signal, but as belief — not a
-    # promised future action.
-    last_intent: str = ""
-    # Turn index at which `last_intent` was written, for freshness
-    # gating downstream. -1 means "never written." The engine compares
-    # this against the current `session.turn_index` to decide whether
-    # to surface the intent or treat it as stale.
-    last_intent_turn: int = -1
+    # Interior continuity (Commit 3 had `last_intent` / `last_intent_turn`
+    # mirror fields here; both removed). The agent's freshest interior
+    # is the trailing parenthetical at the end of its most recent
+    # `respond()` or `tick()` output, which is appended verbatim to
+    # `character_conversations[character_id]`. The agent's own future
+    # calls see that parenthetical because it's in the history they
+    # replay. Cross-actor consumers (router, narrator, other agents)
+    # deliberately do NOT see another character's interior — that
+    # asymmetry is the entire point of having separate per-actor LLM
+    # calls. If you find yourself wanting to surface one character's
+    # parenthetical to another LLM, you are about to break that
+    # asymmetry; reach for in-fiction signals (a courier, an
+    # observable_fact, a witnessed action) instead.

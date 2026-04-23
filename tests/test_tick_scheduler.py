@@ -105,11 +105,16 @@ def _ckpt(
                     "courtyard": {
                         "name": "Courtyard",
                         "description": "Stone yard.",
-                        "connected_to": ["hall"],
+                        "connected_to": ["hall", "library"],
                     },
                     "hall": {
                         "name": "Great Hall",
                         "description": "Long hall.",
+                        "connected_to": ["courtyard"],
+                    },
+                    "library": {
+                        "name": "Library",
+                        "description": "Dusty stacks.",
                         "connected_to": ["courtyard"],
                     },
                 },
@@ -121,8 +126,14 @@ def _ckpt(
                 location="courtyard",
                 public_sheet=PublicSheet(role="player"),
             ),
-            _npc("regent"),
-            _npc("scribe"),
+            # Default NPCs live in `hall` (off-stage from the player's
+            # courtyard) so the tick scheduler's "exclude characters
+            # in the acting player's scene" filter doesn't drop them
+            # by default. Tests that specifically want to exercise
+            # the in-scene exclusion override `characters=` with NPCs
+            # placed in `courtyard`.
+            _npc("regent", location="hall"),
+            _npc("scribe", location="hall"),
         ],
     )
 
@@ -297,6 +308,33 @@ class TestEligibility:
         eligible = orch._eligible_for_tick(ckpt, acted_this_turn=set())
         assert [c.character_id for c in eligible] == ["regent", "scribe"]
 
+    def test_in_scene_npcs_excluded_when_active_scene_set(self):
+        # NPCs in the acting player's current scene already had their
+        # opportunity via the on-stage cascade. Scribe is in "hall"
+        # (off-stage); Regent is in "courtyard" (the active scene)
+        # and must be filtered out.
+        ckpt = _ckpt(characters=[
+            _npc("alice", is_player=True, location="courtyard"),
+            _npc("regent", location="courtyard"),
+            _npc("scribe", location="hall"),
+        ])
+        orch = _orchestrator()
+        eligible = orch._eligible_for_tick(
+            ckpt, acted_this_turn=set(), active_scene="courtyard",
+        )
+        assert [c.character_id for c in eligible] == ["scribe"]
+
+    def test_no_active_scene_means_no_scene_filter(self):
+        # Defaulting active_scene to "" preserves the pre-filter
+        # behavior — every test in this file that omits the arg should
+        # see all eligible NPCs regardless of their location.
+        ckpt = _ckpt()
+        orch = _orchestrator()
+        eligible = orch._eligible_for_tick(
+            ckpt, acted_this_turn=set(), active_scene="",
+        )
+        assert [c.character_id for c in eligible] == ["regent", "scribe"]
+
 
 # ---- trigger logic ---------------------------------------------------------
 
@@ -373,6 +411,9 @@ class TestTriggerLogic:
         self, monkeypatch,
     ):
         # Counter at 4 (incremented to 5); cooldown is 5 — fires.
+        # Player moves to library; default NPCs (regent, scribe) are
+        # in hall (off-stage from library) so the in-scene filter
+        # doesn't drop them and both tick.
         ckpt = _ckpt(
             turns_since_last_tick=4, tick_last_scene_id="courtyard",
             cooldown=5,
@@ -383,7 +424,7 @@ class TestTriggerLogic:
 
         result = await orch._run_ticks(
             ckpt, acted_this_turn=set(),
-            acting_id="alice", current_scene="hall",
+            acting_id="alice", current_scene="library",
         )
 
         assert sorted(c.character_id for c, _ in result) == [
@@ -391,7 +432,7 @@ class TestTriggerLogic:
         ]
         assert sorted(recorder) == ["regent", "scribe"]
         assert ckpt.session.turns_since_last_tick == 0
-        assert ckpt.session.tick_last_scene_id == "hall"
+        assert ckpt.session.tick_last_scene_id == "library"
 
     @pytest.mark.asyncio
     async def test_stagnation_fires_even_without_scene_change(

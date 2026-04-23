@@ -31,6 +31,7 @@ from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
+    format_tick_fan_in_block,
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
@@ -194,10 +195,17 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
 
     This block lands ONCE — on turn 1 only — and carries richer signal
     than the dropped registry: name, id, role, location, goals,
-    current_objectives, and last_intent. The router uses it to seed
-    "who's in this world and what are they trying to do" so picking
-    decisions on turn 1 aren't blind. Returns "" on every turn after
-    the first.
+    current_objectives. The router uses it to seed "who's in this
+    world and what are they trying to do" so picking decisions on turn
+    1 aren't blind. Returns "" on every turn after the first.
+
+    NOTE: this block does NOT carry per-NPC interior beyond
+    importer-seeded goals/objectives. An agent's freshest interior
+    (the trailing parenthetical from its last `respond()` / `tick()`)
+    lives in that agent's own rolling history and is deliberately
+    NOT mirrored to the router — the router decides who acts based on
+    public signals (cascade intentions, prior canonical events) +
+    seeded objectives, not stolen interior.
     """
     if checkpoint.session_conversation:
         return ""
@@ -234,14 +242,6 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
             parts.append(
                 "  Current objectives (active pursuits): " + "; ".join(objs)
             )
-        if char.last_intent:
-            if char.last_intent_turn >= 0:
-                parts.append(
-                    f"  Last intent (turn {char.last_intent_turn}): "
-                    f"{char.last_intent}"
-                )
-            else:
-                parts.append(f"  Last intent: {char.last_intent}")
         entries.append("\n".join(parts))
 
     if not entries:
@@ -249,10 +249,10 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
 
     header = (
         "## Initial Roster\n"
-        "Every active NPC in this world, with their long-term goals, "
-        "active pursuits, and stored interior. See the system "
-        "prompt's \"Character interior\" section for how to weight "
-        "these signals.\n\n"
+        "Every active NPC in this world, with their long-term goals "
+        "and active pursuits. See the system prompt's \"Character "
+        "interior\" section for how to weight these signals when "
+        "picking responders.\n\n"
     )
     return header + "\n\n".join(entries) + "\n"
 
@@ -479,6 +479,7 @@ class LLMDispatcher:
                 **ctx,
                 "intention_block": intention_block,
                 "cat_ii_resolution_block": cat_ii_resolution_block,
+                "tick_fan_in_block": "",
             }
 
             # v11-r6c: event_router_v9 explicitly expects the prior router
@@ -520,6 +521,100 @@ class LLMDispatcher:
         result: EventRouterOutput = response.parsed
         # Persist the user/assistant pair to the rolling session
         # conversation so next turn's router sees it as history.
+        append_turn_to_conversation(
+            ckpt.session_conversation, user_content, response,
+        )
+        return result
+
+    # ------------------------------------------------------------------
+    # route_tick_intentions  (Commit 6: off-stage tick fan-in)
+    # ------------------------------------------------------------------
+
+    async def route_tick_intentions(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        tick_outputs: list[tuple[str, str, str, str]],
+        acting_character_id: str = "",
+    ) -> EventRouterOutput | None:
+        """Bundle off-stage agent prose into a single unified-router call.
+
+        Each entry in `tick_outputs` is `(name, character_id, location,
+        public_text)` — the parenthetical (private intent) MUST already
+        have been stripped upstream by the caller (the orchestrator's
+        `_run_ticks` pulls `output.public_text`, never `output.intent`).
+        That stripping is the load-bearing information-asymmetry guard:
+        the router never sees an agent's interior.
+
+        On empty `tick_outputs`, returns None without any LLM call. On
+        any non-empty list, makes ONE router call in tick mode (signaled
+        by the `## Off-Stage Tick` user-message header) and returns the
+        EventRouterOutput. Caller is responsible for applying
+        roster_moves / scenes_created / canonical_event to ckpt; this
+        method only handles the LLM call and conversation-history append.
+
+        `acting_character_id` is the player who acted on the on-stage
+        beat preceding this tick; used to resolve display name/scene
+        framing for the shared router context. The tick itself is not
+        attributed to that player — it just has to come from somewhere
+        for the existing context-builder helpers (which expect an
+        actor frame) to render cleanly.
+
+        Snapshot/restore of the two delta-queue session fields mirrors
+        `route_intention` so a failed tick router call doesn't silently
+        drain queued state-change / world-fact entries.
+        """
+        if not tick_outputs:
+            return None
+
+        saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
+        saved_state_changes = list(
+            ckpt.session.pending_router_state_changes
+        )
+        try:
+            ctx = _build_router_context(ckpt, acting_character_id)
+
+            tick_block = format_tick_fan_in_block(tick_outputs)
+
+            template_vars = {
+                **ctx,
+                # Tick mode owns ONE of the three input-block slots; the
+                # other two stay empty. Same exclusivity contract as
+                # intention vs cat_ii_resolution on the on-stage path.
+                "intention_block": "",
+                "cat_ii_resolution_block": "",
+                "tick_fan_in_block": tick_block,
+            }
+
+            messages = self.prompt_mgr.render_conversation(
+                "event_router",
+                history=ckpt.session_conversation,
+                **template_vars,
+            )
+
+            user_content = messages[-1]["content"]
+
+            logger.info(
+                "LLMDispatcher.route_tick_intentions: %d off-stage "
+                "agents bundled into one router call",
+                len(tick_outputs),
+            )
+
+            response = await self.client.complete(
+                role="event_router",
+                messages=messages,
+                response_model=EventRouterOutput,
+                temperature=0.35,
+                max_tokens=5000,
+                cache=True,
+                compact=True,
+            )
+        except Exception:
+            ckpt.session.surfaced_world_facts = saved_surfaced_facts
+            ckpt.session.pending_router_state_changes = saved_state_changes
+            raise
+
+        result: EventRouterOutput = response.parsed
         append_turn_to_conversation(
             ckpt.session_conversation, user_content, response,
         )

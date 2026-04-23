@@ -802,12 +802,10 @@ class EngineBridge:
         target.is_player = True
 
         # Drop rolling character conversation — the voice has changed.
+        # The agent's prior parentheticals (their interior continuity)
+        # lived in this conversation; popping it gives the new authored
+        # character a clean slate.
         ckpt.character_conversations.pop(target_character_id, None)
-        # Reset last_intent — the prior NPC's interior is no longer
-        # relevant; the new authored character starts from a clean
-        # parenthetical slate.
-        target.last_intent = ""
-        target.last_intent_turn = -1
 
         ckpt.session.character_bindings[target_character_id] = str(user_id)
         # Same router_summary preference as create_custom_character.
