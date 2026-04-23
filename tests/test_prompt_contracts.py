@@ -4,11 +4,13 @@ from app.engine.turn_loop_contracts import (
     CAT_II_RESOLUTION_HEADER,
     PARTIAL_MODE_MARKER,
     SWEPT_RESPONDERS_SUBHEADER,
+    TICK_FAN_IN_HEADER,
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
     format_ooc_directive,
     format_partial_render_marker,
+    format_tick_fan_in_block,
 )
 
 ROUTER_PROMPT = Path("app/prompts/event_router_v9.txt").read_text()
@@ -68,6 +70,62 @@ class TestContractHelpers:
 
     def test_partial_marker(self):
         assert format_partial_render_marker() == PARTIAL_MODE_MARKER
+
+
+class TestTickFanInBlock:
+    """Commit 6 fan-in helper. The block must render the
+    TICK_FAN_IN_HEADER (so the router prompt's mode-routing line can
+    detect tick mode), name each ticker with their character_id and
+    location, and faithfully forward the public_text the caller
+    handed over. Crucially, it must NEVER carry the agent's
+    parenthetical (intent) — that asymmetry is the whole reason we
+    have separate per-actor LLM calls; the caller is responsible for
+    stripping intent before this helper runs.
+    """
+
+    def test_empty_list_returns_empty_string(self):
+        # Empty input → "" so the dispatcher can short-circuit the
+        # router call instead of firing a payload-less LLM hit.
+        assert format_tick_fan_in_block([]) == ""
+
+    def test_renders_header_and_per_entry_lines(self):
+        block = format_tick_fan_in_block([
+            ("Regent", "regent", "great_hall", "He paces the long table."),
+            ("Scribe", "scribe", "library", "She copies a passage."),
+        ])
+        assert TICK_FAN_IN_HEADER in block
+        assert "2 off-stage NPC(s)" in block
+        # Per-entry: name, id, location, body all present.
+        assert "**Regent**" in block
+        assert "regent" in block
+        assert "great_hall" in block
+        assert "He paces the long table." in block
+        assert "**Scribe**" in block
+        assert "library" in block
+        assert "She copies a passage." in block
+
+    def test_blank_location_falls_back_to_unset(self):
+        block = format_tick_fan_in_block([
+            ("Wraith", "wraith", "", "It drifts."),
+        ])
+        assert "(unset)" in block
+        assert "It drifts." in block
+
+    def test_blank_public_text_falls_back_to_silent_marker(self):
+        # Some agents emit only a parenthetical (silent beat). The
+        # caller has already stripped intent, so public_text is "".
+        # The block must surface a placeholder so the router still
+        # sees the character was active without inventing prose.
+        block = format_tick_fan_in_block([
+            ("Mute", "mute", "stables", ""),
+        ])
+        assert "(no public action)" in block
+
+    def test_router_prompt_mentions_tick_fan_in_header(self):
+        # Mode routing in event_router_v9 keys off this exact string;
+        # if we ever rename the constant, this catches the prompt
+        # falling out of sync with the contract.
+        assert TICK_FAN_IN_HEADER in ROUTER_PROMPT
 
 
 class TestRule2bCrossReference:

@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.engine.character_agent import CharacterAgent
+from app.engine.character_agent import CharacterAgent, _extract_parenthetical
 from app.engine.context_builder import (
     build_character_packet,
     build_character_state,
@@ -12,6 +12,7 @@ from app.engine.context_builder import (
     build_world_context,
     format_observed_facts,
     format_pending_observations_block,
+    format_prior_responses,
     resolve_scene_for_character,
 )
 from app.engine.prompt_manager import PromptManager
@@ -499,3 +500,251 @@ class TestCharacterAgent:
         assert messages[1]["content"] == "prior user content"
         assert messages[2]["role"] == "assistant"
         assert messages[3]["role"] == "user"
+
+
+class TestExtractParenthetical:
+    """Direct unit coverage of the parser the engine uses to split agent
+    prose from its trailing parenthetical.
+
+    The agent's freshest interior is exactly what the parenthetical
+    encloses, and a wrong split is one of two failure shapes:
+      - intent leaks into public_text → router/narrator/other agents
+        see another character's interior. Information-asymmetry
+        regression (see CLAUDE.md "Per-character interior asymmetry
+        is load-bearing").
+      - public prose gets eaten as intent → the cascade or narrator
+        sees a silent beat from a character that actually spoke.
+
+    These tests pin the corner cases so neither failure mode can
+    silently re-enter via a parser tweak.
+    """
+
+    def test_simple_trailing_parenthetical(self):
+        public, intent = _extract_parenthetical(
+            'He nods. "Move along." (Watching the gate.)'
+        )
+        assert public == 'He nods. "Move along."'
+        assert intent == "Watching the gate."
+
+    def test_no_trailing_paren_returns_text_and_empty(self):
+        # Misbehaving model: omits the parenthetical entirely. Engine
+        # gets the prose back as `public_text`; intent is "" so no
+        # downstream consumer sees fabricated interior.
+        public, intent = _extract_parenthetical("He nods curtly.")
+        assert public == "He nods curtly."
+        assert intent == ""
+
+    def test_empty_string(self):
+        public, intent = _extract_parenthetical("")
+        assert public == ""
+        assert intent == ""
+
+    def test_whitespace_only(self):
+        # Trailing whitespace is trimmed before the )-detection runs;
+        # an all-whitespace string still has no closing paren so it's
+        # treated as a missing trailing parenthetical.
+        public, intent = _extract_parenthetical("   \n  \t ")
+        assert intent == ""
+        # We don't promise an exact public_text shape for this
+        # degenerate input — just that no parse explosion happens.
+
+    def test_mid_prose_paren_not_treated_as_intent(self):
+        # Stage directions inside prose ("she pauses (just long enough
+        # to be noticed)") must NOT be split off — only the FINAL
+        # group at the very end of the trimmed text counts as intent.
+        text = (
+            "She pauses (just long enough to be noticed) and turns her "
+            'head. "Yes?" (Trying to seem unbothered.)'
+        )
+        public, intent = _extract_parenthetical(text)
+        assert intent == "Trying to seem unbothered."
+        # The mid-prose stage direction stays in public_text.
+        assert "(just long enough to be noticed)" in public
+        # And the trailing parenthetical's contents are stripped from
+        # public_text — no double-render.
+        assert "Trying to seem unbothered" not in public
+
+    def test_nested_parens_in_intent(self):
+        # Balanced nesting at the end. The parser walks ) depth so a
+        # nested pair inside the trailing group must be preserved
+        # verbatim rather than truncating intent at the first '('.
+        text = (
+            'He shrugs. (Plan: stall (until the bell rings) and then '
+            "slip out the side door.)"
+        )
+        public, intent = _extract_parenthetical(text)
+        assert public == "He shrugs."
+        # Whole nested expression survives as intent.
+        assert intent == (
+            "Plan: stall (until the bell rings) and then slip out "
+            "the side door."
+        )
+
+    def test_unbalanced_trailing_paren_warns_and_returns_text(self):
+        # `)` at the end with no matching `(` upstream — the parser
+        # walks back, never finds depth==0, logs a warning, and
+        # returns the raw text. The model's malformed output doesn't
+        # crash the engine and doesn't fabricate an empty intent
+        # cluster.
+        public, intent = _extract_parenthetical(
+            'He looks up. "Strange weather, that.")'
+        )
+        assert intent == ""
+        # Public text is the raw original (un-stripped of the dangling
+        # `)`) — losing the prose would be a worse failure than
+        # leaving the malformed char in place.
+        assert public.endswith(")")
+
+    def test_multiline_trailing_parenthetical(self):
+        # Trailing paren can span newlines (e.g. agents writing out
+        # a multi-clause interior). The split point must still be the
+        # final `(` matching the closing `)` at end of the trimmed
+        # text — newlines are not balance markers.
+        text = (
+            'He bows his head. "As you wish."\n'
+            "(Two thoughts at once: keep her placated,\n"
+            "and find the steward before sundown.)"
+        )
+        public, intent = _extract_parenthetical(text)
+        assert public == 'He bows his head. "As you wish."'
+        assert "Two thoughts at once" in intent
+        assert "find the steward" in intent
+        # Parenthetical body's leading newline is stripped (the
+        # parser uses `.strip()` on the inner span).
+        assert not intent.startswith("\n")
+
+    def test_trailing_whitespace_after_paren_is_tolerated(self):
+        # Some models append a stray newline or trailing space after
+        # the closing `)`. The parser rstrips before the `endswith`
+        # check, so the parse still succeeds.
+        text = 'He nods. (Stalling for time.)   \n'
+        public, intent = _extract_parenthetical(text)
+        assert public == "He nods."
+        assert intent == "Stalling for time."
+
+    def test_empty_parenthetical_yields_empty_intent(self):
+        # `(...)` that contains nothing → intent is "", which short-
+        # circuits any "agent had no interior this turn" downstream
+        # check without misclassifying as a missing trailing paren.
+        text = 'He shrugs. ()'
+        public, intent = _extract_parenthetical(text)
+        assert public == "He shrugs."
+        assert intent == ""
+
+
+class TestPriorResponsesLeakGuard:
+    """Cross-agent chokepoint: when agent B is rendered with knowledge of
+    agent A's earlier turn-level response, the engine MUST hand B only
+    A's `public_text`. A's `intent` (the trailing parenthetical, A's
+    private interior) reaching B's prompt is a load-bearing
+    information-asymmetry violation — it would let B "read" A's mind,
+    which is the entire failure mode the per-actor LLM split exists to
+    avoid (see CLAUDE.md "Per-character interior asymmetry is
+    load-bearing"). `format_prior_responses` is the chokepoint; this
+    suite pins its leak-free behavior.
+    """
+
+    def _ckpt_with(self, *characters: CharacterRecord) -> CheckpointFile:
+        return CheckpointFile(
+            session=SessionState(session_id="t"),
+            world_state=WorldState(
+                locations=LocationState(
+                    current_scene_id="hall",
+                    scene_graph={"hall": {
+                        "name": "Hall", "description": "", "connected_to": [],
+                    }},
+                ),
+            ),
+            characters=list(characters),
+        )
+
+    def test_intent_field_never_appears_in_rendered_block(self):
+        ckpt = self._ckpt_with(
+            CharacterRecord(
+                character_id="alice",
+                name="Alice",
+                location="hall",
+                public_sheet=PublicSheet(role="scholar"),
+            ),
+        )
+        prior = [
+            CharacterAgentOutput(
+                character_id="alice",
+                public_text='She frowns. "I see no other path."',
+                intent=(
+                    "PRIVATE_PLAN_TOKEN: stall the regent until the courier "
+                    "arrives, then break the seal."
+                ),
+            ),
+        ]
+        block = format_prior_responses(prior, ckpt)
+        # Public surface present.
+        assert "Alice" in block
+        assert "I see no other path" in block
+        # NONE of the intent text leaks. Distinct sentinel words verified
+        # individually so a partial-leak (e.g. only "PRIVATE_PLAN_TOKEN"
+        # is stripped but the body bleeds through) still fails.
+        assert "PRIVATE_PLAN_TOKEN" not in block
+        assert "stall the regent" not in block
+        assert "courier arrives" not in block
+        assert "break the seal" not in block
+
+    def test_silent_beat_renders_placeholder_not_empty(self):
+        # Agent emitted an interior-only turn (paren-only) — public_text
+        # is "". The cross-agent block must surface a recognizable
+        # marker so the downstream agent reads "X had a beat but didn't
+        # speak" rather than nothing at all. The intent itself still
+        # never appears.
+        ckpt = self._ckpt_with(
+            CharacterRecord(
+                character_id="bob",
+                name="Bob",
+                location="hall",
+                public_sheet=PublicSheet(role="guard"),
+            ),
+        )
+        prior = [
+            CharacterAgentOutput(
+                character_id="bob",
+                public_text="",
+                intent=(
+                    "WATCHING_FOR_SIGNAL: hand on hilt; if she moves "
+                    "toward the door, intercept."
+                ),
+            ),
+        ]
+        block = format_prior_responses(prior, ckpt)
+        assert "Bob" in block
+        # Some non-empty placeholder rendered.
+        assert "(silent beat)" in block
+        # Intent text fully suppressed.
+        assert "WATCHING_FOR_SIGNAL" not in block
+        assert "hand on hilt" not in block
+        assert "intercept" not in block
+
+    def test_falls_back_to_character_id_when_record_missing(self):
+        # Edge case: an agent output references a character_id that
+        # isn't in the roster (legacy save, mid-cull, etc.). Must not
+        # crash, must render with the id as the label, and must still
+        # not leak intent.
+        ckpt = self._ckpt_with()  # empty roster
+        prior = [
+            CharacterAgentOutput(
+                character_id="ghost_42",
+                public_text='A whisper from somewhere. "Soon."',
+                intent="PRIVATE_GHOST_INTENT: do not be seen.",
+            ),
+        ]
+        block = format_prior_responses(prior, ckpt)
+        assert "ghost_42" in block
+        assert "Soon" in block
+        assert "PRIVATE_GHOST_INTENT" not in block
+        assert "do not be seen" not in block
+
+    def test_empty_prior_responses_returns_neutral_placeholder(self):
+        ckpt = self._ckpt_with()
+        block = format_prior_responses([], ckpt)
+        # The exact wording is a contract with the agent prompt
+        # (which references "No other characters have responded yet"
+        # as a no-op signal); locking it here.
+        assert block == "No other characters have responded yet."

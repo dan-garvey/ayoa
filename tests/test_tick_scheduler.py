@@ -37,6 +37,12 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.event_router import (
+    EventRouterOutput,
+    RosterMove,
+    SceneCreation,
+)
+from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
 from app.schemas.state import (
     LocationState,
     OpenCatIIEvent,
@@ -621,3 +627,327 @@ class TestFanOut:
         # survivor. Otherwise a flapping NPC would lock the scheduler
         # into firing every turn forever.
         assert ckpt.session.turns_since_last_tick == 0
+
+
+# ---- Commit 6: tick fan-in to unified router --------------------------------
+
+
+def _tick_router_output(
+    *,
+    roster_moves: list[RosterMove] | None = None,
+    scenes_created: list[SceneCreation] | None = None,
+) -> EventRouterOutput:
+    """Build a tick-mode router output with the invariants the prompt
+    pins (no responders, no picks, ends_beat=true with ambient_pause).
+    """
+    return EventRouterOutput(
+        event_id="",
+        decision_rationale="(tick fan-in test fixture)",
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(
+                attempted_action="(off-stage tick)",
+                feasible=True,
+                resolved_outcome=(
+                    "While the player rested, the regent paced and the "
+                    "scribe copied another folio."
+                ),
+            ),
+            scene_delta=SceneDelta(time_advanced_seconds=120),
+            observable_facts=[],
+        ),
+        observers=[],
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
+        ends_beat=True,
+        ends_beat_reason="ambient_pause",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=roster_moves or [],
+        scenes_created=scenes_created or [],
+    )
+
+
+def _stub_dispatcher(
+    monkeypatch,
+    routed: EventRouterOutput | None,
+    recorder: list[dict] | None = None,
+    *,
+    raise_on_call: Exception | None = None,
+):
+    """Replace `app.engine.orchestrator.LLMDispatcher` with a stub whose
+    `route_tick_intentions` returns `routed` (or raises). When
+    `recorder` is provided, every fan-in call appends a dict of the
+    kwargs so tests can inspect what the orchestrator actually
+    bundled.
+
+    Returns the stub class for any extra introspection.
+    """
+
+    class _StubDispatcher:
+        def __init__(self, client, prompt_mgr):
+            self.client = client
+            self.prompt_mgr = prompt_mgr
+
+        async def route_tick_intentions(
+            self, *, ckpt, tick_outputs, acting_character_id="",
+        ):
+            if recorder is not None:
+                recorder.append({
+                    "tick_outputs": list(tick_outputs),
+                    "acting_character_id": acting_character_id,
+                })
+            if raise_on_call is not None:
+                raise raise_on_call
+            return routed
+
+    monkeypatch.setattr(
+        "app.engine.orchestrator.LLMDispatcher", _StubDispatcher,
+    )
+    return _StubDispatcher
+
+
+class TestTickFanIn:
+    @pytest.mark.asyncio
+    async def test_fan_in_called_with_public_text_and_locations(
+        self, monkeypatch,
+    ):
+        """The orchestrator must hand the dispatcher a list of
+        `(name, character_id, location, public_text)` tuples — one
+        per successful tick — and crucially must pass `public_text`
+        only, NEVER `intent`. Information-asymmetry guard: the
+        router must not see any agent's interior."""
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        _stub_character_agent(monkeypatch, recorder=[])
+        recorded: list[dict] = []
+        _stub_dispatcher(monkeypatch, _tick_router_output(), recorded)
+
+        orch = _orchestrator()
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        assert len(recorded) == 1
+        call = recorded[0]
+        assert call["acting_character_id"] == "alice"
+        # Two NPCs ticked → two fan-in entries.
+        assert len(call["tick_outputs"]) == 2
+        # Stub agent emits f"{name} paces." as public_text and a
+        # non-empty intent. The intent ("watch the gate") MUST NOT
+        # appear in any of the bundled entries.
+        for name, char_id, location, public_text in call["tick_outputs"]:
+            assert "paces" in public_text
+            assert "watch the gate" not in public_text
+            # Location is the off-stage scene the NPCs live in (`hall`
+            # in the default fixture), not the player's `courtyard`.
+            assert location == "hall"
+            assert name in ("Regent", "Scribe")
+            assert char_id in ("regent", "scribe")
+
+    @pytest.mark.asyncio
+    async def test_fan_in_skipped_when_no_ticks_succeed(
+        self, monkeypatch,
+    ):
+        """If every per-tick attempt fails, there's nothing to bundle.
+        The orchestrator must NOT spend a router call on an empty
+        payload."""
+
+        class _AlwaysFailAgent:
+            def __init__(self, client, prompt_mgr):
+                self.last_usage = {}
+
+            async def tick(self, *, character, checkpoint, acting_character_id):
+                raise RuntimeError("every tick fails this beat")
+
+        monkeypatch.setattr(
+            "app.engine.orchestrator.CharacterAgent", _AlwaysFailAgent,
+        )
+        recorded: list[dict] = []
+        _stub_dispatcher(monkeypatch, _tick_router_output(), recorded)
+
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        orch = _orchestrator()
+        result = await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        assert result == []
+        assert recorded == []
+        # Counter still reset — the fire happened, just no survivors
+        # to bundle.
+        assert ckpt.session.turns_since_last_tick == 0
+
+    @pytest.mark.asyncio
+    async def test_fan_in_applies_roster_moves_from_router(
+        self, monkeypatch,
+    ):
+        """Off-stage ticks unfold via the same movement primitive the
+        on-stage cascade uses (`roster_moves`). When the router
+        returns one, the orchestrator must apply it to character
+        locations on the checkpoint."""
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        # Regent starts in `hall` (default off-stage fixture). The
+        # tick router relocates them to `library`.
+        routed = _tick_router_output(
+            roster_moves=[
+                RosterMove(
+                    character_id="regent", to_scene="library",
+                    reason="walked to fetch a folio",
+                ),
+            ],
+        )
+        _stub_character_agent(monkeypatch, recorder=[])
+        _stub_dispatcher(monkeypatch, routed)
+
+        orch = _orchestrator()
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        regent = next(c for c in ckpt.characters if c.character_id == "regent")
+        assert regent.location == "library"
+
+    @pytest.mark.asyncio
+    async def test_fan_in_applies_scene_creations_from_router(
+        self, monkeypatch,
+    ):
+        """An off-stage tick can imply a brand-new scene (an NPC walks
+        into a side room the importer didn't enumerate). The
+        orchestrator must grow the scene_graph before applying any
+        moves that target the new scene."""
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        routed = _tick_router_output(
+            scenes_created=[
+                SceneCreation(
+                    scene_id="archive", name="Archive",
+                    description="A dusty room of records.",
+                    connected_to=["hall"],
+                ),
+            ],
+        )
+        _stub_character_agent(monkeypatch, recorder=[])
+        _stub_dispatcher(monkeypatch, routed)
+
+        orch = _orchestrator()
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        assert "archive" in ckpt.world_state.locations.scene_graph
+        # Reverse edge added automatically by `_apply_scene_creations`
+        # so the graph stays bidirectionally traversable.
+        assert (
+            "archive"
+            in ckpt.world_state.locations.scene_graph["hall"]["connected_to"]
+        )
+
+    @pytest.mark.asyncio
+    async def test_fan_in_appends_canonical_event_to_world_log(
+        self, monkeypatch,
+    ):
+        """The off-stage canonical event the router authors lands in
+        `ckpt.canonical_events` so future router calls + recap
+        passes see it as part of session truth, even though no
+        narrator render happens (the player wasn't there)."""
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        before = len(ckpt.canonical_events)
+        routed = _tick_router_output()
+        _stub_character_agent(monkeypatch, recorder=[])
+        _stub_dispatcher(monkeypatch, routed)
+
+        orch = _orchestrator()
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        assert len(ckpt.canonical_events) == before + 1
+        appended = ckpt.canonical_events[-1]
+        assert appended.canonical_event.world_adjudication.resolved_outcome \
+            .startswith("While the player rested")
+
+    @pytest.mark.asyncio
+    async def test_fan_in_router_failure_swallowed_no_state_corruption(
+        self, monkeypatch,
+    ):
+        """Router fan-in failure (network, schema, anything) MUST
+        NOT crash the beat — the on-stage render already landed for
+        the player. The per-character tick outputs are still in the
+        agents' rolling histories (interior continuity preserved
+        for next call); we just don't get a canonical event for
+        the off-stage developments this turn."""
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        before = len(ckpt.canonical_events)
+        _stub_character_agent(monkeypatch, recorder=[])
+        _stub_dispatcher(
+            monkeypatch, None,
+            raise_on_call=RuntimeError("simulated fan-in API hiccup"),
+        )
+
+        orch = _orchestrator()
+        result = await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        # Per-tick outputs survive — the orchestrator's return value
+        # still reflects what the agents produced before the fan-in
+        # failed.
+        assert sorted(c.character_id for c, _ in result) == [
+            "regent", "scribe",
+        ]
+        # No canonical event appended (the router never returned).
+        assert len(ckpt.canonical_events) == before
+        # Counter still reset — the FIRE happened, even though the
+        # downstream router call failed.
+        assert ckpt.session.turns_since_last_tick == 0
+
+    @pytest.mark.asyncio
+    async def test_fan_in_router_returns_none_no_mutations(
+        self, monkeypatch,
+    ):
+        """Defensive: if the dispatcher returns None (legacy path or
+        future change), the orchestrator must skip mutation
+        application without crashing on `routed.scenes_created` /
+        `routed.roster_moves` access."""
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            stagnation=15,
+        )
+        before_events = len(ckpt.canonical_events)
+        before_scene_graph = dict(ckpt.world_state.locations.scene_graph)
+        _stub_character_agent(monkeypatch, recorder=[])
+        _stub_dispatcher(monkeypatch, None)  # router returns None
+
+        orch = _orchestrator()
+        result = await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+
+        assert len(result) == 2  # fan-out succeeded
+        assert len(ckpt.canonical_events) == before_events  # no append
+        assert ckpt.world_state.locations.scene_graph == before_scene_graph

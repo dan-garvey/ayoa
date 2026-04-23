@@ -351,6 +351,186 @@ class TestRouteIntention:
         ), "surfaced_world_facts mutated but not restored"
 
 
+# ---- 4b. route_tick_intentions (Commit 6 fan-in) ---------------------------
+
+
+class TestRouteTickIntentions:
+    """Unit coverage of the off-stage tick fan-in router call.
+
+    The dispatcher bundles N off-stage agents' PUBLIC prose into a
+    single router call in tick mode. Two contracts the tests pin:
+
+      - Empty `tick_outputs` → no LLM call, returns None. The
+        orchestrator can compose a tick block from zero successful
+        ticks (every per-tick attempt failed) and we must NOT spend
+        a router call on an empty payload.
+      - The bundled user message carries TICK_FAN_IN_HEADER + per-
+        ticker prose, NEVER the parenthetical the agent originally
+        emitted. The information-asymmetry guard is the caller's
+        responsibility (orchestrator passes `output.public_text`),
+        but the dispatcher must not synthesize anything that could
+        leak interior either.
+    """
+
+    def test_empty_tick_outputs_returns_none_without_llm_call(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        result = asyncio.run(dispatcher.route_tick_intentions(
+            ckpt=ckpt, tick_outputs=[],
+        ))
+
+        assert result is None
+        mock_client.complete.assert_not_called()
+        # Conversation history untouched — empty fan-in must not
+        # smear a stub user/assistant pair onto the rolling router
+        # context.
+        assert ckpt.session_conversation == []
+
+    def test_bundles_per_ticker_prose_in_user_message(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        mock_client.complete.return_value = _llm_response(_router_output())
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        asyncio.run(dispatcher.route_tick_intentions(
+            ckpt=ckpt,
+            tick_outputs=[
+                ("Pip", "pip", "gatehouse",
+                 "He paces the threshold, watching the road."),
+                ("Wraith", "wraith_42", "tower",
+                 "It descends the stair, soundless."),
+            ],
+            acting_character_id="alice",
+        ))
+
+        assert mock_client.complete.await_count == 1
+        kwargs = mock_client.complete.await_args.kwargs
+        user_content = _last_user_content(kwargs["messages"])
+        # Mode header so the prompt's tick-mode branch fires.
+        assert "## Off-Stage Tick" in user_content
+        # Per-ticker prose surfaces verbatim with the location annotation.
+        assert "Pip" in user_content
+        assert "He paces the threshold" in user_content
+        assert "gatehouse" in user_content
+        assert "Wraith" in user_content
+        assert "It descends the stair" in user_content
+        assert "tower" in user_content
+        # The on-stage intention block + Cat II resolution block must
+        # both be empty in tick mode (mutually exclusive user-message
+        # slots per the USER-TEMPLATE CONTRACT in event_router_v9).
+        assert "## Intention" not in user_content
+        assert "## Cat II Resolution" not in user_content
+
+    def test_user_message_contains_no_parenthetical_intent_text(
+        self, prompt_mgr, mock_client,
+    ):
+        """Caller-side asymmetry guard: the dispatcher's signature
+        only takes `public_text`, so even if a sloppy caller passed
+        a string that happens to contain a trailing parenthetical,
+        the dispatcher renders it as-is and does not invent a
+        separate intent channel. This test pins that the helper has
+        no hidden code path that resurrects intent text from
+        somewhere.
+        """
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        mock_client.complete.return_value = _llm_response(_router_output())
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        asyncio.run(dispatcher.route_tick_intentions(
+            ckpt=ckpt,
+            tick_outputs=[
+                ("Pip", "pip", "gatehouse",
+                 "He polishes the bell. PRIVATE_INTENT_SENTINEL"),
+            ],
+            acting_character_id="alice",
+        ))
+
+        kwargs = mock_client.complete.await_args.kwargs
+        user_content = _last_user_content(kwargs["messages"])
+        # The string we passed IS in user_content (we asked the
+        # dispatcher to forward it verbatim). The asymmetry contract
+        # is enforced upstream; here we just confirm the dispatcher
+        # adds no SECOND surface beyond what we handed it — there's
+        # no field labeled "intent" or "interior" in the bundle.
+        assert "PRIVATE_INTENT_SENTINEL" in user_content
+        assert "intent:" not in user_content.lower()
+        assert "interior:" not in user_content.lower()
+
+    def test_appends_to_session_conversation_after_call(
+        self, prompt_mgr, mock_client,
+    ):
+        """Tick fan-in shares the same `session_conversation` history
+        as on-stage router calls — single cache lineage, single
+        source of routing truth. The user/assistant pair must land
+        in that history after the LLM responds so the next router
+        call (whether tick or on-stage) picks up the off-stage
+        canonical event as context.
+        """
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        mock_client.complete.return_value = _llm_response(_router_output())
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        before_len = len(ckpt.session_conversation)
+        asyncio.run(dispatcher.route_tick_intentions(
+            ckpt=ckpt,
+            tick_outputs=[
+                ("Pip", "pip", "gatehouse", "He paces."),
+            ],
+            acting_character_id="alice",
+        ))
+
+        # Exactly one user + one assistant appended.
+        assert len(ckpt.session_conversation) == before_len + 2
+        assert ckpt.session_conversation[-2].role == "user"
+        assert ckpt.session_conversation[-1].role == "assistant"
+
+    def test_failed_tick_router_call_restores_session_queues(
+        self, prompt_mgr, mock_client,
+    ):
+        """Same snapshot/restore contract as `route_intention`: a
+        failed tick fan-in must not silently drain queued state-
+        changes / world-fact entries. The orchestrator swallows the
+        exception, but the queues must survive into the next on-
+        stage router call so spawn lines etc. still reach the
+        router.
+        """
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.pending_router_state_changes = [
+            "Spawned: Sera (id: sera_01) — fresh arrival",
+        ]
+        ckpt.world_state.facts = ["The keep predates the road."]
+        ckpt.session.surfaced_world_facts = []
+        before_state_changes = list(
+            ckpt.session.pending_router_state_changes
+        )
+        before_surfaced = list(ckpt.session.surfaced_world_facts)
+
+        mock_client.complete.side_effect = RuntimeError("tick API hiccup")
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        with pytest.raises(RuntimeError):
+            asyncio.run(dispatcher.route_tick_intentions(
+                ckpt=ckpt,
+                tick_outputs=[
+                    ("Pip", "pip", "gatehouse", "He paces."),
+                ],
+                acting_character_id="alice",
+            ))
+
+        assert (
+            ckpt.session.pending_router_state_changes == before_state_changes
+        )
+        assert ckpt.session.surfaced_world_facts == before_surfaced
+        # And the failed call did NOT pollute conversation history —
+        # snapshot/restore covers session_conversation by virtue of
+        # the append-after-success ordering in the dispatcher.
+        assert ckpt.session_conversation == []
+
+
 # ---- 5. agent_intend returns a compact string ------------------------------
 
 
