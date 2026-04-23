@@ -75,7 +75,7 @@ def _is_agent_refusal(text: str) -> bool:
     in-character dialogue ("I can't see them from here," "I cannot allow
     that, my lord.") and false negatives on real refusals with stylistic
     variations (em-dashed preambles, quoted wrappers, sorry-prefixes).
-    The correct fix is PROMPT-level: agent_v9 adds rule 18 explicitly
+    The correct fix is PROMPT-level: agent_v9 adds rule 21 explicitly
     forbidding refusals / frame-breaks and tells the agent that an empty
     output is valid in-character silence. The engine then only needs to
     guard against literal empty output — a real agent failure. If the

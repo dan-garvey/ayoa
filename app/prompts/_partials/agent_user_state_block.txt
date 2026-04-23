@@ -1,0 +1,9 @@
+{pending_observations_block}## Your Current State
+Goals (who you are):
+{character_goals}
+
+Current Objectives (what you're pursuing right now):
+{character_current_objectives}
+
+Secrets:
+{character_secrets}

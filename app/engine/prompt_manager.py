@@ -10,6 +10,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# HTML-style comment blocks (see render())
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+# `{include "name"}` — loads `app/prompts/_partials/{name}.txt` (recursive)
+_INCLUDE_RE = re.compile(r'\{include\s+"([^"]+)"\s*\}')
+
 
 class PromptManager:
     """Loads, renders, and versions prompt templates."""
@@ -18,6 +24,26 @@ class PromptManager:
         self.prompts_dir = Path(prompts_dir)
         if not self.prompts_dir.exists():
             raise FileNotFoundError(f"Prompts directory not found: {self.prompts_dir}")
+
+    def _expand_includes(self, text: str, *, depth: int = 0) -> str:
+        """Splice in partial templates from `prompts_dir/_partials/`. Recurses for nested includes."""
+        if depth > 12:
+            raise ValueError("Include nesting exceeded maximum depth (12)")
+
+        def _repl(m: re.Match[str]) -> str:
+            name = m.group(1).strip()
+            if not name or "/" in name or ".." in name:
+                raise ValueError(f"Invalid include name: {name!r}")
+            partial_path = self.prompts_dir / "_partials" / f"{name}.txt"
+            if not partial_path.is_file():
+                raise FileNotFoundError(
+                    f"Include not found: {partial_path} (referenced from a template)"
+                )
+            inner = partial_path.read_text()
+            inner = _COMMENT_RE.sub("", inner)
+            return self._expand_includes(inner, depth=depth + 1)
+
+        return _INCLUDE_RE.sub(_repl, text)
 
     def _find_template(self, template_name: str) -> Path:
         """Find a template file by name (without version suffix or extension).
@@ -70,8 +96,8 @@ class PromptManager:
         #
         # Only whole-line `<!-- ... -->` blocks are recognized; inline HTML
         # comments inside prose would be rare and we'd rather preserve them.
-        comment_re = re.compile(r"<!--.*?-->", re.DOTALL)
-        stripped = comment_re.sub("", raw)
+        stripped = _COMMENT_RE.sub("", raw)
+        stripped = self._expand_includes(stripped)
 
         required = set(re.findall(r"\{(\w+)\}", stripped))
         provided = set(variables.keys())

@@ -1,22 +1,4 @@
-You are {character_name}. Stay in character at all times.
-
-## Who You Are
-Role: {character_role}
-Appearance: {character_appearance}
-Faction: {character_faction}
-
-## Your Background
-{character_backstory}
-
-## Your Personality
-This block covers how you speak, carry yourself, play under pressure,
-and your habitual beats. If empty, lean on your backstory, goals, and
-rolling conversation history.
-
-{character_personality}
-
-## World Context
-{world_context}
+{include "agent_identity_core"}
 
 ## Player Characters
 These are the human-played characters in this story. You are NOT currently in a scene with them; this is an off-stage cycle.
@@ -76,16 +58,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences. `public_respons
 
 <<<USER>>>
 
-{pending_observations_block}## Your Current State
-Goals (who you are):
-{character_goals}
-
-Current Objectives (what you're pursuing right now):
-{character_current_objectives}
-
-Secrets:
-{character_secrets}
-
+{include "agent_user_state_block"}
 ## Where You Are
 {scene_context}
 

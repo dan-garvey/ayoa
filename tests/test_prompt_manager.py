@@ -60,6 +60,32 @@ class TestPromptManagerVersions:
             mgr.get_version("nonexistent")
 
 
+class TestPromptManagerInclude:
+    def test_expand_include_loads_partial(self, tmp_path):
+        partials = tmp_path / "_partials"
+        partials.mkdir()
+        (partials / "greet.txt").write_text("Hello {name}")
+        (tmp_path / "wrap_v1.txt").write_text('Preamble {include "greet"} <<<USER>>>\nAfter')
+        mgr = PromptManager(prompts_dir=str(tmp_path))
+        out = mgr.render("wrap", name="Vero")
+        assert out == "Preamble Hello Vero <<<USER>>>\nAfter"
+
+    def test_nested_include(self, tmp_path):
+        partials = tmp_path / "_partials"
+        partials.mkdir()
+        (partials / "inner.txt").write_text("{x}")
+        (partials / "outer.txt").write_text('a {include "inner"} b')
+        (tmp_path / "t_v1.txt").write_text('{include "outer"} <<<USER>>>')
+        mgr = PromptManager(prompts_dir=str(tmp_path))
+        assert mgr.render("t", x="ok") == "a ok b <<<USER>>>"
+
+    def test_include_missing_raises(self, tmp_path):
+        (tmp_path / "t_v1.txt").write_text('{include "nope"} <<<USER>>>')
+        mgr = PromptManager(prompts_dir=str(tmp_path))
+        with pytest.raises(FileNotFoundError, match="Include not found"):
+            mgr.render("t")
+
+
 class TestPromptManagerInit:
     def test_missing_directory_raises(self):
         with pytest.raises(FileNotFoundError):

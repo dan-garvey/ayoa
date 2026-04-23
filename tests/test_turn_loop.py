@@ -987,7 +987,7 @@ class TestFilterPicksForDispatch:
 
 class TestAgentEmptyGuard:
     """v11-r5: refusal detection moved from pattern matching to
-    prompt-level (agent_v9 rule 18). The engine only guards literal
+    prompt-level (agent_v9 rule 21). The engine only guards literal
     empty/whitespace output now. Legitimate in-character lines
     containing "I can't" / "I cannot" / "As an AI" (rare but possible
     when a character IS an AI in-fiction) all pass through.

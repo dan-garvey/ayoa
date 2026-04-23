@@ -526,6 +526,7 @@ class TestLLMClientIntegration:
         result = await live_client.complete(
             role="narrator",
             messages=[{"role": "user", "content": "Say hello in one word."}],
+            temperature=0.5,
             max_tokens=50,
         )
         assert len(result.content) > 0
@@ -550,6 +551,8 @@ class TestLLMClientIntegration:
         result = await live_client.complete(
             role="narrator",
             messages=messages,
+            temperature=0.5,
+            max_tokens=1024,
             response_model=CanonicalEvent,
         )
 
