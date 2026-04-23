@@ -26,6 +26,37 @@ logger = logging.getLogger(__name__)
 MAX_SPAWNS_PER_TURN = 3
 
 
+def _push_spawn_state_change(
+    checkpoint: CheckpointFile, char: CharacterRecord,
+) -> None:
+    """Surface a freshly-spawned character to the next router call.
+
+    Commit-3 minimal version: writes a name + role + location +
+    objectives line to `session.pending_router_state_changes`. The
+    next router call's "## State Changes Since Your Last Call" block
+    surfaces the queue and clears it.
+
+    Commit 4 will replace this body with the LLM-generated
+    `router_summary` from the spawn-generation prompt — same queue,
+    richer prose. Until then, this gives the router a mechanical
+    signal that a new character exists in the world without waiting
+    for the (now-removed) `character_registry` re-feed to clue it in.
+    """
+    role = char.public_sheet.role or "unknown role"
+    loc = char.location or "unknown"
+    scene_graph = checkpoint.world_state.locations.scene_graph
+    loc_name = scene_graph.get(loc, {}).get("name", loc)
+    objs = [o for o in (char.private_state.current_objectives or []) if o]
+    parts = [
+        f"Spawned: {char.name} (id: {char.character_id})",
+        f"role={role}",
+        f"location={loc_name} ({loc})",
+    ]
+    if objs:
+        parts.append("objectives=" + "; ".join(objs))
+    checkpoint.session.pending_router_state_changes.append(", ".join(parts))
+
+
 def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
     """v11: ids currently holding a scene's active_act_slot OR listed as a
     required responder on an open Cat II event. Used to guard roster
@@ -152,6 +183,7 @@ class CharacterManager:
                 checkpoint.characters.append(char)
                 spawned.append(char)
                 logger.info("Spawned character: %s (%s)", char.name, char.character_id)
+                _push_spawn_state_change(checkpoint, char)
             except Exception as e:
                 logger.warning("Failed to spawn %s: %s", req.character_id, e)
 

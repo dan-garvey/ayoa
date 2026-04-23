@@ -146,11 +146,150 @@ def _build_characters_present(
     return "\n".join(present)
 
 
-def _build_world_facts(checkpoint: CheckpointFile) -> str:
-    facts = checkpoint.world_state.facts
-    if not facts:
-        return "No specific world facts recorded."
-    return "\n".join(f"- {fact}" for fact in facts)
+def _build_world_facts_delta(checkpoint: CheckpointFile) -> str:
+    """Render only world facts the router hasn't seen on a prior turn.
+
+    Pre-Commit-3 the per-turn user message carried the full
+    `world_state.facts` list every turn (~tens to hundreds of tokens).
+    The list is essentially immutable post-import — re-feeding it
+    every turn was pure context bloat. Now we surface each fact ONCE,
+    on whichever turn it was added (turn 1 for importer-seeded facts,
+    later for any rare runtime additions), then track surfacing in
+    `session.surfaced_world_facts`.
+
+    Returns "" when nothing is new (the most common case from turn 2
+    onward), in which case the template's ## World Facts header
+    suppresses entirely. MUTATES `session.surfaced_world_facts` to
+    include any newly-surfaced entries — this is intentional and
+    atomic with the router LLM call (the caller persists the
+    checkpoint after `route_intention` returns).
+
+    Returns the full block including header when non-empty, so the
+    template can splice with `{world_facts_delta_block}` and a missing
+    delta cleanly disappears with no dangling header.
+    """
+    facts = checkpoint.world_state.facts or []
+    surfaced = set(checkpoint.session.surfaced_world_facts)
+    delta = [f for f in facts if f not in surfaced]
+    if not delta:
+        return ""
+    checkpoint.session.surfaced_world_facts = list(surfaced.union(delta))
+    body = "\n".join(f"- {fact}" for fact in delta)
+    return (
+        "## World Facts (Common Knowledge — new entries)\n"
+        f"{body}\n\n"
+    )
+
+
+def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
+    """Render the full NPC roster + interior on turn 1 only.
+
+    Pre-Commit-3 the per-turn user message carried `character_registry`
+    EVERY turn — name + role + status + location for every non-player
+    character (~80 tokens × N NPCs, ~1000 tokens/turn for hollowstone).
+    The router has its own session conversation history, so re-feeding
+    identity every turn was duplication: turn-1's inject + every
+    subsequent `roster_moves` and `spawn` outcome the router itself
+    authored is already in history.
+
+    This block lands ONCE — on turn 1 only — and carries richer signal
+    than the dropped registry: name, id, role, location, goals,
+    current_objectives, and last_intent. The router uses it to seed
+    "who's in this world and what are they trying to do" so picking
+    decisions on turn 1 aren't blind. Returns "" on every turn after
+    the first.
+    """
+    if checkpoint.session_conversation:
+        return ""
+    if not checkpoint.characters:
+        return ""
+
+    from app.engine.context_builder import collect_player_ids
+    player_ids = collect_player_ids(checkpoint)
+    scene_graph = checkpoint.world_state.locations.scene_graph
+
+    entries: list[str] = []
+    for char in checkpoint.characters:
+        if char.character_id in player_ids:
+            continue
+        if char.status.value != "active":
+            continue
+
+        location = char.location or "unknown"
+        loc_name = scene_graph.get(location, {}).get("name", location)
+        role = char.public_sheet.role or "unknown role"
+
+        parts = [
+            f"- {char.name} (id: {char.character_id})",
+            f"  Role: {role}",
+            f"  Location: {loc_name} ({location})",
+        ]
+        goals = [g for g in (char.private_state.goals or []) if g]
+        if goals:
+            parts.append(
+                "  Goals (long-term): " + "; ".join(goals)
+            )
+        objs = [o for o in (char.private_state.current_objectives or []) if o]
+        if objs:
+            parts.append(
+                "  Current objectives (active pursuits): " + "; ".join(objs)
+            )
+        if char.last_intent:
+            parts.append(f"  Last intent: {char.last_intent}")
+        entries.append("\n".join(parts))
+
+    if not entries:
+        return ""
+
+    header = (
+        "## Initial Roster\n"
+        "Every active NPC in this world, with their long-term goals, "
+        "active pursuits, and freshest interior signal (if any). "
+        "Treat goals and objectives as seeded fiction — what the "
+        "author put in their drives. Treat last_intent as belief, "
+        "not promise: it's the latest thing they said they were "
+        "trying to do, and they may have changed their mind. This "
+        "block lands ONCE; subsequent turns track changes via your "
+        "own roster_moves and the State Changes block.\n\n"
+    )
+    return header + "\n\n".join(entries) + "\n"
+
+
+def _build_state_changes_block(checkpoint: CheckpointFile) -> str:
+    """Drain the queue of engine-applied changes the router didn't author.
+
+    Pre-Commit-3 there was no dedicated channel for "the engine did
+    something the router needs to know about" — spawn outcomes were
+    invisible to the router (it learned about new characters only when
+    they showed up in `character_registry` on a later turn), and
+    /takeover / /join changes never reached the router at all.
+
+    This block is non-empty whenever `pending_router_state_changes`
+    has entries. The queue is populated by:
+      - Spawn flow (Commit 4): the LLM-generated `router_summary` for
+        each new character lands as one line per spawn.
+      - /takeover and /join: a one-line note when a player binds to or
+        un-binds from a character.
+      - Operator/exotic mutations: anything outside the router's
+        own decision loop that flips world state.
+
+    DRAINS the queue as a side effect — atomic with the router LLM
+    call (the caller persists the checkpoint after `route_intention`
+    returns).
+    """
+    queued = checkpoint.session.pending_router_state_changes or []
+    if not queued:
+        return ""
+    checkpoint.session.pending_router_state_changes = []
+    body = "\n".join(f"- {entry}" for entry in queued)
+    return (
+        "## State Changes Since Your Last Call\n"
+        "These are things the engine applied that you did NOT author "
+        "in a prior turn (spawn LLM outcomes, player /takeover or "
+        "/join, exotic state mutations). Folded into your model of "
+        "the world for this turn's adjudication.\n\n"
+        f"{body}\n"
+    )
 
 
 def _build_hidden_facts(checkpoint: CheckpointFile) -> str:
@@ -158,36 +297,6 @@ def _build_hidden_facts(checkpoint: CheckpointFile) -> str:
     if not facts:
         return "None."
     return "\n".join(f"- {fact}" for fact in facts)
-
-
-def _build_character_registry(checkpoint: CheckpointFile) -> str:
-    if not checkpoint.characters:
-        return "No characters in the registry."
-
-    from app.engine.context_builder import collect_player_ids
-
-    entries = []
-    player_ids = collect_player_ids(checkpoint)
-    scene_graph = checkpoint.world_state.locations.scene_graph
-
-    for char in checkpoint.characters:
-        if char.character_id in player_ids:
-            continue
-
-        location = char.location or "unknown"
-        loc_name = scene_graph.get(location, {}).get("name", location)
-        role = char.public_sheet.role or "unknown role"
-        status = char.status.value
-
-        entry = (
-            f"- {char.name} (id: {char.character_id})\n"
-            f"  Status: {status}\n"
-            f"  Location: {loc_name} ({location})\n"
-            f"  Role: {role}"
-        )
-        entries.append(entry)
-
-    return "\n".join(entries)
 
 
 def _build_since_last_turn_block(acting_char) -> str:
@@ -276,10 +385,8 @@ def _build_router_context(
         "current_scene": _build_scene_context(ckpt, acting_id),
         "scene_graph": _build_scene_graph(ckpt),
         "characters_present": _build_characters_present(ckpt, acting_id),
-        "world_facts": _build_world_facts(ckpt),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": _build_hidden_facts(ckpt),
-        "character_registry": _build_character_registry(ckpt),
         "acting_character_name": acting_name,
         "acting_character_id": acting_id,
         "player_characters_block": build_player_characters_block(
@@ -288,6 +395,9 @@ def _build_router_context(
         "since_last_turn_block": since_last_turn_block,
         "opening_directive": _build_opening_directive(ckpt),
         "recent_turn_recap": _build_recent_turn_recap(ckpt),
+        "world_facts_delta_block": _build_world_facts_delta(ckpt),
+        "initial_roster_block": _build_initial_roster_block(ckpt),
+        "state_changes_block": _build_state_changes_block(ckpt),
     }
 
 

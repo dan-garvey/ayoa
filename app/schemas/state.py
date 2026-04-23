@@ -147,6 +147,24 @@ class SessionState(BaseModel):
     # (embedded in its user message, which then archives into
     # session_conversation) and cleared. Empty on a fresh session.
     pending_recap: str = ""
+    # Commit-3 (router-trim): which `world_state.facts` entries have
+    # already been surfaced to the router in some prior turn's user
+    # message. The per-turn user message now carries
+    # `world_facts_delta` — only facts NOT in this set — instead of
+    # the full list. Updated by the router-context builder at consume
+    # time (atomic with the router LLM call). Importer-seeded facts
+    # land here on turn 1 and are never re-surfaced; the rare runtime-
+    # added fact lands on whatever turn it was added.
+    surfaced_world_facts: list[str] = Field(default_factory=list)
+    # Commit-3 (router-trim): one-shot lines describing things the
+    # engine applied that the router did NOT itself author — spawn
+    # outcomes (Commit 4 will populate router_summary into these),
+    # /takeover and /join changes, exotic state mutations the operator
+    # injected. Drained into the next router call's "## State Changes
+    # Since Your Last Call" block, then cleared. Empty in the common
+    # case (back-to-back on-stage routing in the same beat with no
+    # external mutation).
+    pending_router_state_changes: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)

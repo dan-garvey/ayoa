@@ -575,6 +575,15 @@ class EngineBridge:
             )
 
         ckpt.session.character_bindings[character_id] = uid
+        target_name = next(
+            (c.name for c in ckpt.characters if c.character_id == character_id),
+            character_id,
+        )
+        ckpt.session.pending_router_state_changes.append(
+            f"Player binding: {target_name} (id: {character_id}) is now "
+            f"driven by a human player. Treat them as a protagonist; "
+            f"the narrator may pivot POV to them."
+        )
         self.checkpoint_mgr.save(ckpt)
         return ckpt
 
@@ -602,6 +611,15 @@ class EngineBridge:
             # atomically on the same checkpoint write.
             purge_character_state(ckpt, freed)
             del ckpt.session.character_bindings[freed]
+            freed_name = next(
+                (c.name for c in ckpt.characters if c.character_id == freed),
+                freed,
+            )
+            ckpt.session.pending_router_state_changes.append(
+                f"Player binding: {freed_name} (id: {freed}) returned to "
+                f"AI control. Their character agent will resume producing "
+                f"intentions on cascade."
+            )
             self.checkpoint_mgr.save(ckpt)
         return freed
 
@@ -653,6 +671,13 @@ class EngineBridge:
         new_char.is_player = True
         ckpt.characters.append(new_char)
         ckpt.session.character_bindings[new_id] = str(user_id)
+        role = new_char.public_sheet.role or "unknown role"
+        loc = new_char.location or "unknown"
+        ckpt.session.pending_router_state_changes.append(
+            f"Custom player character created: {new_char.name} "
+            f"(id: {new_id}), role={role}, location={loc}, bound to a "
+            f"human player."
+        )
 
         if out.session_note:
             _append_session_note(ckpt, out.session_note)
@@ -750,8 +775,21 @@ class EngineBridge:
 
         # Drop rolling character conversation — the voice has changed.
         ckpt.character_conversations.pop(target_character_id, None)
+        # Reset last_intent — the prior NPC's interior is no longer
+        # relevant; the new authored character starts from a clean
+        # parenthetical slate.
+        target.last_intent = ""
+        target.last_intent_turn = -1
 
         ckpt.session.character_bindings[target_character_id] = str(user_id)
+        ckpt.session.pending_router_state_changes.append(
+            f"Character replacement: identity of {target_character_id} "
+            f"has been overwritten — they are now '{target.name}', "
+            f"role={target.public_sheet.role or 'unknown role'}, bound "
+            f"to a human player. Goals and personality are different "
+            f"from the prior version; treat as a new actor with the "
+            f"same body."
+        )
 
         if out.session_note:
             _append_session_note(ckpt, out.session_note)

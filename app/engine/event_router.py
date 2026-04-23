@@ -132,6 +132,19 @@ class EventRouter:
                 f"- {recap_note}\n\n"
             )
 
+        # Commit-3: drop `character_registry` and `world_facts` (full)
+        # from per-turn context. Replace with `initial_roster_block`
+        # (turn-1 only, with goals/objectives/last_intent),
+        # `world_facts_delta` (only newly-surfaced facts), and
+        # `state_changes_block` (engine-applied changes the router
+        # didn't author). Mutates session.surfaced_world_facts and
+        # session.pending_router_state_changes — atomic with the
+        # router LLM call.
+        from app.engine.turn_loop_dispatcher import (
+            _build_initial_roster_block,
+            _build_state_changes_block,
+            _build_world_facts_delta,
+        )
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "event_router",
@@ -142,10 +155,8 @@ class EventRouter:
             current_scene=self._build_scene_context(checkpoint),
             scene_graph=self._build_scene_graph(checkpoint),
             characters_present=self._build_characters_present(checkpoint),
-            world_facts=self._build_world_facts(checkpoint),
             hidden_lore=checkpoint.world_state.hidden_lore or "None.",
             hidden_facts=self._build_hidden_facts(checkpoint),
-            character_registry=self._build_character_registry(checkpoint),
             user_input=user_input,
             acting_character_name=acting_name,
             acting_character_id=acting_id,
@@ -155,6 +166,9 @@ class EventRouter:
             since_last_turn_block=since_last_turn_block,
             opening_directive=opening_directive,
             recent_turn_recap=recent_turn_recap,
+            world_facts_delta_block=_build_world_facts_delta(checkpoint),
+            initial_roster_block=_build_initial_roster_block(checkpoint),
+            state_changes_block=_build_state_changes_block(checkpoint),
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -273,46 +287,8 @@ class EventRouter:
             return "No other characters are present in this scene."
         return "\n".join(present)
 
-    def _build_world_facts(self, checkpoint: CheckpointFile) -> str:
-        facts = checkpoint.world_state.facts
-        if not facts:
-            return "No specific world facts recorded."
-        return "\n".join(f"- {fact}" for fact in facts)
-
     def _build_hidden_facts(self, checkpoint: CheckpointFile) -> str:
         facts = checkpoint.world_state.hidden_facts
         if not facts:
             return "None."
         return "\n".join(f"- {fact}" for fact in facts)
-
-    def _build_character_registry(self, checkpoint: CheckpointFile) -> str:
-        if not checkpoint.characters:
-            return "No characters in the registry."
-
-        entries = []
-        # Player-bound characters are rendered in the Player Characters block
-        # instead — omit them here so the router doesn't route observations
-        # to humans. Falls back to the creator's binding + is_player roster
-        # entries when character_bindings is empty (pristine / legacy saves).
-        from app.engine.context_builder import collect_player_ids
-        player_ids = collect_player_ids(checkpoint)
-        scene_graph = checkpoint.world_state.locations.scene_graph
-
-        for char in checkpoint.characters:
-            if char.character_id in player_ids:
-                continue
-
-            location = char.location or "unknown"
-            loc_name = scene_graph.get(location, {}).get("name", location)
-            role = char.public_sheet.role or "unknown role"
-            status = char.status.value
-
-            entry = (
-                f"- {char.name} (id: {char.character_id})\n"
-                f"  Status: {status}\n"
-                f"  Location: {loc_name} ({location})\n"
-                f"  Role: {role}"
-            )
-            entries.append(entry)
-
-        return "\n".join(entries)

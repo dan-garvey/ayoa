@@ -117,10 +117,8 @@ class TestPromptManagerWithRealTemplates:
             scene_graph="- courtyard (id: courtyard)",
             current_scene="A stone courtyard in the rain.",
             characters_present="- Captain Vero (guard): disciplined",
-            world_facts="The courtyard is wet.",
             hidden_lore="Secret conspiracy details.",
             hidden_facts="- Hidden fact one",
-            character_registry="- guard_17 Captain Vero",
             user_input="I try to lift the building.",
             acting_character_name="Aldric",
             acting_character_id="aldric",
@@ -128,10 +126,12 @@ class TestPromptManagerWithRealTemplates:
             since_last_turn_block="",
             opening_directive="",
             recent_turn_recap="",
-            # v11: the user-message body is now built from the
-            # intention_block OR cat_ii_resolution_block caller-supplied
-            # strings; legacy `user_input` and `acting_character_name`
-            # still appear in the system block for context.
+            # Commit-3: dropped `world_facts` (full) + `character_registry`
+            # from per-turn context. Replaced with three new optional
+            # blocks; on most calls these are empty strings.
+            world_facts_delta_block="",
+            initial_roster_block="",
+            state_changes_block="",
             cat_ii_resolution_block="",
             intention_block="## Intention\nAldric attempts: I try to lift the building.",
         )
@@ -178,14 +178,17 @@ class TestPromptManagerWithRealTemplates:
             "event_router",
             setting_summary="x", world_lore="x", world_rules="x",
             scene_graph="x", current_scene="x", characters_present="x",
-            world_facts="x", hidden_lore="x", hidden_facts="x",
-            character_registry="x", user_input="x",
+            hidden_lore="x", hidden_facts="x",
+            user_input="x",
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
             since_last_turn_block="",
             opening_directive="",
             recent_turn_recap="",
+            world_facts_delta_block="",
+            initial_roster_block="",
+            state_changes_block="",
             cat_ii_resolution_block="",
             intention_block="",
         )
@@ -211,14 +214,17 @@ class TestPromptManagerWithRealTemplates:
             history=history,
             setting_summary="x", world_lore="x", world_rules="x",
             scene_graph="x", current_scene="x", characters_present="x",
-            world_facts="x", hidden_lore="x", hidden_facts="x",
-            character_registry="x", user_input="x",
+            hidden_lore="x", hidden_facts="x",
+            user_input="x",
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
             since_last_turn_block="",
             opening_directive="",
             recent_turn_recap="",
+            world_facts_delta_block="",
+            initial_roster_block="",
+            state_changes_block="",
             cat_ii_resolution_block="",
             intention_block="",
         )

@@ -178,6 +178,10 @@ class CharacterAgent:
         )
         append_turn_to_conversation(conv, user_content, response)
 
+        if intent:
+            character.last_intent = intent
+            character.last_intent_turn = checkpoint.session.turn_index
+
         logger.info(
             "Agent %s: %d chars public, %d chars intent",
             character.name,
@@ -270,6 +274,10 @@ class CharacterAgent:
             character.character_id, [],
         )
         append_turn_to_conversation(conv, user_content, response)
+
+        if intent:
+            character.last_intent = intent
+            character.last_intent_turn = checkpoint.session.turn_index
 
         logger.info(
             "Agent %s tick: %d chars public, %d chars intent",

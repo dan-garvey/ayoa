@@ -209,6 +209,39 @@ moves when the table is set.
 `max_events_per_beat` (setting; default 5). When you're approaching the
 cap without a natural boundary, find one NOW.
 
+### Character interior — how to read goals, objectives, and last_intent
+
+You see three layers of NPC interiority and they mean different things:
+
+- **Goals** are existential drives — who the character is at core
+  ("protect my sister," "earn back the legitimate name I lost"). Set
+  by the author at import time, rarely change. Treat as the answer to
+  "why does this character keep going at all."
+- **Current objectives** are active pursuits — concrete things the
+  character is currently trying to DO ("find the missing courier
+  before sundown," "convince the steward to open the western gate").
+  Importer-seeded; the agent does NOT rewrite them every turn (Commit
+  1 dropped the structured-output writeback). Treat as the answer to
+  "what is on this character's plate right now."
+- **last_intent** is the freshest interior signal — the trailing
+  parenthetical from this character's most recent agent call. It's
+  the closest thing you have to "what are they thinking right
+  now." It can be empty (the character hasn't acted yet, or their
+  last response had no parenthetical).
+
+Crucially: treat last_intent as BELIEF, not promise. The character
+emitted that intent in some prior moment; the world has moved since,
+they may have changed their mind, or their plan may not survive
+contact with the new event. Use it to inform whether picking them
+makes sense and what kind of response they're likely to produce —
+not as a contract you must honor.
+
+When picking responders, weight: goals (does the event touch their
+core?) > current_objectives (is the event in their way or their
+direction?) > last_intent (are they primed to act on this kind of
+beat right now?). Together these turn "blind name + role" picking
+into picks that match interior pressure.
+
 ### Responder picking — NPCs to dispatch next
 
 Your output's `agent_responder_picks` is the list of NPC agents the
@@ -222,6 +255,8 @@ Guidance:
 - Cap to at most the setting's max responders (typically 3).
 - Pick agents by relevance: addressed-if-named, adjacent and
   attentive, has pressure to react, has a reason to contribute.
+  (See "Character interior" above for how goals / current_objectives
+  / last_intent feed this judgment.)
 - When `ends_beat=true`, `agent_responder_picks` is usually EMPTY —
   no cascade is intended. Exception: if the beat ends with a
   transition to a new scene, the new scene's pressing NPCs may be
@@ -605,13 +640,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 ## Characters Present In Current Scene
 {characters_present}
 
-## World Facts (Common Knowledge)
-{world_facts}
-
-## Character Registry
-{character_registry}
-
-{opening_directive}{recent_turn_recap}{since_last_turn_block}{cat_ii_resolution_block}{intention_block}
+{world_facts_delta_block}{initial_roster_block}{state_changes_block}{opening_directive}{recent_turn_recap}{since_last_turn_block}{cat_ii_resolution_block}{intention_block}
 
 <!-- v11 USER-TEMPLATE CONTRACT (consumed by the engine context builder):
 

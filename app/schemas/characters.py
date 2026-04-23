@@ -85,3 +85,18 @@ class CharacterRecord(BaseModel):
     # a single freeform field on purpose — the LLM picks whatever shape
     # best conveys what THIS character takes for granted.
     known_context: str = ""
+    # Engine-only mirror of this character's most recent agent
+    # parenthetical (the trailing `(...)` from `respond()` or `tick()`
+    # output). Written by the engine in `CharacterAgent` after every
+    # successful agent call; never written by the agent itself. Surfaces
+    # in the router's "## Initial Roster" block on turn 1 (when the agent
+    # has not yet spoken, this is just the empty string) and in the
+    # router's per-turn character context after that. The router may
+    # treat it as the freshest interior signal, but as belief — not a
+    # promised future action.
+    last_intent: str = ""
+    # Turn index at which `last_intent` was written, for freshness
+    # gating downstream. -1 means "never written." The engine compares
+    # this against the current `session.turn_index` to decide whether
+    # to surface the intent or treat it as stale.
+    last_intent_turn: int = -1
