@@ -248,7 +248,7 @@ class TestTickSceneCreationGate:
         orch = _orch()
         regent = next(c for c in ckpt.characters if c.character_id == "regent")
         self._arm_tick(orch, regent, [
-            SceneCreation(scene_id="study", name="Study", connected_to=["hall"]),
+            SceneCreation(scene_id="study", name="Study", description="", connected_to=["hall"]),
         ])
 
         with caplog.at_level(logging.WARNING):
@@ -275,7 +275,7 @@ class TestTickSceneCreationGate:
         self._arm_tick(
             orch, regent,
             scenes=[SceneCreation(
-                scene_id="study", name="Study", connected_to=["hall"],
+                scene_id="study", name="Study", description="", connected_to=["hall"],
             )],
             moved_to="study",
         )

@@ -81,6 +81,7 @@ def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
 def _router_output() -> EventRouterOutput:
     """A minimal valid EventRouterOutput for the mocked LLM response."""
     return EventRouterOutput(
+        event_id="",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="x",
@@ -93,8 +94,16 @@ def _router_output() -> EventRouterOutput:
             observable_facts=[],
         ),
         observers=[],
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="directed_at_player",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=[],
+        scenes_created=[],
     )
 
 

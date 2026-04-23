@@ -100,6 +100,7 @@ def _router_out(
         # "keep going" output should carry an empty reason.
         ends_beat_reason = ""
     return EventRouterOutput(
+        event_id="",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="something",
@@ -115,7 +116,11 @@ def _router_out(
         agent_responder_picks=picks,
         ends_beat=ends_beat,
         ends_beat_reason=ends_beat_reason,
+        spawn=[],
+        dormant=[],
+        cull=[],
         roster_moves=roster_moves or [],
+        scenes_created=[],
     )
 
 

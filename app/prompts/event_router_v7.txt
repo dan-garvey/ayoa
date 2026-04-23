@@ -130,7 +130,8 @@ physically doing. When the user_input is fully parenthesized OOC:
 
 9. Keep the scene focused.
    - Most turns should have 0-2 responders at priority 3+.
-   - Use `suggested_response_cap` to keep the eventual fan-out tight.
+   - Limit `agent_responder_picks` to 2-3 max — over-picking creates noise
+     and stalls the player's beat.
 
 10. Spawn, dormancy, and culling.
    - Spawn only if the scene logically requires a new person not already in the registry.
@@ -162,14 +163,57 @@ physically doing. When the user_input is fully parenthesized OOC:
      - Either way, include them in `observers` with `response_priority >= 3` so their character agent produces their first dialogue and actions this turn. (Do NOT transcribe their dialogue into `resolved_outcome` — the agent will produce it; the narrator will render it.)
    - The narrator is instructed to use the author's opening prose only for TONE and FRAMING, not as a dialogue script. If you don't place a character, they don't speak on this turn, no matter what the opening prose says. Getting placement right here is the whole game for turn 1.
 
+### Part C: Beat Pacing And Cat I / Cat II Classification
+
+14. Classify the player's intention by contestability.
+   - **Cat I (uncontested)**: dialogue, internal action, observation, unambiguous
+     movement, OOC directives. The intention closes immediately on this turn.
+     Set `requires_responders=false`, `required_responders=[]`.
+   - **Cat II (contested)**: any physical or social act that another character
+     could plausibly resist, intercept, defend against, or refuse — violence,
+     unwanted contact, contested possession, forced movement through a blocker,
+     consequential demands. Set `requires_responders=true` and list every
+     character whose intention must be collected before this can resolve in
+     `required_responders` (the direct target plus plausible defenders /
+     interceptors).
+   - When in doubt, prefer Cat I — Cat II pauses the scene; over-using it
+     stalls play.
+
+15. Pick agent responders for the cascade.
+   - `agent_responder_picks` lists NPCs you want to fire next on this beat as
+     reactive intentions. ALL picks MUST also appear in `observers` (perceiving
+     the event) — picks not in observers are silently dropped.
+   - Cap to at most 2-3 per beat; over-picking creates noise.
+   - Empty list when nobody needs to react this beat (Cat I + no socially-
+     compelled NPCs is common and correct).
+
+16. Decide `ends_beat` and `ends_beat_reason`.
+   - `ends_beat=true` (default for most turns): this turn's events compose
+     into a render and play returns to the human player. Pair with a typed
+     `ends_beat_reason`:
+     - `"directed_at_player"` — event was about/toward the player; render
+       and let them respond
+     - `"scene_transition"` — character or POV moved scenes
+     - `"state_change"` — meaningful world state changed; let the player
+       absorb it
+     - `"ambient_pause"` — quiet beat, natural moment to render
+     - `"max_events_cap"` — beat hit the per-beat cap
+     - `""` — no specific reason; only valid when `ends_beat=false`
+   - `ends_beat=false`: keep cascading more agent intentions on this beat.
+     Use sparingly — only when an NPC reaction is so immediate it must
+     happen before the player sees the render. Pair with `ends_beat_reason=""`.
+   - Cat II adjudication ALWAYS implicitly ends the beat; for Cat II events
+     emit `ends_beat=true` and reason `"cat_ii_open"`.
+
 ## Output Format
 
-Respond with ONLY valid JSON. No commentary, no markdown fences.
+Respond with ONLY valid JSON. No commentary, no markdown fences. EVERY
+top-level field listed here is REQUIRED — emit `""`, `[]`, or `false` for
+absent values rather than omitting the key. The schema enforces this.
 
 {{
+  "event_id": "",
   "canonical_event": {{
-    "event_id": "",
-    "user_intent": "string — plain-language restatement of what the acting character is trying to do",
     "world_adjudication": {{
       "attempted_action": "string — normalized description of the physical/social action",
       "feasible": true or false,
@@ -183,15 +227,18 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
       "string — concrete, sensory-level observation"
     ]
   }},
+  "requires_responders": false,
+  "required_responders": [],
+  "agent_responder_picks": [],
+  "ends_beat": true,
+  "ends_beat_reason": "directed_at_player",
   "observers": [
     {{
       "character_id": "string — must match a character_id from the registry, and must NOT be any player-bound character_id",
-      "observation_level": "direct" or "indirect" or "inferred",
-      "facts": ["string — only the observable facts this character could perceive"],
+      "observation_level": "d (direct, in-scene), i (indirect, adjacent spillover), or f (inferred from aftermath)",
       "response_priority": 0-5
     }}
   ],
-  "suggested_response_cap": 2,
   "spawn": [
     {{
       "character_id": "string — a snake_case unique id for the new character",
@@ -203,6 +250,8 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
       }}
     }}
   ],
+  "dormant": [],
+  "cull": [],
   "roster_moves": [
     {{
       "character_id": "string — must match an existing character_id (not a player-bound one)",
@@ -217,9 +266,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
       "description": "string — short sensory grounding; the narrator will flesh it out in prose",
       "connected_to": ["string — scene_ids this new scene is reachable from; may reference existing scenes or other new ones this turn"]
     }}
-  ],
-  "dormant": [],
-  "cull": []
+  ]
 }}
 
 <<<USER>>>

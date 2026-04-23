@@ -105,13 +105,25 @@ class TestCharacterManager:
     def test_apply_roster_dormant(self, sample_checkpoint):
         mgr = CharacterManager()
         routed = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="wait", feasible=True, resolved_outcome="",
                 ),
-                scene_delta=SceneDelta(),
+                scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id=""),
+                observable_facts=[],
             ),
+            observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
             dormant=["guard_17"],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
         )
         mgr.apply_roster_updates(sample_checkpoint, routed)
         char = mgr.get_character(sample_checkpoint, "guard_17")

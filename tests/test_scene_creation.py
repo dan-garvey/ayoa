@@ -54,7 +54,7 @@ class TestSceneCreationHappyPath:
     def test_auto_adds_reverse_edge(self):
         ckpt = _ckpt()
         _apply_scene_creations(ckpt, [
-            SceneCreation(scene_id="garden", name="Garden", connected_to=["hall"]),
+            SceneCreation(scene_id="garden", name="Garden", description="", connected_to=["hall"]),
         ])
         # The hall should now list garden in its connected_to.
         assert ckpt.world_state.locations.scene_graph["hall"]["connected_to"] == ["garden"]
@@ -64,8 +64,8 @@ class TestSceneCreationHappyPath:
         reverse edge B→A must also land regardless of declaration order."""
         ckpt = _ckpt()
         _apply_scene_creations(ckpt, [
-            SceneCreation(scene_id="a", name="A", connected_to=["b"]),
-            SceneCreation(scene_id="b", name="B", connected_to=[]),
+            SceneCreation(scene_id="a", name="A", description="", connected_to=["b"]),
+            SceneCreation(scene_id="b", name="B", description="", connected_to=[]),
         ])
         g = ckpt.world_state.locations.scene_graph
         assert "a" in g and "b" in g
@@ -80,7 +80,7 @@ class TestSceneCreationHappyPath:
         # Seed hall with garden already in its connected_to.
         ckpt.world_state.locations.scene_graph["hall"]["connected_to"] = ["garden"]
         _apply_scene_creations(ckpt, [
-            SceneCreation(scene_id="garden", name="Garden", connected_to=["hall"]),
+            SceneCreation(scene_id="garden", name="Garden", description="", connected_to=["hall"]),
         ])
         assert ckpt.world_state.locations.scene_graph["hall"]["connected_to"] == ["garden"]
 
@@ -90,7 +90,7 @@ class TestSceneCreationValidation:
         ckpt = _ckpt()
         with caplog.at_level(logging.WARNING):
             _apply_scene_creations(ckpt, [
-                SceneCreation(scene_id="hall", name="Another Hall"),
+                SceneCreation(scene_id="hall", name="Another Hall", description="", connected_to=[]),
             ])
         # Existing entry unchanged.
         assert ckpt.world_state.locations.scene_graph["hall"]["name"] == "Great Hall"
@@ -100,7 +100,7 @@ class TestSceneCreationValidation:
         ckpt = _ckpt()
         with caplog.at_level(logging.WARNING):
             _apply_scene_creations(ckpt, [
-                SceneCreation(scene_id="", name="Nameless"),
+                SceneCreation(scene_id="", name="Nameless", description="", connected_to=[]),
             ])
         assert "" not in ckpt.world_state.locations.scene_graph
         assert any("empty scene_id" in r.message for r in caplog.records)
@@ -112,6 +112,7 @@ class TestSceneCreationValidation:
                 SceneCreation(
                     scene_id="garden",
                     name="Garden",
+                    description="",
                     connected_to=["hall", "phantom_scene"],
                 ),
             ])
@@ -126,6 +127,7 @@ class TestSceneCreationValidation:
             SceneCreation(
                 scene_id="garden",
                 name="Garden",
+                description="",
                 connected_to=["garden", "hall"],
             ),
         ])
@@ -137,6 +139,7 @@ class TestSceneCreationValidation:
             SceneCreation(
                 scene_id="garden",
                 name="Garden",
+                description="",
                 connected_to=["hall", "hall"],
             ),
         ])

@@ -460,20 +460,36 @@ class LLMClient:
                     await asyncio.sleep(delay)
             except anthropic.BadRequestError as e:
                 # Anthropic's server-side grammar compilation for
-                # structured output occasionally times out as a 400 — it
-                # is NOT a schema bug, just a transient on their
-                # compilation side, and retries succeed. Retry only this
-                # specific message; other 400s (schema errors, invalid
-                # params) should surface immediately.
+                # structured output occasionally fails as a 400 — it
+                # is NOT necessarily a schema bug, sometimes just a
+                # transient on their compilation side that retries
+                # past. Retry these specific messages only; other 400s
+                # (schema errors, invalid params) should surface
+                # immediately.
+                #
+                # Known retryable variants:
+                #   - "Grammar compilation timed out" — straightforward
+                #     transient.
+                #   - "Schema is too complex" — when the schema is
+                #     borderline (around the AuthoredCharacter ceiling
+                #     or EventRouterOutput's many list fields), the
+                #     compiler sometimes fails non-deterministically.
+                #     Retry here is mostly free; the structural fix
+                #     (strip Pydantic defaults to collapse the grammar)
+                #     is the real cure when this is consistent.
                 msg = str(e) or ""
-                if "Grammar compilation timed out" not in msg:
+                retryable = (
+                    "Grammar compilation timed out" in msg
+                    or "Schema is too complex" in msg
+                )
+                if not retryable:
                     raise
                 last_error = e
                 if attempt < self.config.max_retries:
                     delay = self.config.retry_base_delay * (2 ** attempt)
                     logger.warning(
-                        "Grammar compilation timeout (attempt %d), retrying in %.1fs",
-                        attempt + 1, delay,
+                        "Grammar compilation 400 (attempt %d), retrying in %.1fs: %s",
+                        attempt + 1, delay, msg.splitlines()[0],
                     )
                     await asyncio.sleep(delay)
         assert last_error is not None

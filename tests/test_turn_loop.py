@@ -95,6 +95,7 @@ def _router_out(
             )
             existing.add(p)
     return EventRouterOutput(
+        event_id="",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="something",
@@ -112,6 +113,11 @@ def _router_out(
         agent_responder_picks=picks,
         ends_beat=ends_beat,
         ends_beat_reason="directed_at_player" if ends_beat else "",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=[],
+        scenes_created=[],
     )
 
 
@@ -811,6 +817,7 @@ class TestPicksSubsetOfObservers:
         from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
         # observers = [alice]; picks = [alice, pip]; pip should be dropped.
         out = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="x",
@@ -819,9 +826,16 @@ class TestPicksSubsetOfObservers:
                 observable_facts=[],
             ),
             observers=[ObserverEntry(character_id="alice", observation_level="d", response_priority=3)],
+            requires_responders=False,
+            required_responders=[],
             agent_responder_picks=["alice", "pip"],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
         )
         assert out.agent_responder_picks == ["alice"]  # pip clamped
 
@@ -954,6 +968,7 @@ class TestParallelNarratorFanOut:
         # Seed a canonical event and buffer it for both humans so each has
         # a non-empty render buffer.
         event = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="y",
@@ -964,8 +979,16 @@ class TestParallelNarratorFanOut:
                 observable_facts=[],
             ),
             observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
         )
         ckpt.canonical_events.append(event)
         append_to_render_buffer(ckpt, "alice", event.event_id, "direct")
@@ -1015,6 +1038,7 @@ class TestParallelNarratorFanOut:
 
         ckpt = _ckpt(bindings={"alice": "1"})
         event = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="y",
@@ -1025,8 +1049,16 @@ class TestParallelNarratorFanOut:
                 observable_facts=[],
             ),
             observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
         )
         ckpt.canonical_events.append(event)
         append_to_render_buffer(ckpt, "alice", event.event_id, "direct")

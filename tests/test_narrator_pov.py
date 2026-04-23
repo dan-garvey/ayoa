@@ -91,7 +91,16 @@ def _ckpt() -> CheckpointFile:
         observers=[
             ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
         ],
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
         ends_beat=True,
+        ends_beat_reason="",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=[],
+        scenes_created=[],
     )
     ev2 = EventRouterOutput(
         event_id="evt_beta",
@@ -107,7 +116,16 @@ def _ckpt() -> CheckpointFile:
         observers=[
             ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
         ],
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
         ends_beat=True,
+        ends_beat_reason="",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=[],
+        scenes_created=[],
     )
     ckpt.canonical_events.extend([ev1, ev2])
     return ckpt

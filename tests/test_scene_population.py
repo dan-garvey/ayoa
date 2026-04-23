@@ -88,16 +88,27 @@ class TestPlayerLocationFollowsScene:
         mock_mgr.save.return_value = None
 
         merged = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="go to the garden",
                     feasible=True,
                     resolved_outcome="Aldric steps out into the garden.",
                 ),
-                scene_delta=SceneDelta(new_scene_id="garden"),
+                scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id="garden"),
                 observable_facts=["Aldric steps into the garden."],
             ),
             observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
         )
         narrator_out = NarratorFinalOutput(
             final_text="You walk into the garden.",
@@ -132,15 +143,27 @@ class TestPlayerLocationFollowsScene:
         mock_mgr.save.return_value = None
 
         merged = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="teleport",
                     feasible=False,
                     resolved_outcome="Nothing happens.",
                 ),
-                scene_delta=SceneDelta(new_scene_id="phantom_place"),
+                scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id="phantom_place"),
+                observable_facts=[],
             ),
             observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
         )
         narrator_out = NarratorFinalOutput(
             final_text="Nothing happens.",

@@ -681,6 +681,7 @@ def _build_open_attempt_event(
     # with the router's own Part C framing.
     from app.engine.turn_loop_contracts import format_open_attempt_outcome
     return EventRouterOutput(
+        event_id="",  # _assign_event_id validator mints a fresh one
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action=initiator_intention,
@@ -700,6 +701,11 @@ def _build_open_attempt_event(
         agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="cat_ii_open",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=[],
+        scenes_created=[],
     )
 
 

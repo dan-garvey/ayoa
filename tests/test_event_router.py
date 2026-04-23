@@ -89,18 +89,30 @@ def sample_checkpoint():
 @pytest.fixture
 def sample_router_output():
     return EventRouterOutput(
+        event_id="",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="Player surveys the courtyard",
                 feasible=True,
                 resolved_outcome="You scan the courtyard.",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=5),
+            scene_delta=SceneDelta(time_advanced_seconds=5, new_scene_id=""),
             observable_facts=[
                 "The player looks around the courtyard slowly.",
                 "The player glances at the dry fountain.",
             ],
         ),
+        observers=[],
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
+        ends_beat=True,
+        ends_beat_reason="",
+        spawn=[],
+        dormant=[],
+        cull=[],
+        roster_moves=[],
+        scenes_created=[],
     )
 
 @pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")

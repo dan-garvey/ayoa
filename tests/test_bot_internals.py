@@ -403,6 +403,7 @@ class TestApplyRosterUpdatesPurgesCulled:
         )
 
         routed = EventRouterOutput(
+            event_id="",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x",
@@ -414,7 +415,17 @@ class TestApplyRosterUpdatesPurgesCulled:
                 ),
                 observable_facts=[],
             ),
+            observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
             cull=["villain"],
+            roster_moves=[],
+            scenes_created=[],
         )
         mgr = CharacterManager()
         mgr.apply_roster_updates(ckpt, routed)

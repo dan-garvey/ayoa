@@ -50,7 +50,7 @@ CANONICAL_EVENT_EXAMPLE = {
         "feasible": False,
         "resolved_outcome": "visible failed strain with no structural movement",
     },
-    "scene_delta": {"time_advanced_seconds": 6},
+    "scene_delta": {"time_advanced_seconds": 6, "new_scene_id": ""},
     "observable_facts": [
         "The user braces against the building.",
         "The building does not move.",
@@ -58,7 +58,11 @@ CANONICAL_EVENT_EXAMPLE = {
     ],
 }
 
+# Every field is REQUIRED on EventRouterOutput / nested types — see
+# the schema-shape policy in app/schemas/event_router.py. The LLM
+# emits explicit empty values; this example mirrors that contract.
 ROUTER_OUTPUT_EXAMPLE = {
+    "event_id": "",
     "canonical_event": {
         "world_adjudication": {
             "attempted_action": "lift the building",
@@ -68,6 +72,11 @@ ROUTER_OUTPUT_EXAMPLE = {
         "scene_delta": {"time_advanced_seconds": 0, "new_scene_id": ""},
         "observable_facts": [],
     },
+    "requires_responders": False,
+    "required_responders": [],
+    "agent_responder_picks": [],
+    "ends_beat": True,
+    "ends_beat_reason": "",
     "observers": [
         {
             "character_id": "guard_17",
@@ -79,6 +88,7 @@ ROUTER_OUTPUT_EXAMPLE = {
     "dormant": [],
     "cull": [],
     "roster_moves": [],
+    "scenes_created": [],
 }
 
 AGENT_OUTPUT_EXAMPLE = {

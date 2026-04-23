@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.schemas.events import CanonicalEvent
 
@@ -41,35 +41,45 @@ class ObserverEntry(BaseModel):
     "i" = indirect (adjacent, heard/saw spillover), "f" = inferred
     (aftermath or ambient inference only). Agents see `observable_facts`
     from the canonical event; the level is used downstream to filter that
-    set, not to duplicate it per-observer."""
+    set, not to duplicate it per-observer.
+
+    All fields REQUIRED — see EventRouterOutput docstring for the
+    "Schema is too complex" rationale behind no defaults anywhere in
+    this module."""
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
-    observation_level: str = "d"
+    observation_level: str
     # 1=minimal, 2=low, 3=moderate, 4=high, 5=compelled. Omit 0-priority
     # observers from the output entirely.
-    response_priority: int = 1
+    response_priority: int
 
 
 class SpawnRequest(BaseModel):
     """Router-directed creation of a new character. `seed` is a freeform
     dict (role, reason, location, objectives, ...) consumed by
-    character_gen."""
+    character_gen.
+
+    All fields REQUIRED. The LLM emits `seed={}` for spawns with no
+    additional context."""
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
-    seed: dict[str, Any] = Field(default_factory=dict)
+    seed: dict[str, Any]
 
 
 class RosterMove(BaseModel):
     """Router-directed movement of an existing character between scenes.
     Applied by the orchestrator — updates the target character's
-    `location` field. Empty list on turns where nobody's moving."""
+    `location` field. Empty list on turns where nobody's moving.
+
+    All fields REQUIRED. The LLM emits `reason=""` for moves with no
+    explanation."""
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
     to_scene: str  # scene_id (must exist in scene_graph)
-    reason: str = ""
+    reason: str
 
 
 class SceneCreation(BaseModel):
@@ -88,16 +98,19 @@ class SceneCreation(BaseModel):
     Reverse edges are added automatically — if this scene connects to
     `hallway`, the orchestrator also adds this scene's id to
     `hallway.connected_to`. The graph stays traversable in both
-    directions without the router having to spell that out."""
+    directions without the router having to spell that out.
+
+    All fields REQUIRED. The LLM emits `description=""` and
+    `connected_to=[]` when those are absent."""
     model_config = ConfigDict(extra="forbid")
 
     scene_id: str  # snake_case, unique across the graph
     name: str
-    description: str = ""
+    description: str
     # Scene_ids this new scene is directly reachable from. Entries may
     # reference existing scenes OR other scenes in the same
     # scenes_created batch (for newly-paired adjacent spaces).
-    connected_to: list[str] = Field(default_factory=list)
+    connected_to: list[str]
 
 
 class EventRouterOutput(BaseModel):
@@ -115,15 +128,34 @@ class EventRouterOutput(BaseModel):
         and the scene's active_act_slot is released. Cat II adjudication
         always ends the beat (implicit, regardless of this field). For
         Cat I events the router decides explicitly.
+
+    ## Schema-shape policy: no Pydantic defaults
+
+    Every field is REQUIRED (no `default=`, no `default_factory=`). This
+    schema went 12-optionals-deep with default_factory list/dict
+    fallbacks, which expanded the API's grammar compiler to 2^12+
+    grammar states and tripped Anthropic's "Schema is too complex"
+    400 (same failure mode that bit AuthoredCharacter — see
+    app/schemas/takeover.py docstring). The compiler would also
+    intermittently time out as a 500 ("Internal server error") on the
+    same compilation attempt before giving up with the 400.
+
+    All-required collapses the grammar to a single fixed shape. The
+    LLM emits explicit `""` / `[]` / `false` for empty content; an
+    `event_id` of `""` triggers the `_assign_event_id` validator which
+    mints a fresh one. Downstream code is unchanged — the merged
+    object always has the legacy shape regardless of what the LLM
+    chose to emit per field.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    # Stable event identifier. Populated at broadcast time (or at parse
-    # time for router outputs that supply one). The render buffers and
-    # canonical-event log both key off this. Never re-use ids across
-    # events — a fresh one per event, full stop.
-    event_id: str = Field(default_factory=_new_event_id)
+    # Stable event identifier. Populated at parse time — LLM emits
+    # "" and the validator below mints a real id, so the schema can
+    # be all-required (a default_factory would force this field
+    # back into "optional" in the JSON schema and re-explode the
+    # grammar).
+    event_id: str
 
     canonical_event: CanonicalEvent
 
@@ -134,11 +166,11 @@ class EventRouterOutput(BaseModel):
     # movement through a blocker. When False (Cat I), the intention closes
     # immediately — dialogue, passive action, unambiguous movement, OOC
     # directives.
-    requires_responders: bool = False
+    requires_responders: bool
     # Characters whose intentions must be collected before this Cat II
     # event adjudicates. Includes the direct target plus any plausible
     # intercepter / defender / counter-actor. Empty for Cat I.
-    required_responders: list[str] = Field(default_factory=list)
+    required_responders: list[str]
 
     # ---- v11: post-canonicalization agent cascade ------------------------
     # Router-selected NPC agents to dispatch into the current beat as
@@ -146,16 +178,16 @@ class EventRouterOutput(BaseModel):
     # orchestrator layer. Humans are NEVER in this list; humans only
     # enter via /act, gated by active_act_slot. Empty when the router
     # thinks no NPC cascade is warranted.
-    agent_responder_picks: list[str] = Field(default_factory=list)
+    agent_responder_picks: list[str]
 
     # ---- v11: DM pacing — end beat now, or let the cascade continue? ----
     # True = render now; false = router will pick next actor and continue.
     # Cat II adjudication implicitly ends the beat regardless of this
     # value. For Cat I events this is the router's judgment call.
-    ends_beat: bool = True
+    ends_beat: bool
     # Typed enum; see EndsBeatReason above. Constrained so the grammar
     # rejects typos and future branching is safe.
-    ends_beat_reason: EndsBeatReason = ""
+    ends_beat_reason: EndsBeatReason
 
     # ---- Legacy observation / roster plumbing (unchanged) ---------------
     # `observers` is retained for the render-buffer determination: every
@@ -164,12 +196,12 @@ class EventRouterOutput(BaseModel):
     # future intend() calls. The router_responder_picks above is a
     # DIFFERENT decision — who actually fires next, a subset (or
     # superset) of observers.
-    observers: list[ObserverEntry] = Field(default_factory=list)
-    spawn: list[SpawnRequest] = Field(default_factory=list)
-    dormant: list[str] = Field(default_factory=list)
-    cull: list[str] = Field(default_factory=list)
-    roster_moves: list[RosterMove] = Field(default_factory=list)
-    scenes_created: list[SceneCreation] = Field(default_factory=list)
+    observers: list[ObserverEntry]
+    spawn: list[SpawnRequest]
+    dormant: list[str]
+    cull: list[str]
+    roster_moves: list[RosterMove]
+    scenes_created: list[SceneCreation]
 
     @model_validator(mode="before")
     @classmethod
@@ -190,6 +222,21 @@ class EventRouterOutput(BaseModel):
                     "valid values: %s", val, sorted(valid),
                 )
                 data["ends_beat_reason"] = ""
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _assign_event_id(cls, data: Any) -> Any:
+        """Mint a fresh event_id when the LLM emits "" (the schema-
+        defaults policy requires the field to be required, so we
+        cannot use Field(default_factory=_new_event_id) — that
+        re-introduces the optionality the grammar compiler chokes
+        on). The LLM is instructed to emit "" and let the engine
+        assign a real one."""
+        if isinstance(data, dict):
+            eid = data.get("event_id", "")
+            if not eid:
+                data["event_id"] = _new_event_id()
         return data
 
     @model_validator(mode="after")

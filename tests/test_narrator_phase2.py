@@ -68,7 +68,7 @@ def sample_event():
             feasible=True,
             resolved_outcome="Player scans the area.",
         ),
-        scene_delta=SceneDelta(time_advanced_seconds=5),
+        scene_delta=SceneDelta(time_advanced_seconds=5, new_scene_id=""),
         observable_facts=[
             "The player looks around the courtyard.",
             "The player glances at the dry fountain.",
