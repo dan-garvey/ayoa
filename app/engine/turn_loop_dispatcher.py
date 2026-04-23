@@ -235,7 +235,13 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
                 "  Current objectives (active pursuits): " + "; ".join(objs)
             )
         if char.last_intent:
-            parts.append(f"  Last intent: {char.last_intent}")
+            if char.last_intent_turn >= 0:
+                parts.append(
+                    f"  Last intent (turn {char.last_intent_turn}): "
+                    f"{char.last_intent}"
+                )
+            else:
+                parts.append(f"  Last intent: {char.last_intent}")
         entries.append("\n".join(parts))
 
     if not entries:
@@ -244,13 +250,9 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     header = (
         "## Initial Roster\n"
         "Every active NPC in this world, with their long-term goals, "
-        "active pursuits, and freshest interior signal (if any). "
-        "Treat goals and objectives as seeded fiction — what the "
-        "author put in their drives. Treat last_intent as belief, "
-        "not promise: it's the latest thing they said they were "
-        "trying to do, and they may have changed their mind. This "
-        "block lands ONCE; subsequent turns track changes via your "
-        "own roster_moves and the State Changes block.\n\n"
+        "active pursuits, and stored interior. See the system "
+        "prompt's \"Character interior\" section for how to weight "
+        "these signals.\n\n"
     )
     return header + "\n\n".join(entries) + "\n"
 

@@ -211,36 +211,49 @@ cap without a natural boundary, find one NOW.
 
 ### Character interior — how to read goals, objectives, and last_intent
 
-You see three layers of NPC interiority and they mean different things:
+The user message can carry three layers of NPC interiority. They are
+NOT all in scope on every turn:
 
 - **Goals** are existential drives — who the character is at core
-  ("protect my sister," "earn back the legitimate name I lost"). Set
-  by the author at import time, rarely change. Treat as the answer to
-  "why does this character keep going at all."
+  ("protect my sister," "earn back the legitimate name I lost").
+  Author-seeded at import; rarely change.
 - **Current objectives** are active pursuits — concrete things the
   character is currently trying to DO ("find the missing courier
   before sundown," "convince the steward to open the western gate").
-  Importer-seeded; the agent does NOT rewrite them every turn (Commit
-  1 dropped the structured-output writeback). Treat as the answer to
-  "what is on this character's plate right now."
-- **last_intent** is the freshest interior signal — the trailing
-  parenthetical from this character's most recent agent call. It's
-  the closest thing you have to "what are they thinking right
-  now." It can be empty (the character hasn't acted yet, or their
-  last response had no parenthetical).
+  Author-seeded; live in their identity envelope.
+- **last_intent** is the trailing parenthetical from the
+  character's most recent agent call — their freshest stored
+  interior. Tagged with the turn it was written so you can judge
+  freshness.
 
-Crucially: treat last_intent as BELIEF, not promise. The character
-emitted that intent in some prior moment; the world has moved since,
-they may have changed their mind, or their plan may not survive
-contact with the new event. Use it to inform whether picking them
-makes sense and what kind of response they're likely to produce —
-not as a contract you must honor.
+**Where these reach you:**
+- On the FIRST router call of a session, the `## Initial Roster`
+  block carries all three for every active NPC.
+- On every subsequent turn, this user message DOES NOT re-feed
+  interior fields per character. You inherit that knowledge from
+  prior messages in this conversation: your own past `canonical_event`,
+  `roster_moves`, and `spawn` outputs, plus the cascade intentions
+  ("`<name>` intends: ...") you adjudicated. Update your mental
+  model from those.
+- New characters added to the world after turn 1 land their identity
+  in the `## State Changes Since Your Last Call` block on the
+  router call after they're created.
 
-When picking responders, weight: goals (does the event touch their
-core?) > current_objectives (is the event in their way or their
-direction?) > last_intent (are they primed to act on this kind of
-beat right now?). Together these turn "blind name + role" picking
-into picks that match interior pressure.
+**How to use them when picking responders:**
+- Goals answer "does the event touch this character's core?"
+- Current objectives answer "is the event in their way or their
+  direction right now?"
+- last_intent answers "what were they thinking the last time they
+  spoke?" — treat as BELIEF, not promise: the world has moved since
+  they emitted that intent, they may have changed their mind, and a
+  stale last_intent (many turns old) deserves less weight than a
+  fresh one.
+
+Together these turn "blind name + role" picking into picks that
+match interior pressure. When the per-turn user message doesn't
+carry interior for someone you're considering, fall back on what
+their prior intentions and your prior decisions in this conversation
+established about them.
 
 ### Responder picking — NPCs to dispatch next
 
@@ -522,7 +535,7 @@ physically doing. When the user_input is fully parenthesized OOC:
      a routing failure — spread the voice.
 
 10. Spawn, dormancy, and culling.
-   - Spawn only if the scene logically requires a new person not already in the registry.
+   - Spawn only if the scene logically requires a new person not already established in this story (turn-1 `## Initial Roster`, your prior `spawn` outputs, or any `## State Changes Since Your Last Call` line).
    - When spawning, seed `objectives` on the new character — 1-3 concrete, actionable pursuits that explain why they are entering the scene and what they want to accomplish. Distinct from existential drives (which the agent develops over time).
    - Mark dormant only when a character meaningfully leaves the active narrative area or is no longer relevant.
    - Cull only for permanent removal such as death or banishment.
@@ -558,14 +571,14 @@ physically doing. When the user_input is fully parenthesized OOC:
    - **In-scene communication** (both characters present): handled by normal dialogue + `observable_facts` — no extra work.
    - **Different-scene communication via courier or letter**: the courier is a real character with a location. Either pick an existing minor NPC in the sender's scene whose `roster_moves` walks them toward the recipient, or `spawn` a courier (a runner, a messenger, a servant) with `location` = the sender's scene and an objective like "deliver word to <recipient>". In the same turn or shortly after, when the courier arrives at the recipient's location, that's a canonical event with the recipient as observer.
    - **Same-scene witness, different intended recipient** (a character speaks loudly enough that someone elsewhere overhears, a note is left in a public space): add a sensory item to `observable_facts` AND, if the recipient is in or arrives at the relevant scene that turn, include them as an observer of this event. If the recipient is not yet present, the fact lands in the location and surfaces the next time anyone observes that scene.
-   - **Off-stage exchange in a single tick** (Commit-5 work — not yet wired): the tick agent will produce one short exchange in their own location. The router will canonicalize that prose as an event with the off-stage location as scene, the off-stage character(s) as observers.
+   - **Off-stage exchange in a single tick** (off-stage tick wiring is not yet active in v11): when it lands, the tick agent will produce one short exchange in their own location, and you will canonicalize that prose as an event with the off-stage location as scene and the off-stage character(s) as observers.
    - The PRINCIPLE: there is no "telepathy" channel. Every cross-character information transfer must produce engine state (a moved courier, a sensory fact, a canonical event in the recipient's location, a roster placement) — otherwise the recipient's next agent call has no mechanical signal that the message arrived, and the narrative will quietly desync.
 
 14. Opening-turn population. (Only applies when the Author's Opening Scene Guidance block below is present. That block appears ONLY on the very first turn of the session — specifically when `user_input` is `(begin)`.)
    - Read the author's opening guidance. It describes the scene the player arrives into, which may include other characters already present (a greeter at the door, a crowd in the hall, an ally waiting, etc.).
    - YOUR JOB: establish that scene in engine state, not the narrator's. For every character the opening describes as present in the starting scene:
-     - If they're already in the Character Registry, emit a `roster_moves` entry moving them to the starting scene_id.
-     - If they're NOT in the registry, emit a `spawn` entry with a matching `character_id`, seed including `location = starting scene_id` and `objectives` reflecting why they're there.
+     - If they appear in the `## Initial Roster` block above, emit a `roster_moves` entry moving them to the starting scene_id.
+     - If they do NOT appear in the Initial Roster, emit a `spawn` entry with a matching `character_id`, seed including `location = starting scene_id` and `objectives` reflecting why they're there.
      - Either way, include them in `observers` with `response_priority >= 3` so their character agent produces their first dialogue and actions this turn. (Do NOT transcribe their dialogue into `resolved_outcome` — the agent will produce it; the narrator will render it.)
    - The acting character {acting_character_name} (id `{acting_character_id}`) is also one of the characters being placed. Their `roster_moves` entry — `character_id` = `{acting_character_id}`, `to_scene` = the starting scene_id — is part of opening-turn population alongside the NPCs.
    - The narrator is instructed to use the author's opening prose only for TONE and FRAMING, not as a dialogue script. If you don't place a character, they don't speak on this turn, no matter what the opening prose says. Getting placement right here is the whole game for turn 1.
@@ -592,7 +605,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   }},
   "observers": [
     {{
-      "character_id": "string — must match a character_id from the registry, and must NOT be any player-bound character_id",
+      "character_id": "string — must match an established character_id (turn-1 Initial Roster, your prior spawn outputs, or a State Changes entry); must NOT be any player-bound character_id",
       "observation_level": "d" or "i" or "f" (direct / indirect / inferred — single-char codes),
       "response_priority": 1-5 (omit this observer entirely if priority would be 0)
     }}
@@ -610,7 +623,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   ],
   "roster_moves": [
     {{
-      "character_id": "string — any existing character_id whose location changes this turn. Use `{acting_character_id}` here when the acting character moves themselves; use NPC ids from the registry when NPCs move",
+      "character_id": "string — any established character_id whose location changes this turn. Use `{acting_character_id}` here when the acting character moves themselves; use any NPC id you've established earlier in this session for NPC moves",
       "to_scene": "string — destination scene_id, must exist in the scene graph OR be created in scenes_created this same turn",
       "reason": "string — brief in-fiction justification for the move"
     }}
