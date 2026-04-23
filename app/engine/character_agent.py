@@ -1,10 +1,11 @@
 """Character agent engine — generates in-character responses.
 
 Each character carries a rolling conversation on the checkpoint
-(`checkpoint.character_conversations[character_id]`). Every time the character
-responds, we send the full prior conversation plus a fresh user message
-describing this turn; the API sees verbatim history of everything the
-character has said across the session.
+(`checkpoint.character_conversations[character_id]`). Every response and
+tick is appended verbatim — including the trailing parenthetical — so
+the agent's own future self sees its prior interior. Cross-agent /
+narrator chokepoints strip the parenthetical (see `_extract_parenthetical`
+and `format_prior_responses` in context_builder).
 """
 
 from __future__ import annotations
@@ -35,22 +36,57 @@ from app.schemas.checkpoint import CheckpointFile
 logger = logging.getLogger(__name__)
 
 
-_SCENE_CREATION_BLOCK_ENABLED = """\
-6. **Create a new scene if the fiction genuinely needs one.** You may populate `private_updates.scenes_created` with spaces the scene graph doesn't yet contain — a private study you retreat to, a courier route between courts, a room in your household. Each entry needs a snake_case `scene_id`, a `name`, a short sensory `description`, and `connected_to` listing scene_ids this new space is reachable from (existing scenes or other newly-created ones). Reverse edges are added automatically. If you create a scene you want to move into, set `moved_to` to its id on the same tick. Use this sparingly — only when your off-stage action genuinely requires a space that doesn't exist yet. Empty `scenes_created` is the common case."""
+def _extract_parenthetical(text: str) -> tuple[str, str]:
+    """Split agent prose output into `(public_text, intent)`.
 
-_SCENE_CREATION_BLOCK_DISABLED = """\
-6. **Do not invent new scenes.** `scenes_created` must be empty. If your planning requires a space that isn't in the graph, adjust your plan to use existing scenes; the router (not you) is responsible for growing world topology. If you genuinely need a new space, the narrator will pick it up from your objectives and route it through the router on a later turn."""
+    The agent prompt instructs the model to end every response with a
+    single trailing parenthetical containing internal intent. We extract
+    the LAST balanced parenthetical group at the end of the text, after
+    trimming trailing whitespace.
 
+    On missing or malformed trailing paren, returns `(text, "")` and
+    logs a warning. The empty intent then short-circuits the engine's
+    `last_intent` writeback (Commit 3); routing still works because
+    `public_text` is just the original prose.
 
-def _build_scene_creation_block(checkpoint: CheckpointFile) -> str:
-    """Render the scene-creation instruction block for an agent tick
-    prompt. Gated on the session's `agents_can_create_scenes` setting.
-    Default is disabled (the router owns world topology in the baseline
-    pipeline); operators flip the flag via /settings to experiment with
-    more emergent world-building."""
-    if checkpoint.session.config.settings.agents_can_create_scenes:
-        return _SCENE_CREATION_BLOCK_ENABLED
-    return _SCENE_CREATION_BLOCK_DISABLED
+    Mid-prose parentheticals (stage directions like "she pauses (just
+    long enough to be noticed)") are preserved in `public_text` —
+    only the FINAL group at the very end of the trimmed text counts
+    as intent.
+    """
+    if not text:
+        return "", ""
+    stripped = text.rstrip()
+    if not stripped or not stripped.endswith(")"):
+        logger.warning(
+            "Agent output missing trailing parenthetical — last 80 chars: %r",
+            stripped[-80:],
+        )
+        return text, ""
+
+    depth = 0
+    open_idx = -1
+    for i in range(len(stripped) - 1, -1, -1):
+        ch = stripped[i]
+        if ch == ")":
+            depth += 1
+        elif ch == "(":
+            depth -= 1
+            if depth == 0:
+                open_idx = i
+                break
+
+    if open_idx == -1:
+        logger.warning(
+            "Agent output ends with ')' but parens are unbalanced — "
+            "last 80 chars: %r",
+            stripped[-80:],
+        )
+        return text, ""
+
+    public_text = stripped[:open_idx].rstrip()
+    intent = stripped[open_idx + 1 : -1].strip()
+    return public_text, intent
 
 
 class CharacterAgent:
@@ -59,7 +95,7 @@ class CharacterAgent:
     def __init__(self, client: LLMClient, prompt_manager: PromptManager):
         self.client = client
         self.prompt_manager = prompt_manager
-        # Usage from the most recent respond() call.
+        # Usage from the most recent respond() / tick() call.
         self.last_usage: dict[str, int] = {}
 
     async def respond(
@@ -74,14 +110,13 @@ class CharacterAgent:
 
         Flushes `character.pending_observations` into the user message (and clears
         it), then appends both the user message and the assistant response to
-        `checkpoint.character_conversations[character.character_id]`.
+        `checkpoint.character_conversations[character.character_id]`. The full
+        assistant text (prose + trailing parenthetical) is what's persisted —
+        the parenthetical strip happens at engine consumption sites only.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
         pending_block = format_pending_observations_block(character)
-        # Clear the pending queues now that we're flushing into this turn's
-        # user message. Both observations and directives are one-shot — once
-        # delivered to the agent, they belong to its rolling conversation.
         clear_character_inbox(character)
 
         char_identity = build_character_packet(character)
@@ -112,7 +147,6 @@ class CharacterAgent:
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
-        # Capture the plain-text user content before LLMClient wraps it for caching.
         user_content = messages[-1]["content"]
 
         logger.info(
@@ -126,14 +160,17 @@ class CharacterAgent:
         response = await self.client.complete(
             role="agent",
             messages=messages,
-            response_model=CharacterAgentOutput,
             temperature=0.6,
-            max_tokens=3000,
+            max_tokens=2000,
             cache=True,
             compact=True,
         )
-        result: CharacterAgentOutput = response.parsed
-        result.character_id = character.character_id
+        public_text, intent = _extract_parenthetical(response.content)
+        result = CharacterAgentOutput(
+            character_id=character.character_id,
+            public_text=public_text,
+            intent=intent,
+        )
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         conv = checkpoint.character_conversations.setdefault(
@@ -142,10 +179,10 @@ class CharacterAgent:
         append_turn_to_conversation(conv, user_content, response)
 
         logger.info(
-            "Agent %s: %d actions, %d dialogue lines",
+            "Agent %s: %d chars public, %d chars intent",
             character.name,
-            len(result.public_response.actions),
-            len(result.public_response.dialogue),
+            len(result.public_text),
+            len(result.intent),
         )
 
         return result
@@ -162,9 +199,8 @@ class CharacterAgent:
 
         Uses the `agent_tick` prompt variant — same character identity and
         same Player Characters block (so caching still lines up), but the
-        user message tells the agent they're off-stage and to produce only
-        private updates (objectives / directives / movement), no public
-        response prose.
+        user message tells the agent they're off-stage and to produce one
+        tight beat ending with a parenthetical of intent.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
@@ -191,12 +227,6 @@ class CharacterAgent:
         else:
             scene_ctx = "Off-screen / unspecified location."
 
-        # Gate agent-side scene creation on a per-session setting. The
-        # block is rendered either as encouragement + mechanics when the
-        # flag is on, or an explicit ban when off — keeps the prompt
-        # clear about what the agent is or isn't allowed to do.
-        scene_creation_block = _build_scene_creation_block(checkpoint)
-
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "agent_tick",
@@ -210,7 +240,6 @@ class CharacterAgent:
             player_characters_block=build_player_characters_block(
                 checkpoint, acting_id,
             ),
-            scene_creation_block=scene_creation_block,
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -224,14 +253,17 @@ class CharacterAgent:
         response = await self.client.complete(
             role="agent",
             messages=messages,
-            response_model=CharacterAgentOutput,
             temperature=0.6,
-            max_tokens=3000,
+            max_tokens=2000,
             cache=True,
             compact=True,
         )
-        result: CharacterAgentOutput = response.parsed
-        result.character_id = character.character_id
+        public_text, intent = _extract_parenthetical(response.content)
+        result = CharacterAgentOutput(
+            character_id=character.character_id,
+            public_text=public_text,
+            intent=intent,
+        )
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
         conv = checkpoint.character_conversations.setdefault(
@@ -240,11 +272,8 @@ class CharacterAgent:
         append_turn_to_conversation(conv, user_content, response)
 
         logger.info(
-            "Agent %s tick: %d objectives, %d directives, moved_to=%r",
-            character.name,
-            len(result.private_updates.current_objectives),
-            len(result.private_updates.directives_sent),
-            result.private_updates.moved_to,
+            "Agent %s tick: %d chars public, %d chars intent",
+            character.name, len(result.public_text), len(result.intent),
         )
 
         return result

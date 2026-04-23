@@ -21,7 +21,7 @@ import pytest
 
 from app.engine.orchestrator import Orchestrator
 from app.llm.config import LLMConfig
-from app.schemas.agents import CharacterAgentOutput, PrivateUpdates, PublicResponse
+from app.schemas.agents import CharacterAgentOutput  # noqa: F401  (skipped tests, kept for parity)
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry

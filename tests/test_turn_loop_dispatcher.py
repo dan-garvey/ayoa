@@ -19,11 +19,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.agents import (
-    CharacterAgentOutput,
-    PrivateUpdates,
-    PublicResponse,
-)
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -325,22 +321,20 @@ class TestAgentIntend:
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         # Stub CharacterAgent.respond to a fixed output, bypassing
-        # prompt rendering + LLM plumbing.
+        # prompt rendering + LLM plumbing. Commit 1: the agent emits
+        # prose directly; `agent_intend` returns `public_text.strip()`,
+        # so this fixture must populate `public_text` accordingly. The
+        # parenthetical (intent) is the engine-private surface and MUST
+        # NOT appear in the dispatched intention.
         async def _fake_respond(self, *, character, observed_facts, checkpoint,
                                 prior_responses=None, acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
-                public_response=PublicResponse(
-                    actions=["steps forward"],
-                    dialogue=["Hold there."],
-                    expression="wary",
+                public_text=(
+                    'He steps forward, wary, and plants himself in the '
+                    'doorway. "Hold there."'
                 ),
-                private_updates=PrivateUpdates(
-                    current_objectives=[],
-                    directives_sent=[],
-                    moved_to="",
-                    scenes_created=[],
-                ),
+                intent="Cover the threshold; do not let the visitor pass.",
             )
 
         monkeypatch.setattr(
@@ -353,12 +347,14 @@ class TestAgentIntend:
             ckpt=ckpt, character_id="pip", scene_id="gatehouse",
         ))
         assert out
-        # v11-r6a: natural-prose serialization (no JSON braces).
+        # Prose surface present; no JSON braces or structured field names.
         assert "{" not in out
         assert '"dialogue":' not in out
         assert "Hold there." in out
         assert "steps forward" in out
-        assert "wary" in out
+        # Intent leak guard: the parenthetical's contents MUST NOT reach
+        # the router. The dispatcher hands `public_text` only.
+        assert "Cover the threshold" not in out
 
     def test_returns_empty_when_agent_output_empty(
         self, prompt_mgr, mock_client, monkeypatch,
@@ -369,15 +365,8 @@ class TestAgentIntend:
                                  prior_responses=None, acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
-                public_response=PublicResponse(
-                    actions=[], dialogue=[], expression="",
-                ),
-                private_updates=PrivateUpdates(
-                    current_objectives=[],
-                    directives_sent=[],
-                    moved_to="",
-                    scenes_created=[],
-                ),
+                public_text="",
+                intent="",
             )
 
         monkeypatch.setattr(

@@ -12,7 +12,7 @@ from app.schemas.characters import (
 )
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
-from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest, DebugFlags
 from app.schemas.responses import TurnResponse, DebugPayload
@@ -94,17 +94,11 @@ ROUTER_OUTPUT_EXAMPLE = {
 
 AGENT_OUTPUT_EXAMPLE = {
     "character_id": "guard_17",
-    "public_response": {
-        "actions": ["takes one step closer"],
-        "dialogue": ["Need a lever, not a miracle."],
-        "expression": "one brow lifts",
-    },
-    "private_updates": {
-        "current_objectives": ["monitor the user more closely"],
-        "directives_sent": [],
-        "moved_to": "",
-        "scenes_created": [],
-    },
+    "public_text": (
+        'He takes one step closer, one brow lifting. '
+        '"Need a lever, not a miracle."'
+    ),
+    "intent": "Monitor the user more closely; this attempt was theatrical.",
 }
 
 NARRATOR_FINAL_EXAMPLE = {
@@ -247,8 +241,8 @@ class TestCharacterAgentOutput:
     def test_construct(self):
         ao = CharacterAgentOutput(**AGENT_OUTPUT_EXAMPLE)
         assert ao.character_id == "guard_17"
-        assert "Need a lever, not a miracle." in ao.public_response.dialogue
-        assert "monitor the user more closely" in ao.private_updates.current_objectives
+        assert "Need a lever, not a miracle." in ao.public_text
+        assert "Monitor the user" in ao.intent
 
     def test_round_trip(self):
         ao = CharacterAgentOutput(**AGENT_OUTPUT_EXAMPLE)
@@ -256,9 +250,25 @@ class TestCharacterAgentOutput:
         assert rebuilt == ao
 
     def test_rejects_extra_fields(self):
+        # Commit 1: extra="forbid" is intentional. If someone reintroduces
+        # a structured field on the agent output (e.g. a fresh
+        # `current_objectives`) without updating the prompt + downstream
+        # consumers, the construction MUST fail loudly here rather than
+        # silently leak a parallel intent surface.
         data = {**AGENT_OUTPUT_EXAMPLE, "hidden_thoughts": "I know everything"}
         with pytest.raises(ValidationError):
             CharacterAgentOutput(**data)
+
+    def test_rejects_legacy_structured_fields(self):
+        """The pre-Commit-1 schema had `public_response` + `private_updates`
+        nested models. Re-introducing either by accident must fail the
+        same way an unknown extra would, because downstream code (router
+        framing, narrator legacy shim, leakage validator) was rewired to
+        read `public_text` only and would silently misbehave."""
+        for legacy_key in ("public_response", "private_updates"):
+            data = {**AGENT_OUTPUT_EXAMPLE, legacy_key: {}}
+            with pytest.raises(ValidationError):
+                CharacterAgentOutput(**data)
 
 
 class TestNarratorFinalOutput:

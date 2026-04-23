@@ -11,7 +11,6 @@ import logging
 
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
-from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,

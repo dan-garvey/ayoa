@@ -290,42 +290,6 @@ def _build_router_context(
     }
 
 
-def _serialize_agent_intention(output) -> str:
-    """v11-r6a: render a CharacterAgentOutput as natural-language prose
-    for the router's `{name} intends: {text}` framing.
-
-    Prior revisions returned json.dumps(...) which landed as literal
-    `{"dialogue":[...]}` tokens inside the router's resolved_outcome —
-    ugly. Natural-language renders let the router's Cat I/II rules
-    pattern-match correctly AND produce clean prose when echoed.
-
-    Returns empty string when the agent produced no actionable output —
-    turn_loop's empty-only guard then short-circuits the cascade rather
-    than routing whitespace through the adjudicator.
-    """
-    pr = output.public_response
-    dialogue = list(pr.dialogue or [])
-    actions = list(pr.actions or [])
-    expression = (pr.expression or "").strip()
-
-    parts: list[str] = []
-    for line in dialogue:
-        line = (line or "").strip()
-        if line:
-            parts.append(f'says: "{line}"')
-    for action in actions:
-        action = (action or "").strip()
-        if action:
-            parts.append(action)
-    if expression:
-        parts.append(f"(expression: {expression})")
-
-    if not parts:
-        return ""  # empty-guard path; turn_loop skips empty intentions
-
-    return "; ".join(parts)
-
-
 class LLMDispatcher:
     """Production Dispatcher implementation — binds `turn_loop.run_beat`
     to the real router / agent / narrator modules."""
@@ -444,8 +408,13 @@ class LLMDispatcher:
         character_id: str,
         scene_id: str,
     ) -> str:
-        """Invoke the character agent and serialize its structured output
-        into an intention string the router can consume."""
+        """Invoke the character agent and return its prose for the router.
+
+        The agent's prose IS the intention — no serialization layer
+        needed. The trailing parenthetical (private intent) is stripped
+        at parse time; what we return here is the public surface only,
+        which is what the router framing wants ("`{name}` intends: ...").
+        """
         del scene_id  # Agent pulls scene from the character's own location.
 
         character = next(
@@ -465,7 +434,7 @@ class LLMDispatcher:
             prior_responses=None,
             acting_character_id=character_id,
         )
-        return _serialize_agent_intention(output)
+        return output.public_text.strip()
 
     # ------------------------------------------------------------------
     # narrator_compose

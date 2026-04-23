@@ -46,22 +46,61 @@ def _tick_pairs(msgs: list[dict]) -> list[tuple[str, str]]:
     return out
 
 
+def _split_parenthetical(text: str) -> tuple[str, str]:
+    """Same last-trailing-paren split as the engine. Returns (prose, intent)."""
+    stripped = (text or "").rstrip()
+    if not stripped or not stripped.endswith(")"):
+        return text or "", ""
+    depth = 0
+    open_idx = -1
+    for i in range(len(stripped) - 1, -1, -1):
+        ch = stripped[i]
+        if ch == ")":
+            depth += 1
+        elif ch == "(":
+            depth -= 1
+            if depth == 0:
+                open_idx = i
+                break
+    if open_idx == -1:
+        return text or "", ""
+    return stripped[:open_idx].rstrip(), stripped[open_idx + 1 : -1].strip()
+
+
 def _print_tick(idx: int, assistant_text: str) -> None:
-    try:
-        obj = json.loads(assistant_text)
-    except json.JSONDecodeError:
-        print(f"  tick {idx}: (unparseable JSON)")
+    """v11+: agent outputs are prose + trailing parenthetical, not JSON.
+
+    Pre-rework ticks were structured JSON with `private_updates` fields;
+    those checkpoints fall through to the JSON branch for back-compat.
+    """
+    if assistant_text.lstrip().startswith("{"):
+        try:
+            obj = json.loads(assistant_text)
+        except json.JSONDecodeError:
+            print(f"  tick {idx} (legacy json): (unparseable)")
+            return
+        pu = obj.get("private_updates", {})
+        print(f"  tick {idx} (legacy json):")
+        for o in pu.get("current_objectives", []) or []:
+            print(f"    - {o}")
+        for d in pu.get("directives_sent", []) or []:
+            print(f"    → {d.get('to')}: {d.get('content', '')}")
+        if pu.get("moved_to"):
+            print(f"    moved_to: {pu['moved_to']}")
+        for s in pu.get("scenes_created", []) or []:
+            print(f"    scenes_created: {s.get('scene_id')} — {s.get('name', '')}")
         return
-    pu = obj.get("private_updates", {})
+
+    prose, intent = _split_parenthetical(assistant_text)
     print(f"  tick {idx}:")
-    for o in pu.get("current_objectives", []) or []:
-        print(f"    - {o}")
-    for d in pu.get("directives_sent", []) or []:
-        print(f"    → {d.get('to')}: {d.get('content', '')}")
-    if pu.get("moved_to"):
-        print(f"    moved_to: {pu['moved_to']}")
-    for s in pu.get("scenes_created", []) or []:
-        print(f"    scenes_created: {s.get('scene_id')} — {s.get('name', '')}")
+    if prose.strip():
+        print(f"    prose: {prose.strip()}")
+    else:
+        print(f"    prose: (silent)")
+    if intent:
+        print(f"    intent: {intent}")
+    else:
+        print(f"    intent: (none — missing trailing parenthetical)")
 
 
 def main() -> int:

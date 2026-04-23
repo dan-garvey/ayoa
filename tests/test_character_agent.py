@@ -16,7 +16,7 @@ from app.engine.context_builder import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.agents import CharacterAgentOutput, PrivateUpdates, PublicResponse
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
@@ -42,16 +42,22 @@ def mock_client():
     return client
 
 
-def _llm_response(parsed) -> LLMResponse:
-    """Build the LLMResponse shape the new engine expects (includes raw_response.content)."""
+def _llm_response(text: str) -> LLMResponse:
+    """Build an LLMResponse for the prose-output agent (Commit 1).
+
+    `text` is the raw assistant prose ending in a trailing parenthetical;
+    the engine parses it into `(public_text, intent)` via
+    `_extract_parenthetical`. We mirror that on `raw_response.content` so
+    `append_turn_to_conversation` can persist the verbatim text.
+    """
     raw = MagicMock()
     text_block = MagicMock()
     text_block.type = "text"
-    text_block.text = "{}"
-    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
+    text_block.text = text
+    text_block.model_dump = lambda: {"type": "text", "text": text}
     raw.content = [text_block]
     raw.model = "claude-haiku-4-5"
-    return LLMResponse(parsed=parsed, raw_response=raw, content="{}", model="claude-haiku-4-5")
+    return LLMResponse(parsed=None, raw_response=raw, content=text, model="claude-haiku-4-5")
 
 
 @pytest.fixture
@@ -100,20 +106,21 @@ def sample_checkpoint():
 
 
 @pytest.fixture
-def sample_agent_output():
-    return CharacterAgentOutput(
-        character_id="guard_17",
-        public_response=PublicResponse(
-            actions=["steps closer, hand resting on sword pommel"],
-            dialogue=["You'll want to head inside. Storm's coming."],
-            expression="eyes narrow slightly, scanning the perimeter",
-        ),
-        private_updates=PrivateUpdates(
-            current_objectives=["watch this newcomer more closely"],
-            directives_sent=[],
-            moved_to="",
-            scenes_created=[],
-        ),
+def sample_agent_text():
+    """Raw prose-+-parenthetical the LLM returns (Commit 1 contract).
+
+    Intentionally exercises every shape the engine cares about:
+    - Mid-prose action ("steps closer, hand resting on...") that must
+      stay in `public_text`.
+    - Inline dialogue verbatim.
+    - Trailing parenthetical `(...)` that must be split off as `intent`
+      and never reach other agents or the narrator.
+    """
+    return (
+        'He steps closer, hand resting on sword pommel. His eyes narrow '
+        'slightly, scanning the perimeter. "You\'ll want to head inside. '
+        "Storm's coming.\" "
+        "(Watch this newcomer more closely — the timing is wrong.)"
     )
 
 
@@ -297,9 +304,9 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_basic_response(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         result = await agent.respond(
@@ -309,39 +316,62 @@ class TestCharacterAgent:
         )
 
         assert result.character_id == "guard_17"
-        assert len(result.public_response.dialogue) == 1
-        assert "storm" in result.public_response.dialogue[0].lower()
+        # Dialogue + actions live in public_text; intent is split off
+        # into the private parenthetical and MUST not bleed into public.
+        assert "storm" in result.public_text.lower()
+        assert "steps closer" in result.public_text
+        assert "Watch this newcomer" in result.intent
+        assert "Watch this newcomer" not in result.public_text
 
     @pytest.mark.asyncio
-    async def test_character_id_enforced(
+    async def test_character_id_always_actor(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
-        wrong_output = CharacterAgentOutput(
-            character_id="wrong_id",
-            public_response=PublicResponse(
-                actions=[], dialogue=["test"], expression="",
-            ),
-            private_updates=PrivateUpdates(
-                current_objectives=[],
-                directives_sent=[],
-                moved_to="",
-                scenes_created=[],
-            ),
+        """The engine stamps `character_id` from the actor record, not from
+        the LLM. Even if a misbehaving model emitted a name in the prose
+        that resembled another character, the schema's `character_id` field
+        is set by the engine, not parsed from prose. Smoke that contract."""
+        mock_client.complete.return_value = _llm_response(
+            'A flicker of irritation. "Storm\'s coming." (Stalling.)'
         )
-        mock_client.complete.return_value = _llm_response(wrong_output)
         agent = CharacterAgent(mock_client, prompt_manager)
-
         result = await agent.respond(
             guard_character, ["fact"], sample_checkpoint,
         )
         assert result.character_id == "guard_17"
 
     @pytest.mark.asyncio
+    async def test_missing_trailing_parenthetical_yields_empty_intent(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, caplog,
+    ):
+        """Misbehaving model: omits the trailing parenthetical entirely.
+        Engine must NOT crash — it logs a warning, returns the raw prose
+        as `public_text`, and writes an empty `intent`. Empty intent is
+        what Commit 3's `last_intent` writeback uses to short-circuit a
+        spurious overwrite of the prior turn's interior."""
+        import logging
+        mock_client.complete.return_value = _llm_response(
+            'He nods curtly. "Move along."'
+        )
+        agent = CharacterAgent(mock_client, prompt_manager)
+        with caplog.at_level(logging.WARNING):
+            result = await agent.respond(
+                guard_character, ["fact"], sample_checkpoint,
+            )
+        assert result.public_text  # full prose preserved
+        assert result.intent == ""
+        assert any(
+            "missing trailing parenthetical" in r.message
+            for r in caplog.records
+        )
+
+    @pytest.mark.asyncio
     async def test_prompt_contains_character_context(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(
@@ -363,9 +393,9 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_prompt_contains_observed_facts(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(
@@ -385,24 +415,27 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_uses_agent_role(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(guard_character, ["fact"], sample_checkpoint)
 
         call_args = mock_client.complete.call_args
         assert call_args.kwargs["role"] == "agent"
-        assert call_args.kwargs["response_model"] == CharacterAgentOutput
+        # Commit 1: the agent emits prose + parenthetical, NOT structured
+        # JSON. response_model is intentionally absent so the LLM is free
+        # to write natural language.
+        assert "response_model" not in call_args.kwargs
         assert call_args.kwargs["compact"] is True
 
     @pytest.mark.asyncio
     async def test_appends_to_rolling_conversation(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         assert sample_checkpoint.character_conversations == {}
@@ -419,13 +452,13 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_pending_observations_flushed_and_cleared(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
         guard_character.pending_observations = [
             "[Turn 2] A door slammed.",
             "[Turn 3] Footsteps in the hall.",
         ]
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(
@@ -444,7 +477,7 @@ class TestCharacterAgent:
     @pytest.mark.asyncio
     async def test_sends_prior_conversation_as_history(
         self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_output,
+        sample_checkpoint, sample_agent_text,
     ):
         sample_checkpoint.character_conversations["guard_17"] = [
             ConversationMessage(role="user", content="prior user content"),
@@ -453,7 +486,7 @@ class TestCharacterAgent:
                 content=[{"type": "text", "text": "prior response"}],
             ),
         ]
-        mock_client.complete.return_value = _llm_response(sample_agent_output)
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
         await agent.respond(guard_character, ["fact"], sample_checkpoint)

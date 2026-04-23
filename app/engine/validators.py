@@ -58,13 +58,16 @@ def extract_entities(text: str) -> set[str]:
 
 
 def extract_text_from_output(output: CharacterAgentOutput) -> str:
-    """Combine all public-facing text from an agent output."""
-    parts = []
-    parts.extend(output.public_response.actions)
-    parts.extend(output.public_response.dialogue)
-    if output.public_response.expression:
-        parts.append(output.public_response.expression)
-    return " ".join(parts)
+    """Public-facing text from an agent output.
+
+    Returns `public_text` only — the trailing parenthetical (`intent`)
+    is private to the agent and the engine and must not be subjected
+    to leakage validation as if it were public. The validator pass is
+    log-and-warn anyway (see `validate_all_outputs`) and currently
+    unwired in v11; this helper is kept consistent for when it gets
+    re-enabled.
+    """
+    return (output.public_text or "").strip()
 
 
 def build_known_entities(
@@ -150,7 +153,7 @@ def validate_agent_output(
             if entity in name_parts and entity not in known_entities:
                 flag = LeakageFlag(
                     character_id=output.character_id,
-                    field="public_response",
+                    field="public_text",
                     leaked_text=entity,
                     reason=f"References character '{ch.name}' not in observation set or known contacts",
                 )

@@ -18,7 +18,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_recap import _TurnRecapOutput
 from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
-from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
+from app.schemas.agents import CharacterAgentOutput  # noqa: F401  (skipped tests construct fixtures lazily)
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
@@ -158,10 +158,8 @@ class TestOrchestrator:
 
         agent_out = CharacterAgentOutput(
             character_id="guard_17",
-            public_response=PublicResponse(
-                dialogue=["Everything alright?"],
-            ),
-            private_updates=PrivateUpdates(),
+            public_text='"Everything alright?"',
+            intent="",
         )
 
         narrator_out = NarratorFinalOutput(

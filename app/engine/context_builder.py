@@ -258,7 +258,17 @@ def format_prior_responses(
     prior_responses: list[CharacterAgentOutput],
     checkpoint: CheckpointFile,
 ) -> str:
-    """Format other characters' responses that happened earlier this turn."""
+    """Format other characters' responses that happened earlier this turn.
+
+    Renders `public_text` only — `intent` (the trailing parenthetical
+    on each agent's output) is private to the emitting agent and the
+    engine, and must NEVER reach another agent's prompt. This is one
+    of the chokepoints that enforces that contract; the others are
+    the router intention block (dispatcher passes `output.public_text`
+    directly) and the narrator's canonical-event input (canonical
+    events carry resolved-outcome prose authored by the router, not
+    raw agent text).
+    """
     if not prior_responses:
         return "No other characters have responded yet."
 
@@ -269,15 +279,10 @@ def format_prior_responses(
             None,
         )
         name = char.name if char else resp.character_id
-        lines = []
-        if resp.public_response.actions:
-            lines.extend(resp.public_response.actions)
-        if resp.public_response.dialogue:
-            for d in resp.public_response.dialogue:
-                lines.append(f'"{d}"')
-        if resp.public_response.expression:
-            lines.append(f"({resp.public_response.expression})")
-        parts.append(f"- {name}: {'; '.join(lines)}")
+        body = (resp.public_text or "").strip()
+        if not body:
+            body = "(silent beat)"
+        parts.append(f"- {name}: {body}")
 
     return "\n".join(parts)
 

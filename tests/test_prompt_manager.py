@@ -165,7 +165,9 @@ class TestPromptManagerWithRealTemplates:
             player_characters_block="- **Aldric** (acting this turn) — scholar. Tall, in rain-darkened traveling clothes.",
         )
         assert "Captain Vero" in result
-        assert "guard_17" in result
+        # Commit 1: agent_v10 dropped the character_id surface in the
+        # rendered prompt — it was a debug echo, never the LLM's hook.
+        # The engine still passes the kwarg for back-compat.
         assert "hidden passage" in result
         assert "rain-darkened traveling clothes" in result
 

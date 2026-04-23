@@ -29,19 +29,24 @@ DIRECTIVE_DEPTH_WARN = 3
 class Orchestrator:  # type: ignore[no-redef]
     pass
 from app.llm.config import LLMConfig
-from app.schemas.agents import (
-    CharacterAgentOutput,
-    DirectiveSend,
-    PrivateUpdates,
-    PublicResponse,
-)
+from app.schemas.agents import CharacterAgentOutput  # noqa: F401
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
-    IncomingDirective,
     PrivateState,
     PublicSheet,
 )
+
+# Module-level skip is set above. Local stubs replace the legacy schema
+# names removed by Commit 1 / about to be removed by Commit 2 so this
+# file still imports cleanly.
+class _Stub:
+    def __init__(self, **kw): pass
+
+DirectiveSend = _Stub  # type: ignore[assignment]
+PrivateUpdates = _Stub  # type: ignore[assignment]
+PublicResponse = _Stub  # type: ignore[assignment]
+IncomingDirective = _Stub  # type: ignore[assignment]
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.state import LocationState, SessionState, WorldState
 

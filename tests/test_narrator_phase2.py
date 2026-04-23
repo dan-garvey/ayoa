@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from app.engine.narrator import Narrator
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -80,17 +80,11 @@ def sample_agent_outputs():
     return [
         CharacterAgentOutput(
             character_id="guard_17",
-            public_response=PublicResponse(
-                actions=["steps closer"],
-                dialogue=["Storm's coming. Best head inside."],
-                expression="eyes narrow, scanning the perimeter",
+            public_text=(
+                'He steps closer, eyes narrowing as he scans the perimeter. '
+                "\"Storm's coming. Best head inside.\""
             ),
-            private_updates=PrivateUpdates(
-                current_objectives=[],
-                directives_sent=[],
-                moved_to="",
-                scenes_created=[],
-            ),
+            intent="Push the visitor inside; weather is a convenient cover.",
         ),
     ]
 
@@ -220,48 +214,43 @@ class TestNarratorPhase2:
         assert call_args.kwargs["role"] == "narrator"
         assert call_args.kwargs["response_model"] == NarratorFinalOutput
 
-def _empty_private() -> PrivateUpdates:
-    return PrivateUpdates(
-        current_objectives=[],
-        directives_sent=[],
-        moved_to="",
-        scenes_created=[],
-    )
-
-
 class TestFormatAgentOutputs:
-    def test_single_agent(self, mock_client, prompt_manager, sample_checkpoint):
+    """Legacy v8 shim — the narrator's `_format_agent_outputs` is dead
+    code in v11 (the run_beat path folds agent prose into the canonical
+    event's resolved_outcome via the router). These tests pin the shim's
+    behavior so a future cleanup doesn't quietly change what the helper
+    returns and trip a stale call site."""
+
+    def test_single_agent_renders_public_text_only(
+        self, mock_client, prompt_manager, sample_checkpoint,
+    ):
         narrator = Narrator(mock_client, prompt_manager)
         output = CharacterAgentOutput(
             character_id="guard_17",
-            public_response=PublicResponse(
-                actions=["steps closer"],
-                dialogue=["Watch yourself."],
-                expression="stern face",
-            ),
-            private_updates=_empty_private(),
+            public_text='He steps closer, stern-faced. "Watch yourself."',
+            intent="Warning, not threatening — yet.",
         )
         formatted = narrator._format_agent_outputs([output], sample_checkpoint)
         assert "guard_17" in formatted
         assert "steps closer" in formatted
         assert "Watch yourself" in formatted
+        # Critical: the trailing parenthetical (intent) is private to the
+        # agent + engine and must NEVER reach the narrator's input. This
+        # is one of three chokepoints enforcing that contract.
+        assert "Warning" not in formatted
 
     def test_multiple_agents(self, mock_client, prompt_manager, sample_checkpoint):
         narrator = Narrator(mock_client, prompt_manager)
         outputs = [
             CharacterAgentOutput(
                 character_id="guard_17",
-                public_response=PublicResponse(
-                    actions=[], dialogue=["First."], expression="",
-                ),
-                private_updates=_empty_private(),
+                public_text='"First."',
+                intent="",
             ),
             CharacterAgentOutput(
                 character_id="servant_01",
-                public_response=PublicResponse(
-                    actions=[], dialogue=["Second."], expression="",
-                ),
-                private_updates=_empty_private(),
+                public_text='"Second."',
+                intent="",
             ),
         ]
         formatted = narrator._format_agent_outputs(outputs, sample_checkpoint)
@@ -272,3 +261,21 @@ class TestFormatAgentOutputs:
         narrator = Narrator(mock_client, prompt_manager)
         formatted = narrator._format_agent_outputs([], sample_checkpoint)
         assert "No characters responded" in formatted
+
+    def test_silent_beat_fallback(
+        self, mock_client, prompt_manager, sample_checkpoint,
+    ):
+        """If an agent emitted only a parenthetical (no public prose),
+        public_text is empty. The shim renders a `(silent beat)` token
+        rather than an empty section — so a downstream prompt doesn't
+        contain a malformed empty character header."""
+        narrator = Narrator(mock_client, prompt_manager)
+        outputs = [
+            CharacterAgentOutput(
+                character_id="guard_17",
+                public_text="",
+                intent="Saying nothing on purpose.",
+            ),
+        ]
+        formatted = narrator._format_agent_outputs(outputs, sample_checkpoint)
+        assert "(silent beat)" in formatted

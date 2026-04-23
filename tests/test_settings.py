@@ -22,12 +22,23 @@ from app.engine.settings import (
     set_setting,
 )
 from app.llm.config import LLMConfig
-from app.schemas.agents import (
-    CharacterAgentOutput,
-    DirectiveSend,
-    PrivateUpdates,
-    PublicResponse,
-)
+from app.schemas.agents import CharacterAgentOutput
+
+# Commit 2 will delete directives entirely. For Commit 1 we keep the
+# legacy skipped tick-scene-creation suite parseable via local stand-ins
+# rather than schema imports that no longer exist.
+class _DirectiveSend:  # type: ignore[no-redef]
+    def __init__(self, **kw): pass
+
+class _PrivateUpdates:  # type: ignore[no-redef]
+    def __init__(self, **kw): pass
+
+class _PublicResponse:  # type: ignore[no-redef]
+    def __init__(self, **kw): pass
+
+DirectiveSend = _DirectiveSend  # type: ignore[assignment]
+PrivateUpdates = _PrivateUpdates  # type: ignore[assignment]
+PublicResponse = _PublicResponse  # type: ignore[assignment]
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,

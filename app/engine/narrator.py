@@ -59,7 +59,13 @@ class Narrator:
         exercise this helper in isolation. Production code does not call
         this path; v11 folds agent responses into the canonical event's
         resolved_outcome via the router, and the narrator renders from
-        that. If the legacy tests are ever removed, delete this method."""
+        that. If the legacy tests are ever removed, delete this method.
+
+        Renders `public_text` only — `intent` (the trailing parenthetical
+        on each agent output) is private to the agent and the engine.
+        Even in this dead-code shim we honor that contract so a stray
+        re-wiring can't accidentally route interior into narrator input.
+        """
         if not agent_outputs:
             return "No characters responded to this event."
 
@@ -88,19 +94,8 @@ class Narrator:
             parts = [f"### {label}"]
             obs_level = obs_levels.get(output.character_id, "direct")
             parts.append(f"[Observation: {obs_level}]")
-
-            if output.public_response.actions:
-                parts.append("Actions:")
-                for action in output.public_response.actions:
-                    parts.append(f"  - {action}")
-            if output.public_response.dialogue:
-                parts.append("Dialogue:")
-                for line in output.public_response.dialogue:
-                    parts.append(f'  - "{line}"')
-            if output.public_response.expression:
-                parts.append(
-                    f"Expression: {output.public_response.expression}"
-                )
+            body = (output.public_text or "").strip()
+            parts.append(body if body else "(silent beat)")
 
             sections.append("\n".join(parts))
 

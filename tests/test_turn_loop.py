@@ -157,64 +157,12 @@ class FakeDispatcher:
         return envelope, entry
 
 
-# ---- r6a partial-mode + natural-prose tests --------------------------------
-
-
-class TestSerializeAgentIntentionNaturalProse:
-    def test_dialogue_actions_expression_rendered_as_prose(self):
-        """v11-r6a: _serialize_agent_intention emits natural prose, not
-        JSON. The rendered string must contain dialogue verbatim AND
-        must NOT contain JSON braces / field-name tokens."""
-        from app.engine.turn_loop_dispatcher import _serialize_agent_intention
-        from app.schemas.agents import (
-            CharacterAgentOutput,
-            PrivateUpdates,
-            PublicResponse,
-        )
-        out = CharacterAgentOutput(
-            character_id="pip",
-            public_response=PublicResponse(
-                dialogue=["Halt there, stranger."],
-                actions=["steps into the torchlight"],
-                expression="wary",
-            ),
-            private_updates=PrivateUpdates(
-                current_objectives=[],
-                directives_sent=[],
-                moved_to="",
-                scenes_created=[],
-            ),
-        )
-        text = _serialize_agent_intention(out)
-        assert "Halt there, stranger." in text
-        assert "steps into the torchlight" in text
-        assert "wary" in text
-        # Crucially, NO JSON braces or field names.
-        assert "{" not in text
-        assert "}" not in text
-        assert '"dialogue":' not in text
-        assert '"actions":' not in text
-
-    def test_empty_output_returns_empty_string(self):
-        from app.engine.turn_loop_dispatcher import _serialize_agent_intention
-        from app.schemas.agents import (
-            CharacterAgentOutput,
-            PrivateUpdates,
-            PublicResponse,
-        )
-        out = CharacterAgentOutput(
-            character_id="pip",
-            public_response=PublicResponse(
-                actions=[], dialogue=[], expression="",
-            ),
-            private_updates=PrivateUpdates(
-                current_objectives=[],
-                directives_sent=[],
-                moved_to="",
-                scenes_created=[],
-            ),
-        )
-        assert _serialize_agent_intention(out) == ""
+# ---- r6a partial-mode tests -----------------------------------------------
+# Commit 1 deleted `_serialize_agent_intention` — the agent now emits
+# prose directly and the dispatcher passes `output.public_text.strip()`
+# straight to the router. The serializer's tests went with it. The
+# parenthetical-extraction contract is exercised in
+# tests/test_character_agent.py instead.
 
 
 class TestCatIIOpenPartialRender:

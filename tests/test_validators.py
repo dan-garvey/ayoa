@@ -10,7 +10,7 @@ from app.engine.validators import (
     validate_all_outputs,
     LeakageFlag,
 )
-from app.schemas.agents import CharacterAgentOutput, PublicResponse, PrivateUpdates
+from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import (
     CharacterRecord,
     PublicSheet,
@@ -88,30 +88,21 @@ class TestExtractEntities:
         assert len(entities) == 0
 
 
-def _empty_private() -> PrivateUpdates:
-    return PrivateUpdates(
-        current_objectives=[],
-        directives_sent=[],
-        moved_to="",
-        scenes_created=[],
-    )
-
-
 class TestExtractTextFromOutput:
-    def test_combines_fields(self):
+    def test_returns_public_text(self):
         output = CharacterAgentOutput(
             character_id="test",
-            public_response=PublicResponse(
-                actions=["steps forward"],
-                dialogue=["Hello there."],
-                expression="smiles warmly",
-            ),
-            private_updates=_empty_private(),
+            public_text='He steps forward. "Hello there." A warm smile.',
+            intent="Probing the visitor's intent.",
         )
         text = extract_text_from_output(output)
         assert "steps forward" in text
         assert "Hello there" in text
-        assert "smiles warmly" in text
+        assert "warm smile" in text
+        # Intent (the trailing parenthetical contents) MUST NOT bleed into
+        # the validator's input — leakage detection runs on the public
+        # surface only.
+        assert "Probing" not in text
 
 
 # --- Known entities tests ---
@@ -138,12 +129,8 @@ class TestValidateAgentOutput:
     def test_clean_output_passes(self, guard_character, checkpoint):
         output = CharacterAgentOutput(
             character_id="guard_17",
-            public_response=PublicResponse(
-                dialogue=["Move along, nothing to see here."],
-                actions=["adjusts sword belt"],
-                expression="",
-            ),
-            private_updates=_empty_private(),
+            public_text='He adjusts his sword belt. "Move along, nothing to see here."',
+            intent="Keep order; routine deflection.",
         )
         result = validate_agent_output(
             output, guard_character, ["Player stands in the courtyard."], checkpoint
@@ -155,12 +142,8 @@ class TestValidateAgentOutput:
         """Guard references Nightshade by name without observing her."""
         output = CharacterAgentOutput(
             character_id="guard_17",
-            public_response=PublicResponse(
-                actions=[],
-                dialogue=["I saw Nightshade lurking by the tower."],
-                expression="",
-            ),
-            private_updates=_empty_private(),
+            public_text='"I saw Nightshade lurking by the tower."',
+            intent="",
         )
         result = validate_agent_output(
             output, guard_character,
@@ -177,17 +160,13 @@ class TestValidateAllOutputs:
         outputs = [
             CharacterAgentOutput(
                 character_id="guard_17",
-                public_response=PublicResponse(
-                    actions=[], dialogue=["All clear."], expression="",
-                ),
-                private_updates=_empty_private(),
+                public_text='"All clear."',
+                intent="",
             ),
             CharacterAgentOutput(
                 character_id="spy_01",
-                public_response=PublicResponse(
-                    actions=[], dialogue=["Good evening."], expression="",
-                ),
-                private_updates=_empty_private(),
+                public_text='"Good evening."',
+                intent="",
             ),
         ]
         observer_facts = {

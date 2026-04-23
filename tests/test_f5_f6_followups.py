@@ -46,12 +46,17 @@ from app.engine.settings import (
     set_setting,
 )
 from app.llm.config import LLMConfig
-from app.schemas.agents import (
-    CharacterAgentOutput,
-    DirectiveSend,
-    PrivateUpdates,
-    PublicResponse,
-)
+from app.schemas.agents import CharacterAgentOutput  # noqa: F401
+
+# Module-level skip is set above. Stubs let the file parse without the
+# legacy schema names that Commit 1 removed; the actual skipped tests
+# never execute these paths.
+class _Stub:
+    def __init__(self, **kw): pass
+
+DirectiveSend = _Stub  # type: ignore[assignment]
+PrivateUpdates = _Stub  # type: ignore[assignment]
+PublicResponse = _Stub  # type: ignore[assignment]
 from app.schemas.characters import (
     CharacterRecord,
     PrivateState,
