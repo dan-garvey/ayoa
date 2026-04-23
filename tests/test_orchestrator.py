@@ -111,7 +111,7 @@ class TestCharacterManager:
                 world_adjudication=WorldAdjudication(
                     attempted_action="wait", feasible=True, resolved_outcome="",
                 ),
-                scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id=""),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],

@@ -645,6 +645,11 @@ def broadcast_event(
     The event's stable `event_id` is what lands in render buffers
     (not Python object identity) so checkpoints remain resolvable
     across process restarts.
+
+    Note: the `actor_id` of the event is NOT recorded here; callers
+    that need actor-aware event-application (e.g. _apply_roster_moves
+    for the v11-r7h self-move path) must track it in step with their
+    broadcast calls and surface it via BeatResult.event_actor_ids.
     """
     ckpt.canonical_events.append(event)
     humans = humans_in_scene(ckpt, scene_id)
@@ -784,9 +789,7 @@ def _build_open_attempt_event(
                     initiator_name, initiator_intention,
                 ),
             ),
-            scene_delta=SceneDelta(
-                time_advanced_seconds=0, new_scene_id=scene_id,
-            ),
+            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=[],
         ),
         observers=[],
@@ -814,11 +817,20 @@ class BeatResult:
     (or first available) and appends to ckpt.transcript so /history and
     resume-display see the actual played turns. Empty when no human
     rendered this beat (Cat II pending, or beat-with-no-renderable-events).
+
+    `event_actor_ids` is a list parallel to the tail of
+    `ckpt.canonical_events` (length == `events_closed`, in beat-order):
+    `event_actor_ids[i]` is the character_id whose intention produced
+    `canonical_events[-events_closed + i]`. Required by the orchestrator's
+    apply loop in v11-r7h so `_apply_roster_moves` can recognize self-
+    moves (the actor moving themselves) and apply them despite the
+    player-bound / pinned guards. Empty when `events_closed == 0`.
     """
     renders: dict[str, str]
     events_closed: int
     ended_reason: str  # "ends_beat" | "max_events_cap" | "cat_ii_pending" | ...
     transcript_entries: dict[str, TranscriptEntry]
+    event_actor_ids: list[str]
 
 
 async def run_beat(
@@ -858,7 +870,7 @@ async def run_beat(
             # Event already gone — race condition. Treat as no-op.
             return BeatResult(
                 renders={}, events_closed=0, ended_reason="cat_ii_stale",
-                transcript_entries={},
+                transcript_entries={}, event_actor_ids=[],
             )
         # Free this specific character's slot — others may still be pinned.
         release_character_slot(ckpt, scene_id, actor_id)
@@ -868,7 +880,7 @@ async def run_beat(
                 renders={},
                 events_closed=0,
                 ended_reason="cat_ii_pending",
-                transcript_entries={},
+                transcript_entries={}, event_actor_ids=[],
             )
         # All responders in — adjudicate.
         # Use evt.scene_id (where the event opened) rather than the
@@ -903,12 +915,14 @@ async def run_beat(
             ckpt, dispatcher, scene_id,
             ended_reason="cat_ii_resolution",
             events_closed=1,
+            event_actor_ids=[evt.initiator_id],
         )
 
     # Fresh initiator path.
     claim_initiator_slot(ckpt, scene_id, actor_id)
 
     events_closed = 0
+    event_actor_ids: list[str] = []
     current_intention = intention
     current_actor = actor_id
 
@@ -937,12 +951,14 @@ async def run_beat(
                 # this as Cat I — there's nothing to contest. Broadcast the
                 # canonical event as-is and continue.
                 broadcast_event(ckpt, result, scene_id)
+                event_actor_ids.append(current_actor)
                 events_closed += 1
                 if events_closed >= max_events:
                     return await _end_beat(
                         ckpt, dispatcher, scene_id,
                         ended_reason="max_events_cap",
                         events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
                     )
                 # Fall through to the standard Cat I ends_beat check.
                 if result.ends_beat:
@@ -951,6 +967,7 @@ async def run_beat(
                         ended_reason=result.ends_beat_reason
                             or "cascade_exhausted",
                         events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
                     )
                 # Keep cascading via picks — reuse the normal path by
                 # letting the loop iterate. Break out of the inner if
@@ -964,6 +981,7 @@ async def run_beat(
                         ckpt, dispatcher, scene_id,
                         ended_reason="cascade_exhausted",
                         events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
                     )
                 next_actor = picks[0]
                 next_intention = await dispatcher.agent_intend(
@@ -1019,11 +1037,13 @@ async def run_beat(
                         "call; Part C invariant violated."
                     )
                 broadcast_event(ckpt, resolved, scene_id)
+                event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
                 return await _end_beat(
                     ckpt, dispatcher, scene_id,
                     ended_reason="cat_ii_resolution",
                     events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
                 )
             # Humans are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
@@ -1047,6 +1067,13 @@ async def run_beat(
                 scene_id=scene_id,
             )
             ckpt.canonical_events.append(open_attempt)
+            # The synthetic open-attempt event is initiator-authored;
+            # tracking the actor for it keeps event_actor_ids parallel
+            # with the canonical_events tail. No roster_moves are
+            # attached to the open attempt (it's a render-only stub),
+            # so this is bookkeeping rather than functional, but the
+            # invariant must hold for the orchestrator's apply zip.
+            event_actor_ids.append(current_actor)
 
             render_targets: set[str] = set()
             for rid in required:
@@ -1066,6 +1093,7 @@ async def run_beat(
                 ckpt, dispatcher, scene_id,
                 ended_reason="cat_ii_pending",
                 events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
                 release_slots=False,
                 force_partial=True,
                 render_only=render_targets,
@@ -1073,6 +1101,7 @@ async def run_beat(
 
         # Cat I path — canonical event closes immediately.
         broadcast_event(ckpt, result, scene_id)
+        event_actor_ids.append(current_actor)
         events_closed += 1
 
         # Ends-beat decision.
@@ -1084,6 +1113,7 @@ async def run_beat(
                 ckpt, dispatcher, scene_id,
                 ended_reason=reason,
                 events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
             )
 
         # Pick the next actor for the cascade. Agents only — humans
@@ -1101,6 +1131,7 @@ async def run_beat(
                 ckpt, dispatcher, scene_id,
                 ended_reason="cascade_exhausted",
                 events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
             )
         # v11 first cut: chain one pick at a time. Multi-pick fan-out can
         # come later; for now, the first pick acts, we re-route, the
@@ -1130,6 +1161,7 @@ async def run_beat(
                 ckpt, dispatcher, scene_id,
                 ended_reason="cascade_exhausted",
                 events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
             )
         current_actor = next_actor
         current_intention = next_intention
@@ -1141,6 +1173,7 @@ async def _end_beat(
     scene_id: str,
     ended_reason: str,
     events_closed: int,
+    event_actor_ids: list[str],
     *,
     release_slots: bool = True,
     force_partial: bool = False,
@@ -1211,6 +1244,7 @@ async def _end_beat(
     return BeatResult(
         renders=renders, events_closed=events_closed, ended_reason=ended_reason,
         transcript_entries=transcript_entries,
+        event_actor_ids=event_actor_ids,
     )
 
 

@@ -127,10 +127,18 @@ def _build_setting_summary(checkpoint: CheckpointFile) -> str:
     return "\n".join(parts) if parts else "No setting information available."
 
 
-def _build_scene_context(checkpoint: CheckpointFile) -> str:
-    # TODO(v11): move into context_builder once other call sites need it.
+def _build_scene_context(
+    checkpoint: CheckpointFile, pov_character_id: str | None = None,
+) -> str:
+    """Narrator-facing scene block — keyed on the POV character's actual
+    location (with importer current_scene_id fallback). Pre-r7h this
+    always returned the importer pivot scene, so the narrator described
+    the POV character standing at the starting scene even after they
+    moved — which then fed back into the next router turn as "still at
+    starting scene" and the desync compounded."""
+    from app.engine.context_builder import resolve_scene_for_character
     locations = checkpoint.world_state.locations
-    scene_id = locations.current_scene_id
+    scene_id = resolve_scene_for_character(checkpoint, pov_character_id)
     if not scene_id:
         return "No scene information available."
     scene = locations.scene_graph.get(scene_id, {})
@@ -261,7 +269,7 @@ async def compose_pov_render(
 
     setting_summary = _build_setting_summary(ckpt)
     narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
-    scene_context = _build_scene_context(ckpt)
+    scene_context = _build_scene_context(ckpt, pov_character_id)
     player_characters_block = build_player_characters_block(ckpt, pov_character_id)
     canonical_event_block = _format_canonical_events_block(resolved)
 

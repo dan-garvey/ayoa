@@ -90,9 +90,7 @@ def _router_output() -> EventRouterOutput:
                 feasible=True,
                 resolved_outcome="y",
             ),
-            scene_delta=SceneDelta(
-                time_advanced_seconds=0, new_scene_id="gatehouse",
-            ),
+            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=[],
         ),
         observers=[],

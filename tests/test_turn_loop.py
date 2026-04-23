@@ -104,9 +104,7 @@ def _router_out(
                 feasible=True,
                 resolved_outcome="something happens",
             ),
-            scene_delta=SceneDelta(
-                time_advanced_seconds=0, new_scene_id=scene,
-            ),
+            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=[],
         ),
         observers=observers,
@@ -279,6 +277,7 @@ class TestCatIIOpenPartialRender:
             ckpt, fake, "gatehouse",
             ended_reason="cat_ii_pending",
             events_closed=0,
+            event_actor_ids=[],
             release_slots=False,
         ))
         slot = ckpt.session.active_act_slots.get("gatehouse", {})
@@ -831,7 +830,7 @@ class TestPicksSubsetOfObservers:
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="x",
                 ),
-                scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id=""),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[ObserverEntry(character_id="alice", observation_level="d", response_priority=3)],
@@ -1065,9 +1064,7 @@ class TestParallelNarratorFanOut:
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="y",
                 ),
-                scene_delta=SceneDelta(
-                    time_advanced_seconds=0, new_scene_id="gatehouse",
-                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],
@@ -1107,6 +1104,7 @@ class TestParallelNarratorFanOut:
             ckpt, fake, "gatehouse",
             ended_reason="directed_at_player",
             events_closed=1,
+            event_actor_ids=["alice"],
         ))
         elapsed = time.monotonic() - t0
 
@@ -1141,9 +1139,7 @@ class TestParallelNarratorFanOut:
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="y",
                 ),
-                scene_delta=SceneDelta(
-                    time_advanced_seconds=0, new_scene_id="gatehouse",
-                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],
@@ -1166,6 +1162,7 @@ class TestParallelNarratorFanOut:
             ckpt, fake, "gatehouse",
             ended_reason="directed_at_player",
             events_closed=1,
+            event_actor_ids=["alice"],
         ))
         assert "alice" in result.renders
         assert len(fake.narrator_calls) == 1

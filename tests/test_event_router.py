@@ -97,7 +97,7 @@ def sample_router_output():
                 feasible=True,
                 resolved_outcome="You scan the courtyard.",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=5, new_scene_id=""),
+            scene_delta=SceneDelta(time_advanced_seconds=5),
             observable_facts=[
                 "The player looks around the courtyard slowly.",
                 "The player glances at the dry fountain.",

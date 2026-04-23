@@ -12,15 +12,17 @@ class WorldAdjudication(BaseModel):
 
 
 class SceneDelta(BaseModel):
-    """All fields REQUIRED — defaults expand the API's grammar
-    compiler past the "Schema is too complex" ceiling when this
-    nests inside EventRouterOutput. LLM emits 0 / "" for absent
-    values."""
+    """Per-event time delta. Only carries time advancement; all
+    character relocation flows through `EventRouterOutput.roster_moves`
+    (see `Orchestrator._apply_roster_moves`).
+
+    All fields REQUIRED — defaults expand the API's grammar compiler
+    past the "Schema is too complex" ceiling when this nests inside
+    EventRouterOutput. LLM emits 0 for absent values."""
 
     model_config = ConfigDict(extra="forbid")
 
     time_advanced_seconds: int
-    new_scene_id: str
 
 
 class CanonicalEvent(BaseModel):

@@ -24,6 +24,7 @@ from app.engine.context_builder import (
     build_player_characters_block,
     clear_character_inbox,
     resolve_acting_character,
+    resolve_scene_for_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
@@ -68,9 +69,16 @@ def _build_world_rules(checkpoint: CheckpointFile) -> str:
     return "\n".join(parts)
 
 
-def _build_scene_context(checkpoint: CheckpointFile) -> str:
+def _build_scene_context(
+    checkpoint: CheckpointFile, character_id: str | None = None,
+) -> str:
+    """Router-facing scene context block — keyed on `character_id`'s
+    actual location (with importer current_scene_id fallback). Pre-r7h
+    this always returned the importer's pivot scene regardless of the
+    actor, so the router believed the actor was at the starting scene
+    even after they (logically, narratively) moved."""
     locations = checkpoint.world_state.locations
-    scene_id = locations.current_scene_id
+    scene_id = resolve_scene_for_character(checkpoint, character_id)
     if not scene_id:
         return "No scene information available."
 
@@ -116,8 +124,17 @@ def _build_scene_graph(checkpoint: CheckpointFile) -> str:
     return "\n".join(entries)
 
 
-def _build_characters_present(checkpoint: CheckpointFile) -> str:
-    scene_id = checkpoint.world_state.locations.current_scene_id
+def _build_characters_present(
+    checkpoint: CheckpointFile, character_id: str | None = None,
+) -> str:
+    """Router-facing "characters present" block — keyed on
+    `character_id`'s actual location (with importer current_scene_id
+    fallback). Pre-r7h this read `current_scene_id` directly, so the
+    router saw the starting-scene roster regardless of who the actor
+    was or where they had moved."""
+    scene_id = resolve_scene_for_character(checkpoint, character_id)
+    if not scene_id:
+        return "No other characters are present in this scene."
     present = []
     for char in checkpoint.characters:
         if char.location == scene_id and char.status.value == "active":
@@ -255,14 +272,15 @@ def _build_router_context(
         "setting_summary": _build_setting_summary(ckpt),
         "world_lore": ckpt.world_state.lore or "No detailed lore available.",
         "world_rules": _build_world_rules(ckpt),
-        "current_scene": _build_scene_context(ckpt),
+        "current_scene": _build_scene_context(ckpt, acting_id),
         "scene_graph": _build_scene_graph(ckpt),
-        "characters_present": _build_characters_present(ckpt),
+        "characters_present": _build_characters_present(ckpt, acting_id),
         "world_facts": _build_world_facts(ckpt),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": _build_hidden_facts(ckpt),
         "character_registry": _build_character_registry(ckpt),
         "acting_character_name": acting_name,
+        "acting_character_id": acting_id,
         "player_characters_block": build_player_characters_block(
             ckpt, acting_id,
         ),

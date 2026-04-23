@@ -148,6 +148,7 @@ class EventRouter:
             character_registry=self._build_character_registry(checkpoint),
             user_input=user_input,
             acting_character_name=acting_name,
+            acting_character_id=acting_id,
             player_characters_block=build_player_characters_block(
                 checkpoint, acting_id
             ),

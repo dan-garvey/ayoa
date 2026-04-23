@@ -275,14 +275,28 @@ class Orchestrator:
             # this beat. `run_beat` broadcasts + renders but leaves
             # scene_creations / roster_moves / spawn / dormant / cull
             # for the orchestrator to apply. Walk the tail of
-            # canonical_events matching the count it reports.
+            # canonical_events matching the count it reports, paired
+            # with `event_actor_ids` so _apply_roster_moves can recognize
+            # actor-self-moves (the v11-r7h unified movement path).
             closed = beat_result.events_closed
             if closed > 0:
                 closed_this_beat = ckpt.canonical_events[-closed:]
-                for evt in closed_this_beat:
+                actors = beat_result.event_actor_ids
+                # Defensive: invariant says lengths match; if they don't
+                # (e.g. a future refactor forgot to track an actor), pad
+                # with None so apply still runs but self-moves get blocked
+                # by the player-bound/pin guards rather than misattributed.
+                if len(actors) != closed:
+                    logger.warning(
+                        "BeatResult event_actor_ids length %d != events_closed %d "
+                        "in scene %s; self-moves on this beat will be skipped.",
+                        len(actors), closed, scene_id,
+                    )
+                    actors = actors + [None] * (closed - len(actors))
+                for evt, evt_actor in zip(closed_this_beat, actors):
                     _apply_scene_creations(ckpt, evt.scenes_created)
                     self.char_mgr.apply_roster_updates(ckpt, evt)
-                    self._apply_roster_moves(ckpt, evt)
+                    self._apply_roster_moves(ckpt, evt, actor_id=evt_actor)
                     # Spawns remain async LLM calls; if none declared,
                     # the helper is a no-op.
                     if evt.spawn:
@@ -390,6 +404,7 @@ class Orchestrator:
                     ckpt, dispatcher, scene_id,
                     ended_reason="cat_ii_resolution",
                     events_closed=1,
+                    event_actor_ids=[evt_live.initiator_id],
                 )
             else:
                 # Still pending responders — nothing to adjudicate yet.
@@ -397,6 +412,7 @@ class Orchestrator:
                     renders={}, events_closed=0,
                     ended_reason="cat_ii_pending",
                     transcript_entries={},
+                    event_actor_ids=[],
                 )
 
             # Apply side-effects for each newly closed event.
@@ -404,10 +420,21 @@ class Orchestrator:
                 closed_this_beat = ckpt.canonical_events[
                     -beat_result.events_closed:
                 ]
-                for ev in closed_this_beat:
+                actors = beat_result.event_actor_ids
+                if len(actors) != beat_result.events_closed:
+                    logger.warning(
+                        "Cat II BeatResult event_actor_ids length %d != "
+                        "events_closed %d in scene %s; self-moves on this "
+                        "beat will be skipped.",
+                        len(actors), beat_result.events_closed, scene_id,
+                    )
+                    actors = actors + [None] * (
+                        beat_result.events_closed - len(actors)
+                    )
+                for ev, ev_actor in zip(closed_this_beat, actors):
                     _apply_scene_creations(ckpt, ev.scenes_created)
                     self.char_mgr.apply_roster_updates(ckpt, ev)
-                    self._apply_roster_moves(ckpt, ev)
+                    self._apply_roster_moves(ckpt, ev, actor_id=ev_actor)
                     if ev.spawn:
                         await self.char_mgr.spawn_characters(ckpt, ev.spawn)
 
@@ -471,15 +498,35 @@ class Orchestrator:
         return ckpt.world_state.locations.current_scene_id
 
     def _apply_roster_moves(
-        self, ckpt: CheckpointFile, routed: EventRouterOutput
+        self,
+        ckpt: CheckpointFile,
+        routed: EventRouterOutput,
+        actor_id: str | None = None,
     ) -> None:
-        """Apply router-directed NPC relocations. Guards:
-          - pinned characters (initiator or Cat II responder) are skipped,
-            because moving them would strand their pin.
-          - player-bound characters are skipped; they only move via their
-            own /act.
-          - unknown scene_ids are skipped.
-          - unknown character_ids are skipped.
+        """Apply router-directed character relocations.
+
+        `roster_moves` is the engine's single movement mechanism: every
+        location change this turn — NPCs walking in/out, the acting
+        character self-moving as the result of their /act, opening-turn
+        placement — flows through here.
+
+        Three guards filter out moves that would corrupt state:
+          - **Pinned characters** (mid-action, the engine is waiting on
+            their intention) cannot be externally relocated; the pin
+            would be stranded. EXCEPT when the pinned character IS the
+            actor on the closing event — the move IS the resolution of
+            their own action.
+          - **Player-bound characters** cannot be externally relocated;
+            humans enter only via /act. EXCEPT when they're the actor —
+            they ARE acting, and the move is the outcome of that act.
+          - Unknown scene_ids and unknown character_ids are skipped
+            (nothing to point at).
+
+        `actor_id` identifies the acting character on the event being
+        applied; pass None for paths with no single actor (legacy
+        callers only — the v11 pipeline always knows the actor). With
+        None the actor exceptions can't fire and player/pinned guards
+        block all moves on those characters.
         """
         if not routed.roster_moves:
             return
@@ -491,17 +538,23 @@ class Orchestrator:
             player_ids.add(ckpt.session.player_character_id)
 
         for move in routed.roster_moves:
-            if move.character_id in pinned_ids:
+            is_actor_self_move = (
+                actor_id is not None and move.character_id == actor_id
+            )
+            if move.character_id in pinned_ids and not is_actor_self_move:
                 logger.warning(
                     "Router tried to move pinned character %s; ignored. "
                     "Pinned characters must resolve their open event before "
-                    "they can be relocated.",
+                    "they can be relocated (unless the move IS the resolution "
+                    "of their own action).",
                     move.character_id,
                 )
                 continue
-            if move.character_id in player_ids:
+            if move.character_id in player_ids and not is_actor_self_move:
                 logger.warning(
-                    "Router tried to move player-bound character %s; ignored",
+                    "Router tried to move player-bound character %s; ignored. "
+                    "Player-bound characters move only via their own /act "
+                    "(self-move on the event they initiated).",
                     move.character_id,
                 )
                 continue
@@ -523,9 +576,10 @@ class Orchestrator:
                 continue
             old = target.location
             target.location = move.to_scene
+            kind = "self-move" if is_actor_self_move else "roster move"
             logger.info(
-                "Roster move: %s %s -> %s (%s)",
-                target.name, old or "(unset)", move.to_scene,
+                "%s: %s %s -> %s (%s)",
+                kind, target.name, old or "(unset)", move.to_scene,
                 move.reason or "no reason given",
             )
 

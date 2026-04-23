@@ -7,10 +7,12 @@ from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
     build_character_packet,
     build_character_state,
+    build_characters_present,
     build_scene_context,
     build_world_context,
     format_observed_facts,
     format_pending_observations_block,
+    resolve_scene_for_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
@@ -138,6 +140,34 @@ class TestContextBuilder:
         assert "Estate Courtyard" in context
         assert "dry fountain" in context
 
+    def test_build_scene_context_keyed_to_character_location(self, sample_checkpoint, guard_character):
+        """v11-r7h: build_scene_context honors the character's actual
+        location, not the importer's pivot. After the guard moves to the
+        archive, his agent prompt must show the archive — not the
+        starting courtyard."""
+        sample_checkpoint.world_state.locations.scene_graph["archive"] = {
+            "name": "Sealed Archive",
+            "description": "Iron-banded shelves stretching into the dark.",
+        }
+        guard_character.location = "archive"
+        sample_checkpoint.characters = [guard_character]
+        context = build_scene_context(
+            sample_checkpoint, guard_character.character_id,
+        )
+        assert "Sealed Archive" in context
+        assert "Iron-banded" in context
+        # Importer pivot (courtyard) must NOT leak in.
+        assert "Estate Courtyard" not in context
+
+    def test_build_scene_context_no_character_falls_back(self, sample_checkpoint):
+        """Pre-r7h behavior preserved: callers that don't have an actor
+        binding (legacy paths, /scene UI surfaces) keep getting the
+        importer's pivot scene."""
+        context = build_scene_context(sample_checkpoint)
+        assert "Estate Courtyard" in context
+        context_none = build_scene_context(sample_checkpoint, None)
+        assert "Estate Courtyard" in context_none
+
     def test_build_world_context_legacy_fallback(self, sample_checkpoint, guard_character):
         """Pre-v2 characters (known_context=="") fall back to global lore/facts."""
         assert guard_character.known_context == ""
@@ -178,7 +208,87 @@ class TestContextBuilder:
         assert "Footsteps receding" in block
 
 
-# --- Character agent tests ---
+class TestSceneResolution:
+    """v11-r7h: actor-keyed scene context. Pre-r7h, every router /
+    narrator / agent context block read `world_state.locations.
+    current_scene_id` directly — meaning the LLM was told "you are at
+    the starting scene" forever, regardless of where the actor had
+    actually moved. Combined with the dead `scene_delta.new_scene_id`
+    field (which structurally stranded actors at their starting
+    location), this produced the desync that surfaced in the playtest
+    where Mira was narrated as moving but her checkpoint said she
+    hadn't.
+
+    These tests pin the new helper + the two builder functions that
+    consume it. The dispatcher / narrator wrappers (which delegate
+    here) are exercised via the integration paths in
+    test_orchestrator_v11.py."""
+
+    def _ckpt(self, *, current="courtyard", graph=None):
+        graph = graph or {
+            "courtyard": {"name": "Estate Courtyard", "description": "Wide stones."},
+            "archive": {"name": "Sealed Archive", "description": "Iron-banded shelves."},
+        }
+        return CheckpointFile(
+            session=SessionState(session_id="t"),
+            world_state=WorldState(
+                locations=LocationState(
+                    current_scene_id=current, scene_graph=graph,
+                ),
+                setting=StorySetting(),
+            ),
+        )
+
+    def _char(self, cid: str, *, location: str = ""):
+        return CharacterRecord(
+            character_id=cid,
+            name=cid.title(),
+            location=location,
+            public_sheet=PublicSheet(role="role"),
+        )
+
+    def test_resolve_uses_character_location(self):
+        ckpt = self._ckpt()
+        ckpt.characters = [self._char("guard", location="archive")]
+        assert resolve_scene_for_character(ckpt, "guard") == "archive"
+
+    def test_resolve_falls_back_when_character_unset(self):
+        """Character has `location=""` (schema default — legacy import
+        path or pre-spawn race). Fall back to `current_scene_id` so the
+        prompt isn't empty."""
+        ckpt = self._ckpt()
+        ckpt.characters = [self._char("guard", location="")]
+        assert resolve_scene_for_character(ckpt, "guard") == "courtyard"
+
+    def test_resolve_falls_back_when_character_missing(self):
+        """Unknown character_id (typo, race) — fall back, don't raise."""
+        ckpt = self._ckpt()
+        ckpt.characters = []
+        assert resolve_scene_for_character(ckpt, "ghost") == "courtyard"
+
+    def test_resolve_none_character_id_returns_pivot(self):
+        """Legacy callers that don't pass a character_id keep the old
+        importer-pivot answer."""
+        ckpt = self._ckpt()
+        assert resolve_scene_for_character(ckpt, None) == "courtyard"
+
+    def test_characters_present_keyed_to_actor_location(self):
+        """Actor moved to the archive; `build_characters_present` must
+        list who's IN the archive (only the actor) — not who's at the
+        importer's pivot. Pre-r7h: this returned the courtyard's roster
+        and the actor saw "you're alone" in the place they'd just
+        physically left."""
+        ckpt = self._ckpt()
+        actor = self._char("guard", location="archive")
+        bystander_at_pivot = self._char("steward", location="courtyard")
+        bystander_at_archive = self._char("scribe", location="archive")
+        ckpt.characters = [actor, bystander_at_pivot, bystander_at_archive]
+
+        present = build_characters_present(actor, ckpt)
+        # The scribe (same scene as actor) is named.
+        assert "Scribe" in present
+        # The steward (back at the pivot) is NOT.
+        assert "Steward" not in present
 
 class TestCharacterAgent:
     @pytest.mark.asyncio

@@ -109,7 +109,7 @@ def _router_out(
                 feasible=True,
                 resolved_outcome="something happens",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id=""),
+            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=[],
         ),
         observers=observers,
@@ -405,6 +405,120 @@ class TestRosterMoveGuard:
         # Guard fired: alice is still in gatehouse despite the
         # router_move the event carried.
         assert alice.location == "gatehouse"
+
+
+# ---- v11-r7h: actor self-moves through unified roster_moves ----------------
+
+
+class TestActorSelfMove:
+    """v11-r7h consolidated movement: scene_delta.new_scene_id is gone,
+    every relocation including the acting character moving themselves
+    flows through `roster_moves`. The guards in `_apply_roster_moves`
+    skip player-bound + pinned characters EXCEPT when the moved
+    character IS the actor on the closing event — then the move IS the
+    resolution of the act and goes through.
+
+    Pre-r7h the bug: scene_delta.new_scene_id was a router-emitted field
+    that no engine code ever consumed, so player characters stayed
+    structurally stranded at their starting location while the narrator
+    described them moving. Test class exists to keep that regression
+    nailed shut."""
+
+    @pytest.mark.asyncio
+    async def test_player_self_move_succeeds(self, patched_orchestrator):
+        """Player /acts a movement; router emits a roster_moves entry
+        with the player's own character_id. The actor exception in the
+        player-bound guard fires and the move applies."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            ends_beat_reason="scene_transition",
+            roster_moves=[
+                RosterMove(
+                    character_id="alice",
+                    to_scene="threshold",
+                    reason="alice walks to the threshold",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I walk to the threshold.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        alice = next(c for c in saved.characters if c.character_id == "alice")
+        # Self-move applied — alice is now at the threshold.
+        assert alice.location == "threshold"
+
+    @pytest.mark.asyncio
+    async def test_player_other_player_move_blocked(
+        self, patched_orchestrator,
+    ):
+        """The actor-exception is keyed to character_id == actor_id, NOT
+        "any move on this event applies." A move targeting a DIFFERENT
+        player-bound character on the same event is still blocked by
+        the guard — the router cannot relocate one player from another
+        player's /act. Bob (player) stays put when Alice's event tries
+        to move him."""
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="bob",
+                    to_scene="threshold",
+                    reason="router tries to move bob via alice's act",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I gesture at the threshold.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        bob = next(c for c in saved.characters if c.character_id == "bob")
+        # Guard fired: bob is player-bound and NOT the actor — stays.
+        assert bob.location == "gatehouse"
+
+    @pytest.mark.asyncio
+    async def test_npc_move_still_works(self, patched_orchestrator):
+        """Regression check: the actor-exception didn't break the
+        ordinary NPC-relocation path. Alice /acts; router emits a
+        roster_moves for Pip (NPC, not the actor). No guard applies,
+        Pip moves."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="pip wanders off",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        pip = next(c for c in saved.characters if c.character_id == "pip")
+        assert pip.location == "threshold"
 
 
 # ---- v11-r6b: resolve_cat_ii ------------------------------------------------

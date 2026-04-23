@@ -86,7 +86,7 @@ def _ckpt() -> CheckpointFile:
                 feasible=True,
                 resolved_outcome="Alice sees the arch.",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id="gatehouse"),
+            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=["The arch is weathered."],
         ),
         observers=[
@@ -112,7 +112,7 @@ def _ckpt() -> CheckpointFile:
                 feasible=True,
                 resolved_outcome="Pip dips his chin.",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id="gatehouse"),
+            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=["Pip nods."],
         ),
         observers=[

@@ -411,9 +411,7 @@ class TestApplyRosterUpdatesPurgesCulled:
                     feasible=True,
                     resolved_outcome="x",
                 ),
-                scene_delta=SceneDelta(
-                    time_advanced_seconds=0, new_scene_id=""
-                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],

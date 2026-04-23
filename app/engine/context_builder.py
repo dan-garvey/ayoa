@@ -113,10 +113,52 @@ def build_character_state(char: CharacterRecord) -> dict[str, str]:
     }
 
 
-def build_scene_context(checkpoint: CheckpointFile) -> str:
-    """Build scene description from the checkpoint's current location."""
+def resolve_scene_for_character(
+    checkpoint: CheckpointFile, character_id: str | None,
+) -> str:
+    """v11-r7h: the scene a character is currently in.
+
+    Prefers the roster's `character.location` field — the truth-of-record
+    for "where is X." Falls back to `world_state.locations.current_scene_id`
+    when:
+      - no character_id is given (legacy callers without an actor binding),
+      - the character isn't in the roster (pristine tests, mid-spawn races),
+      - the character's `location` is unset (importer placed nobody there,
+        or a v2 character_gen pass left it blank).
+
+    The fallback is necessary because `current_scene_id` is the importer's
+    "world pivot" — set ONCE during import and never touched by the
+    pipeline. For most actors the roster's `location` is the right answer
+    and the fallback only fires for edge cases.
+
+    Pre-r7h, every router/narrator/agent context-builder read
+    `current_scene_id` directly, which meant the LLM saw "Current Scene:
+    bell_of_arrivals" regardless of where the actor actually was. Combined
+    with scene_delta.new_scene_id being a dead field (the actor couldn't
+    even move), players got stranded indefinitely at the wrong location
+    while every prompt told the LLM they were elsewhere. This function
+    plus the `_apply_roster_moves` self-move path (orchestrator) are the
+    paired fix.
+    """
+    if character_id:
+        for c in checkpoint.characters:
+            if c.character_id == character_id and c.location:
+                return c.location
+    return checkpoint.world_state.locations.current_scene_id
+
+
+def build_scene_context(
+    checkpoint: CheckpointFile, character_id: str | None = None,
+) -> str:
+    """Build scene description for `character_id`'s current scene.
+
+    `character_id=None` keeps the pre-r7h fallback (importer's
+    current_scene_id) for callers that don't have a character binding;
+    new code should pass the acting/POV character_id so the prompt
+    reflects where that character actually is.
+    """
     locations = checkpoint.world_state.locations
-    scene_id = locations.current_scene_id
+    scene_id = resolve_scene_for_character(checkpoint, character_id)
     if not scene_id:
         return "No scene information available."
 
@@ -172,8 +214,18 @@ def build_world_context(
 def build_characters_present(
     character: CharacterRecord, checkpoint: CheckpointFile
 ) -> str:
-    """Build a summary of other characters present in the same scene."""
-    scene_id = checkpoint.world_state.locations.current_scene_id
+    """Build a summary of other characters present in the same scene as
+    `character`.
+
+    v11-r7h: scene is now `character.location` (with the importer
+    current_scene_id fallback if unset), not the importer's pivot. Pre-
+    r7h this read `current_scene_id` directly — meaning every NPC's
+    "who's around me" list reflected the importer's starting scene
+    forever, not the NPC's actual location. An NPC who walked to a
+    side-room would still hear about everyone at the bell; conversely
+    a player who moved would seem alone to anyone querying.
+    """
+    scene_id = resolve_scene_for_character(checkpoint, character.character_id)
     if not scene_id:
         return "You don't know who else is nearby."
 
@@ -302,7 +354,10 @@ def build_player_characters_block(
         role = char.public_sheet.role or "unspecified role"
         appearance = (char.public_sheet.appearance or "not yet described").strip()
         marker = " (acting this turn)" if char.character_id == acting_character_id else ""
-        lines.append(f"- **{char.name}**{marker} — {role}. {appearance}")
+        lines.append(
+            f"- **{char.name}**{marker} (id: {char.character_id}) — "
+            f"{role}. {appearance}"
+        )
 
     if not lines:
         return "- No player characters bound to this session."

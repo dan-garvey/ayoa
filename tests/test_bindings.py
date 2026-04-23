@@ -203,3 +203,14 @@ class TestPlayerCharactersBlock:
         ckpt = _make_checkpoint()
         block = build_player_characters_block(ckpt, "aldric")
         assert "Aldric" in block
+
+    def test_includes_character_id_annotation(self):
+        """The id is what the router needs in `roster_moves[].character_id`
+        when the actor moves themselves. Without it visible alongside the
+        name, the router has no scaffolded id for player characters (NPCs
+        get one in the registry; players don't appear there)."""
+        ckpt = _make_checkpoint()
+        ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
+        block = build_player_characters_block(ckpt, "aldric")
+        assert "(id: aldric)" in block
+        assert "(id: sera)" in block

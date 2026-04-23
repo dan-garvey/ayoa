@@ -22,7 +22,7 @@ def _canonical() -> CanonicalEvent:
             feasible=True,
             resolved_outcome="The player surveys the room.",
         ),
-        scene_delta=SceneDelta(time_advanced_seconds=0, new_scene_id=""),
+        scene_delta=SceneDelta(time_advanced_seconds=0),
         observable_facts=[],
     )
 

@@ -98,7 +98,7 @@ class CharacterAgent:
             **char_identity,
             **char_state,
             world_context=build_world_context(character, checkpoint),
-            scene_context=build_scene_context(checkpoint),
+            scene_context=build_scene_context(checkpoint, character.character_id),
             characters_present=build_characters_present(character, checkpoint),
             observed_facts=format_observed_facts(observed_facts),
             prior_character_responses=format_prior_responses(

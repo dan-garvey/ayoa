@@ -50,7 +50,7 @@ CANONICAL_EVENT_EXAMPLE = {
         "feasible": False,
         "resolved_outcome": "visible failed strain with no structural movement",
     },
-    "scene_delta": {"time_advanced_seconds": 6, "new_scene_id": ""},
+    "scene_delta": {"time_advanced_seconds": 6},
     "observable_facts": [
         "The user braces against the building.",
         "The building does not move.",
@@ -70,7 +70,7 @@ ROUTER_OUTPUT_EXAMPLE = {
             "feasible": False,
             "resolved_outcome": "You strain; the building does not move.",
         },
-        "scene_delta": {"time_advanced_seconds": 0, "new_scene_id": ""},
+        "scene_delta": {"time_advanced_seconds": 0},
         "observable_facts": [],
     },
     "requires_responders": False,

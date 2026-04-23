@@ -234,7 +234,7 @@ class TestLLMClientComplete:
                 "feasible": True,
                 "resolved_outcome": "door opens",
             },
-            "scene_delta": {"time_advanced_seconds": 2, "new_scene_id": ""},
+            "scene_delta": {"time_advanced_seconds": 2},
             "observable_facts": ["The door swings open."],
         })
         mock = _install_stream_mock(client, _make_mock_response("{}", parsed=event))
