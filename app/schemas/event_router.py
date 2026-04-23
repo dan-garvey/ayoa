@@ -92,8 +92,8 @@ class SceneCreation(BaseModel):
     the router creates it here rather than silently dropping the move.
 
     Applied by the orchestrator BEFORE any movement logic on the same
-    turn, so `scene_delta.new_scene_id`, `roster_moves.to_scene`, and
-    spawn seed locations may reference a scene this list introduces.
+    turn, so `roster_moves.to_scene` and spawn seed locations may
+    reference a scene this list introduces.
 
     Reverse edges are added automatically — if this scene connects to
     `hallway`, the orchestrator also adds this scene's id to

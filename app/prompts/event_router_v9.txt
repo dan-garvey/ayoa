@@ -556,7 +556,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "required_responders": ["character_id — Cat II only, else empty list"],
   "agent_responder_picks": ["character_id — NPCs the router wants to cascade next; humans never in this list; capped to max_responders"],
   "ends_beat": true or false,
-  "ends_beat_reason": "string — directed_at_player | scene_transition | state_change | cascade_exhausted | cat_ii_resolution | cat_ii_open | ambient_pause | (empty for free-form)"
+  "ends_beat_reason": "string — one of: directed_at_player | scene_transition | state_change | cascade_exhausted | cat_ii_resolution | ambient_pause. Emit empty string when none fits."
 }}
 
 <<<USER>>>

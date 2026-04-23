@@ -23,14 +23,22 @@ class PromptManager:
         """Find a template file by name (without version suffix or extension).
 
         Searches for files matching {template_name}_v*.txt and returns
-        the highest version.
+        the highest version. Sort key is the integer version, NOT
+        lexicographic — so v10 beats v9 once we cross that boundary.
         """
         pattern = f"{template_name}_v*.txt"
-        matches = sorted(self.prompts_dir.glob(pattern))
+        matches = list(self.prompts_dir.glob(pattern))
         if not matches:
             raise FileNotFoundError(
                 f"No template found matching '{pattern}' in {self.prompts_dir}"
             )
+        version_re = re.compile(r"_v(\d+)$")
+
+        def _version_key(p: Path) -> int:
+            m = version_re.search(p.stem)
+            return int(m.group(1)) if m else -1
+
+        matches.sort(key=_version_key)
         return matches[-1]  # highest version
 
     def _find_template_exact(self, template_name: str) -> Path:

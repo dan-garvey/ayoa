@@ -123,7 +123,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 
 {{
   "final_text": "string — the narrative passage the players read. Use proper paragraph breaks with \\n\\n between paragraphs.",
-  "world_updates": {{}},
   "transcript_entry": {{
     "user": "string — the player's original input for this turn",
     "assistant": "string — copy of final_text (this becomes the transcript record)"

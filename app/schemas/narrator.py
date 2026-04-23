@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class TranscriptEntry(BaseModel):
@@ -16,5 +14,4 @@ class NarratorFinalOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     final_text: str
-    world_updates: dict[str, Any] = Field(default_factory=dict)
     transcript_entry: TranscriptEntry

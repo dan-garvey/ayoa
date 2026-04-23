@@ -245,11 +245,11 @@ async def compose_pov_render(
     pinned responder's /act.
 
     Returns the FULL NarratorFinalOutput envelope (final_text +
-    transcript_entry + world_updates). Pre-r7f this returned only
-    final_text and transcript_entry was discarded — leaving
-    ckpt.transcript permanently empty and breaking /history. The
-    dispatcher / run_beat now propagate the envelope up to the
-    orchestrator which appends transcript_entry to ckpt.transcript.
+    transcript_entry). Pre-r7f this returned only final_text and
+    transcript_entry was discarded — leaving ckpt.transcript permanently
+    empty and breaking /history. The dispatcher / run_beat now propagate
+    the envelope up to the orchestrator which appends transcript_entry
+    to ckpt.transcript.
 
     Side-effect unchanged: appends the exchange into
     `ckpt.narrator_conversations[pov_character_id]` in-place — the

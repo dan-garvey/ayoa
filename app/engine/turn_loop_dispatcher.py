@@ -482,10 +482,10 @@ class LLMDispatcher:
         """Render per-POV prose via narrator.compose_pov_render.
 
         Returns the full NarratorFinalOutput envelope (final_text +
-        transcript_entry + world_updates) so run_beat can populate
-        ckpt.transcript via the parallel BeatResult.transcript_entries
-        map. Pre-r7f this returned only final_text and the transcript
-        was permanently empty.
+        transcript_entry) so run_beat can populate ckpt.transcript via
+        the parallel BeatResult.transcript_entries map. Pre-r7f this
+        returned only final_text and the transcript was permanently
+        empty.
 
         `partial_mode` defaults to True iff this character is currently
         pinned as a Cat II responder in any scene — the narrator renders

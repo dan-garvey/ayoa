@@ -32,7 +32,6 @@ class DebugPayload(BaseModel):
     # legacy key name, retained to keep downstream log consumers working.
     router_output: dict[str, Any] = Field(default_factory=dict)
     agent_outputs: list[dict[str, Any]] = Field(default_factory=list)
-    world_updates: dict[str, Any] = Field(default_factory=dict)
     latencies: list[PhaseLatency] = Field(default_factory=list)
     total_duration_ms: float = 0.0
     models_used: dict[str, str] = Field(default_factory=dict)

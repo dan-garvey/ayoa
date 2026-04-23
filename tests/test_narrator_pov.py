@@ -138,7 +138,6 @@ def _llm_response(final_text: str = "RENDERED") -> LLMResponse:
     `serialize_assistant_content` when the narrator appends history."""
     parsed = NarratorFinalOutput(
         final_text=final_text,
-        world_updates={},
         transcript_entry=TranscriptEntry(user="", assistant=final_text),
     )
     raw = MagicMock()

@@ -390,9 +390,6 @@ Produced by Narrator Phase 1.
 ```json
 {
   "final_text": "You plant both palms against the stone and drive upward until your arms shake. Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, one brow raised. \"Need a lever, not a miracle.\"",
-  "world_updates": {
-    "time_advanced_seconds": 6
-  },
   "transcript_entry": {
     "user": "I lift the building with my bare hands.",
     "assistant": "You plant both palms..."
@@ -496,8 +493,7 @@ Response in debug mode:
   "debug": {
     "canonical_event": {},
     "discriminator": {},
-    "agent_outputs": [],
-    "world_updates": {}
+    "agent_outputs": []
   }
 }
 ```

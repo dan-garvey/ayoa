@@ -731,7 +731,7 @@ class Dispatcher(Protocol):
         """Render this human's POV prose for the beat. Input: their
         buffered events since last render, observation levels tagged.
         Output: full NarratorFinalOutput envelope (final_text +
-        transcript_entry + world_updates) per narrator_phase2_v7.
+        transcript_entry).
 
         Returning the full envelope (rather than just final_text) lets
         run_beat propagate the per-POV transcript_entry up to the

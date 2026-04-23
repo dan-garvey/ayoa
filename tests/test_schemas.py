@@ -110,7 +110,6 @@ NARRATOR_FINAL_EXAMPLE = {
         'Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, '
         'one brow raised. "Need a lever, not a miracle."'
     ),
-    "world_updates": {"time_advanced_seconds": 6},
     "transcript_entry": {
         "user": "I lift the building with my bare hands.",
         "assistant": "You plant both palms...",
