@@ -35,6 +35,7 @@ from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import SessionState, WorldState
 
 
@@ -96,6 +97,7 @@ def _router_out(
             existing.add(p)
     return EventRouterOutput(
         event_id="",
+        decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="something",
@@ -147,9 +149,15 @@ class FakeDispatcher:
         self.agent_calls.append(kw)
         return self._agent_responses.pop(0)
 
-    async def narrator_compose(self, **kw) -> str:
+    async def narrator_compose(self, **kw) -> NarratorFinalOutput:
         self.narrator_calls.append(kw)
-        return self._narrator_response
+        return NarratorFinalOutput(
+            final_text=self._narrator_response,
+            transcript_entry=TranscriptEntry(
+                user="(test user)",
+                assistant=self._narrator_response,
+            ),
+        )
 
 
 # ---- r6a partial-mode + natural-prose tests --------------------------------
@@ -818,6 +826,7 @@ class TestPicksSubsetOfObservers:
         # observers = [alice]; picks = [alice, pip]; pip should be dropped.
         out = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="x",
@@ -872,6 +881,88 @@ class TestPinnedGuards:
         assert alice.status.value == "culled"
         # Pin released by purge.
         assert "alice" not in ckpt.session.active_act_slots.get("gatehouse", {})
+
+
+class TestFilterPicksForDispatch:
+    """v11-r7g: engine-level filter applied to agent_responder_picks
+    before dispatching agent_intend.
+
+    Two filters: (1) drop human-bound characters (humans only enter via
+    /act, never via cascade), (2) drop characters not currently in the
+    beat's scene (pre-r7g picks at other locations were dispatched and
+    routinely returned empty/refusal intentions, producing WARNING
+    noise; the playtest log showed `pip` and `nyx` at bell_of_arrivals
+    being picked while the player /act'd at archive_main_hall).
+    """
+
+    def _ckpt_with_chars(
+        self, chars: list[tuple[str, str]],
+        bindings: dict[str, str] | None = None,
+    ):
+        ckpt = _ckpt(bindings=bindings or {})
+        # Replace default character roster with our test set; relies on
+        # CharacterRecord defaults for everything but id/name/location.
+        ckpt.characters = [
+            CharacterRecord(
+                character_id=cid,
+                name=cid.title(),
+                location=loc,
+                is_player=cid in (bindings or {}),
+            )
+            for cid, loc in chars
+        ]
+        return ckpt
+
+    def test_in_scene_npc_passes_through(self):
+        from app.engine.turn_loop import _filter_picks_for_dispatch
+        ckpt = self._ckpt_with_chars(
+            [("alice", "gatehouse"), ("npc_a", "gatehouse")],
+            bindings={"alice": "1"},
+        )
+        assert _filter_picks_for_dispatch(
+            ckpt, "gatehouse", ["npc_a"],
+        ) == ["npc_a"]
+
+    def test_out_of_scene_npc_filtered(self):
+        from app.engine.turn_loop import _filter_picks_for_dispatch
+        ckpt = self._ckpt_with_chars(
+            [
+                ("alice", "gatehouse"),
+                ("npc_in", "gatehouse"),
+                ("npc_far", "bell_tower"),
+            ],
+            bindings={"alice": "1"},
+        )
+        # npc_far gets dropped; npc_in survives.
+        assert _filter_picks_for_dispatch(
+            ckpt, "gatehouse", ["npc_in", "npc_far"],
+        ) == ["npc_in"]
+
+    def test_human_pick_filtered_even_in_scene(self):
+        from app.engine.turn_loop import _filter_picks_for_dispatch
+        ckpt = self._ckpt_with_chars(
+            [("alice", "gatehouse"), ("bob", "gatehouse")],
+            bindings={"alice": "1", "bob": "2"},
+        )
+        # Both humans, both in scene — both filtered (cascade is NPC-only).
+        assert _filter_picks_for_dispatch(
+            ckpt, "gatehouse", ["alice", "bob"],
+        ) == []
+
+    def test_preserves_router_order(self):
+        from app.engine.turn_loop import _filter_picks_for_dispatch
+        ckpt = self._ckpt_with_chars(
+            [
+                ("alice", "gatehouse"),
+                ("npc_a", "gatehouse"),
+                ("npc_b", "gatehouse"),
+                ("npc_c", "gatehouse"),
+            ],
+            bindings={"alice": "1"},
+        )
+        assert _filter_picks_for_dispatch(
+            ckpt, "gatehouse", ["npc_c", "npc_a", "npc_b"],
+        ) == ["npc_c", "npc_a", "npc_b"]
 
 
 class TestAgentEmptyGuard:
@@ -969,6 +1060,7 @@ class TestParallelNarratorFanOut:
         # a non-empty render buffer.
         event = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="y",
@@ -1001,7 +1093,12 @@ class TestParallelNarratorFanOut:
                 # in ~0.1s.
                 await asyncio.sleep(0.1)
                 self.narrator_calls.append(kw)
-                return "RENDER"
+                return NarratorFinalOutput(
+                    final_text="RENDER",
+                    transcript_entry=TranscriptEntry(
+                        user="(test user)", assistant="RENDER",
+                    ),
+                )
 
         fake = SlowDispatcher()
 
@@ -1039,6 +1136,7 @@ class TestParallelNarratorFanOut:
         ckpt = _ckpt(bindings={"alice": "1"})
         event = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x", feasible=True, resolved_outcome="y",

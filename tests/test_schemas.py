@@ -63,6 +63,7 @@ CANONICAL_EVENT_EXAMPLE = {
 # emits explicit empty values; this example mirrors that contract.
 ROUTER_OUTPUT_EXAMPLE = {
     "event_id": "",
+    "decision_rationale": "(test fixture)",
     "canonical_event": {
         "world_adjudication": {
             "attempted_action": "lift the building",

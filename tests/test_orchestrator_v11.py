@@ -21,6 +21,7 @@ from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry, RosterMove
 from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import LocationState, SessionState, WorldState
 
@@ -101,6 +102,7 @@ def _router_out(
         ends_beat_reason = ""
     return EventRouterOutput(
         event_id="",
+        decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="something",
@@ -175,9 +177,15 @@ class FakeDispatcher:
         type(self).agent_calls.append(kw)
         return type(self)._agent_responses.pop(0)
 
-    async def narrator_compose(self, **kw) -> str:
+    async def narrator_compose(self, **kw) -> NarratorFinalOutput:
         type(self).narrator_calls.append(kw)
-        return type(self)._narrator_text
+        return NarratorFinalOutput(
+            final_text=type(self)._narrator_text,
+            transcript_entry=TranscriptEntry(
+                user="(test user)",
+                assistant=type(self)._narrator_text,
+            ),
+        )
 
 
 # ---- fixtures --------------------------------------------------------------
@@ -252,6 +260,13 @@ class TestHappyPath:
         assert len(saved.canonical_events) == 1
         # Scene slot released at beat end.
         assert "gatehouse" not in saved.session.active_act_slots
+        # v11-r7f: transcript was populated end-to-end. Pre-r7f this
+        # field was a write-never field; /history rendered "(no turns
+        # yet)" after every play session because the dispatcher
+        # discarded transcript_entry. Now the orchestrator picks the
+        # actor's POV and appends one entry per beat.
+        assert len(saved.transcript) == 1
+        assert saved.transcript[0].assistant == "POV_RENDER"
 
 
 class TestSlotRejection:

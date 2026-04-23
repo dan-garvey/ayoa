@@ -62,6 +62,45 @@ from app.schemas.responses import PhaseLatency, TurnResponse
 logger = logging.getLogger(__name__)
 
 
+def _append_transcript_entry(
+    ckpt: CheckpointFile,
+    beat_result: BeatResult,
+    preferred_actor_id: str,
+) -> None:
+    """v11-r7f: persist one POV's transcript entry to ckpt.transcript.
+
+    Why: ckpt.transcript was a write-never field for the entire v11
+    pipeline — pre-r7f the dispatcher returned only final_text from
+    narrator.compose_pov_render and dropped the structured envelope's
+    transcript_entry on the floor. /history rendered "(no turns yet)"
+    after every play session and engine_bridge's recent-session
+    summary stayed empty forever. Now that BeatResult carries a
+    {character_id: TranscriptEntry} map, pick one entry per beat as
+    the canonical session log line.
+
+    Selection: prefer the acting actor's POV (the player who /act'd
+    or whose Cat II is being adjudicated). Fall back to the first
+    available render. No-op when no human rendered (Cat II pending,
+    or beat-with-no-renderable-events) — ckpt.transcript stays at
+    its prior length.
+
+    Caveat: with multi-human play, only one POV's transcript_entry
+    enters the global log per beat. The others' POV prose still
+    lives in narrator_conversations[h] (their per-character rolling
+    history), so nothing is lost — the global log just becomes the
+    acting-player view. Multi-POV transcript layout is a separate
+    schema decision deferred until we actually ship multi-human.
+    """
+    entries = beat_result.transcript_entries
+    if not entries:
+        return
+    entry = entries.get(preferred_actor_id)
+    if entry is None:
+        # Fallback: first available POV's entry.
+        entry = next(iter(entries.values()))
+    ckpt.transcript.append(entry)
+
+
 def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
     """Grow the scene graph with router-created scenes.
 
@@ -249,6 +288,14 @@ class Orchestrator:
                     if evt.spawn:
                         await self.char_mgr.spawn_characters(ckpt, evt.spawn)
 
+            # v11-r7f: persist the acting POV's transcript entry so
+            # /history and the resume-display path see played turns.
+            # ckpt.transcript is single-list session-global; with
+            # multi-POV the other POVs' entries still live in
+            # narrator_conversations[h] but we pick one canonical
+            # speaker for the user-facing log.
+            _append_transcript_entry(ckpt, beat_result, acting_id)
+
             # 7. Save. run_beat has already mutated active_act_slots,
             # open_cat_ii_events, render_buffers, canonical_events, and
             # (through the dispatcher) narrator_conversations.
@@ -349,6 +396,7 @@ class Orchestrator:
                 beat_result = BeatResult(
                     renders={}, events_closed=0,
                     ended_reason="cat_ii_pending",
+                    transcript_entries={},
                 )
 
             # Apply side-effects for each newly closed event.
@@ -365,6 +413,12 @@ class Orchestrator:
 
             if beat_result.events_closed > 0:
                 ckpt.session.turn_index += 1
+
+            # v11-r7f: persist transcript entry for Cat II resolution
+            # too — initiator's POV is the canonical speaker for the
+            # adjudicated event.
+            _append_transcript_entry(ckpt, beat_result, evt.initiator_id)
+
             self.checkpoint_mgr.save(ckpt)
 
         renders = dict(beat_result.renders)

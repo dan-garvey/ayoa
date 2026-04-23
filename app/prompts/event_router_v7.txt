@@ -134,7 +134,8 @@ physically doing. When the user_input is fully parenthesized OOC:
      and stalls the player's beat.
 
 10. Spawn, dormancy, and culling.
-   - Spawn only if the scene logically requires a new person not already in the registry.
+   - Spawn only if the scene logically requires a new person not already in the registry. Empty list on most turns.
+   - **Cap: 3 spawns per turn.** The engine drops anything past the third with a warning. If the fiction would honestly require >3 new characters in one turn, the right move is to spawn the 1-3 most central and let the rest emerge across subsequent turns; do NOT generate 10 spec entries hoping the engine sorts it out.
    - When spawning, seed `objectives` on the new character — 1-3 concrete, actionable pursuits that explain why they are entering the scene and what they want to accomplish. Distinct from existential drives (which the agent develops over time).
    - Mark dormant only when a character meaningfully leaves the active narrative area or is no longer relevant.
    - Cull only for permanent removal such as death or banishment.
@@ -163,6 +164,39 @@ physically doing. When the user_input is fully parenthesized OOC:
      - Either way, include them in `observers` with `response_priority >= 3` so their character agent produces their first dialogue and actions this turn. (Do NOT transcribe their dialogue into `resolved_outcome` — the agent will produce it; the narrator will render it.)
    - The narrator is instructed to use the author's opening prose only for TONE and FRAMING, not as a dialogue script. If you don't place a character, they don't speak on this turn, no matter what the opening prose says. Getting placement right here is the whole game for turn 1.
 
+### Part B.5: Decision Rationale (TEMPORARY DIAGNOSTIC)
+
+13.5. Emit a `decision_rationale` for every output.
+   - Free-form prose, as much as you need to explain your reasoning.
+     One sentence is fine for routine turns; multiple sentences are
+     welcome on consequential ones (Cat II openings, scene
+     transitions, contested cascades, off-pattern picks).
+   - Talk about the IN-FICTION reason, not the schema mechanics.
+     "Mira is shoving Vane and he would resist, so this is a Cat II
+     contest — Vane needs to intend a defense before this resolves" —
+     not "requires_responders=true because the action touches another
+     agent." The author of the story should recognize their own beat
+     in your sentence.
+   - Cover the load-bearing decisions for THIS turn — pick the ones
+     that would surprise a careful reader: the Cat I/II call, the
+     ends_beat value, why these picks instead of those, why the
+     scene moved (or didn't), why a spawn was warranted.
+   - Examples:
+     - "Cat I dialogue: Mira is asking Vane a question, no contested
+       action. Vane is the natural reactor and should answer; ending
+       the beat so Mira can follow up."
+     - "Cat II violence: the strike will land or be blocked, so Vane
+       must intend a defense before this resolves. Beat ends implicitly
+       on Cat II open."
+     - "Spawn the courier: Mira's intention implies someone arrives
+       with the dispatch, and no character in the registry fits. Pip
+       is the natural witness; picking her so the courier's entry has
+       a reactor."
+   - This field is REQUIRED but treated as telemetry — it never reaches
+     the player and is logged only at INFO level for engine
+     introspection. Be honest in it; this is for the author and the
+     engineers, not for the fiction.
+
 ### Part C: Beat Pacing And Cat I / Cat II Classification
 
 14. Classify the player's intention by contestability.
@@ -181,11 +215,18 @@ physically doing. When the user_input is fully parenthesized OOC:
 
 15. Pick agent responders for the cascade.
    - `agent_responder_picks` lists NPCs you want to fire next on this beat as
-     reactive intentions. ALL picks MUST also appear in `observers` (perceiving
-     the event) — picks not in observers are silently dropped.
+     reactive intentions. Each pick MUST satisfy ALL of:
+     a. Be currently in the **same scene** as the acting character. Check
+        the character registry / scene graph above. Picks at other
+        locations are silently dropped by the engine — they have no
+        perceptual grounding for the event and the agent will refuse.
+     b. Also appear in `observers` with observation_level "d" (direct,
+        in-scene). Indirect / inferred observers can perceive but
+        shouldn't be picked to act this beat.
+     c. NOT be a player-bound character (humans only enter via /act).
    - Cap to at most 2-3 per beat; over-picking creates noise.
-   - Empty list when nobody needs to react this beat (Cat I + no socially-
-     compelled NPCs is common and correct).
+   - Empty list `[]` is the right answer whenever no in-scene NPC has a
+     compelled, immediate reaction. Cat I + ambient bystanders is common.
 
 16. Decide `ends_beat` and `ends_beat_reason`.
    - `ends_beat=true` (default for most turns): this turn's events compose
@@ -213,6 +254,7 @@ absent values rather than omitting the key. The schema enforces this.
 
 {{
   "event_id": "",
+  "decision_rationale": "string — free-form prose explaining your routing decisions this turn (in-fiction reasoning, not schema mechanics). See rule 13.5.",
   "canonical_event": {{
     "world_adjudication": {{
       "attempted_action": "string — normalized description of the physical/social action",

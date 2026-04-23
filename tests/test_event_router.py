@@ -90,6 +90,7 @@ def sample_checkpoint():
 def sample_router_output():
     return EventRouterOutput(
         event_id="",
+        decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="Player surveys the courtyard",

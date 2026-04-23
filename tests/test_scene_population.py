@@ -89,6 +89,7 @@ class TestPlayerLocationFollowsScene:
 
         merged = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="go to the garden",
@@ -144,6 +145,7 @@ class TestPlayerLocationFollowsScene:
 
         merged = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="teleport",

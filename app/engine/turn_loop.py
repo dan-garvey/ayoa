@@ -90,6 +90,7 @@ def _is_agent_refusal(text: str) -> bool:
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
 
 logger = logging.getLogger(__name__)
@@ -548,6 +549,87 @@ def humans_in_scene(ckpt: CheckpointFile, scene_id: str) -> list[str]:
     ]
 
 
+def _scene_member_ids(ckpt: CheckpointFile, scene_id: str) -> set[str]:
+    """v11-r7g: set of character_ids currently in `scene_id`, used to
+    filter the router's agent_responder_picks before dispatch.
+
+    Pre-r7g the engine accepted any pick the router emitted; the
+    router's prompt asked for in-scene picks but didn't enforce it,
+    and the playtest log showed routine over-reaches: Mira /act'd at
+    archive_main_hall, the router picked `pip` and `nyx` (both at
+    bell_of_arrivals), agent_intend() returned empty/refusal because
+    they had nothing to react to, and the engine logged a warning per
+    pick. Same root cause as the spawn-cap (router over-eager) but
+    cheaper to fix at the engine boundary because the pick set is
+    small and the location data is local.
+
+    Set rather than list because membership tests dominate the call
+    site (filter comprehension); with ~20-character rosters either
+    is fine but set documents intent.
+    """
+    return {
+        c.character_id for c in ckpt.characters if c.location == scene_id
+    }
+
+
+def _log_router_rationale(
+    result: EventRouterOutput, actor_id: str, scene_id: str,
+    *, kind: str = "route",
+) -> None:
+    """v11-r7g (TEMPORARY DIAGNOSTIC): surface the router's one-sentence
+    rationale at INFO so playtest logs show "why" alongside "what".
+
+    The decision_rationale field on EventRouterOutput is a temporary
+    addition to solidify v11 prompt engineering. We log it here from
+    every route_intention site (Cat I, Cat II open, Cat II resolve)
+    rather than scattering log calls inline. Remove this helper, the
+    schema field, the prompt rule, and every call to it together when
+    the diagnostic is no longer worth the per-turn token cost.
+
+    `kind` distinguishes the routing context — "route" (normal Cat I
+    / Cat II open call), "cat_ii_resolve" (final adjudication of a
+    closed Cat II), so log readers can tell them apart.
+    """
+    rationale = (result.decision_rationale or "").strip()
+    if not rationale:
+        rationale = "(no rationale emitted)"
+    logger.info(
+        "router[%s] actor=%s scene=%s cat=%s ends_beat=%s reason=%r picks=%s :: %s",
+        kind, actor_id, scene_id,
+        "II" if result.requires_responders else "I",
+        result.ends_beat, result.ends_beat_reason,
+        result.agent_responder_picks, rationale,
+    )
+
+
+def _filter_picks_for_dispatch(
+    ckpt: CheckpointFile,
+    scene_id: str,
+    picks: list[str],
+) -> list[str]:
+    """v11-r7g: drop picks the engine refuses to dispatch.
+
+    Two filters, in order:
+      1. Humans (anyone in `character_bindings`) — humans don't cascade
+         via the router; they only enter through /act. Pre-r7g this
+         was the only filter applied at dispatch sites.
+      2. Out-of-scene NPCs — picks must be in the beat's scene to
+         have any perceptual context to react to. Out-of-scene picks
+         routinely produced empty/refusal intentions in the playtest;
+         filtering at the engine boundary saves an LLM call AND
+         removes the WARNING noise pre-r7g produced for legitimate
+         router over-reach.
+
+    Returns the filtered list preserving router order.
+    """
+    bindings = ckpt.session.character_bindings or {}
+    in_scene = _scene_member_ids(ckpt, scene_id)
+    return [
+        rid for rid in picks
+        if rid not in bindings and rid in in_scene
+    ]
+
+
 def broadcast_event(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
@@ -640,10 +722,18 @@ class Dispatcher(Protocol):
         character_id: str,
         buffered_events: list[RenderBufferEntry],
         partial_mode_override: bool | None = None,
-    ) -> str:
+    ) -> NarratorFinalOutput:
         """Render this human's POV prose for the beat. Input: their
         buffered events since last render, observation levels tagged.
-        Output: second-person prose per narrator_phase2_v7.
+        Output: full NarratorFinalOutput envelope (final_text +
+        transcript_entry + world_updates) per narrator_phase2_v7.
+
+        Returning the full envelope (rather than just final_text) lets
+        run_beat propagate the per-POV transcript_entry up to the
+        orchestrator, which appends to ckpt.transcript so /history and
+        the resume-display path see the actual played turns. Pre-r7f
+        the dispatcher discarded everything but final_text and
+        ckpt.transcript stayed empty forever.
 
         `partial_mode_override`, when not None, wins over the dispatcher's
         default slot-scan detection — the v11-r6a Cat II-open render path
@@ -682,6 +772,10 @@ def _build_open_attempt_event(
     from app.engine.turn_loop_contracts import format_open_attempt_outcome
     return EventRouterOutput(
         event_id="",  # _assign_event_id validator mints a fresh one
+        decision_rationale=(
+            "Synthetic open-attempt event for Cat II partial-mode "
+            "render; no LLM call was made for this routing."
+        ),
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action=initiator_intention,
@@ -713,10 +807,18 @@ def _build_open_attempt_event(
 class BeatResult:
     """Summary of a single beat's run, returned to the orchestrator for
     delivery. `renders` is keyed by character_id; orchestrator posts each
-    to that player's delivery channel (thread / ephemeral / DM)."""
+    to that player's delivery channel (thread / ephemeral / DM).
+
+    `transcript_entries` is the parallel per-POV TranscriptEntry from
+    each narrator render — orchestrator picks the acting player's entry
+    (or first available) and appends to ckpt.transcript so /history and
+    resume-display see the actual played turns. Empty when no human
+    rendered this beat (Cat II pending, or beat-with-no-renderable-events).
+    """
     renders: dict[str, str]
     events_closed: int
     ended_reason: str  # "ends_beat" | "max_events_cap" | "cat_ii_pending" | ...
+    transcript_entries: dict[str, TranscriptEntry]
 
 
 async def run_beat(
@@ -756,6 +858,7 @@ async def run_beat(
             # Event already gone — race condition. Treat as no-op.
             return BeatResult(
                 renders={}, events_closed=0, ended_reason="cat_ii_stale",
+                transcript_entries={},
             )
         # Free this specific character's slot — others may still be pinned.
         release_character_slot(ckpt, scene_id, actor_id)
@@ -765,6 +868,7 @@ async def run_beat(
                 renders={},
                 events_closed=0,
                 ended_reason="cat_ii_pending",
+                transcript_entries={},
             )
         # All responders in — adjudicate.
         # Use evt.scene_id (where the event opened) rather than the
@@ -779,6 +883,9 @@ async def run_beat(
             intention=evt.initiator_intention,
             scene_id=resolution_scene,
             cat_ii_event=evt,
+        )
+        _log_router_rationale(
+            resolved, evt.initiator_id, resolution_scene, kind="cat_ii_resolve",
         )
         close_cat_ii(ckpt, evt.event_id)
         # Defensive guard: if the router's resolution call ever returns
@@ -814,6 +921,7 @@ async def run_beat(
             scene_id=scene_id,
             cat_ii_event=None,
         )
+        _log_router_rationale(result, current_actor, scene_id, kind="route")
 
         if result.requires_responders:
             # Cat II: open the event, pin humans, request agent
@@ -846,11 +954,11 @@ async def run_beat(
                     )
                 # Keep cascading via picks — reuse the normal path by
                 # letting the loop iterate. Break out of the inner if
-                # and continue.
-                picks = [
-                    rid for rid in result.agent_responder_picks
-                    if rid not in (ckpt.session.character_bindings or {})
-                ]
+                # and continue. v11-r7g: filter humans + out-of-scene
+                # in one helper.
+                picks = _filter_picks_for_dispatch(
+                    ckpt, scene_id, result.agent_responder_picks,
+                )
                 if not picks:
                     return await _end_beat(
                         ckpt, dispatcher, scene_id,
@@ -899,6 +1007,10 @@ async def run_beat(
                     intention=evt.initiator_intention,
                     scene_id=scene_id,
                     cat_ii_event=evt,
+                )
+                _log_router_rationale(
+                    resolved, evt.initiator_id, scene_id,
+                    kind="cat_ii_resolve_inline",
                 )
                 close_cat_ii(ckpt, evt.event_id)
                 if resolved.requires_responders:
@@ -975,11 +1087,13 @@ async def run_beat(
             )
 
         # Pick the next actor for the cascade. Agents only — humans
-        # don't continue a beat unless they /act fresh.
-        picks = [
-            rid for rid in result.agent_responder_picks
-            if rid not in (ckpt.session.character_bindings or {})
-        ]
+        # don't continue a beat unless they /act fresh. v11-r7g:
+        # also filter out-of-scene picks (the router routinely
+        # over-reaches to NPCs at other locations who then return
+        # empty/refusal intentions).
+        picks = _filter_picks_for_dispatch(
+            ckpt, scene_id, result.agent_responder_picks,
+        )
         if not picks:
             # Router signaled continue but gave no pick — treat as
             # cascade_exhausted and end beat.
@@ -1049,6 +1163,7 @@ async def _end_beat(
       who aren't participants in the open event.
     """
     renders: dict[str, str] = {}
+    transcript_entries: dict[str, TranscriptEntry] = {}
     candidates = humans_in_scene(ckpt, scene_id)
     if render_only is not None:
         candidates = [h for h in candidates if h in render_only]
@@ -1068,20 +1183,22 @@ async def _end_beat(
 
     async def _render_one(
         h: str, buf: list[RenderBufferEntry],
-    ) -> tuple[str, str]:
-        prose = await dispatcher.narrator_compose(
+    ) -> tuple[str, NarratorFinalOutput]:
+        envelope = await dispatcher.narrator_compose(
             ckpt=ckpt,
             character_id=h,
             buffered_events=buf,
             partial_mode_override=partial_override,
         )
-        return h, prose
+        return h, envelope
 
     if targets:
         results = await asyncio.gather(
             *(_render_one(h, buf) for h, buf in targets)
         )
-        renders = dict(results)
+        for h, envelope in results:
+            renders[h] = envelope.final_text
+            transcript_entries[h] = envelope.transcript_entry
 
     if release_slots:
         release_scene_slots(ckpt, scene_id)
@@ -1093,6 +1210,7 @@ async def _end_beat(
     )
     return BeatResult(
         renders=renders, events_closed=events_closed, ended_reason=ended_reason,
+        transcript_entries=transcript_entries,
     )
 
 

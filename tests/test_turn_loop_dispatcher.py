@@ -27,6 +27,7 @@ from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
     LocationState,
     OpenCatIIEvent,
@@ -82,6 +83,7 @@ def _router_output() -> EventRouterOutput:
     """A minimal valid EventRouterOutput for the mocked LLM response."""
     return EventRouterOutput(
         event_id="",
+        decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="x",
@@ -396,7 +398,10 @@ class TestNarratorCompose:
         ):
             recorded["partial_mode"] = partial_mode
             recorded["pov"] = pov_character_id
-            return "RENDERED"
+            return NarratorFinalOutput(
+                final_text="RENDERED",
+                transcript_entry=TranscriptEntry(user="(test)", assistant="RENDERED"),
+            )
 
         monkeypatch.setattr(
             narrator_module, "compose_pov_render",
@@ -408,7 +413,7 @@ class TestNarratorCompose:
             ckpt=ckpt, character_id="alice",
             buffered_events=[RenderBufferEntry(event_id="e1")],
         ))
-        assert out == "RENDERED"
+        assert out.final_text == "RENDERED"
         assert recorded["partial_mode"] is True
         assert recorded["pov"] == "alice"
 
@@ -425,7 +430,10 @@ class TestNarratorCompose:
             buffered_events, partial_mode,
         ):
             recorded["partial_mode"] = partial_mode
-            return "RENDERED"
+            return NarratorFinalOutput(
+                final_text="RENDERED",
+                transcript_entry=TranscriptEntry(user="(test)", assistant="RENDERED"),
+            )
 
         monkeypatch.setattr(
             narrator_module, "compose_pov_render",
@@ -454,7 +462,10 @@ class TestNarratorCompose:
             buffered_events, partial_mode,
         ):
             recorded["partial_mode"] = partial_mode
-            return "RENDERED"
+            return NarratorFinalOutput(
+                final_text="RENDERED",
+                transcript_entry=TranscriptEntry(user="(test)", assistant="RENDERED"),
+            )
 
         monkeypatch.setattr(
             narrator_module, "compose_pov_render",

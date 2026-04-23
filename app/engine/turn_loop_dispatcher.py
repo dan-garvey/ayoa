@@ -34,6 +34,7 @@ from app.engine.turn_loop_contracts import (
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -459,8 +460,14 @@ class LLMDispatcher:
         character_id: str,
         buffered_events: list[RenderBufferEntry],
         partial_mode_override: bool | None = None,
-    ) -> str:
+    ) -> NarratorFinalOutput:
         """Render per-POV prose via narrator.compose_pov_render.
+
+        Returns the full NarratorFinalOutput envelope (final_text +
+        transcript_entry + world_updates) so run_beat can populate
+        ckpt.transcript via the parallel BeatResult.transcript_entries
+        map. Pre-r7f this returned only final_text and the transcript
+        was permanently empty.
 
         `partial_mode` defaults to True iff this character is currently
         pinned as a Cat II responder in any scene — the narrator renders
@@ -475,7 +482,7 @@ class LLMDispatcher:
         else:
             partial_mode = _is_pinned_as_cat_ii_responder(ckpt, character_id)
 
-        final_text = await narrator_module.compose_pov_render(
+        envelope = await narrator_module.compose_pov_render(
             client=self.client,
             prompt_mgr=self.prompt_mgr,
             ckpt=ckpt,
@@ -483,7 +490,7 @@ class LLMDispatcher:
             buffered_events=buffered_events,
             partial_mode=partial_mode,
         )
-        return final_text
+        return envelope
 
 
 def _is_pinned_as_cat_ii_responder(

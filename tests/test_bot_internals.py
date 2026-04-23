@@ -404,6 +404,7 @@ class TestApplyRosterUpdatesPurgesCulled:
 
         routed = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="x",

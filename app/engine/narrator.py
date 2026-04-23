@@ -24,7 +24,7 @@ from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.narrator import NarratorFinalOutput
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -220,7 +220,7 @@ async def compose_pov_render(
     pov_character_id: str,
     buffered_events: list[RenderBufferEntry],
     partial_mode: bool,
-) -> str:
+) -> NarratorFinalOutput:
     """v11 per-POV narrator entry point.
 
     Renders the beat from `pov_character_id`'s point of view in
@@ -236,7 +236,14 @@ async def compose_pov_render(
     fires; the rendered passage then ends mid-attempt to prompt the
     pinned responder's /act.
 
-    Returns the final prose string. Appends the exchange into
+    Returns the FULL NarratorFinalOutput envelope (final_text +
+    transcript_entry + world_updates). Pre-r7f this returned only
+    final_text and transcript_entry was discarded — leaving
+    ckpt.transcript permanently empty and breaking /history. The
+    dispatcher / run_beat now propagate the envelope up to the
+    orchestrator which appends transcript_entry to ckpt.transcript.
+
+    Side-effect unchanged: appends the exchange into
     `ckpt.narrator_conversations[pov_character_id]` in-place — the
     caller is responsible for saving the checkpoint.
     """
@@ -340,4 +347,13 @@ async def compose_pov_render(
         "compose_pov_render: pov=%s rendered %d chars",
         pov_character_id, len(final_text),
     )
-    return final_text
+    # Defensive fallback when the SDK gives us no parsed envelope (the
+    # `result is None` branch above) — synthesize an empty one rather
+    # than crash run_beat. In practice this never fires; the schema is
+    # required and the caller would have raised on the parse error.
+    if result is None:
+        return NarratorFinalOutput(
+            final_text="",
+            transcript_entry=TranscriptEntry(user="", assistant=""),
+        )
+    return result

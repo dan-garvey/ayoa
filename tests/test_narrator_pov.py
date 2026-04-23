@@ -79,6 +79,7 @@ def _ckpt() -> CheckpointFile:
     # Seed two canonical events into the log.
     ev1 = EventRouterOutput(
         event_id="evt_alpha",
+        decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="Alice looks around",
@@ -104,6 +105,7 @@ def _ckpt() -> CheckpointFile:
     )
     ev2 = EventRouterOutput(
         event_id="evt_beta",
+        decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
                 attempted_action="Pip nods at Alice",
@@ -191,7 +193,11 @@ class TestComposePovRender:
             partial_mode=False,
         )
 
-        assert result == "RENDERED"
+        # v11-r7f: compose_pov_render now returns the full envelope
+        # rather than just final_text — the dispatcher / run_beat /
+        # orchestrator chain needs the transcript_entry for /history.
+        assert isinstance(result, NarratorFinalOutput)
+        assert result.final_text == "RENDERED"
         # Per-POV history grew by exactly one exchange (user + assistant).
         alice_hist = ckpt.narrator_conversations["alice"]
         assert len(alice_hist) == 2
@@ -304,7 +310,7 @@ class TestComposePovRender:
                 partial_mode=False,
             )
 
-        assert result == "RENDERED"
+        assert result.final_text == "RENDERED"
         # The missing id should appear in a warn log.
         assert any("evt_ghost" in rec.message for rec in caplog.records)
         # And the real event should still have been rendered.

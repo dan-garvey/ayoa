@@ -106,6 +106,7 @@ class TestCharacterManager:
         mgr = CharacterManager()
         routed = EventRouterOutput(
             event_id="",
+            decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="wait", feasible=True, resolved_outcome="",
