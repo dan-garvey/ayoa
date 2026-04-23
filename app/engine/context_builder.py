@@ -377,11 +377,14 @@ def clear_character_inbox(character: CharacterRecord) -> None:
     its own structured message envelope (`from_character_id`, `turn`,
     `depth`) and a delegation-chain depth cap. That whole inter-agent
     message bus is gone — cross-character communication now flows
-    through normal scene prose: a courier walks into the scene and
-    speaks, a note appears in `observable_facts`, an offstage tick
-    posts a single exchange in its own location. This helper retains
-    the name `clear_character_inbox` so callers don't churn, but its
-    job is now scoped to the one remaining queue.
+    through normal canonical events: the router authors a courier
+    walking in, a note that lands in `observable_facts`, etc.
+    `pending_observations` is the surviving queue, but in practice it
+    is mostly empty in v11 because nothing in `app/engine/` currently
+    appends to it (Commit 5's tick wiring will re-establish a
+    population path). This helper retains the name
+    `clear_character_inbox` so callers don't churn, but its job is now
+    scoped to the one remaining queue.
     """
     character.pending_observations = []
 

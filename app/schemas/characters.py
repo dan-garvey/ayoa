@@ -27,8 +27,14 @@ class PrivateState(BaseModel):
     # from character nature/personality. Rarely changes during play.
     goals: list[str] = Field(default_factory=list)
     # Actionable pursuits — what this character is trying to DO right now.
-    # Agent-authoritative: each response emits a full replacement list.
-    # Importer seeds 1-3 arc-level objectives per character at import time.
+    # Importer seeds 1-3 arc-level objectives per character at import
+    # time. PRE-Commit-1 the agent's structured output rewrote this list
+    # every turn (`private_updates.current_objectives`); Commit 1 dropped
+    # structured agent output entirely, so this field is now author-time
+    # state only — it seeds the agent's identity prompt and is otherwise
+    # immutable during play. Live mutation of an agent's "what I'm
+    # trying to do" lives in their rolling conversation history (the
+    # trailing parenthetical on every response carries fresh intent).
     current_objectives: list[str] = Field(default_factory=list)
     secrets: list[str] = Field(default_factory=list)
     # Flag for "this character is significant enough to tick off-screen."
@@ -53,9 +59,14 @@ class CharacterRecord(BaseModel):
     # they didn't respond). Flushed into the next agent user message when the
     # character is asked to respond, then cleared. Commit 2 removed the
     # parallel `incoming_directives` queue: cross-character communication
-    # now travels through normal scene prose (a courier walks in and
-    # speaks; a note is rendered in observable_facts) rather than a
-    # structured inter-agent message bus.
+    # now travels through normal canonical events (a courier walks in and
+    # speaks; a note is rendered in `observable_facts` and the recipient
+    # is added to that event's `observers`) rather than a structured
+    # inter-agent message bus. NOTE: in current v11 production no engine
+    # code path appends to this list — it is kept as the surviving
+    # narrow channel for "things this character privately observed but
+    # nobody else did" and Commit 5's tick wiring will re-establish a
+    # population path.
     pending_observations: list[str] = Field(default_factory=list)
     # Long-form text fields for rich character content. `personality`
     # now absorbs what used to live in `narrative_notes` + traits/voice

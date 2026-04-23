@@ -104,7 +104,7 @@ class EventRouter:
             opening_directive = (
                 "## Author's Opening Scene Guidance\n"
                 "This is the first turn. Read the passage below and apply "
-                "rule 13: any character the opening names as present in the "
+                "rule 14: any character the opening names as present in the "
                 "starting scene must be placed via `roster_moves` or `spawn` "
                 "and listed in `observers` with priority ≥ 3 so their agent "
                 "produces dialogue. The narrator will NOT transcribe dialogue "

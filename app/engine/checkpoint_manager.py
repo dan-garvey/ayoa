@@ -117,6 +117,25 @@ class CheckpointManager:
                 f"/story start on a fresh session to continue."
             )
 
+        # Commit-2 deprecation guard: pre-Commit-2 saves persisted
+        # `incoming_directives` on every CharacterRecord. The field is
+        # gone and Pydantic v2's default is to silently drop unknown
+        # keys (CharacterRecord doesn't enforce extra="forbid"). That's
+        # the desired behavior for forward-compat — but if a save
+        # actually had queued messages, those messages disappear without
+        # a trace, which can leave mid-arc threads dangling. Detect and
+        # log so the operator at least sees the loss.
+        for c in data.get("characters", []) or []:
+            queued = c.get("incoming_directives") or []
+            if queued:
+                logger.warning(
+                    "Checkpoint %s: dropping %d legacy incoming_directives "
+                    "from character %s on load (Commit 2 removed the "
+                    "inter-character message queue). The narrative may "
+                    "lose threads that depended on these messages flushing.",
+                    path.name, len(queued), c.get("character_id", "<unknown>"),
+                )
+
         try:
             return CheckpointFile.model_validate(data)
         except Exception as e:
