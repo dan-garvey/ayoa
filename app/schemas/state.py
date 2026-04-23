@@ -87,12 +87,34 @@ class SessionSettings(BaseModel):
     max_responders: int = 3
     # Concurrency cap for the off-stage tick pass. Ticks are independent
     # so the only cost of raising this is API rate usage; lowering
-    # trades latency for safety on small quotas.
+    # trades latency for safety on small quotas. Hard-capped engine-side
+    # by `app.engine.orchestrator.TICK_CONCURRENCY_HARD_CAP` regardless
+    # of what's configured here.
     tick_concurrency: int = 4
+    # Commit 5: minimum turns between tick-fires triggered by scene
+    # change. Without this guard, hopping between two adjacent scenes
+    # (very common in early play) would fire a tick on every turn and
+    # blow the per-turn API budget. Counted from the LAST tick fire,
+    # not from the last scene change. Cooperates with `ticks_on_scene_change`:
+    # if that toggle is False, this field is unused. 5 is the v11
+    # default — small enough to keep NPCs feeling responsive when the
+    # player advances, large enough that quick back-and-forth scenes
+    # don't trigger a fan-out per turn.
+    tick_scene_change_cooldown: int = 5
+    # Commit 5: hard ceiling on consecutive turns with NO tick fire.
+    # Even if the player camps in one scene and never triggers the
+    # scene-change branch, the world should still advance off-screen
+    # after this many turns. Acts as the "world keeps moving" floor
+    # so the antagonist's plot doesn't go to sleep just because the
+    # player stays in the courtyard. 15 is the v11 default — long
+    # enough that idle turns don't burn the budget, short enough that
+    # camping doesn't make the world feel frozen.
+    tick_stagnation_max: int = 15
     # When True, the tick pass also fires on scene change (in addition to
-    # the cadence counter). Scene changes happen frequently in play, so
-    # this doubles the tick budget in practice. Default True to preserve
-    # the old behavior; flip off to save tokens during playtesting.
+    # the stagnation counter). Scene changes happen frequently in play,
+    # so even with the cooldown above this is the primary tick driver.
+    # Default True; flip off to disable scene-change ticks entirely
+    # (stagnation-only) for token-budget experiments.
     ticks_on_scene_change: bool = True
     # v11: hard cap on how many canonical events the router may chain
     # inside a single beat before the orchestrator forces render + slot
@@ -134,12 +156,25 @@ class SessionState(BaseModel):
     # the JSON is stable across the int-sized Discord ids). A character with
     # no entry here is AI-driven. Updated by /join, /leave, and /story start.
     character_bindings: dict[str, str] = Field(default_factory=dict)
-    # Off-stage tick scheduler state. Counter increments each player turn
-    # and fires a tick pass when it hits tick_cadence OR on scene change
-    # (whichever comes first). Both cases reset the counter.
+    # Off-stage tick scheduler state.
+    #
+    # Commit 5 (v11) replaced the old cadence counter with a turns-since-
+    # last-tick counter that the scheduler resets only on a real fire.
+    # Trigger model lives in `Orchestrator._run_ticks`; settings are on
+    # `SessionSettings.tick_scene_change_cooldown` (gates scene-change
+    # fires) and `tick_stagnation_max` (forces a fire after N idle
+    # turns). `tick_last_scene_id` still tracks the actor's previous
+    # post-beat scene so the scheduler can detect a change.
+    turns_since_last_tick: int = 0
+    tick_last_scene_id: str = ""
+    # DEPRECATED (Commit 5): pre-v11 cadence-based tick scheduler.
+    # `tick_turn_counter` is no longer incremented; `tick_cadence` is
+    # no longer read. Kept on the schema for one release so old saves
+    # written before Commit 5 round-trip cleanly and `/inspect` doesn't
+    # show a missing field. Safe to drop in a future migration once
+    # no live save references them.
     tick_turn_counter: int = 0
     tick_cadence: int = 10
-    tick_last_scene_id: str = ""
     # One-slot rolling buffer for the router's missing-narrator-context
     # problem. A Haiku summarizer produces a terse delta note at end of
     # turn N describing what the narrator rendered that the router

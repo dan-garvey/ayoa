@@ -30,8 +30,10 @@ Helpers kept from v8:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
+from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.prompt_manager import PromptManager
@@ -54,12 +56,22 @@ from app.llm.client import LLMClient
 # adapter module directly. Hard import now that the Dispatcher has
 # landed — a missing module is a real packaging error.
 from app.engine.turn_loop_dispatcher import LLMDispatcher
+from app.schemas.agents import CharacterAgentOutput
+from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import PhaseLatency, TurnResponse
 
 logger = logging.getLogger(__name__)
+
+
+# Commit 5: hard ceiling on background-tick concurrency, regardless of
+# what `SessionSettings.tick_concurrency` is configured to. Sized for
+# Anthropic's per-minute API limits on Haiku — a hollowstone-sized
+# roster (~12 NPCs) all eligible at once would still fan out under
+# this. Raise only after measuring rate-limit headroom.
+TICK_CONCURRENCY_HARD_CAP = 16
 
 
 def _append_transcript_entry(
@@ -310,9 +322,33 @@ class Orchestrator:
             # speaker for the user-facing log.
             _append_transcript_entry(ckpt, beat_result, acting_id)
 
+            # 6.5. Commit 5: background tick scheduler. Eligible off-
+            # stage NPCs run their `.tick()` after the on-stage beat
+            # closes. Each tick appends to that character's rolling
+            # conversation and writes their `last_intent`/`last_intent_turn`,
+            # so the next router call sees the freshest interior even
+            # for characters who were silent. Tick outputs are NOT
+            # routed in this commit (Commit 6 wires the unified-router
+            # fan-in); this commit only fans out the agent calls and
+            # mutates engine-side state. Errors inside one tick are
+            # logged and swallowed so a single LLM hiccup doesn't
+            # drop a whole beat. Picks up the actor's POST-beat scene
+            # (which may differ from `scene_id` when the actor self-
+            # moved during the beat) so the scheduler tracks where
+            # the player ACTUALLY is now.
+            post_beat_scene = self._resolve_scene_id(ckpt, acting_id)
+            await self._run_ticks(
+                ckpt,
+                acted_this_turn=set(beat_result.event_actor_ids),
+                acting_id=acting_id,
+                current_scene=post_beat_scene,
+            )
+
             # 7. Save. run_beat has already mutated active_act_slots,
             # open_cat_ii_events, render_buffers, canonical_events, and
-            # (through the dispatcher) narrator_conversations.
+            # (through the dispatcher) narrator_conversations. Ticks
+            # (above) added rolling-conversation appends and last-intent
+            # writes; one save covers both.
             ckpt.session.turn_index += 1
             self.checkpoint_mgr.save(ckpt)
 
@@ -582,6 +618,192 @@ class Orchestrator:
                 kind, target.name, old or "(unset)", move.to_scene,
                 move.reason or "no reason given",
             )
+
+    # ---------------------------------------------------------- tick scheduler
+
+    def _eligible_for_tick(
+        self, ckpt: CheckpointFile, acted_this_turn: set[str],
+    ) -> list[CharacterRecord]:
+        """Filter the roster to characters that should run an off-stage
+        tick on this beat.
+
+        Five guards (port from pre-v11 with the v11 pin guard added):
+          - `private_state.intentions_enabled` is True — importer flag
+            for "this character matters enough to advance off-screen"
+          - `status == active` — dormant/culled don't tick
+          - NOT in any player binding (`character_bindings` keys or
+            `session.player_character_id`) — humans don't get auto-ticked
+          - NOT in `acted_this_turn` (the on-stage actor + any picked
+            responders this beat) — they already had their say
+          - NOT in `_pinned_character_ids(ckpt)` — pinned NPCs are
+            mid-Cat-II, ticking races their pending resolution
+
+        Order is roster order; that's also the order their tick
+        outputs will reach the unified router in Commit 6.
+        """
+        pinned_ids = _pinned_character_ids(ckpt)
+        player_ids = set(ckpt.session.character_bindings or {})
+        if ckpt.session.player_character_id:
+            player_ids.add(ckpt.session.player_character_id)
+
+        eligible: list[CharacterRecord] = []
+        for char in ckpt.characters:
+            if not char.private_state.intentions_enabled:
+                continue
+            if char.status != CharacterStatus.active:
+                continue
+            if char.character_id in player_ids:
+                continue
+            if char.character_id in acted_this_turn:
+                continue
+            if char.character_id in pinned_ids:
+                continue
+            eligible.append(char)
+        return eligible
+
+    async def _run_ticks(
+        self,
+        ckpt: CheckpointFile,
+        acted_this_turn: set[str],
+        acting_id: str,
+        current_scene: str,
+    ) -> list[tuple[CharacterRecord, CharacterAgentOutput]]:
+        """Decide whether to fire a tick pass this beat, and if so,
+        fan out `CharacterAgent.tick()` for every eligible NPC under a
+        bounded semaphore.
+
+        Trigger model (Commit 5 / decision #9):
+          - `turns_since_last_tick` increments unconditionally each
+            beat (even when no tick fires).
+          - **Scene-change branch**: fires if the actor's post-beat
+            scene differs from the previous tracked scene AND the
+            cooldown has elapsed AND `ticks_on_scene_change` is on.
+            Cooldown prevents a tick on every turn during quick
+            scene-hopping.
+          - **Stagnation branch**: fires unconditionally after
+            `tick_stagnation_max` idle beats so the world keeps
+            moving even when the player camps in one scene.
+          - On any fire, reset `turns_since_last_tick` to 0.
+          - Always update `tick_last_scene_id` to the post-beat scene
+            so the next call has a baseline.
+
+        Concurrency: a fresh `asyncio.Semaphore` per call, sized at
+        `min(settings.tick_concurrency, TICK_CONCURRENCY_HARD_CAP)`.
+        Each tick uses its OWN `CharacterAgent` instance so concurrent
+        completions don't race on `agent.last_usage`.
+
+        Returns the list of `(character, output)` pairs from successful
+        ticks (in completion order). Process_turn currently ignores
+        the return; Commit 6 will plumb the list into a single unified-
+        router fan-in call so off-stage moves and canonical events
+        land on the world.
+        """
+        sess = ckpt.session
+        settings = sess.config.settings
+
+        sess.turns_since_last_tick += 1
+
+        scene_changed = bool(
+            sess.tick_last_scene_id
+            and current_scene
+            and current_scene != sess.tick_last_scene_id
+        )
+        cooldown_satisfied = (
+            sess.turns_since_last_tick >= settings.tick_scene_change_cooldown
+        )
+        scene_change_fires = (
+            scene_changed
+            and cooldown_satisfied
+            and settings.ticks_on_scene_change
+        )
+        stagnation_fires = (
+            sess.turns_since_last_tick >= settings.tick_stagnation_max
+        )
+
+        sess.tick_last_scene_id = current_scene
+
+        if not (scene_change_fires or stagnation_fires):
+            logger.debug(
+                "Tick scheduler: no fire (turns_since_last_tick=%d, "
+                "scene_changed=%s, cooldown_ok=%s, stagnation_ok=%s, "
+                "ticks_on_scene_change=%s)",
+                sess.turns_since_last_tick, scene_changed,
+                cooldown_satisfied, stagnation_fires,
+                settings.ticks_on_scene_change,
+            )
+            return []
+
+        eligible = self._eligible_for_tick(ckpt, acted_this_turn)
+        reason = (
+            "scene_change" if scene_change_fires else "stagnation"
+        )
+        if not eligible:
+            # Still reset the counter — we DID try to fire, eligibility
+            # was just empty (e.g. all NPCs are dormant or already
+            # acted). Otherwise an all-on-stage beat would never reset
+            # and the next turn would over-fire.
+            sess.turns_since_last_tick = 0
+            logger.info(
+                "Tick scheduler: %s fire but no eligible NPCs "
+                "(roster=%d, acted=%d, pinned, player, dormant, or "
+                "intentions_disabled filtered all out); counter reset.",
+                reason, len(ckpt.characters), len(acted_this_turn),
+            )
+            return []
+
+        cap = min(
+            max(1, settings.tick_concurrency), TICK_CONCURRENCY_HARD_CAP,
+        )
+        semaphore = asyncio.Semaphore(cap)
+
+        logger.info(
+            "Tick scheduler: %s fire — %d eligible NPC(s), "
+            "concurrency cap %d, post-beat scene %s",
+            reason, len(eligible), cap, current_scene or "(none)",
+        )
+
+        async def _one(
+            char: CharacterRecord,
+        ) -> tuple[CharacterRecord, CharacterAgentOutput] | None:
+            async with semaphore:
+                # Fresh agent per tick so concurrent ticks don't race
+                # on `agent.last_usage`.
+                agent = CharacterAgent(self.client, self.prompt_mgr)
+                try:
+                    output = await agent.tick(
+                        character=char,
+                        checkpoint=ckpt,
+                        acting_character_id=acting_id,
+                    )
+                except Exception:
+                    # Swallow per-tick failures. One agent's API hiccup
+                    # shouldn't drop the whole beat — the on-stage
+                    # render has already happened; ticks are
+                    # best-effort world-advance.
+                    logger.exception(
+                        "Tick failed for %s (%s); skipping this character "
+                        "and continuing the fan-out.",
+                        char.name, char.character_id,
+                    )
+                    return None
+                usage = dict(getattr(agent, "last_usage", {}) or {})
+                logger.info(
+                    "Tick %s (%s): public=%dch intent=%dch usage=%s",
+                    char.name, char.character_id,
+                    len(output.public_text), len(output.intent), usage,
+                )
+                return (char, output)
+
+        results = await asyncio.gather(*[_one(c) for c in eligible])
+        ticked = [r for r in results if r is not None]
+
+        sess.turns_since_last_tick = 0
+
+        logger.info(
+            "Tick scheduler: %s fire complete — %d/%d ticks succeeded.",
+            reason, len(ticked), len(eligible),
+        )
+        return ticked
 
 
 def _log_cache_summary(latencies: list[PhaseLatency]) -> None:

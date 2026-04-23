@@ -3,8 +3,8 @@
 The legacy v8 tick-path scene creation suite (gated by the
 agents_can_create_scenes flag) used to live here as a skip-marked
 class. Commit 2 deleted it along with the dead `private_updates`
-schema it relied on; tick-driven behavior will be re-tested when
-Commit 5 wires the v11 background-tick path.
+schema it relied on. Commit 5 wired the v11 tick scheduler — its
+trigger-and-eligibility coverage lives in `tests/test_tick_scheduler.py`.
 """
 
 from __future__ import annotations
