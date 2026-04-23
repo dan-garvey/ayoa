@@ -85,7 +85,12 @@ def sample_agent_outputs():
                 dialogue=["Storm's coming. Best head inside."],
                 expression="eyes narrow, scanning the perimeter",
             ),
-            private_updates=PrivateUpdates(),
+            private_updates=PrivateUpdates(
+                current_objectives=[],
+                directives_sent=[],
+                moved_to="",
+                scenes_created=[],
+            ),
         ),
     ]
 
@@ -215,6 +220,15 @@ class TestNarratorPhase2:
         assert call_args.kwargs["role"] == "narrator"
         assert call_args.kwargs["response_model"] == NarratorFinalOutput
 
+def _empty_private() -> PrivateUpdates:
+    return PrivateUpdates(
+        current_objectives=[],
+        directives_sent=[],
+        moved_to="",
+        scenes_created=[],
+    )
+
+
 class TestFormatAgentOutputs:
     def test_single_agent(self, mock_client, prompt_manager, sample_checkpoint):
         narrator = Narrator(mock_client, prompt_manager)
@@ -225,6 +239,7 @@ class TestFormatAgentOutputs:
                 dialogue=["Watch yourself."],
                 expression="stern face",
             ),
+            private_updates=_empty_private(),
         )
         formatted = narrator._format_agent_outputs([output], sample_checkpoint)
         assert "guard_17" in formatted
@@ -236,11 +251,17 @@ class TestFormatAgentOutputs:
         outputs = [
             CharacterAgentOutput(
                 character_id="guard_17",
-                public_response=PublicResponse(dialogue=["First."]),
+                public_response=PublicResponse(
+                    actions=[], dialogue=["First."], expression="",
+                ),
+                private_updates=_empty_private(),
             ),
             CharacterAgentOutput(
                 character_id="servant_01",
-                public_response=PublicResponse(dialogue=["Second."]),
+                public_response=PublicResponse(
+                    actions=[], dialogue=["Second."], expression="",
+                ),
+                private_updates=_empty_private(),
             ),
         ]
         formatted = narrator._format_agent_outputs(outputs, sample_checkpoint)

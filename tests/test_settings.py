@@ -205,9 +205,12 @@ def _orch() -> Orchestrator:
 def _tick_output(character_id: str, scenes, moved_to: str = "") -> CharacterAgentOutput:
     return CharacterAgentOutput(
         character_id=character_id,
-        public_response=PublicResponse(),
+        public_response=PublicResponse(
+            actions=[], dialogue=[], expression="",
+        ),
         private_updates=PrivateUpdates(
             current_objectives=[],
+            directives_sent=[],
             scenes_created=list(scenes),
             moved_to=moved_to,
         ),

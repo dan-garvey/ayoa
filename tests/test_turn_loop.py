@@ -166,13 +166,23 @@ class TestSerializeAgentIntentionNaturalProse:
         JSON. The rendered string must contain dialogue verbatim AND
         must NOT contain JSON braces / field-name tokens."""
         from app.engine.turn_loop_dispatcher import _serialize_agent_intention
-        from app.schemas.agents import CharacterAgentOutput, PublicResponse
+        from app.schemas.agents import (
+            CharacterAgentOutput,
+            PrivateUpdates,
+            PublicResponse,
+        )
         out = CharacterAgentOutput(
             character_id="pip",
             public_response=PublicResponse(
                 dialogue=["Halt there, stranger."],
                 actions=["steps into the torchlight"],
                 expression="wary",
+            ),
+            private_updates=PrivateUpdates(
+                current_objectives=[],
+                directives_sent=[],
+                moved_to="",
+                scenes_created=[],
             ),
         )
         text = _serialize_agent_intention(out)
@@ -187,10 +197,22 @@ class TestSerializeAgentIntentionNaturalProse:
 
     def test_empty_output_returns_empty_string(self):
         from app.engine.turn_loop_dispatcher import _serialize_agent_intention
-        from app.schemas.agents import CharacterAgentOutput, PublicResponse
+        from app.schemas.agents import (
+            CharacterAgentOutput,
+            PrivateUpdates,
+            PublicResponse,
+        )
         out = CharacterAgentOutput(
             character_id="pip",
-            public_response=PublicResponse(),  # empty actions+dialogue+expr
+            public_response=PublicResponse(
+                actions=[], dialogue=[], expression="",
+            ),
+            private_updates=PrivateUpdates(
+                current_objectives=[],
+                directives_sent=[],
+                moved_to="",
+                scenes_created=[],
+            ),
         )
         assert _serialize_agent_intention(out) == ""
 

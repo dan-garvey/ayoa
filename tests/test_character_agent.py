@@ -110,6 +110,9 @@ def sample_agent_output():
         ),
         private_updates=PrivateUpdates(
             current_objectives=["watch this newcomer more closely"],
+            directives_sent=[],
+            moved_to="",
+            scenes_created=[],
         ),
     )
 
@@ -315,7 +318,15 @@ class TestCharacterAgent:
     ):
         wrong_output = CharacterAgentOutput(
             character_id="wrong_id",
-            public_response=PublicResponse(dialogue=["test"]),
+            public_response=PublicResponse(
+                actions=[], dialogue=["test"], expression="",
+            ),
+            private_updates=PrivateUpdates(
+                current_objectives=[],
+                directives_sent=[],
+                moved_to="",
+                scenes_created=[],
+            ),
         )
         mock_client.complete.return_value = _llm_response(wrong_output)
         agent = CharacterAgent(mock_client, prompt_manager)

@@ -101,6 +101,9 @@ AGENT_OUTPUT_EXAMPLE = {
     },
     "private_updates": {
         "current_objectives": ["monitor the user more closely"],
+        "directives_sent": [],
+        "moved_to": "",
+        "scenes_created": [],
     },
 }
 

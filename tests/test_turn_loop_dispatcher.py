@@ -21,6 +21,7 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import (
     CharacterAgentOutput,
+    PrivateUpdates,
     PublicResponse,
 )
 from app.schemas.characters import CharacterRecord, PublicSheet
@@ -334,6 +335,12 @@ class TestAgentIntend:
                     dialogue=["Hold there."],
                     expression="wary",
                 ),
+                private_updates=PrivateUpdates(
+                    current_objectives=[],
+                    directives_sent=[],
+                    moved_to="",
+                    scenes_created=[],
+                ),
             )
 
         monkeypatch.setattr(
@@ -362,7 +369,15 @@ class TestAgentIntend:
                                  prior_responses=None, acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
-                public_response=PublicResponse(),  # empty actions/dialogue/expr
+                public_response=PublicResponse(
+                    actions=[], dialogue=[], expression="",
+                ),
+                private_updates=PrivateUpdates(
+                    current_objectives=[],
+                    directives_sent=[],
+                    moved_to="",
+                    scenes_created=[],
+                ),
             )
 
         monkeypatch.setattr(

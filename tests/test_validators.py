@@ -88,6 +88,15 @@ class TestExtractEntities:
         assert len(entities) == 0
 
 
+def _empty_private() -> PrivateUpdates:
+    return PrivateUpdates(
+        current_objectives=[],
+        directives_sent=[],
+        moved_to="",
+        scenes_created=[],
+    )
+
+
 class TestExtractTextFromOutput:
     def test_combines_fields(self):
         output = CharacterAgentOutput(
@@ -97,6 +106,7 @@ class TestExtractTextFromOutput:
                 dialogue=["Hello there."],
                 expression="smiles warmly",
             ),
+            private_updates=_empty_private(),
         )
         text = extract_text_from_output(output)
         assert "steps forward" in text
@@ -131,7 +141,9 @@ class TestValidateAgentOutput:
             public_response=PublicResponse(
                 dialogue=["Move along, nothing to see here."],
                 actions=["adjusts sword belt"],
+                expression="",
             ),
+            private_updates=_empty_private(),
         )
         result = validate_agent_output(
             output, guard_character, ["Player stands in the courtyard."], checkpoint
@@ -144,8 +156,11 @@ class TestValidateAgentOutput:
         output = CharacterAgentOutput(
             character_id="guard_17",
             public_response=PublicResponse(
+                actions=[],
                 dialogue=["I saw Nightshade lurking by the tower."],
+                expression="",
             ),
+            private_updates=_empty_private(),
         )
         result = validate_agent_output(
             output, guard_character,
@@ -162,11 +177,17 @@ class TestValidateAllOutputs:
         outputs = [
             CharacterAgentOutput(
                 character_id="guard_17",
-                public_response=PublicResponse(dialogue=["All clear."]),
+                public_response=PublicResponse(
+                    actions=[], dialogue=["All clear."], expression="",
+                ),
+                private_updates=_empty_private(),
             ),
             CharacterAgentOutput(
                 character_id="spy_01",
-                public_response=PublicResponse(dialogue=["Good evening."]),
+                public_response=PublicResponse(
+                    actions=[], dialogue=["Good evening."], expression="",
+                ),
+                private_updates=_empty_private(),
             ),
         ]
         observer_facts = {

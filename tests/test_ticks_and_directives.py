@@ -116,11 +116,14 @@ def _agent_output(
 ) -> CharacterAgentOutput:
     return CharacterAgentOutput(
         character_id=character_id,
-        public_response=PublicResponse(),
+        public_response=PublicResponse(
+            actions=[], dialogue=[], expression="",
+        ),
         private_updates=PrivateUpdates(
             current_objectives=list(objectives or []),
             directives_sent=list(directives or []),
             moved_to=moved_to,
+            scenes_created=[],
         ),
     )
 

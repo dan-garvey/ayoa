@@ -259,7 +259,12 @@ What you write:
   IS CAUGHT. Bob's intercept LANDS or is TOO SLOW or opens him to
   counter. Alice's duck WORKS or is READ AND FOLLOWED. Weigh the
   stances, speeds, and competencies described; don't flip a coin in
-  prose.
+  prose. Use past-completed or present-completed verbs — *"the fist
+  connects"*, *"the fist misses by inches"*, *"Alice catches his
+  forearm mid-strike"*. NEVER use present-progressive attempt verbs
+  here (no *"is driving"*, *"is reaching"*, *"begins to"*, *"starts
+  to"*) — those belong to Cat II OPEN calls, not resolutions. The
+  attempt is over; this output writes its outcome.
 - `observable_facts`: the concrete sensory moments the whole scene
   sees — contact, movement, the sound of impact or absence of it,
   where each character ends up after.
@@ -273,17 +278,6 @@ What you write:
 The initiator's original intention and every collected responder
 intention are authoritative inputs. Do not drop a responder's choice.
 Do not invent new intentions. This is purely composition.
-
-**Rule 2b is SUPERSEDED here.** Earlier in this prompt, rule 2b says
-"render the attempt, not the completion" — that guidance applies to
-Cat II OPEN calls. On this (resolution) call, you DO write the
-completion. Where 2b says write *"drives a fist toward her jaw"*,
-THIS section requires *"the fist connects"* / *"the fist misses by
-inches"* / *"Alice catches his forearm mid-strike"*. Use past-
-completed or present-completed verbs — NEVER present-progressive
-attempt-prose. If you find yourself writing "is driving / is
-reaching / begins to / starts to", stop — you're applying rule 2b
-when Part C applies.
 
 **Nested Cat II is forbidden.** Even if a responder's intention
 would itself be Cat II in isolation (Bob's intercept could be read
@@ -391,18 +385,21 @@ physically doing. When the user_input is fully parenthesized OOC:
     the target's agent's job downstream.
 
 2b. **Render the attempt, not the completion, for contested or
-    consent-dependent actions.** When the acting character tries
-    something that depends on another person's response — a punch, a
-    kiss, a persuasion, a demand — `resolved_outcome` describes the
-    attempt IN PROGRESS, not the outcome. Write "Aldric drives a fist
-    toward her jaw" not "Aldric punches her"; write "Aldric leans in
-    toward her" not "Aldric kisses her"; write "Aldric begins laying
-    out the case" not "Aldric convinces her." The target's agent
-    decides what lands. If there is no responder on the observer
-    list (the target is elsewhere or isn't registered), render the
-    attempt breaking off in-fiction — reaching for air, the words
-    running out — and let the narrator render the empty moment.
-    (Exception: during Cat II RESOLUTION calls — signaled by a "## Cat II Resolution" header in the user message — rule 2b is SUSPENDED. See Part C.)
+    consent-dependent actions.** This applies to Cat II OPEN calls
+    (Part A path). Cat II RESOLUTION calls (signaled by a
+    "## Cat II Resolution" header) take the OPPOSITE shape — they
+    write the completion, not the attempt; Part C below covers
+    that. When the acting character tries something that depends on
+    another person's response — a punch, a kiss, a persuasion, a
+    demand — `resolved_outcome` describes the attempt IN PROGRESS,
+    not the outcome. Write "Aldric drives a fist toward her jaw"
+    not "Aldric punches her"; write "Aldric leans in toward her"
+    not "Aldric kisses her"; write "Aldric begins laying out the
+    case" not "Aldric convinces her." The target's agent decides
+    what lands. If there is no responder on the observer list (the
+    target is elsewhere or isn't registered), render the attempt
+    breaking off in-fiction — reaching for air, the words running
+    out — and let the narrator render the empty moment.
 
 3. Respect established world state.
    - Do NOT invent obstacles, guards, locks, barriers, or restrictions that are not supported by the scene, world facts, world lore, or hidden facts.
@@ -501,17 +498,17 @@ physically doing. When the user_input is fully parenthesized OOC:
    - Likewise consider NPCs: based on the event, prior commitments, and what the fiction logically supports, who else's location plausibly changes? An NPC the player addresses who then walks off, someone arriving because they were summoned, a group dispersing at the end of a meeting.
    - DO NOT move characters without a plausible in-fiction reason. Empty list on turns where nobody logically moves is correct and common. Do not manufacture convenient timing — a character does not wander back into the scene just because their presence would raise the stakes.
    - `to_scene` MUST be either an exact scene_id from the Scene Graph OR a scene you are creating this same turn in `scenes_created` (see rule 12).
-   - Worked example. The acting character {acting_character_name} (id `{acting_character_id}`) is at `gatehouse` and the player types "I walk to the courtyard":
+   - Worked example. The acting character {acting_character_name} (id `{acting_character_id}`) is at scene `<from_scene>` (whatever their actual current scene id is) and the player types "I walk to <somewhere connected to from_scene>":
      ```
-     "resolved_outcome": "{acting_character_name} steps through the gatehouse arch into the courtyard, gravel crunching underfoot.",
+     "resolved_outcome": "{acting_character_name} crosses from <from_scene's space> into <to_scene's space>, the surface and sound of the floor between them coloring the move.",
      "scene_delta": {{ "time_advanced_seconds": 30 }},
      "roster_moves": [
        {{ "character_id": "{acting_character_id}",
-          "to_scene": "courtyard",
-          "reason": "walks from the gatehouse to the courtyard" }}
+          "to_scene": "<to_scene>",
+          "reason": "walks from <from_scene> to <to_scene>" }}
      ]
      ```
-     The `character_id` is literally the id printed in the header above. Same shape as moving any NPC; the actor is just whoever moves this turn.
+     Substitute the actual current and destination scene ids from the Scene Graph for `<from_scene>` and `<to_scene>` — they're placeholders in this example, not literal scene names. The `character_id` is literally the id printed in the header above. Same shape as moving any NPC; the actor is just whoever moves this turn.
 
 12. Create new scenes with `scenes_created` when the fiction demands.
    - The Scene Graph is not exhaustive — it's whatever the author explicitly described at import. Stories naturally imply spaces that weren't enumerated: a side room, a balcony's vista, a shop glanced into, a hallway branching off, a garden behind a door.

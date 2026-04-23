@@ -211,10 +211,14 @@ class TestLongDirectiveWarning:
         payload = "x" * (DIRECTIVE_LENGTH_WARN + 50)
         output = CharacterAgentOutput(
             character_id="regent",
-            public_response=PublicResponse(),
+            public_response=PublicResponse(
+                actions=[], dialogue=[], expression="",
+            ),
             private_updates=PrivateUpdates(
                 current_objectives=[],
                 directives_sent=[DirectiveSend(to="aldric", content=payload)],
+                moved_to="",
+                scenes_created=[],
             ),
         )
 
@@ -235,9 +239,14 @@ class TestLongDirectiveWarning:
 
         output = CharacterAgentOutput(
             character_id="regent",
-            public_response=PublicResponse(),
+            public_response=PublicResponse(
+                actions=[], dialogue=[], expression="",
+            ),
             private_updates=PrivateUpdates(
+                current_objectives=[],
                 directives_sent=[DirectiveSend(to="aldric", content="short note")],
+                moved_to="",
+                scenes_created=[],
             ),
         )
 
