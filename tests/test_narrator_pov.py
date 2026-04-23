@@ -136,10 +136,7 @@ def _ckpt() -> CheckpointFile:
 def _llm_response(final_text: str = "RENDERED") -> LLMResponse:
     """Minimal LLMResponse that can pass through
     `serialize_assistant_content` when the narrator appends history."""
-    parsed = NarratorFinalOutput(
-        final_text=final_text,
-        transcript_entry=TranscriptEntry(user="", assistant=final_text),
-    )
+    parsed = NarratorFinalOutput(final_text=final_text)
     raw = MagicMock()
     text_block = MagicMock()
     text_block.type = "text"
@@ -183,20 +180,23 @@ class TestComposePovRender:
             RenderBufferEntry(event_id="evt_beta", observation_level="indirect"),
         ]
 
-        result = await compose_pov_render(
+        result, entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
             buffered_events=buffered,
             partial_mode=False,
+            user_input="I look around.",
         )
 
-        # v11-r7f: compose_pov_render now returns the full envelope
-        # rather than just final_text — the dispatcher / run_beat /
-        # orchestrator chain needs the transcript_entry for /history.
+        # v11-r7j: compose_pov_render returns (envelope, transcript_entry).
+        # The narrator only emits final_text; the engine builds the entry
+        # from the real player input (passed in) and the rendered prose.
         assert isinstance(result, NarratorFinalOutput)
         assert result.final_text == "RENDERED"
+        assert entry.user == "I look around."
+        assert entry.assistant == "RENDERED"
         # Per-POV history grew by exactly one exchange (user + assistant).
         alice_hist = ckpt.narrator_conversations["alice"]
         assert len(alice_hist) == 2
@@ -300,7 +300,7 @@ class TestComposePovRender:
         ]
 
         with caplog.at_level(logging.WARNING, logger="app.engine.narrator"):
-            result = await compose_pov_render(
+            result, _entry = await compose_pov_render(
                 client=mock_client,
                 prompt_mgr=prompt_manager,
                 ckpt=ckpt,

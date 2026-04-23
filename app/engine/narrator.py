@@ -228,7 +228,8 @@ async def compose_pov_render(
     pov_character_id: str,
     buffered_events: list[RenderBufferEntry],
     partial_mode: bool,
-) -> NarratorFinalOutput:
+    user_input: str = "",
+) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
     """v11 per-POV narrator entry point.
 
     Renders the beat from `pov_character_id`'s point of view in
@@ -239,17 +240,22 @@ async def compose_pov_render(
     observation levels on the buffer entries tag how each event is
     framed (direct / indirect / inferred).
 
+    `user_input` is the actual player utterance for the beat (for the
+    acting POV). For non-acting POVs in a multi-human beat it should be
+    the empty string — they didn't speak this turn. The string is shown
+    to the narrator as scene-setting context AND is used verbatim as
+    `transcript_entry.user` in the returned envelope. Pre-r7j this was
+    always "" and the prompt asked the LLM to echo it as the transcript
+    user field, which produced `"{name} — "` in /history forever.
+
     When `partial_mode=True`, the PARTIAL_MODE_MARKER is prepended to
     the user message so the narrator prompt's rule-15 PARTIAL mode
     fires; the rendered passage then ends mid-attempt to prompt the
     pinned responder's /act.
 
-    Returns the FULL NarratorFinalOutput envelope (final_text +
-    transcript_entry). Pre-r7f this returned only final_text and
-    transcript_entry was discarded — leaving ckpt.transcript permanently
-    empty and breaking /history. The dispatcher / run_beat now propagate
-    the envelope up to the orchestrator which appends transcript_entry
-    to ckpt.transcript.
+    Returns `(NarratorFinalOutput, TranscriptEntry)`. The schema only
+    carries `final_text` now; the engine constructs the transcript
+    entry from the real `user_input` + the rendered prose.
 
     Side-effect unchanged: appends the exchange into
     `ckpt.narrator_conversations[pov_character_id]` in-place — the
@@ -296,11 +302,6 @@ async def compose_pov_render(
                 "## Opening Scene Directive\n"
                 f"{ckpt.opening_narrative}\n\n"
             )
-
-    # v11 triggering user-input for this POV render. We don't have the
-    # initiator's full intention here; leave empty so the template
-    # simply shows "{name} — " with no tail.
-    user_input = ""
 
     render_t0 = time.monotonic()
     messages = prompt_mgr.render_conversation(
@@ -355,13 +356,13 @@ async def compose_pov_render(
         "compose_pov_render: pov=%s rendered %d chars",
         pov_character_id, len(final_text),
     )
-    # Defensive fallback when the SDK gives us no parsed envelope (the
-    # `result is None` branch above) — synthesize an empty one rather
-    # than crash run_beat. In practice this never fires; the schema is
-    # required and the caller would have raised on the parse error.
+    # Defensive fallback when the SDK gives us no parsed envelope —
+    # synthesize an empty one rather than crash run_beat. In practice
+    # this never fires; the schema is required and the caller would
+    # have raised on the parse error.
     if result is None:
-        return NarratorFinalOutput(
-            final_text="",
-            transcript_entry=TranscriptEntry(user="", assistant=""),
-        )
-    return result
+        result = NarratorFinalOutput(final_text="")
+    transcript_entry = TranscriptEntry(
+        user=user_input, assistant=final_text,
+    )
+    return result, transcript_entry

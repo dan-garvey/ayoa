@@ -392,13 +392,13 @@ class TestNarratorCompose:
 
         async def _fake_compose_pov_render(
             *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode,
+            buffered_events, partial_mode, user_input="",
         ):
             recorded["partial_mode"] = partial_mode
             recorded["pov"] = pov_character_id
-            return NarratorFinalOutput(
-                final_text="RENDERED",
-                transcript_entry=TranscriptEntry(user="(test)", assistant="RENDERED"),
+            return (
+                NarratorFinalOutput(final_text="RENDERED"),
+                TranscriptEntry(user=user_input, assistant="RENDERED"),
             )
 
         monkeypatch.setattr(
@@ -407,7 +407,7 @@ class TestNarratorCompose:
         )
 
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.narrator_compose(
+        out, _entry = asyncio.run(dispatcher.narrator_compose(
             ckpt=ckpt, character_id="alice",
             buffered_events=[RenderBufferEntry(event_id="e1")],
         ))
@@ -425,12 +425,12 @@ class TestNarratorCompose:
 
         async def _fake_compose_pov_render(
             *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode,
+            buffered_events, partial_mode, user_input="",
         ):
             recorded["partial_mode"] = partial_mode
-            return NarratorFinalOutput(
-                final_text="RENDERED",
-                transcript_entry=TranscriptEntry(user="(test)", assistant="RENDERED"),
+            return (
+                NarratorFinalOutput(final_text="RENDERED"),
+                TranscriptEntry(user=user_input, assistant="RENDERED"),
             )
 
         monkeypatch.setattr(
@@ -457,12 +457,12 @@ class TestNarratorCompose:
 
         async def _fake_compose_pov_render(
             *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode,
+            buffered_events, partial_mode, user_input="",
         ):
             recorded["partial_mode"] = partial_mode
-            return NarratorFinalOutput(
-                final_text="RENDERED",
-                transcript_entry=TranscriptEntry(user="(test)", assistant="RENDERED"),
+            return (
+                NarratorFinalOutput(final_text="RENDERED"),
+                TranscriptEntry(user=user_input, assistant="RENDERED"),
             )
 
         monkeypatch.setattr(

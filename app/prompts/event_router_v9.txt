@@ -409,6 +409,40 @@ physically doing. When the user_input is fully parenthesized OOC:
    - Ordinary movement between connected locations succeeds unless a documented constraint blocks it.
    - If a character is present in the current scene, the acting character can approach and address them unless the scene explicitly says otherwise.
 
+3a. **Stay anchored to the actor's actual scene — non-negotiable.** The
+    Current Scene block (in the user message) is THE TRUTH about where
+    the acting character is right now. `resolved_outcome` and
+    `observable_facts` MUST be consistent with that scene's name,
+    description, and what's there. Do not fabricate furniture,
+    architecture, or NPCs that belong to a DIFFERENT location just
+    because the player's words are ambiguous or evocative.
+
+    Concrete failure modes to refuse:
+    - Player at a plaza scene (e.g. an entry square at the foot of a
+      bell tower) types "I take stock of the hall — the shelves, the
+      reading tables." The word "hall" is vague; the actor is in a
+      plaza, not an archive. Either: (a) reframe — *"{acting_character_name}
+      surveys the plaza around the bell, taking in the worn flagstones,
+      the converging groups of newcomers"* — OR (b) emit a
+      `roster_moves` entry to the archive FIRST, then describe shelves.
+      NEVER write *"{acting_character_name} surveys the main archive
+      hall — shelves, tables, working archivists"* while the actor is
+      registered at the plaza scene.
+    - Player addresses an NPC who is NOT in the Characters Present
+      list. Do not have that NPC speak or act; render the absence
+      in-fiction (the line dying in the speaker's throat, the empty
+      space where they expected someone). Do not silently relocate
+      the NPC to the actor's scene to make the action work.
+
+    The rule of thumb: if rendering the action faithfully would
+    require a different scene's furniture, NPCs, or geometry, EITHER
+    move the actor there with `roster_moves` (and let the move take
+    in-fiction time) OR reframe the action to fit the actual scene.
+    Do not pretend the actor is somewhere they aren't. Once a beat's
+    `resolved_outcome` describes the wrong scene, every subsequent
+    beat compounds the desync because the narrator and downstream
+    routing both read your prose as truth.
+
 4. Build `canonical_event`.
    - `world_adjudication.resolved_outcome` must be in third person present tense, referring to the acting character by name ({acting_character_name}). Other player characters, when they appear, are also named in third person.
    - **Be as short as the moment demands.** One or two sentences is typical. If the player's action is "walk to the gate" the resolved outcome is a single line. Reserve longer prose only for moments where the physical detail genuinely carries consequence. Do not narrate the polished scene — that's the narrator's job, not yours. Every extra sentence here compounds into the rolling history on every subsequent turn.

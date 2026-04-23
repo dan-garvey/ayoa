@@ -177,15 +177,14 @@ class FakeDispatcher:
         type(self).agent_calls.append(kw)
         return type(self)._agent_responses.pop(0)
 
-    async def narrator_compose(self, **kw) -> NarratorFinalOutput:
+    async def narrator_compose(self, **kw):
         type(self).narrator_calls.append(kw)
-        return NarratorFinalOutput(
-            final_text=type(self)._narrator_text,
-            transcript_entry=TranscriptEntry(
-                user="(test user)",
-                assistant=type(self)._narrator_text,
-            ),
+        envelope = NarratorFinalOutput(final_text=type(self)._narrator_text)
+        entry = TranscriptEntry(
+            user=kw.get("user_input", ""),
+            assistant=type(self)._narrator_text,
         )
+        return envelope, entry
 
 
 # ---- fixtures --------------------------------------------------------------

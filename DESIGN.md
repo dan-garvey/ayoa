@@ -389,13 +389,14 @@ Produced by Narrator Phase 1.
 
 ```json
 {
-  "final_text": "You plant both palms against the stone and drive upward until your arms shake. Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, one brow raised. \"Need a lever, not a miracle.\"",
-  "transcript_entry": {
-    "user": "I lift the building with my bare hands.",
-    "assistant": "You plant both palms..."
-  }
+  "final_text": "You plant both palms against the stone and drive upward until your arms shake. Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, one brow raised. \"Need a lever, not a miracle.\""
 }
 ```
+
+The narrator emits `final_text` only. The engine builds the
+`TranscriptEntry` from the verbatim player input passed into the
+dispatcher (`user`) and the rendered prose (`assistant`); see
+`compose_pov_render` in `app/engine/narrator.py`.
 
 ## 8. Save File Requirements
 

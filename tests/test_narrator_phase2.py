@@ -96,10 +96,6 @@ def sample_narrator_output():
             "You scan the courtyard, noting the dry fountain and darkening sky. "
             'Captain Vero steps closer, eyes narrowing. "Storm\'s coming. Best head inside."'
         ),
-        transcript_entry=TranscriptEntry(
-            user="I look around.",
-            assistant="You scan the courtyard...",
-        ),
     )
 
 # --- Tests ---

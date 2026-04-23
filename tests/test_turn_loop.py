@@ -147,15 +147,14 @@ class FakeDispatcher:
         self.agent_calls.append(kw)
         return self._agent_responses.pop(0)
 
-    async def narrator_compose(self, **kw) -> NarratorFinalOutput:
+    async def narrator_compose(self, **kw):
         self.narrator_calls.append(kw)
-        return NarratorFinalOutput(
-            final_text=self._narrator_response,
-            transcript_entry=TranscriptEntry(
-                user="(test user)",
-                assistant=self._narrator_response,
-            ),
+        envelope = NarratorFinalOutput(final_text=self._narrator_response)
+        entry = TranscriptEntry(
+            user=kw.get("user_input", ""),
+            assistant=self._narrator_response,
         )
+        return envelope, entry
 
 
 # ---- r6a partial-mode + natural-prose tests --------------------------------
@@ -1090,12 +1089,12 @@ class TestParallelNarratorFanOut:
                 # in ~0.1s.
                 await asyncio.sleep(0.1)
                 self.narrator_calls.append(kw)
-                return NarratorFinalOutput(
-                    final_text="RENDER",
-                    transcript_entry=TranscriptEntry(
-                        user="(test user)", assistant="RENDER",
-                    ),
+                envelope = NarratorFinalOutput(final_text="RENDER")
+                entry = TranscriptEntry(
+                    user=kw.get("user_input", ""),
+                    assistant="RENDER",
                 )
+                return envelope, entry
 
         fake = SlowDispatcher()
 

@@ -122,11 +122,7 @@ The prior messages in this conversation are your own compositions from earlier t
 Respond with ONLY valid JSON. No commentary, no markdown fences.
 
 {{
-  "final_text": "string — the narrative passage the players read. Use proper paragraph breaks with \\n\\n between paragraphs.",
-  "transcript_entry": {{
-    "user": "string — the player's original input for this turn",
-    "assistant": "string — copy of final_text (this becomes the transcript record)"
-  }}
+  "final_text": "string — the narrative passage the players read. Use proper paragraph breaks with \\n\\n between paragraphs."
 }}
 
 <<<USER>>>

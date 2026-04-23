@@ -35,7 +35,7 @@ from app.engine.turn_loop_contracts import (
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.narrator import NarratorFinalOutput
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -478,14 +478,18 @@ class LLMDispatcher:
         character_id: str,
         buffered_events: list[RenderBufferEntry],
         partial_mode_override: bool | None = None,
-    ) -> NarratorFinalOutput:
+        user_input: str = "",
+    ) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
         """Render per-POV prose via narrator.compose_pov_render.
 
-        Returns the full NarratorFinalOutput envelope (final_text +
-        transcript_entry) so run_beat can populate ckpt.transcript via
-        the parallel BeatResult.transcript_entries map. Pre-r7f this
-        returned only final_text and the transcript was permanently
-        empty.
+        Returns `(NarratorFinalOutput, TranscriptEntry)` so run_beat
+        can populate ckpt.transcript via the parallel
+        BeatResult.transcript_entries map. The transcript entry is
+        constructed engine-side from `user_input` (the real player
+        utterance for the acting POV; "" for incidental POVs in a
+        multi-human beat) and the rendered prose. Pre-r7j the LLM
+        owned the transcript entry and emitted `"{name} — "` for the
+        user field every time.
 
         `partial_mode` defaults to True iff this character is currently
         pinned as a Cat II responder in any scene — the narrator renders
@@ -500,15 +504,16 @@ class LLMDispatcher:
         else:
             partial_mode = _is_pinned_as_cat_ii_responder(ckpt, character_id)
 
-        envelope = await narrator_module.compose_pov_render(
+        envelope, entry = await narrator_module.compose_pov_render(
             client=self.client,
             prompt_mgr=self.prompt_mgr,
             ckpt=ckpt,
             pov_character_id=character_id,
             buffered_events=buffered_events,
             partial_mode=partial_mode,
+            user_input=user_input,
         )
-        return envelope
+        return envelope, entry
 
 
 def _is_pinned_as_cat_ii_responder(

@@ -110,10 +110,6 @@ NARRATOR_FINAL_EXAMPLE = {
         'Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, '
         'one brow raised. "Need a lever, not a miracle."'
     ),
-    "transcript_entry": {
-        "user": "I lift the building with my bare hands.",
-        "assistant": "You plant both palms...",
-    },
 }
 
 
@@ -266,7 +262,6 @@ class TestNarratorFinalOutput:
     def test_construct(self):
         nfo = NarratorFinalOutput(**NARRATOR_FINAL_EXAMPLE)
         assert "Captain Vero" in nfo.final_text
-        assert nfo.transcript_entry.user == "I lift the building with my bare hands."
 
     def test_round_trip(self):
         nfo = NarratorFinalOutput(**NARRATOR_FINAL_EXAMPLE)
@@ -274,7 +269,10 @@ class TestNarratorFinalOutput:
         assert rebuilt == nfo
 
     def test_rejects_extra_fields(self):
-        data = {**NARRATOR_FINAL_EXAMPLE, "chain_of_thought": "secret"}
+        # v11-r7j: transcript_entry is no longer a NarratorFinalOutput
+        # field; the engine builds it. Schema must reject the legacy
+        # name as an unknown extra.
+        data = {**NARRATOR_FINAL_EXAMPLE, "transcript_entry": {"user": "x", "assistant": "y"}}
         with pytest.raises(ValidationError):
             NarratorFinalOutput(**data)
 

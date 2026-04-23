@@ -727,18 +727,19 @@ class Dispatcher(Protocol):
         character_id: str,
         buffered_events: list[RenderBufferEntry],
         partial_mode_override: bool | None = None,
-    ) -> NarratorFinalOutput:
+        user_input: str = "",
+    ) -> tuple[NarratorFinalOutput, TranscriptEntry]:
         """Render this human's POV prose for the beat. Input: their
         buffered events since last render, observation levels tagged.
-        Output: full NarratorFinalOutput envelope (final_text +
-        transcript_entry).
+        Returns `(NarratorFinalOutput, TranscriptEntry)`.
 
-        Returning the full envelope (rather than just final_text) lets
-        run_beat propagate the per-POV transcript_entry up to the
+        Returning the transcript entry alongside the envelope lets
+        run_beat propagate the per-POV transcript entry up to the
         orchestrator, which appends to ckpt.transcript so /history and
-        the resume-display path see the actual played turns. Pre-r7f
-        the dispatcher discarded everything but final_text and
-        ckpt.transcript stayed empty forever.
+        the resume-display path see the actual played turns. The entry
+        is constructed engine-side from `user_input` (passed by the
+        acting-POV caller; "" for incidental POVs) and the rendered
+        `final_text`.
 
         `partial_mode_override`, when not None, wins over the dispatcher's
         default slot-scan detection — the v11-r6a Cat II-open render path
@@ -916,6 +917,8 @@ async def run_beat(
             ended_reason="cat_ii_resolution",
             events_closed=1,
             event_actor_ids=[evt.initiator_id],
+            acting_player_id=actor_id,
+            acting_player_input=intention,
         )
 
     # Fresh initiator path.
@@ -959,6 +962,8 @@ async def run_beat(
                         ended_reason="max_events_cap",
                         events_closed=events_closed,
                         event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
                     )
                 # Fall through to the standard Cat I ends_beat check.
                 if result.ends_beat:
@@ -968,6 +973,8 @@ async def run_beat(
                             or "cascade_exhausted",
                         events_closed=events_closed,
                         event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
                     )
                 # Keep cascading via picks — reuse the normal path by
                 # letting the loop iterate. Break out of the inner if
@@ -982,6 +989,8 @@ async def run_beat(
                         ended_reason="cascade_exhausted",
                         events_closed=events_closed,
                         event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
                     )
                 next_actor = picks[0]
                 next_intention = await dispatcher.agent_intend(
@@ -1044,6 +1053,8 @@ async def run_beat(
                     ended_reason="cat_ii_resolution",
                     events_closed=events_closed,
                     event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
                 )
             # Humans are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
@@ -1097,6 +1108,8 @@ async def run_beat(
                 release_slots=False,
                 force_partial=True,
                 render_only=render_targets,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
             )
 
         # Cat I path — canonical event closes immediately.
@@ -1114,6 +1127,8 @@ async def run_beat(
                 ended_reason=reason,
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
             )
 
         # Pick the next actor for the cascade. Agents only — humans
@@ -1132,6 +1147,8 @@ async def run_beat(
                 ended_reason="cascade_exhausted",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
             )
         # v11 first cut: chain one pick at a time. Multi-pick fan-out can
         # come later; for now, the first pick acts, we re-route, the
@@ -1162,6 +1179,8 @@ async def run_beat(
                 ended_reason="cascade_exhausted",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
             )
         current_actor = next_actor
         current_intention = next_intention
@@ -1178,6 +1197,8 @@ async def _end_beat(
     release_slots: bool = True,
     force_partial: bool = False,
     render_only: set[str] | None = None,
+    acting_player_id: str | None = None,
+    acting_player_input: str = "",
 ) -> BeatResult:
     """Compose per-human renders, flush buffers, (optionally) release
     scene slots.
@@ -1194,6 +1215,14 @@ async def _end_beat(
       this set. Used by the Cat II-open render path to fan-out only to
       pinned humans + initiator-if-human, not to other in-scene humans
       who aren't participants in the open event.
+
+    v11-r7j params:
+    - `acting_player_id` + `acting_player_input`: the actual /act'd
+      player and their verbatim utterance. Threaded into the matching
+      POV's narrator call so the engine-built TranscriptEntry carries
+      the real input. Other POVs (incidental humans in the scene) get
+      `user_input=""`. Pre-r7j the LLM owned the transcript entry and
+      no real input ever made it that far.
     """
     renders: dict[str, str] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
@@ -1216,22 +1245,26 @@ async def _end_beat(
 
     async def _render_one(
         h: str, buf: list[RenderBufferEntry],
-    ) -> tuple[str, NarratorFinalOutput]:
-        envelope = await dispatcher.narrator_compose(
+    ) -> tuple[str, NarratorFinalOutput, TranscriptEntry]:
+        pov_user_input = (
+            acting_player_input if h == acting_player_id else ""
+        )
+        envelope, entry = await dispatcher.narrator_compose(
             ckpt=ckpt,
             character_id=h,
             buffered_events=buf,
             partial_mode_override=partial_override,
+            user_input=pov_user_input,
         )
-        return h, envelope
+        return h, envelope, entry
 
     if targets:
         results = await asyncio.gather(
             *(_render_one(h, buf) for h, buf in targets)
         )
-        for h, envelope in results:
+        for h, envelope, entry in results:
             renders[h] = envelope.final_text
-            transcript_entries[h] = envelope.transcript_entry
+            transcript_entries[h] = entry
 
     if release_slots:
         release_scene_slots(ckpt, scene_id)
