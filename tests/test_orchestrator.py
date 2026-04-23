@@ -283,7 +283,7 @@ class TestCharacterSpawn:
             personality="Nervous, avoids eye contact.",
             known_context="", goals=[], current_objectives=[],
             secrets=[], intentions_enabled=False,
-            router_summary="Tom — nervous stablehand at the courtyard, watching the gate.",
+            router_summary="Nervous stablehand at the courtyard, watching the gate.",
         )
         mock_client.complete.return_value = _llm_response(authored)
 
@@ -323,7 +323,7 @@ class TestCharacterSpawn:
             personality="", known_context="",
             goals=[], current_objectives=[], secrets=[],
             intentions_enabled=False,
-            router_summary="NPC — generic walk-on at the courtyard.",
+            router_summary="Generic walk-on at the courtyard.",
         )
         mock_client.complete.return_value = _llm_response(authored)
 
@@ -374,7 +374,7 @@ class TestCharacterSpawn:
             goals=[], current_objectives=[],
             secrets=[], intentions_enabled=False,
             router_summary=(
-                "Sera — exiled cartographer just stepped into the courtyard, "
+                "Exiled cartographer who has just stepped into the courtyard, "
                 "looking for the steward to plead her family's case."
             ),
         )
@@ -392,7 +392,7 @@ class TestCharacterSpawn:
         line = queue[0]
         assert "Spawned: Sera the Cartographer" in line
         assert "sera_01" in line
-        assert "exiled cartographer" in line
+        assert "Exiled cartographer" in line
         assert "steward" in line
 
         block = _build_state_changes_block(sample_checkpoint)
@@ -437,3 +437,111 @@ class TestCharacterSpawn:
         assert "Spawned: Anon" in line
         assert "role=messenger" in line
         assert "objectives=deliver the writ" in line
+
+    @pytest.mark.asyncio
+    async def test_spawn_summary_normalizes_newlines_and_truncates(
+        self, mock_client, sample_checkpoint,
+    ):
+        """Commit 4b: a router_summary with embedded newlines or
+        gigantic length is normalized so it can't shatter the next
+        router prompt's bullet list or balloon the user message.
+        """
+        from app.engine.character_manager import (
+            ROUTER_SUMMARY_MAX_CHARS,
+            _normalize_router_summary,
+        )
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        long_summary = (
+            "First line.\nSecond line with extra   whitespace.\n\n"
+            + ("padding " * 200)
+        )
+        authored = AuthoredCharacter(
+            name="Verbose Visitor",
+            location="courtyard", role="bard",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False,
+            router_summary=long_summary,
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="verb_01", seed={"role": "bard"})],
+        )
+        queue = sample_checkpoint.session.pending_router_state_changes
+        assert len(queue) == 1
+        line = queue[0]
+        assert "\n" not in line
+        prefix_overhead = len("Spawned: Verbose Visitor (id: verb_01) — ")
+        assert len(line) <= prefix_overhead + ROUTER_SUMMARY_MAX_CHARS
+
+        cleaned = _normalize_router_summary(long_summary)
+        assert "\n" not in cleaned
+        assert len(cleaned) <= ROUTER_SUMMARY_MAX_CHARS
+        assert "  " not in cleaned
+
+    @pytest.mark.asyncio
+    async def test_cull_drops_pending_spawn_line(
+        self, mock_client, sample_checkpoint,
+    ):
+        """Commit 4b: spawning a character and then culling them in the
+        same beat must NOT leave a "Spawned: ..." ghost line in the
+        next router call's State Changes block.
+        """
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Doomed",
+            location="courtyard", role="messenger",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False,
+            router_summary="Messenger who arrived with bad news.",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+
+        await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="doomed_01", seed={"role": "messenger"})],
+        )
+        assert any(
+            "doomed_01" in line
+            for line in sample_checkpoint.session.pending_router_state_changes
+        )
+
+        cull_routed = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="The messenger collapses",
+                    feasible=True,
+                    resolved_outcome="The messenger dies on the spot.",
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[],
+            ),
+            observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
+            cull=["doomed_01"],
+            roster_moves=[],
+            scenes_created=[],
+        )
+        mgr.apply_roster_updates(sample_checkpoint, cull_routed)
+
+        assert all(
+            "doomed_01" not in line
+            for line in sample_checkpoint.session.pending_router_state_changes
+        )

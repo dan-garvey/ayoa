@@ -430,78 +430,93 @@ class LLMDispatcher:
         """Classify + adjudicate one intention through event_router."""
         del scene_id  # Scene id is picked up from ckpt.world_state.locations.
 
-        ctx = _build_router_context(ckpt, actor_id)
-
-        # Resolve the actor's display name for the intention framing.
-        actor_char = next(
-            (c for c in ckpt.characters if c.character_id == actor_id),
-            None,
+        # Snapshot the two delta-queue session fields BEFORE
+        # `_build_router_context` mutates them, so we can restore on
+        # exception and avoid silently losing queued state-change /
+        # world-fact entries on a failed router call. Same P0 pattern
+        # as EventRouter.run; flagged by Commit-4 reviewers.
+        saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
+        saved_state_changes = list(
+            ckpt.session.pending_router_state_changes
         )
-        actor_name = actor_char.name if actor_char else actor_id
+        try:
+            ctx = _build_router_context(ckpt, actor_id)
 
-        if cat_ii_event is None:
-            bindings = ckpt.session.character_bindings or {}
-            if actor_id in bindings:
-                intention_block = format_human_initiator_intention(
-                    actor_name, intention,
-                )
-            else:
-                intention_block = format_npc_cascade_intention(
-                    actor_name, intention,
-                )
-            cat_ii_resolution_block = ""
-        else:
-            evt = cat_ii_event
-            responders: list[tuple[str, str]] = [
-                (rid, evt.collected_intentions[rid])
-                for rid in evt.required_responders
-                if rid in evt.collected_intentions
-            ]
-            cat_ii_resolution_block = format_cat_ii_resolution_block(
-                initiator_id=evt.initiator_id,
-                initiator_intention=evt.initiator_intention,
-                responders=responders,
-                swept_responders=list(evt.swept_responders),
+            # Resolve the actor's display name for the intention framing.
+            actor_char = next(
+                (c for c in ckpt.characters if c.character_id == actor_id),
+                None,
             )
-            intention_block = ""
+            actor_name = actor_char.name if actor_char else actor_id
 
-        template_vars = {
-            **ctx,
-            "intention_block": intention_block,
-            "cat_ii_resolution_block": cat_ii_resolution_block,
-        }
+            if cat_ii_event is None:
+                bindings = ckpt.session.character_bindings or {}
+                if actor_id in bindings:
+                    intention_block = format_human_initiator_intention(
+                        actor_name, intention,
+                    )
+                else:
+                    intention_block = format_npc_cascade_intention(
+                        actor_name, intention,
+                    )
+                cat_ii_resolution_block = ""
+            else:
+                evt = cat_ii_event
+                responders: list[tuple[str, str]] = [
+                    (rid, evt.collected_intentions[rid])
+                    for rid in evt.required_responders
+                    if rid in evt.collected_intentions
+                ]
+                cat_ii_resolution_block = format_cat_ii_resolution_block(
+                    initiator_id=evt.initiator_id,
+                    initiator_intention=evt.initiator_intention,
+                    responders=responders,
+                    swept_responders=list(evt.swept_responders),
+                )
+                intention_block = ""
 
-        # v11-r6c: event_router_v9 explicitly expects the prior router
-        # exchanges as conversation history ("The prior messages in this
-        # conversation are the full session history"). Use
-        # render_conversation so the rolling history rides along, and
-        # append this turn's exchange after the call so continuity
-        # compounds across turns. The caller (Orchestrator) persists the
-        # checkpoint after run_beat returns.
-        messages = self.prompt_mgr.render_conversation(
-            "event_router",
-            history=ckpt.session_conversation,
-            **template_vars,
-        )
+            template_vars = {
+                **ctx,
+                "intention_block": intention_block,
+                "cat_ii_resolution_block": cat_ii_resolution_block,
+            }
 
-        # Plain-text user content captured before LLMClient wraps with
-        # cache_control for this call.
-        user_content = messages[-1]["content"]
+            # v11-r6c: event_router_v9 explicitly expects the prior router
+            # exchanges as conversation history ("The prior messages in this
+            # conversation are the full session history"). Use
+            # render_conversation so the rolling history rides along, and
+            # append this turn's exchange after the call so continuity
+            # compounds across turns. The caller (Orchestrator) persists the
+            # checkpoint after run_beat returns.
+            messages = self.prompt_mgr.render_conversation(
+                "event_router",
+                history=ckpt.session_conversation,
+                **template_vars,
+            )
 
-        logger.info(
-            "LLMDispatcher.route_intention: actor=%s cat_ii=%s",
-            actor_id, cat_ii_event.event_id if cat_ii_event else None,
-        )
+            # Plain-text user content captured before LLMClient wraps with
+            # cache_control for this call.
+            user_content = messages[-1]["content"]
 
-        response = await self.client.complete(
-            role="event_router",
-            messages=messages,
-            response_model=EventRouterOutput,
-            temperature=0.35,
-            max_tokens=5000,
-            cache=True,
-            compact=True,
-        )
+            logger.info(
+                "LLMDispatcher.route_intention: actor=%s cat_ii=%s",
+                actor_id, cat_ii_event.event_id if cat_ii_event else None,
+            )
+
+            response = await self.client.complete(
+                role="event_router",
+                messages=messages,
+                response_model=EventRouterOutput,
+                temperature=0.35,
+                max_tokens=5000,
+                cache=True,
+                compact=True,
+            )
+        except Exception:
+            ckpt.session.surfaced_world_facts = saved_surfaced_facts
+            ckpt.session.pending_router_state_changes = saved_state_changes
+            raise
+
         result: EventRouterOutput = response.parsed
         # Persist the user/assistant pair to the rolling session
         # conversation so next turn's router sees it as history.

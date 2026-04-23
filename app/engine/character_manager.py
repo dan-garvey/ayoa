@@ -26,6 +26,63 @@ logger = logging.getLogger(__name__)
 MAX_SPAWNS_PER_TURN = 3
 
 
+# Per-line cap for state-change entries, applied to the LLM-authored
+# `router_summary` after newline normalization. Chosen to fit a tight
+# 1-2 sentence ledger line (the prompt says one or two sentences) plus
+# generous slack; entries longer than this are usually a sign the LLM
+# regressed into multi-paragraph backstory and would balloon the next
+# router prompt.
+ROUTER_SUMMARY_MAX_CHARS = 600
+
+
+def _normalize_router_summary(summary: str) -> str:
+    """Sanitize an LLM-authored `router_summary` for safe interpolation
+    into `_build_state_changes_block`'s bullet list.
+
+    The block renders each queued entry as a single markdown bullet
+    (`- {entry}`), so an entry containing a literal newline would split
+    the bullet across multiple lines and shatter the list for the
+    router prompt. Collapse all whitespace runs to single spaces, and
+    cap at `ROUTER_SUMMARY_MAX_CHARS` to defend against a regressed
+    spawn LLM dumping a backstory paragraph into the field.
+    """
+    s = " ".join(summary.split()).strip()
+    if len(s) > ROUTER_SUMMARY_MAX_CHARS:
+        s = s[: ROUTER_SUMMARY_MAX_CHARS - 1].rstrip() + "…"
+    return s
+
+
+def _drop_pending_spawn_line(
+    checkpoint: CheckpointFile, character_id: str,
+) -> bool:
+    """Strip any queued `pending_router_state_changes` line that
+    references `character_id` as a freshly-spawned character.
+
+    Called when a character is culled before the queue drains. Without
+    this, the next router call would see "Spawned: NAME (id: X) — ..."
+    for a character who no longer exists on the roster — a ghost
+    instruction that confuses adjudication and may prompt the router
+    to re-spawn or hallucinate them.
+
+    Matches by `(id: {character_id})` rather than the name to be robust
+    against the LLM-authored summary embedding the name elsewhere in
+    the line. Returns True if any line was removed.
+    """
+    queue = checkpoint.session.pending_router_state_changes or []
+    needle = f"(id: {character_id})"
+    kept = [line for line in queue if needle not in line]
+    if len(kept) == len(queue):
+        return False
+    removed = len(queue) - len(kept)
+    checkpoint.session.pending_router_state_changes = kept
+    logger.info(
+        "Dropped %d pending state-change line(s) for culled character %s "
+        "before they could surface to the router.",
+        removed, character_id,
+    )
+    return True
+
+
 def _push_spawn_state_change(
     checkpoint: CheckpointFile,
     char: CharacterRecord,
@@ -41,15 +98,17 @@ def _push_spawn_state_change(
     Prefers the LLM-authored `router_summary` from the spawn-generation
     prompt (Commit 4) — the model has full context on who the spawn
     is and writes a tight identity-and-intent line in third-person
-    ledger prose. Falls back to a mechanical name+role+location+
-    objectives line ONLY if the summary is missing or whitespace-only,
-    which should not happen with v3+ of `character_gen` but guards the
-    pipeline if a future prompt regression drops the field.
+    ledger prose. The summary is normalized (whitespace collapsed,
+    over-long entries truncated) before interpolation. Falls back to
+    a mechanical name+role+location+objectives line ONLY if the
+    summary is missing or whitespace-only, which should not happen
+    with v3+ of `character_gen` but guards the pipeline if a future
+    prompt regression drops the field.
     """
-    if router_summary and router_summary.strip():
+    cleaned = _normalize_router_summary(router_summary or "")
+    if cleaned:
         checkpoint.session.pending_router_state_changes.append(
-            f"Spawned: {char.name} (id: {char.character_id}) — "
-            f"{router_summary.strip()}"
+            f"Spawned: {char.name} (id: {char.character_id}) — {cleaned}"
         )
         return
 
@@ -162,6 +221,11 @@ class CharacterManager:
             # Purge v11 bookkeeping even if the character record is
             # already missing — cull + purge must be idempotent.
             purge_character_state(checkpoint, char_id)
+            # Commit-4b: also strip any not-yet-drained "Spawned: ..."
+            # state-change line for this id, so the next router call
+            # doesn't see a ghost spawn for a character who was killed
+            # off in the same beat. Safe no-op if no line is queued.
+            _drop_pending_spawn_line(checkpoint, char_id)
 
     async def spawn_characters(
         self,

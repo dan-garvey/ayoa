@@ -310,6 +310,46 @@ class TestRouteIntention:
         assert ckpt.session_conversation[-2].role == "user"
         assert ckpt.session_conversation[-1].role == "assistant"
 
+    def test_failed_router_call_restores_drained_session_queues(
+        self, prompt_mgr, mock_client,
+    ):
+        """Commit-4b P0: if `client.complete` raises after the
+        delta-builders have already mutated session state, the
+        dispatcher must restore both `pending_router_state_changes`
+        and `surfaced_world_facts` so the queued lines re-render on
+        retry instead of being silently lost.
+        """
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.pending_router_state_changes = [
+            "Spawned: Sera (id: sera_01) — fresh arrival",
+            "Player binding: Alice (id: alice) is now driven by a human player.",
+        ]
+        ckpt.world_state.facts = ["The keep predates the road."]
+        ckpt.session.surfaced_world_facts = []
+        before_state_changes = list(
+            ckpt.session.pending_router_state_changes
+        )
+        before_surfaced = list(ckpt.session.surfaced_world_facts)
+
+        boom = RuntimeError("simulated transient API failure")
+        mock_client.complete.side_effect = boom
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        with pytest.raises(RuntimeError):
+            asyncio.run(dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="examine the lock",
+                scene_id="gatehouse",
+            ))
+
+        assert (
+            ckpt.session.pending_router_state_changes == before_state_changes
+        ), "pending_router_state_changes drained but not restored"
+        assert (
+            ckpt.session.surfaced_world_facts == before_surfaced
+        ), "surfaced_world_facts mutated but not restored"
+
 
 # ---- 5. agent_intend returns a compact string ------------------------------
 

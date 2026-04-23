@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from app.engine.character_agent import _extract_parenthetical
+from app.engine.character_manager import _normalize_router_summary
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -675,13 +676,22 @@ class EngineBridge:
         # context). Fall back to a mechanical line if missing — the
         # describe prompt is supposed to always emit a non-empty
         # summary, but the engine should never silently swallow a
-        # spawn just because the LLM regressed.
-        summary = (out.character.router_summary or "").strip()
+        # spawn just because the LLM regressed. The summary is
+        # normalized before interpolation (whitespace collapsed,
+        # over-long entries truncated) using the same helper the spawn
+        # path uses, so an LLM that drops a multi-paragraph backstory
+        # into the field can't shatter the next router prompt.
+        summary = _normalize_router_summary(out.character.router_summary or "")
         if summary:
+            # Engine-side player-bound tag is a tight, repeatable
+            # signal; the takeover prompt's "describe" mode does NOT
+            # need to embed protagonist framing in the LLM-authored
+            # summary anymore (it owns the in-fiction line; we own the
+            # binding metadata). Tag stays compact to minimize echo
+            # surface in router short-circuit prose.
             ckpt.session.pending_router_state_changes.append(
                 f"Custom player character created: {new_char.name} "
-                f"(id: {new_id}) — {summary} (bound to a human player; "
-                f"treat as a protagonist.)"
+                f"(id: {new_id}) — {summary} [player-bound]"
             )
         else:
             role = new_char.public_sheet.role or "unknown role"
@@ -800,17 +810,22 @@ class EngineBridge:
         target.last_intent_turn = -1
 
         ckpt.session.character_bindings[target_character_id] = str(user_id)
-        # Same router_summary preference as create_custom_character; the
-        # `replace` prompt is told to acknowledge the graft in the
-        # summary so the router knows continuity (same body) AND new
-        # motivation in one line. Fall back to mechanical phrasing on
-        # missing summary.
-        summary = (out.character.router_summary or "").strip()
+        # Same router_summary preference as create_custom_character.
+        # For replace, the takeover prompt DOES instruct the LLM to
+        # acknowledge the graft (same body / new actor / new
+        # motivation) in the summary itself — that's substantive
+        # in-fiction content the LLM is best positioned to phrase.
+        # The engine adds a compact `[player-bound, replaced X]` tag
+        # so the router has unambiguous metadata even if the LLM
+        # phrasing is loose; replaced-id tag also double-keys the
+        # ghost-spawn cleanup helper since the new line carries the
+        # SAME id as the prior NPC.
+        summary = _normalize_router_summary(out.character.router_summary or "")
         if summary:
             ckpt.session.pending_router_state_changes.append(
-                f"Character replacement: identity of {target_character_id} "
-                f"has been overwritten — {summary} (now bound to a human "
-                f"player; treat as a new actor with the same body.)"
+                f"Character replacement: id {target_character_id} "
+                f"is now '{target.name}' — {summary} "
+                f"[player-bound, replaced prior occupant of this id]"
             )
         else:
             ckpt.session.pending_router_state_changes.append(

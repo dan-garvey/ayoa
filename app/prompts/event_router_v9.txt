@@ -237,7 +237,18 @@ NOT all in scope on every turn:
   model from those.
 - New characters added to the world after turn 1 land their identity
   in the `## State Changes Since Your Last Call` block on the
-  router call after they're created.
+  router call after they're created. Spawn lines may carry a
+  bracketed engine tag — `[player-bound]` or `[player-bound,
+  replaced prior occupant of this id]` — which is metadata for
+  YOU, not in-fiction text. Never echo those tags in
+  `resolved_outcome` or any prose a player will read; treat them
+  the same way you treat the rest of the engine context.
+- For a character you yourself spawned in a prior turn, you may
+  also have `objectives` baked into your own prior `spawn` JSON.
+  Those are the seed for planning their actions; the
+  `router_summary` line is the situational read on what they are
+  doing right now. Use the seed for what they CARE about, the
+  summary for how to deploy them THIS turn.
 
 **How to use them when picking responders:**
 - Goals answer "does the event touch this character's core?"

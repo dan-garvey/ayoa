@@ -137,56 +137,80 @@ class EventRouter:
         # (turn-1 only, with goals/objectives/last_intent),
         # `world_facts_delta` (only newly-surfaced facts), and
         # `state_changes_block` (engine-applied changes the router
-        # didn't author). Mutates session.surfaced_world_facts and
-        # session.pending_router_state_changes — atomic with the
-        # router LLM call.
+        # didn't author). The two delta builders MUTATE session state
+        # in-place during render: `_build_world_facts_delta` extends
+        # `session.surfaced_world_facts`, `_build_state_changes_block`
+        # drains `session.pending_router_state_changes`. If the LLM
+        # call fails after build but before completion, those queued
+        # entries are silently lost — flagged P0 by the Commit-4
+        # reviewers. Snapshot the two fields BEFORE render and
+        # restore them on exception so a failed router call leaves
+        # the next attempt with the same input it had on this one.
         from app.engine.turn_loop_dispatcher import (
             _build_initial_roster_block,
             _build_state_changes_block,
             _build_world_facts_delta,
         )
+        saved_surfaced_facts = list(
+            checkpoint.session.surfaced_world_facts
+        )
+        saved_state_changes = list(
+            checkpoint.session.pending_router_state_changes
+        )
         render_t0 = time.monotonic()
-        messages = self.prompt_manager.render_conversation(
-            "event_router",
-            history=checkpoint.session_conversation,
-            setting_summary=self._build_setting_summary(checkpoint),
-            world_lore=checkpoint.world_state.lore or "No detailed lore available.",
-            world_rules=self._build_world_rules(checkpoint),
-            current_scene=self._build_scene_context(checkpoint),
-            scene_graph=self._build_scene_graph(checkpoint),
-            characters_present=self._build_characters_present(checkpoint),
-            hidden_lore=checkpoint.world_state.hidden_lore or "None.",
-            hidden_facts=self._build_hidden_facts(checkpoint),
-            user_input=user_input,
-            acting_character_name=acting_name,
-            acting_character_id=acting_id,
-            player_characters_block=build_player_characters_block(
-                checkpoint, acting_id
-            ),
-            since_last_turn_block=since_last_turn_block,
-            opening_directive=opening_directive,
-            recent_turn_recap=recent_turn_recap,
-            world_facts_delta_block=_build_world_facts_delta(checkpoint),
-            initial_roster_block=_build_initial_roster_block(checkpoint),
-            state_changes_block=_build_state_changes_block(checkpoint),
-        )
-        render_ms = (time.monotonic() - render_t0) * 1000
+        try:
+            messages = self.prompt_manager.render_conversation(
+                "event_router",
+                history=checkpoint.session_conversation,
+                setting_summary=self._build_setting_summary(checkpoint),
+                world_lore=checkpoint.world_state.lore or "No detailed lore available.",
+                world_rules=self._build_world_rules(checkpoint),
+                current_scene=self._build_scene_context(checkpoint),
+                scene_graph=self._build_scene_graph(checkpoint),
+                characters_present=self._build_characters_present(checkpoint),
+                hidden_lore=checkpoint.world_state.hidden_lore or "None.",
+                hidden_facts=self._build_hidden_facts(checkpoint),
+                user_input=user_input,
+                acting_character_name=acting_name,
+                acting_character_id=acting_id,
+                player_characters_block=build_player_characters_block(
+                    checkpoint, acting_id
+                ),
+                since_last_turn_block=since_last_turn_block,
+                opening_directive=opening_directive,
+                recent_turn_recap=recent_turn_recap,
+                world_facts_delta_block=_build_world_facts_delta(checkpoint),
+                initial_roster_block=_build_initial_roster_block(checkpoint),
+                state_changes_block=_build_state_changes_block(checkpoint),
+            )
+            render_ms = (time.monotonic() - render_t0) * 1000
 
-        # Capture the plain-text user content before LLMClient wraps it with
-        # cache_control for this call — we persist the plain text.
-        user_content = messages[-1]["content"]
+            # Capture the plain-text user content before LLMClient wraps it with
+            # cache_control for this call — we persist the plain text.
+            user_content = messages[-1]["content"]
 
-        logger.info("EventRouter: adjudicating + routing action: %s", user_input[:80])
+            logger.info("EventRouter: adjudicating + routing action: %s", user_input[:80])
 
-        response = await self.client.complete(
-            role="event_router",
-            messages=messages,
-            response_model=EventRouterOutput,
-            temperature=0.35,
-            max_tokens=5000,
-            cache=True,
-            compact=True,
-        )
+            response = await self.client.complete(
+                role="event_router",
+                messages=messages,
+                response_model=EventRouterOutput,
+                temperature=0.35,
+                max_tokens=5000,
+                cache=True,
+                compact=True,
+            )
+        except Exception:
+            # Restore pre-build state so the next attempt re-renders with
+            # the same delta queues. Without this, a failed call would
+            # leave both queues empty and the retry would silently lose
+            # whatever was queued (spawn router_summary lines, world fact
+            # entries, etc.).
+            checkpoint.session.surfaced_world_facts = saved_surfaced_facts
+            checkpoint.session.pending_router_state_changes = (
+                saved_state_changes
+            )
+            raise
         result: EventRouterOutput = response.parsed
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
 
