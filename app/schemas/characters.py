@@ -37,19 +37,6 @@ class PrivateState(BaseModel):
     intentions_enabled: bool = False
 
 
-class IncomingDirective(BaseModel):
-    """A message or instruction another character has sent to this one.
-
-    Flushed into the recipient's user message on their next response or
-    tick, then cleared. `depth` tracks the delegation chain length for
-    cycle/over-delegation guarding (warn at >2, cap at 10).
-    """
-    from_character_id: str
-    content: str
-    turn: int
-    depth: int = 1
-
-
 class CharacterRecord(BaseModel):
     character_id: str
     name: str
@@ -64,12 +51,12 @@ class CharacterRecord(BaseModel):
     private_state: PrivateState = Field(default_factory=PrivateState)
     # Staging area for observations the character witnessed silently (turns where
     # they didn't respond). Flushed into the next agent user message when the
-    # character is asked to respond, then cleared.
+    # character is asked to respond, then cleared. Commit 2 removed the
+    # parallel `incoming_directives` queue: cross-character communication
+    # now travels through normal scene prose (a courier walks in and
+    # speaks; a note is rendered in observable_facts) rather than a
+    # structured inter-agent message bus.
     pending_observations: list[str] = Field(default_factory=list)
-    # Queue of directives from other characters awaiting flush on next turn.
-    # Same flush-and-clear pattern as pending_observations but for messages
-    # addressed to this character by another NPC (or by the world/narrator).
-    incoming_directives: list[IncomingDirective] = Field(default_factory=list)
     # Long-form text fields for rich character content. `personality`
     # now absorbs what used to live in `narrative_notes` + traits/voice
     # on PublicSheet — one prose block covering who they are, how they

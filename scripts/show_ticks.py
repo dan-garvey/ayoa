@@ -83,8 +83,6 @@ def _print_tick(idx: int, assistant_text: str) -> None:
         print(f"  tick {idx} (legacy json):")
         for o in pu.get("current_objectives", []) or []:
             print(f"    - {o}")
-        for d in pu.get("directives_sent", []) or []:
-            print(f"    → {d.get('to')}: {d.get('content', '')}")
         if pu.get("moved_to"):
             print(f"    moved_to: {pu['moved_to']}")
         for s in pu.get("scenes_created", []) or []:

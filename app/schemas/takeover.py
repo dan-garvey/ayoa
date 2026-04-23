@@ -13,8 +13,8 @@ Three modes, one prompt (`takeover_v1`), three output shapes:
 - **replace** — user picks one candidate from a prior `suggest` call.
   The router returns the final authored character (same shape as
   describe) which the engine will graft onto the chosen NPC's slot —
-  name and appearance overwritten, everything else (location,
-  objectives, directives) preserved.
+  name and appearance overwritten, circumstances (location,
+  objectives, pending observations) preserved.
 """
 
 from __future__ import annotations

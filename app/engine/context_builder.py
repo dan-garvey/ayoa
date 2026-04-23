@@ -370,47 +370,34 @@ def build_player_characters_block(
 
 
 def clear_character_inbox(character: CharacterRecord) -> None:
-    """Clear a character's inbox queues after they've been flushed into a
-    prompt's user message.
+    """Clear a character's `pending_observations` queue after it's been
+    flushed into the prompt's user message.
 
-    A character carries two per-turn queues:
-      - `pending_observations: list[str]` — things they witnessed silently
-        between their own turns. Each entry is rendered prose with a
-        `[Turn N]` prefix embedded inline.
-      - `incoming_directives: list[IncomingDirective]` — messages sent to
-        them by another character, stamped structurally with
-        `from_character_id`, `turn`, and `depth` (for delegation-chain
-        tracking).
-
-    The two queues diverge intentionally in shape — observations are
-    free-text, directives need structured depth-tracking so we can warn
-    and cap deep delegation chains. Their LIFECYCLE is symmetric: both
-    accumulate silently, both flush on the character's next response or
-    tick, both clear at the same moment. This helper guarantees they
-    stay in lockstep so nothing can flush one queue while leaving the
-    other stale.
+    Pre-Commit-2 there was a parallel `incoming_directives` queue with
+    its own structured message envelope (`from_character_id`, `turn`,
+    `depth`) and a delegation-chain depth cap. That whole inter-agent
+    message bus is gone — cross-character communication now flows
+    through normal scene prose: a courier walks into the scene and
+    speaks, a note appears in `observable_facts`, an offstage tick
+    posts a single exchange in its own location. This helper retains
+    the name `clear_character_inbox` so callers don't churn, but its
+    job is now scoped to the one remaining queue.
     """
     character.pending_observations = []
-    character.incoming_directives = []
 
 
 def format_pending_observations_block(character: CharacterRecord) -> str:
     """Render the "Since your last response" block for the agent user message.
 
-    Combines silent observations (things this character witnessed) with
-    incoming directives (messages other characters sent them). Both flush
-    on the agent's next response. Returns empty string when nothing is
-    pending so the template doesn't render a dangling header.
+    Lists silent observations the character witnessed since their last
+    response. Returns empty string when nothing is pending so the
+    template doesn't render a dangling header.
     """
-    if not character.pending_observations and not character.incoming_directives:
+    if not character.pending_observations:
         return ""
 
     lines = ["## Since your last response"]
     for entry in character.pending_observations:
         lines.append(f"- {entry}")
-    for d in character.incoming_directives:
-        lines.append(
-            f"- **Message from {d.from_character_id}** (turn {d.turn}): {d.content}"
-        )
     lines.append("")  # trailing blank line before next section
     return "\n".join(lines) + "\n"

@@ -694,11 +694,10 @@ class EngineBridge:
     ) -> CharacterRecord:
         """Mode='replace': graft a player-authored character onto an
         existing NPC's slot. Preserves circumstances (location, status,
-        incoming_directives, pending_observations, current_objectives)
-        and overwrites identity (name, sheet, backstory, personality,
-        goals, known_context, secrets, narrative_notes). Clears the
-        target's rolling character_conversation so the new self starts
-        fresh.
+        pending_observations, current_objectives) and overwrites
+        identity (name, sheet, backstory, personality, goals,
+        known_context, secrets, narrative_notes). Clears the target's
+        rolling character_conversation so the new self starts fresh.
 
         Binds user, flips is_player, saves."""
         from app.schemas.takeover import TakeoverAuthoredOutput
@@ -744,9 +743,9 @@ class EngineBridge:
         target.private_state.goals = list(authored.goals)
         target.private_state.secrets = list(authored.secrets)
         target.private_state.intentions_enabled = authored.intentions_enabled
-        # Keep target's location, status, incoming_directives,
-        # pending_observations, current_objectives as-is — those are the
-        # "circumstances" the player inherits.
+        # Keep target's location, status, pending_observations, and
+        # current_objectives as-is — those are the "circumstances" the
+        # player inherits.
         target.is_player = True
 
         # Drop rolling character conversation — the voice has changed.

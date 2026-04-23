@@ -18,9 +18,14 @@ its private intent. The engine parses that into the two fields below at
 Why no LLM-target schema:
 - The four `private_updates` fields in v9/v10 were schema-required,
   prompt-emitted, and almost entirely unconsumed downstream. Movement,
-  scene creation, directives, and objective writeback are now handled
-  by the router (on-stage) and the unified tick router (off-stage),
-  which see the agent's prose + intent and decide what to canonicalize.
+  scene creation, and objective writeback are now handled by the
+  router (on-stage) and the unified tick router (off-stage), which
+  see the agent's prose + intent and decide what to canonicalize.
+  Inter-character "directives" (a structured message bus for NPC-to-NPC
+  coordination) were dropped in Commit 2: characters that need to
+  coordinate now do it through normal scene prose — a courier walks
+  in and speaks, a note is rendered in observable_facts, an offstage
+  exchange resolves in one tick.
 - Free prose lets the model commit to short responses (2-4 sentences
   by default) without negotiating empty list / empty string contracts.
 - The agent's own continuity (objectives that mutate over time, plans

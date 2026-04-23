@@ -191,14 +191,19 @@ def _build_character_registry(checkpoint: CheckpointFile) -> str:
 
 
 def _build_since_last_turn_block(acting_char) -> str:
-    """Markdown block listing arrived messages + silent observations for
-    the acting character. Rendered in the router's user message; the
-    router weaves any visible items into observable_facts so the narrator
-    can surface them. Returns empty string when the character has nothing
-    queued."""
+    """Markdown block listing silent observations for the acting
+    character. Rendered in the router's user message; the router
+    weaves any visible items into observable_facts so the narrator
+    can surface them. Returns empty string when the character has
+    nothing queued.
+
+    Mirror of the helper in `app/engine/event_router.py` — kept in
+    sync until the legacy EventRouter helper is removed entirely. See
+    that helper's docstring for the directive-queue removal note.
+    """
     if acting_char is None:
         return ""
-    if not acting_char.pending_observations and not acting_char.incoming_directives:
+    if not acting_char.pending_observations:
         return ""
 
     lines = [
@@ -207,10 +212,6 @@ def _build_since_last_turn_block(acting_char) -> str:
     ]
     for obs in acting_char.pending_observations:
         lines.append(f"- {obs}")
-    for d in acting_char.incoming_directives:
-        lines.append(
-            f"- **Message from {d.from_character_id}** (turn {d.turn}): {d.content}"
-        )
     lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -263,7 +264,7 @@ def _build_router_context(
     )
     since_last_turn_block = _build_since_last_turn_block(acting_char)
     # Mirror the flush semantics from EventRouter.run — after the router
-    # sees these observations/directives, they must not re-deliver on the
+    # sees these silent observations, they must not re-deliver on the
     # next turn.
     if acting_char is not None:
         clear_character_inbox(acting_char)

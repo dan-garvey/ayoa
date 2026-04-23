@@ -24,17 +24,21 @@ logger = logging.getLogger(__name__)
 
 
 def _build_since_last_turn_block(acting_char) -> str:
-    """Markdown block listing arrived messages + silent observations for the
-    acting character. Rendered in the router's user message; the router
+    """Markdown block listing silent observations for the acting
+    character. Rendered in the router's user message; the router
     weaves any visible items into observable_facts so the narrator can
-    surface them (a note on the desk, a whispered aside, a sealed letter).
+    surface them (a note on the desk, a smell drifting in, a distant
+    sound). Returns empty string when nothing is queued — the template
+    then renders cleanly without a dangling header.
 
-    Returns empty string when the character has nothing queued — the
-    template then renders cleanly without a dangling header.
+    Pre-Commit-2 this also rendered `incoming_directives`, a structured
+    inter-agent message bus. Directives are gone; cross-character
+    communication now flows through normal scene prose (a courier
+    walks in and speaks).
     """
     if acting_char is None:
         return ""
-    if not acting_char.pending_observations and not acting_char.incoming_directives:
+    if not acting_char.pending_observations:
         return ""
 
     lines = [
@@ -43,10 +47,6 @@ def _build_since_last_turn_block(acting_char) -> str:
     ]
     for obs in acting_char.pending_observations:
         lines.append(f"- {obs}")
-    for d in acting_char.incoming_directives:
-        lines.append(
-            f"- **Message from {d.from_character_id}** (turn {d.turn}): {d.content}"
-        )
     lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -81,13 +81,13 @@ class EventRouter:
             checkpoint, acting_character_id,
         )
 
-        # Flush any messages / observations that arrived for this player
-        # character between their last action and now. NPCs can send
-        # directives to player-bound characters (notes, whispers, letters)
-        # via directives_sent, and off-stage ticks or scene pushes can
-        # stack pending_observations. The router gets them as a distinct
-        # context block so it can fold them into the canonical event
-        # (e.g., "Johnny notices the note on his desk as he enters").
+        # Flush any silent observations that stacked for this player
+        # character between their last action and now (off-stage ticks,
+        # scene pushes, environmental beats). The router gets them as
+        # a distinct context block so it can fold them into the
+        # canonical event (e.g., "Johnny notices the note on his desk
+        # as he enters"). Cross-character messages no longer flow
+        # through a structured queue — couriers walk into the scene.
         since_last_turn_block = _build_since_last_turn_block(acting_char)
         if acting_char is not None:
             clear_character_inbox(acting_char)

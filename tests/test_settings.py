@@ -1,17 +1,20 @@
-"""Tests for user-tunable settings + tick-driven scene creation behind
-the agents_can_create_scenes flag."""
+"""Tests for user-tunable settings exposed via /set on EngineBridge.
+
+The legacy v8 tick-path scene creation suite (gated by the
+agents_can_create_scenes flag) used to live here as a skip-marked
+class. Commit 2 deleted it along with the dead `private_updates`
+schema it relied on; tick-driven behavior will be re-tested when
+Commit 5 wires the v11 background-tick path.
+"""
 
 from __future__ import annotations
 
-import asyncio
-import logging
 from pathlib import Path
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.bot.engine_bridge import EngineBridge
-from app.engine.orchestrator import Orchestrator
 from app.engine.settings import (
     SETTINGS,
     SETTINGS_BY_KEY,
@@ -22,23 +25,6 @@ from app.engine.settings import (
     set_setting,
 )
 from app.llm.config import LLMConfig
-from app.schemas.agents import CharacterAgentOutput
-
-# Commit 2 will delete directives entirely. For Commit 1 we keep the
-# legacy skipped tick-scene-creation suite parseable via local stand-ins
-# rather than schema imports that no longer exist.
-class _DirectiveSend:  # type: ignore[no-redef]
-    def __init__(self, **kw): pass
-
-class _PrivateUpdates:  # type: ignore[no-redef]
-    def __init__(self, **kw): pass
-
-class _PublicResponse:  # type: ignore[no-redef]
-    def __init__(self, **kw): pass
-
-DirectiveSend = _DirectiveSend  # type: ignore[assignment]
-PrivateUpdates = _PrivateUpdates  # type: ignore[assignment]
-PublicResponse = _PublicResponse  # type: ignore[assignment]
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
@@ -46,7 +32,6 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import SceneCreation
 from app.schemas.state import LocationState, SessionState, WorldState
 
 
@@ -197,125 +182,3 @@ class TestEngineBridgeSettings:
     def test_known_setting_keys(self, bridge: EngineBridge):
         keys = bridge.known_setting_keys()
         assert "agents_can_create_scenes" in keys
-
-
-# ---- tick-path scene creation ----------------------------------------------
-
-
-def _orch() -> Orchestrator:
-    """Orchestrator wired to mocks. Only state-mutation helpers are
-    exercised; no LLM calls."""
-    client = MagicMock()
-    client.complete = AsyncMock()
-    client.config = LLMConfig()
-    checkpoint_mgr = MagicMock()
-    prompt_mgr = MagicMock()
-    return Orchestrator(client, checkpoint_mgr, prompt_mgr)
-
-
-def _tick_output(character_id: str, scenes, moved_to: str = "") -> CharacterAgentOutput:
-    return CharacterAgentOutput(
-        character_id=character_id,
-        public_response=PublicResponse(
-            actions=[], dialogue=[], expression="",
-        ),
-        private_updates=PrivateUpdates(
-            current_objectives=[],
-            directives_sent=[],
-            scenes_created=list(scenes),
-            moved_to=moved_to,
-        ),
-    )
-
-
-def _fake_tick_result(regent, scenes, moved_to=""):
-    """Build the (char, output, usage) triple _run_ticks assembles when
-    a tick succeeds."""
-    return (regent, _tick_output(regent.character_id, scenes, moved_to), {})
-
-
-@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
-class TestTickSceneCreationGate:
-    """The agents_can_create_scenes flag gates whether tick outputs'
-    scenes_created are applied to the scene graph. We drive _run_ticks
-    via a mocked agent_engine.tick to avoid an LLM call."""
-
-    def _run(self, coro):
-        return asyncio.run(coro)
-
-    def _arm_tick(self, orch, regent, scenes, moved_to=""):
-        """Wire agent_engine.tick to return a preset output for regent."""
-        output = _tick_output(regent.character_id, scenes, moved_to)
-
-        async def _fake(char, checkpoint, acting_character_id=""):
-            return output
-
-        orch.agent_engine.tick = AsyncMock(side_effect=_fake)
-        orch.agent_engine.last_usage = {}
-
-    def test_flag_off_drops_scenes_with_warning(self, caplog):
-        ckpt = _ckpt()
-        ckpt.session.tick_turn_counter = 4
-        ckpt.session.tick_cadence = 5
-        ckpt.session.tick_last_scene_id = "hall"
-        # Flag default is False.
-        orch = _orch()
-        regent = next(c for c in ckpt.characters if c.character_id == "regent")
-        self._arm_tick(orch, regent, [
-            SceneCreation(scene_id="study", name="Study", description="", connected_to=["hall"]),
-        ])
-
-        with caplog.at_level(logging.WARNING):
-            self._run(orch._run_ticks(ckpt, set(), "aldric"))
-
-        # Scene NOT created.
-        assert "study" not in ckpt.world_state.locations.scene_graph
-        # Warning was logged.
-        assert any(
-            "agents_can_create_scenes" in r.message for r in caplog.records
-        )
-
-    def test_flag_on_creates_scenes_before_moved_to(self):
-        ckpt = _ckpt()
-        ckpt.session.tick_turn_counter = 4
-        ckpt.session.tick_cadence = 5
-        ckpt.session.tick_last_scene_id = "hall"
-        ckpt.session.config.settings.agents_can_create_scenes = True
-
-        orch = _orch()
-        regent = next(c for c in ckpt.characters if c.character_id == "regent")
-        # Agent creates "study" AND moves into it on the same tick. The
-        # move should succeed because scene is created first.
-        self._arm_tick(
-            orch, regent,
-            scenes=[SceneCreation(
-                scene_id="study", name="Study", description="", connected_to=["hall"],
-            )],
-            moved_to="study",
-        )
-
-        self._run(orch._run_ticks(ckpt, set(), "aldric"))
-
-        assert "study" in ckpt.world_state.locations.scene_graph
-        assert ckpt.world_state.locations.scene_graph["study"]["name"] == "Study"
-        # Regent moved into the new scene.
-        moved = next(c for c in ckpt.characters if c.character_id == "regent")
-        assert moved.location == "study"
-        # Bidirectional edge added.
-        hall = ckpt.world_state.locations.scene_graph["hall"]
-        assert "study" in hall["connected_to"]
-
-    def test_flag_on_with_no_scenes_emitted_is_noop(self):
-        ckpt = _ckpt()
-        ckpt.session.tick_turn_counter = 4
-        ckpt.session.tick_cadence = 5
-        ckpt.session.tick_last_scene_id = "hall"
-        ckpt.session.config.settings.agents_can_create_scenes = True
-
-        orch = _orch()
-        regent = next(c for c in ckpt.characters if c.character_id == "regent")
-        self._arm_tick(orch, regent, scenes=[])
-
-        graph_before = dict(ckpt.world_state.locations.scene_graph)
-        self._run(orch._run_ticks(ckpt, set(), "aldric"))
-        assert ckpt.world_state.locations.scene_graph.keys() == graph_before.keys()

@@ -21,7 +21,6 @@ from app.llm.client import LLMResponse
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
-    IncomingDirective,
     PrivateState,
     PublicSheet,
 )
@@ -319,13 +318,6 @@ class TestReplaceWithCustom:
                 intentions_enabled=False,
             ),
             pending_observations=["saw the flash"],
-            incoming_directives=[
-                IncomingDirective(
-                    from_character_id="playerX",
-                    content="Meet me at dawn.",
-                    turn=3,
-                ),
-            ],
         )
         ckpt = _make_checkpoint(characters=[target])
         # Seed a prior character_conversations entry for this target; it
@@ -379,8 +371,6 @@ class TestReplaceWithCustom:
         assert updated.location == "garden"
         assert updated.private_state.current_objectives == ["win the duel"]
         assert updated.pending_observations == ["saw the flash"]
-        assert len(updated.incoming_directives) == 1
-        assert updated.incoming_directives[0].content == "Meet me at dawn."
 
         # Flag + binding
         assert updated.is_player is True
