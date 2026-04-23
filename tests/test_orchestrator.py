@@ -283,6 +283,7 @@ class TestCharacterSpawn:
             personality="Nervous, avoids eye contact.",
             known_context="", goals=[], current_objectives=[],
             secrets=[], intentions_enabled=False,
+            router_summary="Tom — nervous stablehand at the courtyard, watching the gate.",
         )
         mock_client.complete.return_value = _llm_response(authored)
 
@@ -322,6 +323,7 @@ class TestCharacterSpawn:
             personality="", known_context="",
             goals=[], current_objectives=[], secrets=[],
             intentions_enabled=False,
+            router_summary="NPC — generic walk-on at the courtyard.",
         )
         mock_client.complete.return_value = _llm_response(authored)
 
@@ -346,3 +348,92 @@ class TestCharacterSpawn:
             )
         )
         assert len(spawned) == 0
+
+    @pytest.mark.asyncio
+    async def test_spawn_writes_router_summary_then_drains(
+        self, mock_client, sample_checkpoint,
+    ):
+        """Commit 4: spawn flow produces a router_summary that lands in
+        `pending_router_state_changes` exactly once.
+
+        Verifies the full wiring: the LLM-authored summary makes it
+        through `_spawn_one`, `_push_spawn_state_change` formats it
+        as a "Spawned: ..." line, and the subsequent router-context
+        builder drains the queue (one-shot semantics).
+        """
+        from app.engine.turn_loop_dispatcher import _build_state_changes_block
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Sera the Cartographer",
+            location="courtyard",
+            role="cartographer",
+            appearance="", faction="", backstory="",
+            personality="Quiet, watchful.",
+            known_context="",
+            goals=[], current_objectives=[],
+            secrets=[], intentions_enabled=False,
+            router_summary=(
+                "Sera — exiled cartographer just stepped into the courtyard, "
+                "looking for the steward to plead her family's case."
+            ),
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="sera_01", seed={"role": "cartographer"})],
+        )
+        assert len(spawned) == 1
+
+        queue = sample_checkpoint.session.pending_router_state_changes
+        assert len(queue) == 1
+        line = queue[0]
+        assert "Spawned: Sera the Cartographer" in line
+        assert "sera_01" in line
+        assert "exiled cartographer" in line
+        assert "steward" in line
+
+        block = _build_state_changes_block(sample_checkpoint)
+        assert "## State Changes Since Your Last Call" in block
+        assert "Spawned: Sera the Cartographer" in block
+        assert sample_checkpoint.session.pending_router_state_changes == []
+
+        block_again = _build_state_changes_block(sample_checkpoint)
+        assert block_again == ""
+
+    @pytest.mark.asyncio
+    async def test_spawn_falls_back_when_router_summary_blank(
+        self, mock_client, sample_checkpoint,
+    ):
+        """Commit 4 fallback: if the LLM regresses and emits an empty
+        `router_summary`, the engine writes the mechanical
+        name+role+location+objectives line so the spawn still surfaces.
+        """
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Anon",
+            location="courtyard",
+            role="messenger",
+            appearance="", faction="", backstory="",
+            personality="",
+            known_context="",
+            goals=[], current_objectives=["deliver the writ"],
+            secrets=[], intentions_enabled=False,
+            router_summary="   ",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="anon_01", seed={"role": "messenger"})],
+        )
+        queue = sample_checkpoint.session.pending_router_state_changes
+        assert len(queue) == 1
+        line = queue[0]
+        assert "Spawned: Anon" in line
+        assert "role=messenger" in line
+        assert "objectives=deliver the writ" in line

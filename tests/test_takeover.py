@@ -65,6 +65,7 @@ def _authored(**overrides):
         name="default", location="", role="", appearance="", faction="",
         backstory="", personality="", known_context="",
         goals=[], current_objectives=[], secrets=[], intentions_enabled=False,
+        router_summary="",
     )
     defaults.update(overrides)
     return AuthoredCharacter(**defaults)

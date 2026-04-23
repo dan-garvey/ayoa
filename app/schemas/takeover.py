@@ -88,10 +88,30 @@ class AuthoredCharacter(BaseModel):
     current_objectives: list[str]
     secrets: list[str]
     intentions_enabled: bool
+    # Commit 4: short identity-and-intent line the engine surfaces to the
+    # router on the call AFTER this character is created. One or two
+    # sentences. The router uses it to know who this person is, what
+    # role they fill, and what they're trying to do, so it can pick
+    # them as a responder, place them in scenes, and adjudicate the
+    # cascade without needing to re-feed their full record. Lands in
+    # the next router prompt's "## State Changes Since Your Last Call"
+    # block once and then lives on in router history. Author it as
+    # third-person reportage that reads like one entry in a roster
+    # ledger ("Tom — nervous stablehand at the courtyard, stays close
+    # to the gate because he expects the captain back at any moment").
+    # NOT in-character voice; NOT a goal restatement; NOT a backstory
+    # paragraph. NEVER empty for a fresh character — the engine would
+    # fall back to a much weaker mechanical line.
+    router_summary: str
 
     def to_record(self, character_id: str = "") -> CharacterRecord:
         """Map onto CharacterRecord. Caller sets character_id, is_player,
-        and binding afterward if relevant."""
+        and binding afterward if relevant.
+
+        `router_summary` deliberately does NOT land on CharacterRecord —
+        it's an author-time scratch field consumed by the engine into
+        `pending_router_state_changes` and otherwise discarded.
+        """
         return CharacterRecord(
             character_id=character_id,
             name=self.name,

@@ -671,13 +671,31 @@ class EngineBridge:
         new_char.is_player = True
         ckpt.characters.append(new_char)
         ckpt.session.character_bindings[new_id] = str(user_id)
-        role = new_char.public_sheet.role or "unknown role"
-        loc = new_char.location or "unknown"
-        ckpt.session.pending_router_state_changes.append(
-            f"Custom player character created: {new_char.name} "
-            f"(id: {new_id}), role={role}, location={loc}, bound to a "
-            f"human player."
-        )
+        # Prefer the LLM-authored router_summary (it has full omniscient
+        # context). Fall back to a mechanical line if missing — the
+        # describe prompt is supposed to always emit a non-empty
+        # summary, but the engine should never silently swallow a
+        # spawn just because the LLM regressed.
+        summary = (out.character.router_summary or "").strip()
+        if summary:
+            ckpt.session.pending_router_state_changes.append(
+                f"Custom player character created: {new_char.name} "
+                f"(id: {new_id}) — {summary} (bound to a human player; "
+                f"treat as a protagonist.)"
+            )
+        else:
+            role = new_char.public_sheet.role or "unknown role"
+            loc = new_char.location or "unknown"
+            ckpt.session.pending_router_state_changes.append(
+                f"Custom player character created: {new_char.name} "
+                f"(id: {new_id}), role={role}, location={loc}, bound to a "
+                f"human player."
+            )
+            logger.warning(
+                "Custom-character spawn for %s landed without "
+                "router_summary; surfaced mechanical fallback line.",
+                new_id,
+            )
 
         if out.session_note:
             _append_session_note(ckpt, out.session_note)
@@ -782,14 +800,32 @@ class EngineBridge:
         target.last_intent_turn = -1
 
         ckpt.session.character_bindings[target_character_id] = str(user_id)
-        ckpt.session.pending_router_state_changes.append(
-            f"Character replacement: identity of {target_character_id} "
-            f"has been overwritten — they are now '{target.name}', "
-            f"role={target.public_sheet.role or 'unknown role'}, bound "
-            f"to a human player. Goals and personality are different "
-            f"from the prior version; treat as a new actor with the "
-            f"same body."
-        )
+        # Same router_summary preference as create_custom_character; the
+        # `replace` prompt is told to acknowledge the graft in the
+        # summary so the router knows continuity (same body) AND new
+        # motivation in one line. Fall back to mechanical phrasing on
+        # missing summary.
+        summary = (out.character.router_summary or "").strip()
+        if summary:
+            ckpt.session.pending_router_state_changes.append(
+                f"Character replacement: identity of {target_character_id} "
+                f"has been overwritten — {summary} (now bound to a human "
+                f"player; treat as a new actor with the same body.)"
+            )
+        else:
+            ckpt.session.pending_router_state_changes.append(
+                f"Character replacement: identity of {target_character_id} "
+                f"has been overwritten — they are now '{target.name}', "
+                f"role={target.public_sheet.role or 'unknown role'}, bound "
+                f"to a human player. Goals and personality are different "
+                f"from the prior version; treat as a new actor with the "
+                f"same body."
+            )
+            logger.warning(
+                "Character replacement for %s landed without "
+                "router_summary; surfaced mechanical fallback line.",
+                target_character_id,
+            )
 
         if out.session_note:
             _append_session_note(ckpt, out.session_note)

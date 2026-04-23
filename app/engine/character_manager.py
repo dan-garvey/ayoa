@@ -27,21 +27,32 @@ MAX_SPAWNS_PER_TURN = 3
 
 
 def _push_spawn_state_change(
-    checkpoint: CheckpointFile, char: CharacterRecord,
+    checkpoint: CheckpointFile,
+    char: CharacterRecord,
+    router_summary: str,
 ) -> None:
     """Surface a freshly-spawned character to the next router call.
 
-    Commit-3 minimal version: writes a name + role + location +
-    objectives line to `session.pending_router_state_changes`. The
-    next router call's "## State Changes Since Your Last Call" block
-    surfaces the queue and clears it.
+    Writes one line to `session.pending_router_state_changes`. The next
+    router call's "## State Changes Since Your Last Call" block drains
+    the queue and surfaces it once; subsequent calls see this character
+    only via router history.
 
-    Commit 4 will replace this body with the LLM-generated
-    `router_summary` from the spawn-generation prompt — same queue,
-    richer prose. Until then, this gives the router a mechanical
-    signal that a new character exists in the world without waiting
-    for the (now-removed) `character_registry` re-feed to clue it in.
+    Prefers the LLM-authored `router_summary` from the spawn-generation
+    prompt (Commit 4) — the model has full context on who the spawn
+    is and writes a tight identity-and-intent line in third-person
+    ledger prose. Falls back to a mechanical name+role+location+
+    objectives line ONLY if the summary is missing or whitespace-only,
+    which should not happen with v3+ of `character_gen` but guards the
+    pipeline if a future prompt regression drops the field.
     """
+    if router_summary and router_summary.strip():
+        checkpoint.session.pending_router_state_changes.append(
+            f"Spawned: {char.name} (id: {char.character_id}) — "
+            f"{router_summary.strip()}"
+        )
+        return
+
     role = char.public_sheet.role or "unknown role"
     loc = char.location or "unknown"
     scene_graph = checkpoint.world_state.locations.scene_graph
@@ -55,6 +66,11 @@ def _push_spawn_state_change(
     if objs:
         parts.append("objectives=" + "; ".join(objs))
     checkpoint.session.pending_router_state_changes.append(", ".join(parts))
+    logger.warning(
+        "Spawn for %s landed without router_summary; surfaced mechanical "
+        "fallback line. Check character_gen prompt rendering.",
+        char.character_id,
+    )
 
 
 def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
@@ -179,11 +195,11 @@ class CharacterManager:
         spawned = []
         for req in requests:
             try:
-                char = await self._spawn_one(checkpoint, req)
+                char, router_summary = await self._spawn_one(checkpoint, req)
                 checkpoint.characters.append(char)
                 spawned.append(char)
                 logger.info("Spawned character: %s (%s)", char.name, char.character_id)
-                _push_spawn_state_change(checkpoint, char)
+                _push_spawn_state_change(checkpoint, char, router_summary)
             except Exception as e:
                 logger.warning("Failed to spawn %s: %s", req.character_id, e)
 
@@ -191,8 +207,15 @@ class CharacterManager:
 
     async def _spawn_one(
         self, checkpoint: CheckpointFile, req: SpawnRequest
-    ) -> CharacterRecord:
-        """Generate a single character via LLM."""
+    ) -> tuple[CharacterRecord, str]:
+        """Generate a single character via LLM.
+
+        Returns the freshly-built CharacterRecord plus the LLM-authored
+        `router_summary` (one or two sentences for the next router
+        call's State Changes block). The summary is NOT persisted on
+        the record — it's an author-time scratch field consumed by
+        `_push_spawn_state_change` and otherwise discarded.
+        """
         setting = checkpoint.world_state.setting
         setting_summary = f"Genre: {setting.genre}\nEra: {setting.era}\nTone: {setting.tone}\nPremise: {setting.premise}"
         world_lore = checkpoint.world_state.lore or "No detailed lore."
@@ -236,4 +259,4 @@ class CharacterManager:
         # Enforce location from request
         char.location = scene_id
 
-        return char
+        return char, authored.router_summary

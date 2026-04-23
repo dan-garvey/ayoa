@@ -60,7 +60,8 @@ USER_PROMPT = """Produce a character matching this JSON schema (ALL fields requi
   "goals": ["string — existential drives"],
   "current_objectives": ["string — 1-3 active pursuits"],
   "secrets": ["string — private truths"],
-  "intentions_enabled": true or false
+  "intentions_enabled": true or false,
+  "router_summary": "string — one or two sentences in third-person ledger prose: identity + location + immediate intent for the omniscient adjudicator"
 }
 
 Character concept: a taciturn blacksmith in a port city who recently

@@ -19,6 +19,7 @@ Generate a new character for an interactive fiction world. The character must fi
 6. Keep backstory concise but specific — a few sentences that explain who they are.
 7. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
 8. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
+9. `router_summary` is a one or two sentence identity-and-intent line for the router (the omniscient adjudicator). It will be surfaced to the router on the very next adjudication call and then live in its history. Write it as third-person ledger prose: who they are, where they appeared, and what they're trying to do right now. Example: "Tom — nervous stablehand at the courtyard, stays close to the gate because he expects the captain back any moment and doesn't want to be found loitering elsewhere." NOT in-character voice. NOT a backstory paragraph. NOT a restatement of `goals` (those are existential drives; this is the immediate situational read). Mention the location by name when it sharpens the picture. Keep it tight — the router only needs enough to know how to deploy this character.
 
 ## Output Format
 
@@ -36,7 +37,8 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "goals": ["string — existential drives, who they are at core"],
   "current_objectives": ["string — 1-3 actionable pursuits they're working on right now"],
   "secrets": ["string — private truths; empty array if none"],
-  "intentions_enabled": true or false
+  "intentions_enabled": true or false,
+  "router_summary": "string — one or two sentences in third-person ledger prose: identity + location + immediate intent for the router to use on its next call"
 }}
 
 **Every field above is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**
