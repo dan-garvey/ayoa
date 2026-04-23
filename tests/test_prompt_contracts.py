@@ -12,7 +12,7 @@ from app.engine.turn_loop_contracts import (
 )
 
 ROUTER_PROMPT = Path("app/prompts/event_router_v9.txt").read_text()
-NARRATOR_PROMPT = Path("app/prompts/narrator_phase2_v8.txt").read_text()
+NARRATOR_PROMPT = Path("app/prompts/narrator_phase2_v9.txt").read_text()
 
 
 class TestPromptReferencesConstants:

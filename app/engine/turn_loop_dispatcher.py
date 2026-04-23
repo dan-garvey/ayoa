@@ -414,6 +414,19 @@ class LLMDispatcher:
         needed. The trailing parenthetical (private intent) is stripped
         at parse time; what we return here is the public surface only,
         which is what the router framing wants ("`{name}` intends: ...").
+
+        Three result shapes the caller (run_beat) must distinguish:
+          - **non-empty prose** → real intention, route normally.
+          - **`"(remains silent)"`** → the agent had a non-empty intent
+            parenthetical but emitted no public prose (the agent_v10
+            "silent beat" case, rule 8). The cascade MUST treat this as
+            a real beat and route it; otherwise the prompt's promise
+            that silence is a valid in-character choice gets quietly
+            broken by `_is_agent_refusal` collapsing it to
+            `cascade_exhausted`.
+          - **`""`** → true refusal: no public prose AND no intent (or
+            the parser logged a "missing trailing parenthetical"
+            warning and we have nothing to route). The cascade ends.
         """
         del scene_id  # Agent pulls scene from the character's own location.
 
@@ -434,7 +447,22 @@ class LLMDispatcher:
             prior_responses=None,
             acting_character_id=character_id,
         )
-        return output.public_text.strip()
+        public = output.public_text.strip()
+        if public:
+            return public
+        if output.intent.strip():
+            # Agent chose deliberate silence (paren-only output). Surface
+            # a fixed sentinel so the router can adjudicate a "watches
+            # without speaking" beat instead of the cascade dying. The
+            # sentinel is intentionally short, parenthesized, and
+            # identical every time so the router can recognize it.
+            logger.info(
+                "Agent %s emitted silent beat (intent=%d chars); "
+                "routing via sentinel.",
+                character.name, len(output.intent),
+            )
+            return "(remains silent)"
+        return ""
 
     # ------------------------------------------------------------------
     # narrator_compose

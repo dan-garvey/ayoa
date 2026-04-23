@@ -380,6 +380,39 @@ class TestAgentIntend:
         ))
         assert out == ""
 
+    def test_silent_beat_returns_sentinel_when_intent_present(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        """agent_v10's rule 8 says paren-only output (silent beat) is a
+        valid in-character choice. The dispatcher must surface it as a
+        recognizable sentinel so the cascade routes the beat instead of
+        collapsing to `cascade_exhausted`. The sentinel must NOT leak
+        the agent's private intent."""
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+
+        async def _silent_respond(self, *, character, observed_facts, checkpoint,
+                                  prior_responses=None, acting_character_id=""):
+            return CharacterAgentOutput(
+                character_id=character.character_id,
+                public_text="",
+                intent=(
+                    "He spoke for me. I let it land. "
+                    "Watching to see who notices my silence."
+                ),
+            )
+
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.respond",
+            _silent_respond,
+        )
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        out = asyncio.run(dispatcher.agent_intend(
+            ckpt=ckpt, character_id="pip", scene_id="gatehouse",
+        ))
+        assert out == "(remains silent)"
+        assert "spoke for me" not in out
+
 
 # ---- 6. narrator_compose passes partial_mode correctly ---------------------
 

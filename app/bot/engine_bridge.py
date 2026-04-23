@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from app.engine.character_agent import _extract_parenthetical
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -443,6 +444,16 @@ class EngineBridge:
         # Pull this character's rolling conversation history. On a fresh
         # /join_custom character who never had an agent turn, the history
         # is empty — fall back to synthesizing from authored fields only.
+        #
+        # Leak guard: assistant turns in the rolling conversation include
+        # the agent's trailing "(intent)" parenthetical, which is private
+        # to the agent and the engine. Personality synthesis output is
+        # rendered to the player on /leave, so we strip the parenthetical
+        # from every assistant snippet before handing the block to the
+        # synthesizer LLM. User-role turns (router framings) don't carry
+        # intent in the same shape, but they still go through the same
+        # strip for safety — a trailing balanced parenthetical at the
+        # very end of the snippet is dropped regardless of role.
         history = ckpt.character_conversations.get(character_id, [])
         convo_snippets = []
         for msg in history[-20:]:
@@ -453,7 +464,11 @@ class EngineBridge:
                     if isinstance(b, dict) and b.get("type") == "text"
                 )
             if content:
-                convo_snippets.append(f"[{msg.role if hasattr(msg, 'role') else msg.get('role')}] {content[:500]}")
+                role = msg.role if hasattr(msg, "role") else msg.get("role")
+                public, _intent = _extract_parenthetical(content)
+                snippet = (public or "").strip()
+                if snippet:
+                    convo_snippets.append(f"[{role}] {snippet[:500]}")
         history_block = "\n".join(convo_snippets) or "(no rolling conversation yet)"
 
         messages = [

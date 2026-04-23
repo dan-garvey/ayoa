@@ -38,6 +38,8 @@ Plain text. Two parts in this exact order:
 1. Your prose: actions and dialogue and expression woven naturally. Dialogue in quotes; actions in third person; nonverbal expression as a clause or a brief stage direction.
 2. One trailing parenthetical, ending the response. Keep it tight — one or two sentences of intent.
 
+The trailing parenthetical MUST be a complete sentence (or two) describing intent, plan, or feeling — never just a name, a single word, or a stage direction. Stage directions go INSIDE the prose ("she pauses (just long enough to be noticed)"), not at the end. The very last character of your output is `)`, and what's inside that final group is what your future self will read as private intent.
+
 ### Example
 
 Mira hesitates at the threshold, then steps in. "If you needed me here, you should have said so." Her hand finds the rail without conscious thought. (Furious that he summoned me without explanation. I'll keep it formal until I learn what he wants. If he reveals his hand I cut him off. If he refuses, I leave by sundown.)

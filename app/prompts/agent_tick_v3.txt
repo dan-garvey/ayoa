@@ -36,6 +36,8 @@ Plain text. Two parts in this exact order:
 1. Your prose: what you do off-stage in your own location. Actions in third person; any spoken lines in quotes; if you are addressing someone in your scene (a servant, a courier, an ally), include their reply as a short exchange in the same prose. Mid-prose parentheticals as stage directions are fine.
 2. One trailing parenthetical, ending the response. One or two sentences of intent.
 
+The trailing parenthetical MUST be a complete sentence (or two) describing intent, plan, or feeling — never just a name, a single word, or a stage direction. Stage directions go INSIDE the prose, not at the end. The very last character of your output is `)`, and what's inside that final group is what your future self will read as private intent.
+
 ### Example
 
 Stennis catches the courier at the gate before she can mount. "Ride to Halver. Tell him the writ is signed; he should be at the south landing by dusk." She nods, twists the rein, and is gone. (Halver delivers the cargo or the deal is off. I have one shot at this — if he balks, I hand the route to the Vellan brothers and burn the bridge with him.)

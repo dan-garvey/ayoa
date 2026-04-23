@@ -12,7 +12,7 @@ You evaluate whether the Narrative Engine's prompts hold together as a coherent 
 Before evaluating ANY change, read every prompt template currently in the engine:
 
 - `app/prompts/event_router_v9.txt` (or whatever the active router prompt is)
-- `app/prompts/narrator_phase2_v8.txt` (or the active narrator prompt)
+- `app/prompts/narrator_phase2_v9.txt` (or the active narrator prompt)
 - `app/prompts/agent_v9.txt` (or the active on-stage agent prompt)
 - `app/prompts/agent_tick_v2.txt` (or the active off-stage agent prompt)
 - `app/prompts/character_gen_v3.txt` (spawn flow)
