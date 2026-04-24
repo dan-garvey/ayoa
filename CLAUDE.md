@@ -19,6 +19,104 @@
 - `tests/` — pytest tests
 - `DESIGN.md` — full design document
 
+## Long-term goals (vision, not tickets)
+
+Direction for the engine over months, not commits. Items here are not
+"do next" — they're the questions worth keeping in your head whenever
+you make a change that touches the relevant subsystem, so you can
+notice when an opportunity to chip at one of them shows up cheaply.
+
+### LT-1: Long-term narrative planning inside the engine
+
+Today the router carries the entire load of "what should happen next."
+That's fine for short-horizon adjudication (this beat, the next two
+turns) but the router has no notion of a multi-act arc, no concept of
+"introduce a new character at hour three of the dating show," no
+mechanism to plant Chekhov's gun in turn 5 and fire it in turn 40.
+The dating-show story would naturally want to bring in fresh faces
+mid-season; the survivor story would want a tribal council cadence;
+hollowstone would want the conspiracy to advance off-screen even when
+the player is camped in the courtyard.
+
+Possible directions (none chosen, none scoped):
+
+- A separate "showrunner" LLM that runs every N beats and emits
+  high-level intents for the router to thread into adjudication
+- A persistent "story arc" object on the checkpoint with explicit
+  tension/pacing/reveal targets the router consults
+- An importer-time arc skeleton (acts, reveals, beats-to-trigger)
+  that runtime advances against
+- A periodic "casting director" pass that proposes new characters
+  to spawn based on roster gaps the LLM identifies
+
+Whatever path we pick, keep the router prompt tax-aware: the router
+is already handling adjudication, perception, and roster decisions on
+every turn. Adding "long-term planning" to its system prompt without
+offloading would push it past its current sweet spot. A separate
+actor with a longer cadence is the most likely shape.
+
+### LT-2: Spawn-vs-canonicalize discipline beyond prompt-rules
+
+v11-r7i tightened the router prompt to prefer canonicalize-with-
+observer over spawning for one-shot utility characters (couriers,
+walk-ons, crowd). The discipline currently lives entirely in the
+router's system prompt — there is no engine-side cost or rate-limit
+on minting characters beyond `MAX_SPAWNS_PER_TURN=3`. As stories run
+longer (50+ beats), even a well-disciplined router can let the
+roster bloat to 30+ characters that the next router prompt has to
+re-summarize on every call.
+
+Open questions worth keeping in mind:
+
+- Should spawned characters have a "TTL" — auto-dormant after N
+  beats with no participation, recoverable on demand?
+- Is there a meaningful distinction between "named, plot-relevant
+  character" and "ambient world fixture" we should encode in the
+  schema, with different cost/visibility profiles?
+- Should the router get a "current roster size + recent spawn
+  rate" signal so it self-throttles, instead of relying purely on
+  prompt language?
+
+Don't solve preemptively — wait for a playtest where the roster
+genuinely bloats and shapes the answer.
+
+## Engineering discipline
+
+### Vestigial-field destruction policy
+
+When you add a field to a Pydantic schema, you take on the obligation
+to keep it populated and read by ONLY actors authorized to see it.
+When a field stops being populated by any code path (or stops being
+read by any code path), it becomes a hazard: its value lies on disk
+in old saves, it shows up in serialization, it tempts readers into
+trusting it, and it accumulates documentation that explains the
+1.0 design rather than the live system.
+
+Rule:
+
+1. When you remove the LAST writer of a field, in the SAME commit you
+   remove the field from the schema. Don't leave the field behind
+   "for back-compat with old saves." Pydantic v2's default
+   `extra='ignore'` silently drops the legacy field on load — you do
+   not need a deprecation flag for that.
+2. When you remove the LAST reader of a field, in the SAME commit you
+   remove either the field OR the writers. A write-only field is dead
+   freight on every checkpoint serialization.
+3. When you change a field's semantics (e.g. "this used to mean X,
+   now it means Y"), rename it. Keeping the same name and changing
+   the meaning poisons every blame, every reviewer hand-off, every
+   future search.
+4. When in doubt, list the field under "Vestigial schema fields" in
+   `Open architectural concerns` BEFORE the change ships, so the
+   next contributor knows not to trust it on read.
+
+The v11 cycle hit two of these the hard way:
+`world_state.locations.current_scene_id` was set at import and never
+updated, but every reader trusted it; `TurnResponse.debug` had a full
+schema with no orchestrator writer at all. Both wasted reviewer time
+and one of them silently misled a 31-turn playtest summary. Don't do
+this again.
+
 ## Open architectural concerns (read this before redesigning core systems)
 
 These are real, known sharp edges that have NOT been solved. If you are
@@ -109,6 +207,106 @@ filter or rewrite anything older than the current generation; or
 (b) add a one-line "format reminder" to the system prompt so the
 LLM ignores legacy shapes regardless. Pick one before the first
 patched-mid-session resume goes out.
+
+### Vestigial schema fields (do not trust on read)
+
+- ~~`world_state.locations.current_scene_id`~~ — **REMOVED in v11-r7i.**
+  Field is gone from `LocationState` and `LocationsExtraction`. Per-
+  actor scene is `character.location`; player-facing surfaces
+  (CLI/Discord status, takeover context) use `pov_scene_for_user`
+  which derives from the binding. Old saves with the field still on
+  disk load cleanly via Pydantic v2's `extra='ignore'` (covered by
+  `test_legacy_current_scene_id_silently_dropped`).
+- ~~`TurnResponse.debug` (DebugPayload)~~ — **REMOVED in v11-r7j.**
+  Field is gone from `TurnResponse`; `TurnRequest.debug` /
+  `TurnRequest.debug_flags` are also gone. Per-turn router rationale,
+  agent outputs, latency, cache stats, and canonical events live in
+  the engine logger (`turn_loop.router[route] …` lines) and the
+  per-turn checkpoint files. Old turn requests on the wire that still
+  set `debug=true` load cleanly via Pydantic v2's `extra='ignore'`
+  (covered by `test_legacy_debug_fields_silently_dropped` and
+  `test_legacy_debug_payload_silently_dropped` in `tests/test_schemas.py`).
+
+### Cross-scene communication ✅ WIRED in v11-r7j
+
+`broadcast_event` in `app/engine/turn_loop.py` now appends a
+one-line `[off-scene perception] …` entry to every NPC observer
+who is NOT in the broadcast scene (and not a human-bound character).
+Router rule 13's promise — "add the recipient as an `observer` on
+this same event so the recipient's character agent perceives the
+message arriving" — now actually lands as engine state: when the
+courier-and-note event closes in the courtyard with Marcus listed
+as an observer in the citrus_garden, Marcus's
+`pending_observations` grows by one line, and his next agent call
+flushes that line into his prompt via the existing
+`format_pending_observations_block` path.
+
+In-scene NPC observers are intentionally NOT pushed: they are
+eligible to be picked into the same beat via
+`agent_responder_picks` and read the canonical event live through
+their normal context block. Pushing onto their inbox would
+double-count the event the next time they fire.
+
+Pre-r7j confirmed via villa playtest turn 13: Jordan asked a
+runner to deliver a message to Marcus in citrus_garden; the
+message rendered in narration, Marcus's `pending_observations`
+stayed empty, and the message functionally never reached him. This
+class of bug is closed.
+
+Two remaining knobs the v11-r7j wiring intentionally left alone,
+either of which could be tightened later if playtest evidence
+appears:
+
+- The summary line is the canonical event's `resolved_outcome`
+  (or first `observable_facts` line as fallback). It is verbatim
+  router prose, not POV-rewritten for the recipient. For most
+  cross-scene messages this is the right shape — the recipient
+  perceives "what happened, briefly." For sensitive material
+  (whispered threats, secret deliveries) the router can shape the
+  outcome line to match what the recipient would actually
+  perceive.
+- Inbox entries persist across turns until the recipient is asked
+  to respond. A cross-scene NPC who never gets called burns inbox
+  growth. The /settings registry exposes
+  `agent_history_max_turns` for the rolling conversation cap; if
+  inbox bloat shows up in long sessions, a parallel cap on
+  `pending_observations` length is the obvious knob.
+
+### Spawn discipline (and the canonicalize-vs-mint distinction)
+
+**Engine-side (resolved in v11-r7i):**
+
+- `CharacterManager.spawn_characters` dedups by `character_id`
+  within a single batch. Duplicate ids land as a warning + drop, not
+  as multiple roster records sharing one id.
+- The orchestrator passes the acting actor's scene as
+  `acting_actor_location`; spawns whose `seed.location` is empty
+  materialize there instead of the (now-murdered) global
+  `current_scene_id`. Router-supplied `seed.location` still wins.
+- Covered by `test_spawn_dedups_within_batch`,
+  `test_spawn_uses_acting_actor_location_when_seed_omits`, and
+  `test_spawn_seed_location_beats_actor_location`.
+
+**Prompt-side (v11-r7i `event_router_v9.txt` rule 10 + rule 13):**
+
+- The router prompt now distinguishes "spawn a real agent" from
+  "canonicalize the event with an observer." Spawn is for
+  characters who will keep acting; one-shot couriers, walk-ons, and
+  plot-utility figures should be written into `resolved_outcome`
+  with the recipient/witness added as an `observer`. Rule 10 calls
+  out re-using existing in-scene NPCs as the first preference.
+- The villa playtest spawned three `production_runner` agents to
+  deliver one note. Under the new shape that's a one-line event:
+  *"Jordan presses the apology note into a passing runner's hand;
+  the runner carries it to Marcus's table"* — Marcus added as
+  observer, no spawn needed.
+
+**Resolved (v11-r7j)**: `pending_observations` is now populated by
+`broadcast_event` for every off-scene NPC observer on a canonical
+event. See the "Cross-scene communication ✅ WIRED in v11-r7j"
+entry above for details. The router rule 13 promise now matches
+the engine behavior: declaring a recipient as an `observer`
+actually delivers a perception signal regardless of co-location.
 
 ### Per-character interior asymmetry is load-bearing
 

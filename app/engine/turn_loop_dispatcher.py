@@ -3,11 +3,15 @@ real router / agent / narrator modules.
 
 `turn_loop.run_beat` talks to the world exclusively through the
 `Dispatcher` Protocol. This module provides the production binding:
-the three async methods call through to the EventRouter template,
-CharacterAgent.respond(), and narrator.compose_pov_render() (per-POV
-entry point), constructing their user-message blocks through the
-shared helpers in `turn_loop_contracts` so prompt-code contracts stay
-in lockstep.
+the three async methods call through to the `event_router` prompt
+template, CharacterAgent.respond(), and
+narrator.compose_pov_render() (per-POV entry point), constructing
+their user-message blocks through the shared helpers in
+`turn_loop_contracts` so prompt-code contracts stay in lockstep.
+
+The legacy `EventRouter` engine class that wrapped this same prompt
+template was murdered in v11-r7j; this dispatcher is the only
+production caller of the `event_router` template now.
 
 Tests should prefer passing fakes into `run_beat` directly; this
 class is what the orchestrator constructs at wire-up time.
@@ -22,6 +26,7 @@ from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
     append_turn_to_conversation,
     build_player_characters_block,
+    build_setting_summary,
     clear_character_inbox,
     resolve_acting_character,
     resolve_scene_for_character,
@@ -42,25 +47,17 @@ from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 logger = logging.getLogger(__name__)
 
 
-# TODO: dedupe with event_router's private context helpers after v11
-# stabilizes. The router-module methods are instance methods on EventRouter
-# and aren't cleanly extractable without more invasive refactoring than is
-# safe while sibling agents are rewiring orchestrator/narrator in parallel.
-# These are straight-copied from app/engine/event_router.py.
+# v11-r7j note: a mirror copy of the legacy `EventRouter` engine
+# class's private helpers used to live in app/engine/event_router.py
+# and these were straight-ported during the v11 transition. The
+# legacy class was murdered in v11-r7j; this dispatcher is now the
+# only home for these helpers and the duplication concern is gone.
 
 
-def _build_setting_summary(checkpoint: CheckpointFile) -> str:
-    setting = checkpoint.world_state.setting
-    parts = []
-    if setting.genre:
-        parts.append(f"Genre: {setting.genre}")
-    if setting.era:
-        parts.append(f"Era: {setting.era}")
-    if setting.tone:
-        parts.append(f"Tone: {setting.tone}")
-    if setting.premise:
-        parts.append(f"Premise: {setting.premise}")
-    return "\n".join(parts) if parts else "No setting information available."
+# `build_setting_summary` is now in `app/engine/context_builder.py`
+# and imported at the top of this module — pre-v11-r7j three near-
+# identical copies of the same helper lived in this module, narrator,
+# and engine_bridge.
 
 
 def _build_world_rules(checkpoint: CheckpointFile) -> str:
@@ -74,10 +71,9 @@ def _build_scene_context(
     checkpoint: CheckpointFile, character_id: str | None = None,
 ) -> str:
     """Router-facing scene context block — keyed on `character_id`'s
-    actual location (with importer current_scene_id fallback). Pre-r7h
-    this always returned the importer's pivot scene regardless of the
-    actor, so the router believed the actor was at the starting scene
-    even after they (logically, narratively) moved."""
+    actual location read from the roster. Returns an unsited block when
+    no character_id is supplied or the character has no location set.
+    """
     locations = checkpoint.world_state.locations
     scene_id = resolve_scene_for_character(checkpoint, character_id)
     if not scene_id:
@@ -129,10 +125,9 @@ def _build_characters_present(
     checkpoint: CheckpointFile, character_id: str | None = None,
 ) -> str:
     """Router-facing "characters present" block — keyed on
-    `character_id`'s actual location (with importer current_scene_id
-    fallback). Pre-r7h this read `current_scene_id` directly, so the
-    router saw the starting-scene roster regardless of who the actor
-    was or where they had moved."""
+    `character_id`'s actual location (from the roster). Returns an
+    unsited block when no character_id is supplied.
+    """
     scene_id = resolve_scene_for_character(checkpoint, character_id)
     if not scene_id:
         return "No other characters are present in this scene."
@@ -308,9 +303,11 @@ def _build_since_last_turn_block(acting_char) -> str:
     can surface them. Returns empty string when the character has
     nothing queued.
 
-    Mirror of the helper in `app/engine/event_router.py` — kept in
-    sync until the legacy EventRouter helper is removed entirely. See
-    that helper's docstring for the directive-queue removal note.
+    Pre-Commit-2 this also rendered `incoming_directives`, a
+    structured inter-agent message bus. Directives are gone;
+    cross-character communication now flows through normal scene prose
+    (a courier walks in and speaks) plus the v11-r7j off-scene
+    perception inbox populated by `broadcast_event`.
     """
     if acting_char is None:
         return ""
@@ -374,14 +371,13 @@ def _build_router_context(
         ckpt, acting_character_id,
     )
     since_last_turn_block = _build_since_last_turn_block(acting_char)
-    # Mirror the flush semantics from EventRouter.run — after the router
-    # sees these silent observations, they must not re-deliver on the
-    # next turn.
+    # After the router sees these silent observations, they must not
+    # re-deliver on the next turn — drain the inbox here.
     if acting_char is not None:
         clear_character_inbox(acting_char)
 
     return {
-        "setting_summary": _build_setting_summary(ckpt),
+        "setting_summary": build_setting_summary(ckpt),
         "world_lore": ckpt.world_state.lore or "No detailed lore available.",
         "world_rules": _build_world_rules(ckpt),
         "current_scene": _build_scene_context(ckpt, acting_id),
@@ -433,8 +429,9 @@ class LLMDispatcher:
         # Snapshot the two delta-queue session fields BEFORE
         # `_build_router_context` mutates them, so we can restore on
         # exception and avoid silently losing queued state-change /
-        # world-fact entries on a failed router call. Same P0 pattern
-        # as EventRouter.run; flagged by Commit-4 reviewers.
+        # world-fact entries on a failed router call. Flagged by the
+        # Commit-4 reviewers (same pattern the now-deleted legacy
+        # EventRouter.run had to handle).
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
         saved_state_changes = list(
             ckpt.session.pending_router_state_changes
@@ -641,8 +638,9 @@ class LLMDispatcher:
         Three result shapes the caller (run_beat) must distinguish:
           - **non-empty prose** → real intention, route normally.
           - **`"(remains silent)"`** → the agent had a non-empty intent
-            parenthetical but emitted no public prose (the agent_v10
-            "silent beat" case, rule 8). The cascade MUST treat this as
+            parenthetical but emitted no public prose (the agent
+            prompt's "Sparse is valid" shared rule — paren-only
+            output is in-character). The cascade MUST treat this as
             a real beat and route it; otherwise the prompt's promise
             that silence is a valid in-character choice gets quietly
             broken by `_is_agent_refusal` collapsing it to

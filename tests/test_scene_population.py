@@ -1,14 +1,17 @@
-"""Tests for the opening-turn / scene-population pipeline fixes:
+"""Legacy tests for the opening-turn / scene-population pipeline.
 
-- Player character's location follows the scene transition emitted by
-  the router (previously only current_scene_id moved).
-- Router receives an opening_directive only on the very first turn
-  (session_conversation empty).
+All tests in this file are `@pytest.mark.skip`'d — they exercise an
+older orchestrator path (pre-v11 turn pipeline) that has been replaced
+by the dispatcher in `app/engine/turn_loop_dispatcher.py`. The skip is
+load-bearing: the fixtures and assertions reference fields and flows
+that no longer exist (router-driven `current_scene_id` mutation, the
+old opening_directive shape, etc.).
 
-The broader semantic fix — narrator no longer transcribing dialogue
-from the opening prose, router now responsible for placing characters
-the opening names — is prompt-level and hard to unit-test without an
-LLM. Covered by playtest observation instead.
+Kept rather than deleted so the historical intent (player.location
+follows scene transitions; opening directive only fires once) survives
+in source control as a reference. The same invariants are now covered
+by `test_orchestrator_v11.py` and `test_character_agent.py
+::TestSceneResolution`.
 """
 
 from __future__ import annotations
@@ -38,7 +41,6 @@ def _ckpt(*, player_location: str = "hall") -> CheckpointFile:
         ),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="hall",
                 scene_graph={
                     "hall": {"name": "Hall", "description": "", "connected_to": ["garden"], "properties": {}},
                     "garden": {"name": "Garden", "description": "", "connected_to": ["hall"], "properties": {}},

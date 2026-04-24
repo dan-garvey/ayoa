@@ -20,7 +20,6 @@ def _ckpt(graph: dict | None = None) -> CheckpointFile:
         session=SessionState(session_id="test"),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="hall",
                 scene_graph=graph if graph is not None else {
                     "hall": {
                         "name": "Great Hall",

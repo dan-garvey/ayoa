@@ -6,6 +6,16 @@ tick is appended verbatim — including the trailing parenthetical — so
 the agent's own future self sees its prior interior. Cross-agent /
 narrator chokepoints strip the parenthetical (see `_extract_parenthetical`
 and `format_prior_responses` in context_builder).
+
+Cache lineage (v11): on-stage and off-stage calls share a SINGLE
+unified system prompt (`agent_v*.txt`) and a single rolling history
+per character. The mode distinction is signaled by a first-token
+header in the user message — `## ON-STAGE` vs `## TICK`, defined as
+`AGENT_ON_STAGE_HEADER` / `AGENT_TICK_HEADER` in
+`turn_loop_contracts`. Switching between respond and tick within the
+same character does NOT invalidate the system-prompt cache; cache
+hits compound across both modes. The mode-specific user-message body
+is assembled by the matching `format_agent_*_body` helper.
 """
 
 from __future__ import annotations
@@ -28,6 +38,12 @@ from app.engine.context_builder import (
     resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
+from app.engine.turn_loop_contracts import (
+    AGENT_ON_STAGE_HEADER,
+    AGENT_TICK_HEADER,
+    format_agent_on_stage_body,
+    format_agent_tick_body,
+)
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord
@@ -108,13 +124,95 @@ class CharacterAgent:
         prior_responses: list[CharacterAgentOutput] | None = None,
         acting_character_id: str = "",
     ) -> CharacterAgentOutput:
-        """Generate an in-character response and append it to the rolling conversation.
+        """On-stage agent beat — character is in the active scene with the player(s).
 
-        Flushes `character.pending_observations` into the user message (and clears
-        it), then appends both the user message and the assistant response to
-        `checkpoint.character_conversations[character.character_id]`. The full
-        assistant text (prose + trailing parenthetical) is what's persisted —
-        the parenthetical strip happens at engine consumption sites only.
+        Builds the on-stage user-message body (scene + presence +
+        observed facts + prior responders) and runs the unified beat.
+        See `_run_beat` for the shared plumbing; the only on-stage-
+        specific surface is the body assembled here.
+        """
+        mode_block = format_agent_on_stage_body(
+            scene_context=build_scene_context(
+                checkpoint, character.character_id,
+            ),
+            characters_present=build_characters_present(character, checkpoint),
+            observed_facts=format_observed_facts(observed_facts),
+            prior_character_responses=format_prior_responses(
+                prior_responses or [], checkpoint,
+            ),
+        )
+        return await self._run_beat(
+            character=character,
+            checkpoint=checkpoint,
+            acting_character_id=acting_character_id,
+            mode_header=AGENT_ON_STAGE_HEADER,
+            mode_block=mode_block,
+            log_label="respond",
+            log_extra=f"facts={len(observed_facts)}",
+        )
+
+    async def tick(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str = "",
+    ) -> CharacterAgentOutput:
+        """Off-stage tick — character is NOT in a scene with the player.
+
+        They get one short beat in their own location to advance an
+        objective. Same unified system prompt as `respond`; the
+        `## TICK` first-token header in the user message flips the
+        agent into Tick Mode. Appended to the same rolling
+        conversation as on-stage responses so continuity holds across
+        ticks and responses (one history per character, one cache
+        lineage per character).
+        """
+        own_scene_id = character.location or ""
+        own_scene = checkpoint.world_state.locations.scene_graph.get(own_scene_id, {})
+        if own_scene_id and isinstance(own_scene, dict):
+            scene_ctx = (
+                f"Location: {own_scene.get('name', own_scene_id)} (id: {own_scene_id})\n"
+                f"{own_scene.get('description', '') or ''}"
+            ).strip()
+        else:
+            scene_ctx = "Off-screen / unspecified location."
+
+        return await self._run_beat(
+            character=character,
+            checkpoint=checkpoint,
+            acting_character_id=acting_character_id,
+            mode_header=AGENT_TICK_HEADER,
+            mode_block=format_agent_tick_body(scene_context=scene_ctx),
+            log_label="tick",
+            log_extra="off-stage",
+        )
+
+    async def _run_beat(
+        self,
+        *,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str,
+        mode_header: str,
+        mode_block: str,
+        log_label: str,
+        log_extra: str,
+    ) -> CharacterAgentOutput:
+        """Shared agent-beat plumbing for both `respond` and `tick`.
+
+        Renders the unified `agent` template, calls the LLM, parses
+        the trailing parenthetical, and persists the user/assistant
+        pair onto the rolling conversation. Both modes flow through
+        here so any future tweak (model swap, retry policy,
+        compaction, telemetry) lands once.
+
+        The system prefix is byte-identical between modes when called
+        with the same character + checkpoint — same template, same
+        character-derived variables. Only the user message changes:
+        `mode_header` (`## ON-STAGE` or `## TICK`) is the first token,
+        and `mode_block` is the mode-specific body. This shared
+        prefix is what lets one cache lineage cover both modes for
+        the same character.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
@@ -135,121 +233,22 @@ class CharacterAgent:
             **char_identity,
             **char_state,
             world_context=build_world_context(character, checkpoint),
-            scene_context=build_scene_context(checkpoint, character.character_id),
-            characters_present=build_characters_present(character, checkpoint),
-            observed_facts=format_observed_facts(observed_facts),
-            prior_character_responses=format_prior_responses(
-                prior_responses or [], checkpoint
-            ),
-            pending_observations_block=pending_block,
-            acting_character_name=acting_name,
-            player_characters_block=build_player_characters_block(
-                checkpoint, acting_id
-            ),
-        )
-        render_ms = (time.monotonic() - render_t0) * 1000
-
-        user_content = messages[-1]["content"]
-
-        logger.info(
-            "Agent %s (%s): generating response to %d facts (history=%d msgs)",
-            character.name,
-            character.character_id,
-            len(observed_facts),
-            len(history),
-        )
-
-        response = await self.client.complete(
-            role="agent",
-            messages=messages,
-            temperature=0.6,
-            max_tokens=2000,
-            cache=True,
-            compact=True,
-        )
-        public_text, intent = _extract_parenthetical(response.content)
-        result = CharacterAgentOutput(
-            character_id=character.character_id,
-            public_text=public_text,
-            intent=intent,
-        )
-        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
-
-        conv = checkpoint.character_conversations.setdefault(
-            character.character_id, [],
-        )
-        append_turn_to_conversation(conv, user_content, response)
-
-        logger.info(
-            "Agent %s: %d chars public, %d chars intent",
-            character.name,
-            len(result.public_text),
-            len(result.intent),
-        )
-
-        return result
-
-    async def tick(
-        self,
-        character: CharacterRecord,
-        checkpoint: CheckpointFile,
-        acting_character_id: str = "",
-    ) -> CharacterAgentOutput:
-        """Off-stage tick: character advances their objectives without being in
-        a scene with the player. Appended to the same rolling conversation as
-        regular responses so continuity holds across ticks and responses.
-
-        Uses the `agent_tick` prompt variant — same character identity and
-        same Player Characters block (so caching still lines up), but the
-        user message tells the agent they're off-stage and to produce one
-        tight beat ending with a parenthetical of intent.
-        """
-        history = checkpoint.character_conversations.get(character.character_id, [])
-
-        pending_block = format_pending_observations_block(character)
-        clear_character_inbox(character)
-
-        char_identity = build_character_packet(character)
-        char_state = build_character_state(character)
-
-        acting_id, _, acting_name = resolve_acting_character(
-            checkpoint, acting_character_id,
-        )
-
-        # Scene context for the tick is the character's OWN location, not
-        # the active player scene — the character is off-stage, reasoning
-        # from wherever they actually are.
-        own_scene_id = character.location or ""
-        own_scene = checkpoint.world_state.locations.scene_graph.get(own_scene_id, {})
-        if own_scene_id and isinstance(own_scene, dict):
-            scene_ctx = (
-                f"Location: {own_scene.get('name', own_scene_id)} (id: {own_scene_id})\n"
-                f"{own_scene.get('description', '') or ''}"
-            ).strip()
-        else:
-            scene_ctx = "Off-screen / unspecified location."
-
-        render_t0 = time.monotonic()
-        messages = self.prompt_manager.render_conversation(
-            "agent_tick",
-            history=history,
-            **char_identity,
-            **char_state,
-            world_context=build_world_context(character, checkpoint),
-            scene_context=scene_ctx,
             pending_observations_block=pending_block,
             acting_character_name=acting_name,
             player_characters_block=build_player_characters_block(
                 checkpoint, acting_id,
             ),
+            mode_header=mode_header,
+            mode_block=mode_block,
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
         user_content = messages[-1]["content"]
 
         logger.info(
-            "Agent %s (%s): off-stage tick (history=%d msgs)",
-            character.name, character.character_id, len(history),
+            "Agent %s (%s) %s [%s]: history=%d msgs",
+            character.name, character.character_id,
+            log_label, log_extra, len(history),
         )
 
         response = await self.client.complete(
@@ -274,8 +273,9 @@ class CharacterAgent:
         append_turn_to_conversation(conv, user_content, response)
 
         logger.info(
-            "Agent %s tick: %d chars public, %d chars intent",
-            character.name, len(result.public_text), len(result.intent),
+            "Agent %s %s: %d chars public, %d chars intent",
+            character.name, log_label,
+            len(result.public_text), len(result.intent),
         )
 
         return result

@@ -231,23 +231,63 @@ class CharacterManager:
         self,
         checkpoint: CheckpointFile,
         spawn_requests: list[SpawnRequest],
+        *,
+        acting_actor_location: str = "",
     ) -> list[CharacterRecord]:
-        """Generate new characters from discriminator spawn requests via LLM.
+        """Generate new characters from router spawn requests via LLM.
+
+        `acting_actor_location` is the scene of whoever's action triggered
+        these spawns — initiator's scene for Cat I, post-beat scene for the
+        in-beat path, the off-stage actor's scene for tick-driven spawns.
+        It's the fallback when the router omits `seed.location`, so a new
+        character materializes near the action rather than at some
+        unrelated default.
 
         Returns the list of newly created and registered characters.
+
+        v11-r7i: dedups within the batch (the router can emit two
+        SpawnRequests with the same character_id when a single beat
+        implies multiple instances of the same role — a v11 playtest
+        spawned three `production_runner`s in one turn). Without
+        dedup, the second-and-later entries overwrite the first via
+        `checkpoint.characters.append` of the same id, leaving the
+        roster with two records sharing one id and the rest of the
+        engine confused about which one the canonical event refers to.
         """
         if not self.client or not self.prompt_manager:
             logger.warning("CharacterManager has no LLM client; skipping spawns")
             return []
 
-        # Limit spawns per turn
-        requests = spawn_requests[:MAX_SPAWNS_PER_TURN]
-        if len(spawn_requests) > MAX_SPAWNS_PER_TURN:
+        # Order is load-bearing: dedup BEFORE the per-turn cap.
+        # Otherwise a router output of `[runner, runner, runner,
+        # unique_villain]` would slice the first three (all dups),
+        # collapse to a single `runner`, and silently drop
+        # `unique_villain` despite us having only spawned one
+        # character. By deduping first we count each distinct id once,
+        # then cap on distinct ids — the unique villain survives, the
+        # extra runners get logged-and-dropped.
+        seen_ids: set[str] = set()
+        deduped: list[SpawnRequest] = []
+        for r in spawn_requests:
+            if r.character_id in seen_ids:
+                logger.warning(
+                    "Dropped duplicate spawn for %s within the same router "
+                    "batch — the router emitted multiple SpawnRequests with "
+                    "this id; keeping the first.",
+                    r.character_id,
+                )
+                continue
+            seen_ids.add(r.character_id)
+            deduped.append(r)
+
+        requests = deduped[:MAX_SPAWNS_PER_TURN]
+        if len(deduped) > MAX_SPAWNS_PER_TURN:
             logger.warning(
-                "Capping spawns from %d to %d", len(spawn_requests), MAX_SPAWNS_PER_TURN
+                "Capping distinct spawns from %d to %d (dropped: %s)",
+                len(deduped), MAX_SPAWNS_PER_TURN,
+                [r.character_id for r in deduped[MAX_SPAWNS_PER_TURN:]],
             )
 
-        # Skip already-existing characters
         requests = [
             r for r in requests
             if self.get_character(checkpoint, r.character_id) is None
@@ -259,7 +299,9 @@ class CharacterManager:
         spawned = []
         for req in requests:
             try:
-                char, router_summary = await self._spawn_one(checkpoint, req)
+                char, router_summary = await self._spawn_one(
+                    checkpoint, req, default_location=acting_actor_location,
+                )
                 checkpoint.characters.append(char)
                 spawned.append(char)
                 logger.info("Spawned character: %s (%s)", char.name, char.character_id)
@@ -270,7 +312,8 @@ class CharacterManager:
         return spawned
 
     async def _spawn_one(
-        self, checkpoint: CheckpointFile, req: SpawnRequest
+        self, checkpoint: CheckpointFile, req: SpawnRequest,
+        *, default_location: str = "",
     ) -> tuple[CharacterRecord, str]:
         """Generate a single character via LLM.
 
@@ -279,17 +322,47 @@ class CharacterManager:
         call's State Changes block). The summary is NOT persisted on
         the record — it's an author-time scratch field consumed by
         `_push_spawn_state_change` and otherwise discarded.
+
+        Spawn-location resolution chain:
+          1. router-supplied `req.seed["location"]` — the router knows
+             where this person should appear (recipient's scene for a
+             courier, event scene for a witness, etc.)
+          2. `default_location` — the acting actor's scene, passed by
+             the orchestrator. Materializes the spawn near the action.
+          3. the LLM's `authored.location` — last-resort, only hit when
+             both router and orchestrator omit a location. Logged loudly
+             because the LLM has no reason to know which scene_ids are
+             real and may pick one that isn't in scene_graph.
         """
-        setting = checkpoint.world_state.setting
-        setting_summary = f"Genre: {setting.genre}\nEra: {setting.era}\nTone: {setting.tone}\nPremise: {setting.premise}"
+        from app.engine.context_builder import build_setting_summary
+        setting_summary = build_setting_summary(checkpoint)
         world_lore = checkpoint.world_state.lore or "No detailed lore."
         physics = checkpoint.world_state.physics_ruleset
         world_rules = f"Strength limits: {physics.strength_limits}\nMagic: {'enabled' if physics.magic_enabled else 'disabled'}"
 
         locations = checkpoint.world_state.locations
-        scene_id = req.seed.get("location", locations.current_scene_id)
-        scene = locations.scene_graph.get(scene_id, {})
-        scene_context = f"Location: {scene.get('name', scene_id)}\n{scene.get('description', '')}"
+        seed_loc = (req.seed.get("location") or "").strip()
+        scene_id = seed_loc or default_location
+        if not scene_id:
+            logger.warning(
+                "Spawning %s with no resolvable location (no seed.location, "
+                "no default_location passed by caller). Will trust the "
+                "character_gen LLM's authored location and warn if it "
+                "doesn't land in scene_graph.",
+                req.character_id,
+            )
+        scene = locations.scene_graph.get(scene_id, {}) if scene_id else {}
+        if scene_id:
+            scene_context = (
+                f"Location: {scene.get('name', scene_id)}\n"
+                f"{scene.get('description', '')}"
+            )
+        else:
+            scene_context = (
+                "Location: (none supplied — pick a scene that exists in "
+                "the world from the existing scene_graph; do NOT invent "
+                "a new scene_id here)"
+            )
 
         seed_lines = []
         for k, v in req.seed.items():
@@ -320,7 +393,24 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
-        # Enforce location from request
-        char.location = scene_id
+        # Override the LLM's authored.location ONLY when we have a
+        # concrete scene to drop them into (router-supplied or
+        # actor-derived). When neither is set, trust the LLM but
+        # validate against scene_graph and warn on miss — the router
+        # will see the character as "unsited" until they move.
+        if scene_id:
+            char.location = scene_id
+        elif not char.location:
+            logger.warning(
+                "Spawn %s has no location (router omitted, caller omitted, "
+                "LLM emitted empty). Character will be unsited.",
+                req.character_id,
+            )
+        elif char.location not in locations.scene_graph:
+            logger.warning(
+                "Spawn %s authored location %r which is not in scene_graph; "
+                "router will see them as unsited until they move.",
+                req.character_id, char.location,
+            )
 
         return char, authored.router_summary

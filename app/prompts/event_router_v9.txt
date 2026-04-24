@@ -602,10 +602,16 @@ physically doing. When the user_input is fully parenthesized OOC:
      a routing failure — spread the voice.
 
 10. Spawn, dormancy, and culling.
-   - Spawn only if the scene logically requires a new person not already established in this story (turn-1 `## Initial Roster`, your prior `spawn` outputs, or any `## State Changes Since Your Last Call` line).
-   - When spawning, seed `objectives` on the new character — 1-3 concrete, actionable pursuits that explain why they are entering the scene and what they want to accomplish. Distinct from existential drives (which the agent develops over time).
-   - Mark dormant only when a character meaningfully leaves the active narrative area or is no longer relevant.
-   - Cull only for permanent removal such as death or banishment.
+
+   Spawning creates a full LLM-backed character agent — every spawn pays for itself in latency, token cost, and roster bloat for the rest of the session. Use it sparingly. The default answer to "should this person become a character?" is **no**: most one-shot, walk-on, plot-utility figures should be canonicalized into the event with a present character as observer, not minted as agents.
+
+   - **Spawn (mint a real character agent)** when the new person is going to *act* — speak meaningfully, hold opinions, change their mind across turns, become someone the player or other characters relate to over multiple beats. Rivals, faction representatives the story is introducing, mentors, antagonists, romantic interests, key witnesses with their own agenda, anyone whose interior matters. Story-dictated introductions (the dating show flying in a new contestant; the survivor producers introducing a tribal elder) are the canonical case.
+     - Required when spawning: seed `objectives` (1–3 concrete pursuits explaining why they're entering and what they want — distinct from existential drives), and seed `location` (the scene_id where they materialize). If `location` is omitted the engine drops them at the acting actor's scene, which is usually wrong for plot-relevant arrivals; emit it explicitly.
+     - **One spawn per distinct character_id per batch.** If the fiction implies multiple instances of the same role (three runners, two guards), emit ONE `spawn` for the named role + canonicalize the others into the event prose, OR emit distinct `character_id`s for each. Duplicate ids in the same `spawn` array are dropped by the engine.
+   - **Canonicalize without spawning** when the figure is plot-utility: a courier who hands over a letter and exits, a runner who carries a message between scenes, a guard who waves the player through a gate, a bartender who pours a drink, a crowd member who shouts something. These belong in `resolved_outcome` and `observable_facts`. Add the message recipient or scene witnesses as `observers` so the relevant characters perceive the event ("Jordan hands an apology note to a runner, who carries it to Marcus" — Marcus is an observer, no `runner` agent is created).
+   - **Re-use existing characters before spawning.** If the scene already has someone who could plausibly fill the role (a steward, a guard already in the room, an established minor NPC), use them via `roster_moves` instead of minting a new face. Spawn is the last resort.
+   - **Mark dormant** only when a character meaningfully leaves the active narrative area or is no longer relevant.
+   - **Cull** only for permanent removal such as death or banishment.
 
 11. Move characters between scenes with `roster_moves`. This list carries every relocation this turn: NPCs entering or leaving the scene, the acting character walking somewhere new, anyone arriving from elsewhere because the fiction summons them.
    - Each entry: `character_id` (whose location changes), `to_scene` (destination scene_id), `reason` (a brief in-fiction phrase).
@@ -636,7 +642,10 @@ physically doing. When the user_input is fully parenthesized OOC:
 
 13. Materialize implied cross-character communication. There is no inter-character message bus — characters cannot "send" each other structured messages that flush into the recipient's next prompt. When an intention or off-stage tick describes one character delivering information, an order, a warning, a letter, or a summons to ANOTHER character (whether by speaking it, writing it, or dispatching a courier), you MUST realize that as actual world state on this turn:
    - **In-scene communication** (both characters present): handled by normal dialogue + `observable_facts` — no extra work.
-   - **Different-scene communication via courier or letter**: the courier is a real character with a location. Either pick an existing minor NPC in the sender's scene whose `roster_moves` walks them toward the recipient, or `spawn` a courier (a runner, a messenger, a servant) with `location` = the sender's scene and an objective like "deliver word to <recipient>". In the same turn or shortly after, when the courier arrives at the recipient's location, that's a canonical event with the recipient as observer.
+   - **Different-scene communication via courier or letter**: the message must produce engine state in the recipient's scene. The courier is *usually* not a spawnable character — they're plot machinery. Two patterns, in preference order:
+     1. **Pick an existing in-scene NPC** as the courier and emit a `roster_moves` entry sending them toward the recipient's scene. No spawn needed; they already exist.
+     2. **Canonicalize without spawning**: write the courier into `resolved_outcome` as part of the world-state change ("Jordan presses the apology note into a passing runner's hand; the runner carries it to Marcus's table") and add the recipient as an `observer` on this same event so the recipient's character agent perceives the message arriving. The runner is not a real character — they're prose. This is the right shape for any one-shot delivery.
+     3. **Spawn a courier** ONLY when the courier matters narratively beyond delivery (they have a name, an agenda, they will reappear). Apply rule 10's spawn criteria: seed `location` and `objectives`, expect them to keep acting in future turns.
    - **Same-scene witness, different intended recipient** (a character speaks loudly enough that someone elsewhere overhears, a note is left in a public space): add a sensory item to `observable_facts` AND, if the recipient is in or arrives at the relevant scene that turn, include them as an observer of this event. If the recipient is not yet present, the fact lands in the location and surfaces the next time anyone observes that scene.
    - **Off-stage exchange in a single tick**: when an off-stage tick fires (you'll see a `## Off-Stage Tick` user message — see "Tick mode" above), the tick agents produce short exchanges in their own locations, and you canonicalize that prose as ONE event with the off-stage scenes' characters as observers. Tick canonical events are not narrated to the player; they update world state for the next on-stage beat.
    - The PRINCIPLE: there is no "telepathy" channel. Every cross-character information transfer must produce engine state (a moved courier, a sensory fact, a canonical event in the recipient's location, a roster placement) — otherwise the recipient's next agent call has no mechanical signal that the message arrived, and the narrative will quietly desync.
@@ -679,11 +688,11 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   ],
   "spawn": [
     {{
-      "character_id": "string — a snake_case unique id for the new character",
+      "character_id": "string — a snake_case unique id for the new character. Each id appears at most once in this list — duplicates are dropped. Spawn only meaningful characters who will keep acting; canonicalize one-shot utility figures (couriers, crowd, walk-ons) into resolved_outcome instead — see rule 10.",
       "seed": {{
         "role": "string — their role",
-        "reason": "string — why they are here",
-        "location": "string — scene_id where they appear",
+        "reason": "string — why this is a meaningful spawn vs. a canonicalize-and-add-observer (see rule 10)",
+        "location": "string — scene_id where they appear; REQUIRED — empty string is silently replaced with the acting actor's scene which is rarely what plot-introduced characters want",
         "objectives": ["string — 1-3 actionable pursuits this character starts with"]
       }}
     }}

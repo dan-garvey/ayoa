@@ -14,8 +14,8 @@ from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
 from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.requests import TurnRequest, DebugFlags
-from app.schemas.responses import TurnResponse, DebugPayload
+from app.schemas.requests import TurnRequest
+from app.schemas.responses import TurnResponse
 from app.schemas.checkpoint import CheckpointFile
 
 
@@ -23,7 +23,11 @@ from app.schemas.checkpoint import CheckpointFile
 
 WORLD_STATE_EXAMPLE = {
     "time": {"scene_time": "2026-04-10T15:21:00Z", "turn_count": 42},
-    "locations": {"current_scene_id": "estate_courtyard", "scene_graph": {}},
+    # Pre-v11 also carried `current_scene_id` here; it was murdered
+    # because runtime never updated it. Pydantic v2's extra='ignore'
+    # would silently drop a stale entry on load (we no longer write
+    # one); test_round_trip below exercises the load-as-empty path.
+    "locations": {"scene_graph": {}},
     "facts": ["The courtyard is wet from earlier rain.", "The main building is made of stone."],
     "physics_ruleset": {"strength_limits": "human_baseline", "magic_enabled": False},
     "global_flags": {},
@@ -115,7 +119,6 @@ NARRATOR_FINAL_EXAMPLE = {
 class TestWorldState:
     def test_construct(self):
         ws = WorldState(**WORLD_STATE_EXAMPLE)
-        assert ws.locations.current_scene_id == "estate_courtyard"
         assert ws.physics_ruleset.magic_enabled is False
         assert len(ws.facts) == 2
 
@@ -123,6 +126,24 @@ class TestWorldState:
         ws = WorldState(**WORLD_STATE_EXAMPLE)
         rebuilt = WorldState(**ws.model_dump())
         assert rebuilt == ws
+
+    def test_legacy_current_scene_id_silently_dropped(self):
+        """Pre-v11 saves carried `locations.current_scene_id`. Pydantic
+        v2's default `extra='ignore'` lets them load cleanly — the
+        field is silently dropped, scene_graph + everything else
+        survives. Verifies vestigial-field-destruction policy rule 1
+        (`extra='ignore'` is the migration path; no deprecation flag
+        needed)."""
+        legacy = {
+            **WORLD_STATE_EXAMPLE,
+            "locations": {
+                "current_scene_id": "old_pivot_scene",
+                "scene_graph": {"old_pivot_scene": {"name": "Old"}},
+            },
+        }
+        ws = WorldState(**legacy)
+        assert "old_pivot_scene" in ws.locations.scene_graph
+        assert not hasattr(ws.locations, "current_scene_id")
 
     def test_defaults(self):
         ws = WorldState()
@@ -294,8 +315,7 @@ class TestTurnRequest:
     def test_construct(self):
         tr = TurnRequest(session_id="abc", user_input="I look around.")
         assert tr.stream is False
-        assert tr.debug is False
-        assert tr.debug_flags.include_discriminator is False
+        assert tr.acting_character_id == ""
 
     def test_full(self):
         tr = TurnRequest(
@@ -303,26 +323,46 @@ class TestTurnRequest:
             checkpoint_id="ckpt_0001",
             user_input="I try the door.",
             stream=True,
-            debug=True,
-            debug_flags=DebugFlags(include_discriminator=True, include_agent_outputs=True),
+            acting_character_id="hero",
         )
         assert tr.stream is True
-        assert tr.debug_flags.include_discriminator is True
+        assert tr.acting_character_id == "hero"
+
+    def test_legacy_debug_fields_silently_dropped(self):
+        # v11-r7j murdered `debug` and `debug_flags`. Pre-v11-r7j on-the-
+        # wire turn requests sometimes set them to keep per-phase
+        # latency reporting alive on the (also-murdered) TurnResponse
+        # debug payload. Pydantic v2's default `extra='ignore'` drops
+        # them silently; this test pins that contract so a future
+        # `extra='forbid'` flip wouldn't quietly break old replay
+        # harnesses.
+        tr = TurnRequest(
+            session_id="abc",
+            user_input="I look around.",
+            debug=True,
+            debug_flags={"include_discriminator": True},
+        )
+        assert tr.session_id == "abc"
+        assert not hasattr(tr, "debug")
+        assert not hasattr(tr, "debug_flags")
 
 
 class TestTurnResponse:
     def test_normal_mode(self):
         tr = TurnResponse(session_id="abc", output_text="You look around.")
-        assert tr.debug is None
+        assert tr.session_id == "abc"
+        assert tr.output_text == "You look around."
+        assert tr.per_player_renders == {}
+        assert tr.beat_ended_reason == ""
 
-    def test_debug_mode(self):
+    def test_legacy_debug_payload_silently_dropped(self):
         tr = TurnResponse(
             session_id="abc",
             output_text="You look around.",
-            debug=DebugPayload(canonical_event={"event_id": "evt_001"}),
+            debug={"canonical_event": {"event_id": "evt_001"}},
         )
-        assert tr.debug is not None
-        assert tr.debug.canonical_event["event_id"] == "evt_001"
+        assert tr.session_id == "abc"
+        assert not hasattr(tr, "debug")
 
 
 class TestCheckpointFile:

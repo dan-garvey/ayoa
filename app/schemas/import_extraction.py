@@ -62,7 +62,11 @@ class SceneExtraction(BaseModel):
 
 
 class LocationsExtraction(BaseModel):
-    current_scene_id: str
+    """Scene topology only. There is no "starting scene" field — initial
+    placement is the per-character responsibility of `CharacterExtraction.location`.
+    The pre-v11 `current_scene_id` here mapped onto a runtime field of
+    the same name that nothing actually maintained; both are gone.
+    """
     scene_graph: list[SceneExtraction]
 
 

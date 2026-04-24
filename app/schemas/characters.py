@@ -61,12 +61,18 @@ class CharacterRecord(BaseModel):
     # parallel `incoming_directives` queue: cross-character communication
     # now travels through normal canonical events (a courier walks in and
     # speaks; a note is rendered in `observable_facts` and the recipient
-    # is added to that event's `observers`) rather than a structured
-    # inter-agent message bus. NOTE: in current v11 production no engine
-    # code path appends to this list — it is kept as the surviving
-    # narrow channel for "things this character privately observed but
-    # nobody else did" and Commit 5's tick wiring will re-establish a
-    # population path.
+    # is added to that event's `observers`).
+    #
+    # Population path (v11-r7j): `broadcast_event` in `app/engine/turn_loop.py`
+    # appends a one-line "[off-scene perception] …" entry for every NPC
+    # observer who is NOT in the broadcast scene. This is the engine
+    # implementation of router rule 13's cross-scene perception
+    # promise: when the router writes a courier delivering a note to
+    # Marcus from a different scene and lists Marcus as an observer,
+    # Marcus's next agent call sees the inbox entry. In-scene NPC
+    # observers are NOT pushed (they read the live event via their
+    # normal context block when picked as responders; pushing onto the
+    # inbox would double-count).
     pending_observations: list[str] = Field(default_factory=list)
     # Long-form text fields for rich character content. `personality`
     # now absorbs what used to live in `narrative_notes` + traits/voice

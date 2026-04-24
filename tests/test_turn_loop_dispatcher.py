@@ -46,7 +46,6 @@ def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
         ),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="gatehouse",
                 scene_graph={
                     "gatehouse": {
                         "name": "The Gatehouse",
@@ -603,11 +602,12 @@ class TestAgentIntend:
     def test_silent_beat_returns_sentinel_when_intent_present(
         self, prompt_mgr, mock_client, monkeypatch,
     ):
-        """agent_v10's rule 8 says paren-only output (silent beat) is a
-        valid in-character choice. The dispatcher must surface it as a
-        recognizable sentinel so the cascade routes the beat instead of
-        collapsing to `cascade_exhausted`. The sentinel must NOT leak
-        the agent's private intent."""
+        """The agent prompt's "Sparse is valid" shared rule says
+        paren-only output (silent beat) is a valid in-character
+        choice. The dispatcher must surface it as a recognizable
+        sentinel so the cascade routes the beat instead of collapsing
+        to `cascade_exhausted`. The sentinel must NOT leak the
+        agent's private intent."""
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         async def _silent_respond(self, *, character, observed_facts, checkpoint,

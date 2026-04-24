@@ -666,6 +666,7 @@ class EngineBridge:
             ckpt,
             mode="describe",
             description=description,
+            invoking_user_id=str(user_id),
         )
         new_id = _pick_unused_character_id(ckpt, out.character.name)
         new_char = out.character.to_record(character_id=new_id)
@@ -721,10 +722,16 @@ class EngineBridge:
         self,
         session_id: str,
         description: str,
+        *,
+        invoking_user_id: str | None = None,
     ) -> dict[str, Any]:
         """Mode='suggest': router surveys the roster for NPCs worth
         replacing with the player's concept. Returns the candidate list
-        and an optional preamble. No mutation."""
+        and an optional preamble. No mutation.
+
+        `invoking_user_id` is forwarded to the prompt's POV-scene
+        resolver so multi-player sessions don't see another player's
+        scene as "the action" in the suggest context."""
         from app.schemas.takeover import TakeoverSuggestOutput
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
@@ -732,6 +739,7 @@ class EngineBridge:
             ckpt,
             mode="suggest",
             description=description,
+            invoking_user_id=invoking_user_id,
         )
         return {
             "candidates": [c.model_dump() for c in out.candidates],
@@ -779,6 +787,7 @@ class EngineBridge:
             mode="replace",
             description=description,
             picked_target=target,
+            invoking_user_id=str(user_id),
         )
         authored = out.character
 
@@ -857,12 +866,18 @@ class EngineBridge:
         mode: str,
         description: str,
         picked_target: CharacterRecord | None = None,
+        invoking_user_id: str | None = None,
     ):
         """Render the takeover prompt, dispatch to the LLM with the
         mode-appropriate response model, and return the parsed output.
 
         mode: 'describe' | 'suggest' | 'replace'
         picked_target: required only for mode='replace'.
+        invoking_user_id: the Discord/CLI user running this takeover.
+            Forwarded to `_build_takeover_context` so the prompt's
+            `current_scene` block tracks the invoking user's scene
+            instead of falling through to the creator binding (which
+            in multi-player would land on the wrong scene).
         """
         from app.schemas.takeover import (
             TakeoverAuthoredOutput,
@@ -874,7 +889,10 @@ class EngineBridge:
         if mode == "replace" and picked_target is None:
             raise ValueError("mode='replace' requires picked_target")
 
-        context = _build_takeover_context(ckpt, description, picked_target)
+        context = _build_takeover_context(
+            ckpt, description, picked_target,
+            invoking_user_id=invoking_user_id,
+        )
 
         response_model = (
             TakeoverSuggestOutput if mode == "suggest" else TakeoverAuthoredOutput
@@ -1037,7 +1055,6 @@ class EngineBridge:
         session_id: str,
         user_input: str,
         acting_character_id: str = "",
-        debug: bool = False,
     ) -> TurnResponse:
         """Process one turn under a per-session lock. Subsequent concurrent calls
         for the same session_id queue and run in order.
@@ -1090,7 +1107,6 @@ class EngineBridge:
                 session_id=session_id,
                 user_input=user_input,
                 acting_character_id=acting_character_id,
-                debug=debug,
             ))
             response.pre_turn_resolutions = pre_turn
             return response
@@ -1123,15 +1139,24 @@ def _build_takeover_context(
     ckpt: CheckpointFile,
     description: str,
     picked_target: "CharacterRecord | None",
+    invoking_user_id: str | None = None,
 ) -> dict[str, str]:
     """Render the context blocks the takeover prompt expects. Stays
     router-style: omniscient world state, full roster (spoiler-safe is
-    NOT a constraint here — the router is authoring for itself)."""
-    setting = ckpt.world_state.setting
-    setting_summary = (
-        f"Genre: {setting.genre}\nEra: {setting.era}\n"
-        f"Tone: {setting.tone}\nPremise: {setting.premise}"
+    NOT a constraint here — the router is authoring for itself).
+
+    `invoking_user_id`: the Discord user (or CLI session) running the
+    takeover. Threaded into `pov_scene_for_user` so the prompt's
+    `current_scene` block reflects WHERE THIS USER IS, not the
+    creator binding or "first is_player" fallback. In multi-player
+    sessions those fallbacks would otherwise hand the takeover LLM
+    another player's scene as "the action," which is the wrong frame.
+    """
+    from app.engine.context_builder import (
+        build_setting_summary,
+        pov_scene_for_user,
     )
+    setting_summary = build_setting_summary(ckpt)
     world_lore = ckpt.world_state.lore or "No detailed lore."
     hidden_lore = ckpt.world_state.hidden_lore or "(none)"
     hidden_facts = (
@@ -1145,7 +1170,16 @@ def _build_takeover_context(
     )
 
     locations = ckpt.world_state.locations
-    scene_id = locations.current_scene_id
+    # The "current scene" the takeover prompt cares about is "where THE
+    # INVOKING USER is right now." Multi-player sessions can have
+    # players in different scenes, and "where the action is" must be
+    # keyed on whoever invoked takeover, not on a session-global
+    # default. `pov_scene_for_user` resolves: bound character → creator
+    # binding → first is_player → "". For takeover the invoking user
+    # almost always has a binding (they took over from somewhere); if
+    # they don't (rare: brand-new join replacing their first NPC),
+    # the creator-binding fallback is the next-best frame.
+    scene_id = pov_scene_for_user(ckpt, user_id=invoking_user_id)
     scene = locations.scene_graph.get(scene_id, {}) if scene_id else {}
     scene_graph_lines = []
     for sid, sdata in locations.scene_graph.items():

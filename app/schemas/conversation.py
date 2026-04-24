@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class ConversationMessage(BaseModel):
-    """One turn in a rolling conversation with a role (EventRouter, character agent, narrator).
+    """One turn in a rolling conversation with a role (router, character agent, narrator).
 
     `content` is either a plain string (typical for user messages we build
     ourselves) or a list of content-block dicts (for assistant messages we

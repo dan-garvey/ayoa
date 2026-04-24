@@ -16,6 +16,10 @@ from app.engine.context_builder import (
     resolve_scene_for_character,
 )
 from app.engine.prompt_manager import PromptManager
+from app.engine.turn_loop_contracts import (
+    AGENT_ON_STAGE_HEADER,
+    AGENT_TICK_HEADER,
+)
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
@@ -88,7 +92,6 @@ def sample_checkpoint():
         session=SessionState(session_id="test"),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="courtyard",
                 scene_graph={
                     "courtyard": {
                         "name": "Estate Courtyard",
@@ -146,16 +149,18 @@ class TestContextBuilder:
         assert state["character_goals"] == "None specified."
         assert state["character_secrets"] == "None."
 
-    def test_build_scene_context(self, sample_checkpoint):
+    def test_build_scene_context_no_character_returns_unsited(self, sample_checkpoint):
+        """v11: with `current_scene_id` removed, callers that don't pass
+        a character_id get the unsited block. There's no global
+        "current scene" to fall back to — every scene answer is
+        per-character now."""
         context = build_scene_context(sample_checkpoint)
-        assert "Estate Courtyard" in context
-        assert "dry fountain" in context
+        assert "No scene information available" in context
 
     def test_build_scene_context_keyed_to_character_location(self, sample_checkpoint, guard_character):
-        """v11-r7h: build_scene_context honors the character's actual
-        location, not the importer's pivot. After the guard moves to the
-        archive, his agent prompt must show the archive — not the
-        starting courtyard."""
+        """build_scene_context honors the character's actual location.
+        After the guard moves to the archive, his agent prompt must
+        show the archive."""
         sample_checkpoint.world_state.locations.scene_graph["archive"] = {
             "name": "Sealed Archive",
             "description": "Iron-banded shelves stretching into the dark.",
@@ -167,17 +172,8 @@ class TestContextBuilder:
         )
         assert "Sealed Archive" in context
         assert "Iron-banded" in context
-        # Importer pivot (courtyard) must NOT leak in.
+        # Other scenes in the graph must NOT leak in.
         assert "Estate Courtyard" not in context
-
-    def test_build_scene_context_no_character_falls_back(self, sample_checkpoint):
-        """Pre-r7h behavior preserved: callers that don't have an actor
-        binding (legacy paths, /scene UI surfaces) keep getting the
-        importer's pivot scene."""
-        context = build_scene_context(sample_checkpoint)
-        assert "Estate Courtyard" in context
-        context_none = build_scene_context(sample_checkpoint, None)
-        assert "Estate Courtyard" in context_none
 
     def test_build_world_context_legacy_fallback(self, sample_checkpoint, guard_character):
         """Pre-v2 characters (known_context=="") fall back to global lore/facts."""
@@ -220,22 +216,15 @@ class TestContextBuilder:
 
 
 class TestSceneResolution:
-    """v11-r7h: actor-keyed scene context. Pre-r7h, every router /
-    narrator / agent context block read `world_state.locations.
-    current_scene_id` directly — meaning the LLM was told "you are at
-    the starting scene" forever, regardless of where the actor had
-    actually moved. Combined with the dead `scene_delta.new_scene_id`
-    field (which structurally stranded actors at their starting
-    location), this produced the desync that surfaced in the playtest
-    where Mira was narrated as moving but her checkpoint said she
-    hadn't.
-
-    These tests pin the new helper + the two builder functions that
+    """v11: actor-keyed scene context. Every router / narrator / agent
+    context block reads `character.location` for the acting character
+    — the pre-v11 global `world_state.locations.current_scene_id` is
+    gone. These tests pin the helper + the two builder functions that
     consume it. The dispatcher / narrator wrappers (which delegate
     here) are exercised via the integration paths in
     test_orchestrator_v11.py."""
 
-    def _ckpt(self, *, current="courtyard", graph=None):
+    def _ckpt(self, *, graph=None):
         graph = graph or {
             "courtyard": {"name": "Estate Courtyard", "description": "Wide stones."},
             "archive": {"name": "Sealed Archive", "description": "Iron-banded shelves."},
@@ -243,9 +232,7 @@ class TestSceneResolution:
         return CheckpointFile(
             session=SessionState(session_id="t"),
             world_state=WorldState(
-                locations=LocationState(
-                    current_scene_id=current, scene_graph=graph,
-                ),
+                locations=LocationState(scene_graph=graph),
                 setting=StorySetting(),
             ),
         )
@@ -263,32 +250,32 @@ class TestSceneResolution:
         ckpt.characters = [self._char("guard", location="archive")]
         assert resolve_scene_for_character(ckpt, "guard") == "archive"
 
-    def test_resolve_falls_back_when_character_unset(self):
+    def test_resolve_returns_empty_when_character_unset(self):
         """Character has `location=""` (schema default — legacy import
-        path or pre-spawn race). Fall back to `current_scene_id` so the
-        prompt isn't empty."""
+        path or pre-spawn race). v11: there's no global fallback;
+        callers must handle the empty-string case."""
         ckpt = self._ckpt()
         ckpt.characters = [self._char("guard", location="")]
-        assert resolve_scene_for_character(ckpt, "guard") == "courtyard"
+        assert resolve_scene_for_character(ckpt, "guard") == ""
 
-    def test_resolve_falls_back_when_character_missing(self):
-        """Unknown character_id (typo, race) — fall back, don't raise."""
+    def test_resolve_returns_empty_when_character_missing(self):
+        """Unknown character_id (typo, race) — return "", don't raise."""
         ckpt = self._ckpt()
         ckpt.characters = []
-        assert resolve_scene_for_character(ckpt, "ghost") == "courtyard"
+        assert resolve_scene_for_character(ckpt, "ghost") == ""
 
-    def test_resolve_none_character_id_returns_pivot(self):
-        """Legacy callers that don't pass a character_id keep the old
-        importer-pivot answer."""
+    def test_resolve_none_character_id_returns_empty(self):
+        """v11: callers that don't pass a character_id get "". The
+        pre-v11 importer-pivot fallback is gone."""
         ckpt = self._ckpt()
-        assert resolve_scene_for_character(ckpt, None) == "courtyard"
+        assert resolve_scene_for_character(ckpt, None) == ""
 
     def test_characters_present_keyed_to_actor_location(self):
         """Actor moved to the archive; `build_characters_present` must
-        list who's IN the archive (only the actor) — not who's at the
-        importer's pivot. Pre-r7h: this returned the courtyard's roster
-        and the actor saw "you're alone" in the place they'd just
-        physically left."""
+        list who's IN the archive — not who's at the importer's pivot.
+        Pre-v11 this read the global current_scene_id and saw the
+        wrong roster; v11 reads the actor's own location and gets the
+        right answer."""
         ckpt = self._ckpt()
         actor = self._char("guard", location="archive")
         bystander_at_pivot = self._char("steward", location="courtyard")
@@ -296,10 +283,108 @@ class TestSceneResolution:
         ckpt.characters = [actor, bystander_at_pivot, bystander_at_archive]
 
         present = build_characters_present(actor, ckpt)
-        # The scribe (same scene as actor) is named.
         assert "Scribe" in present
-        # The steward (back at the pivot) is NOT.
         assert "Steward" not in present
+
+
+class TestPovSceneForUser:
+    """v11 player-facing scene resolution. The CLI status line, Discord
+    embeds, and the takeover prompt's `current_scene` block all read
+    `pov_scene_for_user`. The function must (a) prefer the asking
+    user's bound character, (b) fall through cleanly to the creator
+    binding and then "first is_player," and (c) NEVER hand back a
+    culled character's last-known location — that's a stale ghost
+    reading."""
+
+    def _ckpt(self):
+        return CheckpointFile(
+            session=SessionState(session_id="t"),
+            world_state=WorldState(
+                locations=LocationState(scene_graph={
+                    "courtyard": {"name": "Courtyard", "description": "."},
+                    "archive": {"name": "Archive", "description": "."},
+                }),
+                setting=StorySetting(),
+            ),
+        )
+
+    def _player(self, cid: str, *, location: str = "", status: str = "active"):
+        c = CharacterRecord(
+            character_id=cid,
+            name=cid.title(),
+            location=location,
+            public_sheet=PublicSheet(role="protagonist"),
+        )
+        c.is_player = True
+        c.status = status
+        return c
+
+    def test_user_id_binding_wins(self):
+        from app.engine.context_builder import pov_scene_for_user
+
+        ckpt = self._ckpt()
+        ckpt.characters = [
+            self._player("p1", location="courtyard"),
+            self._player("p2", location="archive"),
+        ]
+        ckpt.session.character_bindings = {"p1": "11", "p2": "22"}
+        ckpt.session.player_character_id = "p1"
+
+        assert pov_scene_for_user(ckpt, user_id="22") == "archive"
+        assert pov_scene_for_user(ckpt, user_id="11") == "courtyard"
+
+    def test_falls_back_to_creator_binding(self):
+        from app.engine.context_builder import pov_scene_for_user
+
+        ckpt = self._ckpt()
+        ckpt.characters = [self._player("p1", location="archive")]
+        ckpt.session.player_character_id = "p1"
+        assert pov_scene_for_user(ckpt) == "archive"
+
+    def test_skips_culled_player(self):
+        """A culled player's last-known location must not surface as
+        "where the action is." Bug-3: takeover prompts and CLI status
+        lines were rendering a dead player's scene as the active one
+        because pov_scene_for_user only checked is_player + location,
+        never status."""
+        from app.engine.context_builder import pov_scene_for_user
+
+        ckpt = self._ckpt()
+        dead = self._player("ghost", location="archive", status="culled")
+        live = self._player("hero", location="courtyard", status="active")
+        ckpt.characters = [dead, live]
+        ckpt.session.player_character_id = "ghost"
+
+        # Creator binding points at the dead one — must skip and find
+        # the live `is_player`.
+        assert pov_scene_for_user(ckpt) == "courtyard"
+
+    def test_skips_culled_via_user_id_lookup(self):
+        from app.engine.context_builder import pov_scene_for_user
+
+        ckpt = self._ckpt()
+        dead = self._player("dead_pc", location="archive", status="culled")
+        ckpt.characters = [dead]
+        ckpt.session.character_bindings = {"dead_pc": "99"}
+
+        # User's bound character was culled; nothing else to fall
+        # back to → "" (UI renders "(no active scene)").
+        assert pov_scene_for_user(ckpt, user_id="99") == ""
+
+    def test_returns_empty_when_no_player(self):
+        from app.engine.context_builder import pov_scene_for_user
+
+        ckpt = self._ckpt()
+        npc = CharacterRecord(
+            character_id="npc",
+            name="NPC",
+            location="courtyard",
+            public_sheet=PublicSheet(role="r"),
+        )
+        npc.is_player = False
+        ckpt.characters = [npc]
+        assert pov_scene_for_user(ckpt) == ""
+
 
 class TestCharacterAgent:
     @pytest.mark.asyncio
@@ -649,7 +734,6 @@ class TestPriorResponsesLeakGuard:
             session=SessionState(session_id="t"),
             world_state=WorldState(
                 locations=LocationState(
-                    current_scene_id="hall",
                     scene_graph={"hall": {
                         "name": "Hall", "description": "", "connected_to": [],
                     }},
@@ -748,3 +832,135 @@ class TestPriorResponsesLeakGuard:
         # (which references "No other characters have responded yet"
         # as a no-op signal); locking it here.
         assert block == "No other characters have responded yet."
+
+
+class TestUnifiedAgentCacheLineage:
+    """v11 cache-trail invariant: respond + tick share ONE system
+    prompt and ONE rolling history per character.
+
+    Pre-v11 the engine had two separate templates (`agent_v10.txt`
+    and `agent_tick_v3.txt`) for on-stage and off-stage calls. Both
+    rendered into the same `character_conversations[id]` history,
+    but each had a DIFFERENT system prefix — so every mode switch
+    invalidated the Anthropic prompt cache for that character. On a
+    long session the same character pays for two cache lineages and
+    eats a cache-write per mode flip.
+
+    The v11 fix is a single unified prompt with a first-token
+    bitflip in the user message (`## ON-STAGE` / `## TICK`). These
+    tests pin that fix:
+
+      - **Same template name**: both modes load `agent` (resolves to
+        whichever is the latest `agent_v*.txt`). No `agent_tick`
+        sibling.
+      - **Identical system prefix**: byte-for-byte equality between
+        the two modes' system messages when called against the same
+        character + checkpoint. This is THE invariant — if it
+        regresses, the cache trail re-splits and the bug is back.
+      - **Mode header is the first user-message line**: the prompt's
+        "Mode Routing" section keys off the first token of the user
+        message; if the marker drifts off line 1 the agent's mode
+        signal is buried mid-message.
+    """
+
+    @pytest.mark.asyncio
+    async def test_respond_and_tick_share_same_system_prefix(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        # Run respond, capture system message.
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.respond(
+            guard_character, ["Player looks around."], sample_checkpoint,
+        )
+        respond_messages = mock_client.complete.call_args.kwargs["messages"]
+        respond_system = respond_messages[0]
+        assert respond_system["role"] == "system"
+
+        # Reset call captures and run tick on the SAME character +
+        # checkpoint. The tick path must produce a byte-identical
+        # system message — that's the cache-trail invariant.
+        mock_client.complete.reset_mock()
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        await agent.tick(guard_character, sample_checkpoint)
+        tick_messages = mock_client.complete.call_args.kwargs["messages"]
+        tick_system = tick_messages[0]
+        assert tick_system["role"] == "system"
+
+        # Byte-equality: the system prompts MUST match across modes.
+        # Any divergence (a stray newline, a mode-conditional line)
+        # invalidates the Anthropic prompt cache and resurrects the
+        # cache-trail proliferation bug.
+        assert tick_system["content"] == respond_system["content"]
+
+    @pytest.mark.asyncio
+    async def test_respond_user_message_starts_with_on_stage_header(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.respond(
+            guard_character, ["fact"], sample_checkpoint,
+        )
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        user_content = messages[-1]["content"]
+        # First non-empty line must be the mode header — the
+        # prompt's "Mode Routing" section keys off this exact
+        # first-token signal.
+        first_line = next(
+            ln for ln in user_content.splitlines() if ln.strip()
+        )
+        assert first_line == AGENT_ON_STAGE_HEADER
+        # And the tick marker must NOT appear (mutually exclusive).
+        assert AGENT_TICK_HEADER not in user_content
+
+    @pytest.mark.asyncio
+    async def test_tick_user_message_starts_with_tick_header(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.tick(guard_character, sample_checkpoint)
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        user_content = messages[-1]["content"]
+        first_line = next(
+            ln for ln in user_content.splitlines() if ln.strip()
+        )
+        assert first_line == AGENT_TICK_HEADER
+        assert AGENT_ON_STAGE_HEADER not in user_content
+
+    @pytest.mark.asyncio
+    async def test_tick_appends_to_same_rolling_conversation_as_respond(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        # Single rolling history per character — respond and tick
+        # both write into `character_conversations[character_id]`.
+        # If they ever split (separate history per mode), the
+        # agent's interior memory desyncs across modes.
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(
+            guard_character, ["fact"], sample_checkpoint,
+        )
+        mock_client.complete.return_value = _llm_response(
+            'He stands by the window. (Watching the gate.)'
+        )
+        await agent.tick(guard_character, sample_checkpoint)
+
+        # Exactly ONE rolling-history key for this character; both
+        # the respond pair AND the tick pair are appended to it.
+        keys = list(sample_checkpoint.character_conversations.keys())
+        assert keys == ["guard_17"]
+        convo = sample_checkpoint.character_conversations["guard_17"]
+        # 2 user/assistant pairs = 4 messages total.
+        assert len(convo) == 4
+        # Sequence: respond user, respond asst, tick user, tick asst.
+        assert convo[0].role == "user"
+        assert AGENT_ON_STAGE_HEADER in convo[0].content
+        assert convo[2].role == "user"
+        assert AGENT_TICK_HEADER in convo[2].content

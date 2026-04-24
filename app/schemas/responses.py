@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -23,20 +21,6 @@ class PhaseLatency(BaseModel):
     # spot rendering-heavy turns that weren't caused by slow API time.
     # Summed across calls the same way as token counts.
     prompt_render_ms: float = 0.0
-
-
-class DebugPayload(BaseModel):
-    canonical_event: dict[str, Any] = Field(default_factory=dict)
-    # Full router output (observers, spawns, dormant/cull, roster_moves).
-    # Historically this was a separate "discriminator" pass — hence the
-    # legacy key name, retained to keep downstream log consumers working.
-    router_output: dict[str, Any] = Field(default_factory=dict)
-    agent_outputs: list[dict[str, Any]] = Field(default_factory=list)
-    latencies: list[PhaseLatency] = Field(default_factory=list)
-    total_duration_ms: float = 0.0
-    models_used: dict[str, str] = Field(default_factory=dict)
-    prompt_versions: dict[str, str] = Field(default_factory=dict)
-    validations: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class TurnResponse(BaseModel):
@@ -68,4 +52,10 @@ class TurnResponse(BaseModel):
     # fan their per-POV renders out before showing the actor their own
     # /act result. Empty in the common case (no stale pins).
     pre_turn_resolutions: list["TurnResponse"] = Field(default_factory=list)
-    debug: DebugPayload | None = None
+    # NOTE: a `debug: DebugPayload | None` field lived here through
+    # v11-r7i. The orchestrator never wrote it, every consumer
+    # (Discord latency log, CLI status, playtest summary) was guarded
+    # by `if response.debug is not None:` and silently no-op'd. v11-r7j
+    # murdered the field per the vestigial-field destruction policy
+    # in CLAUDE.md. Per-turn diagnostics live in the engine logger
+    # (`turn_loop.router[route]` lines) and per-turn checkpoint files.

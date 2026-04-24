@@ -140,7 +140,8 @@ class PromptManager:
         """Render system + user template, inserting a rolling conversation history.
 
         Result: `[system, *history, current_user_message]`. Used for rolling-
-        conversation call sites (EventRouter, CharacterAgent, Narrator phase 2).
+        conversation call sites (event_router prompt template, CharacterAgent,
+        Narrator phase 2).
         """
         messages = self.render_messages(template_name, **variables)
         system_msg, user_msg = messages[0], messages[1]

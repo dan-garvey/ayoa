@@ -27,7 +27,7 @@ def checkpoint():
     return CheckpointFile(
         session=SessionState(session_id="test"),
         world_state=WorldState(
-            locations=LocationState(current_scene_id="courtyard"),
+            locations=LocationState(),
             facts=[
                 "The Covenant banned cross-racial procreation.",
                 "Article Nineteen is enforced by death.",

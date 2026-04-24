@@ -274,7 +274,6 @@ In debug mode, also return structured intermediate artifacts.
     "turn_count": 42
   },
   "locations": {
-    "current_scene_id": "estate_courtyard",
     "scene_graph": {}
   },
   "facts": [
@@ -462,28 +461,11 @@ Request:
   "session_id": "uuid",
   "checkpoint_id": "optional-string",
   "user_input": "I try the locked door.",
-  "stream": true,
-  "debug": false,
-  "debug_flags": {
-    "include_discriminator": false,
-    "include_agent_outputs": false,
-    "include_internal_state_deltas": false
-  }
+  "stream": true
 }
 ```
 
-Response in normal mode:
-
-```json
-{
-  "session_id": "uuid",
-  "checkpoint_id": "ckpt_0043",
-  "turn_index": 43,
-  "output_text": "You twist the handle. It doesn't budge..."
-}
-```
-
-Response in debug mode:
+Response:
 
 ```json
 {
@@ -491,13 +473,21 @@ Response in debug mode:
   "checkpoint_id": "ckpt_0043",
   "turn_index": 43,
   "output_text": "You twist the handle. It doesn't budge...",
-  "debug": {
-    "canonical_event": {},
-    "discriminator": {},
-    "agent_outputs": []
-  }
+  "per_player_renders": {
+    "main_character": "You twist the handle. It doesn't budge..."
+  },
+  "beat_ended_reason": "directed_at_player",
+  "pre_turn_resolutions": []
 }
 ```
+
+Note: a `debug` / `debug_flags` round-trip lived on TurnRequest /
+TurnResponse through v11-r7i; it was murdered in v11-r7j after the
+playtest review found that the orchestrator never actually populated
+the response payload. Per-turn router rationale, agent outputs,
+phase latencies, and cache stats are emitted by the engine logger
+(`turn_loop.router[route] …` lines) and persisted in the per-turn
+checkpoint files instead.
 
 ## 9.2 Streaming Behavior
 
@@ -858,7 +848,9 @@ def process_turn(request):
     return build_response(
         final_text=final.final_text,
         checkpoint_id=checkpoint_id,
-        debug=build_debug_payload(...) if request.debug else None,
+        # Pre-v11-r7j a `debug=build_debug_payload(...)` arg lived
+        # here; both the field and the helper were murdered when
+        # the playtest review confirmed nothing populated it.
         stream=request.stream
     )
 ```

@@ -46,7 +46,6 @@ def sample_checkpoint():
         session=SessionState(session_id="test"),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="courtyard",
                 scene_graph={
                     "courtyard": {
                         "name": "Estate Courtyard",

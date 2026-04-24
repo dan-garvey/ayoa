@@ -49,7 +49,6 @@ def _ckpt() -> CheckpointFile:
         ),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="hall",
                 scene_graph={
                     "hall": {
                         "name": "Great Hall",

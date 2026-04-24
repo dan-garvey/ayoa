@@ -1,10 +1,15 @@
 from pathlib import Path
 
+from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
+    AGENT_ON_STAGE_HEADER,
+    AGENT_TICK_HEADER,
     CAT_II_RESOLUTION_HEADER,
     PARTIAL_MODE_MARKER,
     SWEPT_RESPONDERS_SUBHEADER,
     TICK_FAN_IN_HEADER,
+    format_agent_on_stage_body,
+    format_agent_tick_body,
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
@@ -15,6 +20,13 @@ from app.engine.turn_loop_contracts import (
 
 ROUTER_PROMPT = Path("app/prompts/event_router_v9.txt").read_text()
 NARRATOR_PROMPT = Path("app/prompts/narrator_phase2_v9.txt").read_text()
+# Agent prompt is version-stamped — load via PromptManager so test
+# follows the file forward as v11 → v12 etc., instead of pinning a
+# specific filename and silently going stale.
+_AGENT_PROMPT_PATH = PromptManager(
+    prompts_dir="app/prompts",
+)._find_template("agent")
+AGENT_PROMPT = _AGENT_PROMPT_PATH.read_text()
 
 
 class TestPromptReferencesConstants:
@@ -126,6 +138,96 @@ class TestTickFanInBlock:
         # if we ever rename the constant, this catches the prompt
         # falling out of sync with the contract.
         assert TICK_FAN_IN_HEADER in ROUTER_PROMPT
+
+
+class TestAgentModeContract:
+    """v11 unified-agent contract. There is now ONE agent system
+    prompt for both on-stage and off-stage calls (cache-trail
+    deduplication — `agent_v10.txt` and `agent_tick_v3.txt` are
+    merged). The agent identifies its mode by reading the FIRST line
+    of its current user message: `## ON-STAGE` or `## TICK`. The
+    prompt's "Mode Routing" section keys off those exact strings;
+    these tests pin the prompt-code contract so a rename or a
+    silent header drift trips a loud failure.
+
+    Why this matters: if the prompt's mode-routing block falls out
+    of sync with the constants, the agent has no signal to flip its
+    rule set — and we'd silently regress to "tick agents follow
+    on-stage rules" or vice versa, with no test to catch it.
+    """
+
+    def test_agent_prompt_mentions_on_stage_header(self):
+        assert AGENT_ON_STAGE_HEADER in AGENT_PROMPT
+
+    def test_agent_prompt_mentions_tick_header(self):
+        assert AGENT_TICK_HEADER in AGENT_PROMPT
+
+    def test_agent_prompt_has_mode_routing_section(self):
+        # The "Mode Routing" header is the cross-reference target for
+        # agent.respond / agent.tick — if it disappears the prompt's
+        # rule structure has been refactored away from the
+        # first-token-bitflip design.
+        assert "Mode Routing" in AGENT_PROMPT
+
+    def test_agent_prompt_keeps_user_message_template_slots(self):
+        # The unified template's user message contains exactly two
+        # interpolation slots after the system delimiter:
+        # `{mode_header}` (first-token signal) and `{mode_block}`
+        # (mode-specific body assembled by the matching helper).
+        # Pin both so a refactor that drops one is loud.
+        _, user_tail = AGENT_PROMPT.split("<<<USER>>>", 1)
+        assert "{mode_header}" in user_tail
+        assert "{mode_block}" in user_tail
+
+    def test_on_stage_body_renders_required_headers(self):
+        body = format_agent_on_stage_body(
+            scene_context="Estate courtyard, raining.",
+            characters_present="No other characters are present.",
+            observed_facts="Aldric strains against the building.",
+            prior_character_responses="No other characters have responded yet.",
+        )
+        # Each header pinned individually so a partial drift (one
+        # section vanishes) still fails distinctly.
+        assert "## Scene" in body
+        assert "## Characters Present" in body
+        assert "## What You Observe This Turn" in body
+        assert "## Other Characters' Responses This Turn" in body
+        # And the inputs survive verbatim into the body.
+        assert "Estate courtyard, raining." in body
+        assert "Aldric strains against the building." in body
+
+    def test_tick_body_renders_location_and_standing_instruction(self):
+        body = format_agent_tick_body(
+            scene_context="Location: Library (id: library)\nDusty stacks.",
+        )
+        assert "## Where You Are" in body
+        assert "## What You Do This Tick" in body
+        assert "Library" in body
+        # Standing instruction text — the agent's tick rules expect
+        # this nudge to be present.
+        assert "off-stage" in body
+        assert "single tight beat" in body
+
+    def test_on_stage_body_does_not_carry_tick_markers(self):
+        # The two mode bodies must be visually + semantically
+        # distinct — if on-stage starts emitting `## What You Do
+        # This Tick` (or the reverse), the agent's mode-routing
+        # would see conflicting signals.
+        body = format_agent_on_stage_body(
+            scene_context="x",
+            characters_present="x",
+            observed_facts="x",
+            prior_character_responses="x",
+        )
+        assert "## Where You Are" not in body
+        assert "## What You Do This Tick" not in body
+
+    def test_tick_body_does_not_carry_on_stage_markers(self):
+        body = format_agent_tick_body(scene_context="x")
+        assert "## Scene" not in body
+        assert "## Characters Present" not in body
+        assert "## What You Observe This Turn" not in body
+        assert "## Other Characters' Responses This Turn" not in body
 
 
 class TestRule2bCrossReference:

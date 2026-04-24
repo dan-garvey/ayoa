@@ -116,35 +116,27 @@ def build_character_state(char: CharacterRecord) -> dict[str, str]:
 def resolve_scene_for_character(
     checkpoint: CheckpointFile, character_id: str | None,
 ) -> str:
-    """v11-r7h: the scene a character is currently in.
+    """The scene a character is currently in. Reads from the roster's
+    `character.location` field — the truth-of-record for "where is X."
 
-    Prefers the roster's `character.location` field — the truth-of-record
-    for "where is X." Falls back to `world_state.locations.current_scene_id`
-    when:
+    Returns "" when the character has no resolvable location:
       - no character_id is given (legacy callers without an actor binding),
       - the character isn't in the roster (pristine tests, mid-spawn races),
       - the character's `location` is unset (importer placed nobody there,
-        or a v2 character_gen pass left it blank).
+        or a character_gen pass left it blank — also a fixable defect now
+        that spawning derives location from the acting actor's scene).
 
-    The fallback is necessary because `current_scene_id` is the importer's
-    "world pivot" — set ONCE during import and never touched by the
-    pipeline. For most actors the roster's `location` is the right answer
-    and the fallback only fires for edge cases.
-
-    Pre-r7h, every router/narrator/agent context-builder read
-    `current_scene_id` directly, which meant the LLM saw "Current Scene:
-    bell_of_arrivals" regardless of where the actor actually was. Combined
-    with scene_delta.new_scene_id being a dead field (the actor couldn't
-    even move), players got stranded indefinitely at the wrong location
-    while every prompt told the LLM they were elsewhere. This function
-    plus the `_apply_roster_moves` self-move path (orchestrator) are the
-    paired fix.
+    Callers must handle the empty-string case (most render an empty or
+    "no scene information" block). There is no global fallback: the
+    pre-v11 `world_state.locations.current_scene_id` was the importer's
+    "world pivot" set ONCE and never updated, and reading it gave every
+    LLM context-builder a wrong answer the moment any character moved.
     """
     if character_id:
         for c in checkpoint.characters:
             if c.character_id == character_id and c.location:
                 return c.location
-    return checkpoint.world_state.locations.current_scene_id
+    return ""
 
 
 def build_scene_context(
@@ -152,10 +144,9 @@ def build_scene_context(
 ) -> str:
     """Build scene description for `character_id`'s current scene.
 
-    `character_id=None` keeps the pre-r7h fallback (importer's
-    current_scene_id) for callers that don't have a character binding;
-    new code should pass the acting/POV character_id so the prompt
-    reflects where that character actually is.
+    `character_id=None` (or an unsited character) yields the empty-scene
+    string. New code should always pass the acting/POV character_id so
+    the prompt reflects where that character actually is.
     """
     locations = checkpoint.world_state.locations
     scene_id = resolve_scene_for_character(checkpoint, character_id)
@@ -170,6 +161,92 @@ def build_scene_context(
     if desc:
         parts.append(desc)
     return "\n".join(parts)
+
+
+def build_setting_summary(checkpoint: CheckpointFile) -> str:
+    """Render the `## Setting` block shared across the router, narrator,
+    takeover, and character_gen prompt templates.
+
+    v11-r7j: collapsed three near-identical helpers (one in
+    `turn_loop_dispatcher`, one in `narrator`, plus inline
+    constructions in `engine_bridge._build_takeover_context` and
+    `character_manager._spawn_one`) into this single source of truth.
+    The shape this returns matches the `{setting_summary}` slot in
+    `event_router_v9.txt`, `narrator_phase2_v9.txt`, `takeover_v1.txt`,
+    and `character_gen_v3.txt`.
+
+    Empty fields are skipped — a story whose importer left, say, `era`
+    blank does not get a `Era: ` line. Pre-r7j the takeover and spawn
+    paths emitted those empty lines unconditionally and the router /
+    narrator paths skipped them; v11-r7j harmonizes on the conditional
+    shape (omit-empty is strictly better for the LLM).
+    """
+    setting = checkpoint.world_state.setting
+    parts: list[str] = []
+    if setting.genre:
+        parts.append(f"Genre: {setting.genre}")
+    if setting.era:
+        parts.append(f"Era: {setting.era}")
+    if setting.tone:
+        parts.append(f"Tone: {setting.tone}")
+    if setting.premise:
+        parts.append(f"Premise: {setting.premise}")
+    return "\n".join(parts) if parts else "No setting information available."
+
+
+def pov_scene_for_user(
+    checkpoint: CheckpointFile, user_id: str | None = None,
+) -> str:
+    """Best-effort "current scene" for player-facing displays (CLI,
+    Discord embeds, status lines). Resolves in this order:
+
+    1. The location of the character bound to `user_id` (if `user_id`
+       is given and they hold a binding in `session.character_bindings`).
+    2. The location of `session.player_character_id` (creator binding /
+       single-player default).
+    3. The location of the first `is_player=True` character in the
+       roster (pristine sessions before any /join).
+    4. "" — if nothing resolves, the surface should render
+       "(no active scene)" rather than a stale fallback.
+
+    Culled characters are skipped at every step. A culled character
+    keeps their last `location` string in the roster (so their backstory
+    line still parses), but they are no longer in the scene; rendering
+    their dead location as "where the player is now" would mislead
+    every downstream UI surface AND the takeover prompt's
+    `current_scene` block. Dormant characters are still considered —
+    dormancy is "off-screen but alive," which is exactly what a player
+    POV usually IS in a single-player checkpoint.
+
+    There is no fallback to a world-level "current scene" anymore —
+    that field was murdered in v11. For multi-player sessions the
+    "current scene" depends on who's asking; for single-player the
+    creator binding is the answer. Either way it's per-character.
+    """
+    def _alive(c: CharacterRecord) -> bool:
+        return c.status != "culled"
+
+    bindings = checkpoint.session.character_bindings or {}
+    if user_id and bindings:
+        for char_id, bound_uid in bindings.items():
+            if bound_uid == user_id:
+                for c in checkpoint.characters:
+                    if (
+                        c.character_id == char_id
+                        and c.location
+                        and _alive(c)
+                    ):
+                        return c.location
+                break
+    pcid = checkpoint.session.player_character_id
+    if pcid:
+        for c in checkpoint.characters:
+            if c.character_id == pcid and c.location and _alive(c):
+                return c.location
+    for c in checkpoint.characters:
+        if c.is_player and c.location and _alive(c):
+            return c.location
+    return ""
 
 
 def build_world_context(
@@ -215,15 +292,8 @@ def build_characters_present(
     character: CharacterRecord, checkpoint: CheckpointFile
 ) -> str:
     """Build a summary of other characters present in the same scene as
-    `character`.
-
-    v11-r7h: scene is now `character.location` (with the importer
-    current_scene_id fallback if unset), not the importer's pivot. Pre-
-    r7h this read `current_scene_id` directly — meaning every NPC's
-    "who's around me" list reflected the importer's starting scene
-    forever, not the NPC's actual location. An NPC who walked to a
-    side-room would still hear about everyone at the bell; conversely
-    a player who moved would seem alone to anyone querying.
+    `character`. Scene is read from `character.location`; an unsited
+    character (no location set) gets the empty-scene string.
     """
     scene_id = resolve_scene_for_character(checkpoint, character.character_id)
     if not scene_id:
@@ -379,12 +449,19 @@ def clear_character_inbox(character: CharacterRecord) -> None:
     message bus is gone — cross-character communication now flows
     through normal canonical events: the router authors a courier
     walking in, a note that lands in `observable_facts`, etc.
-    `pending_observations` is the surviving queue, but in practice it
-    is mostly empty in v11 because nothing in `app/engine/` currently
-    appends to it (Commit 5's tick wiring will re-establish a
-    population path). This helper retains the name
-    `clear_character_inbox` so callers don't churn, but its job is now
-    scoped to the one remaining queue.
+
+    Population path (v11-r7j): `broadcast_event` in `turn_loop.py`
+    pushes a one-line "[off-scene perception] …" entry onto every NPC
+    observer who is NOT in the broadcast scene. This is how the
+    perception channel router rule 13 promises actually lands — when
+    the router writes a courier delivering a note to Marcus and lists
+    Marcus as an observer, Marcus's next agent call sees the inbox
+    entry. In-scene NPC observers are NOT pushed (they read the same
+    event live via their normal context block when the router picks
+    them as a responder; pushing twice would double-count).
+
+    This helper retains the name `clear_character_inbox` so callers
+    don't churn, but its job is now scoped to the one remaining queue.
     """
     character.pending_observations = []
 

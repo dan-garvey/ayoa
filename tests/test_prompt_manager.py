@@ -143,7 +143,23 @@ class TestPromptManagerWithRealTemplates:
         assert "Tall, broad-shouldered" in result
 
     def test_agent_renders(self):
+        # v11: unified on-stage + tick template. The mode-specific
+        # body lives in `mode_block` (caller-assembled string from
+        # `format_agent_*_body`) and the first-token mode signal
+        # lives in `mode_header`. The on-stage-specific scene /
+        # presence / observed-facts / prior-responders surfaces moved
+        # OUT of the template's variable list and INTO mode_block;
+        # the system prefix is now identical between respond and
+        # tick so a single cache lineage covers both modes.
         mgr = PromptManager(prompts_dir="app/prompts")
+        on_stage_body = (
+            "## Scene\nEstate courtyard, raining.\n\n"
+            "## Characters Present\nNo other characters are present.\n\n"
+            "## What You Observe This Turn\n"
+            "Aldric strains against the building.\n\n"
+            "## Other Characters' Responses This Turn\n"
+            "No other characters have responded yet."
+        )
         result = mgr.render(
             "agent",
             character_name="Captain Vero",
@@ -156,21 +172,28 @@ class TestPromptManagerWithRealTemplates:
             character_current_objectives="- monitor the new arrival",
             character_secrets="- knows the hidden passage",
             world_context="Genre: fantasy",
-            observed_facts="Aldric strains against the building.",
-            scene_context="Estate courtyard, raining.",
-            characters_present="No other characters are present.",
             character_id="guard_17",
-            prior_character_responses="No other characters have responded yet.",
             pending_observations_block="",
             acting_character_name="Aldric",
-            player_characters_block="- **Aldric** (acting this turn) — scholar. Tall, in rain-darkened traveling clothes.",
+            player_characters_block=(
+                "- **Aldric** (acting this turn) — scholar. Tall, "
+                "in rain-darkened traveling clothes."
+            ),
+            mode_header="## ON-STAGE",
+            mode_block=on_stage_body,
         )
         assert "Captain Vero" in result
-        # Commit 1: agent_v10 dropped the character_id surface in the
-        # rendered prompt — it was a debug echo, never the LLM's hook.
-        # The engine still passes the kwarg for back-compat.
+        # The character_id kwarg is silently ignored — v11 dropped the
+        # surface (it was a debug echo, never the LLM's hook) but the
+        # engine still passes the kwarg for symmetry with the rest of
+        # the character packet.
         assert "hidden passage" in result
         assert "rain-darkened traveling clothes" in result
+        # Mode header AND body markers both present; the agent's
+        # "Mode Routing" section keys off the header line.
+        assert "## ON-STAGE" in result
+        assert "## Scene" in result
+        assert "Estate courtyard, raining" in result
 
     def test_render_messages_requires_delimiter(self):
         mgr = PromptManager(prompts_dir="app/prompts")

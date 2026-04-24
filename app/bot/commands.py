@@ -504,8 +504,12 @@ def register(
             )
             return
 
-        scene_id = ckpt.world_state.locations.current_scene_id
+        # v11: scene = the invoker's POV scene (location of their bound
+        # character, falling back to the creator binding, then any
+        # is_player). The pre-v11 global current_scene_id is gone.
+        from app.engine.context_builder import pov_scene_for_user
         uid = str(inter.user.id)
+        scene_id = pov_scene_for_user(ckpt, user_id=uid)
         claimed_by_me = {
             cid for cid, bound in ckpt.session.character_bindings.items()
             if bound == uid
@@ -1013,6 +1017,7 @@ def register(
         try:
             result = await engine.suggest_replacement_targets(
                 row.session_id, description,
+                invoking_user_id=str(inter.user.id),
             )
         except ValueError as e:
             await inter.followup.send(
@@ -1256,7 +1261,7 @@ def register(
             return
 
         # Pre-play: fire the opening turn using the OOC meta-channel. The
-        # EventRouter prompt recognizes fully-parenthesized input as an
+        # event_router prompt recognizes fully-parenthesized input as an
         # author's directive rather than an in-character attempt, so
         # `(begin)` cleanly maps to "open the story from the scene's actual
         # start per the opening_directive" without the narrator compressing
@@ -1283,7 +1288,6 @@ def register(
                 session_id=row.session_id,
                 user_input=arrival_action,
                 acting_character_id=binding,
-                debug=True,
             )
         except Exception as e:
             logger.exception("opening run_turn failed")
@@ -1292,16 +1296,12 @@ def register(
             ))
             return
 
-        if response.debug is not None:
-            for lat in response.debug.latencies:
-                logger.info(
-                    "  phase=%-18s %5.0fms (render %4.0fms)  "
-                    "in=%4d out=%4d cache_read=%5d cache_write=%5d  (%s)",
-                    lat.phase, lat.duration_ms, lat.prompt_render_ms,
-                    lat.input_tokens, lat.output_tokens,
-                    lat.cache_read_input_tokens, lat.cache_creation_input_tokens,
-                    lat.model,
-                )
+        # Per-phase latency / cache metrics now flow through
+        # `app.engine.turn_loop`'s logger ("turn_loop.router[route] …"
+        # lines and the per-phase records the orchestrator emits) so
+        # they show up in the same place for CLI, Discord, and the
+        # programmatic playtest harness. The TurnResponse.debug
+        # payload was murdered in v11-r7j.
 
         embeds = render_turn(
             output_text=response.output_text,
@@ -1354,7 +1354,6 @@ def register(
                 session_id=row.session_id,
                 user_input=action,
                 acting_character_id=binding,
-                debug=True,   # keeps per-phase cache/latency metrics server-side
             )
         except Exception as e:
             logger.exception("run_turn failed")
@@ -1369,18 +1368,11 @@ def register(
             response.turn_index, row.session_id, inter.user.display_name,
             elapsed, len(response.output_text), action[:120],
         )
-        if response.debug is not None:
-            for lat in response.debug.latencies:
-                logger.info(
-                    "  phase=%-18s %5.0fms  in=%4d out=%4d cache_read=%5d cache_write=%5d  (%s)",
-                    lat.phase,
-                    lat.duration_ms,
-                    lat.input_tokens,
-                    lat.output_tokens,
-                    lat.cache_read_input_tokens,
-                    lat.cache_creation_input_tokens,
-                    lat.model,
-                )
+        # Per-phase latency / cache metrics now flow through the
+        # engine logger (see opening-turn note above). v11-r7j murdered
+        # `TurnResponse.debug`; this used to render its `latencies`
+        # list here and silently no-op'd because the orchestrator
+        # never populated it.
 
         # v11-r6b/r7a: branch on beat_ended_reason.
         #   - slot_rejected: the orchestrator rejected the /act on slot
@@ -1543,18 +1535,24 @@ def register(
             )
             return
 
-        scene_id = ckpt.world_state.locations.current_scene_id
-        scene_name = scene_id
-        scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
-        if isinstance(scene, dict) and scene.get("name"):
-            scene_name = scene["name"]
+        # v11: pick the invoker's POV scene; multi-player sessions can
+        # have players in different scenes simultaneously, and the
+        # /session status they see should reflect THEIR scene, not a
+        # global "current scene" (which doesn't exist anymore).
+        from app.engine.context_builder import pov_scene_for_user
+        scene_id = pov_scene_for_user(ckpt, user_id=str(inter.user.id))
+        scene_name = scene_id or "(no active scene)"
+        if scene_id:
+            scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
+            if isinstance(scene, dict) and scene.get("name"):
+                scene_name = scene["name"]
 
         bound_ids = set(ckpt.session.character_bindings.keys())
         present = [
             c.name for c in ckpt.characters
             if c.location == scene_id and c.status.value == "active"
             and c.character_id not in bound_ids
-        ]
+        ] if scene_id else []
 
         bindings_lines: list[str] = []
         for char_id, user_id in ckpt.session.character_bindings.items():
@@ -1776,8 +1774,15 @@ def register(
         try:
             from app.engine.turn_loop import abort_scene
             ckpt = engine.load_latest(row.session_id)
-            scene_id = ckpt.world_state.locations.current_scene_id
-            dropped = abort_scene(ckpt, scene_id)
+            # v11: /abort_beat operates on a SCENE, but the global
+            # current_scene_id is gone. Use the active_act_slots map
+            # — that's the source of truth for "which scene currently
+            # has a pinned beat that an admin might need to release."
+            # If multiple are open we abort the first; admins can
+            # re-run for others. If none, scene_id="" and abort_scene
+            # returns 0 (no-op, audit-logged below).
+            scene_id = next(iter(ckpt.session.active_act_slots), "")
+            dropped = abort_scene(ckpt, scene_id) if scene_id else 0
             engine.checkpoint_mgr.save(ckpt)
         except Exception as e:
             logger.exception("abort_beat failed")

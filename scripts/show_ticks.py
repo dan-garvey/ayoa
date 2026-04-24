@@ -2,8 +2,11 @@
 """Extract off-stage tick-agent outputs from a checkpoint.
 
 Ticks are interleaved into each character's rolling conversation alongside
-regular responses. They're identified by a marker string from the
-agent_tick prompt template.
+regular responses. They're identified by either of the tick-mode markers
+the unified agent prompt uses on its tick user message — the modern
+first-token mode header (`## TICK`, v11+) or the legacy body header
+(`## What You Do This Tick`, present in pre-v11 checkpoints AND still
+present in the v11 tick body so legacy saves keep parsing).
 
 Usage:
     .venv/bin/python scripts/show_ticks.py <path_to_ckpt.json>
@@ -19,7 +22,10 @@ import sys
 from pathlib import Path
 
 
-TICK_MARKER = "## What You Do This Tick"
+TICK_MARKERS = (
+    "## TICK",                  # v11+ first-token mode header
+    "## What You Do This Tick", # legacy + v11 body sub-header
+)
 
 
 def _content_text(msg: dict) -> str:
@@ -33,14 +39,15 @@ def _content_text(msg: dict) -> str:
 
 def _tick_pairs(msgs: list[dict]) -> list[tuple[str, str]]:
     """Walk user/assistant pairs and return only those whose user message
-    carries the tick marker."""
+    carries any of the tick markers (modern first-token header or legacy
+    body header — see TICK_MARKERS)."""
     out: list[tuple[str, str]] = []
     i = 0
     while i + 1 < len(msgs):
         u, a = msgs[i], msgs[i + 1]
         if u.get("role") == "user" and a.get("role") == "assistant":
             utxt = _content_text(u)
-            if TICK_MARKER in utxt:
+            if any(m in utxt for m in TICK_MARKERS):
                 out.append((utxt, _content_text(a)))
         i += 2
     return out

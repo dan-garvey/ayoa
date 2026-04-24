@@ -636,15 +636,35 @@ def broadcast_event(
     scene_id: str,
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
-    every in-scene human's render buffer.
+    (a) every in-scene human's render buffer, and (b) every off-scene
+    NPC observer's `pending_observations` queue.
 
     `scene_id` is the caller-authoritative scene — always the beat's
     scene, never derived from session state, so concurrent scenes
     can't leak buffers into each other.
 
-    The event's stable `event_id` is what lands in render buffers
+    The event's stable `event_id` is what lands in human render buffers
     (not Python object identity) so checkpoints remain resolvable
     across process restarts.
+
+    The off-scene NPC inbox path is the engine implementation of the
+    cross-scene perception channel router rule 13 promises. When the
+    router writes "Jordan presses the apology note into a runner; the
+    runner carries it to Marcus" with Marcus listed as an `observer`
+    but Marcus is at a different scene, the recipient gets a one-line
+    inbox entry summarizing the event so their next agent call has a
+    mechanical signal that the message arrived. Without this, the
+    "observer" annotation on a different-scene event was decorative —
+    it only landed in human render buffers, and only for humans who
+    happened to be co-located. The line format mirrors how on-stage
+    `observable_facts` get summarized so the agent prompt builder
+    treats the two perception paths uniformly.
+
+    In-scene NPCs are NOT added to `pending_observations`: they are
+    eligible to be picked into the same beat via `agent_responder_picks`
+    and read the canonical event live through their normal context
+    block. Pushing onto their inbox would double-count the event the
+    next time they fire.
 
     Note: the `actor_id` of the event is NOT recorded here; callers
     that need actor-aware event-application (e.g. _apply_roster_moves
@@ -664,6 +684,30 @@ def broadcast_event(
     for h in humans:
         level = obs_level_by_char.get(h, "direct")
         append_to_render_buffer(ckpt, h, event.event_id, level)
+
+    bindings = ckpt.session.character_bindings or {}
+    in_scene_ids = _scene_member_ids(ckpt, scene_id)
+    by_id = {c.character_id: c for c in ckpt.characters}
+    for o in event.observers:
+        if o.character_id in bindings:
+            continue
+        if o.character_id in in_scene_ids:
+            continue
+        recipient = by_id.get(o.character_id)
+        if recipient is None or recipient.status == "culled":
+            continue
+        # One-line summary keeps the inbox terse — the agent already
+        # gets full canonical-event context if/when they re-enter the
+        # scene; this just buys a "you know X happened" signal.
+        canonical = event.canonical_event
+        summary = (canonical.world_adjudication.resolved_outcome or "").strip()
+        if not summary and canonical.observable_facts:
+            summary = canonical.observable_facts[0]
+        if not summary:
+            continue
+        recipient.pending_observations.append(
+            f"[off-scene perception] {summary}"
+        )
 
     return humans
 

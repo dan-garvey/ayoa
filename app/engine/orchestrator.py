@@ -310,9 +310,18 @@ class Orchestrator:
                     self.char_mgr.apply_roster_updates(ckpt, evt)
                     self._apply_roster_moves(ckpt, evt, actor_id=evt_actor)
                     # Spawns remain async LLM calls; if none declared,
-                    # the helper is a no-op.
+                    # the helper is a no-op. The acting actor's POST-move
+                    # scene is passed as the spawn-location fallback so
+                    # courier-style NPCs materialize where the action is.
                     if evt.spawn:
-                        await self.char_mgr.spawn_characters(ckpt, evt.spawn)
+                        spawn_loc = (
+                            self._resolve_scene_id(ckpt, evt_actor)
+                            if evt_actor else scene_id
+                        )
+                        await self.char_mgr.spawn_characters(
+                            ckpt, evt.spawn,
+                            acting_actor_location=spawn_loc,
+                        )
 
             # v11-r7f: persist the acting POV's transcript entry so
             # /history and the resume-display path see played turns.
@@ -477,7 +486,14 @@ class Orchestrator:
                     self.char_mgr.apply_roster_updates(ckpt, ev)
                     self._apply_roster_moves(ckpt, ev, actor_id=ev_actor)
                     if ev.spawn:
-                        await self.char_mgr.spawn_characters(ckpt, ev.spawn)
+                        spawn_loc = (
+                            self._resolve_scene_id(ckpt, ev_actor)
+                            if ev_actor else scene_id
+                        )
+                        await self.char_mgr.spawn_characters(
+                            ckpt, ev.spawn,
+                            acting_actor_location=spawn_loc,
+                        )
 
             if beat_result.events_closed > 0:
                 ckpt.session.turn_index += 1
@@ -529,14 +545,15 @@ class Orchestrator:
     def _resolve_scene_id(
         self, ckpt: CheckpointFile, acting_id: str
     ) -> str:
-        """The scene the acting character is currently in. Prefers the
-        roster's `location` field; falls back to
-        world_state.locations.current_scene_id for characters that have
-        no location set (legacy imports, newly-spawned)."""
+        """The scene the acting character is currently in, read from
+        the roster. Returns "" when the character has no resolvable
+        location (no entry, or location unset). Callers that need a
+        non-empty scene should refuse the turn rather than fall back
+        to a global."""
         for c in ckpt.characters:
             if c.character_id == acting_id and c.location:
                 return c.location
-        return ckpt.world_state.locations.current_scene_id
+        return ""
 
     def _apply_roster_moves(
         self,
@@ -731,6 +748,21 @@ class Orchestrator:
         sess = ckpt.session
         settings = sess.config.settings
 
+        # Master kill switch (v11). Short-circuits BEFORE the trigger
+        # counters mutate so flipping `ticks_enabled` back on later
+        # resumes from where the trigger model left off rather than
+        # firing a backlog. No counter increment, no eligibility
+        # filter, no fan-out, no router fan-in, no canonical-event
+        # append. This is intended for token-budget runs and for
+        # diagnostics that want to isolate on-stage behavior.
+        if not settings.ticks_enabled:
+            logger.debug(
+                "Tick scheduler: disabled via settings.ticks_enabled; "
+                "skipping (turn=%d).",
+                sess.turn_index,
+            )
+            return []
+
         sess.turns_since_last_tick += 1
 
         scene_changed = bool(
@@ -890,7 +922,15 @@ class Orchestrator:
         # mid-Cat-II NPC even if it tries.
         self._apply_roster_moves(ckpt, routed, actor_id=None)
         if routed.spawn:
-            await self.char_mgr.spawn_characters(ckpt, routed.spawn)
+            # Tick-driven spawns have no single "acting actor scene" —
+            # the router saw N off-stage agents in possibly different
+            # scenes. Pass "" so spawns fall back to either router-
+            # supplied seed.location or the spawn LLM's authored
+            # location. The router's tick-mode prompt tells it to
+            # populate seed.location for any spawn it requests.
+            await self.char_mgr.spawn_characters(
+                ckpt, routed.spawn, acting_actor_location="",
+            )
         # Append the tick canonical event to the world log so future
         # router calls + recap passes see it as part of session truth.
         # The narrator never composes off this entry (no human render

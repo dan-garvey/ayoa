@@ -1,12 +1,17 @@
 """Tests for the Orchestrator — turn pipeline integration.
 
 v11-A3c: the TestOrchestrator class tests reach into the v8
-process_turn body (EventRouter/Agent/Narrator LLM call sequence,
+process_turn body (router → agent → narrator LLM call sequence,
 per-phase latencies, pending_recap, turn_recap summarizer) that the
 v11 rewrite deleted. Coverage for the new thin-wrapper shape lives in
 tests/test_orchestrator_v11.py. The TestCharacterManager and
 TestCharacterSpawn classes survive — those exercise CharacterManager
 directly and don't depend on the orchestrator path.
+
+v11-r7j: the legacy `EventRouter` engine class was murdered. Skipped
+tests below still mention "EventRouter" in their docstrings as the
+historical name; that's accurate flavor for a class that no longer
+exists.
 """
 
 import pytest
@@ -42,7 +47,6 @@ def sample_checkpoint():
         session=SessionState(session_id="test-session", turn_index=0),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="courtyard",
                 scene_graph={
                     "courtyard": {
                         "name": "Courtyard",
@@ -185,7 +189,6 @@ class TestOrchestrator:
         assert response.session_id == "test-session"
         assert "look around" in response.output_text.lower()
         assert response.turn_index == 1
-        assert response.debug is None
         # 4 LLM calls: router + agent + narrator + turn-recap summarizer.
         assert mock_client.complete.call_count == 4
         mock_checkpoint_mgr.save.assert_called_once()
@@ -230,45 +233,13 @@ class TestOrchestrator:
         # router + narrator + turn-recap (no agents this turn).
         assert mock_client.complete.call_count == 3
 
-    @pytest.mark.asyncio
-    async def test_debug_mode(self, mock_client, mock_checkpoint_mgr, prompt_manager):
-        """Debug mode includes internal artifacts on the merged path."""
-        merged = EventRouterOutput(
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    attempted_action="test",
-                    feasible=True,
-                    resolved_outcome="test",
-                ),
-            ),
-            observers=[],
-        )
+    # NOTE: a `test_debug_mode` lived here that asserted `response.debug`
+    # was populated when `request.debug=True`. v11-r7j murdered both
+    # `TurnRequest.debug` and `TurnResponse.debug` (the orchestrator
+    # never wrote the response payload — the test was a green lie
+    # because the surrounding class is `@pytest.mark.skip`'d on the
+    # legacy orchestrator path). The deletion is intentional.
 
-        narrator_out = NarratorFinalOutput(
-            final_text="Test.",
-            transcript_entry=TranscriptEntry(user="test", assistant="Test."),
-        )
-
-        mock_client.complete.side_effect = [
-            _llm_response(merged),
-            _llm_response(narrator_out),
-            _llm_response(_TurnRecapOutput(note="")),
-        ]
-
-        orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
-        request = TurnRequest(
-            session_id="test-session", user_input="test", debug=True
-        )
-
-        response = await orchestrator.process_turn(request)
-
-        assert response.debug is not None
-        assert "world_adjudication" in response.debug.canonical_event
-        assert "observers" in response.debug.router_output
-        assert response.debug.total_duration_ms > 0
-        assert any(lat.phase == "event_router" for lat in response.debug.latencies)
-        assert "event_router" in response.debug.models_used
-        assert isinstance(response.debug.validations, list)
 
 class TestCharacterSpawn:
     @pytest.mark.asyncio
@@ -545,3 +516,155 @@ class TestCharacterSpawn:
             "doomed_01" not in line
             for line in sample_checkpoint.session.pending_router_state_changes
         )
+
+    @pytest.mark.asyncio
+    async def test_spawn_dedups_within_batch(
+        self, mock_client, sample_checkpoint,
+    ):
+        """v11-r7i: a single router call can emit multiple SpawnRequests
+        sharing one character_id (regression observed in dating_villa
+        playtest where the router emitted three `production_runner`
+        spawns in one turn). Engine must keep the first and silently
+        drop the rest, otherwise `checkpoint.characters.append` of
+        the same id would leave the roster with duplicate records
+        sharing one id and the canonical event ambiguous."""
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Production Runner",
+            location="courtyard", role="runner",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False,
+            router_summary="A runner.",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [
+                SpawnRequest(character_id="runner_01", seed={"role": "runner"}),
+                SpawnRequest(character_id="runner_01", seed={"role": "runner"}),
+                SpawnRequest(character_id="runner_01", seed={"role": "runner"}),
+            ],
+        )
+        assert len(spawned) == 1
+        assert mock_client.complete.call_count == 1
+        ids = [c.character_id for c in sample_checkpoint.characters]
+        assert ids.count("runner_01") == 1
+
+    @pytest.mark.asyncio
+    async def test_spawn_dedup_runs_before_cap(
+        self, mock_client, sample_checkpoint,
+    ):
+        """Dedup MUST run before MAX_SPAWNS_PER_TURN truncation, not
+        after. Otherwise an LLM that spams `[runner, runner, runner,
+        unique_villain]` gets sliced to `[runner, runner, runner]`
+        first, then collapsed to `[runner]` — the unique villain is
+        silently dropped despite us spawning only 1 actual character.
+        Correct order: dedup → 2 distinct ids → both spawn."""
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        # Generic authored body; we only care about call count + ids.
+        authored = AuthoredCharacter(
+            name="X", location="courtyard", role="r",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False, router_summary="x",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [
+                SpawnRequest(character_id="runner_01", seed={"role": "r"}),
+                SpawnRequest(character_id="runner_01", seed={"role": "r"}),
+                SpawnRequest(character_id="runner_01", seed={"role": "r"}),
+                SpawnRequest(character_id="unique_villain", seed={"role": "v"}),
+            ],
+        )
+        ids = sorted(c.character_id for c in spawned)
+        assert ids == ["runner_01", "unique_villain"], (
+            "unique_villain must survive dedup-then-cap; "
+            "got " + repr(ids)
+        )
+
+    @pytest.mark.asyncio
+    async def test_spawn_uses_acting_actor_location_when_seed_omits(
+        self, mock_client, sample_checkpoint,
+    ):
+        """v11-r7i: when the router omits `seed.location`, the new
+        character materializes at the acting actor's scene (passed by
+        the orchestrator). Pre-r7i the fallback was the global
+        `current_scene_id` which was stale; new behavior drops the
+        spawn at the actor's actual scene."""
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        # The LLM authors location="ignored" — the engine should
+        # OVERRIDE this with the resolved scene_id and the spawn
+        # should land in "library" (acting_actor_location), not the
+        # LLM's choice.
+        authored = AuthoredCharacter(
+            name="Courier",
+            location="ignored_by_engine",
+            role="messenger",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False,
+            router_summary="A courier.",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+        sample_checkpoint.world_state.locations.scene_graph["library"] = {
+            "name": "Library", "description": "Quiet stacks.",
+        }
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="courier_01", seed={})],
+            acting_actor_location="library",
+        )
+        assert len(spawned) == 1
+        assert spawned[0].location == "library"
+
+    @pytest.mark.asyncio
+    async def test_spawn_seed_location_beats_actor_location(
+        self, mock_client, sample_checkpoint,
+    ):
+        """When the router DOES specify `seed.location`, that wins over
+        the acting actor's scene — the router knows where the spawn
+        should appear (e.g. recipient's scene for a courier, witness
+        location for a bystander). Actor-location is only the
+        fallback when seed is silent."""
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Steward", location="ignored_by_engine", role="steward",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False, router_summary="Steward.",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+        sample_checkpoint.world_state.locations.scene_graph["chapel"] = {
+            "name": "Chapel", "description": "",
+        }
+        sample_checkpoint.world_state.locations.scene_graph["library"] = {
+            "name": "Library", "description": "",
+        }
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(
+                character_id="steward_01",
+                seed={"location": "chapel", "role": "steward"},
+            )],
+            acting_actor_location="library",
+        )
+        assert spawned[0].location == "chapel"

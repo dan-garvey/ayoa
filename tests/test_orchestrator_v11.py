@@ -41,7 +41,6 @@ def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
         ),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="gatehouse",
                 scene_graph={
                     "gatehouse": {
                         "name": "Gatehouse",

@@ -16,3 +16,6 @@ app/storage/sessions/*
 app/storage/bot/
 core.egg-info/
 .coverage
+logs/
+playtest_*_console.txt
+playtest_*_logs.txt

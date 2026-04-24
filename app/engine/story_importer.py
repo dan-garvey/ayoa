@@ -10,7 +10,7 @@ source-prompt prefix):
      reads Call 1 as cached history. Split off from Call 1 because
      dense conspiracy stories pack so much into hidden content that
      a combined public+hidden call still overran the 64K output cap.
-  3. Locations (scene_graph, current_scene_id) — continuation that
+  3. Locations (scene_graph) — continuation that
      reads Calls 1+2 as cached history.
   4. Characters + opening — continuation that reads Calls 1-3.
   5. Knowledge envelope extraction — continuation that sees the
@@ -155,7 +155,7 @@ MAX_EXTRACTION_TOKENS = 64_000
 # truncated mid-string on the same 95KB master prompt — the dense
 # scene_graph for a multi-district story plus rich lore/hidden_lore
 # overran 64K on its own. Split world into world-skeleton (everything
-# except locations) and locations (scene_graph + current_scene_id) as
+# except locations) and locations (scene_graph) as
 # two consecutive calls. The merged shape `WorldExtraction` is now
 # assembled in Python from the two responses, so downstream
 # `build_checkpoint` does not change. Cache continuity preserved.
@@ -225,7 +225,7 @@ will read your output here as cached history:
 
 - Hidden / spoiler / conspiracy content (hidden_lore, hidden_facts) →
   Call 2. Do not anticipate it here, do not even hint at it.
-- Locations (scene_graph, current_scene_id) → Call 3.
+- Locations (scene_graph) → Call 3.
 - **Characters** (rosters, backstories, personalities, secrets,
   goals, factions) → Call 4. Do NOT put character profiles into
   `lore`. Do NOT include character names, character histories, or
@@ -379,10 +379,6 @@ chamber, hidden tunnel, archive vault — anywhere the player might be
 or move to — gets its own entry. There is no length limit.
 
 ## Field guidance
-
-- **current_scene_id**: The scene_id (lowercase snake_case) of the
-  scene where the story begins. This scene_id MUST match an entry in
-  `scene_graph`.
 
 - **scene_graph**: A list with one entry per location the source
   describes. Each entry:
@@ -1074,10 +1070,7 @@ def build_checkpoint(
             "connected_to": scene.connected_to,
             "properties": {},
         }
-    locations = LocationState(
-        current_scene_id=world.locations.current_scene_id,
-        scene_graph=scene_graph,
-    )
+    locations = LocationState(scene_graph=scene_graph)
 
     physics = PhysicsRuleset(
         strength_limits=world.physics_ruleset.strength_limits,
@@ -1137,11 +1130,16 @@ def build_checkpoint(
             )
         )
 
-    if world.locations.current_scene_id and world.locations.current_scene_id not in scene_graph:
-        logger.warning(
-            "current_scene_id %r is not in scene_graph — runtime will fall back to empty scene context",
-            world.locations.current_scene_id,
-        )
+    # `current_scene_id` was murdered in v11 — initial placement is now
+    # the per-character `CharacterExtraction.location` field. Verify
+    # below that every character lands in a known scene.
+    for cd in roster.characters:
+        if cd.location and cd.location not in scene_graph:
+            logger.warning(
+                "Character %r placed at %r which is not in scene_graph — "
+                "runtime will treat them as unsited until they move",
+                cd.character_id, cd.location,
+            )
     for scene in world.locations.scene_graph:
         for target in scene.connected_to:
             if target not in scene_graph:
@@ -1693,10 +1691,9 @@ async def run_import_two_call(
     _log_usage("locations", locations_response)
     locations: LocationsExtraction = locations_response.parsed
     logger.info(
-        "  Locations (%.1fs): %d scenes, current=%s",
+        "  Locations (%.1fs): %d scenes",
         time.monotonic() - t_loc,
         len(locations.scene_graph),
-        locations.current_scene_id or "?",
     )
 
     # Merge public + hidden + locations into the unified WorldExtraction

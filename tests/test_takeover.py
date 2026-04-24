@@ -92,7 +92,6 @@ def _make_checkpoint(characters: list[CharacterRecord] | None = None,
         ),
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="courtyard",
                 scene_graph={
                     "courtyard": {
                         "name": "Courtyard",

@@ -107,30 +107,19 @@ class Narrator:
 # ---------------------------------------------------------------------------
 
 
-def _build_setting_summary(checkpoint: CheckpointFile) -> str:
-    # TODO(v11): move into context_builder once other call sites need it.
-    setting = checkpoint.world_state.setting
-    parts = []
-    if setting.genre:
-        parts.append(f"Genre: {setting.genre}")
-    if setting.era:
-        parts.append(f"Era: {setting.era}")
-    if setting.tone:
-        parts.append(f"Tone: {setting.tone}")
-    if setting.premise:
-        parts.append(f"Premise: {setting.premise}")
-    return "\n".join(parts) if parts else "No setting information available."
+# Pre-v11-r7j a private `_build_setting_summary` lived here; the
+# TODO above asked for context_builder consolidation. Done in r7j —
+# see `app.engine.context_builder.build_setting_summary`. Imported
+# lazily in `compose_pov_render` to keep this module's top-level
+# import block focused on narrator-only dependencies.
 
 
 def _build_scene_context(
     checkpoint: CheckpointFile, pov_character_id: str | None = None,
 ) -> str:
     """Narrator-facing scene block — keyed on the POV character's actual
-    location (with importer current_scene_id fallback). Pre-r7h this
-    always returned the importer pivot scene, so the narrator described
-    the POV character standing at the starting scene even after they
-    moved — which then fed back into the next router turn as "still at
-    starting scene" and the desync compounded."""
+    location. Returns an unsited block when no pov_character_id is
+    supplied or the character has no location set."""
     from app.engine.context_builder import resolve_scene_for_character
     locations = checkpoint.world_state.locations
     scene_id = resolve_scene_for_character(checkpoint, pov_character_id)
@@ -268,7 +257,8 @@ async def compose_pov_render(
     )
     acting_name = pov_char.name if pov_char else pov_character_id
 
-    setting_summary = _build_setting_summary(ckpt)
+    from app.engine.context_builder import build_setting_summary
+    setting_summary = build_setting_summary(ckpt)
     narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
     scene_context = _build_scene_context(ckpt, pov_character_id)
     player_characters_block = build_player_characters_block(ckpt, pov_character_id)

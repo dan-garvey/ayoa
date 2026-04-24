@@ -295,7 +295,15 @@ class CLIState:
         if not self._require_story():
             return
         ckpt = self.engine.load_latest(self.session_id)
-        scene_id = ckpt.world_state.locations.current_scene_id
+        # v11: scene = the acting character's location (or the first
+        # claimed character if no current_actor). The pre-v11 global
+        # current_scene_id is gone; this CLI surface is single-user
+        # so we don't need pov_scene_for_user's binding logic.
+        from app.engine.context_builder import resolve_scene_for_character
+        scene_id = resolve_scene_for_character(
+            ckpt,
+            self.current_actor or next(iter(self.claims), None),
+        )
         claimed_ids = set(self.claims)
 
         here: list[str] = []
@@ -387,12 +395,19 @@ class CLIState:
             print("story: (none loaded) — /story list then /story start <id>")
             return
         ckpt = self.engine.load_latest(self.session_id)
-        scene_id = ckpt.world_state.locations.current_scene_id
-        scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
-        scene_name = scene.get("name", scene_id) if isinstance(scene, dict) else scene_id
+        from app.engine.context_builder import resolve_scene_for_character
+        scene_id = resolve_scene_for_character(
+            ckpt,
+            self.current_actor or next(iter(self.claims), None),
+        )
+        if scene_id:
+            scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
+            scene_name = scene.get("name", scene_id) if isinstance(scene, dict) else scene_id
+        else:
+            scene_name = "(no active scene — /act to begin)"
         print(f"story: {self.story_id}")
         print(f"turn: {ckpt.session.turn_index}")
-        print(f"scene: {scene_name} ({scene_id})")
+        print(f"scene: {scene_name}{' (' + scene_id + ')' if scene_id else ''}")
         if not self.claims:
             print("claims: (none)")
             return
@@ -775,7 +790,6 @@ class CLIState:
                 session_id=self.session_id,
                 user_input=text,
                 acting_character_id=self.current_actor,
-                debug=False,
             )
         except Exception as e:
             logger.exception("run_turn failed")

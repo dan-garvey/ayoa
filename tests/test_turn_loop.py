@@ -1135,3 +1135,145 @@ class TestParallelNarratorFanOut:
         ))
         assert "alice" in result.renders
         assert len(fake.narrator_calls) == 1
+
+
+class TestBroadcastEventOffSceneObservers:
+    """v11-r7j: `broadcast_event` pushes a `[off-scene perception]`
+    line onto every NPC observer who is NOT in the broadcast scene.
+    This is the engine implementation of router rule 13's cross-scene
+    perception channel — pre-r7j, declaring an off-scene recipient as
+    an `observer` was decorative; the recipient agent never saw a
+    mechanical signal."""
+
+    def _event(
+        self,
+        *,
+        observer_ids: list[str],
+        outcome: str = "Jordan hands a note to a runner.",
+    ) -> EventRouterOutput:
+        observers = [
+            ObserverEntry(
+                character_id=cid, observation_level="d", response_priority=3,
+            )
+            for cid in observer_ids
+        ]
+        return EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="hand off note",
+                    feasible=True,
+                    resolved_outcome=outcome,
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[outcome],
+            ),
+            observers=observers,
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True, ends_beat_reason="directed_at_player",
+            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+        )
+
+    def test_off_scene_npc_observer_gets_inbox_line(self):
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        # marcus is an off-scene NPC
+        marcus = CharacterRecord(
+            character_id="marcus", name="Marcus",
+            public_sheet=PublicSheet(role="contestant"),
+            location="citrus_garden", is_player=False,
+        )
+        ckpt.characters.append(marcus)
+        event = self._event(observer_ids=["marcus"])
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert len(marcus.pending_observations) == 1
+        assert marcus.pending_observations[0].startswith(
+            "[off-scene perception]"
+        )
+        assert "note" in marcus.pending_observations[0]
+
+    def test_in_scene_npc_observer_NOT_pushed(self):
+        """In-scene NPC observers read the canonical event live via
+        their normal context block when picked as responders. Pushing
+        onto their inbox would double-count."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()  # `pip` is at gatehouse
+        event = self._event(observer_ids=["pip"])
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert pip.pending_observations == []
+
+    def test_human_observer_NOT_pushed(self):
+        """Humans get render buffer entries, not inbox lines. The
+        narrator surfaces canonical events to humans through the
+        rendered buffer; pushing onto a human's inbox would have no
+        consumer (humans don't run agent prompts)."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt(bindings={"alice": "1"})
+        # Move alice off-scene so the only thing tested is the
+        # human-vs-NPC branch, not the in-scene short-circuit.
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.location = "remote_room"
+        event = self._event(observer_ids=["alice"])
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert alice.pending_observations == []
+
+    def test_culled_observer_skipped(self):
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        ghost = CharacterRecord(
+            character_id="ghost", name="Ghost",
+            public_sheet=PublicSheet(role="ex"),
+            location="citrus_garden", is_player=False,
+        )
+        from app.schemas.characters import CharacterStatus
+        ghost.status = CharacterStatus.culled
+        ckpt.characters.append(ghost)
+        event = self._event(observer_ids=["ghost"])
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert ghost.pending_observations == []
+
+    def test_no_resolved_outcome_falls_back_to_first_fact(self):
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        marcus = CharacterRecord(
+            character_id="marcus", name="Marcus",
+            public_sheet=PublicSheet(role="contestant"),
+            location="citrus_garden", is_player=False,
+        )
+        ckpt.characters.append(marcus)
+
+        observers = [
+            ObserverEntry(
+                character_id="marcus", observation_level="i",
+                response_priority=2,
+            ),
+        ]
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="echo",
+                    feasible=True, resolved_outcome="",
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=["A distant bell rings twice."],
+            ),
+            observers=observers,
+            requires_responders=False, required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True, ends_beat_reason="directed_at_player",
+            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert len(marcus.pending_observations) == 1
+        assert "bell rings" in marcus.pending_observations[0]

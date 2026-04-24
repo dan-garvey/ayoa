@@ -16,6 +16,18 @@ SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
 INTENTION_BLOCK_HEADER = "## Intention"
 TICK_FAN_IN_HEADER = "## Off-Stage Tick"
 
+# v11 unified-agent mode markers. The agent template (`agent_v*.txt`)
+# is a SINGLE system prompt for both on-stage and off-stage calls so a
+# character keeps one cache lineage across modes — switching between
+# respond and tick within the same character does NOT invalidate the
+# system-prompt cache. The mode signal is the first line of the user
+# message: `## ON-STAGE` or `## TICK`. The agent template's "Mode
+# Routing" section reads this header and applies the matching
+# mode-specific rules. Constants live here so renames trip the
+# prompt-references-constants test instead of silently desynchronizing.
+AGENT_ON_STAGE_HEADER = "## ON-STAGE"
+AGENT_TICK_HEADER = "## TICK"
+
 
 def format_human_initiator_intention(name: str, user_input: str) -> str:
     """Cat I / Cat II OPEN path: a human player's /act.
@@ -129,3 +141,54 @@ def format_tick_fan_in_block(
         lines.append(f"- **{name}** (id: `{char_id}`, at `{loc}`): {text}")
     lines.append("")
     return "\n".join(lines)
+
+
+def format_agent_on_stage_body(
+    *,
+    scene_context: str,
+    characters_present: str,
+    observed_facts: str,
+    prior_character_responses: str,
+) -> str:
+    """v11 unified-agent on-stage user-message body.
+
+    The full user message is
+    `{AGENT_ON_STAGE_HEADER}\\n\\n{agent_user_state_block}\\n\\n{this body}`.
+    The mode header is the first-token bitflip that the agent prompt's
+    "Mode Routing" section keys off; this helper just shapes the
+    on-stage payload (scene + presence + observed facts + prior
+    responders) in the order the prompt's On-Stage Mode rules expect.
+
+    All inputs are pre-formatted strings — the helper does not
+    interpret or filter them. In particular `prior_character_responses`
+    must already have been stripped of other agents' parentheticals
+    (see `format_prior_responses` in context_builder); piping raw
+    intent here would be a load-bearing information-asymmetry
+    violation.
+    """
+    return (
+        f"## Scene\n{scene_context}\n\n"
+        f"## Characters Present\n{characters_present}\n\n"
+        f"## What You Observe This Turn\n{observed_facts}\n\n"
+        f"## Other Characters' Responses This Turn\n"
+        f"{prior_character_responses}"
+    )
+
+
+def format_agent_tick_body(*, scene_context: str) -> str:
+    """v11 unified-agent off-stage tick user-message body.
+
+    The full user message is
+    `{AGENT_TICK_HEADER}\\n\\n{agent_user_state_block}\\n\\n{this body}`.
+    The mode header flips the agent into Tick Mode. This helper
+    renders the location and the standing tick instruction (advance
+    one objective in your own location, single tight beat) — kept as
+    a fixed string because the off-stage tick has no per-turn
+    observation surface to interpolate.
+    """
+    return (
+        f"## Where You Are\n{scene_context}\n\n"
+        f"## What You Do This Tick\n"
+        "No direct observations — you are off-stage. Advance one "
+        "objective in your own location, in a single tight beat."
+    )

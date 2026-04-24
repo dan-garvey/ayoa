@@ -116,6 +116,16 @@ class SessionSettings(BaseModel):
     # Default True; flip off to disable scene-change ticks entirely
     # (stagnation-only) for token-budget experiments.
     ticks_on_scene_change: bool = True
+    # Master kill switch for the off-stage tick scheduler. When False,
+    # `Orchestrator._run_ticks` short-circuits at the top: no eligibility
+    # filtering, no agent fan-out, no router fan-in, no canonical-event
+    # append. `turns_since_last_tick` and `tick_last_scene_id` are NOT
+    # touched in disabled mode either, so flipping this back on later
+    # resumes the trigger model from wherever it left off rather than
+    # firing a backlog. Useful for token-budget runs, isolating on-stage
+    # behavior in playtests, and diagnosing whether a behavior originates
+    # from on-stage routing or from background world activity.
+    ticks_enabled: bool = True
     # v11: hard cap on how many canonical events the router may chain
     # inside a single beat before the orchestrator forces render + slot
     # release. Prevents runaway agent cascades. 5 is a reasonable
@@ -229,7 +239,20 @@ class TimeState(BaseModel):
 
 
 class LocationState(BaseModel):
-    current_scene_id: str = ""
+    """Importer-built scene topology. The runtime "where is X" question
+    is answered by the per-character `CharacterRecord.location` field,
+    NOT by any field here.
+
+    A pre-v11 `current_scene_id` lived on this model as the importer's
+    "world pivot" — the scene the story opened in. It was set ONCE at
+    import and never updated by any runtime code path, but every
+    router/narrator/agent context-builder read it as if it were the
+    current scene; that desync was the root cause of "the LLM thinks
+    the player is at the bell tower forever even after they moved."
+    The field is gone in v11. Old saves with `current_scene_id` in
+    their JSON load cleanly because Pydantic v2's default `extra='ignore'`
+    silently drops it; new saves serialize without it.
+    """
     scene_graph: dict[str, Any] = Field(default_factory=dict)
 
 

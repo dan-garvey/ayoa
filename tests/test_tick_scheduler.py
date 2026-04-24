@@ -85,6 +85,7 @@ def _ckpt(
     stagnation: int = 15,
     ticks_on_scene_change: bool = True,
     tick_concurrency: int = 4,
+    ticks_enabled: bool = True,
 ) -> CheckpointFile:
     """Build a minimal v11 checkpoint with one courtyard scene plus
     optional adjacent rooms; tick scheduler defaults match the
@@ -101,12 +102,12 @@ def _ckpt(
     sess.config.settings.tick_stagnation_max = stagnation
     sess.config.settings.ticks_on_scene_change = ticks_on_scene_change
     sess.config.settings.tick_concurrency = tick_concurrency
+    sess.config.settings.ticks_enabled = ticks_enabled
 
     return CheckpointFile(
         session=sess,
         world_state=WorldState(
             locations=LocationState(
-                current_scene_id="courtyard",
                 scene_graph={
                     "courtyard": {
                         "name": "Courtyard",
@@ -340,6 +341,140 @@ class TestEligibility:
             ckpt, acted_this_turn=set(), active_scene="",
         )
         assert [c.character_id for c in eligible] == ["regent", "scribe"]
+
+
+# ---- master kill switch ----------------------------------------------------
+
+
+class TestTicksEnabledKillSwitch:
+    """`SessionSettings.ticks_enabled = False` must short-circuit the
+    scheduler entirely. No counter mutation, no eligibility filter, no
+    fan-out, no router fan-in, no canonical-event append. The trigger
+    state must freeze so flipping back on later resumes from where the
+    model left off rather than firing a backlog.
+    """
+
+    @pytest.mark.asyncio
+    async def test_disabled_does_not_fan_out_even_when_triggers_would_fire(
+        self, monkeypatch,
+    ):
+        # Counter at stagnation cap AND scene change satisfied — both
+        # branches would normally fire. With ticks_enabled=False the
+        # scheduler must return [] without invoking the agent at all.
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            cooldown=5, stagnation=15,
+            ticks_enabled=False,
+        )
+        orch = _orchestrator()
+        recorder: list[str] = []
+        _stub_character_agent(monkeypatch, recorder)
+
+        result = await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="library",
+        )
+
+        assert result == []
+        assert recorder == []
+
+    @pytest.mark.asyncio
+    async def test_disabled_freezes_trigger_state(self, monkeypatch):
+        # The whole point of "freeze, don't drain" is that re-enabling
+        # later resumes the model. The counter and last-scene id MUST
+        # NOT mutate while disabled — otherwise flipping back on after
+        # 50 disabled turns would either fire a backlog (counter
+        # incremented) or amnesia the scene baseline (last-scene
+        # cleared).
+        ckpt = _ckpt(
+            turns_since_last_tick=7, tick_last_scene_id="courtyard",
+            ticks_enabled=False,
+        )
+        orch = _orchestrator()
+        _stub_character_agent(monkeypatch)
+
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="hall",
+        )
+
+        # Frozen — neither counter incremented nor scene baseline
+        # advanced.
+        assert ckpt.session.turns_since_last_tick == 7
+        assert ckpt.session.tick_last_scene_id == "courtyard"
+
+    @pytest.mark.asyncio
+    async def test_disabled_does_not_invoke_router_fan_in(
+        self, monkeypatch,
+    ):
+        # Commit 6 fan-in is downstream of the gate; the kill switch
+        # firing means LLMDispatcher.route_tick_intentions never runs.
+        # Pin this with a recording stub on the dispatcher so a future
+        # refactor that moves the gate after fan-in (silently keeping
+        # the LLM call alive) trips the test.
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="courtyard",
+            cooldown=5, stagnation=15,
+            ticks_enabled=False,
+        )
+        orch = _orchestrator()
+        _stub_character_agent(monkeypatch)
+
+        called: list[dict] = []
+
+        async def _spy(self, **kwargs):
+            called.append(kwargs)
+            return None
+
+        monkeypatch.setattr(
+            "app.engine.turn_loop_dispatcher.LLMDispatcher."
+            "route_tick_intentions",
+            _spy,
+        )
+
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="library",
+        )
+
+        assert called == []
+
+    @pytest.mark.asyncio
+    async def test_re_enabling_resumes_from_frozen_state(
+        self, monkeypatch,
+    ):
+        # Disabled tick during turn N: counter stays at 14 (one short
+        # of stagnation). Re-enable on turn N+1 with same counter and
+        # baseline; now stagnation crosses the threshold and the fan-
+        # out fires normally — proving the freeze preserved the
+        # trigger model rather than draining it.
+        ckpt = _ckpt(
+            turns_since_last_tick=14, tick_last_scene_id="hall",
+            cooldown=5, stagnation=15,
+            ticks_enabled=False,
+        )
+        orch = _orchestrator()
+        recorder: list[str] = []
+        _stub_character_agent(monkeypatch, recorder)
+
+        # Disabled turn — no fire, state frozen.
+        await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+        assert recorder == []
+        assert ckpt.session.turns_since_last_tick == 14
+
+        # Re-enable; counter ticks to 15, hits stagnation, fires.
+        ckpt.session.config.settings.ticks_enabled = True
+        result = await orch._run_ticks(
+            ckpt, acted_this_turn=set(),
+            acting_id="alice", current_scene="courtyard",
+        )
+        assert sorted(c.character_id for c, _ in result) == [
+            "regent", "scribe",
+        ]
+        assert ckpt.session.turns_since_last_tick == 0
 
 
 # ---- trigger logic ---------------------------------------------------------

@@ -116,6 +116,21 @@ SETTINGS: list[SettingDef] = [
         parse=_parse_bool,
         render=_render_bool,
     ),
+    SettingDef(
+        key="ticks_enabled",
+        default=True,
+        description=(
+            "Master kill switch for the off-stage tick scheduler. Off = "
+            "no background NPC ticks at all (no scene-change fires, no "
+            "stagnation fires, no fan-out). Useful for token-budget runs "
+            "and for isolating on-stage behavior in diagnostics. The "
+            "tick counters freeze in disabled mode, so flipping back on "
+            "resumes the trigger model from where it left off rather "
+            "than firing a backlog."
+        ),
+        parse=_parse_bool,
+        render=_render_bool,
+    ),
 ]
 
 SETTINGS_BY_KEY: dict[str, SettingDef] = {s.key: s for s in SETTINGS}

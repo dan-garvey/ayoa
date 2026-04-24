@@ -47,7 +47,6 @@ def _world() -> WorldExtraction:
         hidden_lore="The Aetheri were deliberately erased.",
         hidden_facts=["Regent knows the truth.", "Nessa is a Keeper operative."],
         locations=LocationsExtraction(
-            current_scene_id="hall",
             scene_graph=[SceneExtraction(
                 scene_id="hall", name="Hall",
                 description="", connected_to=[],
@@ -212,7 +211,6 @@ class TestSerializeForAnalysis:
             hidden_lore="",
             hidden_facts=[],
             locations=LocationsExtraction(
-                current_scene_id="hall",
                 scene_graph=[SceneExtraction(
                     scene_id="hall", name="Hall",
                     description="", connected_to=[],
