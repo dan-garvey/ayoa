@@ -90,6 +90,68 @@ class CheckpointManager:
             checkpoints.append(f.stem)
         return checkpoints
 
+    def list_turn_indices(self, session_id: str) -> list[int]:
+        """Same as list_checkpoints but returns the integer turn_index of
+        each checkpoint, sorted ascending. Used by the /rewind command to
+        reason about which targets are reachable without re-parsing names.
+        """
+        out: list[int] = []
+        for cid in self.list_checkpoints(session_id):
+            try:
+                out.append(int(cid.replace("ckpt_", "")))
+            except ValueError:
+                continue
+        return out
+
+    def delete_checkpoints_after(
+        self, session_id: str, target_turn: int,
+    ) -> list[int]:
+        """Cull every ckpt_NNNN.json with NNNN > target_turn from the
+        session directory. Returns the sorted list of turn indices that
+        were removed. The target itself is preserved.
+
+        This is the storage primitive behind `/rewind`. The delete is
+        intentionally destructive (no .bak, no quarantine dir) — the
+        rewind UX is gated by an explicit confirmation in the
+        frontends, and recovery via cp from a backup is the operator's
+        responsibility. Keeping the on-disk shape clean means
+        `list_checkpoints()` immediately reflects the new latest with
+        no skip-the-tombstones logic.
+
+        Atomicity note: this is NOT atomic across files. A crash mid-loop
+        leaves a partial cull, and re-running the same rewind fixes it
+        (the loop is idempotent — already-deleted files are skipped).
+        Callers should treat partial success as success for the targets
+        that did get removed.
+        """
+        if target_turn < 0:
+            raise ValueError(
+                f"target_turn must be >= 0, got {target_turn}"
+            )
+        session_dir = self._session_dir(session_id)
+        if not session_dir.exists():
+            return []
+
+        deleted: list[int] = []
+        for f in sorted(session_dir.glob("ckpt_*.json")):
+            try:
+                idx = int(f.stem.replace("ckpt_", ""))
+            except ValueError:
+                continue
+            if idx <= target_turn:
+                continue
+            try:
+                f.unlink()
+                deleted.append(idx)
+            except FileNotFoundError:
+                continue
+        if deleted:
+            logger.info(
+                "Culled %d checkpoint(s) from session %s after turn %d: %s",
+                len(deleted), session_id, target_turn, deleted,
+            )
+        return deleted
+
     def _load_file(self, path: Path) -> CheckpointFile:
         """Load and validate a checkpoint file.
 

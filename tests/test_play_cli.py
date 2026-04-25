@@ -217,3 +217,114 @@ class TestQuit:
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/nope"))
         assert state.running is True
+
+
+class TestRewindCommand:
+    """CLI dispatch tests for /rewind. The engine layer is stubbed to
+    isolate the command-handler logic — actual rewind behavior is
+    covered by tests/test_rewind.py."""
+
+    def _make_engine_with_rewind(
+        self, *, turns: list[int],
+    ) -> MagicMock:
+        engine = _mock_engine()
+        engine.list_checkpoint_turns = MagicMock(return_value=turns)
+
+        # `preview_rewind` and `rewind_session` mirror each other's
+        # validation. The mocks here re-implement the bare-minimum
+        # validation so the CLI handler exercises the branches it
+        # needs to handle (unknown turn, target == latest, etc.) the
+        # same way the real bridge would.
+        from app.bot.engine_bridge import RewindResult
+
+        def _preview(_session_id: str, target: int) -> RewindResult:
+            if not turns:
+                raise FileNotFoundError("no checkpoints")
+            if target < 0:
+                raise ValueError("must be >= 0")
+            if target not in turns:
+                raise ValueError(
+                    f"Turn {target} has no checkpoint."
+                )
+            if target >= turns[-1]:
+                raise ValueError(
+                    f"already the current state (latest is turn {turns[-1]})"
+                )
+            return RewindResult(
+                session_id=SESSION_ID,
+                target_turn=target,
+                previous_latest=turns[-1],
+                new_latest=target,
+                deleted_turns=[t for t in turns if t > target],
+                scene_id="hall",
+                actor_character_id="aldric",
+            )
+
+        async def _rewind(_session_id: str, target: int) -> RewindResult:
+            return _preview(_session_id, target)
+
+        engine.preview_rewind = MagicMock(side_effect=_preview)
+        engine.rewind_session = AsyncMock(side_effect=_rewind)
+        return engine
+
+    def test_rewind_no_arg_lists_range(self, run, capsys):
+        engine = self._make_engine_with_rewind(turns=[0, 1, 2, 3])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/rewind"))
+
+        out = capsys.readouterr().out
+        assert "available turns: 0..3" in out
+        assert "current latest: turn 3" in out
+        # Bare /rewind should NOT mutate.
+        engine.rewind_session.assert_not_called()
+
+    def test_rewind_with_target_invokes_engine(self, run, capsys):
+        engine = self._make_engine_with_rewind(turns=[0, 1, 2, 3, 4])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/rewind 2"))
+
+        engine.preview_rewind.assert_called_once_with(SESSION_ID, 2)
+        engine.rewind_session.assert_awaited_once_with(SESSION_ID, 2)
+        out = capsys.readouterr().out
+        assert "rewinding" in out
+        assert "turn 4 → turn 2" in out
+        assert "rewound to turn 2" in out
+        assert "deleted 2 checkpoint(s)" in out
+
+    def test_rewind_invalid_target_does_not_commit(self, run, capsys):
+        engine = self._make_engine_with_rewind(turns=[0, 1, 2])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/rewind 5"))
+
+        engine.preview_rewind.assert_called_once_with(SESSION_ID, 5)
+        engine.rewind_session.assert_not_called()
+        out = capsys.readouterr().out
+        assert "error" in out.lower()
+
+    def test_rewind_to_latest_rejected_before_commit(self, run, capsys):
+        engine = self._make_engine_with_rewind(turns=[0, 1, 2])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/rewind 2"))
+
+        engine.preview_rewind.assert_called_once_with(SESSION_ID, 2)
+        engine.rewind_session.assert_not_called()
+        out = capsys.readouterr().out
+        assert "already the current state" in out
+
+    def test_rewind_non_integer_arg_complains(self, run, capsys):
+        engine = self._make_engine_with_rewind(turns=[0, 1, 2])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/rewind hello"))
+
+        engine.preview_rewind.assert_not_called()
+        engine.rewind_session.assert_not_called()
+        out = capsys.readouterr().out
+        assert "integer" in out.lower()
+
+    def test_rewind_empty_session_says_so(self, run, capsys):
+        engine = self._make_engine_with_rewind(turns=[])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/rewind"))
+
+        out = capsys.readouterr().out
+        assert "no checkpoints" in out

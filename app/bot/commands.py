@@ -2103,6 +2103,253 @@ def register(
             body = body[:1900] + "\n…(truncated)"
         await inter.followup.send(body, ephemeral=True)
 
+    # ---- /rewind ------------------------------------------------------------
+    # Destructive: deletes ckpt_>target.json from disk. Owner-only by
+    # default (admins also allowed) — multi-player sessions need a single
+    # voice for "everyone agrees we go back." The flow is two-step:
+    # /rewind <N> shows an ephemeral preview with a Confirm button, and
+    # only the actual click triggers the cull. This keeps a careless
+    # mistype from nuking an arc.
+
+    class _RewindConfirmView(discord.ui.View):
+        """Ephemeral confirm/cancel pair shown after /rewind <N> validates.
+
+        Single-use: any button click disables both and stops the view.
+        Restricted to the invoker — other players poking the confirm
+        on someone else's preview would be a footgun. Times out at 60s
+        (the rewind is meant to be deliberate but not laborious).
+        """
+
+        def __init__(
+            self,
+            *,
+            session_id: str,
+            target_turn: int,
+            invoker_id: int,
+            preview: "RewindResult",  # forward-ref string to avoid import cycle
+        ):
+            super().__init__(timeout=60)
+            self._session_id = session_id
+            self._target_turn = target_turn
+            self._invoker_id = invoker_id
+            self._preview = preview
+
+        async def interaction_check(
+            self, check_inter: discord.Interaction,
+        ) -> bool:
+            if check_inter.user.id != self._invoker_id:
+                await check_inter.response.send_message(
+                    "This rewind preview isn't yours.", ephemeral=True,
+                )
+                return False
+            return True
+
+        @discord.ui.button(
+            label="Confirm rewind",
+            style=discord.ButtonStyle.danger,
+        )
+        async def _confirm(
+            self,
+            click_inter: discord.Interaction,
+            _button: discord.ui.Button,
+        ):
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    child.disabled = True
+            self.stop()
+
+            await click_inter.response.defer(thinking=True, ephemeral=True)
+
+            try:
+                result = await engine.rewind_session(
+                    self._session_id, self._target_turn,
+                )
+            except (ValueError, FileNotFoundError) as e:
+                await click_inter.followup.send(
+                    embed=render_error(str(e)), ephemeral=True,
+                )
+                return
+            except Exception as e:
+                logger.exception("rewind_session failed")
+                await click_inter.followup.send(
+                    embed=render_error(f"`{type(e).__name__}: {e}`"),
+                    ephemeral=True,
+                )
+                return
+
+            logger.info(
+                "Rewound session %s by %s: %d → %d (deleted %d ckpt(s))",
+                self._session_id, click_inter.user.display_name,
+                result.previous_latest, result.new_latest,
+                len(result.deleted_turns),
+            )
+
+            # Public announcement so co-players know the world
+            # backed up. Includes who triggered it for accountability.
+            scene_line = (
+                f"\nResume scene: `{result.scene_id}`"
+                if result.scene_id else ""
+            )
+            announce = render_info(
+                "Session rewound",
+                f"**{click_inter.user.display_name}** rewound the story to "
+                f"**Turn {result.new_latest}**.\n"
+                f"Turns {result.deleted_turns[0]}–{result.deleted_turns[-1]} "
+                f"({len(result.deleted_turns)} checkpoint(s)) erased."
+                f"{scene_line}\n\n"
+                f"Use `/act` to continue from here.",
+            )
+            try:
+                await click_inter.followup.send(embed=announce, ephemeral=False)
+            except Exception:
+                # Public post failed (perms? channel gone?) — fall back
+                # to ephemeral so the invoker at least sees confirmation.
+                logger.exception(
+                    "rewind: public announcement failed",
+                )
+                await click_inter.followup.send(
+                    embed=announce, ephemeral=True,
+                )
+
+        @discord.ui.button(
+            label="Cancel",
+            style=discord.ButtonStyle.secondary,
+        )
+        async def _cancel(
+            self,
+            click_inter: discord.Interaction,
+            _button: discord.ui.Button,
+        ):
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    child.disabled = True
+            self.stop()
+            await click_inter.response.send_message(
+                "Rewind cancelled — nothing was deleted.", ephemeral=True,
+            )
+
+    @tree.command(
+        name="rewind",
+        description=(
+            "Rewind the session to an earlier turn. Owner-only. "
+            "Permanently deletes later checkpoints."
+        ),
+        guild=guild,
+    )
+    @app_commands.describe(
+        turn=(
+            "The turn number to rewind to (matches embed footer). "
+            "Omit to list available turns."
+        ),
+    )
+    async def _rewind(
+        inter: discord.Interaction,
+        turn: Optional[int] = None,
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+
+        # Owner-or-admin gate. Multi-player sessions could end up with
+        # a tug-of-war if every player could rewind; centralize the
+        # capability on whoever set up the session. Admins override
+        # for ops/recovery scenarios.
+        if inter.user.id != row.owner_user_id and not _is_admin(inter.user.id):
+            await inter.response.send_message(
+                "Only the session owner can `/rewind`. Ask whoever ran "
+                "`/session start` to do it.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            turns = engine.list_checkpoint_turns(row.session_id)
+        except Exception as e:
+            logger.exception("list_checkpoint_turns failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        if not turns:
+            await inter.response.send_message(
+                "No checkpoints on disk for this session yet.",
+                ephemeral=True,
+            )
+            return
+
+        # Bare /rewind: list available turns so the user can pick.
+        if turn is None:
+            current = turns[-1]
+            playable = [t for t in turns if t < current]
+            if not playable:
+                body = (
+                    f"Current turn: **{current}**\n"
+                    f"No earlier turns to rewind to."
+                )
+            else:
+                body = (
+                    f"Current turn: **{current}**\n"
+                    f"Rewindable range: **{playable[0]}** to **{playable[-1]}** "
+                    f"({len(playable)} checkpoint(s)).\n\n"
+                    f"Run `/rewind <turn>` with a number in that range."
+                )
+            await inter.response.send_message(
+                embed=render_info("Available turns", body), ephemeral=True,
+            )
+            return
+
+        try:
+            preview = engine.preview_rewind(row.session_id, turn)
+        except (ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("preview_rewind failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        scene_line = (
+            f"\n**Resume scene:** `{preview.scene_id}`"
+            if preview.scene_id else ""
+        )
+        actor_line = (
+            f"\n**Resume actor:** `{preview.actor_character_id}`"
+            if preview.actor_character_id else ""
+        )
+        body = (
+            f"**Current turn:** {preview.previous_latest}\n"
+            f"**Rewind target:** {preview.target_turn}\n"
+            f"**Will delete:** turns "
+            f"{preview.deleted_turns[0]}–{preview.deleted_turns[-1]} "
+            f"({len(preview.deleted_turns)} checkpoint(s))"
+            f"{actor_line}{scene_line}\n\n"
+            f"⚠️ This permanently erases the deleted turns from disk. "
+            f"Players who joined after turn {preview.target_turn} will "
+            f"need to `/join` again."
+        )
+        view = _RewindConfirmView(
+            session_id=row.session_id,
+            target_turn=turn,
+            invoker_id=inter.user.id,
+            preview=preview,
+        )
+        await inter.response.send_message(
+            embed=render_info("Confirm rewind?", body),
+            view=view,
+            ephemeral=True,
+        )
+
     # ---- /status ------------------------------------------------------------
 
     @tree.command(

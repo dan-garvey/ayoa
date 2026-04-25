@@ -65,6 +65,33 @@ class CharacterSummary:
     is_playable: bool
     bound_user_id: str = ""
 
+
+@dataclass(frozen=True)
+class RewindResult:
+    """Result of an EngineBridge.rewind_session call.
+
+    `target_turn` is the checkpoint id the session is now anchored to
+    (`ckpt_<target_turn>.json` is the new latest). `previous_latest` and
+    `new_latest` describe the before/after state for the confirmation
+    embed. `deleted_turns` is the list of turn indices whose checkpoints
+    were culled — usually contiguous from target_turn+1 to previous_latest
+    inclusive, but the rewind is robust to gaps (an old corrupted save
+    that was already missing simply doesn't appear in the list).
+
+    `scene_id` and `actor_character_id` are recovered from the loaded
+    checkpoint to help the frontend render a "you are now at <scene>"
+    line. Both may be empty if the session has no bound actor (e.g. a
+    fresh session before any /join).
+    """
+    session_id: str
+    target_turn: int
+    previous_latest: int
+    new_latest: int
+    deleted_turns: list[int]
+    scene_id: str = ""
+    actor_character_id: str = ""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -332,6 +359,170 @@ class EngineBridge:
 
     def load_latest(self, session_id: str) -> CheckpointFile:
         return self.checkpoint_mgr.load_latest(session_id)
+
+    def list_checkpoint_turns(self, session_id: str) -> list[int]:
+        """Return the integer turn indices of every saved checkpoint for
+        this session, sorted ascending. Used by the /rewind command to
+        validate the user's target and show the playable range."""
+        return self.checkpoint_mgr.list_turn_indices(session_id)
+
+    def preview_rewind(
+        self, session_id: str, target_turn: int,
+    ) -> RewindResult:
+        """Same validation as `rewind_session`, without mutating disk.
+        Used by the Discord confirmation flow: show the user exactly
+        what would be deleted before they click Confirm. The
+        `deleted_turns` list in the returned result is the *would-be*
+        deletion list; `new_latest` is what the latest WOULD be after
+        the cull (i.e. == target_turn). On confirm, the frontend calls
+        `rewind_session` and the actual cull happens.
+
+        Raises the same exceptions as `rewind_session` for invalid
+        inputs, so the frontend's confirmation prompt never advances
+        past validation if the target is bogus.
+        """
+        turns = self.list_checkpoint_turns(session_id)
+        if not turns:
+            raise FileNotFoundError(
+                f"Session '{session_id}' has no checkpoints to rewind."
+            )
+        latest = turns[-1]
+        if target_turn < 0:
+            raise ValueError(
+                f"Cannot rewind to turn {target_turn}: must be >= 0."
+            )
+        if target_turn not in turns:
+            raise ValueError(
+                f"Turn {target_turn} has no checkpoint for session "
+                f"'{session_id}'. Available: {turns[0]}..{latest}."
+            )
+        if target_turn >= latest:
+            raise ValueError(
+                f"Cannot rewind to turn {target_turn}: that's already the "
+                f"current state (latest is turn {latest}). Pick an "
+                f"earlier turn."
+            )
+        would_delete = [t for t in turns if t > target_turn]
+        ckpt = self.checkpoint_mgr.load(session_id, f"ckpt_{target_turn:04d}")
+        return RewindResult(
+            session_id=session_id,
+            target_turn=target_turn,
+            previous_latest=latest,
+            new_latest=target_turn,
+            deleted_turns=would_delete,
+            scene_id=self._actor_scene_after_rewind(ckpt),
+            actor_character_id=ckpt.session.player_character_id,
+        )
+
+    async def rewind_session(
+        self,
+        session_id: str,
+        target_turn: int,
+    ) -> RewindResult:
+        """Rewind a session to the state captured by `ckpt_<target_turn>.json`.
+
+        Mechanism: cull every ckpt_NNNN.json with NNNN > target_turn from
+        the session directory. The next call to load_latest then returns
+        the target checkpoint, and the orchestrator resumes from there
+        as if the deleted turns never happened. No engine-level state
+        replay needed — checkpoints are atomic per-turn snapshots
+        capturing canonical_events, all rolling conversations,
+        world_state, every CharacterRecord (with its pending_observations
+        queue), render_buffers, slot/Cat-II state, recap, and bindings.
+
+        What this does NOT touch:
+
+        - SessionMap (Discord channel→session, pov_threads cache). Those
+          are session-stable and orthogonal to per-turn state. A user
+          who joined between target_turn and now will lose their
+          binding (the loaded checkpoint predates their /join), but
+          their cached pov_thread row is fine — they just need to
+          /join again.
+        - The per-session asyncio Lock. We acquire it for the cull so
+          a concurrent /act cannot save into the gap, but the lock
+          object itself is ephemeral and survives.
+        - LLM/Anthropic prompt cache. The first post-rewind LLM call
+          will miss cache (different conversation prefix); subsequent
+          calls re-warm normally. Cost, not correctness.
+
+        Validation:
+        - Target must be >= 0 and present in `list_checkpoint_turns`.
+        - Target must be < the current latest (refusing to "rewind to
+          the present" prevents a noisy no-op and a stray confirmation
+          on the user side).
+        - If the session has no checkpoints at all, raise FileNotFoundError.
+
+        Returns a `RewindResult` with the deleted turn list and a
+        human-readable summary suitable for confirmation embeds.
+        """
+        turns = self.list_checkpoint_turns(session_id)
+        if not turns:
+            raise FileNotFoundError(
+                f"Session '{session_id}' has no checkpoints to rewind."
+            )
+        latest = turns[-1]
+        if target_turn < 0:
+            raise ValueError(
+                f"Cannot rewind to turn {target_turn}: must be >= 0."
+            )
+        if target_turn not in turns:
+            raise ValueError(
+                f"Turn {target_turn} has no checkpoint for session "
+                f"'{session_id}'. Available: {turns[0]}..{latest}."
+            )
+        if target_turn >= latest:
+            raise ValueError(
+                f"Cannot rewind to turn {target_turn}: that's already the "
+                f"current state (latest is turn {latest}). Pick an "
+                f"earlier turn."
+            )
+
+        lock = await self._lock_for(session_id)
+        async with lock:
+            # Re-check inside the lock — a concurrent /act may have
+            # advanced past our snapshot's `latest` between read and cull.
+            # Re-validating against the current latest catches the
+            # rare race where rewind and /act arrive simultaneously.
+            current_turns = self.list_checkpoint_turns(session_id)
+            if target_turn not in current_turns:
+                raise ValueError(
+                    f"Turn {target_turn} is no longer available "
+                    f"(checkpoint disappeared between validation and cull)."
+                )
+            current_latest = current_turns[-1]
+            if target_turn >= current_latest:
+                raise ValueError(
+                    f"Cannot rewind to turn {target_turn}: latest is now "
+                    f"{current_latest}."
+                )
+            deleted = self.checkpoint_mgr.delete_checkpoints_after(
+                session_id, target_turn,
+            )
+            new_latest = self.list_checkpoint_turns(session_id)[-1]
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        return RewindResult(
+            session_id=session_id,
+            target_turn=target_turn,
+            previous_latest=current_latest,
+            new_latest=new_latest,
+            deleted_turns=deleted,
+            scene_id=self._actor_scene_after_rewind(ckpt),
+            actor_character_id=ckpt.session.player_character_id,
+        )
+
+    def _actor_scene_after_rewind(self, ckpt: CheckpointFile) -> str:
+        """Best-effort: return the scene id of the bound actor after
+        rewind, so the confirmation embed can tell the user where they
+        landed. Empty string if we can't resolve it (no bound character,
+        unknown character_id) — the embed just omits the location line."""
+        cid = ckpt.session.player_character_id
+        if not cid:
+            return ""
+        for c in ckpt.characters:
+            if c.character_id == cid:
+                return c.location or ""
+        return ""
 
     def set_character_appearance(
         self,

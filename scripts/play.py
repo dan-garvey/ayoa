@@ -31,6 +31,7 @@ Commands inside the REPL:
     /as <character_id>          Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
     /query <question>           Ask an out-of-character question (POV-bounded)
+    /rewind [<N>]               List or rewind to a turn checkpoint
     /settings                   Show / update experimental settings
     /status                     Session summary
     /history [N]                Print all turns, or last N
@@ -76,6 +77,8 @@ Commands:
   /as <character_id>                Switch which claimed character acts next
   /describe                         Set name + appearance of the current actor
   /query <question>                 Ask an out-of-character question (POV-bounded)
+  /rewind                           List available turn checkpoints
+  /rewind <N>                       Rewind to ckpt_N (deletes ckpt_>N — no undo)
   /settings                         Show experimental settings for this session
   /settings <key>                   Show one setting's current value
   /settings <key> <value>           Update a setting
@@ -731,6 +734,79 @@ class CLIState:
         print(f"--- /query · {self.current_actor}{gate_tag} ---")
         print(result.answer or "(no answer)")
         print()
+
+    async def cmd_rewind(self, arg: str) -> None:
+        """Rewind the session to an earlier checkpoint.
+
+        Usage:
+            /rewind                  → list available turn checkpoints
+            /rewind <N>              → rewind to ckpt_N (deletes ckpt_>N)
+
+        The new latest becomes ckpt_<N>; the next /act resumes from
+        there as turn N+1. Discord-side bindings persist; players who
+        joined after turn N will lose their binding (the loaded
+        checkpoint predates their /join) and need to /join again.
+        Save files are deleted from disk — there's no undo. Make a
+        copy of the session dir first if you want a backup.
+        """
+        if not self._require_story():
+            return
+
+        try:
+            turns = self.engine.list_checkpoint_turns(self.session_id)
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        if not turns:
+            print("no checkpoints to rewind to")
+            return
+
+        if not arg.strip():
+            print(
+                f"available turns: {turns[0]}..{turns[-1]} "
+                f"({len(turns)} checkpoints)"
+            )
+            print(f"current latest: turn {turns[-1]}")
+            print("usage: /rewind <N>  (where N < latest)")
+            return
+
+        try:
+            target = int(arg.strip())
+        except ValueError:
+            print(f"usage: /rewind <integer turn #>  (got: {arg.strip()!r})")
+            return
+
+        try:
+            preview = self.engine.preview_rewind(self.session_id, target)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+
+        # CLI path: a single playtester driving things deliberately. We
+        # show the preview, then commit immediately. Discord wraps this
+        # same primitive in a confirm button because public sessions
+        # have multiple stakeholders.
+        print(
+            f"rewinding {self.session_id}: "
+            f"turn {preview.previous_latest} → turn {preview.target_turn} "
+            f"(deleting turns {preview.deleted_turns})"
+        )
+        try:
+            result = await self.engine.rewind_session(
+                self.session_id, target,
+            )
+        except (ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        scene_note = (
+            f" — actor {result.actor_character_id} at scene {result.scene_id}"
+            if result.actor_character_id and result.scene_id
+            else ""
+        )
+        print(
+            f"rewound to turn {result.new_latest}; deleted "
+            f"{len(result.deleted_turns)} checkpoint(s){scene_note}"
+        )
 
     def cmd_settings(self, arg: str) -> None:
         """

@@ -136,3 +136,115 @@ class TestCheckpointErrors:
         mgr = CheckpointManager(save_dir=str(tmp_path))
         with pytest.raises(FileNotFoundError, match="Invalid checkpoint_id"):
             mgr.load("test-session", "bad_format")
+
+
+class TestListTurnIndices:
+    """list_turn_indices is the integer-typed sibling of list_checkpoints,
+    used by the /rewind validator. Tests live alongside the storage
+    primitive so any drift in checkpoint naming gets caught here before
+    the bridge layer."""
+
+    def test_list_turn_indices_empty(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        assert mgr.list_turn_indices("nonexistent") == []
+
+    def test_list_turn_indices_sorted(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in [3, 1, 5, 0, 2]:
+            mgr.save(_make_checkpoint(turn_index=i))
+        assert mgr.list_turn_indices("test-session") == [0, 1, 2, 3, 5]
+
+    def test_list_turn_indices_skips_garbage(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        mgr.save(_make_checkpoint(turn_index=0))
+        mgr.save(_make_checkpoint(turn_index=1))
+        # A stray non-checkpoint file should not poison the listing.
+        (tmp_path / "test-session" / "ckpt_garbage.json").write_text("{}")
+        assert mgr.list_turn_indices("test-session") == [0, 1]
+
+
+class TestDeleteCheckpointsAfter:
+    """The /rewind storage primitive. Validates the cull semantics
+    (target preserved, only ckpt_>target removed) and the edge cases
+    (target == latest is a no-op, target negative raises, missing dir
+    returns empty)."""
+
+    def test_culls_only_after_target(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in range(6):
+            mgr.save(_make_checkpoint(turn_index=i))
+
+        deleted = mgr.delete_checkpoints_after("test-session", target_turn=2)
+
+        assert deleted == [3, 4, 5]
+        assert mgr.list_turn_indices("test-session") == [0, 1, 2]
+
+    def test_target_itself_is_preserved(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in range(4):
+            mgr.save(_make_checkpoint(turn_index=i))
+
+        mgr.delete_checkpoints_after("test-session", target_turn=2)
+
+        loaded = mgr.load("test-session", "ckpt_0002")
+        assert loaded.session.turn_index == 2
+
+    def test_target_at_latest_is_noop(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in range(3):
+            mgr.save(_make_checkpoint(turn_index=i))
+
+        deleted = mgr.delete_checkpoints_after("test-session", target_turn=2)
+
+        assert deleted == []
+        assert mgr.list_turn_indices("test-session") == [0, 1, 2]
+
+    def test_target_above_latest_is_noop(self, tmp_path):
+        # "Rewind to turn 99" when only turn 2 exists shouldn't delete
+        # anything — defensive against a frontend that fails to validate.
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in range(3):
+            mgr.save(_make_checkpoint(turn_index=i))
+
+        deleted = mgr.delete_checkpoints_after("test-session", target_turn=99)
+
+        assert deleted == []
+        assert mgr.list_turn_indices("test-session") == [0, 1, 2]
+
+    def test_target_zero_keeps_only_origin(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in range(5):
+            mgr.save(_make_checkpoint(turn_index=i))
+
+        deleted = mgr.delete_checkpoints_after("test-session", target_turn=0)
+
+        assert deleted == [1, 2, 3, 4]
+        assert mgr.list_turn_indices("test-session") == [0]
+
+    def test_negative_target_raises(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        mgr.save(_make_checkpoint(turn_index=0))
+        with pytest.raises(ValueError, match="must be >= 0"):
+            mgr.delete_checkpoints_after("test-session", target_turn=-1)
+
+    def test_missing_session_returns_empty(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        # No session dir created at all — should return empty list,
+        # not raise. The rewind validator above this layer is what
+        # enforces "session must exist."
+        assert mgr.delete_checkpoints_after("ghost", target_turn=0) == []
+
+    def test_idempotent(self, tmp_path):
+        # Running cull twice with the same target leaves the second
+        # call returning an empty deletion list — important if a
+        # rewind is retried after a partial crash.
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        for i in range(5):
+            mgr.save(_make_checkpoint(turn_index=i))
+
+        first = mgr.delete_checkpoints_after("test-session", target_turn=2)
+        second = mgr.delete_checkpoints_after("test-session", target_turn=2)
+
+        assert first == [3, 4]
+        assert second == []
+        assert mgr.list_turn_indices("test-session") == [0, 1, 2]
