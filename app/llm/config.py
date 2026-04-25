@@ -21,11 +21,35 @@ class LLMConfig(BaseModel):
         # Terse post-turn summarization (delta notes for the router).
         # Cheap, narrow task — Haiku is plenty.
         "summarizer": "claude-haiku-4-5",
+        # Out-of-character /query consultation. Read-only, short
+        # answer, single-character POV bound. Latency matters more
+        # than depth here — players are staring at Discord waiting
+        # for "what do I see?" / "what was her name?" — so Haiku is
+        # the default. Flip to Sonnet via env if you want richer
+        # in-fiction refusal flavor.
+        "query_handler": "claude-haiku-4-5",
     })
 
     default_model: str = "claude-sonnet-4-6"
-    max_retries: int = 2
+    # Retries are for transient API failures: 529 overloaded, 500/503,
+    # network blips, streaming disconnects. Anthropic's overload events
+    # in particular ride out in 5-30s windows; 4 retries × exp-backoff
+    # with jitter clears most of them without dumping the user. The pre-
+    # bump default of 2 surfaced "overloaded_error" to the player on the
+    # first burst of concurrent /act commands during the playtest.
+    max_retries: int = 4
     retry_base_delay: float = 1.0
+    # Symmetric jitter band around the exp-backoff delay, expressed as
+    # a fraction. 0.3 means each delay is uniformly sampled from
+    # [0.7×delay, 1.3×delay]. Prevents thundering-herd lockstep when
+    # multiple players /act simultaneously and all hit overloaded at
+    # the same wall-clock instant.
+    retry_jitter: float = 0.3
+    # Hard cap on any single retry sleep. Prevents a 4th retry from
+    # waiting 16s+ on a request the user is staring at; we'd rather
+    # surface the failure cleanly than hold the slash command for
+    # half a minute.
+    retry_max_delay: float = 30.0
     # Anthropic's server-side deadline for a single request is 10 minutes.
     # Client timeouts shorter than that truncate long structured-output
     # grammar-compilation passes and surface as "Request timed out or

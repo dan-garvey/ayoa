@@ -40,8 +40,10 @@ from app.engine.context_builder import (
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
     AGENT_ON_STAGE_HEADER,
+    AGENT_PERCEPTION_HEADER,
     AGENT_TICK_HEADER,
     format_agent_on_stage_body,
+    format_agent_perception_body,
     format_agent_tick_body,
 )
 from app.llm.client import LLMClient
@@ -150,6 +152,112 @@ class CharacterAgent:
             log_label="respond",
             log_extra=f"facts={len(observed_facts)}",
         )
+
+    async def perceive(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str = "",
+    ) -> str:
+        """Observer-agnostic perception beat — return this character's
+        current visual loadout as plain prose (1-3 sentences).
+
+        Used by the observation-harvest fork in `turn_loop.run_beat`
+        when a player's action is purely observational
+        (`ends_beat_reason="observation_harvest"`), and reachable
+        later from `/query` for "what does X look like?" questions.
+
+        Distinct from `respond` and `tick` in three load-bearing ways:
+
+        1. **No history append.** The exchange is NOT persisted onto
+           `checkpoint.character_conversations[character_id]`. Perception
+           is meta — folding it in would pollute the agent's continuity-
+           of-self with non-fictional self-description ("the world asked
+           me what I look like; I told them"). The on-stage / tick path
+           reads its own past responses to maintain voice consistency;
+           perception responses being interleaved would surface as
+           confusing cross-talk on the next on-stage turn. Cache lineage
+           is preserved because the system prompt is byte-identical with
+           respond/tick — only the user message differs, and Anthropic's
+           cache hashes the prefix, so perception calls cache-hit on
+           the system prompt without ever appending to the message
+           prefix the next on-stage call sees.
+
+        2. **No parenthetical parse.** Perception mode in `agent.txt`
+           tells the model not to emit a trailing parenthetical;
+           output is pure prose. Returning `response.content.strip()`
+           directly skips the `_extract_parenthetical` round-trip
+           (which would otherwise log a spurious "missing trailing
+           parenthetical" warning on every call).
+
+        3. **Lower max_tokens.** Cap is 3 sentences (~150 tokens of
+           prose, leave headroom for the model's own pacing). 600
+           leaves slack but stays cheap.
+
+        `acting_character_id` is plumbed for context-builder helpers
+        that frame "the player who is currently doing things" — it
+        is NOT the observer (perception is observer-agnostic; this
+        is the actor whose /act triggered the harvest). Pass empty
+        string when called outside a beat (e.g. from `/query`).
+        """
+        history = checkpoint.character_conversations.get(character.character_id, [])
+
+        # Deliberately DO NOT call `clear_character_inbox`: perception is
+        # a side query, not an on-stage beat. The pending_observations
+        # queue holds events the character hasn't yet reacted to in
+        # fiction; the next `respond`/`tick` is what consumes them.
+        # Draining here would silently swallow off-scene perceptions the
+        # next on-stage turn needs to acknowledge. We also pass an EMPTY
+        # pending-observations block to the render — a self-presentation
+        # query shouldn't be primed by "react to these incoming events."
+        # The character's freshest in-fiction interior is already in
+        # their rolling history (`history` above), which is what should
+        # color their visual loadout.
+        char_identity = build_character_packet(character)
+        char_state = build_character_state(character)
+
+        acting_id, _, acting_name = resolve_acting_character(
+            checkpoint, acting_character_id,
+        )
+
+        render_t0 = time.monotonic()
+        messages = self.prompt_manager.render_conversation(
+            "agent",
+            history=history,
+            **char_identity,
+            **char_state,
+            world_context=build_world_context(character, checkpoint),
+            pending_observations_block="",
+            acting_character_name=acting_name,
+            player_characters_block=build_player_characters_block(
+                checkpoint, acting_id,
+            ),
+            mode_header=AGENT_PERCEPTION_HEADER,
+            mode_block=format_agent_perception_body(),
+        )
+        render_ms = (time.monotonic() - render_t0) * 1000
+
+        logger.info(
+            "Agent %s (%s) perceive: history=%d msgs",
+            character.name, character.character_id, len(history),
+        )
+
+        response = await self.client.complete(
+            role="agent",
+            messages=messages,
+            temperature=0.5,
+            max_tokens=600,
+            cache=True,
+            compact=True,
+        )
+        text = (response.content or "").strip()
+        self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
+
+        logger.info(
+            "Agent %s perceive: %d chars",
+            character.name, len(text),
+        )
+        return text
 
     async def tick(
         self,

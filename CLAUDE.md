@@ -11,7 +11,7 @@
 - `app/engine/` — turn pipeline: orchestrator, event router, narrator, character agents, context builders
 - `app/schemas/` — Pydantic data models (checkpoint, session state, requests, etc.)
 - `app/llm/` — Anthropic SDK wrapper (caching, compaction, structured output)
-- `app/prompts/` — versioned prompt templates (event_router_v4, narrator_phase2_v5, agent_v6, etc.)
+- `app/prompts/` — prompt templates (`event_router.txt`, `narrator_phase2.txt`, `agent.txt`, etc.); versioning lives in git, not in filenames (use `git log <file>` to see history)
 - `app/bot/` — Discord frontend: slash commands, EngineBridge, session map, embed rendering
 - `app/storage/saves/` — checkpoint save files, one dir per session
 - `scripts/play.py` — interactive terminal REPL (alternative frontend, supports multi-character play)
@@ -287,7 +287,7 @@ appears:
   `test_spawn_uses_acting_actor_location_when_seed_omits`, and
   `test_spawn_seed_location_beats_actor_location`.
 
-**Prompt-side (v11-r7i `event_router_v9.txt` rule 10 + rule 13):**
+**Prompt-side (v11-r7i `event_router.txt` rule 10 + rule 13):**
 
 - The router prompt now distinguishes "spawn a real agent" from
   "canonicalize the event with an observer." Spawn is for

@@ -51,7 +51,7 @@ def _ckpt(*, player_location: str = "hall") -> CheckpointFile:
             CharacterRecord(
                 character_id="aldric",
                 name="Aldric",
-                is_player=True,
+                is_playable=True,
                 location=player_location,
                 public_sheet=PublicSheet(role="envoy"),
             ),

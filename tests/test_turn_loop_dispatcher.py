@@ -62,14 +62,14 @@ def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
                 name="Alice",
                 public_sheet=PublicSheet(role="player"),
                 location="gatehouse",
-                is_player=True,
+                is_playable=True,
             ),
             CharacterRecord(
                 character_id="pip",
                 name="Pip",
                 public_sheet=PublicSheet(role="npc"),
                 location="gatehouse",
-                is_player=False,
+                is_playable=False,
             ),
         ],
     )
@@ -260,7 +260,7 @@ class TestRouteIntention:
         self, prompt_mgr, mock_client, monkeypatch,
     ):
         """v11-r6c: route_intention uses `render_conversation`, passing
-        `ckpt.session_conversation` as history so the event_router_v9
+        `ckpt.session_conversation` as history so the event_router
         prompt sees the full rolling router history (per its own line 8
         "The prior messages in this conversation are the full session
         history"). After the call, the user/assistant pair is appended
@@ -420,7 +420,7 @@ class TestRouteTickIntentions:
         assert "tower" in user_content
         # The on-stage intention block + Cat II resolution block must
         # both be empty in tick mode (mutually exclusive user-message
-        # slots per the USER-TEMPLATE CONTRACT in event_router_v9).
+        # slots per the USER-TEMPLATE CONTRACT in event_router).
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
 
@@ -634,7 +634,131 @@ class TestAgentIntend:
         assert "spoke for me" not in out
 
 
-# ---- 6. narrator_compose passes partial_mode correctly ---------------------
+# ---- 6. harvest_perceptions: parallel observer-agnostic perception -----
+
+
+class TestHarvestPerceptions:
+    """v11-r8a: harvest_perceptions fans CharacterAgent.perceive() out
+    in parallel for the observation_harvest fork. These tests cover
+    the dispatcher's contract:
+
+      - returns one fragment per input id, in input order,
+      - empty string for unknown ids (no crash),
+      - empty string for per-character perceive() exceptions (the
+        rest of the harvest still lands),
+      - fires the actual perceive method (not respond/tick).
+    """
+
+    def test_returns_fragments_in_input_order(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="vex", name="Vex",
+                public_sheet=PublicSheet(role="npc"),
+                location="gatehouse",
+                is_playable=False,
+            ),
+        )
+
+        # Per-character canned outputs the fake perceive returns.
+        loadouts = {
+            "pip": "Pip in patched leather, hands quiet.",
+            "vex": "Vex in midnight silk, eyes scanning.",
+        }
+
+        async def _fake_perceive(self, character, checkpoint, acting_character_id=""):
+            return loadouts[character.character_id]
+
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.perceive",
+            _fake_perceive,
+        )
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        out = asyncio.run(dispatcher.harvest_perceptions(
+            ckpt=ckpt,
+            character_ids=["vex", "pip"],  # input order is non-alpha
+            acting_character_id="alice",
+        ))
+        # Output order matches input order — caller zips with the
+        # input ids to build "[loadout — Name]" tags.
+        assert out == [loadouts["vex"], loadouts["pip"]]
+
+    def test_unknown_id_returns_empty_without_crash(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        out = asyncio.run(dispatcher.harvest_perceptions(
+            ckpt=ckpt,
+            character_ids=["never_existed"],
+            acting_character_id="alice",
+        ))
+        assert out == [""]
+
+    def test_per_character_exception_absorbed_into_empty(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        # One bad perceive() call must not poison the whole harvest;
+        # other characters' fragments still land.
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="vex", name="Vex",
+                public_sheet=PublicSheet(role="npc"),
+                location="gatehouse",
+                is_playable=False,
+            ),
+        )
+
+        async def _flaky_perceive(self, character, checkpoint, acting_character_id=""):
+            if character.character_id == "vex":
+                raise RuntimeError("model timeout")
+            return "Pip's loadout"
+
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.perceive",
+            _flaky_perceive,
+        )
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        out = asyncio.run(dispatcher.harvest_perceptions(
+            ckpt=ckpt,
+            character_ids=["pip", "vex"],
+            acting_character_id="alice",
+        ))
+        # Pip's fragment landed; Vex's fragment is empty (engine drops
+        # empties before composing observable_facts).
+        assert out == ["Pip's loadout", ""]
+
+    def test_empty_input_returns_empty_list_without_calling_agent(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        # Defensive guard for the case where the engine hands us no
+        # picks (filter dropped everything). No LLM call should fire.
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        called = {"n": 0}
+
+        async def _counting_perceive(self, character, checkpoint, acting_character_id=""):
+            called["n"] += 1
+            return "should not be called"
+
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.perceive",
+            _counting_perceive,
+        )
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        out = asyncio.run(dispatcher.harvest_perceptions(
+            ckpt=ckpt, character_ids=[], acting_character_id="alice",
+        ))
+        assert out == []
+        assert called["n"] == 0
+
+
+# ---- 7. narrator_compose passes partial_mode correctly ---------------------
 
 
 class TestNarratorCompose:
@@ -735,3 +859,95 @@ class TestNarratorCompose:
         ))
         # Override wins even though Alice isn't pinned.
         assert recorded["partial_mode"] is True
+
+
+# ---- _build_opening_directive (ux-arrival-6 gate) --------------------------
+
+
+class TestBuildOpeningDirective:
+    """The opening-narrative author block fires ONLY when:
+      1. session_conversation is empty (first turn), AND
+      2. opening_narrative is non-empty, AND
+      3. user_input is exactly `(begin)`.
+
+    Condition 3 was added in fix-5: an `(arrive)` on a pristine
+    session must NOT inherit the opening guidance, because the router
+    prompt's `(arrive)` instructions explicitly tell the model to
+    place the character in a sensible existing scene rather than
+    using the opening narrative.
+    """
+
+    def _ckpt_first_turn(self, *, opening: str = "An opening passage."):
+        return CheckpointFile(
+            session=SessionState(session_id="s"),
+            opening_narrative=opening,
+            world_state=WorldState(),
+        )
+
+    def test_emits_block_for_begin_on_first_turn(self):
+        ckpt = self._ckpt_first_turn()
+        out = turn_loop_dispatcher._build_opening_directive(
+            ckpt, user_input="(begin)",
+        )
+        assert "Author's Opening Scene Guidance" in out
+        assert "An opening passage." in out
+
+    def test_suppresses_block_for_arrive_on_pristine_session(self):
+        """Same checkpoint shape (empty conversation, opening present),
+        but `(arrive)` instead of `(begin)` — the router's `(arrive)`
+        rules want the LLM to ignore the opening, so we must not
+        inject it."""
+        ckpt = self._ckpt_first_turn()
+        out = turn_loop_dispatcher._build_opening_directive(
+            ckpt, user_input="(arrive)",
+        )
+        assert out == ""
+
+    def test_suppresses_for_unrelated_user_input_on_pristine(self):
+        """Belt-and-braces: any user_input other than the literal
+        `(begin)` is treated as `(arrive)`-equivalent for this gate.
+        A regular `/act` typed into a pristine session shouldn't
+        trigger the opening block either."""
+        ckpt = self._ckpt_first_turn()
+        out = turn_loop_dispatcher._build_opening_directive(
+            ckpt, user_input="I look around",
+        )
+        assert out == ""
+
+    def test_suppresses_when_opening_narrative_empty(self):
+        ckpt = self._ckpt_first_turn(opening="")
+        out = turn_loop_dispatcher._build_opening_directive(
+            ckpt, user_input="(begin)",
+        )
+        assert out == ""
+
+    def test_suppresses_when_session_conversation_nonempty(self):
+        """Once the player has any history, the block never reinjects
+        — independent of user_input. This is the original gate; the
+        new user_input gate is additive."""
+        from app.schemas.conversation import ConversationMessage
+        ckpt = self._ckpt_first_turn()
+        ckpt.session_conversation = [
+            ConversationMessage(role="user", content="prior turn"),
+        ]
+        out = turn_loop_dispatcher._build_opening_directive(
+            ckpt, user_input="(begin)",
+        )
+        assert out == ""
+
+    def test_default_user_input_suppresses(self):
+        """The default empty string for `user_input` suppresses the
+        block — protects forgotten-arg call paths from accidentally
+        re-firing the opening guidance on later turns."""
+        ckpt = self._ckpt_first_turn()
+        out = turn_loop_dispatcher._build_opening_directive(ckpt)
+        assert out == ""
+
+    def test_strips_whitespace_around_begin(self):
+        """`(begin)` with surrounding whitespace still counts —
+        upstream callers don't always trim."""
+        ckpt = self._ckpt_first_turn()
+        out = turn_loop_dispatcher._build_opening_directive(
+            ckpt, user_input="  (begin)\n",
+        )
+        assert "Author's Opening Scene Guidance" in out

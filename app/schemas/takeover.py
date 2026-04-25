@@ -1,6 +1,6 @@
 """Schemas for the /join_custom flow.
 
-Three modes, one prompt (`takeover_v1`), three output shapes:
+Three modes, one prompt (`takeover`), three output shapes:
 
 - **describe** — user hands the router a character concept. The router
   spins up a full character record (name, role, backstory, objectives,
@@ -105,7 +105,7 @@ class AuthoredCharacter(BaseModel):
     router_summary: str
 
     def to_record(self, character_id: str = "") -> CharacterRecord:
-        """Map onto CharacterRecord. Caller sets character_id, is_player,
+        """Map onto CharacterRecord. Caller sets character_id, is_playable,
         and binding afterward if relevant.
 
         `router_summary` deliberately does NOT land on CharacterRecord —

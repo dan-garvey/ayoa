@@ -19,6 +19,7 @@ class is what the orchestrator constructs at wire-up time.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app.engine import narrator as narrator_module
@@ -324,10 +325,35 @@ def _build_since_last_turn_block(acting_char) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _build_opening_directive(checkpoint: CheckpointFile) -> str:
+def _build_opening_directive(
+    checkpoint: CheckpointFile, user_input: str = "",
+) -> str:
     """Populate the opening-turn directive block iff this is the first
-    turn and an opening_narrative exists on the checkpoint."""
+    turn AND the player's input is the `(begin)` OOC directive AND an
+    `opening_narrative` exists on the checkpoint.
+
+    Why all three gates:
+    - `session_conversation` empty: never re-inject the opening on
+      later turns (covered by the original implementation).
+    - `user_input == "(begin)"`: a fresh session can ALSO be entered
+      via `(arrive)` (a player joining an empty CLI session, or any
+      future flow that opens a session at a non-canonical entry).
+      The router prompt's `(arrive)` instructions tell the model to
+      ignore the opening narrative and place the character in a
+      sensible existing scene; injecting the opening guidance here
+      would directly contradict that and re-rail the placement.
+    - `opening_narrative` non-empty: nothing to inject if the
+      importer didn't author one.
+
+    The empty-string default for `user_input` keeps existing internal
+    callers conservative (the tick path explicitly threads an empty
+    string; we don't want a forgotten arg path to accidentally fire
+    the opening block on an off-stage tick that happened to land on
+    turn 1).
+    """
     if checkpoint.session_conversation or not checkpoint.opening_narrative:
+        return ""
+    if user_input.strip() != "(begin)":
         return ""
     return (
         "## Author's Opening Scene Guidance\n"
@@ -358,11 +384,20 @@ def _build_recent_turn_recap(checkpoint: CheckpointFile) -> str:
 
 
 def _build_router_context(
-    ckpt: CheckpointFile, acting_character_id: str
+    ckpt: CheckpointFile,
+    acting_character_id: str,
+    user_input: str = "",
 ) -> dict[str, str]:
     """Collect every context variable the event_router template needs
     aside from the two intention-block slots the caller populates
     themselves.
+
+    `user_input` is forwarded to `_build_opening_directive` so the
+    opening-narrative author block fires only on a `(begin)` start —
+    `(arrive)` on an otherwise-pristine session must NOT inherit the
+    opening guidance (the router prompt instructs the model to place
+    the character in a sensible existing scene instead). Tick-mode
+    callers pass an empty string explicitly.
 
     Returns a dict ready to splat into `prompt_mgr.render_messages`
     after merging in `{intention_block}` and `{cat_ii_resolution_block}`.
@@ -391,7 +426,7 @@ def _build_router_context(
             ckpt, acting_id,
         ),
         "since_last_turn_block": since_last_turn_block,
-        "opening_directive": _build_opening_directive(ckpt),
+        "opening_directive": _build_opening_directive(ckpt, user_input),
         "recent_turn_recap": _build_recent_turn_recap(ckpt),
         "world_facts_delta_block": _build_world_facts_delta(ckpt),
         "initial_roster_block": _build_initial_roster_block(ckpt),
@@ -437,7 +472,7 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(ckpt, actor_id)
+            ctx = _build_router_context(ckpt, actor_id, user_input=intention)
 
             # Resolve the actor's display name for the intention framing.
             actor_char = next(
@@ -479,7 +514,7 @@ class LLMDispatcher:
                 "tick_fan_in_block": "",
             }
 
-            # v11-r6c: event_router_v9 explicitly expects the prior router
+            # v11-r6c: event_router explicitly expects the prior router
             # exchanges as conversation history ("The prior messages in this
             # conversation are the full session history"). Use
             # render_conversation so the rolling history rides along, and
@@ -569,7 +604,13 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(ckpt, acting_character_id)
+            # Tick mode is always a non-(begin) turn — the on-stage
+            # beat that triggers it has already happened — so explicitly
+            # pass an empty user_input to suppress any first-turn
+            # opening directive even on edge cases.
+            ctx = _build_router_context(
+                ckpt, acting_character_id, user_input="",
+            )
 
             tick_block = format_tick_fan_in_block(tick_outputs)
 
@@ -684,6 +725,73 @@ class LLMDispatcher:
             )
             return "(remains silent)"
         return ""
+
+    # ------------------------------------------------------------------
+    # harvest_perceptions  (v11-r8a: observation_harvest fork)
+    # ------------------------------------------------------------------
+
+    async def harvest_perceptions(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        character_ids: list[str],
+        acting_character_id: str,
+    ) -> list[str]:
+        """Fan out CharacterAgent.perceive() across `character_ids` in
+        parallel.
+
+        Returns one string per id in input order — empty string for any
+        character whose perception call failed (unknown id, LLM error,
+        empty output). The harvest fork in `run_beat` filters empties
+        and appends the non-empty fragments to the canonical event's
+        `observable_facts` block.
+
+        Per-character exceptions are absorbed locally rather than
+        bubbled. The harvest is a UX enrichment, not the beat's
+        critical path; one failed perception out of three should
+        leave the other two on the player's screen instead of taking
+        the whole render down. The caller logs dropped fragments at
+        WARN so test playthroughs still surface the failure.
+
+        Cache lineage: each character's `perceive` call shares the
+        SAME system prompt as that character's `respond` / `tick`
+        calls (single unified `agent` template). The system prompt
+        cache hits across modes for the same character; only the
+        per-call user message changes. Parallel fan-out compounds
+        well with this — a 3-character harvest bills three Haiku
+        calls in ~1 round-trip wall time, all hitting the cached
+        system prefix.
+        """
+        if not character_ids:
+            return []
+
+        by_id = {c.character_id: c for c in ckpt.characters}
+
+        async def _one(cid: str) -> str:
+            character = by_id.get(cid)
+            if character is None:
+                logger.warning(
+                    "harvest_perceptions: unknown character_id %s", cid,
+                )
+                return ""
+            try:
+                return await self._agent.perceive(
+                    character=character,
+                    checkpoint=ckpt,
+                    acting_character_id=acting_character_id,
+                )
+            except Exception as exc:  # noqa: BLE001 — see docstring
+                logger.warning(
+                    "harvest_perceptions: perceive() failed for %s: %s",
+                    cid, exc,
+                )
+                return ""
+
+        logger.info(
+            "harvest_perceptions: firing %d parallel perceive calls",
+            len(character_ids),
+        )
+        return list(await asyncio.gather(*(_one(c) for c in character_ids)))
 
     # ------------------------------------------------------------------
     # narrator_compose

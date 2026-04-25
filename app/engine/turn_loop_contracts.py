@@ -27,6 +27,17 @@ TICK_FAN_IN_HEADER = "## Off-Stage Tick"
 # prompt-references-constants test instead of silently desynchronizing.
 AGENT_ON_STAGE_HEADER = "## ON-STAGE"
 AGENT_TICK_HEADER = "## TICK"
+# Perception mode: the world is asking you to describe how you
+# present yourself right now (clothes, grooming, posture, mood-tell).
+# Observer-agnostic — the character authors their loadout for the
+# moment; whoever's looking sees the same surface. Fired by the
+# engine's harvest fork when the router classifies an action as
+# pure observation (`ends_beat_reason="observation_harvest"`) and
+# also reachable later from `/query` for "what does X look like?"
+# style questions. NOT part of the on-stage cascade — perception
+# calls don't move the beat forward, don't appear in canonical
+# events except as enriched observable_facts, and don't pin slots.
+AGENT_PERCEPTION_HEADER = "## PERCEPTION"
 
 
 def format_human_initiator_intention(name: str, user_input: str) -> str:
@@ -35,7 +46,7 @@ def format_human_initiator_intention(name: str, user_input: str) -> str:
     DO NOT use for NPC cascade intentions — the "attempts:" framing
     biases the router toward Cat II classification on dialogue (which
     is Cat I). Use `format_npc_cascade_intention` for cascade steps.
-    See the USER-TEMPLATE CONTRACT block in event_router_v9.txt for
+    See the USER-TEMPLATE CONTRACT block in event_router.txt for
     the full shape contract.
     """
     return f"{INTENTION_BLOCK_HEADER}\n{name} attempts: {user_input}"
@@ -172,6 +183,31 @@ def format_agent_on_stage_body(
         f"## What You Observe This Turn\n{observed_facts}\n\n"
         f"## Other Characters' Responses This Turn\n"
         f"{prior_character_responses}"
+    )
+
+
+def format_agent_perception_body() -> str:
+    """v11: agent perception-mode user-message body.
+
+    The full user message is
+    `{AGENT_PERCEPTION_HEADER}\\n\\n{agent_user_state_block}\\n\\n{this body}`.
+    The mode header flips the agent into Perception Mode; this body
+    is fixed prose because perception has no per-turn observation
+    surface — the character's identity (in the cached system prompt)
+    + their current state (in the user state block above this body)
+    are the only inputs the model needs to author its visual
+    loadout. No scene context: presentation is observer-agnostic
+    and largely scene-invariant. No "what to advance" prompt:
+    perception is not action.
+    """
+    return (
+        "## What The World Sees Of You Right Now\n"
+        "Describe your visual loadout for this moment — what someone "
+        "in this world would see if they looked your way. Pull from "
+        "your character: clothes, grooming, jewelry, marks, posture, "
+        "the mood you're carrying in your face and body. Make a "
+        "deliberate choice; this is part of how you express yourself, "
+        "not a costume sheet. Concrete and specific beats decorative."
     )
 
 

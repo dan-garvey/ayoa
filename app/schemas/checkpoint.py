@@ -52,6 +52,14 @@ class CheckpointFile(BaseModel):
     import_analysis: ImportAnalysis | None = None
     session: SessionState
     opening_narrative: str = ""
+    # 1–2 paragraph player-facing world primer (truck-kun framing): the
+    # first thing a fresh player sees after /story start. Distinct from
+    # opening_narrative (which is the in-fiction first beat for the
+    # actor character) and from the omniscient dossier (which leaked
+    # spoilers). Generated at import time as Call 6 of the extraction
+    # chain so it shares the cached prefix and is paid for once. Empty
+    # on pre-v8 checkpoints — render_briefing falls back to a stub.
+    player_primer: str = ""
     world_state: WorldState = Field(default_factory=WorldState)
     characters: list[CharacterRecord] = Field(default_factory=list)
     # Rolling conversation histories: each role sees the full prior exchange
@@ -72,8 +80,3 @@ class CheckpointFile(BaseModel):
     transcript: list[TranscriptEntry] = Field(default_factory=list)
     visibility_log: list[dict[str, Any]] = Field(default_factory=list)
     config: SessionConfig = Field(default_factory=SessionConfig)
-    prompt_versions: dict[str, str] = Field(default_factory=lambda: {
-        "event_router": "v9",
-        "agent": "v9",
-        "narrator_phase2": "v8",
-    })

@@ -210,6 +210,39 @@ class TestCharacterRecord:
         assert "tail" in cr.personality
         assert cr.public_sheet.faction == "House vel Kothren"
 
+    def test_legacy_is_player_alias_migrated_to_is_playable(self):
+        """playable-2 renamed `is_player` to `is_playable`. Old saves on
+        disk were written under the previous name — the model_validator
+        on CharacterRecord must map them on load so legacy checkpoints
+        still hydrate. This pins the back-compat contract called out in
+        the field docstring."""
+        legacy = {**CHARACTER_EXAMPLE, "is_player": True}
+        cr = CharacterRecord(**legacy)
+        assert cr.is_playable is True
+        # The old key is consumed; it does not survive on the model.
+        assert not hasattr(cr, "is_player")
+
+    def test_legacy_is_player_false_also_migrates(self):
+        """The False case matters too — without the alias it would
+        silently default to False and look indistinguishable from a
+        broken load."""
+        legacy = {**CHARACTER_EXAMPLE, "is_player": False}
+        cr = CharacterRecord(**legacy)
+        assert cr.is_playable is False
+
+    def test_explicit_is_playable_wins_over_legacy_alias(self, caplog):
+        """If both keys appear and disagree (shouldn't happen in real
+        checkpoints, but a hand-edited save could do it), the new name
+        wins and the bridge logs a warning so the operator knows the
+        legacy key was discarded."""
+        import logging
+        conflicting = {**CHARACTER_EXAMPLE, "is_player": False, "is_playable": True}
+        with caplog.at_level(logging.WARNING, logger="app.schemas.characters"):
+            cr = CharacterRecord(**conflicting)
+        assert cr.is_playable is True
+        assert any("is_player" in rec.message and "is_playable" in rec.message
+                   for rec in caplog.records)
+
 
 class TestCanonicalEvent:
     def test_construct(self):
@@ -375,10 +408,22 @@ class TestCheckpointFile:
         assert ckpt.schema_version == "3.0"  # v11 hard break
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        assert ckpt.prompt_versions["event_router"] == "v9"  # v11 default
         # Pre-versioning / hand-built checkpoints have empty importer_version;
         # the importer stamps it on build.
         assert ckpt.importer_version == ""
+
+    def test_legacy_prompt_versions_field_ignored(self):
+        # Older checkpoints stamped a `prompt_versions` dict (when
+        # prompt files carried `_v#` suffixes). Git is the version
+        # log now and the field is gone — but pydantic must still
+        # tolerate it on load so old saves don't hard-break.
+        legacy_payload = {
+            "session": {"session_id": "legacy"},
+            "prompt_versions": {"event_router": "v9", "agent": "v11"},
+        }
+        ckpt = CheckpointFile(**legacy_payload)
+        assert ckpt.session.session_id == "legacy"
+        assert not hasattr(ckpt, "prompt_versions")
 
     def test_round_trip(self):
         ckpt = CheckpointFile(
@@ -395,3 +440,22 @@ class TestCheckpointFile:
         assert ckpt.characters == []
         assert ckpt.transcript == []
         assert ckpt.visibility_log == []
+        # ux-primer-4: Pre-v8 (and freshly hand-built) checkpoints have
+        # no player primer — render_briefing falls back to a stub.
+        assert ckpt.player_primer == ""
+
+    def test_player_primer_round_trip(self):
+        """Importer Call 6 stamps a 1-2 paragraph world primer onto the
+        checkpoint; render_briefing reads it directly. Round-trip
+        through JSON to make sure the field survives save → load."""
+        primer = (
+            "You're a contestant on a sun-bleached dating show. Cameras "
+            "everywhere; a dozen rivals; one rose left. Last thing you "
+            "remember was a truck and the smell of ozone. Now you're here."
+        )
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="primer-test"),
+            player_primer=primer,
+        )
+        rebuilt = CheckpointFile(**ckpt.model_dump())
+        assert rebuilt.player_primer == primer

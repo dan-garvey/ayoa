@@ -18,6 +18,7 @@ from app.engine.context_builder import (
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
     AGENT_ON_STAGE_HEADER,
+    AGENT_PERCEPTION_HEADER,
     AGENT_TICK_HEADER,
 )
 from app.llm.client import LLMClient, LLMResponse
@@ -292,7 +293,7 @@ class TestPovSceneForUser:
     embeds, and the takeover prompt's `current_scene` block all read
     `pov_scene_for_user`. The function must (a) prefer the asking
     user's bound character, (b) fall through cleanly to the creator
-    binding and then "first is_player," and (c) NEVER hand back a
+    binding and then "first is_playable," and (c) NEVER hand back a
     culled character's last-known location — that's a stale ghost
     reading."""
 
@@ -315,7 +316,7 @@ class TestPovSceneForUser:
             location=location,
             public_sheet=PublicSheet(role="protagonist"),
         )
-        c.is_player = True
+        c.is_playable = True
         c.status = status
         return c
 
@@ -345,7 +346,7 @@ class TestPovSceneForUser:
         """A culled player's last-known location must not surface as
         "where the action is." Bug-3: takeover prompts and CLI status
         lines were rendering a dead player's scene as the active one
-        because pov_scene_for_user only checked is_player + location,
+        because pov_scene_for_user only checked is_playable + location,
         never status."""
         from app.engine.context_builder import pov_scene_for_user
 
@@ -356,7 +357,7 @@ class TestPovSceneForUser:
         ckpt.session.player_character_id = "ghost"
 
         # Creator binding points at the dead one — must skip and find
-        # the live `is_player`.
+        # the live `is_playable`.
         assert pov_scene_for_user(ckpt) == "courtyard"
 
     def test_skips_culled_via_user_id_lookup(self):
@@ -381,7 +382,7 @@ class TestPovSceneForUser:
             location="courtyard",
             public_sheet=PublicSheet(role="r"),
         )
-        npc.is_player = False
+        npc.is_playable = False
         ckpt.characters = [npc]
         assert pov_scene_for_user(ckpt) == ""
 
@@ -838,8 +839,8 @@ class TestUnifiedAgentCacheLineage:
     """v11 cache-trail invariant: respond + tick share ONE system
     prompt and ONE rolling history per character.
 
-    Pre-v11 the engine had two separate templates (`agent_v10.txt`
-    and `agent_tick_v3.txt`) for on-stage and off-stage calls. Both
+    Pre-v11 the engine had two separate templates (an `agent` and
+    `agent_tick` pair) for on-stage and off-stage calls. Both
     rendered into the same `character_conversations[id]` history,
     but each had a DIFFERENT system prefix — so every mode switch
     invalidated the Anthropic prompt cache for that character. On a
@@ -964,3 +965,160 @@ class TestUnifiedAgentCacheLineage:
         assert AGENT_ON_STAGE_HEADER in convo[0].content
         assert convo[2].role == "user"
         assert AGENT_TICK_HEADER in convo[2].content
+
+
+class TestPerceptionMode:
+    """v11-r8a: PERCEPTION mode — observer-agnostic visual loadout.
+
+    Fired by the observation-harvest fork in run_beat (and reachable
+    later from /query for "what does X look like?" questions). Three
+    load-bearing properties distinguish perception from respond/tick:
+
+      1. The user-message FIRST LINE is `## PERCEPTION`. The agent
+         prompt's "Mode Routing" section keys off this exact token to
+         flip into Perception Mode rules; if the marker drifts off
+         line 1 the agent's mode signal is buried mid-message.
+      2. Perception calls do NOT append to the rolling conversation.
+         A self-presentation query is meta — folding it in would
+         pollute the agent's continuity-of-self with non-fictional
+         self-description on every future on-stage turn.
+      3. Cache lineage with respond/tick is preserved: the system
+         prompt is byte-identical across all three modes for the
+         same character + checkpoint.
+    """
+
+    def _llm_text_only(self, text: str) -> LLMResponse:
+        # Perception output is plain prose, no parenthetical.
+        raw = MagicMock()
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = text
+        text_block.model_dump = lambda: {"type": "text", "text": text}
+        raw.content = [text_block]
+        raw.model = "claude-haiku-4-5"
+        return LLMResponse(
+            parsed=None, raw_response=raw, content=text,
+            model="claude-haiku-4-5",
+        )
+
+    @pytest.mark.asyncio
+    async def test_perceive_returns_text_from_llm(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        loadout = (
+            "Polished armor over a clean undertunic, the city watch sigil "
+            "centered. He stands at parade rest, hands behind his back."
+        )
+        mock_client.complete.return_value = self._llm_text_only(loadout)
+        agent = CharacterAgent(mock_client, prompt_manager)
+        result = await agent.perceive(guard_character, sample_checkpoint)
+        assert result == loadout
+
+    @pytest.mark.asyncio
+    async def test_perceive_user_message_starts_with_perception_header(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        mock_client.complete.return_value = self._llm_text_only("loadout")
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.perceive(guard_character, sample_checkpoint)
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        user_content = messages[-1]["content"]
+        first_line = next(
+            ln for ln in user_content.splitlines() if ln.strip()
+        )
+        assert first_line == AGENT_PERCEPTION_HEADER
+        # Other mode markers must not also appear (mutually exclusive).
+        assert AGENT_ON_STAGE_HEADER not in user_content
+        assert AGENT_TICK_HEADER not in user_content
+
+    @pytest.mark.asyncio
+    async def test_perceive_does_not_append_to_rolling_history(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        # Perception is a side query, not an on-stage beat. Appending
+        # would surface "what does the world see of you?" as a
+        # cross-talk message in the agent's next on-stage turn.
+        mock_client.complete.return_value = self._llm_text_only("loadout")
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.perceive(guard_character, sample_checkpoint)
+        # No history key created for this character.
+        assert "guard_17" not in sample_checkpoint.character_conversations
+
+    @pytest.mark.asyncio
+    async def test_perceive_does_not_drain_pending_observations(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        # The pending_observations queue belongs to the next on-stage
+        # tick / respond. Draining it here would silently swallow
+        # off-scene perceptions the next on-stage turn needs to react
+        # to. The perception render also passes an EMPTY pending
+        # block so the loadout isn't primed by "react to these
+        # incoming events."
+        guard_character.pending_observations = [
+            "[off-scene perception] A shout in the courtyard.",
+            "[off-scene perception] Bells ring at the gate.",
+        ]
+        mock_client.complete.return_value = self._llm_text_only("loadout")
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.perceive(guard_character, sample_checkpoint)
+        # Inbox preserved for the next on-stage / tick call.
+        assert len(guard_character.pending_observations) == 2
+        # And the perception's user message did NOT carry the inbox
+        # contents (no priming).
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        user_content = messages[-1]["content"]
+        assert "shout in the courtyard" not in user_content
+        assert "Bells ring" not in user_content
+
+    @pytest.mark.asyncio
+    async def test_perceive_shares_system_prefix_with_respond(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        # Cache-lineage invariant: same character + checkpoint must
+        # yield byte-identical system prompts across respond and
+        # perceive so the Anthropic prompt cache hits across modes.
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.respond(
+            guard_character, ["Player looks around."], sample_checkpoint,
+        )
+        respond_system = mock_client.complete.call_args.kwargs["messages"][0]
+
+        mock_client.complete.reset_mock()
+        mock_client.complete.return_value = self._llm_text_only("loadout")
+        await agent.perceive(guard_character, sample_checkpoint)
+        perceive_system = mock_client.complete.call_args.kwargs["messages"][0]
+
+        assert perceive_system["role"] == "system"
+        assert perceive_system["content"] == respond_system["content"]
+
+    @pytest.mark.asyncio
+    async def test_perceive_uses_lower_max_tokens_than_respond(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        # Perception is capped at 3 sentences; the call site uses a
+        # smaller token budget than respond/tick. Pinning the budget
+        # so a future "let's give the agent more room" tweak doesn't
+        # silently regress to 2000 tokens per perception (which would
+        # bloat the cost of a 3-target harvest by 6x).
+        mock_client.complete.return_value = self._llm_text_only("loadout")
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.perceive(guard_character, sample_checkpoint)
+        max_tokens = mock_client.complete.call_args.kwargs["max_tokens"]
+        assert max_tokens <= 1000
+
+    @pytest.mark.asyncio
+    async def test_perceive_strips_whitespace(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        # Some models emit a leading/trailing newline; the harvest
+        # path appends fragments verbatim into observable_facts so
+        # whitespace around the loadout looks ugly in the narrator
+        # render.
+        mock_client.complete.return_value = self._llm_text_only(
+            "\n\n  Polished armor.  \n",
+        )
+        agent = CharacterAgent(mock_client, prompt_manager)
+        result = await agent.perceive(guard_character, sample_checkpoint)
+        assert result == "Polished armor."

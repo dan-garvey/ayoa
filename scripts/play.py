@@ -30,6 +30,7 @@ Commands inside the REPL:
     /leave [character_id]       Release a claim (default: current actor)
     /as <character_id>          Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
+    /query <question>           Ask an out-of-character question (POV-bounded)
     /settings                   Show / update experimental settings
     /status                     Session summary
     /history [N]                Print all turns, or last N
@@ -74,6 +75,7 @@ Commands:
   /leave [character_id]             Release a claim (default: current actor)
   /as <character_id>                Switch which claimed character acts next
   /describe                         Set name + appearance of the current actor
+  /query <question>                 Ask an out-of-character question (POV-bounded)
   /settings                         Show experimental settings for this session
   /settings <key>                   Show one setting's current value
   /settings <key> <value>           Update a setting
@@ -683,7 +685,7 @@ class CLIState:
         #
         # v11-r6c note: `(begin)` rides through the normal /act path and
         # gets wrapped as "{name} attempts: (begin)" by the dispatcher.
-        # The event_router_v9 prompt's Author-directive OOC rule fires on
+        # The event_router prompt's Author-directive OOC rule fires on
         # the parenthesized-input shape itself, independent of the
         # "attempts:" framing, so OOC routing is correct without a
         # dedicated CLI code path. Same reasoning as /describe in the
@@ -691,6 +693,44 @@ class CLIState:
         if not any(ckpt.narrator_conversations.values()):
             print("opening scene…")
             await self._act("(begin)")
+
+    async def cmd_query(self, arg: str) -> None:
+        """Out-of-character question for the current actor's POV.
+
+        Read-only consultation: the engine answers from what THIS
+        character knows / sees / remembers, and gates in-fiction
+        when the asking character couldn't have the answer
+        ("you can't see — you're blindfolded", "you've never met
+        them", etc.). Doesn't advance the turn or mutate the
+        checkpoint.
+        """
+        if not self._require_story():
+            return
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        question = arg.strip()
+        if not question:
+            print("usage: /query <question>")
+            return
+        try:
+            result = await self.engine.run_query(
+                session_id=self.session_id,
+                character_id=self.current_actor,
+                question=question,
+            )
+        except Exception as e:
+            logger.exception("run_query failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        gate_tag = (
+            f"  [gated: {result.gate_reason or '?'}]"
+            if result.knowledge_gated else ""
+        )
+        print()
+        print(f"--- /query · {self.current_actor}{gate_tag} ---")
+        print(result.answer or "(no answer)")
+        print()
 
     def cmd_settings(self, arg: str) -> None:
         """

@@ -75,7 +75,7 @@ def _is_agent_refusal(text: str) -> bool:
     in-character dialogue ("I can't see them from here," "I cannot allow
     that, my lord.") and false negatives on real refusals with stylistic
     variations (em-dashed preambles, quoted wrappers, sorry-prefixes).
-    The correct fix is PROMPT-level: agent_v9 adds rule 21 explicitly
+    The correct fix is PROMPT-level: the agent prompt has a rule
     forbidding refusals / frame-breaks and tells the agent that an empty
     output is valid in-character silence. The engine then only needs to
     guard against literal empty output — a real agent failure. If the
@@ -610,9 +610,17 @@ def _filter_picks_for_dispatch(
     """v11-r7g: drop picks the engine refuses to dispatch.
 
     Two filters, in order:
-      1. Humans (anyone in `character_bindings`) — humans don't cascade
-         via the router; they only enter through /act. Pre-r7g this
-         was the only filter applied at dispatch sites.
+      1. Humans — anyone the engine considers human-controlled,
+         per `collect_player_ids`. Humans don't cascade via the
+         router; they only enter through `/act`. Using
+         `collect_player_ids` here (rather than the bare bindings
+         dict) is the load-bearing fix for the playable-2 era:
+         `session.player_character_id` may name the creator's bound
+         character without there being a corresponding entry in
+         `character_bindings` (older saves; CLI single-player
+         flows). Filtering on bindings alone let those creator-
+         bound characters slip into NPC dispatch and produced the
+         "router tried to make my own character speak" symptom.
       2. Out-of-scene NPCs — picks must be in the beat's scene to
          have any perceptual context to react to. Out-of-scene picks
          routinely produced empty/refusal intentions in the playtest;
@@ -622,11 +630,16 @@ def _filter_picks_for_dispatch(
 
     Returns the filtered list preserving router order.
     """
-    bindings = ckpt.session.character_bindings or {}
+    # Local import to avoid an engine-package import cycle on module
+    # load (context_builder pulls some of the same schemas turn_loop
+    # exports). Cheap — the function is tiny and the import is cached.
+    from app.engine.context_builder import collect_player_ids
+
+    humans = collect_player_ids(ckpt)
     in_scene = _scene_member_ids(ckpt, scene_id)
     return [
         rid for rid in picks
-        if rid not in bindings and rid in in_scene
+        if rid not in humans and rid in in_scene
     ]
 
 
@@ -634,42 +647,70 @@ def broadcast_event(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
     scene_id: str,
+    actor_id: str = "",
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
-    (a) every in-scene human's render buffer, and (b) every off-scene
-    NPC observer's `pending_observations` queue.
+    (a) every in-scene human's render buffer, and (b) every NPC observer's
+    `pending_observations` queue (in-scene and off-scene alike, except the
+    event's own actor).
 
     `scene_id` is the caller-authoritative scene — always the beat's
     scene, never derived from session state, so concurrent scenes
     can't leak buffers into each other.
 
+    `actor_id` is the character whose intention produced this event
+    (the player who /act'd, or the cascade NPC whose intention the
+    router just adjudicated). Excluded from the inbox push because
+    the actor's own action lives in their rolling history (the
+    assistant message they just produced); pushing it onto their
+    inbox would surface as "you observed yourself doing the thing
+    you just did" on their next on-stage turn. Default `""` is the
+    backward-compatible no-op (no character is ever excluded by
+    that id) but every production caller in `turn_loop.run_beat` /
+    orchestrator passes the real actor.
+
     The event's stable `event_id` is what lands in human render buffers
     (not Python object identity) so checkpoints remain resolvable
     across process restarts.
 
-    The off-scene NPC inbox path is the engine implementation of the
-    cross-scene perception channel router rule 13 promises. When the
-    router writes "Jordan presses the apology note into a runner; the
-    runner carries it to Marcus" with Marcus listed as an `observer`
-    but Marcus is at a different scene, the recipient gets a one-line
-    inbox entry summarizing the event so their next agent call has a
-    mechanical signal that the message arrived. Without this, the
-    "observer" annotation on a different-scene event was decorative —
-    it only landed in human render buffers, and only for humans who
-    happened to be co-located. The line format mirrors how on-stage
-    `observable_facts` get summarized so the agent prompt builder
-    treats the two perception paths uniformly.
+    The NPC inbox path is the engine implementation of the perception
+    channel router rule 13 promises. There are TWO sub-cases:
 
-    In-scene NPCs are NOT added to `pending_observations`: they are
-    eligible to be picked into the same beat via `agent_responder_picks`
-    and read the canonical event live through their normal context
-    block. Pushing onto their inbox would double-count the event the
-    next time they fire.
+    - **Off-scene observers** (router writes "Jordan presses the apology
+      note into a runner; the runner carries it to Marcus" with Marcus
+      listed as an `observer` at a different scene): tagged
+      `[off-scene perception]`. Pre-r7j these were the only NPCs that
+      got inbox entries; in-scene NPCs were skipped on the assumption
+      that they'd read the event "live" via the cascade's user-message
+      block. That assumption was wrong (the live channel was empty),
+      and v11-r8b restores symmetry.
 
-    Note: the `actor_id` of the event is NOT recorded here; callers
-    that need actor-aware event-application (e.g. _apply_roster_moves
-    for the v11-r7h self-move path) must track it in step with their
-    broadcast calls and surface it via BeatResult.event_actor_ids.
+    - **In-scene observers** (NPCs co-located with the event but not
+      the actor): tagged `[in-scene perception]`. These are the
+      cascade pool. When one of them is picked as `agent_responder`
+      for this same beat, their `respond` call drains the queue and
+      they see the just-broadcast event as the most recent entry —
+      which IS the live event they're being asked to react to.
+      In-scene NPCs who AREN'T picked this beat keep accumulating
+      events silently and drain on whatever future beat picks them.
+      This is the only viable channel: dispatching a per-event LLM
+      call to every in-scene non-actor would burn budget on agents
+      who have no opening to speak this beat. The user message they
+      receive when they finally fire carries the full set in one shot.
+
+    Pre-r8b the in-scene path was a bug-hatchery: cascade NPCs got
+    `observed_facts=[]` from `LLMDispatcher.agent_intend`, so they
+    reacted to whatever stale entries already sat in their queue
+    (typically off-scene perceptions from when the scene opened).
+    The router then saw an off-topic intention and fabricated
+    plausible dialogue to fit the cascade slot — the "narrator
+    summarized dialogue" symptom the v11-r8b playtest caught was
+    the visible end of that chain.
+
+    Note: the `actor_id` of the event is also surfaced via
+    BeatResult.event_actor_ids by callers that need actor-aware
+    event-application downstream (e.g. _apply_roster_moves for
+    the v11-r7h self-move path).
     """
     ckpt.canonical_events.append(event)
     humans = humans_in_scene(ckpt, scene_id)
@@ -688,26 +729,36 @@ def broadcast_event(
     bindings = ckpt.session.character_bindings or {}
     in_scene_ids = _scene_member_ids(ckpt, scene_id)
     by_id = {c.character_id: c for c in ckpt.characters}
+    # One-line summary used for both in-scene and off-scene NPC inbox
+    # entries. Resolved outcome first, falling back to the first
+    # observable fact, mirrors the off-scene pre-r8b shape so existing
+    # off-scene tests stay green and the agent prompt builder reads
+    # the two channels uniformly.
+    canonical = event.canonical_event
+    summary = (canonical.world_adjudication.resolved_outcome or "").strip()
+    if not summary and canonical.observable_facts:
+        summary = canonical.observable_facts[0]
+
     for o in event.observers:
         if o.character_id in bindings:
             continue
-        if o.character_id in in_scene_ids:
+        if o.character_id == actor_id:
+            # Actor of the event — their own action is already in their
+            # rolling history (and for cascade NPCs, the next thing
+            # they'll see in user-message context is what someone ELSE
+            # said in response, not what they themselves just did).
             continue
         recipient = by_id.get(o.character_id)
         if recipient is None or recipient.status == "culled":
             continue
-        # One-line summary keeps the inbox terse — the agent already
-        # gets full canonical-event context if/when they re-enter the
-        # scene; this just buys a "you know X happened" signal.
-        canonical = event.canonical_event
-        summary = (canonical.world_adjudication.resolved_outcome or "").strip()
-        if not summary and canonical.observable_facts:
-            summary = canonical.observable_facts[0]
         if not summary:
             continue
-        recipient.pending_observations.append(
-            f"[off-scene perception] {summary}"
+        tag = (
+            "[in-scene perception]"
+            if o.character_id in in_scene_ids
+            else "[off-scene perception]"
         )
+        recipient.pending_observations.append(f"{tag} {summary}")
 
     return humans
 
@@ -763,6 +814,36 @@ class Dispatcher(Protocol):
         """Ask an agent for their next intention (as free-form text).
         Returns the intention string; the orchestrator re-routes it
         through route_intention as a fresh intention."""
+        ...
+
+    async def harvest_perceptions(
+        self,
+        ckpt: CheckpointFile,
+        character_ids: list[str],
+        acting_character_id: str,
+    ) -> list[str]:
+        """Fire CharacterAgent.perceive() across `character_ids` in
+        parallel; return per-character "visual loadout" fragments in
+        the same order as the input ids.
+
+        Used by the observation-harvest fork in `run_beat` when the
+        router classifies an action as `ends_beat_reason=
+        "observation_harvest"`. Empty / failed-perception entries are
+        included as empty strings so the caller can zip with the
+        input ids; callers SHOULD filter those out before composing
+        the canonical event's `observable_facts`.
+
+        `acting_character_id` is the looker (the player who /act'd
+        the observation). It is NOT the observer for filtering
+        purposes — perception is observer-agnostic — but is plumbed
+        for context-builder helpers that frame "the player who is
+        currently doing things" in the agent's identity envelope.
+
+        Per-call exceptions (LLM failure, agent prompt error) are
+        absorbed into an empty fragment for that character rather
+        than failing the whole harvest. One bad perception should
+        not hide three good ones.
+        """
         ...
 
     async def narrator_compose(
@@ -954,7 +1035,9 @@ async def run_beat(
                 "Router returned Cat II nesting on an adjudication call; "
                 "Part C invariant violated."
             )
-        broadcast_event(ckpt, resolved, resolution_scene)
+        broadcast_event(
+            ckpt, resolved, resolution_scene, actor_id=evt.initiator_id,
+        )
         # Cat II adjudication always ends the beat.
         return await _end_beat(
             ckpt, dispatcher, scene_id,
@@ -997,7 +1080,7 @@ async def run_beat(
                 # The only "responder" was the initiator themselves; treat
                 # this as Cat I — there's nothing to contest. Broadcast the
                 # canonical event as-is and continue.
-                broadcast_event(ckpt, result, scene_id)
+                broadcast_event(ckpt, result, scene_id, actor_id=current_actor)
                 event_actor_ids.append(current_actor)
                 events_closed += 1
                 if events_closed >= max_events:
@@ -1089,7 +1172,9 @@ async def run_beat(
                         "Router returned Cat II nesting on an adjudication "
                         "call; Part C invariant violated."
                     )
-                broadcast_event(ckpt, resolved, scene_id)
+                broadcast_event(
+                    ckpt, resolved, scene_id, actor_id=evt.initiator_id,
+                )
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
                 return await _end_beat(
@@ -1157,9 +1242,71 @@ async def run_beat(
             )
 
         # Cat I path — canonical event closes immediately.
-        broadcast_event(ckpt, result, scene_id)
+        broadcast_event(ckpt, result, scene_id, actor_id=current_actor)
         event_actor_ids.append(current_actor)
         events_closed += 1
+
+        # v11-r8a: observation_harvest fork. The router signals
+        # `ends_beat_reason="observation_harvest"` when the actor is
+        # purely observing in-scene NPCs (looking, studying, scanning
+        # without dialogue or contact). We bypass the cascade and
+        # instead fire each pick's `perceive()` in parallel to harvest
+        # one self-presentation fragment per target. Fragments are
+        # appended to the just-broadcast event's `observable_facts`
+        # so the narrator's render reads them naturally as part of
+        # the scene's perceptual surface.
+        #
+        # Mutating the canonical event after broadcast is safe:
+        # `broadcast_event` only takes references (event_id into render
+        # buffers; off-scene inbox uses `resolved_outcome` not
+        # observable_facts), and the narrator reads the live
+        # `observable_facts` list at compose time. The harvest path
+        # respects the same human / out-of-scene filter as the
+        # cascade picks (a router that picked a human or an off-scene
+        # character should not cause us to fire a perception call on
+        # them).
+        if result.ends_beat_reason == "observation_harvest":
+            harvest_picks = _filter_picks_for_dispatch(
+                ckpt, scene_id, result.agent_responder_picks,
+            )
+            if harvest_picks:
+                fragments = await dispatcher.harvest_perceptions(
+                    ckpt=ckpt,
+                    character_ids=harvest_picks,
+                    acting_character_id=current_actor,
+                )
+                # Build "<Name>: <fragment>" lines so the narrator can
+                # tell whose loadout each line describes. Empty
+                # fragments (LLM failure for that pick) are dropped
+                # silently — one bad perception should not poison the
+                # render. The order matches harvest_picks (preserves
+                # router intent).
+                by_id = {c.character_id: c for c in ckpt.characters}
+                appended = 0
+                for cid, fragment in zip(harvest_picks, fragments):
+                    text = (fragment or "").strip()
+                    if not text:
+                        logger.warning(
+                            "Harvest: empty fragment for %s; dropped", cid,
+                        )
+                        continue
+                    name = by_id.get(cid)
+                    name = name.name if name else cid
+                    result.canonical_event.observable_facts.append(
+                        f"[loadout — {name}] {text}"
+                    )
+                    appended += 1
+                logger.info(
+                    "Observation harvest: %d/%d fragments appended to "
+                    "event %s",
+                    appended, len(harvest_picks), result.event_id,
+                )
+            else:
+                logger.warning(
+                    "ends_beat_reason='observation_harvest' but no "
+                    "harvestable picks after filtering; falling through "
+                    "as a sparse Cat I close.",
+                )
 
         # Ends-beat decision.
         if result.ends_beat or events_closed >= max_events:

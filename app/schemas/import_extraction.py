@@ -5,8 +5,9 @@ because:
 
 - The extraction LLM should only populate what's discoverable from the source
   prompt (no session state, no transcripts, no rolling conversations).
-- Extraction-time fields like `is_player` don't live on the runtime
-  CharacterRecord (yet).
+- Extraction-time fields are mapped onto runtime `CharacterRecord` by
+  the importer; the names here mirror the runtime shape (e.g.
+  `is_playable`).
 - Pydantic V2 schemas generated here flow directly into the Anthropic
   `output_format` path, which enforces JSON validity server-side.
 
@@ -149,9 +150,14 @@ class CharacterExtraction(BaseModel):
     name: str
     status: Literal["active", "dormant"]
     location: str
-    # When True, this character is a human-player slot the personalize flow
-    # binds a Discord user to. Master prompts mark the protagonist(s) via this.
-    is_player: bool
+    # When True, this character is a SLOT a human can claim via /join.
+    # They run as an agent NPC by default; binding a Discord user takes
+    # them over. Master prompts should mark every character a player
+    # could reasonably play (the protagonist, every contestant on a
+    # dating show, every party member, etc.). NPCs whose role wouldn't
+    # work as a player slot (a pure narrator/quest-giver, an inscrutable
+    # background figure, the world's gods) stay false.
+    is_playable: bool
     public_sheet: PublicSheetExtraction
     private_state: PrivateStateExtraction
     backstory: str
@@ -208,3 +214,16 @@ class CharsAndOpeningExtraction(BaseModel):
     skeleton did the same on dense conspiracy lore."""
     characters: CharacterListExtraction
     opening: OpeningExtraction
+
+
+# ---------------- Player primer ----------------
+
+class PlayerPrimerExtraction(BaseModel):
+    """v8 Call-6 schema. Short (≤2 paragraph) player-facing primer
+    that orients a fresh player BEFORE they pick a character. Truck-
+    kun framing: "you woke up here, this is what's going on, you have
+    no idea what to expect." Strictly second-person, present-tense,
+    spoiler-free — a teaser, not a dossier. Replaces the old omniscient
+    briefing dump. Stored on `CheckpointFile.player_primer` so every
+    session loaded from this story shares the same primer text."""
+    primer: str

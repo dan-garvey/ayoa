@@ -44,7 +44,7 @@ def _make_checkpoint() -> CheckpointFile:
             CharacterRecord(
                 character_id="aldric",
                 name="Aldric",
-                is_player=True,
+                is_playable=True,
                 public_sheet=PublicSheet(role="wanderer", appearance="tall"),
                 backstory="Raised by wolves.",
                 personality="Quiet.",
@@ -102,8 +102,8 @@ class TestSummaries:
         assert by_id["thane"].status == "dormant"
         assert by_id["vex"].status == "culled"
         # Player-slot flag comes through.
-        assert by_id["aldric"].is_player is True
-        assert by_id["sera"].is_player is False
+        assert by_id["aldric"].is_playable is True
+        assert by_id["sera"].is_playable is False
 
 
 class TestBindUnbind:
@@ -174,17 +174,38 @@ class TestDossier:
 
 
 class TestCollectPlayerIds:
-    def test_unions_bindings_creator_and_is_player(self):
+    def test_unions_bindings_and_creator(self):
+        """Under playable-2 semantics, `collect_player_ids` returns
+        EXACTLY characters currently human-controlled — bindings
+        keys + the creator (`player_character_id`). It deliberately
+        does NOT pull in `is_playable=True` slots that nobody has
+        claimed; those still run as agent NPCs."""
         ckpt = _make_checkpoint()
         ckpt.session.character_bindings = {"sera": "42"}
         ids = collect_player_ids(ckpt)
-        # aldric (is_player + creator binding) + sera (explicit binding)
+        # aldric (creator binding) + sera (explicit binding)
         assert ids == {"aldric", "sera"}
 
-    def test_empty_bindings_still_includes_is_player(self):
+    def test_empty_bindings_still_includes_creator(self):
+        """With no `character_bindings`, the creator is still
+        considered controlled (legacy single-player checkpoints)."""
         ckpt = _make_checkpoint()
         ids = collect_player_ids(ckpt)
         assert "aldric" in ids
+
+    def test_unbound_playable_is_not_player(self):
+        """An is_playable=True character with no binding is an
+        agent NPC, not a human-controlled player. Verifies the
+        playable-2 semantic: 'playable' is an authoring flag,
+        binding is the runtime state."""
+        ckpt = _make_checkpoint()
+        # Wipe creator binding so the only signal left is is_playable.
+        ckpt.session.player_character_id = ""
+        ckpt.session.character_bindings = {}
+        # Aldric is is_playable=True but unbound. They should NOT
+        # be in player_ids — that would block their agent ticks.
+        ids = collect_player_ids(ckpt)
+        assert "aldric" not in ids
 
 
 class TestPlayerCharactersBlock:
@@ -199,10 +220,27 @@ class TestPlayerCharactersBlock:
         assert "acting this turn" in aldric_line
         assert "acting this turn" not in sera_line
 
-    def test_falls_back_to_is_player_when_no_bindings(self):
+    def test_falls_back_to_creator_when_no_bindings(self):
+        """With no `character_bindings`, the creator binding still
+        surfaces in the prompt block (so single-player legacy
+        checkpoints still render their protagonist)."""
         ckpt = _make_checkpoint()
         block = build_player_characters_block(ckpt, "aldric")
         assert "Aldric" in block
+
+    def test_unbound_playable_does_not_appear(self):
+        """An is_playable=True character without a binding is an
+        agent NPC and must NOT appear in the Player Characters
+        block — surfacing them would tell the router 'human, never
+        dispatch via picks' and starve the cascade of the very
+        agent it needs."""
+        ckpt = _make_checkpoint()
+        # Aldric is_playable=True but no binding and no creator.
+        ckpt.session.player_character_id = ""
+        ckpt.session.character_bindings = {}
+        block = build_player_characters_block(ckpt, "aldric")
+        assert "Aldric" not in block
+        assert "No player characters bound" in block
 
     def test_includes_character_id_annotation(self):
         """The id is what the router needs in `roster_moves[].character_id`

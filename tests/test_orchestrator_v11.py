@@ -59,17 +59,17 @@ def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
             CharacterRecord(
                 character_id="alice", name="Alice",
                 public_sheet=PublicSheet(role="player"),
-                location="gatehouse", is_player=True,
+                location="gatehouse", is_playable=True,
             ),
             CharacterRecord(
                 character_id="bob", name="Bob",
                 public_sheet=PublicSheet(role="player"),
-                location="gatehouse", is_player=True,
+                location="gatehouse", is_playable=True,
             ),
             CharacterRecord(
                 character_id="pip", name="Pip",
                 public_sheet=PublicSheet(role="guard"),
-                location="gatehouse", is_player=False,
+                location="gatehouse", is_playable=False,
             ),
         ],
     )

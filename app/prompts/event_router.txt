@@ -80,8 +80,8 @@ Examples:
   letter").
 - Unambiguous movement ("I walk to the door" when nothing blocks).
 - Soliloquy, internal thought made audible.
-- Author-directive OOC ("(begin)", "(wait an hour)", "(fade to
-  black)").
+- Author-directive OOC ("(begin)", "(arrive)", "(wait an hour)",
+  "(fade to black)").
 - "Social attempts" where the speech act happens even if the target
   refuses the request. Persuasion, seduction, begging — the WORDS are
   Cat I; the target's reaction is their next intention.
@@ -174,6 +174,10 @@ resolution is inherently a player-facing moment. You may set
 - This is an ambient scene-level closer (silence settles, time
   passes in-fiction, the room resumes its rhythm). (reason:
   `ambient_pause`)
+- The actor's intention is **pure targeted observation** (looking,
+  studying, scanning, sizing-up) directed at one or more present
+  characters with NO dialogue and NO physical interaction. (reason:
+  `observation_harvest` — see "Observation harvest" section below.)
 
 **Keep the beat going (`ends_beat=false`) when:**
 - NPCs are processing reactions AMONG THEMSELVES with no player-
@@ -268,6 +272,31 @@ match the visible pressure on each character. Lean on prior
 intentions and your prior decisions in this conversation when the
 per-turn message is sparse on someone you're considering.
 
+### Observation harvest — when the actor is purely looking
+
+Some intentions are nothing but looking. *"I take a closer look at each of them."* *"I scan the room, sizing up who's here."* *"I study her face for tells."* *"I watch the table while I sip my tea."* The actor is gathering information; nobody is being addressed; no body part is touching another body or object in any contested way.
+
+For these intentions, the engine takes a different path than the normal cascade. Instead of dispatching one or two NPCs to react with their own intentions, the engine fires every named target in PARALLEL and asks them to surface their **visual loadout** (clothes, grooming, posture, mood-tells) for this moment. Each target's self-presentation lands as one fragment in the canonical event's `observable_facts`, and the narrator weaves them into one slightly-longer observation passage instead of a tight 2-4 sentence cap. This delivers the "I look at each of them" promise without the normal cascade machinery.
+
+**You opt this path in by setting `ends_beat_reason="observation_harvest"`.** When you set this reason:
+
+- `requires_responders` MUST be `false`. Observation is Cat I — the looker looks; nobody contests being looked at.
+- `ends_beat` MUST be `true`. There's no cascade after a harvest; the harvested event is the beat.
+- `agent_responder_picks` carries the **observation TARGETS** — the NPCs the actor is looking at, capped at the setting's max responders (default 3). These are NOT cascade actors; they will not be asked for an intention. They will be asked: "what does the world see of you right now?"
+- The targets MUST also appear in `observers` (the standard picks-⊆-observers invariant). They perceived being looked at; they're already in the room.
+- `canonical_event.world_adjudication.resolved_outcome` should describe the looker's act of looking ("Garvey takes a slow read of every face at the table, lingering on each in turn"). Don't try to write what each target looks like in `resolved_outcome` — that's what the harvest fragments are for.
+- `canonical_event.observable_facts` may carry one or two scene-wide facts the actor notices ("the candlelight catches on five faces angled toward him"); leave room for the harvest fragments to land alongside them.
+
+**When NOT to use observation_harvest:**
+
+- The actor speaks WHILE looking ("I study her face and ask, 'Where were you?'"). That's dialogue + observation; route as Cat I `directed_at_player` and let the addressed NPC respond normally.
+- The actor's looking is reactive scenery, not the point of the action ("I draw my dagger and watch the door"). The dagger-draw is the action; pick a normal `state_change` or `directed_at_player` reason.
+- The actor looks at no one in particular, or at the environment ("I look around the empty room"). Nothing to harvest from agents; route as standard observation with a sparse `cascade_exhausted` close.
+- The actor looks at characters who are off-stage or not present in the scene. Harvest only fires on in-scene NPCs the actor can actually see.
+- Only ONE specific target and the looker is mid-conversation with them — that's already covered by the normal Cat I close on the conversation. Harvest exists for the *multi-target sweep* case where the cascade-with-intentions shape would be the wrong tool.
+
+**Picking targets:** include every NPC the actor explicitly named (or implied — "each of them" at a five-person table = the four other characters), capped at max responders. If more characters are present than the cap allows, prefer characters the actor is most pointedly looking at (named first, addressed by reference, recently brought up). Targets must be in-scene; never include a character who isn't currently at the actor's location.
+
 ### Responder picking — NPCs to dispatch next
 
 Your output's `agent_responder_picks` is the list of NPC agents the
@@ -276,8 +305,14 @@ the event you just adjudicated. This is separate from `observers`:
 observers are everyone who perceives the event; responder_picks are the
 subset whom you've decided should actually emit a follow-up intention.
 
+(Special case: when `ends_beat_reason="observation_harvest"`, the same
+field carries the looker's *targets* instead of cascade actors. The
+engine fires perception calls on each target rather than asking for
+intentions. See "Observation harvest" above. The picks-⊆-observers
+invariant still applies; the per-pick cap still applies.)
+
 Guidance:
-- Never include humans in this list. Humans act via `/act` only.
+- **NEVER include humans in this list.** Humans act via `/act` only. The Player Characters block above lists every human-bound id; none of them belongs in `agent_responder_picks`. (They DO belong in `observers` per rule 6 — different list, different job.)
 - Cap to at most the setting's max responders (typically 3).
 - Pick agents by relevance: addressed-if-named, adjacent and
   attentive, has pressure to react, has a reason to contribute.
@@ -468,10 +503,28 @@ physically doing. When the user_input is fully parenthesized OOC:
   transition INTO the starting scene from elsewhere, which tells the
   narrator the approach still needs to render. See rule 11 for the
   movement mechanism in general.
+- For `(arrive)`: a player has just /joined a story that's already in
+  progress. Their character may have been an off-stage NPC, or they
+  may be entering the story for the first time mid-fiction. Pick a
+  scene that makes diegetic sense for THIS character given who they
+  are, who's currently active, and what's happening in the story —
+  do NOT default to the starting scene unless that's genuinely where
+  they belong now. If they were already at a location per their
+  `CharacterRecord.location`, that's usually the right answer; if
+  they were `dormant` or somewhere out-of-the-way, route them
+  somewhere a player can act — same scene as another active character,
+  the story's current "live" scene, or a location whose lore makes
+  this character's presence an interesting beat right now. Emit a
+  `roster_moves` entry to whichever scene you pick (even if it
+  matches their current location — the move records the arrival).
+  Frame `resolved_outcome` as them stepping into the moment ("Maren
+  pushes through the courtyard gate just as the argument peaks"),
+  NOT as a backfill of past presence. The narrator will render
+  whatever the surrounding NPCs perceive — your job is the placement.
 - **observers**: route per the scene state after the transition. For
-  `(begin)`, NPCs present at the starting scene observe the arrival as it
-  happens — a newcomer entering their space, not a roommate they've been
-  standing with.
+  `(begin)` and `(arrive)`, NPCs present at the destination scene
+  observe the arrival as it happens — a newcomer entering their
+  space, not a roommate they've been standing with.
 - Partial parentheses inside otherwise normal in-character text (e.g. an
   aside like `"I approach the gate (cautiously)"`) are NOT OOC — those
   are just stylistic. Only treat fully-parenthesized user_input as OOC.
@@ -563,6 +616,8 @@ physically doing. When the user_input is fully parenthesized OOC:
    - `scene_delta` carries only `time_advanced_seconds`. All character relocation, including the acting character's own movement, is expressed via `roster_moves` (see rule 11).
    - `observable_facts` must contain only concrete, sensory-level facts that nearby characters could perceive. These are the ground truth every present character shares — the pipeline hands the full list to every observer. Do not duplicate or pre-filter them per-character; that's done downstream based on observation level.
    - Include the acting character's spoken words verbatim when they speak.
+   - **Adjudicate ONLY what the actor's intention actually contains. Never invent dialogue or actions to fit the slot.** If the agent's intention is silent ("Ysolde sets down her fork, looks at Garvey, returns to her plate"), the canonical event is silent — `resolved_outcome` describes the look-and-return-to-plate, period. Do not write "Ysolde says X" or "Ysolde introduces herself" when the intention contained no speech. The same goes for physical actions: if the intention is "watches without responding," the event is a watching beat, not a "she shifts in her seat / says nothing in particular" embellishment. Faithfulness to the agent's emitted intention is load-bearing — the cascade pick was given the floor; if they chose to use that floor for a wordless beat, that wordless beat is what gets canonicalized. Inventing speech to "complete" the slot is the failure mode that produces dialogue the player never sees because it was never written.
+   - **The only exception** is the `(remains silent)` sentinel — when an agent emits a paren-only intention, the dispatcher surfaces `(remains silent)` as the intention prose. Adjudicate that as the agent visibly choosing not to speak this beat ("Ysolde does not speak; her gaze stays on her plate"). It is still NOT a license to invent words.
    - Prefer facts caused directly by the acting character's action or immediate environmental change.
    - Do NOT pre-write decorative NPC reaction beats such as widened eyes, tilted heads, smiles, or other expressive micro-reactions unless that NPC physically already acted as part of the resolved outcome.
    - Do NOT reveal hidden information, secrets, motives, or internal thoughts.
@@ -574,21 +629,22 @@ physically doing. When the user_input is fully parenthesized OOC:
    - If the acting character has a `roster_moves` entry this turn (see rule 11), the destination scene is where the event finishes and where immediate observation happens.
    - Otherwise use the current scene id from the Current Scene section.
 
-6. Apply observation rules strictly.
-   - Characters in the same location as the effective event location may receive direct observation.
-   - Characters in immediately connected locations may receive indirect observation if the event produces audible or otherwise noticeable spillover.
-   - Characters in distant locations observe nothing unless a fact is genuinely inferable from aftermath or broader context.
+6. Apply observation rules strictly. `observers` is the perception list; `agent_responder_picks` (rule 8 below) is the dispatch list. They serve DIFFERENT jobs and have different membership rules.
+   - Characters in the same location as the effective event location may receive direct observation (`observation_level: "d"`).
+   - Characters in immediately connected locations may receive indirect observation (`observation_level: "i"`) if the event produces audible or otherwise noticeable spillover.
+   - Characters in distant locations observe nothing unless a fact is genuinely inferable from aftermath or broader context (`observation_level: "f"`).
    - Dormant characters do not observe anything and should not appear in `observers`.
-   - Other player characters present at the scene DO observe the event as well (they are people in the room), but they never appear in `observers` — their responses come from their human players, not from you. Silently skip them.
+   - **Other player characters present DO appear in `observers`, with the observation_level that matches their actual perception.** They are people in the room (or the next room over). The narrator will compose their POV render from this entry and will use `observation_level` to filter what they actually see — direct gets the full event, indirect gets muted spillover, inferred gets the merest aftermath. A human player turned away from the scene's central action still gets `observation_level: "i"` or `"f"` so the narrator can render the muffled version for them. **The ONE thing humans MUST NOT appear in is `agent_responder_picks`** — humans speak via `/act`, not via your dispatch. (Bound human ids are listed in the Player Characters block above.)
+   - Worked example. Britney is in the parlor reading a letter; Johnny enters and crosses to the window across the room. The router emits an event for Johnny's entrance with `observers: [{{ "character_id": "britney", "observation_level": "d", "response_priority": 2 }}]` (direct because they share the room) and an event for Britney's letter-reading with `observers: [{{ "character_id": "johnny", "observation_level": "f", "response_priority": 1 }}]` (inferred because he's in the room but turned away — he sees her holding paper, not the contents). Britney is human-bound, so she is in `observers` but NEVER in `agent_responder_picks`. The narrator's per-POV render for Johnny shows him noticing she's reading something, not the words on the page. This is the whole point of `observation_level`: the engine computes presence and proximity once; the narrator filters per-POV.
 
 7. Every present character receives the full `canonical_event.observable_facts` downstream — you do NOT emit per-character filtered facts. The `observation_level` field on each observer ("d" direct / "i" indirect / "f" inferred) is the only per-character signal you produce for perception; the pipeline uses it to shape rendering.
 
-8. Assign `response_priority` from 1-5. Only emit observers you would expect to react. Characters who are present but have no reason to react this turn are simply omitted — there is no "priority 0" entry.
+8. Assign `response_priority` from 1-5. For NPCs, only emit observers you would expect to react — NPCs present but with no reason to react this turn are simply omitted (there is no "priority 0" entry). **Human-bound characters are the exception: if a human-bound character has any plausible perception of the event (rule 6 said yes), they MUST appear in `observers` even when they have no reason to "react" — humans don't need to react to be rendered, and their POV beat depends entirely on this entry. Use priority 1 for human-bound observers who are merely perceiving (turned away, in the next room, distantly aware), saving 2-5 for the same active-engagement scale you use for NPCs.** The Player Characters block above lists the bound ids — treat them as always-eligible observers.
    - 5 = compelled: directly addressed, directly asked, or explicit target
    - 4 = high: event directly affects goals, duties, or secrets
    - 3 = moderate: socially relevant and they would naturally react
    - 2 = low: noticeable but not compelling
-   - 1 = minimal: barely registers
+   - 1 = minimal: barely registers (the floor for human-bound passive observers)
 
 9. Keep the scene focused.
    - Most turns should have 0-2 responders at priority 3+.
@@ -681,9 +737,9 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   }},
   "observers": [
     {{
-      "character_id": "string — must match an established character_id (turn-1 Initial Roster, your prior spawn outputs, or a State Changes entry); must NOT be any player-bound character_id",
+      "character_id": "string — must match an established character_id (turn-1 Initial Roster, your prior spawn outputs, or a State Changes entry). Both NPC and human-bound ids are allowed here — humans need a per-POV render too. The id is excluded from agent_responder_picks below if it's human-bound; that filtering is for dispatch, not perception.",
       "observation_level": "d" or "i" or "f" (direct / indirect / inferred — single-char codes),
-      "response_priority": 1-5 (omit this observer entirely if priority would be 0)
+      "response_priority": 1-5 (omit this observer if a NPC has no reason to react. Human-bound characters with any plausible perception MUST be listed; use priority 1 for purely passive perception)
     }}
   ],
   "spawn": [
@@ -716,9 +772,9 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "cull": [],
   "requires_responders": true or false,
   "required_responders": ["character_id — Cat II only, else empty list"],
-  "agent_responder_picks": ["character_id — NPCs the router wants to cascade next; humans never in this list; capped to max_responders"],
+  "agent_responder_picks": ["character_id — NPCs the router wants to cascade next OR (when ends_beat_reason is observation_harvest) the in-scene targets being LOOKED at; humans never in this list; capped to max_responders"],
   "ends_beat": true or false,
-  "ends_beat_reason": "string — one of: directed_at_player | scene_transition | state_change | cascade_exhausted | cat_ii_resolution | ambient_pause. Emit empty string when none fits."
+  "ends_beat_reason": "string — one of: directed_at_player | scene_transition | state_change | cascade_exhausted | cat_ii_resolution | ambient_pause | observation_harvest. Emit empty string when none fits."
 }}
 
 <<<USER>>>

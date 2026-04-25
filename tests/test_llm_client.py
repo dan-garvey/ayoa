@@ -419,7 +419,13 @@ class TestLLMClientRetry:
 
     @pytest.mark.asyncio
     async def test_raises_after_max_retries(self, client):
+        """Once retries are exhausted the client wraps the underlying
+        SDK exception in TransientLLMError so callers (Discord especially)
+        can render a clean user-facing message. The original exception is
+        preserved as `__cause__` and on `TransientLLMError.last_error`."""
         import anthropic as anth
+
+        from app.llm.client import TransientLLMError
 
         mock = _install_stream_mock(
             client,
@@ -427,7 +433,7 @@ class TestLLMClientRetry:
             anth.APIConnectionError(request=MagicMock()),
         )
 
-        with pytest.raises(anth.APIConnectionError):
+        with pytest.raises(TransientLLMError) as excinfo:
             await client.complete(
                 role="narrator",
                 messages=[{"role": "user", "content": "hi"}],
@@ -437,6 +443,9 @@ class TestLLMClientRetry:
 
         # 1 initial + 1 retry = 2 attempts (max_retries=1)
         assert mock.call_count == 2
+        assert excinfo.value.attempts == 2
+        assert isinstance(excinfo.value.last_error, anth.APIConnectionError)
+        assert isinstance(excinfo.value.__cause__, anth.APIConnectionError)
 
     @pytest.mark.asyncio
     async def test_retries_on_mid_stream_internal_server_error(self, client):

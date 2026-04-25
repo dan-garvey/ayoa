@@ -4,9 +4,13 @@ flagged as having no coverage. Covers:
 - F3.9: best-effort parsing of DISCORD_ADMIN_USER_IDS (_is_admin).
 - F3.8: EngineBridge.import_story invokes on_analysis_complete with the
   right (analysis, error) tuple in both success and failure paths.
+- briefing copy: render_briefing must not mention `/describe` (legacy
+  command renamed in the join-overhaul) and must point at `/join`.
+- POV-thread cascade: `_post_actor_render` falls thread → DM → none.
 
-Discord-interaction-heavy paths (F3.7 defer, F3.10 orphan purge) aren't
-covered here — they need a full discord.py mock harness we don't have.
+Heavier discord-interaction paths (full /act and /join harness, orphan
+thread purge) still aren't covered — they'd need a discord.py mock
+infrastructure we don't have.
 """
 
 from __future__ import annotations
@@ -323,7 +327,7 @@ class TestPurgeOnUnbind:
                     name="Bob",
                     public_sheet=PublicSheet(role="player"),
                     location="gate",
-                    is_player=True,
+                    is_playable=True,
                 ),
             ],
         )
@@ -388,7 +392,7 @@ class TestApplyRosterUpdatesPurgesCulled:
                     name="Villain",
                     public_sheet=PublicSheet(role="npc"),
                     location="gate",
-                    is_player=False,
+                    is_playable=False,
                 ),
             ],
         )
@@ -517,3 +521,218 @@ class TestSweepDrivesReadjudication:
         mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once()
         assert mock_bridge.orchestrator.process_turn.await_count == 1
         assert result.beat_ended_reason == "directed_at_player"
+
+
+# ---- briefing copy: /describe demoted, /join is the canonical opener ---
+
+
+class TestBriefingCopy:
+    """The /story start briefing used to point players at /describe as the
+    next-step command. Under the new /join flow `/describe` is an
+    advanced-only mid-game tweak, and the briefing should funnel
+    everyone through /join (which also exposes custom-create)."""
+
+    def _ckpt_with_primer(self, primer: str) -> CheckpointFile:
+        return CheckpointFile(
+            session=SessionState(session_id="briefing_test"),
+            world_state=WorldState(),
+            player_primer=primer,
+        )
+
+    def _embed_text(self, embed) -> str:
+        """Concatenate description + every field value so the assertion
+        catches mentions wherever the renderer puts them."""
+        parts = [embed.description or ""]
+        for field in embed.fields:
+            parts.append(field.value or "")
+        return "\n".join(parts)
+
+    def test_briefing_does_not_mention_describe(self):
+        from app.bot.embed import render_briefing
+        ckpt = self._ckpt_with_primer(
+            "You wake up in a sun-drenched villa. You don't remember "
+            "the cameras or the roses. You suspect both are imminent."
+        )
+        embed = render_briefing(ckpt, story_id="dating_villa_s1")
+
+        text = self._embed_text(embed)
+        assert "/describe" not in text, text
+        # Sanity: still funnels players to the canonical entry command.
+        assert "/join" in text, text
+
+    def test_briefing_falls_back_to_stub_without_describe(self):
+        """Pre-v8 / hand-built checkpoints with no primer also must not
+        leak a /describe mention via the fallback copy."""
+        from app.bot.embed import render_briefing
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="briefing_fallback"),
+            world_state=WorldState(),
+            player_primer="",
+        )
+        embed = render_briefing(ckpt, story_id="legacy_story")
+        text = self._embed_text(embed)
+        assert "/describe" not in text, text
+        assert "/join" in text, text
+
+
+# ---- _post_actor_render: thread → DM → public cascade -----------------
+
+
+class TestPostActorRenderCascade:
+    """The actor's narrative is delivered POV-thread-first, with DM and
+    public-channel fallbacks. This unifies solo and multi-player UX —
+    every bound human reads their beat in a private thread; the public
+    channel is lobby/acks only. Tests stub the discord layer at the
+    helper boundary (`_session_text_channel`, `_ensure_pov_thread`)
+    so we can drive every venue branch deterministically without a
+    full discord.py harness."""
+
+    def _make_env(
+        self, monkeypatch, tmp_path: Path,
+        *, thread_send_behavior, dm_succeeds: bool,
+    ):
+        """Patch the two discord-touching helpers used by
+        `_post_actor_render` and return (inter, user, smap, embeds,
+        captured) so the test can drive every venue branch.
+
+        `thread_send_behavior` is one of:
+          * `None` — `_ensure_pov_thread` returns None (no thread).
+          * `"ok"` — thread exists; `.send` succeeds and captures.
+          * `"raise"` — thread exists; `.send` raises RuntimeError.
+        """
+        from app.bot import commands as bot_commands
+        from app.bot.session_map import SessionMap
+
+        monkeypatch.setattr(
+            bot_commands, "_session_text_channel",
+            lambda inter: object(),  # non-None sentinel
+        )
+
+        captured: dict = {"thread_sends": [], "dm_sends": []}
+        thread_obj = None
+        if thread_send_behavior is not None:
+            thread_obj = MagicMock()
+            thread_obj.id = 999
+            thread_obj.mention = "<#999>"
+            if thread_send_behavior == "ok":
+                async def _thread_send(*args, **kwargs):
+                    captured["thread_sends"].append((args, kwargs))
+                thread_obj.send = AsyncMock(side_effect=_thread_send)
+            elif thread_send_behavior == "raise":
+                thread_obj.send = AsyncMock(
+                    side_effect=RuntimeError("server hates us"),
+                )
+            else:
+                raise ValueError(
+                    f"unknown thread_send_behavior: {thread_send_behavior!r}"
+                )
+
+        async def _ensure(**kwargs):
+            return thread_obj
+
+        monkeypatch.setattr(
+            bot_commands, "_ensure_pov_thread", _ensure,
+        )
+
+        async def _user_send(*args, **kwargs):
+            captured["dm_sends"].append((args, kwargs))
+            if not dm_succeeds:
+                raise RuntimeError("simulated DM failure")
+
+        user = MagicMock()
+        user.id = 42
+        user.send = AsyncMock(side_effect=_user_send)
+
+        inter = MagicMock()
+        inter.channel = MagicMock()
+        inter.channel.id = 777
+        inter.channel_id = 777
+        inter.user = user
+
+        smap = SessionMap(db_path=tmp_path / "actor_render.db")
+        asyncio.run(smap.init())
+
+        import discord as _discord
+        embeds = [MagicMock(spec=_discord.Embed)]
+        return inter, user, smap, embeds, captured, thread_obj
+
+    def test_thread_success_returns_thread_and_skips_dm(
+        self, monkeypatch, tmp_path: Path,
+    ):
+        """Happy path — thread.send works; DM is never attempted."""
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, captured, thread = self._make_env(
+            monkeypatch, tmp_path,
+            thread_send_behavior="ok", dm_succeeds=True,
+        )
+
+        venue, returned_thread = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user,
+            character_id="alice", char_name="Alice",
+            embeds=embeds, intro_content="**Alice** acted.",
+        ))
+        assert venue == "thread"
+        assert returned_thread is thread
+        assert len(captured["thread_sends"]) == 1
+        assert captured["dm_sends"] == []
+        _, kwargs = captured["thread_sends"][0]
+        assert kwargs.get("content") == "**Alice** acted."
+        assert kwargs.get("embeds") is embeds
+
+    def test_thread_send_failure_falls_back_to_dm(
+        self, monkeypatch, tmp_path: Path,
+    ):
+        """thread.send raising → cached id is cleared and DM is tried."""
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, captured, _ = self._make_env(
+            monkeypatch, tmp_path,
+            thread_send_behavior="raise", dm_succeeds=True,
+        )
+
+        venue, returned_thread = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user,
+            character_id="alice", char_name="Alice",
+            embeds=embeds, intro_content="x",
+        ))
+        assert venue == "dm"
+        assert returned_thread is None
+        assert len(captured["dm_sends"]) == 1
+
+    def test_no_thread_available_uses_dm(
+        self, monkeypatch, tmp_path: Path,
+    ):
+        """`_ensure_pov_thread` returning None (no perms etc.) → DM only."""
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, captured, _ = self._make_env(
+            monkeypatch, tmp_path,
+            thread_send_behavior=None, dm_succeeds=True,
+        )
+        venue, returned_thread = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user,
+            character_id="alice", char_name="Alice",
+            embeds=embeds,
+        ))
+        assert venue == "dm"
+        assert returned_thread is None
+        assert len(captured["dm_sends"]) == 1
+
+    def test_both_paths_fail_returns_none(
+        self, monkeypatch, tmp_path: Path,
+    ):
+        """Neither thread nor DM works → caller must fall back to public."""
+        from app.bot.commands import _post_actor_render
+
+        inter, user, smap, embeds, captured, _ = self._make_env(
+            monkeypatch, tmp_path,
+            thread_send_behavior=None, dm_succeeds=False,
+        )
+        venue, returned_thread = asyncio.run(_post_actor_render(
+            inter=inter, smap=smap, user=user,
+            character_id="alice", char_name="Alice",
+            embeds=embeds,
+        ))
+        assert venue == "none"
+        assert returned_thread is None

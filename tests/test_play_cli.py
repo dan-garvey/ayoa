@@ -41,13 +41,13 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         CharacterSummary(
             character_id="aldric", name="Aldric", role="wanderer",
             faction="", appearance="tall",
-            status="active", is_player=True,
+            status="active", is_playable=True,
             bound_user_id=(bindings or {}).get("aldric", ""),
         ),
         CharacterSummary(
             character_id="sera", name="Sera Vance", role="thief",
             faction="", appearance="wiry",
-            status="active", is_player=False,
+            status="active", is_playable=False,
             bound_user_id=(bindings or {}).get("sera", ""),
         ),
     ]

@@ -106,6 +106,7 @@ from app.schemas.import_extraction import (
     HiddenWorldExtraction,
     LocationsExtraction,
     OpeningExtraction,
+    PlayerPrimerExtraction,
     PublicWorldExtraction,
     WorldExtraction,
 )
@@ -169,7 +170,15 @@ MAX_EXTRACTION_TOKENS = 64_000
 # split also matches the engine's adjudication-vs-public contract.
 # Pipeline is now: public-world → hidden-world → locations → chars+
 # opening → knowledge.
-IMPORTER_VERSION = "v7"
+# v7 → v8: six-call pipeline. Adds Call 6 (player_primer) — a short
+# (≤200 word, ≤2 paragraph) second-person, truck-kun-framed primer
+# the bot displays on /story start before the player picks a
+# character. Replaces the omniscient briefing dump that used to
+# leak roster names, factions, and lore. Stamped onto
+# `CheckpointFile.player_primer` so every session loaded from this
+# story shares it. Older checkpoints load with `player_primer=""`
+# and `render_briefing` falls back to a setting-only stub.
+IMPORTER_VERSION = "v8"
 
 
 class CombinedImportExtraction(BaseModel):
@@ -445,11 +454,16 @@ depth as the source describes them.
 - **location**: starting scene_id. Leave empty if the source does not anchor
   them to a specific starting scene.
 
-- **is_player**: **true** for the protagonist / player character — the one
-  the human player controls. Multi-protagonist stories can mark multiple
-  characters as `is_player: true` (one per player slot). Every other
-  character is `is_player: false`. If no character is clearly the protagonist
-  (e.g. a fully-NPC ensemble), leave all false.
+- **is_playable**: **true** for every character a human could reasonably
+  STEP INTO — the protagonist, every contestant on a dating show, every
+  party member, every named survivor in a shipwreck ensemble. They run
+  as agent NPCs by default; binding a Discord user takes them over via
+  `/join`. Mark generously: any character whose role makes sense as a
+  player slot. Mark **false** only for characters whose function would
+  break if a human controlled them: a pure narrator/quest-giver, a
+  background watcher, a god, a one-shot courier the plot uses and
+  discards. Multi-protagonist stories therefore have many `is_playable:
+  true` entries — that is the expected shape, not the exception.
 
 - **public_sheet**:
   - `role`: their role, title, or occupation.
@@ -777,6 +791,52 @@ other character named.
 {opening_instructions}"""
 
 
+PLAYER_PRIMER_EXTRACTION_INSTRUCTIONS = """\
+Write a short PLAYER PRIMER: 1–2 paragraphs (≤200 words) that orients
+a fresh player who is about to /join the story. Strict constraints:
+
+- **Voice**: second person, present tense ("You wake up…", "You're
+  on a dating show called…", "You don't remember how you got here").
+- **Framing**: truck-kun style. The player has been deposited into
+  this world without warning and has no idea what to expect. Their
+  experience is curious, off-balance, slightly absurd. They are NOT
+  the omniscient narrator and they are NOT a specific character yet.
+- **Content scope**: the world's hook (genre + premise as a teaser),
+  the broad social situation (e.g. "you're a contestant on a high-
+  stakes reality show"), and ONE or TWO concrete tropes/atmosphere
+  cues that signal what kind of fiction this is. Surface texture,
+  not lore dump.
+- **Hard exclusions** — the primer MUST NOT contain:
+  - any character name from the roster
+  - any faction, location, or item proper noun from `world.lore` or
+    `world.facts`
+  - any hidden lore, hidden facts, or spoilers (assume the reader
+    will discover those by playing)
+  - meta instructions ("type /join", "use the menu", etc.) — the
+    bot UI handles that
+  - the words "dossier", "briefing", "checkpoint", or "session"
+- **Tone**: punchy, mood-setting, a little funny if the source is
+  funny, a little ominous if it's ominous. Match the source's vibe.
+- **Length**: hard cap 200 words. One paragraph is fine; two is the
+  ceiling.
+
+If the source is sparse on premise, lean harder on genre+tone and
+the truck-kun "where am I?" framing. If the source is rich, pick
+the single most evocative slice; do NOT try to summarize everything."""
+
+
+PLAYER_PRIMER_CONTINUATION_INSTRUCTIONS = """\
+You just extracted `world`, `characters`, `opening`, and the
+knowledge envelopes across the prior calls. Now produce ONE more
+artifact for the player-facing UI.
+
+{primer_instructions}
+
+Emit exactly one field, `primer`, containing the prose described
+above. No headers, no bullet lists, no JSON-style annotations —
+just the primer text the player will read."""
+
+
 KNOWLEDGE_CONTINUATION_INSTRUCTIONS = """\
 You just extracted `world`, `characters`, and `opening` across the
 two prior calls.
@@ -920,10 +980,10 @@ async def extract_characters(client: LLMClient, source: str) -> CharacterListExt
     data: CharacterListExtraction = response.parsed
     logger.info("  Characters: %d extracted", len(data.characters))
     for c in data.characters:
-        player_tag = " [PLAYER]" if c.is_player else ""
+        playable_tag = " [PLAYABLE]" if c.is_playable else ""
         logger.info(
             "    - %s (%s) [%s]%s",
-            c.name, c.character_id, c.public_sheet.role or "?", player_tag,
+            c.name, c.character_id, c.public_sheet.role or "?", playable_tag,
         )
     return data
 
@@ -998,8 +1058,8 @@ def _format_roster_for_knowledge(roster: CharacterListExtraction) -> str:
             lines.append(f"Role: {c.public_sheet.role}")
         if c.public_sheet.faction:
             lines.append(f"Faction: {c.public_sheet.faction}")
-        if c.is_player:
-            lines.append("(PLAYER SLOT)")
+        if c.is_playable:
+            lines.append("(PLAYABLE SLOT)")
         if c.backstory:
             lines.append(f"Backstory: {c.backstory}")
         if c.private_state.secrets:
@@ -1112,7 +1172,7 @@ def build_checkpoint(
                 name=cd.name,
                 status=CharacterStatus(cd.status),
                 location=cd.location,
-                is_player=cd.is_player,
+                is_playable=cd.is_playable,
                 public_sheet=PublicSheet(
                     role=cd.public_sheet.role,
                     appearance=cd.public_sheet.appearance,
@@ -1148,14 +1208,17 @@ def build_checkpoint(
                     scene.scene_id, target, target,
                 )
 
-    player_chars = [c for c in roster.characters if c.is_player]
-    if player_chars:
+    playable_chars = [c for c in roster.characters if c.is_playable]
+    if playable_chars:
         logger.info(
-            "Player character slot(s): %s",
-            ", ".join(f"{c.name} ({c.character_id})" for c in player_chars),
+            "Playable character slot(s): %s",
+            ", ".join(f"{c.name} ({c.character_id})" for c in playable_chars),
         )
     else:
-        logger.info("No character marked is_player=true — roster is fully NPC")
+        logger.info(
+            "No character marked is_playable=true — /join will surface "
+            "an empty list and the story will run as fully NPC."
+        )
 
     return CheckpointFile(
         session=session,
@@ -1579,44 +1642,62 @@ def _knowledge_user_prompt() -> str:
     )
 
 
+def _player_primer_user_prompt() -> str:
+    """Assemble the Call-6 user message: short player-facing primer as
+    a continuation that reads the full prior chain (world + characters +
+    opening + knowledge) as cached history. The primer is what a fresh
+    player sees on /story start before they pick a character — it
+    replaces the omniscient briefing that used to leak roster names,
+    factions, and lore the player hadn't earned yet."""
+    return PLAYER_PRIMER_CONTINUATION_INSTRUCTIONS.format(
+        primer_instructions=PLAYER_PRIMER_EXTRACTION_INSTRUCTIONS,
+    )
+
+
 async def run_import_two_call(
     client: LLMClient,
     source_text: str,
     story_id: str,
 ) -> _CombinedImportResult:
-    """Five-call importer (v7; function name retained for caller
+    """Six-call importer (v8; function name retained for caller
     compatibility — bridge + CLI + tests still import this symbol).
     Call 1 extracts the PUBLIC world; Call 2 extracts the HIDDEN
     world as a continuation that reads Call 1 as cached history;
     Call 3 extracts locations reading the prior chain; Call 4
     extracts `characters` + `opening`; Call 5 extracts `knowledge`
-    envelopes.
+    envelopes; Call 6 extracts the player-facing `player_primer` —
+    a 1-2 paragraph spoiler-free framing the bot shows on briefing
+    before the player ever runs `/join`.
 
-    Why five calls instead of v6's four: v6 split the combined world
-    into skeleton (public + hidden) and locations, but a 95KB master
-    prompt with deep conspiracy lore (multi-faction, hidden-history
-    section) STILL pushed the skeleton call past Sonnet 4.6's 64K
-    output cap — truncating mid-string around column 265K of JSON.
-    Splitting public from hidden gives each its own budget, and also
-    matches the engine's adjudication-vs-public contract structurally
-    (hidden content is for the omniscient adjudication layer; public
-    content is what player-facing renders may draw on).
+    Why this many calls: v6 split the combined world into skeleton
+    (public + hidden) and locations, but a 95KB master prompt with
+    deep conspiracy lore (multi-faction, hidden-history section)
+    STILL pushed the skeleton call past Sonnet 4.6's 64K output cap
+    — truncating mid-string around column 265K of JSON. Splitting
+    public from hidden gives each its own budget, and also matches
+    the engine's adjudication-vs-public contract structurally
+    (hidden content is for the omniscient adjudication layer;
+    public content is what player-facing renders may draw on). v8
+    added Call 6 (player primer) — it shares the cached prefix from
+    earlier calls, so it's effectively paid for once.
 
     The merged `WorldExtraction` shape is assembled in Python from
     the three world responses (public + hidden + locations), so
     `build_checkpoint` is unchanged.
 
-    Returns a `_CombinedImportResult` shaped the same as v6 so
+    Returns a `_CombinedImportResult` shaped the same as v7 so
     downstream callers (EngineBridge, preservation continuation) don't
     care which pipeline produced the checkpoint. `priming_messages`
-    contains the FULL five-call conversation up through Call-5's
-    user turn; `assistant_text` is the Call-5 assistant reply — the
-    preservation analysis tacks itself on as Call 6 with the same
-    continuation helper.
+    contains the conversation up through Call-5's user turn (the
+    primer is intentionally omitted from the priming chain so the
+    preservation continuation reads only the structural extractions);
+    `assistant_text` is the Call-5 assistant reply — the
+    preservation analysis tacks itself on as a downstream call with
+    the same continuation helper.
     """
     t_start = time.monotonic()
     logger.info(
-        "Starting five-call import (pipeline %s): source prompt %d chars, ~%d words",
+        "Starting six-call import (pipeline %s): source prompt %d chars, ~%d words",
         IMPORTER_VERSION, len(source_text), len(source_text.split()),
     )
 
@@ -1759,6 +1840,32 @@ async def run_import_two_call(
         time.monotonic() - t_know, len(knowledge.envelopes),
     )
 
+    # Call 6 — player primer (continuation; reads the full five-call
+    # chain as cached history, paying fresh only for the primer
+    # instructions and the short response). Stamped on the checkpoint;
+    # NOT folded into priming_messages so preservation analysis still
+    # branches off the Call-5 prefix and ignores the primer turn.
+    primer_user = _player_primer_user_prompt()
+    primer_messages = knowledge_messages + [
+        {"role": "assistant", "content": knowledge_response.content or ""},
+        {"role": "user", "content": primer_user},
+    ]
+    t_primer = time.monotonic()
+    primer_response = await client.complete(
+        role="narrator",
+        messages=primer_messages,
+        response_model=PlayerPrimerExtraction,
+        temperature=0.6,
+        max_tokens=2_000,
+    )
+    _log_usage("player_primer", primer_response)
+    primer: PlayerPrimerExtraction = primer_response.parsed
+    primer_text = (primer.primer or "").strip()
+    logger.info(
+        "  Player primer (%.1fs): %d chars",
+        time.monotonic() - t_primer, len(primer_text),
+    )
+
     checkpoint = build_checkpoint(
         world,
         chars_and_opening.characters,
@@ -1766,16 +1873,20 @@ async def run_import_two_call(
         knowledge,
         story_id,
     )
+    checkpoint.player_primer = primer_text
     logger.info(
-        "Five-call import complete in %.1fs (%d characters, %d scenes)",
+        "Six-call import complete in %.1fs (%d characters, %d scenes, primer=%d chars)",
         time.monotonic() - t_start,
         len(checkpoint.characters),
         len(checkpoint.world_state.locations.scene_graph),
+        len(primer_text),
     )
 
-    # Pack the FULL five-call conversation into priming_messages so
-    # the preservation analysis continuation reads the whole chain as
-    # its cached prefix.
+    # Pack the five-call conversation (NOT the primer turn) into
+    # priming_messages so the preservation analysis continuation reads
+    # the same cached prefix it used pre-v8 — branching off Call 5
+    # rather than chaining through the primer (which is stylistic and
+    # would only confuse the audit pass).
     return _CombinedImportResult(
         checkpoint=checkpoint,
         priming_messages=knowledge_messages,

@@ -51,7 +51,6 @@ class TestCheckpointSaveLoad:
         assert loaded.world_state.facts == ["The courtyard is wet."]
         assert len(loaded.transcript) == 1
         assert loaded.transcript[0].user == "I look around."
-        assert loaded.prompt_versions["event_router"] == "v9"  # v11 default
 
     def test_save_creates_session_directory(self, tmp_path):
         mgr = CheckpointManager(save_dir=str(tmp_path))

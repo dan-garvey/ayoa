@@ -172,8 +172,8 @@ def build_setting_summary(checkpoint: CheckpointFile) -> str:
     constructions in `engine_bridge._build_takeover_context` and
     `character_manager._spawn_one`) into this single source of truth.
     The shape this returns matches the `{setting_summary}` slot in
-    `event_router_v9.txt`, `narrator_phase2_v9.txt`, `takeover_v1.txt`,
-    and `character_gen_v3.txt`.
+    `event_router.txt`, `narrator_phase2.txt`, `takeover.txt`,
+    and `character_gen.txt`.
 
     Empty fields are skipped — a story whose importer left, say, `era`
     blank does not get a `Era: ` line. Pre-r7j the takeover and spawn
@@ -204,8 +204,9 @@ def pov_scene_for_user(
        is given and they hold a binding in `session.character_bindings`).
     2. The location of `session.player_character_id` (creator binding /
        single-player default).
-    3. The location of the first `is_player=True` character in the
-       roster (pristine sessions before any /join).
+    3. The location of the first `is_playable=True` character in the
+       roster (pristine sessions before any /join — useful for /status
+       previews of an unclaimed story).
     4. "" — if nothing resolves, the surface should render
        "(no active scene)" rather than a stale fallback.
 
@@ -244,7 +245,7 @@ def pov_scene_for_user(
             if c.character_id == pcid and c.location and _alive(c):
                 return c.location
     for c in checkpoint.characters:
-        if c.is_player and c.location and _alive(c):
+        if c.is_playable and c.location and _alive(c):
             return c.location
     return ""
 
@@ -381,22 +382,29 @@ def resolve_acting_character(
 
 
 def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
-    """Every character_id that belongs to a human player (bound or flagged).
+    """Every character_id that is currently CONTROLLED BY A HUMAN.
 
-    Used across the engine to keep player-controlled characters out of NPC
-    routing, agent fan-out, and background observation queues. Unions:
-    - session.character_bindings keys (the canonical source)
-    - session.player_character_id (creator binding, for legacy/pre-bindings
-      checkpoints that haven't had their bindings populated)
-    - every CharacterRecord.is_player=True in the roster (for pristine
-      checkpoints with no session bindings yet)
+    Used across the engine to keep human-controlled characters out of
+    NPC routing, agent fan-out, and background observation queues.
+    Unions:
+    - `session.character_bindings` keys (the canonical source — the
+      Discord user → character map updated by /join).
+    - `session.player_character_id` (creator binding, for legacy /
+      pre-bindings checkpoints).
+
+    NOTE: `CharacterRecord.is_playable` is INTENTIONALLY excluded from
+    this set. Under the playable-2 semantics an `is_playable=True`
+    character runs as an agent NPC until a human binds them — they
+    DO get cascaded to via the router, DO get ticked off-stage, and
+    DO show up in the agent fan-out. Only an explicit binding
+    transfers them to "human-controlled" status. The pristine-roster
+    fallback the function used to apply (treating every is_player slot
+    as already-claimed) caused the playtest's "ticks blocked on every
+    contestant before anyone joined" bug.
     """
     ids: set[str] = set(checkpoint.session.character_bindings or {})
     if checkpoint.session.player_character_id:
         ids.add(checkpoint.session.player_character_id)
-    for c in checkpoint.characters:
-        if c.is_player:
-            ids.add(c.character_id)
     return ids
 
 
@@ -404,20 +412,30 @@ def build_player_characters_block(
     checkpoint: CheckpointFile,
     acting_character_id: str,
 ) -> str:
-    """Render a markdown list of every player character for the prompt header.
+    """Render a markdown list of every CURRENTLY-BOUND player character.
 
-    Appears in the frozen (cached) system prompt of the router, narrator, and
-    each agent. Marks the turn's acting character so downstream prose knows
-    whose action to center. Falls back to the is_player roster entries if
-    character_bindings is empty (covers pristine checkpoints and tests).
+    Appears in the frozen (cached) system prompt of the router,
+    narrator, and each agent. Marks the turn's acting character so
+    downstream prose knows whose action to center.
+
+    Membership: union of `character_bindings` keys and (for legacy
+    checkpoints) `session.player_character_id`. We deliberately do NOT
+    surface every `is_playable=True` character here — under playable-2
+    semantics, an unbound playable character is an agent NPC and
+    belongs in the NPC roster, not the protagonists block. The router
+    treats a name in this block as "human, never dispatch via picks";
+    listing unbound playables here would forbid the cascade from
+    reaching the very characters the agents are supposed to drive.
+
+    Returns "- No player characters bound to this session." when empty
+    (pristine session before anyone /joins) so prompts still render
+    cleanly.
     """
     bindings = checkpoint.session.character_bindings or {}
-    bound_ids = list(bindings.keys()) if bindings else [
-        c.character_id for c in checkpoint.characters if c.is_player
-    ]
-    if not bound_ids:
-        pcid = checkpoint.session.player_character_id
-        bound_ids = [pcid] if pcid else []
+    bound_ids = list(bindings.keys())
+    pcid = checkpoint.session.player_character_id
+    if pcid and pcid not in bound_ids:
+        bound_ids.append(pcid)
 
     lines: list[str] = []
     for char_id in bound_ids:

@@ -10,8 +10,11 @@ Commands:
     /story info <story_id>                — show briefing for a source story
     /story import <attachment> [id]       — import a master prompt
     /story delete                         — unload the story from this session
-    /describe <traits>                    — set player appearance; opens scene
+    /join                                 — pick a character via interactive menu
+    /leave                                — release your character
+    /describe [name] [appearance]         — set/update name and appearance
     /act <action>                         — submit a turn
+    /query <question>                     — ask an out-of-character question
     /status                               — summarize current state
 
 The bot calls the engine in-process (no HTTP). Each turn runs under a
@@ -24,6 +27,7 @@ import logging
 import os
 import re
 import time
+from typing import Optional
 
 import discord
 from discord import app_commands
@@ -31,6 +35,7 @@ from discord import app_commands
 from app.bot.embed import render_briefing, render_error, render_info, render_turn
 from app.bot.engine_bridge import EngineBridge
 from app.bot.session_map import SessionMap
+from app.llm.client import TransientLLMError
 from app.schemas.checkpoint import CheckpointFile
 
 logger = logging.getLogger(__name__)
@@ -85,6 +90,53 @@ def _sanitize_story_id(raw: str) -> str:
     return slug
 
 
+def _session_channel_id(inter: discord.Interaction) -> int:
+    """Return the snowflake of the channel that owns the engine session
+    for `inter`.
+
+    Slash commands invoked from inside a thread (a player typing
+    `/act` in their POV thread, for example) carry the **thread** as
+    `inter.channel` and its id as `inter.channel_id`. The engine
+    session, however, was bound to the parent text channel by
+    `/story start`. Without this resolution every `smap.get(...)`
+    misses, every `pov_threads` lookup keys to the wrong row, and
+    `_ensure_pov_thread` would try to spawn threads-inside-threads
+    (which Discord rejects). Returning the parent id here lets a
+    user run any session command from inside their POV thread and
+    get the same routing they would from the main channel.
+    """
+    chan = inter.channel
+    if isinstance(chan, discord.Thread) and chan.parent_id is not None:
+        return chan.parent_id
+    return inter.channel_id
+
+
+def _session_text_channel(
+    inter: discord.Interaction,
+) -> Optional[discord.TextChannel]:
+    """Return the parent `TextChannel` that hosts this interaction's
+    engine session, or None if no parent text channel is reachable
+    (DMs, voice, uncached parent in a thread).
+
+    `_ensure_pov_thread` needs a real `TextChannel` to spawn private
+    sub-threads on. When `inter.channel` is already a `TextChannel`
+    we hand it back; when it's a `Thread` we resolve the parent
+    (preferring the cached `.parent`, falling back to a guild
+    lookup); otherwise None and the caller takes the DM path.
+    """
+    chan = inter.channel
+    if isinstance(chan, discord.TextChannel):
+        return chan
+    if isinstance(chan, discord.Thread):
+        parent = chan.parent
+        if parent is None and inter.guild is not None and chan.parent_id:
+            fetched = inter.guild.get_channel(chan.parent_id)
+            if isinstance(fetched, discord.TextChannel):
+                parent = fetched
+        return parent if isinstance(parent, discord.TextChannel) else None
+    return None
+
+
 async def _send_private(inter: discord.Interaction, text: str) -> None:
     """Post a private block of text back to the invoker as ephemeral
     followups. Chunks at Discord's 2000-char message cap, breaking on
@@ -94,6 +146,226 @@ async def _send_private(inter: discord.Interaction, text: str) -> None:
     """
     for chunk in _chunks(text, 1900):
         await inter.followup.send(chunk, ephemeral=True)
+
+
+async def _ensure_pov_thread(
+    *,
+    channel: discord.abc.Messageable,
+    user: discord.abc.User,
+    smap: SessionMap,
+    character_id: str,
+    char_name: str,
+) -> Optional[discord.Thread]:
+    """Get or create the private POV thread for `user` in `channel`.
+
+    Returns None if thread creation isn't possible (channel doesn't
+    support threads, missing CREATE_PRIVATE_THREADS perm, network
+    failure). Callers fall back to DM in that case so the player still
+    receives their narrative beat.
+
+    Threads persist across re-binds: a player who /leave's and /joins
+    a different character keeps the same thread. `character_id` is
+    stored for diagnostic purposes only.
+    """
+    if not isinstance(channel, discord.TextChannel):
+        return None  # DM channels and voice channels can't host threads
+    cached = await smap.get_pov_thread_id(channel.id, user.id)
+    if cached is not None:
+        thread = channel.guild.get_thread(cached)
+        if thread is None:
+            try:
+                thread = await channel.guild.fetch_channel(cached)
+            except discord.NotFound:
+                thread = None
+            except Exception:
+                logger.exception(
+                    "ensure_pov_thread: fetch_channel(%s) failed", cached,
+                )
+                thread = None
+        if isinstance(thread, discord.Thread) and not thread.archived:
+            return thread
+        # Cached id is stale or archived — drop it and recreate below.
+        await smap.clear_pov_thread(channel.id, user.id)
+
+    suffix = (char_name or character_id or "pov").strip()[:60] or "pov"
+    thread_name = f"{user.display_name} · {suffix}"
+    try:
+        thread = await channel.create_thread(
+            name=thread_name[:100],
+            type=discord.ChannelType.private_thread,
+            invitable=False,
+            auto_archive_duration=10080,  # 7 days; max allowed without boost
+            reason=f"POV thread for {user.display_name} ({character_id})",
+        )
+    except discord.Forbidden:
+        logger.warning(
+            "ensure_pov_thread: missing CREATE_PRIVATE_THREADS in #%s "
+            "(channel %s); falling back to DM for user %s",
+            channel.name, channel.id, user.id,
+        )
+        return None
+    except Exception:
+        logger.exception(
+            "ensure_pov_thread: create_thread failed in #%s for user %s",
+            channel.name, user.id,
+        )
+        return None
+
+    try:
+        await thread.add_user(user)
+    except Exception:
+        logger.exception(
+            "ensure_pov_thread: add_user(%s) failed on thread %s; "
+            "abandoning the thread and falling back to DM",
+            user.id, thread.id,
+        )
+        # Don't cache: a private thread the user was never added to is
+        # invisible to them, and `thread.send` won't raise — so without
+        # bailing out we'd silently drop every POV beat on the floor
+        # (the comment used to claim DM fallback would kick in; it
+        # would not, because send-success masked the underlying
+        # add_user failure). Returning None here forces the caller into
+        # the explicit DM path. The orphan thread is left alive in
+        # Discord; an operator can clean up if needed.
+        return None
+
+    await smap.set_pov_thread(
+        channel_id=channel.id,
+        user_id=user.id,
+        thread_id=thread.id,
+        character_id=character_id,
+    )
+    return thread
+
+
+async def _post_actor_render(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    user: discord.abc.User,
+    character_id: str,
+    char_name: str,
+    embeds: list[discord.Embed],
+    intro_content: Optional[str] = None,
+) -> tuple[str, Optional[discord.Thread]]:
+    """Post the ACTOR's own beat privately: POV thread first, DM fallback,
+    `("none", None)` if both fail (caller should then post publicly to
+    the channel via `inter.followup` so the user still sees their
+    narrative).
+
+    Returns one of:
+      - `("thread", thread)` — landed in the actor's private POV thread.
+      - `("dm", None)`        — thread unavailable; landed in DMs.
+      - `("none", None)`      — both private paths failed; caller must
+                                fall back to a public render.
+
+    The deferred slash-command interaction is NOT closed by this helper
+    (private posts go to thread/DM, not `inter.followup`). The caller
+    is responsible for an ephemeral `inter.followup.send` ack on
+    success, or a non-ephemeral public render on failure.
+
+    `embeds` should already be `render_turn(...)`-shaped. `intro_content`
+    is a short prefix line (e.g. "**Jimbo Higgins** joined.") that goes
+    in the same message as the embed.
+    """
+    channel = _session_text_channel(inter)
+    thread: Optional[discord.Thread] = None
+    if channel is not None:
+        thread = await _ensure_pov_thread(
+            channel=channel,
+            user=user,
+            smap=smap,
+            character_id=character_id,
+            char_name=char_name,
+        )
+
+    if thread is not None:
+        try:
+            await thread.send(content=intro_content, embeds=embeds)
+            return ("thread", thread)
+        except Exception:
+            logger.exception(
+                "post_actor_render: thread.send to %s failed; "
+                "falling back to DM", thread.id,
+            )
+            await smap.clear_pov_thread(
+                _session_channel_id(inter), user.id,
+            )
+
+    try:
+        await user.send(content=intro_content, embeds=embeds)
+        return ("dm", None)
+    except Exception:
+        logger.exception(
+            "post_actor_render: DM fallback to user %s failed", user.id,
+        )
+
+    return ("none", None)
+
+
+async def _post_to_pov(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    user_id: int,
+    character_id: str,
+    char_name: str,
+    text: str,
+    bot: "discord.Client",
+) -> bool:
+    """Post `text` to the user's POV thread in the channel where this
+    interaction lives. Falls back to DM on any thread-related failure.
+
+    Returns True if the message was delivered, False if both thread
+    AND DM failed (caller may want to surface that).
+    """
+    chunks = _chunks(text, 1900)
+    # Resolve the parent text channel — if `inter` came in via a
+    # thread, `inter.channel` is the thread itself and we'd otherwise
+    # try to nest a thread inside a thread.
+    channel = _session_text_channel(inter)
+    session_chan_id = _session_channel_id(inter)
+    user = bot.get_user(user_id)
+    if user is None:
+        try:
+            user = await bot.fetch_user(user_id)
+        except Exception:
+            logger.exception(
+                "post_to_pov: fetch_user(%s) failed; can't deliver", user_id,
+            )
+            return False
+
+    thread: Optional[discord.Thread] = None
+    if channel is not None:
+        thread = await _ensure_pov_thread(
+            channel=channel,
+            user=user,
+            smap=smap,
+            character_id=character_id,
+            char_name=char_name,
+        )
+
+    if thread is not None:
+        try:
+            for chunk in chunks:
+                await thread.send(chunk)
+            return True
+        except Exception:
+            logger.exception(
+                "post_to_pov: thread.send to thread %s failed; "
+                "falling back to DM", thread.id,
+            )
+            await smap.clear_pov_thread(session_chan_id, user_id)
+
+    try:
+        for chunk in chunks:
+            await user.send(chunk)
+        return True
+    except Exception:
+        logger.exception(
+            "post_to_pov: DM fallback to user %s failed", user_id,
+        )
+        return False
 
 
 def _chunks(text: str, size: int) -> list[str]:
@@ -152,7 +424,7 @@ def register(
                 "Session name cannot be empty.", ephemeral=True,
             )
             return
-        existing = await smap.get(inter.channel_id)
+        existing = await smap.get(_session_channel_id(inter))
         if existing is not None:
             await inter.response.send_message(
                 f"This channel is already bound to session `{existing.session_id}`. "
@@ -166,15 +438,14 @@ def register(
             await inter.response.send_message(str(e), ephemeral=True)
             return
         await smap.upsert(
-            channel_id=inter.channel_id,
+            channel_id=_session_channel_id(inter),
             guild_id=inter.guild_id,
             session_id=name,
             owner_user_id=inter.user.id,
             story_id="",  # no story loaded yet
         )
         await inter.response.send_message(
-            f"Session `{name}` created and bound. "
-            f"Run `/story list` then `/story start story_id:<id>`.",
+            f"Session `{name}` created. Run `/story start` to load a story.",
             ephemeral=True,
         )
 
@@ -182,11 +453,11 @@ def register(
         name="end", description="Detach this channel from its session (files stay).",
     )
     async def _session_end(inter: discord.Interaction):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message("No session here.", ephemeral=True)
             return
-        await smap.delete(inter.channel_id)
+        await smap.delete(_session_channel_id(inter))
         await inter.response.send_message(
             f"Detached from `{row.session_id}`. Files kept on disk; "
             f"run `/session resume name:{row.session_id}` to rejoin.",
@@ -204,7 +475,7 @@ def register(
                 "Session name cannot be empty.", ephemeral=True,
             )
             return
-        existing = await smap.get(inter.channel_id)
+        existing = await smap.get(_session_channel_id(inter))
         if existing is not None:
             await inter.response.send_message(
                 f"Channel already bound to `{existing.session_id}`. "
@@ -232,7 +503,7 @@ def register(
             pass  # empty session, no ckpt yet
 
         await smap.upsert(
-            channel_id=inter.channel_id,
+            channel_id=_session_channel_id(inter),
             guild_id=inter.guild_id,
             session_id=name,
             owner_user_id=inter.user.id,
@@ -302,7 +573,7 @@ def register(
             return
 
         await smap.upsert(
-            channel_id=inter.channel_id,
+            channel_id=_session_channel_id(inter),
             guild_id=inter.guild_id,
             session_id=row.session_id,
             owner_user_id=row.owner_user_id,
@@ -312,7 +583,7 @@ def register(
         briefing = render_briefing(ckpt, story_id)
         intro = (
             f"Loaded **{story_id}** into session `{row.session_id}`. "
-            f"Run `/story characters` then `/join <character_id>` to claim one."
+            f"Run `/join` when you're ready to step in."
         )
         await inter.followup.send(content=intro, embed=briefing)
 
@@ -362,7 +633,7 @@ def register(
         inter: discord.Interaction,
         story_id: str = "",
     ):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. Run `/session start name:<save>` first.",
@@ -451,7 +722,7 @@ def register(
         story_id: str | None = None,
     ):
         # Pre-session browsing path: pristine roster from ckpt_0000.
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if story_id:
             story_id = story_id.strip()
             if story_id not in engine.list_story_ids():
@@ -506,7 +777,7 @@ def register(
 
         # v11: scene = the invoker's POV scene (location of their bound
         # character, falling back to the creator binding, then any
-        # is_player). The pre-v11 global current_scene_id is gone.
+        # is_playable). The pre-v11 global current_scene_id is gone.
         from app.engine.context_builder import pov_scene_for_user
         uid = str(inter.user.id)
         scene_id = pov_scene_for_user(ckpt, user_id=uid)
@@ -705,8 +976,9 @@ def register(
             len(ckpt.characters),
         )
 
-        # No briefing here — the checkpoint still has PLAYER_NAME placeholders
-        # that only get substituted at /story start time.
+        # No briefing here — the player_primer + opening render only after
+        # /story start binds the session, and any per-player identity
+        # (name/appearance) lands at /join time.
         intro = (
             f"Imported **{story_id}** in {int(elapsed)}s — "
             f"{len(ckpt.characters)} characters, "
@@ -722,7 +994,7 @@ def register(
         description="Unload the current story from this session, leaving it empty.",
     )
     async def _story_delete(inter: discord.Interaction):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here.", ephemeral=True,
@@ -745,7 +1017,7 @@ def register(
         # end/start. Character bindings and CLI claims reset because
         # the checkpoint state is gone.
         await smap.upsert(
-            channel_id=inter.channel_id,
+            channel_id=_session_channel_id(inter),
             guild_id=inter.guild_id,
             session_id=row.session_id,
             owner_user_id=row.owner_user_id,
@@ -757,149 +1029,497 @@ def register(
             ephemeral=True,
         )
 
-    # ---- /join --------------------------------------------------------------
+    # ---- /join (interactive roster picker) ----------------------------------
+    #
+    # No-arg slash command. Presents a SelectMenu of `is_playable=true`
+    # characters that aren't already claimed. After the player picks,
+    # an optional name+appearance modal pops; on submit we bind, set
+    # identity (if provided), and fire `(begin)` (pristine session) or
+    # `(arrive)` (mid-game) so the router places the character into a
+    # sensible scene and the narrator renders the arrival publicly.
+    #
+    # The legacy /join_custom and /pick_replacement commands (player-
+    # authored character with invented backstory) were removed as part
+    # of the playable-2 UX overhaul — they generated content the
+    # player never asked for. The engine_bridge methods that backed
+    # them (create_custom_character, suggest_replacement_targets,
+    # replace_with_custom) are kept on EngineBridge for the play CLI.
 
-    async def _join_custom_describe_submit(
-        submit_inter: discord.Interaction,
+    async def _fire_arrival_turn(
+        inter: discord.Interaction,
         session_id: str,
-        description: str,
+        story_id: str,
+        binding_cid: str,
+        char_name: str,
     ) -> None:
-        """Shared post-submit path for the custom-describe modal fired from
-        /join with no args. Defers ephemeral, spawns a custom character via
-        the engine, and sends the dossier + prompt to /describe."""
-        await submit_inter.response.defer(thinking=True, ephemeral=True)
+        """Run the engine for `(begin)` (pristine) or `(arrive)` (mid-
+        game) on behalf of a freshly-joined player and render the
+        result publicly. Caller must have deferred non-ephemerally."""
+        ckpt_for_check = engine.load_latest(session_id)
+        is_pre_play = not any(ckpt_for_check.narrator_conversations.values())
+        directive = "(begin)" if is_pre_play else "(arrive)"
+        logger.info(
+            "/join arrival for %s by %s as %s: %s",
+            session_id, inter.user.display_name, binding_cid, directive,
+        )
+
         try:
-            new_char = await engine.create_custom_character(
-                session_id, submit_inter.user.id, description,
+            response = await engine.run_turn(
+                session_id=session_id,
+                user_input=directive,
+                acting_character_id=binding_cid,
             )
-        except ValueError as e:
-            await submit_inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
+        except TransientLLMError as e:
+            logger.warning(
+                "join arrival turn hit transient LLM error after %d "
+                "attempts: %s", e.attempts, e.last_error,
             )
+            await inter.followup.send(embed=render_error(str(e)))
             return
         except Exception as e:
-            logger.exception("modal create_custom_character failed")
-            await submit_inter.followup.send(
-                embed=render_error(f"`{type(e).__name__}: {e}`"),
+            logger.exception("join arrival run_turn failed")
+            await inter.followup.send(embed=render_error(
+                f"`{type(e).__name__}: {e}`"
+            ))
+            return
+
+        embeds = render_turn(
+            output_text=response.output_text,
+            turn_index=response.turn_index,
+            story_id=story_id,
+        )
+        intro_lead = (
+            "The story opens." if is_pre_play
+            else "You step into the moment."
+        )
+        intro = f"**{char_name}** joined. {intro_lead}"
+
+        # Solo-or-not, the actor's narrative goes to their private POV
+        # thread (DM if threads aren't available). The public channel
+        # only sees an ephemeral pointer to the thread. Falls back to
+        # a public render if both thread and DM fail so the player
+        # never silently loses a beat.
+        venue, thread = await _post_actor_render(
+            inter=inter,
+            smap=smap,
+            user=inter.user,
+            character_id=binding_cid,
+            char_name=char_name,
+            embeds=embeds,
+            intro_content=intro,
+        )
+        if venue == "thread" and thread is not None:
+            await inter.followup.send(
+                f"**{char_name}** joined. Your scene opens in "
+                f"{thread.mention}.",
                 ephemeral=True,
             )
-            return
-
-        try:
-            dossier = engine.build_character_dossier(
-                session_id, new_char.character_id,
+        elif venue == "dm":
+            await inter.followup.send(
+                f"**{char_name}** joined. Your scene opens in your DMs "
+                "(POV thread unavailable here).",
+                ephemeral=True,
             )
-        except Exception as e:
-            logger.exception("build_character_dossier failed")
-            dossier = f"(dossier unavailable: `{e}`)"
+        else:
+            # Both private paths failed. Public-channel fallback so
+            # the player still sees their arrival.
+            await inter.followup.send(content=intro, embeds=embeds)
 
-        msg = (
-            f"You are now **{new_char.name}** (`{new_char.character_id}`). "
-            "Run `/describe` with a name and appearance to set how the "
-            "world sees you, then `/act` to play. Dossier below."
-        )
-        await submit_inter.followup.send(
-            embed=render_info("Joined", msg), ephemeral=True,
-        )
-        await _send_private(submit_inter, dossier)
+        # Fan out to other bound humans who saw the arrival. Mirrors
+        # the /act per-POV DM path so non-actor players don't miss the
+        # beat. Failures here only log — the actor's render already shipped.
+        per_player = response.per_player_renders or {}
+        if not per_player:
+            return
+        try:
+            ckpt_after = engine.load_latest(session_id)
+            bindings = ckpt_after.session.character_bindings or {}
+            roster = list(ckpt_after.characters or [])
+        except Exception:
+            logger.exception(
+                "join arrival fan-out: load_latest failed; skipping DMs",
+            )
+            return
+        notified: list[str] = []
+        for cid, prose in per_player.items():
+            if cid == binding_cid or not prose:
+                continue
+            uid_str = bindings.get(cid, "")
+            if not uid_str:
+                continue
+            try:
+                uid = int(uid_str)
+            except ValueError:
+                continue
+            char = next(
+                (c for c in roster if c.character_id == cid), None,
+            )
+            char_name = char.name if char else cid
+            ok = await _post_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=uid,
+                character_id=cid,
+                char_name=char_name,
+                text=prose,
+                bot=inter.client,
+            )
+            if ok:
+                notified.append(char_name)
+        if notified:
+            try:
+                phrase = ", ".join(f"**{n}**" for n in notified)
+                await inter.followup.send(
+                    f"({phrase} notified.)", ephemeral=True,
+                )
+            except Exception:
+                logger.exception(
+                    "join arrival fan-out: ephemeral ack failed",
+                )
 
-    class _JoinCustomModal(discord.ui.Modal, title="Create a custom character"):
-        description = discord.ui.TextInput(
-            label="Character concept",
+    class _JoinIdentityModal(discord.ui.Modal, title="Step into the role"):
+        """Optional name+appearance prompt fired after the user picks
+        from the /join SelectMenu. Both fields are optional — leaving
+        them blank keeps the authored defaults. On submit we bind,
+        apply identity (if provided), and fire arrival."""
+
+        name_in = discord.ui.TextInput(
+            label="Display name (optional)",
+            placeholder="Leave blank to keep the character's authored name.",
+            required=False,
+            max_length=80,
+        )
+        appearance_in = discord.ui.TextInput(
+            label="Appearance (optional)",
             style=discord.TextStyle.paragraph,
-            placeholder="Role, background, vibe — freeform.",
-            max_length=1000,
-            required=True,
+            placeholder=(
+                "Height, build, clothing, notable features. Leave blank "
+                "to keep the authored appearance."
+            ),
+            required=False,
+            max_length=600,
         )
 
-        def __init__(self, session_id: str):
+        def __init__(
+            self,
+            *,
+            session_id: str,
+            story_id: str,
+            character_id: str,
+            character_name: str,
+        ):
             super().__init__()
             self._session_id = session_id
+            self._story_id = story_id
+            self._character_id = character_id
+            self._character_name = character_name
 
         async def on_submit(self, modal_inter: discord.Interaction):
-            desc = (self.description.value or "").strip()
-            if not desc:
-                await modal_inter.response.send_message(
-                    "Description cannot be empty.", ephemeral=True,
+            await modal_inter.response.defer(thinking=True)
+
+            try:
+                engine.takeover(
+                    self._session_id, self._character_id, modal_inter.user.id,
+                )
+            except ValueError as e:
+                await modal_inter.followup.send(
+                    embed=render_error(str(e)), ephemeral=True,
                 )
                 return
-            await _join_custom_describe_submit(
-                modal_inter, self._session_id, desc,
+            except Exception as e:
+                logger.exception("/join takeover failed")
+                await modal_inter.followup.send(
+                    embed=render_error(f"`{type(e).__name__}: {e}`"),
+                    ephemeral=True,
+                )
+                return
+
+            chosen_name = (self.name_in.value or "").strip()
+            chosen_appearance = (self.appearance_in.value or "").strip()
+            if chosen_name or chosen_appearance:
+                try:
+                    engine.set_character_identity(
+                        self._session_id, self._character_id,
+                        name=chosen_name or None,
+                        appearance=chosen_appearance or None,
+                    )
+                except Exception as e:
+                    logger.exception("/join set_character_identity failed")
+                    await modal_inter.followup.send(
+                        embed=render_error(
+                            f"Bound, but couldn't apply identity: "
+                            f"`{type(e).__name__}: {e}`"
+                        ),
+                        ephemeral=True,
+                    )
+                    return
+
+            display_name = chosen_name or self._character_name
+            await _fire_arrival_turn(
+                modal_inter,
+                session_id=self._session_id,
+                story_id=self._story_id,
+                binding_cid=self._character_id,
+                char_name=display_name,
             )
+
+    # Sentinel value used in the /join SelectMenu for the
+    # "Create your own character" row. Real character_ids are
+    # snake_case slugs (`_pick_unused_character_id`), so this
+    # double-underscore form is unambiguous.
+    JOIN_CUSTOM_SENTINEL = "__custom__"
+
+    class _JoinCustomCreateModal(
+        discord.ui.Modal, title="Create your character",
+    ):
+        """Modal fired when the user picks the 'Create your own character'
+        row in /join. Three text inputs (name, appearance, backstory) feed
+        `EngineBridge.create_player_character_simple` directly — no LLM
+        round-trip. Backstory is optional; the agent can synthesize voice
+        from rolling conversation later when the player /leaves."""
+
+        name_in = discord.ui.TextInput(
+            label="Character name",
+            placeholder="e.g. Akari Tanaka",
+            required=True,
+            max_length=80,
+        )
+        appearance_in = discord.ui.TextInput(
+            label="Appearance",
+            style=discord.TextStyle.paragraph,
+            placeholder=(
+                "Height, build, clothing, notable features — whatever the "
+                "world should see at a glance."
+            ),
+            required=True,
+            max_length=600,
+        )
+        backstory_in = discord.ui.TextInput(
+            label="Backstory (optional)",
+            style=discord.TextStyle.paragraph,
+            placeholder=(
+                "Where you're from, what you do, what drives you. Leave "
+                "blank to discover it through play."
+            ),
+            required=False,
+            max_length=1000,
+        )
+
+        def __init__(self, *, session_id: str, story_id: str):
+            super().__init__()
+            self._session_id = session_id
+            self._story_id = story_id
+
+        async def on_submit(self, modal_inter: discord.Interaction):
+            await modal_inter.response.defer(thinking=True)
+
+            try:
+                new_char = engine.create_player_character_simple(
+                    self._session_id,
+                    modal_inter.user.id,
+                    name=self.name_in.value,
+                    appearance=self.appearance_in.value,
+                    backstory=self.backstory_in.value or "",
+                )
+            except ValueError as e:
+                await modal_inter.followup.send(
+                    embed=render_error(str(e)), ephemeral=True,
+                )
+                return
+            except Exception as e:
+                logger.exception("/join custom-create failed")
+                await modal_inter.followup.send(
+                    embed=render_error(f"`{type(e).__name__}: {e}`"),
+                    ephemeral=True,
+                )
+                return
+
+            await _fire_arrival_turn(
+                modal_inter,
+                session_id=self._session_id,
+                story_id=self._story_id,
+                binding_cid=new_char.character_id,
+                char_name=new_char.name,
+            )
+
+    class _JoinPickerView(discord.ui.View):
+        """Ephemeral SelectMenu showing claimable playable characters and
+        a 'Create your own character' row. Restricted to the invoker.
+        Picking a row pops a modal as the picker callback's direct
+        response (the 3s interaction window is respected)."""
+
+        def __init__(
+            self,
+            *,
+            session_id: str,
+            story_id: str,
+            invoker_id: int,
+            options: list[discord.SelectOption],
+            char_lookup: dict[str, str],
+        ):
+            super().__init__(timeout=180)
+            self._session_id = session_id
+            self._story_id = story_id
+            self._invoker_id = invoker_id
+            self._char_lookup = char_lookup
+            self._select = discord.ui.Select(
+                placeholder="Pick a character to play…",
+                options=options,
+                min_values=1, max_values=1,
+            )
+            self._select.callback = self._on_pick
+            self.add_item(self._select)
+
+        async def interaction_check(
+            self, check_inter: discord.Interaction,
+        ) -> bool:
+            if check_inter.user.id != self._invoker_id:
+                await check_inter.response.send_message(
+                    "This picker isn't yours.", ephemeral=True,
+                )
+                return False
+            return True
+
+        async def _on_pick(self, pick_inter: discord.Interaction):
+            picked_value = self._select.values[0]
+            self._select.disabled = True
+            if picked_value == JOIN_CUSTOM_SENTINEL:
+                await pick_inter.response.send_modal(
+                    _JoinCustomCreateModal(
+                        session_id=self._session_id,
+                        story_id=self._story_id,
+                    )
+                )
+            else:
+                picked_name = self._char_lookup.get(
+                    picked_value, picked_value,
+                )
+                await pick_inter.response.send_modal(
+                    _JoinIdentityModal(
+                        session_id=self._session_id,
+                        story_id=self._story_id,
+                        character_id=picked_value,
+                        character_name=picked_name,
+                    )
+                )
+            self.stop()
 
     @tree.command(
         name="join",
-        description="Claim a character, or open a custom-character prompt if no id is given.",
+        description="Step into the story — claim an existing character or create your own.",
         guild=guild,
     )
-    @app_commands.describe(
-        character_id="Optional character_id (see /story characters). Omit to create a custom character.",
-    )
-    async def _join(inter: discord.Interaction, character_id: str = ""):
-        row = await smap.get(inter.channel_id)
+    async def _join(inter: discord.Interaction):
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
-                "No session here. `/session start` then `/story start` first.", ephemeral=True,
+                "No session here. `/session start` then `/story start` first.",
+                ephemeral=True,
+            )
+            return
+        if not row.story_id:
+            await inter.response.send_message(
+                "This session has no story loaded yet. Run `/story start` "
+                "first.",
+                ephemeral=True,
             )
             return
 
-        character_id = (character_id or "").strip()
-        if not character_id:
-            # No id → open the custom-describe modal (shortcut for
-            # /join_custom mode:describe). Modal must be the direct
-            # response — cannot be shown after defer.
-            await inter.response.send_modal(_JoinCustomModal(row.session_id))
+        existing = engine.get_user_binding(row.session_id, inter.user.id)
+        if existing is not None:
+            await inter.response.send_message(
+                f"You're already bound to `{existing}`. Run `/leave` first "
+                f"if you want to switch characters.",
+                ephemeral=True,
+            )
             return
-
-        # Defer up front — binding + dossier-building both do checkpoint
-        # I/O plus a chunked ephemeral send, any of which could blow past
-        # the 3s interaction window on a large checkpoint or a slow network.
-        await inter.response.defer(thinking=True, ephemeral=True)
 
         try:
-            ckpt = engine.takeover(row.session_id, character_id, inter.user.id)
-        except ValueError as e:
-            await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
-            return
+            roster = engine.list_session_characters(row.session_id)
         except Exception as e:
-            logger.exception("takeover failed")
-            await inter.followup.send(
+            logger.exception("/join: list_session_characters failed")
+            await inter.response.send_message(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
 
-        char = next(
-            (c for c in ckpt.characters if c.character_id == character_id), None
+        candidates = [
+            c for c in roster
+            if c.is_playable
+            and c.status != "culled"
+            and not c.bound_user_id
+        ]
+
+        # SelectMenu cap is 25 total options. Reserve one slot for the
+        # custom-create row, leaving 24 for pre-authored playables. If a
+        # roster ever exceeds 24 playable slots we'll truncate; paginated
+        # pickers are deferred until we actually need them.
+        truncated = len(candidates) > 24
+        candidates = candidates[:24]
+
+        def _trim(text: str, limit: int) -> str:
+            text = (text or "").strip().replace("\n", " ")
+            return text if len(text) <= limit else text[: limit - 1] + "…"
+
+        # Custom-create option always sits at the top. Stories with zero
+        # pre-authored playable slots (sengoku-style "humans bring their
+        # own outsider character" designs) still get a usable picker —
+        # just with one option.
+        options: list[discord.SelectOption] = [
+            discord.SelectOption(
+                label="Create your own character",
+                value=JOIN_CUSTOM_SENTINEL,
+                description=(
+                    "Pick a name, appearance, and optional backstory."
+                ),
+            ),
+        ]
+        char_lookup: dict[str, str] = {}
+        for c in candidates:
+            char_lookup[c.character_id] = c.name
+            descr_bits = [b for b in (c.role, c.faction) if b]
+            description = _trim(" · ".join(descr_bits) or c.appearance, 100)
+            options.append(discord.SelectOption(
+                label=_trim(c.name, 100),
+                value=c.character_id,
+                description=description or None,
+            ))
+
+        view = _JoinPickerView(
+            session_id=row.session_id,
+            story_id=row.story_id,
+            invoker_id=inter.user.id,
+            options=options,
+            char_lookup=char_lookup,
         )
-        char_name = char.name if char else character_id
-
-        try:
-            dossier = engine.build_character_dossier(
-                row.session_id, character_id
+        body_lines: list[str] = []
+        if candidates:
+            n = len(candidates)
+            body_lines.append(
+                f"{n} pre-authored character{'s' if n != 1 else ''} open, "
+                "or create your own. Pick a row to begin."
             )
-        except Exception as e:
-            logger.exception("build_character_dossier failed")
-            dossier = f"(dossier unavailable: `{e}`)"
-
-        logger.info(
-            "Bound %s to %s in %s",
-            inter.user.display_name, character_id, row.session_id,
+        else:
+            body_lines.append(
+                "This story has no pre-authored playable slots — pick "
+                "**Create your own character** to step in."
+            )
+        if truncated:
+            body_lines.append(
+                "_(Roster has more than 24 playable slots; only the first "
+                "24 are listed. Tell an admin if you need a different one.)_"
+            )
+        body_lines.append(
+            "Picking a pre-authored character lets you optionally override "
+            "their name and appearance. Picking **Create your own character** "
+            "asks you for a name, appearance, and backstory directly."
         )
-
-        lines = [f"You are now playing **{char_name}** (`{character_id}`)."]
-        if char and char.status.value == "dormant":
-            lines.append(
-                "⚠️ This character is currently **dormant** — they're off-screen "
-                "in the fiction and can't `/act` until the story brings them "
-                "back. Your binding is saved and you'll be ready when they return."
-            )
-        lines.append("Your private dossier is below. Read it, then `/describe` to set your appearance and `/act` to play.")
-        await inter.followup.send(
-            embed=render_info("Joined", "\n".join(lines)),
+        await inter.response.send_message(
+            embed=render_info("Join the story", "\n\n".join(body_lines)),
+            view=view,
             ephemeral=True,
         )
-        await _send_private(inter, dossier)
 
     # ---- /leave -------------------------------------------------------------
 
@@ -909,7 +1529,7 @@ def register(
         guild=guild,
     )
     async def _leave(inter: discord.Interaction):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here.", ephemeral=True,
@@ -939,203 +1559,6 @@ def register(
             ephemeral=True,
         )
 
-    # ---- /join_custom -------------------------------------------------------
-
-    @tree.command(
-        name="join_custom",
-        description="Join with a player-authored character (describe or replace).",
-        guild=guild,
-    )
-    @app_commands.describe(
-        mode="'describe' to spawn a new character; 'replace' to get candidate NPCs to graft onto.",
-        description="Your character concept (free-form).",
-    )
-    @app_commands.choices(mode=[
-        app_commands.Choice(name="describe", value="describe"),
-        app_commands.Choice(name="replace", value="replace"),
-    ])
-    async def _join_custom(
-        inter: discord.Interaction,
-        mode: app_commands.Choice[str],
-        description: str,
-    ):
-        row = await smap.get(inter.channel_id)
-        if row is None:
-            await inter.response.send_message(
-                "No session here. `/session start` then `/story start` first.", ephemeral=True,
-            )
-            return
-
-        await inter.response.defer(thinking=True, ephemeral=True)
-
-        description = description.strip()
-        if not description:
-            await inter.followup.send(
-                embed=render_error("Description cannot be empty."),
-                ephemeral=True,
-            )
-            return
-
-        if mode.value == "describe":
-            try:
-                new_char = await engine.create_custom_character(
-                    row.session_id, inter.user.id, description,
-                )
-            except ValueError as e:
-                await inter.followup.send(
-                    embed=render_error(str(e)), ephemeral=True,
-                )
-                return
-            except Exception as e:
-                logger.exception("create_custom_character failed")
-                await inter.followup.send(
-                    embed=render_error(f"`{type(e).__name__}: {e}`"),
-                    ephemeral=True,
-                )
-                return
-
-            try:
-                dossier = engine.build_character_dossier(
-                    row.session_id, new_char.character_id,
-                )
-            except Exception as e:
-                logger.exception("build_character_dossier failed")
-                dossier = f"(dossier unavailable: `{e}`)"
-
-            msg = (
-                f"You are now **{new_char.name}** (`{new_char.character_id}`). "
-                "Run `/describe` with a name and appearance when you're ready. "
-                "Dossier below."
-            )
-            await inter.followup.send(
-                embed=render_info("Joined", msg), ephemeral=True,
-            )
-            await _send_private(inter, dossier)
-            return
-
-        # mode == "replace"
-        try:
-            result = await engine.suggest_replacement_targets(
-                row.session_id, description,
-                invoking_user_id=str(inter.user.id),
-            )
-        except ValueError as e:
-            await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
-            )
-            return
-        except Exception as e:
-            logger.exception("suggest_replacement_targets failed")
-            await inter.followup.send(
-                embed=render_error(f"`{type(e).__name__}: {e}`"),
-                ephemeral=True,
-            )
-            return
-
-        candidates = result.get("candidates") or []
-        preamble = (result.get("preamble") or "").strip()
-
-        if not candidates:
-            await inter.followup.send(
-                embed=render_info(
-                    "No candidates",
-                    (preamble + "\n\n" if preamble else "")
-                    + "The router found no replaceable NPCs for that concept. "
-                    "Try `/join_custom mode:describe` instead.",
-                ),
-                ephemeral=True,
-            )
-            return
-
-        lines: list[str] = []
-        if preamble:
-            lines.append(preamble)
-            lines.append("")
-        lines.append(
-            "**Candidates** — run `/pick_replacement` with one of these character_ids "
-            "(re-paste your description):"
-        )
-        for c in candidates:
-            cid = c.get("character_id", "?")
-            name = c.get("name", cid)
-            rationale = c.get("fit_rationale", "")
-            lines.append(f"- `{cid}` — {name} — {rationale}")
-
-        await inter.followup.send(
-            embed=render_info("Replacement candidates", "\n".join(lines)),
-            ephemeral=True,
-        )
-
-    # ---- /pick_replacement --------------------------------------------------
-
-    @tree.command(
-        name="pick_replacement",
-        description="Graft your custom character onto one of the candidates from /join_custom.",
-        guild=guild,
-    )
-    @app_commands.describe(
-        character_id="Target character_id from /join_custom candidate list.",
-        description="Same character concept you passed to /join_custom.",
-    )
-    async def _pick_replacement(
-        inter: discord.Interaction,
-        character_id: str,
-        description: str,
-    ):
-        row = await smap.get(inter.channel_id)
-        if row is None:
-            await inter.response.send_message(
-                "No session here. `/session start` then `/story start` first.", ephemeral=True,
-            )
-            return
-
-        await inter.response.defer(thinking=True, ephemeral=True)
-
-        character_id = character_id.strip()
-        description = description.strip()
-        if not character_id or not description:
-            await inter.followup.send(
-                embed=render_error(
-                    "Both `character_id` and `description` are required."
-                ),
-                ephemeral=True,
-            )
-            return
-
-        try:
-            new_char = await engine.replace_with_custom(
-                row.session_id, inter.user.id, character_id, description,
-            )
-        except ValueError as e:
-            await inter.followup.send(
-                embed=render_error(str(e)), ephemeral=True,
-            )
-            return
-        except Exception as e:
-            logger.exception("replace_with_custom failed")
-            await inter.followup.send(
-                embed=render_error(f"`{type(e).__name__}: {e}`"),
-                ephemeral=True,
-            )
-            return
-
-        try:
-            dossier = engine.build_character_dossier(
-                row.session_id, new_char.character_id,
-            )
-        except Exception as e:
-            logger.exception("build_character_dossier failed")
-            dossier = f"(dossier unavailable: `{e}`)"
-
-        msg = (
-            f"You are now **{new_char.name}** "
-            f"(replaced `{character_id}`). Dossier below."
-        )
-        await inter.followup.send(
-            embed=render_info("Joined", msg), ephemeral=True,
-        )
-        await _send_private(inter, dossier)
-
     # ---- /character ---------------------------------------------------------
 
     @tree.command(
@@ -1147,7 +1570,7 @@ def register(
         character_id="The character_id (see /story characters).",
     )
     async def _character(inter: discord.Interaction, character_id: str):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. `/session start` then `/story start` first.", ephemeral=True,
@@ -1180,19 +1603,19 @@ def register(
 
     @tree.command(
         name="describe",
-        description="Set your character's name and/or appearance. Opens the story on first use.",
+        description="(advanced) Update your character's name or appearance mid-story.",
         guild=guild,
     )
     @app_commands.describe(
-        name="The name your character will use in-story (optional).",
-        appearance="Height, build, clothing, notable features — freeform (optional).",
+        name="New in-story name (optional).",
+        appearance="New height, build, clothing, notable features — freeform (optional).",
     )
     async def _describe(
         inter: discord.Interaction,
         name: str = "",
         appearance: str = "",
     ):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. Run `/session start` then `/story start`.",
@@ -1217,8 +1640,7 @@ def register(
         if binding is None:
             await inter.followup.send(
                 embed=render_error(
-                    "You aren't bound to a character. Run `/story characters` "
-                    "and then `/join <character_id>` first."
+                    "You aren't bound to a character. Run `/join` first."
                 )
             )
             return
@@ -1236,10 +1658,11 @@ def register(
             ))
             return
 
-        # If this is the first describe AND no turns have happened yet, fire a
-        # synthetic arrival action so the narrator renders the opening scene
-        # with the description in hand. Otherwise this is just a mid-story
-        # update and we don't trigger anything.
+        # Defensive: if we somehow got here pre-play (no narrator turns
+        # yet), fire `(begin)`. The canonical opener is /join's arrival
+        # turn now — but the play CLI and any non-/join binding path
+        # (manual test setup, future programmatic frontends) can still
+        # land here, and we shouldn't silently swallow the opener.
         # v11: narrator_conversations is per-POV dict keyed by character_id.
         # "no turns yet" = no POV has any narrator history.
         is_pre_play = not any(ckpt.narrator_conversations.values())
@@ -1270,8 +1693,8 @@ def register(
         # v11-r6c note: we pass `(begin)` as a plain `user_input` through
         # /act's normal path. The dispatcher's `format_human_initiator_
         # intention` wraps this as "Alice attempts: (begin)" — visually a
-        # bit odd, but the event_router_v9 prompt's Author-directive OOC
-        # rule (search for "Author-directive OOC" in event_router_v9.txt)
+        # bit odd, but the event_router prompt's Author-directive OOC
+        # rule (search for "Author-directive OOC" in event_router.txt)
         # fires on the shape of the content itself (fully parenthesized
         # input), NOT on the surrounding "attempts:" framing. So OOC
         # routing is correct here and no code change is needed. If the
@@ -1289,6 +1712,13 @@ def register(
                 user_input=arrival_action,
                 acting_character_id=binding,
             )
+        except TransientLLMError as e:
+            logger.warning(
+                "opening run_turn hit transient LLM error after %d attempts: %s",
+                e.attempts, e.last_error,
+            )
+            await inter.followup.send(embed=render_error(str(e)))
+            return
         except Exception as e:
             logger.exception("opening run_turn failed")
             await inter.followup.send(embed=render_error(
@@ -1318,7 +1748,35 @@ def register(
             (f"{intro_line}\n\n" if intro_line else "")
             + "The scene opens. Use `/act <action>` from here on."
         )
-        await inter.followup.send(content=intro, embeds=embeds)
+
+        # /describe's defensive pre-play opener follows the same
+        # POV-thread-first delivery as /act and /join arrival.
+        bound_char = next(
+            (c for c in ckpt.characters if c.character_id == binding), None,
+        )
+        bound_name = bound_char.name if bound_char else binding
+        venue, thread = await _post_actor_render(
+            inter=inter,
+            smap=smap,
+            user=inter.user,
+            character_id=binding,
+            char_name=bound_name,
+            embeds=embeds,
+            intro_content=intro,
+        )
+        if venue == "thread" and thread is not None:
+            await inter.followup.send(
+                f"Character updated. Scene opens in {thread.mention}.",
+                ephemeral=True,
+            )
+        elif venue == "dm":
+            await inter.followup.send(
+                "Character updated. Scene opens in your DMs "
+                "(POV thread unavailable here).",
+                ephemeral=True,
+            )
+        else:
+            await inter.followup.send(content=intro, embeds=embeds)
 
     # ---- /act ---------------------------------------------------------------
 
@@ -1329,7 +1787,7 @@ def register(
     )
     @app_commands.describe(action="What your character does or says.")
     async def _act(inter: discord.Interaction, action: str):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. Run `/session start` then `/story start`.",
@@ -1341,7 +1799,7 @@ def register(
         if binding is None:
             await inter.response.send_message(
                 "You're not bound to a character in this story. "
-                "Run `/story characters` then `/join <character_id>`.",
+                "Run `/join` to pick one.",
                 ephemeral=True,
             )
             return
@@ -1355,6 +1813,13 @@ def register(
                 user_input=action,
                 acting_character_id=binding,
             )
+        except TransientLLMError as e:
+            logger.warning(
+                "run_turn hit transient LLM error after %d attempts: %s",
+                e.attempts, e.last_error,
+            )
+            await inter.followup.send(embed=render_error(str(e)))
+            return
         except Exception as e:
             logger.exception("run_turn failed")
             await inter.followup.send(
@@ -1411,10 +1876,10 @@ def register(
             skip_cid: str | None,
             note_prefix: str = "",
         ) -> list[str]:
-            """DM each (cid, prose) in `renders` to that character's
-            bound user. Returns the list of character display names that
-            were successfully notified. `skip_cid` skips the actor (who
-            already saw their render in-channel)."""
+            """Post each (cid, prose) in `renders` to that user's POV
+            thread (DM fallback). Returns the list of character display
+            names that were successfully notified. `skip_cid` skips the
+            actor (who already saw their render in-channel)."""
             notified: list[str] = []
             for cid, prose in renders.items():
                 if cid == skip_cid or not prose:
@@ -1426,24 +1891,24 @@ def register(
                     uid = int(uid_str)
                 except ValueError:
                     continue
-                try:
-                    user = inter.client.get_user(uid)
-                    if user is None:
-                        user = await inter.client.fetch_user(uid)
-                    payload = (
-                        f"{note_prefix}\n\n{prose}" if note_prefix else prose
-                    )
-                    for chunk in _chunks(payload, 1900):
-                        await user.send(chunk)
-                    char = next(
-                        (c for c in roster if c.character_id == cid), None,
-                    )
-                    notified.append(char.name if char else cid)
-                except Exception:
-                    logger.exception(
-                        "per-POV fan-out: DM to uid=%s (char=%s) failed",
-                        uid, cid,
-                    )
+                payload = (
+                    f"{note_prefix}\n\n{prose}" if note_prefix else prose
+                )
+                char = next(
+                    (c for c in roster if c.character_id == cid), None,
+                )
+                char_name = char.name if char else cid
+                ok = await _post_to_pov(
+                    inter=inter,
+                    smap=smap,
+                    user_id=uid,
+                    character_id=cid,
+                    char_name=char_name,
+                    text=payload,
+                    bot=inter.client,
+                )
+                if ok:
+                    notified.append(char_name)
             return notified
 
         # Step 1: fan out pre-turn AFK-sweep resolutions BEFORE the
@@ -1460,7 +1925,15 @@ def register(
                 ),
             )
 
-        # Step 2: actor's /act result.
+        # Step 2: actor's /act result. Always routed through
+        # `_post_actor_render` so the narrative lands in the actor's
+        # private POV thread (DM fallback, public-channel fallback if
+        # both private paths fail). Public channel sees an ephemeral
+        # pointer at most.
+        actor_char = next(
+            (c for c in roster if c.character_id == binding), None,
+        )
+        actor_name = actor_char.name if actor_char else binding
         per_player = response.per_player_renders or {}
         if response.beat_ended_reason == "cat_ii_pending":
             actor_render = per_player.get(binding) or ""
@@ -1474,7 +1947,30 @@ def register(
                     turn_index=response.turn_index,
                     story_id=row.story_id,
                 )
-                await inter.followup.send(content=pause_note, embeds=embeds)
+                venue, thread = await _post_actor_render(
+                    inter=inter,
+                    smap=smap,
+                    user=inter.user,
+                    character_id=binding,
+                    char_name=actor_name,
+                    embeds=embeds,
+                    intro_content=pause_note,
+                )
+                if venue == "thread" and thread is not None:
+                    await inter.followup.send(
+                        f"Scene paused. Continued in {thread.mention}.",
+                        ephemeral=True,
+                    )
+                elif venue == "dm":
+                    await inter.followup.send(
+                        "Scene paused. Continued in your DMs "
+                        "(POV thread unavailable here).",
+                        ephemeral=True,
+                    )
+                else:
+                    await inter.followup.send(
+                        content=pause_note, embeds=embeds,
+                    )
             else:
                 await inter.followup.send(content=pause_note, ephemeral=True)
         else:
@@ -1483,7 +1979,27 @@ def register(
                 turn_index=response.turn_index,
                 story_id=row.story_id,
             )
-            await inter.followup.send(embeds=embeds)
+            venue, thread = await _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=inter.user,
+                character_id=binding,
+                char_name=actor_name,
+                embeds=embeds,
+            )
+            if venue == "thread" and thread is not None:
+                await inter.followup.send(
+                    f"Posted to {thread.mention}.", ephemeral=True,
+                )
+            elif venue == "dm":
+                await inter.followup.send(
+                    "Posted to your DMs (POV thread unavailable here).",
+                    ephemeral=True,
+                )
+            else:
+                # Both private paths failed — public fallback so the
+                # actor still sees their beat.
+                await inter.followup.send(embeds=embeds)
 
         # Step 3: DM the actor's beat to the OTHER bound humans in the
         # scene. Acting user already saw it in-channel above, so
@@ -1506,6 +2022,87 @@ def register(
                         "per-POV fan-out: ephemeral ack failed",
                     )
 
+    # ---- /query -------------------------------------------------------------
+    # Out-of-character consultation. The router is busy adjudicating
+    # `/act`s on every turn; `/query` is a separate read-only path that
+    # asks "what does my character know / see / remember right now?"
+    # without touching the timeline. Answers are ephemeral so the
+    # OOC sidebar never pollutes the public/POV channels.
+
+    @tree.command(
+        name="query",
+        description=(
+            "Ask an out-of-character question (what do I see, who is X, "
+            "what day is it). Ephemeral."
+        ),
+        guild=guild,
+    )
+    @app_commands.describe(
+        question=(
+            "Out-of-character question. Answered from your character's POV "
+            "or refused in-fiction if they couldn't know."
+        ),
+    )
+    async def _query(inter: discord.Interaction, question: str):
+        if not question.strip():
+            await inter.response.send_message(
+                "Ask a question — what do you see, who is around, what day "
+                "is it, did you meet someone, etc.",
+                ephemeral=True,
+            )
+            return
+
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+
+        binding = engine.get_user_binding(row.session_id, inter.user.id)
+        if binding is None:
+            await inter.response.send_message(
+                "You're not bound to a character in this story. "
+                "Run `/join` to pick one before /query.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True, ephemeral=True)
+
+        try:
+            result = await engine.run_query(
+                session_id=row.session_id,
+                character_id=binding,
+                question=question,
+            )
+        except TransientLLMError as e:
+            logger.warning(
+                "run_query hit transient LLM error after %d attempts: %s",
+                e.attempts, e.last_error,
+            )
+            await inter.followup.send(str(e), ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("run_query failed")
+            await inter.followup.send(
+                f"`{type(e).__name__}: {e}`", ephemeral=True,
+            )
+            return
+
+        answer = result.answer or "(no response)"
+        # Echo the question back italicized so the player has the
+        # context inside the ephemeral (Discord ephemerals don't
+        # appear in normal scrollback, so the question text isn't
+        # visible without this).
+        body = f"_> {question.strip()}_\n\n{answer}"
+        # Discord caps message bodies at 2000 chars; keep some
+        # headroom for the italic prefix.
+        if len(body) > 1900:
+            body = body[:1900] + "\n…(truncated)"
+        await inter.followup.send(body, ephemeral=True)
+
     # ---- /status ------------------------------------------------------------
 
     @tree.command(
@@ -1514,7 +2111,7 @@ def register(
         guild=guild,
     )
     async def _status(inter: discord.Interaction):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No story here.", ephemeral=True,
@@ -1526,7 +2123,7 @@ def register(
         except FileNotFoundError:
             # Orphaned mapping — purge and tell the user so they can
             # start fresh without bumping into a stale binding.
-            await smap.delete(inter.channel_id)
+            await smap.delete(_session_channel_id(inter))
             await inter.response.send_message(
                 f"Session `{row.session_id}` had no checkpoint on disk; "
                 f"the channel mapping has been purged. Run `/session start` "
@@ -1659,7 +2256,7 @@ def register(
         description="Show all experimental settings for this session.",
     )
     async def _settings_list(inter: discord.Interaction):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. Run `/session start` first.", ephemeral=True,
@@ -1707,7 +2304,7 @@ def register(
         key: str,
         value: str,
     ):
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session here. Run `/session start` first.", ephemeral=True,
@@ -1765,7 +2362,7 @@ def register(
                 "Admin-only command.", ephemeral=True,
             )
             return
-        row = await smap.get(inter.channel_id)
+        row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
                 "No session bound to this channel.", ephemeral=True,

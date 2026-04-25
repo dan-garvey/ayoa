@@ -2,7 +2,8 @@
 
 Responsibilities:
 - Holds the shared Orchestrator, LLMClient, CheckpointManager, PromptManager.
-- Creates a fresh session from an imported story (copy ckpt_0000 + personalize).
+- Creates a fresh session from an imported story (copies ckpt_0000 into the
+  session dir; no auto-binding — players pick a character via /join).
 - Runs turns behind a per-session asyncio.Lock so concurrent /act commands
   on the same channel serialize cleanly.
 """
@@ -16,7 +17,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from app.engine.character_agent import _extract_parenthetical
 from app.engine.character_manager import _normalize_router_summary
@@ -35,10 +36,13 @@ from app.engine.story_importer import (
 )
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
+
+if TYPE_CHECKING:
+    from app.schemas.query import QueryResponse
 
 
 @dataclass(frozen=True)
@@ -48,7 +52,9 @@ class CharacterSummary:
     Public-sheet fields plus status / name / binding — nothing from
     private_state, backstory, personality, or hidden lore. `bound_user_id`
     is populated when reading a session checkpoint; empty on pristine
-    story-level lookups.
+    story-level lookups. `is_playable` mirrors the runtime
+    `CharacterRecord.is_playable` flag (renamed from `is_player` in the
+    playable-2 commit; see schema docstring).
     """
     character_id: str
     name: str
@@ -56,7 +62,7 @@ class CharacterSummary:
     faction: str
     appearance: str
     status: str  # "active" | "dormant" | "culled"
-    is_player: bool
+    is_playable: bool
     bound_user_id: str = ""
 
 logger = logging.getLogger(__name__)
@@ -274,7 +280,7 @@ class EngineBridge:
         """Copy a story's pristine ckpt_0000 into the named session dir,
         rewriting session_id and stripping import_analysis. No
         personalize, no auto-bind — the player picks characters via
-        /join or /join_custom after. Refuses if the session already has
+        /join after. Refuses if the session already has
         a story loaded (run /story delete first)."""
         src = self.stories_dir / story_id / "ckpt_0000.json"
         if not src.exists():
@@ -443,7 +449,7 @@ class EngineBridge:
             return ckpt
 
         # Pull this character's rolling conversation history. On a fresh
-        # /join_custom character who never had an agent turn, the history
+        # custom character who never had an agent turn, the history
         # is empty — fall back to synthesizing from authored fields only.
         #
         # Leak guard: assistant turns in the rolling conversation include
@@ -632,21 +638,34 @@ class EngineBridge:
         character_id: str,
         user_id: int,
     ) -> CheckpointFile:
-        """Plain takeover: bind the user to an existing character and flip
-        is_player=True. Name, appearance, everything else unchanged.
+        """Plain takeover: bind the user to an existing character.
 
-        This is the default `/join` path — the user becomes the character
-        as-authored. Refuses if already claimed, culled, or nonexistent
-        (via bind_user's checks) and on already-is_player+already-bound."""
+        Name, appearance, identity, everything else stays as-authored.
+        This is the default `/join` path — the user becomes the
+        character as the importer wrote them. Refuses if already
+        claimed, culled, or nonexistent (via `bind_user`).
+
+        Under playable-2 semantics the binding IS the takeover —
+        `is_playable` is an authoring-time flag describing which slots
+        a human can step into, not a runtime flag toggled by binding.
+        We log a warning if the importer didn't mark this character
+        playable but a player is taking them over anyway (most likely
+        a custom override via /character path); the binding still
+        applies because explicit user intent wins.
+        """
         ckpt = self.bind_user(session_id, user_id, character_id)
         target = next(
             (c for c in ckpt.characters if c.character_id == character_id), None,
         )
         if target is None:
             raise ValueError(f"No character '{character_id}' in this session.")
-        if not target.is_player:
-            target.is_player = True
-            self.checkpoint_mgr.save(ckpt)
+        if not target.is_playable:
+            logger.warning(
+                "takeover: %s (%s) was not marked is_playable=true at import "
+                "time, but user %s bound to them anyway. Binding stands; the "
+                "importer probably should have flagged them playable.",
+                target.name, character_id, user_id,
+            )
         return ckpt
 
     async def create_custom_character(
@@ -657,8 +676,8 @@ class EngineBridge:
     ) -> CharacterRecord:
         """Mode='describe': router authors a full new character from the
         player's concept, lands them in the world, binds to the user. The
-        returned record has its engine-assigned character_id, is_player=True,
-        and is already written to the checkpoint."""
+        returned record has its engine-assigned character_id,
+        is_playable=True, and is already written to the checkpoint."""
         from app.schemas.takeover import TakeoverAuthoredOutput
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
@@ -670,7 +689,7 @@ class EngineBridge:
         )
         new_id = _pick_unused_character_id(ckpt, out.character.name)
         new_char = out.character.to_record(character_id=new_id)
-        new_char.is_player = True
+        new_char.is_playable = True
         ckpt.characters.append(new_char)
         ckpt.session.character_bindings[new_id] = str(user_id)
         # Prefer the LLM-authored router_summary (it has full omniscient
@@ -718,6 +737,77 @@ class EngineBridge:
         )
         return new_char
 
+    def create_player_character_simple(
+        self,
+        session_id: str,
+        user_id: int,
+        *,
+        name: str,
+        appearance: str,
+        backstory: str = "",
+    ) -> CharacterRecord:
+        """LLM-free player-character spawn from raw user inputs.
+
+        This is the fast path behind /join's "Create your own character"
+        option. Unlike `create_custom_character`, it does not call the
+        takeover prompt to author personality/goals/secrets/location —
+        it just builds a `CharacterRecord` directly from the player's
+        own words, marks them `is_playable=True`, binds the user, and
+        leaves the rest empty. The router places them via the
+        `(arrive)` directive that fires immediately after; the agent
+        only takes over voice when the player eventually `/leave`s
+        (the personality-synthesis step on /leave fills the gap from
+        the rolling conversation).
+        - `name` and `appearance` are required.
+        - `backstory` is optional; when provided it goes verbatim into
+          `CharacterRecord.backstory` so the agent can reference it
+          on /leave handoff.
+
+        Returns the freshly-created record (already saved to the
+        checkpoint).
+        """
+        name = name.strip()
+        appearance = appearance.strip()
+        backstory = backstory.strip()
+        if not name:
+            raise ValueError("Character name cannot be empty.")
+        if not appearance:
+            raise ValueError("Character appearance cannot be empty.")
+
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        new_id = _pick_unused_character_id(ckpt, name)
+        new_char = CharacterRecord(
+            character_id=new_id,
+            name=name,
+            status=CharacterStatus.active,
+            location="",  # router places via (arrive) directive
+            is_playable=True,
+            public_sheet=PublicSheet(appearance=appearance),
+            backstory=backstory,
+        )
+        ckpt.characters.append(new_char)
+        ckpt.session.character_bindings[new_id] = str(user_id)
+
+        # Surface the spawn to the router. The (arrive) turn that fires
+        # right after this will pick the line up via the standard
+        # state-changes block and decide where to drop them in. Keep
+        # the line tight — long backstories belong on the record, not
+        # in the per-turn router context.
+        bits = [f"appearance: {appearance[:200]}"]
+        if backstory:
+            bits.append(f"player-supplied backstory: {backstory[:300]}")
+        ckpt.session.pending_router_state_changes.append(
+            f"Custom player character created: {new_char.name} "
+            f"(id: {new_id}) — {'; '.join(bits)}. [player-bound]"
+        )
+
+        self.checkpoint_mgr.save(ckpt)
+        logger.info(
+            "Custom player character (LLM-free) spawned in %s by user %s: "
+            "%s (%s)", session_id, user_id, name, new_id,
+        )
+        return new_char
+
     async def suggest_replacement_targets(
         self,
         session_id: str,
@@ -760,7 +850,7 @@ class EngineBridge:
         known_context, secrets, narrative_notes). Clears the target's
         rolling character_conversation so the new self starts fresh.
 
-        Binds user, flips is_player, saves."""
+        Binds user, marks the slot is_playable=true, saves."""
         from app.schemas.takeover import TakeoverAuthoredOutput
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
@@ -771,10 +861,6 @@ class EngineBridge:
         if target is None:
             raise ValueError(
                 f"No character '{target_character_id}' in this session."
-            )
-        if target.is_player:
-            raise ValueError(
-                f"'{target.name}' is already a player character — pick another target."
             )
         claimed_by = ckpt.session.character_bindings.get(target_character_id)
         if claimed_by and claimed_by != str(user_id):
@@ -808,7 +894,7 @@ class EngineBridge:
         # Keep target's location, status, pending_observations, and
         # current_objectives as-is — those are the "circumstances" the
         # player inherits.
-        target.is_player = True
+        target.is_playable = True
 
         # Drop rolling character conversation — the voice has changed.
         # The agent's prior parentheticals (their interior continuity)
@@ -1111,13 +1197,52 @@ class EngineBridge:
             response.pre_turn_resolutions = pre_turn
             return response
 
+    async def run_query(
+        self,
+        *,
+        session_id: str,
+        character_id: str,
+        question: str,
+    ) -> "QueryResponse":
+        """Answer an out-of-character /query for `character_id` in
+        `session_id`. Read-only — no checkpoint mutation, no
+        per-session lock, no turn advancement, no broadcast. The
+        asking character's POV envelope bounds the answer; questions
+        outside that envelope come back with `knowledge_gated=True`
+        and an in-fiction refusal.
 
-# ---- personalize helper -----------------------------------------------------
-# Finds the player character via the roster's is_player flag (not a
-# hard-coded id suffix), rewrites character_id/name/PLAYER_NAME, and keeps
-# the runtime checkpoint schema consistent. Mirrors
-# app/api/story_routes.py::_apply_personalize so the bot does not depend on
-# the FastAPI route.
+        Deliberately bypasses the per-session lock that wraps
+        `run_turn`. The query is a pure read of the latest
+        checkpoint snapshot on disk — concurrent /query and /act
+        on the same session are safe because /act writes a brand-new
+        checkpoint file rather than mutating in place. A query
+        running while a turn is mid-flight may read the
+        pre-turn snapshot; that's an acceptable staleness window
+        (the alternative is making the user wait on the lock for an
+        OOC question, which would be worse).
+        """
+        # Local import to keep the engine layer's full dependency
+        # graph out of EngineBridge's module load — query_handler
+        # transitively imports the schema + prompt manager + LLM
+        # client, all of which are fine but the lazy import keeps
+        # the symbol surface small at import time.
+        from app.engine.query_handler import answer_query
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        return await answer_query(
+            self.client, self.prompt_mgr, ckpt, character_id, question,
+        )
+
+
+# ---- player-flow helpers ----------------------------------------------------
+# Helpers that support the bot's player-facing flows. Under playable-2
+# semantics, every player→character lookup routes through
+# `session.character_bindings` (the canonical live state). `is_playable`
+# is now an authoring-time flag describing which slots a human MAY step
+# into via /join — not a runtime flag toggled by binding.
+#
+# * `build_character_dossier` / `_summaries_from_checkpoint` — bindings-
+#   driven; used by takeover prompts and roster summaries.
+# * `_pick_unused_character_id` — pure slug helper.
 
 
 def _pick_unused_character_id(
@@ -1148,7 +1273,7 @@ def _build_takeover_context(
     `invoking_user_id`: the Discord user (or CLI session) running the
     takeover. Threaded into `pov_scene_for_user` so the prompt's
     `current_scene` block reflects WHERE THIS USER IS, not the
-    creator binding or "first is_player" fallback. In multi-player
+    creator binding or "first is_playable" fallback. In multi-player
     sessions those fallbacks would otherwise hand the takeover LLM
     another player's scene as "the action," which is the wrong frame.
     """
@@ -1175,7 +1300,7 @@ def _build_takeover_context(
     # players in different scenes, and "where the action is" must be
     # keyed on whoever invoked takeover, not on a session-global
     # default. `pov_scene_for_user` resolves: bound character → creator
-    # binding → first is_player → "". For takeover the invoking user
+    # binding → first is_playable → "". For takeover the invoking user
     # almost always has a binding (they took over from somewhere); if
     # they don't (rare: brand-new join replacing their first NPC),
     # the creator-binding fallback is the next-best frame.
@@ -1198,10 +1323,16 @@ def _build_takeover_context(
     )
 
     registry_lines = []
+    bindings = ckpt.session.character_bindings or {}
     for c in ckpt.characters:
         if c.status.value == "culled":
             continue
-        marker = " [player]" if c.is_player else ""
+        if c.character_id in bindings:
+            marker = " [player-bound]"
+        elif c.is_playable:
+            marker = " [playable]"
+        else:
+            marker = ""
         role = f" — {c.public_sheet.role}" if c.public_sheet.role else ""
         fac = f" ({c.public_sheet.faction})" if c.public_sheet.faction else ""
         loc = f" @ {c.location}" if c.location else ""
@@ -1394,45 +1525,8 @@ def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
             faction=char.public_sheet.faction or "",
             appearance=char.public_sheet.appearance or "",
             status=char.status.value,
-            is_player=char.is_player,
+            is_playable=char.is_playable,
             bound_user_id=bindings.get(char.character_id, ""),
         ))
     return summaries
 
-
-def _personalize(checkpoint: CheckpointFile, player_name: str) -> CheckpointFile:
-    name = player_name.strip()
-    if not name:
-        raise ValueError("player_name cannot be empty")
-
-    player_chars = [c for c in checkpoint.characters if c.is_player]
-    if not player_chars:
-        raise ValueError(
-            "Roster has no is_player=true character. Re-import the master "
-            "prompt with a protagonist explicitly designated."
-        )
-    if len(player_chars) > 1:
-        logger.warning(
-            "Roster has %d is_player characters; personalize binds only the first "
-            "(%s). Multi-player support lands in Phase 3.",
-            len(player_chars), player_chars[0].name,
-        )
-
-    pc = player_chars[0]
-    old_char_id = pc.character_id
-    new_char_id = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "player"
-
-    raw = checkpoint.model_dump_json()
-    raw = raw.replace("PLAYER_NAME", name)
-    raw = raw.replace(f'"{old_char_id}"', f'"{new_char_id}"')
-    data: dict[str, Any] = json.loads(raw)
-
-    data["session"]["player_name"] = name
-    data["session"]["player_character_id"] = new_char_id
-
-    known = data.get("world_state", {}).get("known_characters", [])
-    if new_char_id not in known:
-        known.append(new_char_id)
-    data.setdefault("world_state", {})["known_characters"] = known
-
-    return CheckpointFile.model_validate(data)

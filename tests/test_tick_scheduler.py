@@ -61,14 +61,14 @@ def _npc(
     intentions_enabled: bool = True,
     status: CharacterStatus = CharacterStatus.active,
     location: str = "courtyard",
-    is_player: bool = False,
+    is_playable: bool = False,
 ) -> CharacterRecord:
     return CharacterRecord(
         character_id=char_id,
         name=char_id.title(),
         status=status,
         location=location,
-        is_player=is_player,
+        is_playable=is_playable,
         public_sheet=PublicSheet(role="npc"),
         private_state=PrivateState(intentions_enabled=intentions_enabled),
     )
@@ -129,7 +129,7 @@ def _ckpt(
         ),
         characters=characters or [
             CharacterRecord(
-                character_id="alice", name="Alice", is_player=True,
+                character_id="alice", name="Alice", is_playable=True,
                 location="courtyard",
                 public_sheet=PublicSheet(role="player"),
             ),
@@ -220,7 +220,7 @@ def _stub_character_agent(monkeypatch, recorder: list[str] | None = None):
 class TestEligibility:
     def test_dormant_npc_excluded(self):
         ckpt = _ckpt(characters=[
-            _npc("alice", is_player=True),
+            _npc("alice", is_playable=True),
             _npc("regent", status=CharacterStatus.dormant),
         ])
         orch = _orchestrator()
@@ -229,7 +229,7 @@ class TestEligibility:
 
     def test_culled_npc_excluded(self):
         ckpt = _ckpt(characters=[
-            _npc("alice", is_player=True),
+            _npc("alice", is_playable=True),
             _npc("regent", status=CharacterStatus.culled),
         ])
         orch = _orchestrator()
@@ -237,7 +237,7 @@ class TestEligibility:
 
     def test_intentions_disabled_excluded(self):
         ckpt = _ckpt(characters=[
-            _npc("alice", is_player=True),
+            _npc("alice", is_playable=True),
             _npc("regent", intentions_enabled=False),
         ])
         orch = _orchestrator()
@@ -245,12 +245,12 @@ class TestEligibility:
 
     def test_player_bound_npc_excluded(self):
         # Bind a non-player-flagged NPC to a user (e.g. /takeover) — even
-        # though `is_player=False`, character_bindings contains them, so
+        # though `is_playable=False`, character_bindings contains them, so
         # the scheduler treats them as a human and skips ticking.
         ckpt = _ckpt(
             bindings={"alice": "u1", "regent": "u2"},
             characters=[
-                _npc("alice", is_player=True),
+                _npc("alice", is_playable=True),
                 _npc("regent"),
                 _npc("scribe"),
             ],
@@ -266,7 +266,7 @@ class TestEligibility:
             bindings={},
             player_character_id="alice",
             characters=[
-                _npc("alice", is_player=True),
+                _npc("alice", is_playable=True),
                 _npc("regent"),
             ],
         )
@@ -321,7 +321,7 @@ class TestEligibility:
         # (off-stage); Regent is in "courtyard" (the active scene)
         # and must be filtered out.
         ckpt = _ckpt(characters=[
-            _npc("alice", is_player=True, location="courtyard"),
+            _npc("alice", is_playable=True, location="courtyard"),
             _npc("regent", location="courtyard"),
             _npc("scribe", location="hall"),
         ])
@@ -633,7 +633,7 @@ class TestTriggerLogic:
             turns_since_last_tick=14, tick_last_scene_id="courtyard",
             stagnation=15,
             characters=[
-                _npc("alice", is_player=True),
+                _npc("alice", is_playable=True),
                 _npc("regent", status=CharacterStatus.dormant),
             ],
         )

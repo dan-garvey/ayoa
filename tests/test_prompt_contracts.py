@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
     AGENT_ON_STAGE_HEADER,
     AGENT_TICK_HEADER,
@@ -18,15 +17,13 @@ from app.engine.turn_loop_contracts import (
     format_tick_fan_in_block,
 )
 
-ROUTER_PROMPT = Path("app/prompts/event_router_v9.txt").read_text()
-NARRATOR_PROMPT = Path("app/prompts/narrator_phase2_v9.txt").read_text()
-# Agent prompt is version-stamped — load via PromptManager so test
-# follows the file forward as v11 → v12 etc., instead of pinning a
-# specific filename and silently going stale.
-_AGENT_PROMPT_PATH = PromptManager(
-    prompts_dir="app/prompts",
-)._find_template("agent")
-AGENT_PROMPT = _AGENT_PROMPT_PATH.read_text()
+# Prompts are versioned in git, not in their filenames — so these are
+# stable paths that follow the file forward across rewrites. Use
+# `git log app/prompts/event_router.txt` to see history; this test
+# only needs the current text.
+ROUTER_PROMPT = Path("app/prompts/event_router.txt").read_text()
+NARRATOR_PROMPT = Path("app/prompts/narrator_phase2.txt").read_text()
+AGENT_PROMPT = Path("app/prompts/agent.txt").read_text()
 
 
 class TestPromptReferencesConstants:
@@ -134,7 +131,7 @@ class TestTickFanInBlock:
         assert "(no public action)" in block
 
     def test_router_prompt_mentions_tick_fan_in_header(self):
-        # Mode routing in event_router_v9 keys off this exact string;
+        # Mode routing in event_router keys off this exact string;
         # if we ever rename the constant, this catches the prompt
         # falling out of sync with the contract.
         assert TICK_FAN_IN_HEADER in ROUTER_PROMPT
@@ -143,8 +140,8 @@ class TestTickFanInBlock:
 class TestAgentModeContract:
     """v11 unified-agent contract. There is now ONE agent system
     prompt for both on-stage and off-stage calls (cache-trail
-    deduplication — `agent_v10.txt` and `agent_tick_v3.txt` are
-    merged). The agent identifies its mode by reading the FIRST line
+    deduplication — the legacy `agent` and `agent_tick` templates
+    were merged). The agent identifies its mode by reading the FIRST line
     of its current user message: `## ON-STAGE` or `## TICK`. The
     prompt's "Mode Routing" section keys off those exact strings;
     these tests pin the prompt-code contract so a rename or a

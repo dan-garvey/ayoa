@@ -449,7 +449,9 @@ class Orchestrator:
                         "Cat II resolution returned nested Cat II "
                         "(Part C invariant violated)."
                     )
-                broadcast_event(ckpt, resolved, scene_id)
+                broadcast_event(
+                    ckpt, resolved, scene_id, actor_id=evt_live.initiator_id,
+                )
                 beat_result = await _end_beat(
                     ckpt, dispatcher, scene_id,
                     ended_reason="cat_ii_resolution",
@@ -589,11 +591,11 @@ class Orchestrator:
         if not routed.roster_moves:
             return
 
+        from app.engine.context_builder import collect_player_ids
+
         scene_graph = ckpt.world_state.locations.scene_graph
         pinned_ids = _pinned_character_ids(ckpt)
-        player_ids = set(ckpt.session.character_bindings or {})
-        if ckpt.session.player_character_id:
-            player_ids.add(ckpt.session.player_character_id)
+        player_ids = collect_player_ids(ckpt)
 
         for move in routed.roster_moves:
             is_actor_self_move = (
@@ -681,10 +683,10 @@ class Orchestrator:
         Order is roster order; that's also the order their tick
         outputs will reach the unified router in Commit 6.
         """
+        from app.engine.context_builder import collect_player_ids
+
         pinned_ids = _pinned_character_ids(ckpt)
-        player_ids = set(ckpt.session.character_bindings or {})
-        if ckpt.session.player_character_id:
-            player_ids.add(ckpt.session.player_character_id)
+        player_ids = collect_player_ids(ckpt)
 
         eligible: list[CharacterRecord] = []
         for char in ckpt.characters:

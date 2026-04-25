@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import re
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
@@ -13,6 +14,26 @@ from pydantic import BaseModel
 from app.llm.config import LLMConfig
 
 logger = logging.getLogger(__name__)
+
+
+class TransientLLMError(RuntimeError):
+    """Surfaced when every retry attempt for a transient API failure has
+    been exhausted (overloaded_error, 5xx, network blip, grammar
+    compilation timeout, etc.). Carries the underlying exception as
+    `__cause__` so callers can inspect details, and a clean
+    user-facing message Discord can render directly without leaking
+    SDK internals.
+
+    Permanent failures (BadRequestError that isn't grammar-comp,
+    AuthenticationError, schema bugs) bypass this wrapper and raise
+    their original type — those are programmer errors, not retryable
+    user-visible blips.
+    """
+
+    def __init__(self, message: str, attempts: int, last_error: Exception):
+        super().__init__(message)
+        self.attempts = attempts
+        self.last_error = last_error
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -365,6 +386,16 @@ class LLMClient:
         else:
             stream_ctx = self._client.messages.stream
 
+        def _backoff_sleep_seconds(attempt: int) -> float:
+            """Exponential backoff with symmetric jitter and a hard cap.
+            attempt is 0-indexed; the wait BEFORE attempt N+1 is
+            base * 2^N, jittered ±retry_jitter, then capped."""
+            delay = self.config.retry_base_delay * (2 ** attempt)
+            jitter = self.config.retry_jitter
+            if jitter > 0:
+                delay *= 1.0 + random.uniform(-jitter, jitter)
+            return min(delay, self.config.retry_max_delay)
+
         for attempt in range(self.config.max_retries + 1):
             try:
                 async with stream_ctx(**kwargs) as stream:
@@ -425,8 +456,11 @@ class LLMClient:
             ) as e:
                 last_error = e
                 if attempt < self.config.max_retries:
-                    delay = self.config.retry_base_delay * (2 ** attempt)
-                    logger.warning(f"LLM call failed (attempt {attempt + 1}), retrying in {delay:.1f}s: {e}")
+                    delay = _backoff_sleep_seconds(attempt)
+                    logger.warning(
+                        "LLM call failed (attempt %d/%d), retrying in %.1fs: %s",
+                        attempt + 1, self.config.max_retries + 1, delay, e,
+                    )
                     await asyncio.sleep(delay)
             except anthropic.APIStatusError as e:
                 # Mid-stream server errors arrive here with the BASE
@@ -452,10 +486,11 @@ class LLMClient:
                     raise
                 last_error = e
                 if attempt < self.config.max_retries:
-                    delay = self.config.retry_base_delay * (2 ** attempt)
+                    delay = _backoff_sleep_seconds(attempt)
                     logger.warning(
-                        "Mid-stream API error (attempt %d, type=%r), retrying in %.1fs: %s",
-                        attempt + 1, err_type, delay, msg,
+                        "Mid-stream API error (attempt %d/%d, type=%r), retrying in %.1fs: %s",
+                        attempt + 1, self.config.max_retries + 1, err_type,
+                        delay, msg,
                     )
                     await asyncio.sleep(delay)
             except anthropic.BadRequestError as e:
@@ -486,14 +521,40 @@ class LLMClient:
                     raise
                 last_error = e
                 if attempt < self.config.max_retries:
-                    delay = self.config.retry_base_delay * (2 ** attempt)
+                    delay = _backoff_sleep_seconds(attempt)
                     logger.warning(
-                        "Grammar compilation 400 (attempt %d), retrying in %.1fs: %s",
-                        attempt + 1, delay, msg.splitlines()[0],
+                        "Grammar compilation 400 (attempt %d/%d), retrying in %.1fs: %s",
+                        attempt + 1, self.config.max_retries + 1, delay,
+                        msg.splitlines()[0],
                     )
                     await asyncio.sleep(delay)
         assert last_error is not None
-        raise last_error
+        attempts = self.config.max_retries + 1
+        # Friendly message: classify the exhausted retry by the last
+        # error so callers (Discord especially) can show the user a
+        # one-line "the model is busy, try again" rather than the
+        # raw SDK exception. The actual exception is preserved as
+        # __cause__ for log inspection.
+        is_overload = isinstance(last_error, anthropic.APIStatusError) and (
+            "overloaded" in str(last_error).lower()
+        )
+        is_rate = isinstance(last_error, anthropic.RateLimitError)
+        if is_overload:
+            msg = (
+                f"Anthropic is overloaded right now (retried {attempts} times "
+                f"with backoff). Please try your action again in a few seconds."
+            )
+        elif is_rate:
+            msg = (
+                f"Anthropic rate limit hit (retried {attempts} times). Wait "
+                f"a moment before sending another action."
+            )
+        else:
+            msg = (
+                f"Anthropic call failed after {attempts} attempts. The "
+                f"connection or model is unstable; try again in a moment."
+            )
+        raise TransientLLMError(msg, attempts, last_error) from last_error
 
     async def close(self):
         """Close the underlying HTTP client."""

@@ -23,6 +23,23 @@ EndsBeatReason = Literal[
     "max_events_cap",
     "cat_ii_pending",
     "cat_ii_stale",
+    # observation_harvest: the actor's intention is pure targeted
+    # observation of present characters (looking, studying, sizing
+    # up, scanning) with no dialogue and no physical interaction.
+    # The router puts the observation TARGETS (NPCs the actor is
+    # looking at) in `agent_responder_picks`; the engine takes a
+    # different path on this reason — instead of cascading those
+    # picks as agents-with-intentions, it fires each of them in
+    # parallel via `Dispatcher.harvest_perceptions` to harvest
+    # one self-presentation fragment per character ("what does
+    # the world see of me right now"), and appends the fragments
+    # to the canonical event's `observable_facts` before the
+    # narrator renders. ends_beat MUST be true on this reason;
+    # picks MUST be non-empty (no targets = nothing to harvest =
+    # router should pick `state_change` or `cascade_exhausted`
+    # instead). See the router prompt's "Observation harvest"
+    # section for classification guidance.
+    "observation_harvest",
 ]
 
 
@@ -296,4 +313,27 @@ class EventRouterOutput(BaseModel):
                 self.agent_responder_picks = [
                     p for p in self.agent_responder_picks if p in observer_ids
                 ]
+        if self.ends_beat_reason == "observation_harvest":
+            # Harvest is a fork in the engine: picks become perception
+            # targets, not cascade actors. Both invariants below are
+            # CLAMP-not-raise so prompt drift doesn't crash a session;
+            # the engine falls back to the normal Cat I close in either
+            # malformed case (no picks → no harvest fired, just renders;
+            # ends_beat=false → ignored, harvest implies beat-end).
+            if not self.agent_responder_picks:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "ends_beat_reason='observation_harvest' but "
+                    "agent_responder_picks is empty; nothing to harvest. "
+                    "Falling through to standard Cat I beat close — the "
+                    "render will be sparse. Router prompt drift?",
+                )
+            if not self.ends_beat:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "ends_beat_reason='observation_harvest' but "
+                    "ends_beat=false; harvest implies beat-end. "
+                    "Coercing ends_beat=true.",
+                )
+                self.ends_beat = True
         return self

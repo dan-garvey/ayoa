@@ -72,87 +72,62 @@ def render_info(title: str, body: str) -> discord.Embed:
 
 
 def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
-    """Factual briefing shown on /story start — world + stakes + next steps.
+    """Player-facing briefing on /story start: short truck-kun primer +
+    a single nudge to /join.
 
-    Pulled straight from the checkpoint: setting, premise, and a handful of
-    common-knowledge facts. No player character is assigned at /story start —
-    the user picks one with /join or /join_custom after this briefing.
+    The primer (1–2 paragraphs, second-person, spoiler-free) is generated
+    by the importer's Call 6 and stored on `CheckpointFile.player_primer`.
+    Pre-v8 checkpoints have an empty primer; we fall back to a stub
+    composed from the public setting fields so older saves still render
+    something usable.
+
+    No facts list, no genre/era/tone breakdown, no roster preview — those
+    used to leak proper nouns the player hadn't earned and turned the
+    briefing into a wall of dossier text. The /join command surfaces
+    playable characters interactively now, so the briefing can stay
+    minimal.
     """
     setting = ckpt.world_state.setting
 
     story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
-    title = f"Briefing · {story_title}"
+    title = f"Welcome · {story_title}"
     importer_tag = ckpt.importer_version or "v0"
     coverage = ckpt.import_analysis.coverage_rating if ckpt.import_analysis else ""
     coverage_tag = f" · coverage {coverage}" if coverage and coverage != "unknown" else ""
-    footer = f"{story_id} · importer {importer_tag}{coverage_tag} · /join or /join_custom to claim a character"
+    footer = f"{story_id} · importer {importer_tag}{coverage_tag} · /join to claim a character"
 
-    # Build the fields first so we can reserve the description budget based on
-    # their actual size. The "How to play" fields MUST always render — that's
-    # the whole reason for this briefing — so they get priority over the
-    # premise when the budget gets tight.
-    fields: list[tuple[str, str]] = []  # (name, value) pairs, in render order
+    primer = (ckpt.player_primer or "").strip()
+    if not primer:
+        # Pre-v8 checkpoint, no primer baked in. Compose a minimal stub
+        # from setting fields. Never reach into facts/lore — those are
+        # the spoilers the v8 primer was introduced to filter out.
+        bits: list[str] = []
+        if setting.tone:
+            bits.append(f"_{setting.tone}_")
+        if setting.premise:
+            bits.append(setting.premise)
+        primer = "\n\n".join(bits) or (
+            "You wake up somewhere unfamiliar. You don't remember how you "
+            "got here, and no one's bothered to fill you in yet."
+        )
 
-    facts = ckpt.world_state.facts[:6]
-    if facts:
-        facts_value = "\n".join(f"• {f}" for f in facts)
-        if len(facts_value) > _FIELD_VALUE_MAX:
-            facts_value = facts_value[: _FIELD_VALUE_MAX - 1] + "…"
-        fields.append(("What's known", facts_value))
-
-    fields.append((
-        "1. Pick a character",
-        "Run `/story characters` to see the roster, then `/join <character_id>` "
-        "to play as an existing one. Prefer a custom concept? "
-        "`/join_custom mode:describe description:<your concept>` spawns a new "
-        "character, or `mode:replace` grafts your concept onto an existing NPC."
-    ))
-    fields.append((
-        "2. Describe yourself",
-        "Once claimed, `/describe` prompts you for a name and appearance — the "
-        "physical presence the world will react to. Include whatever detail "
-        "you want seen, heard, or remembered."
-    ))
-    fields.append((
-        "3. Open the scene, then /act",
-        "Your first `/describe` opens the scene in-fiction. From then on, one "
-        "`/act <what you do>` per turn — speak, move, observe, improvise. "
-        "`/status` shows the current scene; `/session end` detaches the save."
-    ))
-
-    fields_total = sum(len(n) + len(v) for n, v in fields)
-
-    # Build description (genre/era/tone + premise) within the remaining budget.
-    # MAX_TOTAL - title - footer - fields - 50 safety → description cap.
-    description_budget = min(
-        MAX_DESCRIPTION,
-        MAX_TOTAL - len(title) - len(footer) - fields_total - 50,
-    )
-
-    description_parts: list[str] = []
-    setting_bits = []
-    if setting.genre:
-        setting_bits.append(f"**Genre** · {setting.genre}")
-    if setting.era:
-        setting_bits.append(f"**Era** · {setting.era}")
-    if setting.tone:
-        setting_bits.append(f"**Tone** · {setting.tone}")
-    if setting_bits:
-        description_parts.append("\n".join(setting_bits))
-    if setting.premise:
-        description_parts.append(f"**Premise**\n{setting.premise}")
-
-    description = "\n\n".join(description_parts)
-    if len(description) > description_budget:
-        description = description[: description_budget - 1].rstrip() + "…"
+    if len(primer) > MAX_DESCRIPTION:
+        primer = primer[: MAX_DESCRIPTION - 1].rstrip() + "…"
 
     embed = discord.Embed(
         title=title,
-        description=description,
+        description=primer,
         color=EMBED_COLOR_STORY,
     )
-    for name, value in fields:
-        embed.add_field(name=name, value=value, inline=False)
+    embed.add_field(
+        name="What now?",
+        value=(
+            "Run `/join` to step into the story — claim an existing "
+            "character or create your own. Then `/act <what you do>` "
+            "plays a turn."
+        ),
+        inline=False,
+    )
     embed.set_footer(text=footer)
     return embed
 

@@ -18,7 +18,17 @@ _INCLUDE_RE = re.compile(r'\{include\s+"([^"]+)"\s*\}')
 
 
 class PromptManager:
-    """Loads, renders, and versions prompt templates."""
+    """Loads and renders prompt templates.
+
+    Versioning policy: prompts are tracked in git, not in their
+    filenames. A template named `event_router` lives at
+    `app/prompts/event_router.txt`; revisions are normal commits
+    (use `git log app/prompts/event_router.txt` to read history,
+    `git blame` to see who changed which rule). Pre-cleanup the
+    directory accumulated `event_router_v9.txt`,
+    `narrator_phase2_v9.txt`, etc.; that scheme was redundant with
+    the VCS and made every refactor a multi-file rename.
+    """
 
     def __init__(self, prompts_dir: str = "app/prompts"):
         self.prompts_dir = Path(prompts_dir)
@@ -46,45 +56,31 @@ class PromptManager:
         return _INCLUDE_RE.sub(_repl, text)
 
     def _find_template(self, template_name: str) -> Path:
-        """Find a template file by name (without version suffix or extension).
+        """Resolve `app/prompts/{template_name}.txt` or raise.
 
-        Searches for files matching {template_name}_v*.txt and returns
-        the highest version. Sort key is the integer version, NOT
-        lexicographic — so v10 beats v9 once we cross that boundary.
+        No versioned-suffix glob: prompts are versioned in git, not
+        in their filenames. `template_name` is exactly the file
+        stem (no `.txt` suffix, no `_v#` suffix).
         """
-        pattern = f"{template_name}_v*.txt"
-        matches = list(self.prompts_dir.glob(pattern))
-        if not matches:
-            raise FileNotFoundError(
-                f"No template found matching '{pattern}' in {self.prompts_dir}"
-            )
-        version_re = re.compile(r"_v(\d+)$")
-
-        def _version_key(p: Path) -> int:
-            m = version_re.search(p.stem)
-            return int(m.group(1)) if m else -1
-
-        matches.sort(key=_version_key)
-        return matches[-1]  # highest version
-
-    def _find_template_exact(self, template_name: str) -> Path:
-        """Find a template by exact filename stem (e.g. 'narrator_phase1_v1')."""
         path = self.prompts_dir / f"{template_name}.txt"
-        if not path.exists():
-            raise FileNotFoundError(f"Template not found: {path}")
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Template not found: {path}"
+            )
         return path
 
     def render(self, template_name: str, **variables) -> str:
         """Load and render a template with the given variables.
 
-        template_name can be either:
-        - A base name like 'narrator_phase1' (uses latest version)
-        - An exact name like 'narrator_phase1_v1'
+        `template_name` is the file stem under `app/prompts/`
+        (e.g. `'event_router'`, `'narrator_phase2'`) — no version
+        suffix. The corresponding `.txt` file is loaded, HTML-style
+        comment blocks are stripped, `{include "..."}` directives
+        are recursively expanded from `_partials/`, and finally
+        the remaining `{var}` placeholders are substituted from
+        `variables`.
         """
-        try:
-            path = self._find_template_exact(template_name)
-        except FileNotFoundError:
-            path = self._find_template(template_name)
+        path = self._find_template(template_name)
 
         raw = path.read_text()
 
@@ -150,31 +146,3 @@ class PromptManager:
             result.append({"role": m.role, "content": m.content})
         result.append(user_msg)
         return result
-
-    def get_version(self, template_name: str) -> str:
-        """Get the version string for a template.
-
-        Extracts from filename: narrator_phase1_v1.txt -> 'v1'
-        """
-        try:
-            path = self._find_template_exact(template_name)
-        except FileNotFoundError:
-            path = self._find_template(template_name)
-
-        stem = path.stem  # e.g. 'narrator_phase1_v1'
-        match = re.search(r"_(v\d+)$", stem)
-        if match:
-            return match.group(1)
-        return "unknown"
-
-    def get_all_versions(self) -> dict[str, str]:
-        """Get version strings for all templates in the prompts directory."""
-        versions = {}
-        for path in sorted(self.prompts_dir.glob("*_v*.txt")):
-            stem = path.stem
-            match = re.search(r"^(.+?)_(v\d+)$", stem)
-            if match:
-                base_name = match.group(1)
-                version = match.group(2)
-                versions[base_name] = version  # latest wins due to sorted
-        return versions

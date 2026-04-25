@@ -54,19 +54,19 @@ def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
                 character_id="alice", name="Alice",
                 public_sheet=PublicSheet(role="player"),
                 location="gatehouse",
-                is_player=True,
+                is_playable=True,
             ),
             CharacterRecord(
                 character_id="bob", name="Bob",
                 public_sheet=PublicSheet(role="player"),
                 location="gatehouse",
-                is_player=True,
+                is_playable=True,
             ),
             CharacterRecord(
                 character_id="pip", name="Pip",
                 public_sheet=PublicSheet(role="npc"),
                 location="gatehouse",
-                is_player=False,
+                is_playable=False,
             ),
         ],
     )
@@ -129,15 +129,26 @@ class FakeDispatcher:
         self.route_calls: list[dict] = []
         self.agent_calls: list[dict] = []
         self.narrator_calls: list[dict] = []
+        self.harvest_calls: list[dict] = []
         self._route_responses: list[EventRouterOutput] = []
         self._agent_responses: list[str] = []
         self._narrator_response: str = "RENDER"
+        # Observation-harvest fork: queue lists-of-fragments aligned with
+        # the order of expected harvest_perceptions calls. If the queue
+        # is empty when a call lands, the fake returns one empty
+        # fragment per requested character (the same shape the engine
+        # would see if every perception failed) — keeps tests that
+        # don't exercise harvest from having to seed it.
+        self._harvest_responses: list[list[str]] = []
 
     def queue_route(self, response: EventRouterOutput) -> None:
         self._route_responses.append(response)
 
     def queue_agent(self, intention: str) -> None:
         self._agent_responses.append(intention)
+
+    def queue_harvest(self, fragments: list[str]) -> None:
+        self._harvest_responses.append(fragments)
 
     async def route_intention(self, **kw) -> EventRouterOutput:
         self.route_calls.append(kw)
@@ -146,6 +157,12 @@ class FakeDispatcher:
     async def agent_intend(self, **kw) -> str:
         self.agent_calls.append(kw)
         return self._agent_responses.pop(0)
+
+    async def harvest_perceptions(self, **kw) -> list[str]:
+        self.harvest_calls.append(kw)
+        if self._harvest_responses:
+            return self._harvest_responses.pop(0)
+        return ["" for _ in kw.get("character_ids", [])]
 
     async def narrator_compose(self, **kw):
         self.narrator_calls.append(kw)
@@ -697,8 +714,9 @@ class TestValidationHardening:
         assert result.ended_reason == "cascade_exhausted"
 
     def test_refusal_text_no_longer_drops_pick(self):
-        """v11-r5: refusal detection moved to the prompt (agent_v9 rule
-        18). If a misbehaving model returns refusal text anyway, the
+        """v11-r5: refusal detection moved to the prompt (agent
+        prompt rule against refusals / frame-breaks). If a misbehaving
+        model returns refusal text anyway, the
         engine does NOT quietly swallow it — the text is routed through
         the adjudicator like any other intention, and the bug surfaces
         visibly in the rendered scene rather than as a mystery
@@ -723,6 +741,210 @@ class TestValidationHardening:
         # Two events closed: Alice's Cat I + Pip's (refusal-shaped) Cat I.
         # Not cascade_exhausted — the engine routed the intention.
         assert result.events_closed == 2
+
+
+class TestObservationHarvestSchema:
+    """v11-r8a: schema invariants on the observation_harvest reason.
+
+    These pin the contract that lets the engine fork branchlessly:
+    if the router emits `ends_beat_reason="observation_harvest"`, the
+    schema must clamp `ends_beat=true` so the harvest fork in
+    run_beat doesn't have to second-guess it; the picks list may be
+    empty (will fall through as a sparse Cat I close — engine-side
+    warning); and the value must round-trip through model_validate
+    without crashing legacy callers that haven't seen the new
+    literal yet.
+    """
+
+    def test_observation_harvest_is_valid_ends_beat_reason(self):
+        # The literal must round-trip cleanly. Pre-r8a this raised
+        # ValidationError because the enum didn't include it.
+        out = _router_out(ends_beat=True, agent_picks=["pip"])
+        out_dict = out.model_dump()
+        out_dict["ends_beat_reason"] = "observation_harvest"
+        from app.schemas.event_router import EventRouterOutput
+        rebuilt = EventRouterOutput.model_validate(out_dict)
+        assert rebuilt.ends_beat_reason == "observation_harvest"
+
+    def test_observation_harvest_coerces_ends_beat_true_when_false(self):
+        # Router prompt says ends_beat MUST be true on harvest; if
+        # the model emits false anyway, the validator clamps to true
+        # so the engine doesn't loop.
+        out = _router_out(ends_beat=True, agent_picks=["pip"])
+        out_dict = out.model_dump()
+        out_dict["ends_beat_reason"] = "observation_harvest"
+        out_dict["ends_beat"] = False
+        from app.schemas.event_router import EventRouterOutput
+        rebuilt = EventRouterOutput.model_validate(out_dict)
+        assert rebuilt.ends_beat is True
+
+    def test_observation_harvest_with_empty_picks_warns_but_validates(
+        self, caplog
+    ):
+        # Empty picks is malformed (nothing to harvest) but the
+        # validator clamps-not-raises so a one-off prompt drift
+        # doesn't crash a session. Engine side falls through as a
+        # sparse Cat I close — see test_harvest_skips_when_no_picks.
+        import logging
+        out = _router_out(ends_beat=True)  # picks default to []
+        out_dict = out.model_dump()
+        out_dict["ends_beat_reason"] = "observation_harvest"
+        out_dict["agent_responder_picks"] = []
+        from app.schemas.event_router import EventRouterOutput
+        with caplog.at_level(logging.WARNING):
+            rebuilt = EventRouterOutput.model_validate(out_dict)
+        assert rebuilt.ends_beat_reason == "observation_harvest"
+        assert any(
+            "observation_harvest" in r.message and "empty" in r.message
+            for r in caplog.records
+        )
+
+
+class TestObservationHarvestFork:
+    """v11-r8a: the run_beat fork that fires Dispatcher.harvest_perceptions
+    in parallel and folds the fragments into the canonical event's
+    observable_facts BEFORE the narrator composes the render.
+    """
+
+    def test_harvest_fires_perceive_and_appends_fragments(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        # Add a second NPC so the picks list has multiple targets.
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="vex", name="Vex",
+                public_sheet=PublicSheet(role="npc"),
+                location="gatehouse",
+                is_playable=False,
+            ),
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            ends_beat=True,
+            agent_picks=["pip", "vex"],
+        ))
+        # Override ends_beat_reason to harvest (the helper defaults to
+        # directed_at_player).
+        fake._route_responses[0].ends_beat_reason = "observation_harvest"
+        fake.queue_harvest([
+            "Pip in his usual leathers, hands quiet at his sides.",
+            "Vex in midnight silk, eyes tracking every doorway.",
+        ])
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I look at each of them",
+            scene_id="gatehouse",
+        ))
+
+        # Exactly one harvest call, with both targets in order.
+        assert len(fake.harvest_calls) == 1
+        assert fake.harvest_calls[0]["character_ids"] == ["pip", "vex"]
+        # Fragments landed on the canonical event's observable_facts
+        # with name-tagged loadout markers the narrator prompt knows
+        # how to render.
+        appended = ckpt.canonical_events[-1].canonical_event.observable_facts
+        assert any("[loadout — Pip]" in f for f in appended)
+        assert any("[loadout — Vex]" in f for f in appended)
+        # Beat ended on the harvest reason, not directed_at_player.
+        assert result.ended_reason == "observation_harvest"
+        # No cascade fired (no agent_intend calls — this is the whole
+        # point of the harvest fork).
+        assert fake.agent_calls == []
+
+    def test_harvest_drops_empty_fragments_silently(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            ends_beat=True, agent_picks=["pip"],
+        ))
+        fake._route_responses[0].ends_beat_reason = "observation_harvest"
+        # Perception failed for the only pick — empty fragment.
+        fake.queue_harvest([""])
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I study Pip",
+            scene_id="gatehouse",
+        ))
+        # No loadout markers in observable_facts — empty fragment
+        # was dropped, not rendered as "[loadout — Pip] ".
+        appended = ckpt.canonical_events[-1].canonical_event.observable_facts
+        assert not any("loadout" in f for f in appended)
+        # But the beat still closes cleanly on the harvest reason.
+        assert result.ended_reason == "observation_harvest"
+
+    def test_harvest_skips_when_picks_filter_to_empty(self):
+        # Router picks a HUMAN (drift / bug). The engine's
+        # _filter_picks_for_dispatch strips humans before harvest
+        # fires; with no picks left, no harvest call is made, and
+        # the beat closes as a sparse Cat I.
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            ends_beat=True, agent_picks=["alice"],  # alice is human
+        ))
+        fake._route_responses[0].ends_beat_reason = "observation_harvest"
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I look at myself",
+            scene_id="gatehouse",
+        ))
+        # No harvest call fired (no valid picks after filter).
+        assert fake.harvest_calls == []
+        # No loadout fragments on the event.
+        appended = ckpt.canonical_events[-1].canonical_event.observable_facts
+        assert not any("loadout" in f for f in appended)
+        # Beat still closes on the harvest reason — fall-through
+        # is graceful, not a crash.
+        assert result.ended_reason == "observation_harvest"
+
+    def test_harvest_filters_off_scene_picks(self):
+        # Router picks an off-scene NPC; the same engine filter
+        # strips them. Only the in-scene pick gets a perception.
+        ckpt = _ckpt(bindings={"alice": "1"})
+        ckpt.characters.append(
+            CharacterRecord(
+                character_id="nyx", name="Nyx",
+                public_sheet=PublicSheet(role="npc"),
+                location="library",  # not the gatehouse
+                is_playable=False,
+            ),
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            ends_beat=True, agent_picks=["pip", "nyx"],
+        ))
+        fake._route_responses[0].ends_beat_reason = "observation_harvest"
+        fake.queue_harvest(["Pip silent."])  # one entry, for pip only
+
+        asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="look",
+            scene_id="gatehouse",
+        ))
+        # Harvest fired for in-scene pick only.
+        assert len(fake.harvest_calls) == 1
+        assert fake.harvest_calls[0]["character_ids"] == ["pip"]
+
+    def test_harvest_passes_acting_character_id_to_dispatcher(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            ends_beat=True, agent_picks=["pip"],
+        ))
+        fake._route_responses[0].ends_beat_reason = "observation_harvest"
+        fake.queue_harvest(["pip's loadout text"])
+
+        asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="size them up",
+            scene_id="gatehouse",
+        ))
+        # The looker (alice) is plumbed for the dispatcher's
+        # context-builder helpers; the perception itself is
+        # observer-agnostic.
+        assert fake.harvest_calls[0]["acting_character_id"] == "alice"
 
 
 class TestSweepStructuredMarker:
@@ -875,7 +1097,7 @@ class TestFilterPicksForDispatch:
                 character_id=cid,
                 name=cid.title(),
                 location=loc,
-                is_player=cid in (bindings or {}),
+                is_playable=cid in (bindings or {}),
             )
             for cid, loc in chars
         ]
@@ -932,10 +1154,31 @@ class TestFilterPicksForDispatch:
             ckpt, "gatehouse", ["npc_c", "npc_a", "npc_b"],
         ) == ["npc_c", "npc_a", "npc_b"]
 
+    def test_creator_player_character_filtered_without_binding(self):
+        """fix-9 regression: `session.player_character_id` may name the
+        creator's character without a corresponding row in
+        `character_bindings` (older saves; CLI single-player flows).
+        Pre-fix the dispatch filter only consulted `bindings`, so the
+        creator's character could slip into NPC dispatch and produce
+        the "router tried to make my own character speak" symptom.
+        Now the filter routes through `collect_player_ids`, which
+        unions bindings AND `player_character_id`."""
+        from app.engine.turn_loop import _filter_picks_for_dispatch
+        ckpt = self._ckpt_with_chars(
+            [("hero", "gatehouse"), ("npc_a", "gatehouse")],
+            bindings={},  # explicitly empty
+        )
+        # Creator binding lives only on the session field.
+        ckpt.session.player_character_id = "hero"
+        # Hero must be filtered even though they're not in `bindings`.
+        assert _filter_picks_for_dispatch(
+            ckpt, "gatehouse", ["hero", "npc_a"],
+        ) == ["npc_a"]
+
 
 class TestAgentEmptyGuard:
     """v11-r5: refusal detection moved from pattern matching to
-    prompt-level (agent_v9 rule 21). The engine only guards literal
+    prompt-level (rule in the agent prompt). The engine only guards literal
     empty/whitespace output now. Legitimate in-character lines
     containing "I can't" / "I cannot" / "As an AI" (rare but possible
     when a character IS an AI in-fiction) all pass through.
@@ -1137,13 +1380,19 @@ class TestParallelNarratorFanOut:
         assert len(fake.narrator_calls) == 1
 
 
-class TestBroadcastEventOffSceneObservers:
-    """v11-r7j: `broadcast_event` pushes a `[off-scene perception]`
-    line onto every NPC observer who is NOT in the broadcast scene.
-    This is the engine implementation of router rule 13's cross-scene
-    perception channel — pre-r7j, declaring an off-scene recipient as
-    an `observer` was decorative; the recipient agent never saw a
-    mechanical signal."""
+class TestBroadcastEventNpcObservers:
+    """v11-r8b: `broadcast_event` pushes a perception line onto every
+    NPC observer's inbox — both off-scene (`[off-scene perception]`)
+    and in-scene (`[in-scene perception]`). The actor of the event
+    is excluded; their own action lives in their rolling history.
+
+    Pre-r8b only off-scene observers were pushed; in-scene NPCs were
+    silently skipped on the assumption they'd read the event "live"
+    via the cascade dispatcher's user-message block. That live
+    channel was empty (`observed_facts=[]`) and the playtest fallout
+    was ugly — cascade NPCs reacted to whatever stale entries were
+    in their queue and the router fabricated dialogue to fit.
+    Restoring symmetric push fixes the channel."""
 
     def _event(
         self,
@@ -1184,7 +1433,7 @@ class TestBroadcastEventOffSceneObservers:
         marcus = CharacterRecord(
             character_id="marcus", name="Marcus",
             public_sheet=PublicSheet(role="contestant"),
-            location="citrus_garden", is_player=False,
+            location="citrus_garden", is_playable=False,
         )
         ckpt.characters.append(marcus)
         event = self._event(observer_ids=["marcus"])
@@ -1196,23 +1445,77 @@ class TestBroadcastEventOffSceneObservers:
         )
         assert "note" in marcus.pending_observations[0]
 
-    def test_in_scene_npc_observer_NOT_pushed(self):
-        """In-scene NPC observers read the canonical event live via
-        their normal context block when picked as responders. Pushing
-        onto their inbox would double-count."""
+    def test_in_scene_npc_observer_gets_in_scene_inbox_line(self):
+        """v11-r8b regression guard: in-scene NPCs DO get pushed.
+        Pre-r8b they were silently skipped, breaking the cascade."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()  # `pip` is at gatehouse
         event = self._event(observer_ids=["pip"])
 
         broadcast_event(ckpt, event, scene_id="gatehouse")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert len(pip.pending_observations) == 1
+        assert pip.pending_observations[0].startswith("[in-scene perception]")
+        assert "note" in pip.pending_observations[0]
+
+    def test_actor_excluded_from_inbox_push(self):
+        """The actor of the event is the character whose intention the
+        router just adjudicated. They don't need their own action
+        echoed back into their inbox — their character_conversations
+        history already carries the full assistant message they
+        produced, and the in-scene perception of "you observed
+        yourself doing the thing you just did" would be noise on
+        their next on-stage turn."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()  # `pip` is at gatehouse
+        nyx = CharacterRecord(
+            character_id="nyx", name="Nyx",
+            public_sheet=PublicSheet(role="npc"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.append(nyx)
+        # pip is the actor, both pip and nyx observe.
+        event = self._event(observer_ids=["pip", "nyx"])
+
+        broadcast_event(ckpt, event, scene_id="gatehouse", actor_id="pip")
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        # Actor (pip) skipped.
         assert pip.pending_observations == []
+        # Non-actor in-scene observer (nyx) got the push.
+        assert len(nyx.pending_observations) == 1
+        assert nyx.pending_observations[0].startswith("[in-scene perception]")
+
+    def test_actor_excluded_off_scene_too(self):
+        """Actor exclusion is independent of the in-scene/off-scene
+        branch — actor never gets their own action pushed regardless
+        of where they are. (Off-scene actors are weird but allowed:
+        a router-authored event whose actor isn't co-located with
+        the broadcast scene, e.g. a courier delivery on a remote
+        agent's behalf.)"""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        # Put the actor off-scene.
+        marcus = CharacterRecord(
+            character_id="marcus", name="Marcus",
+            public_sheet=PublicSheet(role="contestant"),
+            location="citrus_garden", is_playable=False,
+        )
+        ckpt.characters.append(marcus)
+        event = self._event(observer_ids=["marcus"])
+
+        broadcast_event(
+            ckpt, event, scene_id="gatehouse", actor_id="marcus",
+        )
+        assert marcus.pending_observations == []
 
     def test_human_observer_NOT_pushed(self):
         """Humans get render buffer entries, not inbox lines. The
         narrator surfaces canonical events to humans through the
         rendered buffer; pushing onto a human's inbox would have no
-        consumer (humans don't run agent prompts)."""
+        consumer (humans don't run agent prompts). True for both
+        in-scene humans and off-scene humans (the latter just don't
+        see the event at all this beat — they'll see it via narrator
+        on their next /act if still bound)."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt(bindings={"alice": "1"})
         # Move alice off-scene so the only thing tested is the
@@ -1224,13 +1527,24 @@ class TestBroadcastEventOffSceneObservers:
         broadcast_event(ckpt, event, scene_id="gatehouse")
         assert alice.pending_observations == []
 
+    def test_in_scene_human_observer_NOT_pushed(self):
+        """In-scene human is bound — gets render buffer, not inbox."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt(bindings={"alice": "1"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.location = "gatehouse"
+        event = self._event(observer_ids=["alice"])
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert alice.pending_observations == []
+
     def test_culled_observer_skipped(self):
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()
         ghost = CharacterRecord(
             character_id="ghost", name="Ghost",
             public_sheet=PublicSheet(role="ex"),
-            location="citrus_garden", is_player=False,
+            location="citrus_garden", is_playable=False,
         )
         from app.schemas.characters import CharacterStatus
         ghost.status = CharacterStatus.culled
@@ -1246,7 +1560,7 @@ class TestBroadcastEventOffSceneObservers:
         marcus = CharacterRecord(
             character_id="marcus", name="Marcus",
             public_sheet=PublicSheet(role="contestant"),
-            location="citrus_garden", is_player=False,
+            location="citrus_garden", is_playable=False,
         )
         ckpt.characters.append(marcus)
 
@@ -1277,3 +1591,80 @@ class TestBroadcastEventOffSceneObservers:
         broadcast_event(ckpt, event, scene_id="gatehouse")
         assert len(marcus.pending_observations) == 1
         assert "bell rings" in marcus.pending_observations[0]
+
+    def test_cascade_pick_sees_just_broadcast_event_in_inbox(self):
+        """End-to-end semantic guard: when a cascade pick is selected
+        for `agent_intend`, their `pending_observations` already has
+        the just-broadcast event as the most recent entry. This is
+        what the on-stage `respond` call drains and reads as the
+        live event.
+
+        Pre-r8b this didn't work — in-scene NPCs were skipped, the
+        dispatcher passed `observed_facts=[]`, and the cascade pick
+        had nothing to react to. The downstream symptom was the
+        router fabricating dialogue to fit a slot the agent never
+        actually filled."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()  # alice (player), bob (player), pip (npc) at gatehouse
+        nyx = CharacterRecord(
+            character_id="nyx", name="Nyx",
+            public_sheet=PublicSheet(role="npc"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.append(nyx)
+        # Player /act'd; their event observed by both pip and nyx.
+        event = self._event(
+            observer_ids=["pip", "nyx"],
+            outcome="Alice says: 'Would anyone else like to introduce themselves?'",
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse", actor_id="alice")
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert "introduce themselves" in pip.pending_observations[-1]
+        assert "introduce themselves" in nyx.pending_observations[-1]
+
+    def test_multi_event_beat_accumulates_for_unpicked_npcs(self):
+        """v11-r8b: NPCs in scene who AREN'T picked in a cascade
+        accumulate every event in the beat. When they're eventually
+        picked (this beat or a later one), they drain the whole
+        accumulated set in one user message — no per-event LLM call
+        wasted on agents who had no opening to speak.
+
+        Models the real cascade flow: player /act → broadcast(p) →
+        pick npc1 → broadcast(npc1) → pick npc2 → broadcast(npc2).
+        Throughout, the unpicked NPC nyx silently witnesses all
+        three events; her queue grows. When SHE is finally picked
+        on the NEXT beat, she sees everything she missed."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()  # alice (player), bob (player), pip (npc) at gatehouse
+        nyx = CharacterRecord(
+            character_id="nyx", name="Nyx",
+            public_sheet=PublicSheet(role="npc"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.append(nyx)
+
+        # Beat 1: player → cascade → cascade
+        e_player = self._event(
+            observer_ids=["pip", "nyx"],
+            outcome="Alice raises a glass and toasts the table.",
+        )
+        broadcast_event(ckpt, e_player, scene_id="gatehouse", actor_id="alice")
+        e_pip = self._event(
+            observer_ids=["pip", "nyx"],
+            outcome="Pip lifts her own glass with a smirk.",
+        )
+        broadcast_event(ckpt, e_pip, scene_id="gatehouse", actor_id="pip")
+        # Pip was picked + acted, so her queue was drained between her
+        # respond and the broadcast of her own event. We model that
+        # explicitly here: her queue was empty going into her broadcast,
+        # and her own event is excluded from her push by actor_id.
+        # In production this is `clear_character_inbox` in respond().
+
+        # nyx wasn't picked — she's been silently observing.
+        assert len(nyx.pending_observations) == 2
+        assert "toasts the table" in nyx.pending_observations[0]
+        assert "lifts her own glass" in nyx.pending_observations[1]
+        # When nyx is finally picked next beat, her respond() call
+        # sees BOTH events in one user message via
+        # format_pending_observations_block.

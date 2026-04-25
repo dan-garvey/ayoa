@@ -1,4 +1,11 @@
-"""Tests for the prompt manager — template loading, rendering, version extraction."""
+"""Tests for the prompt manager — template loading, rendering, partials.
+
+Versioning policy: prompts are versioned in git, not in their filenames.
+A template named `event_router` is the file `app/prompts/event_router.txt`;
+revisions are normal commits. The PromptManager is therefore a thin
+wrapper around `(name -> {prompts_dir}/{name}.txt)`, plus include
+expansion and `<<<USER>>>` system/user splitting.
+"""
 
 import pytest
 
@@ -8,9 +15,8 @@ from app.engine.prompt_manager import PromptManager
 @pytest.fixture
 def prompts_dir(tmp_path):
     """Create a temp prompts directory with test templates."""
-    (tmp_path / "greeting_v1.txt").write_text("Hello {name}, welcome to {place}.")
-    (tmp_path / "greeting_v2.txt").write_text("Welcome, {name}! You are in {place}.")
-    (tmp_path / "simple_v1.txt").write_text("No variables here.")
+    (tmp_path / "greeting.txt").write_text("Hello {name}, welcome to {place}.")
+    (tmp_path / "simple.txt").write_text("No variables here.")
     return tmp_path
 
 
@@ -20,44 +26,33 @@ def mgr(prompts_dir):
 
 
 class TestPromptManagerRender:
-    def test_render_exact_name(self, mgr):
-        result = mgr.render("greeting_v1", name="Alice", place="the courtyard")
+    def test_render_template(self, mgr):
+        result = mgr.render("greeting", name="Alice", place="the courtyard")
         assert result == "Hello Alice, welcome to the courtyard."
 
-    def test_render_base_name_uses_latest(self, mgr):
-        result = mgr.render("greeting", name="Bob", place="the hall")
-        assert result == "Welcome, Bob! You are in the hall."
-
     def test_render_no_variables(self, mgr):
-        result = mgr.render("simple_v1")
+        result = mgr.render("simple")
         assert result == "No variables here."
 
     def test_render_missing_variable_raises(self, mgr):
         with pytest.raises(KeyError, match="name"):
-            mgr.render("greeting_v1", place="somewhere")
+            mgr.render("greeting", place="somewhere")
 
     def test_render_missing_template_raises(self, mgr):
         with pytest.raises(FileNotFoundError):
             mgr.render("nonexistent", foo="bar")
 
-
-class TestPromptManagerVersions:
-    def test_get_version_exact(self, mgr):
-        assert mgr.get_version("greeting_v1") == "v1"
-        assert mgr.get_version("greeting_v2") == "v2"
-
-    def test_get_version_base_name(self, mgr):
-        # Base name resolves to latest
-        assert mgr.get_version("greeting") == "v2"
-
-    def test_get_all_versions(self, mgr):
-        versions = mgr.get_all_versions()
-        assert versions["greeting"] == "v2"  # latest wins
-        assert versions["simple"] == "v1"
-
-    def test_get_version_missing_raises(self, mgr):
+    def test_render_does_not_glob_versioned_files(self, tmp_path):
+        # Defensive against the pre-cleanup behavior: a directory with
+        # ONLY `greeting_v1.txt` (no bare `greeting.txt`) must not
+        # satisfy `render("greeting")`. The pre-cleanup manager
+        # globbed `greeting_v*.txt` and silently picked the highest;
+        # post-cleanup, git is the version store and the engine must
+        # call its templates by their actual stem.
+        (tmp_path / "greeting_v1.txt").write_text("Hello {name}")
+        mgr = PromptManager(prompts_dir=str(tmp_path))
         with pytest.raises(FileNotFoundError):
-            mgr.get_version("nonexistent")
+            mgr.render("greeting", name="Alice")
 
 
 class TestPromptManagerInclude:
@@ -65,7 +60,7 @@ class TestPromptManagerInclude:
         partials = tmp_path / "_partials"
         partials.mkdir()
         (partials / "greet.txt").write_text("Hello {name}")
-        (tmp_path / "wrap_v1.txt").write_text('Preamble {include "greet"} <<<USER>>>\nAfter')
+        (tmp_path / "wrap.txt").write_text('Preamble {include "greet"} <<<USER>>>\nAfter')
         mgr = PromptManager(prompts_dir=str(tmp_path))
         out = mgr.render("wrap", name="Vero")
         assert out == "Preamble Hello Vero <<<USER>>>\nAfter"
@@ -75,12 +70,12 @@ class TestPromptManagerInclude:
         partials.mkdir()
         (partials / "inner.txt").write_text("{x}")
         (partials / "outer.txt").write_text('a {include "inner"} b')
-        (tmp_path / "t_v1.txt").write_text('{include "outer"} <<<USER>>>')
+        (tmp_path / "t.txt").write_text('{include "outer"} <<<USER>>>')
         mgr = PromptManager(prompts_dir=str(tmp_path))
         assert mgr.render("t", x="ok") == "a ok b <<<USER>>>"
 
     def test_include_missing_raises(self, tmp_path):
-        (tmp_path / "t_v1.txt").write_text('{include "nope"} <<<USER>>>')
+        (tmp_path / "t.txt").write_text('{include "nope"} <<<USER>>>')
         mgr = PromptManager(prompts_dir=str(tmp_path))
         with pytest.raises(FileNotFoundError, match="Include not found"):
             mgr.render("t")
@@ -95,17 +90,34 @@ class TestPromptManagerInit:
 class TestPromptManagerWithRealTemplates:
     """Verify the actual project prompt templates load and render."""
 
-    def test_all_templates_load(self):
+    def test_canonical_templates_present(self):
         mgr = PromptManager(prompts_dir="app/prompts")
-        versions = mgr.get_all_versions()
-        assert "narrator_phase2" in versions
-        assert "agent" in versions
-        assert "character_gen" in versions
-        assert "event_router" in versions
-        # Legacy templates removed:
-        assert "narrator_phase1" not in versions
-        assert "discriminator" not in versions
-        assert "transcript_summary" not in versions
+        # Each canonical template resolves to its bare-stem file.
+        for name in (
+            "event_router",
+            "narrator_phase2",
+            "agent",
+            "character_gen",
+            "takeover",
+            "turn_recap",
+        ):
+            assert mgr._find_template(name).name == f"{name}.txt"
+
+    def test_legacy_template_names_rejected(self):
+        # The old `_v#`-suffixed names are gone; calling code that still
+        # tries to render them must fail loudly so the regression is
+        # obvious rather than silently picking up a stale stem.
+        mgr = PromptManager(prompts_dir="app/prompts")
+        for legacy in (
+            "event_router_v9",
+            "narrator_phase2_v9",
+            "agent_v11",
+            "character_gen_v3",
+            "takeover_v1",
+            "turn_recap_v1",
+        ):
+            with pytest.raises(FileNotFoundError):
+                mgr._find_template(legacy)
 
     def test_event_router_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")
@@ -224,7 +236,7 @@ class TestPromptManagerWithRealTemplates:
     def test_render_messages_rejects_missing_delimiter(self, mgr):
         # The tmp-path `greeting` fixture has no <<<USER>>> delimiter.
         with pytest.raises(ValueError, match="<<<USER>>>"):
-            mgr.render_messages("greeting_v1", name="a", place="b")
+            mgr.render_messages("greeting", name="a", place="b")
 
     def test_render_conversation_inserts_history(self):
         from app.schemas.conversation import ConversationMessage

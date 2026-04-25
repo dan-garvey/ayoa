@@ -62,7 +62,7 @@ def _roster() -> CharacterListExtraction:
             name="Emeric Hale",
             status="active",
             location="",
-            is_player=False,
+            is_playable=False,
             public_sheet=PublicSheetExtraction(
                 role="Regent", appearance="", faction="",
             ),
@@ -80,7 +80,7 @@ def _roster() -> CharacterListExtraction:
             name="Lira Fontaine",
             status="active",
             location="",
-            is_player=False,
+            is_playable=False,
             public_sheet=PublicSheetExtraction(
                 role="Court Liaison", appearance="", faction="",
             ),
@@ -149,7 +149,7 @@ class TestBuildCheckpointEnvelope:
         assert ckpt.importer_version == IMPORTER_VERSION
         # Any bump here means the extraction contract changed — re-import
         # in-flight stories if you rely on a new field.
-        assert IMPORTER_VERSION == "v7"
+        assert IMPORTER_VERSION == "v8"
 
 
 class TestImportAnalysisSchema:

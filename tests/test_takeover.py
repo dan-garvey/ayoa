@@ -1,10 +1,18 @@
-"""Tests for the takeover (/join_custom) flows on EngineBridge.
+"""Tests for the takeover flows on EngineBridge.
 
-Covers three engine methods:
-- `takeover` (plain — bind + flip is_player on an existing character)
-- `create_custom_character` (mode='describe' — spawn a new authored char)
-- `suggest_replacement_targets` (mode='suggest' — surface candidates)
-- `replace_with_custom` (mode='replace' — graft authored identity onto NPC)
+Under playable-2 semantics:
+- `takeover` (plain) just binds a Discord user to an existing character;
+  it does NOT toggle `is_playable` (which is an authoring-time flag).
+- `create_custom_character` and `replace_with_custom` still mark the
+  resulting record `is_playable=True` since the bot path explicitly
+  authored a player slot.
+- `replace_with_custom` no longer rejects `is_playable=True` targets;
+  the only rejection is "already bound to another user" (handled by
+  the explicit binding check in the bridge).
+
+These engine methods stay live for the play-CLI takeover path; the
+Discord /join_custom + /pick_replacement commands that used to surface
+them in chat were murdered as part of the UX overhaul.
 
 The LLM is mocked via `client.complete` so tests never hit the network.
 """
@@ -79,7 +87,7 @@ def _make_checkpoint(characters: list[CharacterRecord] | None = None,
                 character_id="npc1",
                 name="Guard Vero",
                 status=CharacterStatus.active,
-                is_player=False,
+                is_playable=True,
                 location="courtyard",
                 public_sheet=PublicSheet(role="guard"),
             ),
@@ -125,7 +133,12 @@ def _seed(bridge: EngineBridge, ckpt: CheckpointFile) -> None:
 
 
 class TestTakeoverPlain:
-    def test_takeover_binds_and_flips_is_player(self, bridge: EngineBridge):
+    def test_takeover_binds_user_without_touching_is_playable(
+        self, bridge: EngineBridge,
+    ):
+        """Under playable-2, takeover binds the user but leaves the
+        authored `is_playable` flag alone — it's an authoring-time
+        property, not a runtime toggle."""
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
 
@@ -133,13 +146,48 @@ class TestTakeoverPlain:
 
         assert result.session.character_bindings == {"npc1": "42"}
         npc = next(c for c in result.characters if c.character_id == "npc1")
-        assert npc.is_player is True
+        # Was authored with is_playable=True — still True after takeover.
+        assert npc.is_playable is True
 
-        # Persisted
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
-        loaded_npc = next(c for c in loaded.characters if c.character_id == "npc1")
-        assert loaded_npc.is_player is True
+        loaded_npc = next(
+            c for c in loaded.characters if c.character_id == "npc1"
+        )
+        assert loaded_npc.is_playable is True
         assert loaded.session.character_bindings == {"npc1": "42"}
+
+    def test_takeover_of_non_playable_succeeds_with_warning(
+        self, bridge: EngineBridge, caplog,
+    ):
+        """If a user takes over a character the importer didn't mark
+        playable, the binding still applies (explicit user intent wins)
+        but the bridge logs a warning so the operator can fix the
+        importer authoring."""
+        ckpt = _make_checkpoint(
+            characters=[
+                CharacterRecord(
+                    character_id="npc1",
+                    name="Guard Vero",
+                    status=CharacterStatus.active,
+                    is_playable=False,
+                    location="courtyard",
+                    public_sheet=PublicSheet(role="guard"),
+                ),
+            ],
+        )
+        _seed(bridge, ckpt)
+
+        import logging
+        with caplog.at_level(logging.WARNING, logger="app.bot.engine_bridge"):
+            result = bridge.takeover(SESSION_ID, "npc1", user_id=42)
+
+        assert result.session.character_bindings == {"npc1": "42"}
+        # is_playable stays False — flag tracks authorship, not binding.
+        npc = next(c for c in result.characters if c.character_id == "npc1")
+        assert npc.is_playable is False
+        assert any(
+            "not marked is_playable" in rec.message for rec in caplog.records
+        )
 
     def test_takeover_rejects_culled(self, bridge: EngineBridge):
         ckpt = _make_checkpoint(
@@ -199,7 +247,10 @@ class TestCreateCustomCharacter:
 
         assert new_char.name == "Tessa"
         assert new_char.character_id == "tessa"
-        assert new_char.is_player is True
+        # Bot-authored player slots are marked is_playable=True so the
+        # roster reflects "this is a human-authored character" even
+        # before binding is recorded.
+        assert new_char.is_playable is True
 
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
         ids = {c.character_id for c in loaded.characters}
@@ -207,7 +258,7 @@ class TestCreateCustomCharacter:
         assert loaded.session.character_bindings.get("tessa") == "7"
 
         tessa = next(c for c in loaded.characters if c.character_id == "tessa")
-        assert tessa.is_player is True
+        assert tessa.is_playable is True
         assert tessa.private_state.goals == ["find the informant"]
 
     @pytest.mark.asyncio
@@ -235,6 +286,118 @@ class TestCreateCustomCharacter:
         assert "tessa" in ids
         assert "tessa_2" in ids
         assert loaded.session.character_bindings.get("tessa_2") == "7"
+
+
+# ---- create_player_character_simple (LLM-free /join custom-create) ------
+
+
+class TestCreatePlayerCharacterSimple:
+    """LLM-free spawn used by the /join "Create your own character"
+    modal. Asserts the path: (1) authors a record from raw user input
+    only, (2) binds the user, (3) leaves location empty so the router
+    can place them via the (arrive) directive that fires next, and
+    (4) does NOT call the LLM at any point."""
+
+    def test_happy_path_spawns_binds_and_emits_state_change(
+        self, bridge: EngineBridge,
+    ):
+        ckpt = _make_checkpoint()
+        _seed(bridge, ckpt)
+        bridge.client.complete = AsyncMock(side_effect=AssertionError(
+            "create_player_character_simple must not call the LLM"
+        ))
+
+        new_char = bridge.create_player_character_simple(
+            SESSION_ID, user_id=42,
+            name="Akari Tanaka",
+            appearance="short, dark hair, hoodie over a school uniform",
+            backstory="A college student dragged here by a freak storm.",
+        )
+
+        assert new_char.name == "Akari Tanaka"
+        assert new_char.character_id == "akari_tanaka"
+        assert new_char.is_playable is True
+        # Router places via (arrive) directive — leave the slot empty
+        # rather than guessing.
+        assert new_char.location == ""
+        assert new_char.public_sheet.appearance.startswith("short, dark hair")
+        assert "freak storm" in new_char.backstory
+
+        loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+        ids = {c.character_id for c in loaded.characters}
+        assert "akari_tanaka" in ids
+        assert loaded.session.character_bindings.get("akari_tanaka") == "42"
+
+        # Router needs a heads-up about the new arrival.
+        changes = loaded.session.pending_router_state_changes
+        assert any(
+            "akari_tanaka" in line and "[player-bound]" in line
+            for line in changes
+        ), changes
+
+    def test_backstory_optional(self, bridge: EngineBridge):
+        ckpt = _make_checkpoint()
+        _seed(bridge, ckpt)
+        bridge.client.complete = AsyncMock(side_effect=AssertionError(
+            "must not call the LLM"
+        ))
+
+        new_char = bridge.create_player_character_simple(
+            SESSION_ID, user_id=7,
+            name="Mira",
+            appearance="freckles, red braid, satchel of seed packets",
+        )
+        assert new_char.backstory == ""
+        loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+        assert loaded.session.character_bindings.get("mira") == "7"
+
+    def test_empty_name_rejected(self, bridge: EngineBridge):
+        ckpt = _make_checkpoint()
+        _seed(bridge, ckpt)
+        before = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
+
+        with pytest.raises(ValueError, match="name"):
+            bridge.create_player_character_simple(
+                SESSION_ID, user_id=1,
+                name="   ", appearance="someone",
+            )
+        # No partial state on validation failure.
+        after = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
+        assert before == after
+
+    def test_empty_appearance_rejected(self, bridge: EngineBridge):
+        ckpt = _make_checkpoint()
+        _seed(bridge, ckpt)
+        before = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
+
+        with pytest.raises(ValueError, match="appearance"):
+            bridge.create_player_character_simple(
+                SESSION_ID, user_id=1,
+                name="Akari", appearance="",
+            )
+        after = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
+        assert before == after
+
+    def test_disambiguates_existing_id(self, bridge: EngineBridge):
+        existing = CharacterRecord(
+            character_id="akari", name="Akari (the original)",
+            public_sheet=PublicSheet(role="local"),
+        )
+        ckpt = _make_checkpoint(characters=[existing])
+        _seed(bridge, ckpt)
+
+        new_char = bridge.create_player_character_simple(
+            SESSION_ID, user_id=11,
+            name="Akari", appearance="modern clothes, phone in hand",
+        )
+        assert new_char.character_id == "akari_2"
+
+        loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+        ids = {c.character_id for c in loaded.characters}
+        assert {"akari", "akari_2"}.issubset(ids)
+        # Original character's binding is unchanged; new one bound.
+        assert loaded.session.character_bindings.get("akari_2") == "11"
+        assert "akari" not in loaded.session.character_bindings
 
 
 # ---- suggest_replacement_targets (mode='suggest') -----------------------
@@ -305,7 +468,7 @@ class TestReplaceWithCustom:
             character_id="rival_1",
             name="Original Rival",
             status=CharacterStatus.active,
-            is_player=False,
+            is_playable=False,
             location="garden",
             public_sheet=PublicSheet(role="old role", faction="old faction"),
             backstory="old backstory",
@@ -373,7 +536,7 @@ class TestReplaceWithCustom:
         assert updated.pending_observations == ["saw the flash"]
 
         # Flag + binding
-        assert updated.is_player is True
+        assert updated.is_playable is True
 
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
         assert loaded.session.character_bindings.get("rival_1") == "5"
@@ -386,37 +549,46 @@ class TestReplaceWithCustom:
         )
         assert reloaded_target.name == "Brooding Rival"
         assert reloaded_target.location == "garden"
-        assert reloaded_target.is_player is True
+        assert reloaded_target.is_playable is True
 
     @pytest.mark.asyncio
-    async def test_rejects_player_target(self, bridge: EngineBridge):
-        player_char = CharacterRecord(
+    async def test_replace_allowed_for_unbound_playable(
+        self, bridge: EngineBridge,
+    ):
+        """playable-2: an `is_playable=True` slot that ISN'T bound to a
+        human is just an agent NPC and is fair game for replacement.
+        Pre-rename code rejected this path because the old `is_player`
+        field doubled as both authorship and binding."""
+        playable_unbound = CharacterRecord(
             character_id="player_slot",
             name="Hero",
-            is_player=True,
+            is_playable=True,
+            location="hub",
             public_sheet=PublicSheet(role="hero"),
         )
-        ckpt = _make_checkpoint(characters=[player_char])
+        ckpt = _make_checkpoint(characters=[playable_unbound])
         _seed(bridge, ckpt)
 
-        # client.complete should never be called
-        bridge.client.complete = AsyncMock(side_effect=AssertionError(
-            "LLM should not be called for a rejected target",
-        ))
+        authored = _authored(name="New Hero", role="rogue", location="hub")
+        out = TakeoverAuthoredOutput(character=authored, session_note="")
+        bridge.client.complete = AsyncMock(return_value=_llm_response(out))
 
-        with pytest.raises(ValueError, match="already a player"):
-            await bridge.replace_with_custom(
-                SESSION_ID, user_id=5,
-                target_character_id="player_slot",
-                description="a new voice",
-            )
+        updated = await bridge.replace_with_custom(
+            SESSION_ID, user_id=5,
+            target_character_id="player_slot",
+            description="a fresh take",
+        )
+
+        assert updated.character_id == "player_slot"
+        assert updated.name == "New Hero"
+        assert updated.is_playable is True
 
     @pytest.mark.asyncio
     async def test_rejects_claim_by_other_user(self, bridge: EngineBridge):
         npc = CharacterRecord(
             character_id="shared_npc",
             name="Shared",
-            is_player=False,
+            is_playable=False,
             public_sheet=PublicSheet(role="mystery"),
         )
         ckpt = _make_checkpoint(

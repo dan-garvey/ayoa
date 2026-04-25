@@ -156,10 +156,11 @@ class SessionState(BaseModel):
     session_id: str
     story_id: str = ""
     turn_index: int = 0
-    # The creator's binding: populated at /story start by auto-binding the
-    # creator to the is_player roster character. Kept for single-player
-    # convenience (briefing, legacy prompts). Multi-player bindings live in
-    # character_bindings below; player_character_id is one of those keys.
+    # The creator's binding: populated at /story start by auto-binding
+    # the creator to the first is_playable roster character. Kept for
+    # single-player convenience (briefing, legacy prompts). Multi-player
+    # bindings live in character_bindings below; player_character_id
+    # is one of those keys.
     player_name: str = ""
     player_character_id: str = ""
     # Multi-player bindings: character_id -> discord user id (stringified so
