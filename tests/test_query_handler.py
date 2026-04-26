@@ -73,7 +73,6 @@ def _build_event(
         decision_rationale="test",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="t",
                 feasible=True,
                 resolved_outcome=outcome,
             ),

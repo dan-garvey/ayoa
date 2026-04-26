@@ -9,9 +9,25 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 class WorldAdjudication(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    attempted_action: str
     feasible: bool
-    resolved_outcome: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_legacy_audit_fields(cls, value: Any) -> Any:
+        """Drop retired audit/framing fields from old checkpoints.
+
+        Existing checkpoints may still carry `attempted_action` or the
+        older `resolved_outcome` audit-only field.
+        Drop it before extra-field validation so old saves load and
+        rewrite cleanly under the simplified schema.
+        """
+        if isinstance(value, dict) and (
+            "attempted_action" in value or "resolved_outcome" in value
+        ):
+            value = dict(value)
+            value.pop("attempted_action", None)
+            value.pop("resolved_outcome", None)
+        return value
 
 
 class SceneDelta(BaseModel):
@@ -107,10 +123,11 @@ def visible_fact_texts(
 class CanonicalEvent(BaseModel):
     """Produced by the event router's adjudication pass. LLM output target.
 
-    `user_intent` was dropped in favor of `world_adjudication.attempted_action`
-    — the latter is the normalized form the pipeline actually uses. `event_id`
-    was dropped too; the orchestrator tags the visibility log directly from
-    turn_index so there's no need for the router to emit one.
+    `user_intent`, `world_adjudication.attempted_action`, and
+    `event_id` were dropped; the canonical event now carries only
+    feasibility, time delta, and observable facts. The orchestrator tags
+    visibility logs directly from turn_index so there's no need for the
+    router to emit an event id inside this nested object.
 
     All fields REQUIRED — see EventRouterOutput docstring for the
     "Schema is too complex" rationale."""

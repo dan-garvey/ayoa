@@ -81,7 +81,6 @@ def _ckpt() -> CheckpointFile:
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="Alice looks around",
                 feasible=True,
                 resolved_outcome="Alice sees the arch.",
             ),
@@ -107,7 +106,6 @@ def _ckpt() -> CheckpointFile:
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="Pip nods at Alice",
                 feasible=True,
                 resolved_outcome="Pip dips his chin.",
             ),
@@ -210,11 +208,9 @@ class TestComposePovRender:
         )
         assert "evt_alpha" in flat
         assert "evt_beta" in flat
-        assert "Alice looks around" in flat  # attempted_action still surfaces
         assert "The arch is weathered" in flat  # observable_fact for ev1
         assert "Pip nods" in flat  # observable_fact for ev2
-        # Option B: resolved_outcome is dropped from the narrator
-        # input — only attempted_action and observable_facts remain.
+        # Audit/framing fields are dropped from the narrator input.
         assert "Alice sees the arch" not in flat
         assert "Pip dips his chin" not in flat
         # When partial_mode=False the user message should NOT start with
@@ -327,25 +323,19 @@ class TestComposePovRender:
 
 
 class TestFormatCanonicalEventsBlock:
-    """Option B (v11-r10): the narrator reads `attempted_action` and
-    `observable_facts` from each canonical event, but NOT
-    `resolved_outcome`. The outcome string is the router's audit
-    line — narrator-grade interpretive prose was leaking into the
-    render via this block before; the prompt's anti-editorializing
-    rule (rule 3) used to silently filter it, costing tokens and
-    producing inconsistent output. Now the narrator never sees it."""
+    """The narrator reads only visible `observable_facts` from each
+    canonical event. Audit/framing fields are not part of the render
+    input."""
 
     def _resolved(
-        self, *, event_id: str, attempted: str, outcome: str, facts: list[object],
+        self, *, event_id: str, outcome: str, facts: list[object],
         level: str = "direct", observers: list[str] | None = None,
     ):
         ev = EventRouterOutput(
             event_id=event_id,
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    attempted_action=attempted,
-                    feasible=True,
+                world_adjudication=WorldAdjudication(feasible=True,
                     resolved_outcome=outcome,
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
@@ -369,12 +359,11 @@ class TestFormatCanonicalEventsBlock:
         entry = RenderBufferEntry(event_id=event_id, observation_level=level)
         return [(entry, ev)]
 
-    def test_attempted_action_and_facts_surface_outcome_does_not(self):
+    def test_facts_surface_audit_fields_do_not(self):
         from app.engine.narrator import _format_canonical_events_block
 
         resolved = self._resolved(
             event_id="evt_x",
-            attempted="recite a verse",
             outcome=(
                 "Seraphel recites a fractured plague verse, the strain "
                 "of speaking close to the edge of what she is permitted "
@@ -386,7 +375,6 @@ class TestFormatCanonicalEventsBlock:
             ],
         )
         out = _format_canonical_events_block(resolved)
-        assert "attempted_action: recite a verse" in out
         assert "observable_facts:" in out
         assert "wings draw tight" in out
         assert "The plague that fell" in out
@@ -400,7 +388,6 @@ class TestFormatCanonicalEventsBlock:
 
         resolved = self._resolved(
             event_id="evt_y",
-            attempted="wait quietly",
             outcome="(audit-only)",
             facts=[],
         )
@@ -414,7 +401,6 @@ class TestFormatCanonicalEventsBlock:
 
         resolved = self._resolved(
             event_id="evt_private",
-            attempted="ask Thessaly while signaling Ashara",
             outcome="Dan questions Thessaly and signals Ashara.",
             facts=[
                 ObservableFact.only(

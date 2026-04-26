@@ -113,7 +113,7 @@ class TestCharacterManager:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="wait", feasible=True, resolved_outcome="",
+                    feasible=True, resolved_outcome="",
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
@@ -146,7 +146,6 @@ class TestOrchestrator:
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="survey area",
                     feasible=True,
                     resolved_outcome="Player looks around.",
                 ),
@@ -201,7 +200,6 @@ class TestOrchestrator:
         merged = EventRouterOutput(
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="internal reflection",
                     feasible=True,
                     resolved_outcome="Player thinks.",
                 ),
@@ -491,7 +489,6 @@ class TestCharacterSpawn:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="The messenger collapses",
                     feasible=True,
                     resolved_outcome="The messenger dies on the spot.",
                 ),

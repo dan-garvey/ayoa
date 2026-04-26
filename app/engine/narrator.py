@@ -59,8 +59,9 @@ class Narrator:
         """Legacy shim — kept only for the pre-v11 unit tests that
         exercise this helper in isolation. Production code does not call
         this path; v11 folds agent responses into the canonical event's
-        resolved_outcome via the router, and the narrator renders from
-        that. If the legacy tests are ever removed, delete this method.
+        observable facts via the router, and the narrator renders from
+        those facts. If the legacy tests are ever removed, delete this
+        method.
 
         Renders `public_text` only — `intent` (the trailing parenthetical
         on each agent output) is private to the agent and the engine.
@@ -187,17 +188,12 @@ def _format_canonical_events_block(
     """Serialize the resolved events into a prose block the narrator
     can read. One section per event with its observation level tag.
 
-    The narrator's render input is `attempted_action` (what the actor
-    was trying to do, used for framing intent) plus `observable_facts`
-    (the surface-grade list — verbatim dialogue, visible gestures,
-    ambient sensory shifts — that drives the prose). The router's
-    `world_adjudication.resolved_outcome` is intentionally NOT
-    surfaced here; it's an audit-only one-line summary now and the
-    narrator was leaning on it for interpretive interior the prompt's
-    own rule 3 forbids. See the t8 plague-verse trace: the narrator
-    correctly drops "the strain of speaking close to the edge of what
-    she is permitted" when only obs facts are available, and renders
-    the visible flutter instead.
+    The narrator's render input is the visible slice of
+    `observable_facts`: the surface-grade list — verbatim dialogue,
+    visible gestures, ambient sensory shifts — that drives the prose.
+    Audit/framing fields such as `attempted_action` and
+    `resolved_outcome` are intentionally absent from this contract; the
+    narrator gets only facts visible to this POV.
     """
     if not resolved:
         return "No canonical events to render."
@@ -207,13 +203,11 @@ def _format_canonical_events_block(
         ca = ev.canonical_event
         facts = visible_fact_texts(ca.observable_facts, pov_character_id)
         if pov_character_id and not facts:
-            # No fact visible to this POV means the event must not leak
-            # through attempted_action either. This is what keeps a
-            # scoped under-table signal out of across-the-table renders.
+            # No fact visible to this POV means the event must not
+            # surface in their render at all.
             continue
         lines = [
             f"## Event {idx}: {ev.event_id} [Observation: {obs}]",
-            f"attempted_action: {ca.world_adjudication.attempted_action}",
         ]
         if facts:
             lines.append("observable_facts:")

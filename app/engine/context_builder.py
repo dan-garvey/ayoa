@@ -407,7 +407,7 @@ def clear_character_inbox(character: CharacterRecord) -> None:
       NPC observer who IS in the broadcast scene (and isn't the
       actor). Pre-r9b this fan-out also covered off-scene observers
       tagged `[off-scene perception]`; that channel was deleted
-      because the router's `resolved_outcome` regularly fused private
+      because the old one-line event summary regularly fused private
       and public sub-beats into one omniscient string and any
       off-scene character listed as an observer received the whole
       thing (e.g. Dan's bedroom wardrobe choice landing in Ashara's

@@ -406,7 +406,6 @@ class TestApplyRosterUpdatesPurgesCulled:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="x",
                     feasible=True,
                     resolved_outcome="x",
                 ),

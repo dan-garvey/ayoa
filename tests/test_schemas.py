@@ -56,9 +56,7 @@ CHARACTER_EXAMPLE = {
 
 CANONICAL_EVENT_EXAMPLE = {
     "world_adjudication": {
-        "attempted_action": "user attempts impossible feat",
         "feasible": False,
-        "resolved_outcome": "visible failed strain with no structural movement",
     },
     "scene_delta": {"time_advanced_seconds": 6},
     "observable_facts": [
@@ -76,9 +74,7 @@ ROUTER_OUTPUT_EXAMPLE = {
     "decision_rationale": "(test fixture)",
     "canonical_event": {
         "world_adjudication": {
-            "attempted_action": "lift the building",
             "feasible": False,
-            "resolved_outcome": "You strain; the building does not move.",
         },
         "scene_delta": {"time_advanced_seconds": 0},
         "observable_facts": [],
@@ -253,7 +249,6 @@ class TestCharacterRecord:
 class TestCanonicalEvent:
     def test_construct(self):
         ce = CanonicalEvent(**CANONICAL_EVENT_EXAMPLE)
-        assert ce.world_adjudication.attempted_action.startswith("user attempts")
         assert ce.world_adjudication.feasible is False
         assert ce.scene_delta.time_advanced_seconds == 6
         assert len(ce.observable_facts) == 3
@@ -263,6 +258,20 @@ class TestCanonicalEvent:
         ce = CanonicalEvent(**CANONICAL_EVENT_EXAMPLE)
         rebuilt = CanonicalEvent(**ce.model_dump())
         assert rebuilt == ce
+
+    def test_legacy_audit_fields_are_dropped(self):
+        data = {
+            **CANONICAL_EVENT_EXAMPLE,
+            "world_adjudication": {
+                **CANONICAL_EVENT_EXAMPLE["world_adjudication"],
+                "attempted_action": "legacy intent frame",
+                "resolved_outcome": "legacy audit line",
+            },
+        }
+        ce = CanonicalEvent(**data)
+        dumped = ce.model_dump()
+        assert "attempted_action" not in dumped["world_adjudication"]
+        assert "resolved_outcome" not in dumped["world_adjudication"]
 
     def test_rejects_extra_fields(self):
         data = {**CANONICAL_EVENT_EXAMPLE, "rogue_field": "surprise"}

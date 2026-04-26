@@ -18,7 +18,6 @@ from app.schemas.events import (
 def _canonical() -> CanonicalEvent:
     return CanonicalEvent(
         world_adjudication=WorldAdjudication(
-            attempted_action="survey the room",
             feasible=True,
             resolved_outcome="The player surveys the room.",
         ),
@@ -110,7 +109,7 @@ class TestRouterConsumesPendingRecap:
         rendered = pm.render(
             "event_router",
             setting_summary="x", world_lore="x", world_rules="x",
-            scene_graph="x", current_scene="x", characters_present="x",
+            scene_graph="x", scene_context_block="",
             hidden_lore="x", hidden_facts="x",
             user_input="next",
             acting_character_name="Aldric",
@@ -137,7 +136,7 @@ class TestRouterConsumesPendingRecap:
         rendered = pm.render(
             "event_router",
             setting_summary="x", world_lore="x", world_rules="x",
-            scene_graph="x", current_scene="x", characters_present="x",
+            scene_graph="x", scene_context_block="",
             hidden_lore="x", hidden_facts="x",
             user_input="next",
             acting_character_name="Aldric",

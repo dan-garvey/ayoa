@@ -22,7 +22,7 @@ from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import EventRouterOutput, SceneCreation
 from app.schemas.events import (
     CanonicalEvent,
     SceneDelta,
@@ -86,7 +86,6 @@ def _router_output() -> EventRouterOutput:
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="x",
                 feasible=True,
                 resolved_outcome="y",
             ),
@@ -144,6 +143,74 @@ def _last_user_content(messages: list[dict]) -> str:
 
 
 class TestRouteIntention:
+    def test_scene_context_surfaces_once_per_imported_scene(
+        self, prompt_mgr, mock_client,
+    ):
+        """Current scene + present roster are one-shot user-message
+        context, not repeated router history pollution."""
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        mock_client.complete.return_value = _llm_response(_router_output())
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="examine the lock",
+            scene_id="gatehouse",
+        ))
+
+        first_user = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert "## Current Scene" in first_user
+        assert "The Gatehouse" in first_user
+        assert "## Characters Present In Current Scene" in first_user
+        assert "Pip" in first_user
+        assert ckpt.session.surfaced_router_scene_contexts == ["gatehouse"]
+
+        mock_client.complete.reset_mock()
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="listen",
+            scene_id="gatehouse",
+        ))
+
+        second_user = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert "## Current Scene" not in second_user
+        assert "## Characters Present In Current Scene" not in second_user
+
+    def test_router_created_scene_context_is_not_repeated(self):
+        """Scenes introduced through router `scenes_created` already
+        live in the rolling router conversation."""
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.world_state.locations.scene_graph["dining_hall"] = {
+            "name": "Dining Hall",
+            "description": "A long formal hall.",
+            "connected_to": ["gatehouse"],
+        }
+        for char in ckpt.characters:
+            if char.character_id == "alice":
+                char.location = "dining_hall"
+
+        prior = _router_output()
+        prior.scenes_created = [
+            SceneCreation(
+                scene_id="dining_hall",
+                name="Dining Hall",
+                description="A long formal hall.",
+                connected_to=["gatehouse"],
+            )
+        ]
+        ckpt.canonical_events.append(prior)
+
+        ctx = turn_loop_dispatcher._build_router_context(ckpt, "alice")
+
+        assert ctx["scene_context_block"] == ""
+        assert ckpt.session.surfaced_router_scene_contexts == []
+
     def test_human_initiator_emits_attempts_framing(
         self, prompt_mgr, mock_client,
     ):
@@ -264,11 +331,9 @@ class TestRouteIntention:
         self, prompt_mgr, mock_client, monkeypatch,
     ):
         """v11-r6c: route_intention uses `render_conversation`, passing
-        `ckpt.session_conversation` as history so the event_router
-        prompt sees the full rolling router history (per its own line 8
-        "The prior messages in this conversation are the full session
-        history"). After the call, the user/assistant pair is appended
-        so continuity compounds across turns."""
+        `ckpt.session_conversation` as history so the event_router sees
+        the rolling router ledger. After the call, the user/assistant
+        pair is appended so continuity compounds across turns."""
         from app.schemas.conversation import ConversationMessage
 
         ckpt = _ckpt(bindings={"alice": "discord_1"})
@@ -333,6 +398,9 @@ class TestRouteIntention:
             ckpt.session.pending_router_state_changes
         )
         before_surfaced = list(ckpt.session.surfaced_world_facts)
+        before_scene_contexts = list(
+            ckpt.session.surfaced_router_scene_contexts
+        )
 
         boom = RuntimeError("simulated transient API failure")
         mock_client.complete.side_effect = boom
@@ -352,6 +420,10 @@ class TestRouteIntention:
         assert (
             ckpt.session.surfaced_world_facts == before_surfaced
         ), "surfaced_world_facts mutated but not restored"
+        assert (
+            ckpt.session.surfaced_router_scene_contexts
+            == before_scene_contexts
+        ), "surfaced_router_scene_contexts mutated but not restored"
 
 # ---- 4b. route_tick_intentions (Commit 6 fan-in) ---------------------------
 
@@ -510,6 +582,9 @@ class TestRouteTickIntentions:
             ckpt.session.pending_router_state_changes
         )
         before_surfaced = list(ckpt.session.surfaced_world_facts)
+        before_scene_contexts = list(
+            ckpt.session.surfaced_router_scene_contexts
+        )
 
         mock_client.complete.side_effect = RuntimeError("tick API hiccup")
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
@@ -527,6 +602,10 @@ class TestRouteTickIntentions:
             ckpt.session.pending_router_state_changes == before_state_changes
         )
         assert ckpt.session.surfaced_world_facts == before_surfaced
+        assert (
+            ckpt.session.surfaced_router_scene_contexts
+            == before_scene_contexts
+        )
         # And the failed call did NOT pollute conversation history —
         # snapshot/restore covers session_conversation by virtue of
         # the append-after-success ordering in the dispatcher.

@@ -230,9 +230,7 @@ class TestLLMClientComplete:
         """When response_model is set, we hand the Pydantic class to the SDK via output_format."""
         event = CanonicalEvent.model_validate({
             "world_adjudication": {
-                "attempted_action": "user opens door",
                 "feasible": True,
-                "resolved_outcome": "door opens",
             },
             "scene_delta": {"time_advanced_seconds": 2},
             "observable_facts": ["The door swings open."],
@@ -250,7 +248,6 @@ class TestLLMClientComplete:
         assert mock.call_args.kwargs["output_format"] is CanonicalEvent
         assert isinstance(result.parsed, CanonicalEvent)
         assert result.parsed.world_adjudication.feasible is True
-        assert result.parsed.world_adjudication.attempted_action == "user opens door"
 
     @pytest.mark.asyncio
     async def test_structured_output_missing_parsed_raises(self, client):
@@ -557,7 +554,7 @@ class TestLLMClientIntegration:
                 "content": (
                     "You are a world-state engine. Respond ONLY with valid JSON, no markdown.\n"
                     'Schema: {"event_id": string, "user_intent": string, '
-                    '"world_adjudication": {"attempted_action": string, "feasible": bool, "resolved_outcome": string}, '
+                    '"world_adjudication": {"feasible": bool}, '
                     '"scene_delta": {"time_advanced_seconds": int}, '
                     '"observable_facts": [string]}'
                 ),

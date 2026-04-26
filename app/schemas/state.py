@@ -49,7 +49,7 @@ class OpenCatIIEvent(BaseModel):
     # sweep, not submitted by the human. The Cat II resolution prompt
     # (Part C) skips these responders entirely — they're rendered as
     # present-but-non-reactive rather than having the sentinel string
-    # leak into `resolved_outcome`. This is cleaner than parsing a
+    # leak into canonical event prose. This is cleaner than parsing a
     # magic-string marker on the intention text.
     swept_responders: list[str] = Field(default_factory=list)
     opened_at: str = ""
@@ -197,6 +197,11 @@ class SessionState(BaseModel):
     # land here on turn 1 and are never re-surfaced; the rare runtime-
     # added fact lands on whatever turn it was added.
     surfaced_world_facts: list[str] = Field(default_factory=list)
+    # Router context-trim bookkeeping: scene/location + present-roster
+    # blocks are high-bulk grounding that should be surfaced only once
+    # for importer-seeded scenes. Router-created scenes are already in
+    # router history via `scenes_created`, so they are never listed here.
+    surfaced_router_scene_contexts: list[str] = Field(default_factory=list)
     # Commit-3 (router-trim): one-shot lines describing things the
     # engine applied that the router did NOT itself author — spawn
     # outcomes (Commit 4 will populate router_summary into these),

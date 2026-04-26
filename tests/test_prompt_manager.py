@@ -114,8 +114,12 @@ class TestPromptManagerWithRealTemplates:
             world_lore="The kingdom has been at war.",
             world_rules="No magic. Human baseline strength.",
             scene_graph="- courtyard (id: courtyard)",
-            current_scene="A stone courtyard in the rain.",
-            characters_present="- Captain Vero (guard): disciplined",
+            scene_context_block=(
+                "## Current Scene\n"
+                "A stone courtyard in the rain.\n\n"
+                "## Characters Present In Current Scene\n"
+                "- Captain Vero (guard): disciplined\n\n"
+            ),
             hidden_lore="Secret conspiracy details.",
             hidden_facts="- Hidden fact one",
             user_input="I try to lift the building.",
@@ -205,7 +209,7 @@ class TestPromptManagerWithRealTemplates:
         messages = mgr.render_messages(
             "event_router",
             setting_summary="x", world_lore="x", world_rules="x",
-            scene_graph="x", current_scene="x", characters_present="x",
+            scene_graph="x", scene_context_block="",
             hidden_lore="x", hidden_facts="x",
             user_input="x",
             acting_character_name="x",
@@ -241,7 +245,7 @@ class TestPromptManagerWithRealTemplates:
             "event_router",
             history=history,
             setting_summary="x", world_lore="x", world_rules="x",
-            scene_graph="x", current_scene="x", characters_present="x",
+            scene_graph="x", scene_context_block="",
             hidden_lore="x", hidden_facts="x",
             user_input="x",
             acting_character_name="x",

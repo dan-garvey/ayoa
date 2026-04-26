@@ -21,8 +21,8 @@ class LLMConfig(BaseModel):
     # Narrator: Haiku as of Option B (v11-r10). The narrator's job
     # contracted sharply once `observable_facts` became the sole render
     # source — it no longer has to interpret narrator-grade interior
-    # prose from `resolved_outcome`, infer what the actor was thinking,
-    # or compose meaning out of an ambiguous outcome string. The job is
+    # prose, infer what the actor was thinking, or compose meaning out
+    # of an ambiguous outcome string. The job is
     # now: take 4-6 surface facts, weave them into POV prose, drop
     # facts the observation level forbids, don't editorialize. That's
     # a transformation, not an authorship task. Haiku is well-matched

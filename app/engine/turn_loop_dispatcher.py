@@ -143,6 +143,54 @@ def _build_characters_present(
     return "\n".join(present)
 
 
+def _router_created_scene_ids(checkpoint: CheckpointFile) -> set[str]:
+    """Scene ids the router has already authored in prior outputs."""
+    created: set[str] = set()
+    for event in checkpoint.canonical_events:
+        for scene in event.scenes_created or []:
+            if isinstance(scene, dict):
+                scene_id = scene.get("scene_id", "")
+            else:
+                scene_id = getattr(scene, "scene_id", "")
+            if scene_id:
+                created.add(scene_id)
+    return created
+
+
+def _build_scene_context_block(
+    checkpoint: CheckpointFile, character_id: str | None = None,
+) -> str:
+    """One-shot router grounding for importer-seeded scene context.
+
+    The rolling router conversation already records movement,
+    `roster_moves`, and any `scenes_created` the router authored.
+    Repeating the current location plus present roster every call
+    pollutes the user's message history and biases future routing
+    toward stale setup text. Surface this block only the first time the
+    actor is in a non-router-created scene.
+    """
+    scene_id = resolve_scene_for_character(checkpoint, character_id)
+    if not scene_id:
+        return ""
+    if scene_id in _router_created_scene_ids(checkpoint):
+        return ""
+
+    surfaced = list(checkpoint.session.surfaced_router_scene_contexts)
+    if scene_id in surfaced:
+        return ""
+    checkpoint.session.surfaced_router_scene_contexts = [
+        *surfaced,
+        scene_id,
+    ]
+
+    return (
+        "## Current Scene\n"
+        f"{_build_scene_context(checkpoint, character_id)}\n\n"
+        "## Characters Present In Current Scene\n"
+        f"{_build_characters_present(checkpoint, character_id)}\n\n"
+    )
+
+
 def _build_world_facts_delta(checkpoint: CheckpointFile) -> str:
     """Render only world facts the router hasn't seen on a prior turn.
 
@@ -375,9 +423,8 @@ def _build_router_context(
         "setting_summary": build_setting_summary(ckpt),
         "world_lore": ckpt.world_state.lore or "No detailed lore available.",
         "world_rules": _build_world_rules(ckpt),
-        "current_scene": _build_scene_context(ckpt, acting_id),
+        "scene_context_block": _build_scene_context_block(ckpt, acting_id),
         "scene_graph": _build_scene_graph(ckpt),
-        "characters_present": _build_characters_present(ckpt, acting_id),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": _build_hidden_facts(ckpt),
         "acting_character_name": acting_name,
@@ -420,13 +467,17 @@ class LLMDispatcher:
         """Classify + adjudicate one intention through event_router."""
         del scene_id  # Scene id is picked up from ckpt.world_state.locations.
 
-        # Snapshot the two delta-queue session fields BEFORE
+        # Snapshot context-trim session fields BEFORE
         # `_build_router_context` mutates them, so we can restore on
         # exception and avoid silently losing queued state-change /
-        # world-fact entries on a failed router call. Flagged by the
+        # world-fact / scene-context entries on a failed router call.
+        # Flagged by the
         # Commit-4 reviewers (same pattern the now-deleted legacy
         # EventRouter.run had to handle).
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
+        saved_scene_contexts = list(
+            ckpt.session.surfaced_router_scene_contexts
+        )
         saved_state_changes = list(
             ckpt.session.pending_router_state_changes
         )
@@ -473,13 +524,10 @@ class LLMDispatcher:
                 "tick_fan_in_block": "",
             }
 
-            # v11-r6c: event_router explicitly expects the prior router
-            # exchanges as conversation history ("The prior messages in this
-            # conversation are the full session history"). Use
-            # render_conversation so the rolling history rides along, and
-            # append this turn's exchange after the call so continuity
-            # compounds across turns. The caller (Orchestrator) persists the
-            # checkpoint after run_beat returns.
+            # Use render_conversation so the rolling router ledger rides
+            # along, and append this turn's exchange after the call so
+            # continuity compounds across turns. The caller
+            # (Orchestrator) persists the checkpoint after run_beat returns.
             messages = self.prompt_mgr.render_conversation(
                 "event_router",
                 history=ckpt.session_conversation,
@@ -506,6 +554,7 @@ class LLMDispatcher:
             )
         except Exception:
             ckpt.session.surfaced_world_facts = saved_surfaced_facts
+            ckpt.session.surfaced_router_scene_contexts = saved_scene_contexts
             ckpt.session.pending_router_state_changes = saved_state_changes
             raise
 
@@ -551,14 +600,17 @@ class LLMDispatcher:
         for the existing context-builder helpers (which expect an
         actor frame) to render cleanly.
 
-        Snapshot/restore of the two delta-queue session fields mirrors
+        Snapshot/restore of context-trim session fields mirrors
         `route_intention` so a failed tick router call doesn't silently
-        drain queued state-change / world-fact entries.
+        drain queued state-change / world-fact / scene-context entries.
         """
         if not tick_outputs:
             return None
 
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
+        saved_scene_contexts = list(
+            ckpt.session.surfaced_router_scene_contexts
+        )
         saved_state_changes = list(
             ckpt.session.pending_router_state_changes
         )
@@ -604,6 +656,7 @@ class LLMDispatcher:
             )
         except Exception:
             ckpt.session.surfaced_world_facts = saved_surfaced_facts
+            ckpt.session.surfaced_router_scene_contexts = saved_scene_contexts
             ckpt.session.pending_router_state_changes = saved_state_changes
             raise
 

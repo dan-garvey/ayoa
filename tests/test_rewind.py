@@ -72,7 +72,6 @@ def _make_ckpt(
                 decision_rationale="(test fixture)",
                 canonical_event=CanonicalEvent(
                     world_adjudication=WorldAdjudication(
-                        attempted_action=f"Turn {turn_index} action {i}",
                         feasible=True,
                         resolved_outcome=f"Turn {turn_index} event {i}.",
                     ),

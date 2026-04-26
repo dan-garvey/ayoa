@@ -136,13 +136,8 @@ def _format_recent_events(
     them chronologically. Up to `max_events` entries.
 
     Renders `observable_facts` only — the asking character should
-    only get to reflect on what they actually perceived. The router's
-    `world_adjudication.resolved_outcome` is narrator-grade prose
-    that smuggles interior interpretation; surfacing it here would
-    let the asked-about character "remember" things they couldn't
-    have observed (e.g. another character's restrictions, an actor's
-    interior reasoning). Same fix as `broadcast_event`'s in-scene
-    perception channel.
+    only get to reflect on what they actually perceived. Same fact
+    channel as `broadcast_event`'s in-scene perception path.
     """
     events = checkpoint.canonical_events or []
     if not events:

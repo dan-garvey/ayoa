@@ -104,7 +104,6 @@ def _router_out(
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="something",
                 feasible=True,
                 resolved_outcome="something happens",
             ),

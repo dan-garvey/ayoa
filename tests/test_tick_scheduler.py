@@ -780,12 +780,7 @@ def _tick_router_output(
         decision_rationale="(tick fan-in test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="(off-stage tick)",
                 feasible=True,
-                resolved_outcome=(
-                    "While the player rested, the regent paced and the "
-                    "scribe copied another folio."
-                ),
             ),
             scene_delta=SceneDelta(time_advanced_seconds=120),
             observable_facts=[],
@@ -1018,8 +1013,7 @@ class TestTickFanIn:
 
         assert len(ckpt.canonical_events) == before + 1
         appended = ckpt.canonical_events[-1]
-        assert appended.canonical_event.world_adjudication.resolved_outcome \
-            .startswith("While the player rested")
+        assert appended.canonical_event.world_adjudication.feasible is True
 
     @pytest.mark.asyncio
     async def test_fan_in_router_failure_swallowed_no_state_corruption(

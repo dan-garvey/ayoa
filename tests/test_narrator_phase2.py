@@ -63,7 +63,6 @@ def sample_checkpoint():
 def sample_event():
     return CanonicalEvent(
         world_adjudication=WorldAdjudication(
-            attempted_action="Player surveys the courtyard",
             feasible=True,
             resolved_outcome="Player scans the area.",
         ),

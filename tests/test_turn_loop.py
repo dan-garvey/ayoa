@@ -34,7 +34,12 @@ from app.engine.turn_loop import (
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    SceneDelta,
+    WorldAdjudication,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import SessionState, WorldState
 
@@ -100,7 +105,6 @@ def _router_out(
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
-                attempted_action="something",
                 feasible=True,
                 resolved_outcome="something happens",
             ),
@@ -209,10 +213,15 @@ class TestCatIIOpenPartialRender:
         slot = ckpt.session.active_act_slots.get("gatehouse", {})
         assert "bob" in slot
         assert slot["bob"].reason == "cat_ii_responder"
-        # Synthetic open-attempt event was appended to canonical_events
-        # so the narrator's event-id lookup can resolve it.
+        # The router's real Cat II-open event was appended to
+        # canonical_events so the narrator's event-id lookup can resolve
+        # it without replacing the router's observer/fact payload.
         assert any(
             evt.ends_beat_reason == "cat_ii_open"
+            for evt in ckpt.canonical_events
+        )
+        assert not any(
+            "Synthetic open-attempt event" in evt.decision_rationale
             for evt in ckpt.canonical_events
         )
         # Every narrator call used partial_mode_override=True.
@@ -220,17 +229,77 @@ class TestCatIIOpenPartialRender:
         for call in fake.narrator_calls:
             assert call.get("partial_mode_override") is True
 
+    def test_cat_ii_open_broadcasts_router_facts_to_npc_observers(self):
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        open_event = _router_out(
+            requires_responders=True,
+            required_responders=["bob"],
+        )
+        open_event.observers = [
+            ObserverEntry(
+                character_id="alice",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="bob",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=2,
+            ),
+        ]
+        open_event.canonical_event.observable_facts = [
+            ObservableFact.all("Alice extends a hand and says: 'Hold.'")
+        ]
+        fake.queue_route(open_event)
+
+        asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I grab Bob's sleeve and say hold",
+            scene_id="gatehouse",
+        ))
+
+        assert ckpt.canonical_events[0] is open_event
+        assert ckpt.canonical_events[0].ends_beat_reason == "cat_ii_open"
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert any(
+            "Alice extends a hand and says: 'Hold.'" in obs
+            for obs in pip.pending_observations
+        )
+
     def test_cat_ii_open_with_only_agent_responder_no_partial_render(self):
         """Cat II that resolves inline with only agent responders should
-        NOT take the partial-render path — no pins held, no open_attempt
-        synthesized."""
+        NOT take the partial-render path — no pins held. The router's
+        actual open-attempt facts are still broadcast before the agent
+        responder is asked for an intention."""
         ckpt = _ckpt(bindings={"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(
+        open_event = _router_out(
             requires_responders=True,
             required_responders=["pip"],
             ends_beat=False,
-        ))
+        )
+        open_event.observers = [
+            ObserverEntry(
+                character_id="alice",
+                observation_level="d",
+                response_priority=3,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=5,
+            ),
+        ]
+        open_event.canonical_event.observable_facts = [
+            ObservableFact.all("Alice swings at Pip.")
+        ]
+        fake.queue_route(open_event)
         fake.queue_agent("Pip dodges")
         fake.queue_route(_router_out(ends_beat=True))
 
@@ -241,11 +310,9 @@ class TestCatIIOpenPartialRender:
         ))
         # Resolved inline.
         assert result.ended_reason == "cat_ii_resolution"
-        # No open_attempt synthesis.
-        assert not any(
-            evt.ends_beat_reason == "cat_ii_open"
-            for evt in ckpt.canonical_events
-        )
+        assert len(ckpt.canonical_events) == 2
+        assert ckpt.canonical_events[0] is open_event
+        assert ckpt.canonical_events[0].ends_beat_reason == "cat_ii_open"
         # No partial_mode_override on any render (should be None / default).
         for call in fake.narrator_calls:
             assert call.get("partial_mode_override") in (None, False)
@@ -418,8 +485,12 @@ class TestCatIIBeat:
             scene_id="gatehouse",
         ))
 
-        assert result.events_closed == 1
+        # Cat II now records the visible open attempt and the final
+        # resolution as separate canonical events, even when the only
+        # responder is an inline NPC.
+        assert result.events_closed == 2
         assert result.ended_reason == "cat_ii_resolution"
+        assert ckpt.canonical_events[0].ends_beat_reason == "cat_ii_open"
         assert len(ckpt.session.open_cat_ii_events) == 0
 
     def test_cat_ii_with_human_responder_pauses_beat(self):
@@ -1049,7 +1120,7 @@ class TestPicksSubsetOfObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="x", feasible=True, resolved_outcome="x",
+                    feasible=True, resolved_outcome="x",
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
@@ -1304,7 +1375,7 @@ class TestParallelNarratorFanOut:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="x", feasible=True, resolved_outcome="y",
+                    feasible=True, resolved_outcome="y",
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
@@ -1379,7 +1450,7 @@ class TestParallelNarratorFanOut:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="x", feasible=True, resolved_outcome="y",
+                    feasible=True, resolved_outcome="y",
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
@@ -1465,7 +1536,6 @@ class TestBroadcastEventNpcObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="hand off note",
                     feasible=True,
                     resolved_outcome=outcome,
                 ),
@@ -1633,7 +1703,6 @@ class TestBroadcastEventNpcObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="echo",
                     feasible=True,
                     resolved_outcome="A bell rings twice in the distance.",
                 ),
@@ -1679,7 +1748,6 @@ class TestBroadcastEventNpcObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="speak",
                     feasible=True,
                     resolved_outcome="(audit summary)",
                 ),
@@ -1740,7 +1808,6 @@ class TestBroadcastEventNpcObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="signal quietly while asking a question",
                     feasible=True,
                     resolved_outcome="Dan questions Thessaly and signals Ashara.",
                 ),
@@ -1799,7 +1866,6 @@ class TestBroadcastEventNpcObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="recite a verse",
                     feasible=True,
                     resolved_outcome=(
                         "Seraphel recites a fractured plague verse, the "
@@ -1856,7 +1922,6 @@ class TestBroadcastEventNpcObservers:
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
-                    attempted_action="t",
                     feasible=True,
                     resolved_outcome=(
                         "A whole interpretive paragraph the engine must NOT "

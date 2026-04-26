@@ -94,7 +94,6 @@ from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
     SceneDelta,
-    WorldAdjudication,
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -436,7 +435,7 @@ def sweep_stale_cat_ii_pins(
             # Structured marker, not a magic string. Part C of the router
             # prompt skips swept responders entirely — they don't end up
             # in the adjudication input, so no meta text can leak into
-            # `resolved_outcome`. The rendered scene will show the
+            # canonical event facts. The rendered scene will show the
             # character as present-but-non-reactive via narrator
             # guidance, never as "does not act — away from the scene".
             if h not in evt.swept_responders:
@@ -773,7 +772,7 @@ def broadcast_event(
       worked when summaries were narrow ("a courier carries the
       writ to Marcus") but failed catastrophically when an event
       fused private and public sub-beats into one omniscient
-      `resolved_outcome` line: the t8 playtest caught Ashara
+      summary line: the t8 playtest caught Ashara
       receiving "Dan Garvey pulls on clothes from the wardrobe he
       didn't choose and walks downstairs ..." as an off-scene
       perception in the dining hall — a privacy violation and an
@@ -813,7 +812,7 @@ def broadcast_event(
     in_scene_ids = _scene_member_ids(ckpt, scene_id)
     by_id = {c.character_id: c for c in ckpt.characters}
     # NPC perception payload. Pre-v11-r10 this was the router's
-    # `resolved_outcome` — narrator-grade prose with interior
+    # one-line event summary — narrator-grade prose with interior
     # interpretation woven in ("the strain of speaking close to the
     # edge of what she is permitted"), which leaked author-voice
     # interior into in-scene NPCs as their own perception. r10 moved
@@ -845,12 +844,12 @@ def broadcast_event(
             payload = ""
         if not payload:
             # No observable_facts to push — silence is the right
-            # outcome. (We deliberately do NOT fall back to the
-            # outcome string; that's the leak this fix closes.)
+            # outcome. (We deliberately do NOT fall back to any
+            # summary string; that's the leak this fix closes.)
             continue
-        # v11-r9b: off-scene observers no longer get the summary
-        # pushed. Pre-r9b every router-listed observer received the
-        # full `resolved_outcome` regardless of where they were
+        # v11-r9b: off-scene observers no longer get a summary pushed.
+        # Pre-r9b every router-listed observer received the full event
+        # summary regardless of where they were
         # standing — the t8 playtest caught this surfacing Dan
         # Garvey's private bedroom wardrobe choice on Ashara's queue
         # because the router fused his transit-and-arrival into one
@@ -979,66 +978,6 @@ class Dispatcher(Protocol):
         themselves.
         """
         ...
-
-
-def _build_open_attempt_event(
-    initiator_name: str,
-    initiator_intention: str,
-    scene_id: str,
-) -> EventRouterOutput:
-    """v11-r6a: synthesize a transient 'open Cat II attempt' canonical
-    event for rendering PARTIAL-mode cliffhangers to pinned humans (and
-    the initiator if human).
-
-    The attempt is IN PROGRESS. The audit string in `resolved_outcome`
-    and the seed observable fact both describe the attempt mid-flight
-    ('{initiator_name} attempts: ...') — the narrator's PARTIAL mode
-    ends the prose on that moment. Pre-Option-B the narrator read
-    `resolved_outcome` as the prose seed; post-Option-B it reads
-    `observable_facts`, so the seed must live in both fields (the
-    audit line for `/history` and tooling, the fact for the narrator
-    render). This event IS appended to canonical_events so the
-    narrator's event-id lookup resolves; on resolution the adjudicated
-    event lands separately in the log. The resulting "two events per
-    Cat II" shape reflects historical truth — an attempt WAS made
-    pre-resolution — at the cost of one extra event entry per Cat II.
-
-    `initiator_name` MUST be the display name (e.g. "Pip"), NOT the
-    character_id (e.g. "char_0dab1f"). The narrator reads the seed
-    fact as prose; passing the id leaks engine structure into the
-    cliffhanger.
-    """
-    # Use contracts helper so the seed string is consistent with the
-    # router's own Part C framing in both fields.
-    from app.engine.turn_loop_contracts import format_open_attempt_outcome
-    seed = format_open_attempt_outcome(initiator_name, initiator_intention)
-    return EventRouterOutput(
-        event_id="",  # _assign_event_id validator mints a fresh one
-        decision_rationale=(
-            "Synthetic open-attempt event for Cat II partial-mode "
-            "render; no LLM call was made for this routing."
-        ),
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(
-                attempted_action=initiator_intention,
-                feasible=True,
-                resolved_outcome=seed,
-            ),
-            scene_delta=SceneDelta(time_advanced_seconds=0),
-            observable_facts=[ObservableFact.all(seed)],
-        ),
-        observers=[],
-        requires_responders=False,
-        required_responders=[],
-        agent_responder_picks=[],
-        ends_beat=True,
-        ends_beat_reason="cat_ii_open",
-        spawn=[],
-        dormant=[],
-        cull=[],
-        roster_moves=[],
-        scenes_created=[],
-    )
 
 
 @dataclass
@@ -1244,6 +1183,19 @@ async def run_beat(
                 required_responders=required,
             )
 
+            # The router's Cat II-open output is already the canonical
+            # attempt-in-progress: visible setup, dialogue, gestures,
+            # and fact-level visibility are all in `observable_facts`.
+            # Broadcast it before collecting responder intentions so
+            # every observer receives the same public attempt that the
+            # responder is reacting to. Pre-r12 synthesized an
+            # observerless stub here and dropped the router's facts.
+            result.ends_beat = True
+            result.ends_beat_reason = "cat_ii_open"
+            broadcast_event(ckpt, result, scene_id, actor_id=current_actor)
+            event_actor_ids.append(current_actor)
+            events_closed += 1
+
             # Agents among required_responders intend immediately; their
             # intentions are collected into the same Cat II event.
             bindings = ckpt.session.character_bindings or {}
@@ -1297,47 +1249,11 @@ async def run_beat(
             # Humans are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
             #
-            # v11-r6a: before returning, render a PARTIAL-mode cliffhanger
-            # for the pinned humans (and the initiator if human) so they
-            # see the mid-attempt moment instead of waiting blind. Synth
-            # an "open attempt" canonical event, buffer it for the render
-            # targets at observation_level "direct", and reuse _end_beat
-            # — but with release_slots=False (keep pins alive) and
-            # force_partial=True (every render gets partial_mode=True
-            # even though the initiator isn't pinned themselves).
-            initiator_name = current_actor
-            for c in ckpt.characters:
-                if c.character_id == current_actor:
-                    initiator_name = c.name
-                    break
-            open_attempt = _build_open_attempt_event(
-                initiator_name=initiator_name,
-                initiator_intention=current_intention,
-                scene_id=scene_id,
-            )
-            ckpt.canonical_events.append(open_attempt)
-            # The synthetic open-attempt event is initiator-authored;
-            # tracking the actor for it keeps event_actor_ids parallel
-            # with the canonical_events tail. No roster_moves are
-            # attached to the open attempt (it's a render-only stub),
-            # so this is bookkeeping rather than functional, but the
-            # invariant must hold for the orchestrator's apply zip.
-            event_actor_ids.append(current_actor)
-
-            render_targets: set[str] = set()
-            for rid in required:
-                if rid in bindings:
-                    render_targets.add(rid)
-            if current_actor in bindings:
-                render_targets.add(current_actor)
-
-            for cid in render_targets:
-                append_to_render_buffer(
-                    ckpt, cid, open_attempt.event_id,
-                    observation_level="direct",
-                )
-
-            events_closed += 1
+            # v11-r6a/r12: render the already-broadcast router event in
+            # PARTIAL mode and keep pins alive. All in-scene humans with
+            # buffered observations render, not just the responder and
+            # initiator; NPC observers already received the same facts
+            # through `broadcast_event`.
             return await _end_beat(
                 ckpt, dispatcher, scene_id,
                 ended_reason="cat_ii_pending",
@@ -1345,7 +1261,6 @@ async def run_beat(
                 event_actor_ids=event_actor_ids,
                 release_slots=False,
                 force_partial=True,
-                render_only=render_targets,
                 acting_player_id=actor_id,
                 acting_player_input=intention,
             )
@@ -1367,8 +1282,7 @@ async def run_beat(
         #
         # Mutating the canonical event after broadcast is safe:
         # `broadcast_event` only takes references (event_id into render
-        # buffers; off-scene inbox uses `resolved_outcome` not
-        # observable_facts), and the narrator reads the live
+        # buffers) and the narrator reads the live
         # `observable_facts` list at compose time. The harvest path
         # respects the same human / out-of-scene filter as the
         # cascade picks (a router that picked a human or an off-scene
@@ -1512,9 +1426,9 @@ async def _end_beat(
       by the Cat II-open render path so the initiator (who isn't
       pinned) also sees the cliffhanger.
     - `render_only=set(...)`: only render POVs whose character_id is in
-      this set. Used by the Cat II-open render path to fan-out only to
-      pinned humans + initiator-if-human, not to other in-scene humans
-      who aren't participants in the open event.
+      this set. Reserved for callers that need narrower fan-out; the
+      Cat II-open path deliberately leaves this unset so every in-scene
+      human observer with a buffered event sees the attempted action.
 
     v11-r7j params:
     - `acting_player_id` + `acting_player_input`: the actual /act'd
