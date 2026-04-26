@@ -283,7 +283,15 @@ class TestLLMClientComplete:
 
     @pytest.mark.asyncio
     async def test_compact_true_adds_context_management(self, client):
-        """compact=True switches to the beta stream with compaction config + beta header."""
+        """compact=True switches to the beta stream with compaction
+        config + beta header. Uses `event_router` as the role because
+        the client's `compact_supported` gate (see app/llm/client.py)
+        only enables compaction on Sonnet/Opus class models — Haiku
+        4.5 returns 400 for the `compact_20260112` strategy and is
+        silently downgraded. Narrator switched to Haiku in r10
+        (Option B's narrowed render contract makes the cheaper model
+        sufficient), so this test now uses event_router which remains
+        Sonnet."""
         # Install the mock on beta.messages.stream instead.
         from unittest.mock import AsyncMock, MagicMock
 
@@ -304,7 +312,7 @@ class TestLLMClientComplete:
         client._client.beta.messages.stream = stream_mock
 
         await client.complete(
-            role="narrator",
+            role="event_router",
             messages=[{"role": "user", "content": "hi"}],
             compact=True,
             temperature=0.5,

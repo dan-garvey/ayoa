@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from collections.abc import Iterable
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 class WorldAdjudication(BaseModel):
@@ -25,6 +28,82 @@ class SceneDelta(BaseModel):
     time_advanced_seconds: int
 
 
+class ObservableFact(BaseModel):
+    """One surface fact plus its fact-level visibility.
+
+    `observation_level` on an observer answers how a character perceived
+    the event as a whole (direct / indirect / inferred). This object
+    answers a different question: which concrete facts in that event
+    were available to that character at all.
+
+    Schema fields are all required for structured-output stability.
+    Legacy checkpoints/tests that still store bare strings are upgraded
+    by `CanonicalEvent._coerce_legacy_facts`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    audience: Literal["all_observers", "only"]
+    visible_to: list[str]
+
+    @classmethod
+    def all(cls, text: str) -> "ObservableFact":
+        return cls(text=text, audience="all_observers", visible_to=[])
+
+    @classmethod
+    def only(cls, text: str, visible_to: Iterable[str]) -> "ObservableFact":
+        ids = [cid for cid in visible_to if cid]
+        return cls(text=text, audience="only", visible_to=ids)
+
+    @model_validator(mode="after")
+    def _validate_visibility(self) -> "ObservableFact":
+        self.text = (self.text or "").strip()
+        self.visible_to = [cid.strip() for cid in self.visible_to if cid.strip()]
+        if self.audience == "all_observers":
+            self.visible_to = []
+        elif not self.visible_to:
+            raise ValueError("ObservableFact audience='only' requires visible_to")
+        return self
+
+    def is_visible_to(self, character_id: str) -> bool:
+        return self.audience == "all_observers" or character_id in self.visible_to
+
+    def __str__(self) -> str:
+        return self.text
+
+    def __contains__(self, needle: object) -> bool:
+        return isinstance(needle, str) and needle in self.text
+
+    def strip(self) -> str:
+        return self.text.strip()
+
+
+def visible_fact_texts(
+    facts: Iterable[ObservableFact | str],
+    character_id: str = "",
+) -> list[str]:
+    """Return fact text visible to `character_id`.
+
+    Empty `character_id` is used by legacy/debug formatting paths and
+    returns only facts addressed to all observers.
+    """
+    visible: list[str] = []
+    for fact in facts:
+        if isinstance(fact, str):
+            text = fact.strip()
+            if text:
+                visible.append(text)
+            continue
+        if fact.audience == "all_observers" or (
+            character_id and fact.is_visible_to(character_id)
+        ):
+            text = fact.text.strip()
+            if text:
+                visible.append(text)
+    return visible
+
+
 class CanonicalEvent(BaseModel):
     """Produced by the event router's adjudication pass. LLM output target.
 
@@ -40,4 +119,21 @@ class CanonicalEvent(BaseModel):
 
     world_adjudication: WorldAdjudication
     scene_delta: SceneDelta
-    observable_facts: list[str]
+    observable_facts: list[ObservableFact]
+
+    @field_validator("observable_facts", mode="before")
+    @classmethod
+    def _coerce_legacy_facts(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value
+        upgraded = []
+        for item in value:
+            if isinstance(item, str):
+                upgraded.append({
+                    "text": item,
+                    "audience": "all_observers",
+                    "visible_to": [],
+                })
+            else:
+                upgraded.append(item)
+        return upgraded

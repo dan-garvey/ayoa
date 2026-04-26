@@ -191,32 +191,18 @@ class CharacterKnowledgeListExtraction(BaseModel):
     envelopes: list[CharacterKnowledgeEnvelope]
 
 
-# ---------------- Opening extraction ----------------
-
-class OpeningExtraction(BaseModel):
-    """The opening scene prose the narrator renders on first turn. Stored as
-    authorial guidance; the runtime narrator re-renders it in-scene per the
-    rolling-conversation architecture."""
-    text: str
-
-
-# ---------------- Five-call pipeline (v7) wrapper schemas ----------------
-
-class CharsAndOpeningExtraction(BaseModel):
-    """v7 Call-4 schema (introduced in v5 as Call-2; renumbered each
-    time the world side gained another split). Characters + opening
-    together as a continuation that reads public + hidden world +
-    locations as cached history. Splitting public / hidden / locations
-    / chars+opening across separate calls lets each one use the full
-    64K Sonnet output budget — v4's single combined call truncated
-    mid-JSON on long master prompts, v5's combined-world call did the
-    same on dense scene_graphs, and v6's combined public+hidden
-    skeleton did the same on dense conspiracy lore."""
-    characters: CharacterListExtraction
-    opening: OpeningExtraction
-
-
 # ---------------- Player primer ----------------
+
+# Note: there used to be an `OpeningExtraction` schema here (and a
+# `CharsAndOpeningExtraction` wrapper) that asked the model to author
+# the story's opening passage as second-person prose. We removed that
+# in v9 — the opening scene is now composed at runtime by the router
+# (using world_state, character_records, and the `(begin)` OOC
+# directive) and rendered per-POV by the narrator on the first turn.
+# This keeps every turn on a single code path and avoids the POV-
+# binding and race-window problems of an authored opener. See the
+# story_importer.py IMPORTER_VERSION history (v8 → v9 entry) for the
+# full rationale.
 
 class PlayerPrimerExtraction(BaseModel):
     """v8 Call-6 schema. Short (≤2 paragraph) player-facing primer

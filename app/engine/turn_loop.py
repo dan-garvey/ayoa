@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -89,11 +90,82 @@ def _is_agent_refusal(text: str) -> bool:
 
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    SceneDelta,
+    WorldAdjudication,
+    visible_fact_texts,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
 
 logger = logging.getLogger(__name__)
+
+
+_HUMAN_CLASS_NOUNS = (
+    "someone|somebody|people|those|men|women|folk|anyone|"
+    "a person|a man|a woman|a child"
+)
+
+_HARVEST_REFLECTIVE_PATTERNS = (
+    re.compile(
+        rf"\bwith (?:a|an|the) [^.!?;]{{0,140}}\bof "
+        rf"(?:{_HUMAN_CLASS_NOUNS})\b(?:\s+(?:who|whose)\b|\s+\w+ing\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\bthe (?:look|expression|kind|sort|sound|shape|register|voice|"
+        rf"body|build|gaze) of (?:{_HUMAN_CLASS_NOUNS})\b"
+        rf"(?:\s+(?:who|whose)\b|\s+\w+ing\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\b(?:moves?|moving|speaking|looking)\s+like "
+        rf"(?:{_HUMAN_CLASS_NOUNS})\b(?:\s+(?:who|whose)\b|\s+\w+ing\b)?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"\bthe way (?:{_HUMAN_CLASS_NOUNS})\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _sanitize_harvest_fragment(text: str) -> str:
+    """Drop perception-loadout sentences that violate narrative rules.
+
+    Observation harvest bypasses the router's canonicalization pass:
+    CharacterAgent.perceive() returns prose and run_beat appends it
+    straight into `observable_facts`. That means the normal router
+    repair rule cannot protect the narrator from agent-originated
+    reflective similes. Perception is enrichment rather than critical
+    event state, so the safest deterministic repair is to omit only
+    the violating sentence and keep the remaining visible surface.
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    kept: list[str] = []
+    dropped = 0
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        if any(pattern.search(sentence) for pattern in _HARVEST_REFLECTIVE_PATTERNS):
+            dropped += 1
+            continue
+        kept.append(sentence)
+
+    if dropped:
+        logger.warning(
+            "Harvest: dropped %d perception sentence(s) with banned "
+            "reflective-simile frames",
+            dropped,
+        )
+    return " ".join(kept).strip()
 
 
 class SceneLockManager:
@@ -674,29 +746,40 @@ def broadcast_event(
     across process restarts.
 
     The NPC inbox path is the engine implementation of the perception
-    channel router rule 13 promises. There are TWO sub-cases:
-
-    - **Off-scene observers** (router writes "Jordan presses the apology
-      note into a runner; the runner carries it to Marcus" with Marcus
-      listed as an `observer` at a different scene): tagged
-      `[off-scene perception]`. Pre-r7j these were the only NPCs that
-      got inbox entries; in-scene NPCs were skipped on the assumption
-      that they'd read the event "live" via the cascade's user-message
-      block. That assumption was wrong (the live channel was empty),
-      and v11-r8b restores symmetry.
+    channel router rule 13 promises. As of v11-r9b, fan-out is
+    strictly in-scene:
 
     - **In-scene observers** (NPCs co-located with the event but not
-      the actor): tagged `[in-scene perception]`. These are the
-      cascade pool. When one of them is picked as `agent_responder`
-      for this same beat, their `respond` call drains the queue and
-      they see the just-broadcast event as the most recent entry —
-      which IS the live event they're being asked to react to.
+      the actor): receive their visible observable_facts as inbox entries
+      (no `[in-scene perception]` tag — the entries are the agent's
+      live sensorium for this scene and don't need a routing
+      label). These are the cascade pool. When one of them is picked
+      as `agent_responder` for this same beat, their `respond` call
+      drains the queue and they see the just-broadcast event as the
+      most recent entry — which IS the live event they're being asked
+      to react to.
       In-scene NPCs who AREN'T picked this beat keep accumulating
       events silently and drain on whatever future beat picks them.
       This is the only viable channel: dispatching a per-event LLM
       call to every in-scene non-actor would burn budget on agents
       who have no opening to speak this beat. The user message they
       receive when they finally fire carries the full set in one shot.
+
+    - **Off-scene observers** are NOT pushed (v11-r9b). Pre-r9b the
+      router's `observers` list could include characters in other
+      scenes (a courier delivery to a remote NPC, an ambient world
+      event), and `broadcast_event` would push the same one-line
+      summary to all of them tagged `[off-scene perception]`. That
+      worked when summaries were narrow ("a courier carries the
+      writ to Marcus") but failed catastrophically when an event
+      fused private and public sub-beats into one omniscient
+      `resolved_outcome` line: the t8 playtest caught Ashara
+      receiving "Dan Garvey pulls on clothes from the wardrobe he
+      didn't choose and walks downstairs ..." as an off-scene
+      perception in the dining hall — a privacy violation and an
+      attribution-confusion seed. Off-scene awareness now requires
+      a separate event whose `scene_id` is where the news actually
+      lands.
 
     Pre-r8b the in-scene path was a bug-hatchery: cascade NPCs got
     `observed_facts=[]` from `LLMDispatcher.agent_intend`, so they
@@ -729,15 +812,16 @@ def broadcast_event(
     bindings = ckpt.session.character_bindings or {}
     in_scene_ids = _scene_member_ids(ckpt, scene_id)
     by_id = {c.character_id: c for c in ckpt.characters}
-    # One-line summary used for both in-scene and off-scene NPC inbox
-    # entries. Resolved outcome first, falling back to the first
-    # observable fact, mirrors the off-scene pre-r8b shape so existing
-    # off-scene tests stay green and the agent prompt builder reads
-    # the two channels uniformly.
+    # NPC perception payload. Pre-v11-r10 this was the router's
+    # `resolved_outcome` — narrator-grade prose with interior
+    # interpretation woven in ("the strain of speaking close to the
+    # edge of what she is permitted"), which leaked author-voice
+    # interior into in-scene NPCs as their own perception. r10 moved
+    # the channel to `observable_facts`. r11 adds fact-level
+    # visibility: public facts go to every observer, but private
+    # facts (`audience="only"`) are filtered per recipient before
+    # anything reaches an NPC inbox.
     canonical = event.canonical_event
-    summary = (canonical.world_adjudication.resolved_outcome or "").strip()
-    if not summary and canonical.observable_facts:
-        summary = canonical.observable_facts[0]
 
     for o in event.observers:
         if o.character_id in bindings:
@@ -751,14 +835,36 @@ def broadcast_event(
         recipient = by_id.get(o.character_id)
         if recipient is None or recipient.status == "culled":
             continue
-        if not summary:
+        facts = visible_fact_texts(canonical.observable_facts, o.character_id)
+        if facts:
+            if len(facts) == 1:
+                payload = facts[0]
+            else:
+                payload = "\n".join(f"  - {f}" for f in facts)
+        else:
+            payload = ""
+        if not payload:
+            # No observable_facts to push — silence is the right
+            # outcome. (We deliberately do NOT fall back to the
+            # outcome string; that's the leak this fix closes.)
             continue
-        tag = (
-            "[in-scene perception]"
-            if o.character_id in in_scene_ids
-            else "[off-scene perception]"
-        )
-        recipient.pending_observations.append(f"{tag} {summary}")
+        # v11-r9b: off-scene observers no longer get the summary
+        # pushed. Pre-r9b every router-listed observer received the
+        # full `resolved_outcome` regardless of where they were
+        # standing — the t8 playtest caught this surfacing Dan
+        # Garvey's private bedroom wardrobe choice on Ashara's queue
+        # because the router fused his transit-and-arrival into one
+        # outcome string and listed her as an observer of his
+        # arrival. The fan-out is now strictly in-scene: a character
+        # only gets an inbox push for events that actually fired in
+        # the room they were standing in. Real cross-scene
+        # awareness (a courier carrying a note, a public
+        # announcement, magic) belongs in a separate event whose
+        # `scene_id` is wherever the news lands, not piggy-backed
+        # on an in-scene event's omniscient summary.
+        if o.character_id not in in_scene_ids:
+            continue
+        recipient.pending_observations.append(payload)
 
     return humans
 
@@ -884,23 +990,28 @@ def _build_open_attempt_event(
     event for rendering PARTIAL-mode cliffhangers to pinned humans (and
     the initiator if human).
 
-    The attempt is IN PROGRESS. resolved_outcome describes the attempt
-    mid-flight ('{initiator_name} attempts: ...') — the narrator's
-    PARTIAL mode ends the prose on that moment. This IS appended to
-    canonical_events so the narrator's event-id lookup resolves; on
-    resolution the adjudicated event lands separately in the log. The
-    resulting "two events per Cat II" shape reflects historical truth —
-    an attempt WAS made pre-resolution — at the cost of one extra event
-    entry per Cat II.
+    The attempt is IN PROGRESS. The audit string in `resolved_outcome`
+    and the seed observable fact both describe the attempt mid-flight
+    ('{initiator_name} attempts: ...') — the narrator's PARTIAL mode
+    ends the prose on that moment. Pre-Option-B the narrator read
+    `resolved_outcome` as the prose seed; post-Option-B it reads
+    `observable_facts`, so the seed must live in both fields (the
+    audit line for `/history` and tooling, the fact for the narrator
+    render). This event IS appended to canonical_events so the
+    narrator's event-id lookup resolves; on resolution the adjudicated
+    event lands separately in the log. The resulting "two events per
+    Cat II" shape reflects historical truth — an attempt WAS made
+    pre-resolution — at the cost of one extra event entry per Cat II.
 
     `initiator_name` MUST be the display name (e.g. "Pip"), NOT the
-    character_id (e.g. "char_0dab1f"). The narrator reads
-    resolved_outcome as a prose seed; passing the id leaks engine
-    structure into the cliffhanger.
+    character_id (e.g. "char_0dab1f"). The narrator reads the seed
+    fact as prose; passing the id leaks engine structure into the
+    cliffhanger.
     """
-    # Use contracts helper so the resolved_outcome prefix is consistent
-    # with the router's own Part C framing.
+    # Use contracts helper so the seed string is consistent with the
+    # router's own Part C framing in both fields.
     from app.engine.turn_loop_contracts import format_open_attempt_outcome
+    seed = format_open_attempt_outcome(initiator_name, initiator_intention)
     return EventRouterOutput(
         event_id="",  # _assign_event_id validator mints a fresh one
         decision_rationale=(
@@ -911,12 +1022,10 @@ def _build_open_attempt_event(
             world_adjudication=WorldAdjudication(
                 attempted_action=initiator_intention,
                 feasible=True,
-                resolved_outcome=format_open_attempt_outcome(
-                    initiator_name, initiator_intention,
-                ),
+                resolved_outcome=seed,
             ),
             scene_delta=SceneDelta(time_advanced_seconds=0),
-            observable_facts=[],
+            observable_facts=[ObservableFact.all(seed)],
         ),
         observers=[],
         requires_responders=False,
@@ -1284,7 +1393,7 @@ async def run_beat(
                 by_id = {c.character_id: c for c in ckpt.characters}
                 appended = 0
                 for cid, fragment in zip(harvest_picks, fragments):
-                    text = (fragment or "").strip()
+                    text = _sanitize_harvest_fragment(fragment)
                     if not text:
                         logger.warning(
                             "Harvest: empty fragment for %s; dropped", cid,
@@ -1293,7 +1402,7 @@ async def run_beat(
                     name = by_id.get(cid)
                     name = name.name if name else cid
                     result.canonical_event.observable_facts.append(
-                        f"[loadout — {name}] {text}"
+                        ObservableFact.all(f"[loadout — {name}] {text}")
                     )
                     appended += 1
                 logger.info(

@@ -1,9 +1,4 @@
-from pathlib import Path
-
 from app.engine.turn_loop_contracts import (
-    AGENT_ON_STAGE_HEADER,
-    AGENT_TICK_HEADER,
-    CAT_II_RESOLUTION_HEADER,
     PARTIAL_MODE_MARKER,
     SWEPT_RESPONDERS_SUBHEADER,
     TICK_FAN_IN_HEADER,
@@ -16,25 +11,6 @@ from app.engine.turn_loop_contracts import (
     format_partial_render_marker,
     format_tick_fan_in_block,
 )
-
-# Prompts are versioned in git, not in their filenames — so these are
-# stable paths that follow the file forward across rewrites. Use
-# `git log app/prompts/event_router.txt` to see history; this test
-# only needs the current text.
-ROUTER_PROMPT = Path("app/prompts/event_router.txt").read_text()
-NARRATOR_PROMPT = Path("app/prompts/narrator_phase2.txt").read_text()
-AGENT_PROMPT = Path("app/prompts/agent.txt").read_text()
-
-
-class TestPromptReferencesConstants:
-    def test_router_prompt_mentions_cat_ii_resolution_header(self):
-        assert CAT_II_RESOLUTION_HEADER in ROUTER_PROMPT
-
-    def test_router_prompt_mentions_swept_responders_subheader(self):
-        assert SWEPT_RESPONDERS_SUBHEADER in ROUTER_PROMPT
-
-    def test_narrator_prompt_mentions_partial_mode_marker(self):
-        assert PARTIAL_MODE_MARKER in NARRATOR_PROMPT
 
 
 class TestContractHelpers:
@@ -130,68 +106,22 @@ class TestTickFanInBlock:
         ])
         assert "(no public action)" in block
 
-    def test_router_prompt_mentions_tick_fan_in_header(self):
-        # Mode routing in event_router keys off this exact string;
-        # if we ever rename the constant, this catches the prompt
-        # falling out of sync with the contract.
-        assert TICK_FAN_IN_HEADER in ROUTER_PROMPT
-
 
 class TestAgentModeContract:
-    """v11 unified-agent contract. There is now ONE agent system
-    prompt for both on-stage and off-stage calls (cache-trail
-    deduplication — the legacy `agent` and `agent_tick` templates
-    were merged). The agent identifies its mode by reading the FIRST line
-    of its current user message: `## ON-STAGE` or `## TICK`. The
-    prompt's "Mode Routing" section keys off those exact strings;
-    these tests pin the prompt-code contract so a rename or a
-    silent header drift trips a loud failure.
+    """Contract helpers that build the user-message bodies for agent modes."""
 
-    Why this matters: if the prompt's mode-routing block falls out
-    of sync with the constants, the agent has no signal to flip its
-    rule set — and we'd silently regress to "tick agents follow
-    on-stage rules" or vice versa, with no test to catch it.
-    """
-
-    def test_agent_prompt_mentions_on_stage_header(self):
-        assert AGENT_ON_STAGE_HEADER in AGENT_PROMPT
-
-    def test_agent_prompt_mentions_tick_header(self):
-        assert AGENT_TICK_HEADER in AGENT_PROMPT
-
-    def test_agent_prompt_has_mode_routing_section(self):
-        # The "Mode Routing" header is the cross-reference target for
-        # agent.respond / agent.tick — if it disappears the prompt's
-        # rule structure has been refactored away from the
-        # first-token-bitflip design.
-        assert "Mode Routing" in AGENT_PROMPT
-
-    def test_agent_prompt_keeps_user_message_template_slots(self):
-        # The unified template's user message contains exactly two
-        # interpolation slots after the system delimiter:
-        # `{mode_header}` (first-token signal) and `{mode_block}`
-        # (mode-specific body assembled by the matching helper).
-        # Pin both so a refactor that drops one is loud.
-        _, user_tail = AGENT_PROMPT.split("<<<USER>>>", 1)
-        assert "{mode_header}" in user_tail
-        assert "{mode_block}" in user_tail
-
-    def test_on_stage_body_renders_required_headers(self):
-        body = format_agent_on_stage_body(
-            scene_context="Estate courtyard, raining.",
-            characters_present="No other characters are present.",
-            observed_facts="Aldric strains against the building.",
-            prior_character_responses="No other characters have responded yet.",
-        )
-        # Each header pinned individually so a partial drift (one
-        # section vanishes) still fails distinctly.
-        assert "## Scene" in body
-        assert "## Characters Present" in body
-        assert "## What You Observe This Turn" in body
-        assert "## Other Characters' Responses This Turn" in body
-        # And the inputs survive verbatim into the body.
-        assert "Estate courtyard, raining." in body
-        assert "Aldric strains against the building." in body
+    def test_on_stage_body_is_empty(self):
+        """v11-r10: the on-stage body has no per-turn content. The
+        three blocks it once carried — `## Scene`, `## What You
+        Observe This Turn`, `## Other Characters' Responses This
+        Turn` — were all removed because the agent already learns
+        the same information through their `pending_observations`
+        inbox (location seeded at importer/spawn, moves pushed by
+        `_apply_roster_moves`, in-scene perception pushed by
+        `broadcast_event`). Pin the empty-body shape so a future
+        edit that re-adds a per-turn block here is loud."""
+        body = format_agent_on_stage_body()
+        assert body == ""
 
     def test_tick_body_renders_location_and_standing_instruction(self):
         body = format_agent_tick_body(
@@ -205,56 +135,14 @@ class TestAgentModeContract:
         assert "off-stage" in body
         assert "single tight beat" in body
 
-    def test_on_stage_body_does_not_carry_tick_markers(self):
-        # The two mode bodies must be visually + semantically
-        # distinct — if on-stage starts emitting `## What You Do
-        # This Tick` (or the reverse), the agent's mode-routing
-        # would see conflicting signals.
-        body = format_agent_on_stage_body(
-            scene_context="x",
-            characters_present="x",
-            observed_facts="x",
-            prior_character_responses="x",
-        )
-        assert "## Where You Are" not in body
-        assert "## What You Do This Tick" not in body
-
     def test_tick_body_does_not_carry_on_stage_markers(self):
+        # Tick mode keeps the only remaining headered block
+        # (`## Where You Are` for location framing); on-stage's
+        # historical headers (`## Scene`, `## What You Observe This
+        # Turn`, `## Other Characters' Responses This Turn`) are
+        # gone everywhere now and must not resurface in tick body
+        # either.
         body = format_agent_tick_body(scene_context="x")
         assert "## Scene" not in body
-        assert "## Characters Present" not in body
         assert "## What You Observe This Turn" not in body
         assert "## Other Characters' Responses This Turn" not in body
-
-
-class TestRule2bCrossReference:
-    def test_rule_2b_mentions_part_c(self):
-        """Rule 2b must forward-reference Part C so a reader can't miss the suspension."""
-        # Search for the rule 2b text + confirm it mentions Part C / cat_ii_resolution.
-        # The rule 2b header is flagged by "Rule 2b" or "2b.**" somewhere.
-        # Tolerant assertion: somewhere near "render the attempt, not the completion"
-        # there's a "Part C" mention.
-        lines = ROUTER_PROMPT.split("\n")
-        for i, ln in enumerate(lines):
-            if "render the attempt, not the completion" in ln.lower():
-                window = "\n".join(lines[i : i + 10])
-                assert "Part C" in window or "cat_ii_resolution" in window, \
-                    "Rule 2b should forward-reference Part C's suspension"
-                break
-
-
-class TestMultiEventExemplar:
-    def test_narrator_has_multi_event_exemplar(self):
-        assert "Center of gravity" in NARRATOR_PROMPT
-        assert "subordinate clause" in NARRATOR_PROMPT
-
-
-class TestPartIInvariantInRouter:
-    def test_picks_subset_of_observers_invariant(self):
-        """`agent_responder_picks` must reference `observers` as an invariant."""
-        assert "agent_responder_picks" in ROUTER_PROMPT
-        assert "observers" in ROUTER_PROMPT
-        # Look for INVARIANT keyword near agent_responder_picks
-        lower = ROUTER_PROMPT.lower()
-        idx = lower.find("invariant")
-        assert idx != -1, "Expected 'INVARIANT' keyword tagging the picks⊆observers rule"

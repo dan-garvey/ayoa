@@ -413,4 +413,17 @@ class CharacterManager:
                 req.character_id, char.location,
             )
 
+        # Seed the location signal — same shape importer/`_apply_roster_moves`
+        # uses, so the freshly-spawned NPC's first dispatch knows where
+        # they are without relying on the agent prompt's `## Scene` block.
+        # Players never read pending_observations, so spawned-as-playable
+        # characters are skipped (rare, but possible).
+        if not char.is_playable and char.location:
+            scene_name = locations.scene_graph.get(
+                char.location, {}
+            ).get("name", char.location)
+            char.pending_observations.append(
+                f"[your own action] {char.name} at {scene_name}."
+            )
+
         return char, authored.router_summary

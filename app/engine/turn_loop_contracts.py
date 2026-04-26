@@ -154,51 +154,70 @@ def format_tick_fan_in_block(
     return "\n".join(lines)
 
 
-def format_agent_on_stage_body(
-    *,
-    scene_context: str,
-    characters_present: str,
-    observed_facts: str,
-    prior_character_responses: str,
-) -> str:
-    """v11 unified-agent on-stage user-message body.
+def format_agent_on_stage_body() -> str:
+    """v11 unified-agent on-stage user-message body — intentionally empty.
 
     The full user message is
-    `{AGENT_ON_STAGE_HEADER}\\n\\n{agent_user_state_block}\\n\\n{this body}`.
-    The mode header is the first-token bitflip that the agent prompt's
-    "Mode Routing" section keys off; this helper just shapes the
-    on-stage payload (scene + presence + observed facts + prior
-    responders) in the order the prompt's On-Stage Mode rules expect.
+    `{AGENT_ON_STAGE_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
+    The on-stage body USED to carry three blocks (`## Scene`,
+    `## What You Observe This Turn`, `## Other Characters' Responses
+    This Turn`); all three are gone (v11-r10) because the same
+    information already lands on the agent through other channels:
 
-    All inputs are pre-formatted strings — the helper does not
-    interpret or filter them. In particular `prior_character_responses`
-    must already have been stripped of other agents' parentheticals
-    (see `format_prior_responses` in context_builder); piping raw
-    intent here would be a load-bearing information-asymmetry
-    violation.
+    - **`## Scene`** was a per-turn restatement of where the character
+      is standing and a co-located roster. Initial location now lands
+      via the importer / spawn helper, which pushes
+      `[your own action] <Name> at <Scene Name>.` into
+      `pending_observations` once at character creation, and
+      subsequent moves push the same shape through
+      `_apply_roster_moves` in `orchestrator.py`. Roster comings and
+      goings already flow through `pending_observations` as
+      `"X arrived." / "X left."` lines. The agent reads all of this
+      through their inbox (the block above this one), so re-emitting
+      the same facts in `## Scene` was duplicate context every beat.
+
+    - **`## What You Observe This Turn`** rendered the `observed_facts`
+      list every production caller passed as `[]`. In-scene perception
+      lands on the cascade NPC's `pending_observations` queue via
+      `broadcast_event` (which pushes each observer's visible
+      observable_facts onto their in-scene inbox), not
+      through this body. The block was rendering literal "" on every
+      beat.
+
+    - **`## Other Characters' Responses This Turn`** rendered the
+      `prior_responses` list every production caller passed as `None`.
+      Cascade NPCs see prior cascade responses through the same
+      `pending_observations` channel: each cascade event broadcasts
+      to its scene-mates, so by the time NPC #2 fires they have NPC
+      #1's just-broadcast event in their inbox. The block was
+      rendering literal "" on every beat.
+
+    The on-stage user message is now just the mode header plus the
+    pending-observations block, and that's the entire payload. Kept
+    as a function so dispatcher code can stay symmetric with
+    `format_agent_tick_body()` / `format_agent_perception_body()` and
+    so future on-stage-only context (if any ever surfaces a real
+    need) has a documented home.
     """
-    return (
-        f"## Scene\n{scene_context}\n\n"
-        f"## Characters Present\n{characters_present}\n\n"
-        f"## What You Observe This Turn\n{observed_facts}\n\n"
-        f"## Other Characters' Responses This Turn\n"
-        f"{prior_character_responses}"
-    )
+    return ""
 
 
 def format_agent_perception_body() -> str:
     """v11: agent perception-mode user-message body.
 
     The full user message is
-    `{AGENT_PERCEPTION_HEADER}\\n\\n{agent_user_state_block}\\n\\n{this body}`.
+    `{AGENT_PERCEPTION_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
     The mode header flips the agent into Perception Mode; this body
     is fixed prose because perception has no per-turn observation
-    surface — the character's identity (in the cached system prompt)
-    + their current state (in the user state block above this body)
-    are the only inputs the model needs to author its visual
-    loadout. No scene context: presentation is observer-agnostic
-    and largely scene-invariant. No "what to advance" prompt:
-    perception is not action.
+    surface — the character's identity AND current state (goals,
+    objectives, secrets) live in the cached system prompt and are
+    the only inputs the model needs to author its visual loadout.
+    No scene context: presentation is observer-agnostic and largely
+    scene-invariant. No "what to advance" prompt: perception is not
+    action. The pending_observations slot above this body is sent
+    empty for perception calls (set in `character_agent.perceive`),
+    so a perception query is never primed by "react to these
+    incoming events."
     """
     return (
         "## What The World Sees Of You Right Now\n"
@@ -207,7 +226,13 @@ def format_agent_perception_body() -> str:
         "your character: clothes, grooming, jewelry, marks, posture, "
         "the mood you're carrying in your face and body. Make a "
         "deliberate choice; this is part of how you express yourself, "
-        "not a costume sheet. Concrete and specific beats decorative."
+        "not a costume sheet. Concrete and specific beats decorative.\n\n"
+        "Hard prose constraint: do NOT use reflective-simile or "
+        "hypothetical-person frames in this loadout. Banned shapes "
+        "include \"with the [quality] of someone/people who...\", "
+        "\"the [look/expression/kind/sort] of someone who...\", "
+        "\"the way someone...\", and \"like someone who...\". Write the "
+        "visible surface directly."
     )
 
 
@@ -215,12 +240,15 @@ def format_agent_tick_body(*, scene_context: str) -> str:
     """v11 unified-agent off-stage tick user-message body.
 
     The full user message is
-    `{AGENT_TICK_HEADER}\\n\\n{agent_user_state_block}\\n\\n{this body}`.
+    `{AGENT_TICK_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
     The mode header flips the agent into Tick Mode. This helper
     renders the location and the standing tick instruction (advance
     one objective in your own location, single tight beat) — kept as
     a fixed string because the off-stage tick has no per-turn
-    observation surface to interpolate.
+    observation surface to interpolate. The character's goals,
+    objectives, and secrets sit in the cached system prompt, so
+    this body just needs to point them at the location and the tick
+    instruction.
     """
     return (
         f"## Where You Are\n{scene_context}\n\n"

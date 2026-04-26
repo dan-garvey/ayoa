@@ -10,7 +10,13 @@ from app.schemas.state import (
 from app.schemas.characters import (
     CharacterRecord, CharacterStatus, PublicSheet, PrivateState,
 )
-from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    SceneDelta,
+    WorldAdjudication,
+    visible_fact_texts,
+)
 from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -251,6 +257,7 @@ class TestCanonicalEvent:
         assert ce.world_adjudication.feasible is False
         assert ce.scene_delta.time_advanced_seconds == 6
         assert len(ce.observable_facts) == 3
+        assert all(f.audience == "all_observers" for f in ce.observable_facts)
 
     def test_round_trip(self):
         ce = CanonicalEvent(**CANONICAL_EVENT_EXAMPLE)
@@ -261,6 +268,27 @@ class TestCanonicalEvent:
         data = {**CANONICAL_EVENT_EXAMPLE, "rogue_field": "surprise"}
         with pytest.raises(ValidationError):
             CanonicalEvent(**data)
+
+    def test_fact_level_visibility_filters_by_character(self):
+        facts = [
+            ObservableFact.all("The public question lands at the table."),
+            ObservableFact.only(
+                "Dan's foot touches Ashara's boot under the table.",
+                ["ashara"],
+            ),
+        ]
+
+        assert visible_fact_texts(facts, "ashara") == [
+            "The public question lands at the table.",
+            "Dan's foot touches Ashara's boot under the table.",
+        ]
+        assert visible_fact_texts(facts, "aldric") == [
+            "The public question lands at the table.",
+        ]
+
+    def test_scoped_fact_requires_visible_recipient(self):
+        with pytest.raises(ValidationError):
+            ObservableFact(text="quiet signal", audience="only", visible_to=[])
 
 
 class TestEventRouterOutput:
@@ -279,6 +307,23 @@ class TestEventRouterOutput:
     def test_rejects_extra_fields_on_observer(self):
         bad_observer = {**ROUTER_OUTPUT_EXAMPLE["observers"][0], "secret": "leaked"}
         data = {**ROUTER_OUTPUT_EXAMPLE, "observers": [bad_observer]}
+        with pytest.raises(ValidationError):
+            EventRouterOutput(**data)
+
+    def test_scoped_fact_visible_to_must_be_observer(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "canonical_event": {
+                **ROUTER_OUTPUT_EXAMPLE["canonical_event"],
+                "observable_facts": [
+                    {
+                        "text": "Dan's foot touches Ashara's boot.",
+                        "audience": "only",
+                        "visible_to": ["ashara"],
+                    }
+                ],
+            },
+        }
         with pytest.raises(ValidationError):
             EventRouterOutput(**data)
 

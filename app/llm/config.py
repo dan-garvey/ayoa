@@ -10,13 +10,28 @@ class LLMConfig(BaseModel):
 
     # The discriminator role was merged into the event router in v2; no
     # caller asks for role="discriminator" anymore, so it's omitted here.
-    # Agent defaults to Haiku for playtesting: most of the per-turn spend
-    # is in the agent fan-out, and Haiku is cheap enough to iterate on
-    # without worrying. Flip back to Sonnet in config for production.
+    #
+    # Agent: Sonnet. Tried Haiku for playtesting cost (most per-turn
+    # spend is the agent cascade fan-out) but the playtests caught
+    # quality regressions Haiku couldn't carry — attribution drift
+    # under multi-NPC cascades, weaker prose, missed subtext on
+    # interior beats. The agent is the load-bearing surface for
+    # in-character voice consistency, so we eat the cost.
+    #
+    # Narrator: Haiku as of Option B (v11-r10). The narrator's job
+    # contracted sharply once `observable_facts` became the sole render
+    # source — it no longer has to interpret narrator-grade interior
+    # prose from `resolved_outcome`, infer what the actor was thinking,
+    # or compose meaning out of an ambiguous outcome string. The job is
+    # now: take 4-6 surface facts, weave them into POV prose, drop
+    # facts the observation level forbids, don't editorialize. That's
+    # a transformation, not an authorship task. Haiku is well-matched
+    # to it and cuts the per-turn narrator cost ~5x. Flip back to
+    # Sonnet via config if a playtest shows prose quality regressing.
     role_models: dict[str, str] = Field(default_factory=lambda: {
         "event_router": "claude-sonnet-4-6",
-        "narrator": "claude-sonnet-4-6",
-        "agent": "claude-haiku-4-5",
+        "narrator": "claude-haiku-4-5",
+        "agent": "claude-sonnet-4-6",
         "character_gen": "claude-sonnet-4-6",
         # Terse post-turn summarization (delta notes for the router).
         # Cheap, narrow task — Haiku is plenty.
@@ -28,6 +43,42 @@ class LLMConfig(BaseModel):
         # the default. Flip to Sonnet via env if you want richer
         # in-fiction refusal flavor.
         "query_handler": "claude-haiku-4-5",
+    })
+
+    # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
+    # API `thinking: {type: "enabled", budget_tokens: N}`). When > 0,
+    # the LLMClient enables extended thinking for that role's call;
+    # the model spends up to `N` tokens on internal reasoning before
+    # composing its visible response. Empty / missing role => no
+    # thinking, behave as before.
+    #
+    # Agent at 2048: the character cascade is where multi-step
+    # reasoning matters most — read the perception inbox, weigh
+    # attribution carefully, decide whether this beat is the moment
+    # to advance a goal, then write the prose. The t8 playtest
+    # caught the agent making attribution-inversion mistakes
+    # (Ashara claiming Garvey asked Lysara when Lysara made the
+    # statement) under the previous one-shot config; thinking
+    # tokens give the model room to chew on the inbox before
+    # speaking. 2048 is a ceiling, not a floor — typical
+    # pre-response planning lands in 500-1500 tokens.
+    #
+    # Event router at 2048: the router's adjudication call is the
+    # other multi-step reasoning surface in the engine — categorize
+    # the action (Cat I vs II), pick observers and observation
+    # levels, decide whether the beat ends, choose which NPCs to
+    # cascade and in what order, honor the addressed-NPC rule,
+    # author observable_facts that don't leak interior, etc. The
+    # decision_rationale field captures part of this thinking but
+    # has to fit in the structured output, so it's terse by
+    # construction; an extended-thinking budget lets the model
+    # reason freely before composing the JSON. The narrator and
+    # other roles still default to 0 — the narrator's job is
+    # transformation (facts → POV prose) and the others are narrow
+    # enough that a tight system prompt suffices.
+    role_thinking_budgets: dict[str, int] = Field(default_factory=lambda: {
+        "agent": 2048,
+        "event_router": 2048,
     })
 
     default_model: str = "claude-sonnet-4-6"
@@ -72,6 +123,11 @@ class LLMConfig(BaseModel):
 
     def model_for_role(self, role: str) -> str:
         return self.role_models.get(role, self.default_model)
+
+    def thinking_budget_for_role(self, role: str) -> int:
+        """Per-role extended-thinking budget in tokens. 0 means no
+        thinking (default behavior)."""
+        return self.role_thinking_budgets.get(role, 0)
 
     @classmethod
     def from_env(cls) -> LLMConfig:

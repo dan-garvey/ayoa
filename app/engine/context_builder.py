@@ -139,30 +139,6 @@ def resolve_scene_for_character(
     return ""
 
 
-def build_scene_context(
-    checkpoint: CheckpointFile, character_id: str | None = None,
-) -> str:
-    """Build scene description for `character_id`'s current scene.
-
-    `character_id=None` (or an unsited character) yields the empty-scene
-    string. New code should always pass the acting/POV character_id so
-    the prompt reflects where that character actually is.
-    """
-    locations = checkpoint.world_state.locations
-    scene_id = resolve_scene_for_character(checkpoint, character_id)
-    if not scene_id:
-        return "No scene information available."
-
-    scene = locations.scene_graph.get(scene_id, {})
-    name = scene.get("name", scene_id)
-    desc = scene.get("description", "")
-
-    parts = [f"Location: {name}"]
-    if desc:
-        parts.append(desc)
-    return "\n".join(parts)
-
-
 def build_setting_summary(checkpoint: CheckpointFile) -> str:
     """Render the `## Setting` block shared across the router, narrator,
     takeover, and character_gen prompt templates.
@@ -289,73 +265,28 @@ def build_world_context(
     return "\n".join(parts) if parts else "No world context available."
 
 
-def build_characters_present(
-    character: CharacterRecord, checkpoint: CheckpointFile
-) -> str:
-    """Build a summary of other characters present in the same scene as
-    `character`. Scene is read from `character.location`; an unsited
-    character (no location set) gets the empty-scene string.
-    """
-    scene_id = resolve_scene_for_character(checkpoint, character.character_id)
-    if not scene_id:
-        return "You don't know who else is nearby."
-
-    present = []
-    for char in checkpoint.characters:
-        if char.character_id == character.character_id:
-            continue
-        if char.location != scene_id:
-            continue
-        if char.status.value != "active":
-            continue
-
-        role = char.public_sheet.role or "unknown role"
-        appearance = char.public_sheet.appearance or "nondescript"
-        present.append(f"- {char.name}: {role}, {appearance}")
-
-    if not present:
-        return "No other characters are present."
-    return "\n".join(present)
-
-
-def format_observed_facts(facts: list[str]) -> str:
-    """Format the list of observed facts for the agent prompt."""
-    if not facts:
-        return "You observe nothing unusual."
-    return "\n".join(f"- {fact}" for fact in facts)
-
-
-def format_prior_responses(
-    prior_responses: list[CharacterAgentOutput],
-    checkpoint: CheckpointFile,
-) -> str:
-    """Format other characters' responses that happened earlier this turn.
-
-    Renders `public_text` only — `intent` (the trailing parenthetical
-    on each agent's output) is private to the emitting agent and the
-    engine, and must NEVER reach another agent's prompt. This is one
-    of the chokepoints that enforces that contract; the others are
-    the router intention block (dispatcher passes `output.public_text`
-    directly) and the narrator's canonical-event input (canonical
-    events carry resolved-outcome prose authored by the router, not
-    raw agent text).
-    """
-    if not prior_responses:
-        return "No other characters have responded yet."
-
-    parts = []
-    for resp in prior_responses:
-        char = next(
-            (c for c in checkpoint.characters if c.character_id == resp.character_id),
-            None,
-        )
-        name = char.name if char else resp.character_id
-        body = (resp.public_text or "").strip()
-        if not body:
-            body = "(silent beat)"
-        parts.append(f"- {name}: {body}")
-
-    return "\n".join(parts)
+# v11-r9b: `build_characters_present` was deleted. It used to render
+# "## Characters Present" for the agent's on-stage user message, with
+# every co-located character's full role + appearance pasted in EVERY
+# beat. Per the r9b context-management pass:
+#
+#   - The player's appearance is already in the cached
+#     `## Player Characters` block of the agent's system prompt.
+#     Repeating it in the per-turn user message paid for ~500 tokens
+#     of cache-busting duplication and seeded prose echo.
+#   - Per-NPC blurbs were the same kind of repeat for the agent's
+#     own world_context (which carries each NPC's name + role +
+#     appearance once, in the cached system prompt).
+#   - Real scene composition CHANGES are now signaled through
+#     pending_observations — `_apply_roster_moves` in orchestrator.py
+#     pushes "X arrived." / "X left." entries onto every scene-mate's
+#     inbox whenever the roster shifts. That is the live channel
+#     that actually needed to differ between turns; the static block
+#     wasn't carrying any of that information anyway.
+#
+# Routers still need an in-scene roster (different concern) — that
+# helper lives at `turn_loop_dispatcher._build_characters_present`
+# and is intentionally separate.
 
 
 def resolve_acting_character(
@@ -468,15 +399,30 @@ def clear_character_inbox(character: CharacterRecord) -> None:
     through normal canonical events: the router authors a courier
     walking in, a note that lands in `observable_facts`, etc.
 
-    Population path (v11-r7j): `broadcast_event` in `turn_loop.py`
-    pushes a one-line "[off-scene perception] …" entry onto every NPC
-    observer who is NOT in the broadcast scene. This is how the
-    perception channel router rule 13 promises actually lands — when
-    the router writes a courier delivering a note to Marcus and lists
-    Marcus as an observer, Marcus's next agent call sees the inbox
-    entry. In-scene NPC observers are NOT pushed (they read the same
-    event live via their normal context block when the router picks
-    them as a responder; pushing twice would double-count).
+    Population paths (v11-r9b):
+
+    - `broadcast_event` in `turn_loop.py` pushes each observer's visible
+      `observable_facts` (untagged — the entries are the agent's live
+      sensorium for the scene, no routing label needed) onto every
+      NPC observer who IS in the broadcast scene (and isn't the
+      actor). Pre-r9b this fan-out also covered off-scene observers
+      tagged `[off-scene perception]`; that channel was deleted
+      because the router's `resolved_outcome` regularly fused private
+      and public sub-beats into one omniscient string and any
+      off-scene character listed as an observer received the whole
+      thing (e.g. Dan's bedroom wardrobe choice landing in Ashara's
+      dining-hall queue). Cross-scene awareness now requires a
+      separate event whose `scene_id` is where the news lands.
+
+    - `_apply_roster_moves` in `orchestrator.py` pushes
+      `[your own action] …` onto the moved NPC's queue (so they
+      don't re-narrate their own arrival) and unflagged
+      `"X arrived." / "X left."` lines onto every scene-mate's
+      queue. The latter is the live channel for "who is in your
+      scene right now" — the on-stage user message no longer
+      carries a `## Characters Present` block (that block was
+      removed in v11-r9b alongside the off-scene perception
+      channel).
 
     This helper retains the name `clear_character_inbox` so callers
     don't churn, but its job is now scoped to the one remaining queue.

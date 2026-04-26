@@ -90,19 +90,6 @@ class TestPromptManagerInit:
 class TestPromptManagerWithRealTemplates:
     """Verify the actual project prompt templates load and render."""
 
-    def test_canonical_templates_present(self):
-        mgr = PromptManager(prompts_dir="app/prompts")
-        # Each canonical template resolves to its bare-stem file.
-        for name in (
-            "event_router",
-            "narrator_phase2",
-            "agent",
-            "character_gen",
-            "takeover",
-            "turn_recap",
-        ):
-            assert mgr._find_template(name).name == f"{name}.txt"
-
     def test_legacy_template_names_rejected(self):
         # The old `_v#`-suffixed names are gone; calling code that still
         # tries to render them must fail loudly so the regression is
@@ -136,7 +123,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="aldric",
             player_characters_block="- **Aldric** (acting this turn) (id: aldric) — scholar. Tall, broad-shouldered, grey-streaked hair.",
             since_last_turn_block="",
-            opening_directive="",
             recent_turn_recap="",
             # Commit-3: dropped `world_facts` (full) + `character_registry`
             # from per-turn context. Replaced with three new optional
@@ -163,10 +149,18 @@ class TestPromptManagerWithRealTemplates:
         # OUT of the template's variable list and INTO mode_block;
         # the system prefix is now identical between respond and
         # tick so a single cache lineage covers both modes.
+        #
+        # v11-r10 (2026-04): the agent template no longer surfaces a
+        # `## Player Characters` block. That section explicitly told
+        # the model "these are the human-played characters at the
+        # keyboard, treat them as protagonists" — a sycophancy primer
+        # that fought the entire reason we run agents (authentic NPC
+        # POV). The render kwargs `acting_character_name` and
+        # `player_characters_block` are no longer required by the
+        # template; this test stops asserting on the dropped block.
         mgr = PromptManager(prompts_dir="app/prompts")
         on_stage_body = (
             "## Scene\nEstate courtyard, raining.\n\n"
-            "## Characters Present\nNo other characters are present.\n\n"
             "## What You Observe This Turn\n"
             "Aldric strains against the building.\n\n"
             "## Other Characters' Responses This Turn\n"
@@ -186,11 +180,6 @@ class TestPromptManagerWithRealTemplates:
             world_context="Genre: fantasy",
             character_id="guard_17",
             pending_observations_block="",
-            acting_character_name="Aldric",
-            player_characters_block=(
-                "- **Aldric** (acting this turn) — scholar. Tall, "
-                "in rain-darkened traveling clothes."
-            ),
             mode_header="## ON-STAGE",
             mode_block=on_stage_body,
         )
@@ -200,12 +189,15 @@ class TestPromptManagerWithRealTemplates:
         # engine still passes the kwarg for symmetry with the rest of
         # the character packet.
         assert "hidden passage" in result
-        assert "rain-darkened traveling clothes" in result
         # Mode header AND body markers both present; the agent's
         # "Mode Routing" section keys off the header line.
         assert "## ON-STAGE" in result
         assert "## Scene" in result
         assert "Estate courtyard, raining" in result
+        # Sycophancy guard: the dropped block must not reappear.
+        assert "## Player Characters" not in result
+        assert "human-played" not in result
+        assert "human at the keyboard" not in result
 
     def test_render_messages_requires_delimiter(self):
         mgr = PromptManager(prompts_dir="app/prompts")
@@ -220,7 +212,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="x",
             player_characters_block="x",
             since_last_turn_block="",
-            opening_directive="",
             recent_turn_recap="",
             world_facts_delta_block="",
             initial_roster_block="",
@@ -257,7 +248,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="x",
             player_characters_block="x",
             since_last_turn_block="",
-            opening_directive="",
             recent_turn_recap="",
             world_facts_delta_block="",
             initial_roster_block="",

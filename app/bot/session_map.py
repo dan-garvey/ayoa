@@ -172,3 +172,23 @@ class SessionMap:
                 (channel_id, user_id),
             )
             await db.commit()
+
+    async def clear_all_pov_threads(self, channel_id: int) -> int:
+        """Forget every cached POV-thread row for `channel_id` without
+        touching the session binding itself.
+
+        Used by `/clear`: after deleting the actual Discord thread
+        objects we drop the SQL cache so the next `/join` lazily
+        creates fresh threads instead of trying to send to dead ids.
+        Distinct from `delete()`, which also nukes the `sessions` row
+        (the engine session stays bound across `/clear`).
+
+        Returns the number of rows deleted.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM pov_threads WHERE channel_id = ?",
+                (channel_id,),
+            )
+            await db.commit()
+            return cursor.rowcount

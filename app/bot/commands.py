@@ -11,6 +11,9 @@ Commands:
     /story import <attachment> [id]       — import a master prompt
     /story delete                         — unload the story from this session
     /join                                 — pick a character via interactive menu
+                                            (pre-play: enters the lobby; post-play: arrives mid-story)
+    /begin                                — open the story for everyone in the lobby
+                                            (any bound player or admin can fire)
     /leave                                — release your character
     /describe [name] [appearance]         — set/update name and appearance
     /act <action>                         — submit a turn
@@ -497,8 +500,6 @@ def register(
             story_id = ckpt.session.story_id
             if ckpt.transcript:
                 last_text = ckpt.transcript[-1].assistant
-            elif ckpt.opening_narrative:
-                last_text = ckpt.opening_narrative
         except FileNotFoundError:
             pass  # empty session, no ckpt yet
 
@@ -969,16 +970,15 @@ def register(
 
         elapsed = time.monotonic() - start
         logger.info(
-            "Imported %s in %.1fs: %d chars, %d scenes, %d characters",
+            "Imported %s in %.1fs: %d scenes, %d characters",
             story_id, elapsed,
-            len(ckpt.opening_narrative),
             len(ckpt.world_state.locations.scene_graph),
             len(ckpt.characters),
         )
 
-        # No briefing here — the player_primer + opening render only after
-        # /story start binds the session, and any per-player identity
-        # (name/appearance) lands at /join time.
+        # No briefing here — the player_primer is shown on /story start
+        # and the actual opening prose is rendered when the first player
+        # types /begin (composed by the router, voiced by the narrator).
         intro = (
             f"Imported **{story_id}** in {int(elapsed)}s — "
             f"{len(ckpt.characters)} characters, "
@@ -1033,10 +1033,26 @@ def register(
     #
     # No-arg slash command. Presents a SelectMenu of `is_playable=true`
     # characters that aren't already claimed. After the player picks,
-    # an optional name+appearance modal pops; on submit we bind, set
-    # identity (if provided), and fire `(begin)` (pristine session) or
-    # `(arrive)` (mid-game) so the router places the character into a
-    # sensible scene and the narrator renders the arrival publicly.
+    # an optional name+appearance modal pops; on submit we bind and
+    # then either:
+    #
+    #   - **Pre-play (no narrator history yet):** post a lobby
+    #     acknowledgement listing every bound player and reminding the
+    #     room to type `/begin` when everyone is ready. NO turn runs.
+    #     This decouples binding from opening so multiple humans can
+    #     `/join` in any order before the story starts.
+    #
+    #   - **Mid-play (story already opened by `/begin`):** fire
+    #     `(arrive)` via `engine.run_arrival_turn` so the router
+    #     places the character into a sensible live scene and the
+    #     narrator renders the arrival.
+    #
+    # The split came in r9d alongside the `/begin` command. Pre-r9d
+    # `/join` always fired an arrival turn and let the engine decide
+    # `(begin)` vs `(arrive)` from `narrator_conversations`; that
+    # flow couldn't gracefully handle two players who wanted to start
+    # together (the first one's `/join` would unilaterally open the
+    # story before the second got their character in).
     #
     # The legacy /join_custom and /pick_replacement commands (player-
     # authored character with invented backstory) were removed as part
@@ -1045,6 +1061,98 @@ def register(
     # them (create_custom_character, suggest_replacement_targets,
     # replace_with_custom) are kept on EngineBridge for the play CLI.
 
+    async def _post_lobby_message(
+        inter: discord.Interaction,
+        session_id: str,
+        joined_name: str,
+    ) -> None:
+        """Pre-play: ack the freshly-bound player and remind everyone
+        to `/begin` when ready.
+
+        Posts a public message in the session channel listing every
+        bound player so newcomers can see who's in the lobby. The
+        ephemeral followup tells the joining player how to act next.
+
+        Failures during checkpoint load fall back to a single-player
+        ack — the binding itself succeeded, only the lobby roster
+        listing is best-effort."""
+        bound_lines: list[str] = []
+        try:
+            ckpt = engine.load_latest(session_id)
+            bindings = ckpt.session.character_bindings or {}
+            roster = list(ckpt.characters or [])
+            by_id = {c.character_id: c for c in roster}
+            for cid in sorted(bindings.keys()):
+                ch = by_id.get(cid)
+                bound_lines.append(f"• **{ch.name if ch else cid}**")
+        except Exception:
+            logger.exception(
+                "lobby message: load_latest(%s) failed; "
+                "falling back to single-player ack", session_id,
+            )
+
+        if not bound_lines:
+            bound_lines = [f"• **{joined_name}**"]
+
+        body = (
+            f"**{joined_name}** stepped into the lobby.\n\n"
+            f"In the lobby:\n" + "\n".join(bound_lines) + "\n\n"
+            "Type `/begin` when everyone's ready and the story will open."
+        )
+        try:
+            await inter.followup.send(
+                embed=render_info("Story lobby", body),
+            )
+        except Exception:
+            logger.exception("lobby message: public followup failed")
+            try:
+                await inter.followup.send(body, ephemeral=True)
+            except Exception:
+                logger.exception(
+                    "lobby message: ephemeral fallback also failed",
+                )
+
+    async def _handle_post_join(
+        inter: discord.Interaction,
+        session_id: str,
+        story_id: str,
+        binding_cid: str,
+        char_name: str,
+    ) -> None:
+        """Post-bind dispatcher: send the freshly-bound player to the
+        lobby (pre-play) or fire `(arrive)` (mid-play). Caller must
+        have deferred non-ephemerally; this helper writes the user-
+        facing followup either way.
+
+        The pre-play check inspects `narrator_conversations` directly
+        on the latest checkpoint. We cannot fully race-proof the
+        pre-play branch from here (two players hitting the modal
+        submit in the same tick before either /begin's would both
+        post a lobby message), but the actual opening turn is
+        race-proofed inside `engine.run_begin_turn` under the per-
+        session lock — at most one /begin will succeed regardless
+        of how many lobby messages got posted."""
+        try:
+            ckpt = engine.load_latest(session_id)
+            is_pre_play = not any(ckpt.narrator_conversations.values())
+        except Exception:
+            logger.exception(
+                "post-join dispatch: load_latest(%s) failed; "
+                "defaulting to lobby path", session_id,
+            )
+            is_pre_play = True
+
+        if is_pre_play:
+            await _post_lobby_message(inter, session_id, char_name)
+        else:
+            await _fire_arrival_turn(
+                inter,
+                session_id=session_id,
+                story_id=story_id,
+                binding_cid=binding_cid,
+                char_name=char_name,
+            )
+
     async def _fire_arrival_turn(
         inter: discord.Interaction,
         session_id: str,
@@ -1052,21 +1160,17 @@ def register(
         binding_cid: str,
         char_name: str,
     ) -> None:
-        """Run the engine for `(begin)` (pristine) or `(arrive)` (mid-
-        game) on behalf of a freshly-joined player and render the
-        result publicly. Caller must have deferred non-ephemerally."""
-        ckpt_for_check = engine.load_latest(session_id)
-        is_pre_play = not any(ckpt_for_check.narrator_conversations.values())
-        directive = "(begin)" if is_pre_play else "(arrive)"
-        logger.info(
-            "/join arrival for %s by %s as %s: %s",
-            session_id, inter.user.display_name, binding_cid, directive,
-        )
+        """Mid-play `/join` path: fire `(arrive)` for a freshly-bound
+        player and render the result. Caller must have deferred
+        non-ephemerally.
 
+        Pre-r9d this helper also handled the canonical opening turn
+        via `engine.run_arrival_turn`'s `(begin)` branch. The opening
+        moved to the dedicated `/begin` command, so the only directive
+        this helper ever sends now is `(arrive)`."""
         try:
-            response = await engine.run_turn(
+            response = await engine.run_arrival_turn(
                 session_id=session_id,
-                user_input=directive,
                 acting_character_id=binding_cid,
             )
         except TransientLLMError as e:
@@ -1088,17 +1192,8 @@ def register(
             turn_index=response.turn_index,
             story_id=story_id,
         )
-        intro_lead = (
-            "The story opens." if is_pre_play
-            else "You step into the moment."
-        )
-        intro = f"**{char_name}** joined. {intro_lead}"
+        intro = f"**{char_name}** joined. You step into the moment."
 
-        # Solo-or-not, the actor's narrative goes to their private POV
-        # thread (DM if threads aren't available). The public channel
-        # only sees an ephemeral pointer to the thread. Falls back to
-        # a public render if both thread and DM fail so the player
-        # never silently loses a beat.
         venue, thread = await _post_actor_render(
             inter=inter,
             smap=smap,
@@ -1121,14 +1216,30 @@ def register(
                 ephemeral=True,
             )
         else:
-            # Both private paths failed. Public-channel fallback so
-            # the player still sees their arrival.
             await inter.followup.send(content=intro, embeds=embeds)
 
-        # Fan out to other bound humans who saw the arrival. Mirrors
-        # the /act per-POV DM path so non-actor players don't miss the
-        # beat. Failures here only log — the actor's render already shipped.
-        per_player = response.per_player_renders or {}
+        await _fan_out_per_player_renders(
+            inter=inter,
+            session_id=session_id,
+            actor_cid=binding_cid,
+            per_player=response.per_player_renders or {},
+        )
+
+    async def _fan_out_per_player_renders(
+        *,
+        inter: discord.Interaction,
+        session_id: str,
+        actor_cid: str,
+        per_player: dict[str, str],
+    ) -> None:
+        """DM each non-acting bound human their POV render for the
+        last beat. Mirrors the /act fan-out path so multi-POV beats
+        (joins, opening turns) don't drop bystanders.
+
+        Logs and bails on each per-POV failure rather than aborting
+        the loop — the actor's render already shipped, and one bad
+        thread shouldn't silence the rest. Sends a single ephemeral
+        ack to the actor afterwards listing who got notified."""
         if not per_player:
             return
         try:
@@ -1137,12 +1248,12 @@ def register(
             roster = list(ckpt_after.characters or [])
         except Exception:
             logger.exception(
-                "join arrival fan-out: load_latest failed; skipping DMs",
+                "per-player fan-out: load_latest failed; skipping DMs",
             )
             return
         notified: list[str] = []
         for cid, prose in per_player.items():
-            if cid == binding_cid or not prose:
+            if cid == actor_cid or not prose:
                 continue
             uid_str = bindings.get(cid, "")
             if not uid_str:
@@ -1154,18 +1265,18 @@ def register(
             char = next(
                 (c for c in roster if c.character_id == cid), None,
             )
-            char_name = char.name if char else cid
+            other_name = char.name if char else cid
             ok = await _post_to_pov(
                 inter=inter,
                 smap=smap,
                 user_id=uid,
                 character_id=cid,
-                char_name=char_name,
+                char_name=other_name,
                 text=prose,
                 bot=inter.client,
             )
             if ok:
-                notified.append(char_name)
+                notified.append(other_name)
         if notified:
             try:
                 phrase = ", ".join(f"**{n}**" for n in notified)
@@ -1174,7 +1285,7 @@ def register(
                 )
             except Exception:
                 logger.exception(
-                    "join arrival fan-out: ephemeral ack failed",
+                    "per-player fan-out: ephemeral ack failed",
                 )
 
     class _JoinIdentityModal(discord.ui.Modal, title="Step into the role"):
@@ -1255,7 +1366,7 @@ def register(
                     return
 
             display_name = chosen_name or self._character_name
-            await _fire_arrival_turn(
+            await _handle_post_join(
                 modal_inter,
                 session_id=self._session_id,
                 story_id=self._story_id,
@@ -1334,7 +1445,7 @@ def register(
                 )
                 return
 
-            await _fire_arrival_turn(
+            await _handle_post_join(
                 modal_inter,
                 session_id=self._session_id,
                 story_id=self._story_id,
@@ -1521,6 +1632,157 @@ def register(
             ephemeral=True,
         )
 
+    # ---- /begin -------------------------------------------------------------
+    #
+    # No-arg slash command. Opens the canonical story for everyone in
+    # the lobby — fires `(begin)` through `engine.run_begin_turn`,
+    # which composes the opening scene from world_state and places
+    # every bound player at the chosen starting location. Each bound
+    # player gets their own POV render fanned out via the same per-
+    # player path that /act uses.
+    #
+    # Permission shape: any bound player can fire it (it's the natural
+    # follow-up to their own /join), and admins can fire it without
+    # being bound (so a host can kick the story off for a table of
+    # newer players who haven't claimed characters yet — though if no
+    # one has /joined, the engine raises and we surface the error).
+    #
+    # The race / no-op behaviors live inside `engine.run_begin_turn`:
+    # the per-session lock guarantees at most one (begin) ever runs,
+    # and the "story already started" guard turns later /begins into
+    # a friendly error after the opener landed.
+
+    @tree.command(
+        name="begin",
+        description="Open the story — fires the canonical opening scene for everyone in the lobby.",
+        guild=guild,
+    )
+    async def _begin(inter: discord.Interaction):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. `/session start` then `/story start` first.",
+                ephemeral=True,
+            )
+            return
+        if not row.story_id:
+            await inter.response.send_message(
+                "This session has no story loaded yet. Run `/story start` "
+                "first.",
+                ephemeral=True,
+            )
+            return
+
+        triggering_cid = engine.get_user_binding(
+            row.session_id, inter.user.id,
+        ) or ""
+        if not triggering_cid and not _is_admin(inter.user.id):
+            await inter.response.send_message(
+                "You aren't bound to a character. `/join` first, then "
+                "`/begin` will open the story.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True)
+
+        try:
+            response = await engine.run_begin_turn(
+                session_id=row.session_id,
+                triggering_character_id=triggering_cid,
+            )
+        except ValueError as e:
+            await inter.followup.send(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except TransientLLMError as e:
+            logger.warning(
+                "/begin hit transient LLM error after %d attempts: %s",
+                e.attempts, e.last_error,
+            )
+            await inter.followup.send(embed=render_error(str(e)))
+            return
+        except Exception as e:
+            logger.exception("/begin run_begin_turn failed")
+            await inter.followup.send(embed=render_error(
+                f"`{type(e).__name__}: {e}`"
+            ))
+            return
+
+        # The router placed every bound player at the opening scene
+        # (see event_router.txt OOC `(begin)` rules), so per_player
+        # carries one render per bound POV. Pick the triggering
+        # player's render for the actor path; fan the rest out via
+        # the standard per-POV helper.
+        per_player = response.per_player_renders or {}
+
+        # Triggering character is either /begin'd by a bound player
+        # or by an admin who isn't bound. Bound case: route to their
+        # POV thread. Admin-no-binding case: announce publicly that
+        # the story opened and skip the actor-thread post (admin
+        # gets the public ack and any real bound POVs land in the
+        # fan-out below).
+        if triggering_cid:
+            actor_text = per_player.get(triggering_cid, response.output_text)
+            try:
+                ckpt = engine.load_latest(row.session_id)
+                actor_char = next(
+                    (c for c in ckpt.characters
+                     if c.character_id == triggering_cid),
+                    None,
+                )
+                actor_name = actor_char.name if actor_char else triggering_cid
+            except Exception:
+                logger.exception(
+                    "/begin: load_latest failed for actor name lookup",
+                )
+                actor_name = triggering_cid
+
+            embeds = render_turn(
+                output_text=actor_text,
+                turn_index=response.turn_index,
+                story_id=row.story_id,
+            )
+            intro = "**The story opens.**"
+            venue, thread = await _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=inter.user,
+                character_id=triggering_cid,
+                char_name=actor_name,
+                embeds=embeds,
+                intro_content=intro,
+            )
+            if venue == "thread" and thread is not None:
+                await inter.followup.send(
+                    f"The story opens in {thread.mention}.",
+                    ephemeral=True,
+                )
+            elif venue == "dm":
+                await inter.followup.send(
+                    "The story opens in your DMs (POV thread "
+                    "unavailable here).",
+                    ephemeral=True,
+                )
+            else:
+                await inter.followup.send(content=intro, embeds=embeds)
+        else:
+            await inter.followup.send(
+                embed=render_info(
+                    "The story opens",
+                    "Each bound player's opening render is being delivered "
+                    "to their POV thread.",
+                ),
+            )
+
+        await _fan_out_per_player_renders(
+            inter=inter,
+            session_id=row.session_id,
+            actor_cid=triggering_cid,
+            per_player=per_player,
+        )
+
     # ---- /leave -------------------------------------------------------------
 
     @tree.command(
@@ -1686,9 +1948,12 @@ def register(
         # Pre-play: fire the opening turn using the OOC meta-channel. The
         # event_router prompt recognizes fully-parenthesized input as an
         # author's directive rather than an in-character attempt, so
-        # `(begin)` cleanly maps to "open the story from the scene's actual
-        # start per the opening_directive" without the narrator compressing
-        # arrival into hallucinated subtext.
+        # `(begin)` cleanly maps to "compose the opening scene from
+        # world_state and place this character in it" — see the
+        # `(begin)` instructions in event_router.txt for the full
+        # contract. (Pre-v9 this leaned on an authored opening passage
+        # extracted at import time; that's gone now and the router
+        # composes the opening from world + roster state alone.)
         #
         # v11-r6c note: we pass `(begin)` as a plain `user_input` through
         # /act's normal path. The dispatcher's `format_human_initiator_
@@ -2426,11 +2691,11 @@ def register(
 
     @tree.command(
         name="clear",
-        description="Delete recent messages in this channel. Admin-only.",
+        description="Delete recent messages AND every thread in this channel. Admin-only.",
         guild=guild,
     )
     @app_commands.describe(
-        count="How many messages to delete (1-1000, default 100).",
+        count="How many channel messages to delete (1-1000, default 100). Threads are always nuked entirely.",
     )
     async def _clear(
         inter: discord.Interaction,
@@ -2452,6 +2717,9 @@ def register(
             return
 
         # Check bot permissions before attempting — prevents a half-baked error.
+        # Manage Messages handles channel.purge; Manage Threads handles deleting
+        # threads the bot did not author (POV threads are bot-owned and don't
+        # need it, but any user-spawned thread does).
         me = channel.guild.me
         perms = channel.permissions_for(me)
         if not perms.manage_messages:
@@ -2464,13 +2732,119 @@ def register(
 
         await inter.response.defer(thinking=True, ephemeral=True)
 
+        # 1) Delete every thread on this channel. This is the half of "clear"
+        # that the channel-only purge was missing — POV threads (and any
+        # other public/private threads attached to the channel) live in
+        # their own message stores and survive channel.purge() entirely.
+        # We also sweep archived threads so the sidebar/archived view ends
+        # up empty too. Best-effort per thread: a single Forbidden on a
+        # user-owned thread shouldn't abort the whole sweep.
+        threads_deleted = 0
+        thread_failures = 0
+
+        async def _try_delete(thread: discord.Thread) -> None:
+            nonlocal threads_deleted, thread_failures
+            try:
+                await thread.delete()
+                threads_deleted += 1
+            except discord.Forbidden:
+                # Likely missing Manage Threads on a user-owned thread.
+                # Fall back to purging messages so at least the content
+                # is gone even if the thread shell stays.
+                thread_failures += 1
+                logger.warning(
+                    "clear: cannot delete thread %s (Forbidden); "
+                    "purging messages instead", thread.id,
+                )
+                try:
+                    await thread.purge(limit=1000)
+                except Exception:
+                    logger.exception(
+                        "clear: thread.purge fallback also failed for %s",
+                        thread.id,
+                    )
+            except Exception:
+                thread_failures += 1
+                logger.exception("clear: thread.delete failed for %s", thread.id)
+
+        # Active threads (visible in the sidebar). Snapshot the list
+        # because deleting mutates channel.threads.
+        for t in list(channel.threads):
+            await _try_delete(t)
+
+        # Archived public threads.
         try:
-            # purge() uses bulk_delete for messages < 14 days and falls back
-            # to per-message delete for older ones (slow, rate-limited).
+            async for t in channel.archived_threads(limit=None):
+                await _try_delete(t)
+        except discord.Forbidden:
+            logger.warning(
+                "clear: cannot enumerate archived public threads in #%s "
+                "(missing Read Message History?); skipping",
+                channel.name,
+            )
+        except Exception:
+            logger.exception(
+                "clear: archived_threads(public) iteration failed in #%s",
+                channel.name,
+            )
+
+        # Archived private threads (where bot-created POV threads land
+        # after the auto-archive timer fires). joined=False asks Discord
+        # for *all* private archived threads on the channel, not just
+        # the ones the bot has joined — needs Manage Threads.
+        if perms.manage_threads:
+            try:
+                async for t in channel.archived_threads(
+                    private=True, joined=False, limit=None,
+                ):
+                    await _try_delete(t)
+            except discord.Forbidden:
+                logger.warning(
+                    "clear: cannot enumerate archived private threads in #%s",
+                    channel.name,
+                )
+            except Exception:
+                logger.exception(
+                    "clear: archived_threads(private) iteration failed in #%s",
+                    channel.name,
+                )
+        else:
+            # Fall back to the joined=True variant, which doesn't need
+            # Manage Threads but only sees threads the bot is a member
+            # of. Bot-created POV threads qualify, so this still catches
+            # the common case.
+            try:
+                async for t in channel.archived_threads(
+                    private=True, joined=True, limit=None,
+                ):
+                    await _try_delete(t)
+            except Exception:
+                logger.exception(
+                    "clear: archived_threads(private,joined) iteration "
+                    "failed in #%s", channel.name,
+                )
+
+        # 2) Drop the POV-thread SQL cache for this channel so the next
+        # /join doesn't try to send to a thread id we just deleted.
+        # Keep the session row itself intact — /clear is not /session end.
+        try:
+            cache_dropped = await smap.clear_all_pov_threads(channel.id)
+        except Exception:
+            logger.exception(
+                "clear: clear_all_pov_threads failed for channel %s",
+                channel.id,
+            )
+            cache_dropped = 0
+
+        # 3) Purge the channel itself. purge() uses bulk_delete for
+        # messages < 14 days and falls back to per-message delete for
+        # older ones (slow, rate-limited).
+        try:
             deleted = await channel.purge(limit=count)
         except discord.Forbidden:
             await inter.followup.send(
-                "Forbidden — Manage Messages permission got revoked mid-call.",
+                "Forbidden — Manage Messages permission got revoked mid-call. "
+                f"(Threads cleared: {threads_deleted}.)",
                 ephemeral=True,
             )
             return
@@ -2483,13 +2857,24 @@ def register(
             return
 
         logger.info(
-            "Cleared %d messages in #%s by %s",
-            len(deleted), channel.name, inter.user.display_name,
+            "Cleared %d messages and %d threads (%d cache rows) "
+            "in #%s by %s; %d thread failures",
+            len(deleted), threads_deleted, cache_dropped,
+            channel.name, inter.user.display_name, thread_failures,
         )
-        await inter.followup.send(
-            f"Deleted {len(deleted)} message(s).",
-            ephemeral=True,
-        )
+
+        parts = [f"Deleted {len(deleted)} message(s) and {threads_deleted} thread(s)."]
+        if thread_failures:
+            parts.append(
+                f"{thread_failures} thread(s) could not be deleted "
+                "(see logs — likely missing **Manage Threads**)."
+            )
+        if not perms.manage_threads:
+            parts.append(
+                "Tip: grant me **Manage Threads** so I can also nuke "
+                "user-spawned and archived private threads."
+            )
+        await inter.followup.send("\n".join(parts), ephemeral=True)
 
     # ---- /settings ----------------------------------------------------------
 

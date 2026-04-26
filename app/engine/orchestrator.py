@@ -642,6 +642,89 @@ class Orchestrator:
                 kind, target.name, old or "(unset)", move.to_scene,
                 move.reason or "no reason given",
             )
+            # Surface every NPC move to the moved character's
+            # pending_observations so they don't re-narrate the
+            # arrival on their next on-stage beat. Pre-r9a, agents
+            # had no engine-supplied record of their own off-stage
+            # movement (tick narratives lived on the canonical
+            # event log but never landed in the agent's perception
+            # channel), so when they next fired on-stage they
+            # treated the morning rhythm as an open invitation to
+            # write themselves arriving — "Ashara arrives at the
+            # table seven minutes after Dan sits down" — and the
+            # router faithfully canonicalized the fabricated
+            # entrance. With this push, the agent's "## Since your
+            # last response" block opens with their own action
+            # ("[your own action] Ashara vel Kothren returns to the
+            # dining hall after checking the library plague
+            # volumes."), removing the perceptual gap that the
+            # arrival-fabrication was filling. Skipped for player-
+            # bound characters: humans don't read pending
+            # observations through an LLM, and the surface that
+            # matters for them is the narrator render.
+            if move.character_id not in player_ids:
+                new_scene_name = (
+                    scene_graph.get(move.to_scene, {}).get("name")
+                    or move.to_scene
+                )
+                reason = (move.reason or "").strip()
+                if reason:
+                    entry = f"[your own action] {target.name} {reason}."
+                else:
+                    entry = (
+                        f"[your own action] {target.name} moved to "
+                        f"{new_scene_name}."
+                    )
+                target.pending_observations.append(entry)
+
+            # v11-r9b: scene composition is no longer carried in the
+            # agent's per-turn user message (the `## Characters
+            # Present` block is gone). The live signal of who's in
+            # your scene is now this perception push: every NPC
+            # already in `old` learns that the moved character
+            # left, and every NPC already in `move.to_scene` learns
+            # that the moved character arrived. No tag — these read
+            # as plain statements of scene fact, alongside the
+            # visible observable_facts `broadcast_event` is putting on their
+            # queue from the same beat. Players are
+            # excluded from these pushes (they read narrator render,
+            # not pending_observations), and the moved character is
+            # excluded (they get their own `[your own action]`
+            # entry above and don't need to be told they entered
+            # the room they're standing in). Dormant characters
+            # still get the push — dormancy is "off-screen but
+            # alive," and a dormant character co-located in a scene
+            # still perceives arrivals and exits there. Culled
+            # characters are skipped (they don't run agent calls).
+            # A no-op move (old == to_scene) emits nothing — nothing
+            # changed for anyone in either scene to perceive.
+            if old != move.to_scene:
+                target_name = target.name
+                if old:
+                    for c in ckpt.characters:
+                        if c.character_id == move.character_id:
+                            continue
+                        if c.character_id in player_ids:
+                            continue
+                        if c.location != old:
+                            continue
+                        if c.status == "culled":
+                            continue
+                        c.pending_observations.append(
+                            f"{target_name} left."
+                        )
+                for c in ckpt.characters:
+                    if c.character_id == move.character_id:
+                        continue
+                    if c.character_id in player_ids:
+                        continue
+                    if c.location != move.to_scene:
+                        continue
+                    if c.status == "culled":
+                        continue
+                    c.pending_observations.append(
+                        f"{target_name} arrived."
+                    )
 
     # ---------------------------------------------------------- tick scheduler
 

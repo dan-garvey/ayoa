@@ -84,17 +84,6 @@ SETTINGS: list[SettingDef] = [
         render=_render_bool,
     ),
     SettingDef(
-        key="max_responders",
-        default=3,
-        description=(
-            "Max NPC agents that may respond to a single player action. "
-            "The router's suggested_response_cap is clamped against this. "
-            "Higher = richer multi-party scenes at more tokens/latency. "
-            "0 silences all NPC responses (useful for diagnostics)."
-        ),
-        parse=_parse_int_nonneg,
-    ),
-    SettingDef(
         key="tick_concurrency",
         default=4,
         description=(

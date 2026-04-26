@@ -120,8 +120,8 @@ ACTIONS: list[tuple[str, str, str]] = [
      "pool deck — I want to see who else is around before the group toast.",
      "Move test, leaving Marcus behind in citrus garden."),
 
-    # 9: enter multi-NPC space. Should pull more NPCs into cascade, hit
-    # max_responders cap if cap is < cast.
+    # 9: enter multi-NPC space. Should pull several NPCs into cascade,
+    # router uses ends_beat to do pacing.
     ("multi_npc_intro", "At the pool deck I drift toward whichever group "
      "has the loudest laugh and introduce myself: 'jordan, pod nine, "
      "cameras keep telling me to smile so I'm trying to do it on accident.'",

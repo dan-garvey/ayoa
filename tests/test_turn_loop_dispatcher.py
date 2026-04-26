@@ -23,7 +23,11 @@ from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.events import (
+    CanonicalEvent,
+    SceneDelta,
+    WorldAdjudication,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
     LocationState,
@@ -349,7 +353,6 @@ class TestRouteIntention:
             ckpt.session.surfaced_world_facts == before_surfaced
         ), "surfaced_world_facts mutated but not restored"
 
-
 # ---- 4b. route_tick_intentions (Commit 6 fan-in) ---------------------------
 
 
@@ -545,8 +548,8 @@ class TestAgentIntend:
         # so this fixture must populate `public_text` accordingly. The
         # parenthetical (intent) is the engine-private surface and MUST
         # NOT appear in the dispatched intention.
-        async def _fake_respond(self, *, character, observed_facts, checkpoint,
-                                prior_responses=None, acting_character_id=""):
+        async def _fake_respond(self, *, character, checkpoint,
+                                acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text=(
@@ -580,8 +583,8 @@ class TestAgentIntend:
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        async def _empty_respond(self, *, character, observed_facts, checkpoint,
-                                 prior_responses=None, acting_character_id=""):
+        async def _empty_respond(self, *, character, checkpoint,
+                                 acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",
@@ -610,8 +613,8 @@ class TestAgentIntend:
         agent's private intent."""
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        async def _silent_respond(self, *, character, observed_facts, checkpoint,
-                                  prior_responses=None, acting_character_id=""):
+        async def _silent_respond(self, *, character, checkpoint,
+                                  acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",
@@ -859,95 +862,3 @@ class TestNarratorCompose:
         ))
         # Override wins even though Alice isn't pinned.
         assert recorded["partial_mode"] is True
-
-
-# ---- _build_opening_directive (ux-arrival-6 gate) --------------------------
-
-
-class TestBuildOpeningDirective:
-    """The opening-narrative author block fires ONLY when:
-      1. session_conversation is empty (first turn), AND
-      2. opening_narrative is non-empty, AND
-      3. user_input is exactly `(begin)`.
-
-    Condition 3 was added in fix-5: an `(arrive)` on a pristine
-    session must NOT inherit the opening guidance, because the router
-    prompt's `(arrive)` instructions explicitly tell the model to
-    place the character in a sensible existing scene rather than
-    using the opening narrative.
-    """
-
-    def _ckpt_first_turn(self, *, opening: str = "An opening passage."):
-        return CheckpointFile(
-            session=SessionState(session_id="s"),
-            opening_narrative=opening,
-            world_state=WorldState(),
-        )
-
-    def test_emits_block_for_begin_on_first_turn(self):
-        ckpt = self._ckpt_first_turn()
-        out = turn_loop_dispatcher._build_opening_directive(
-            ckpt, user_input="(begin)",
-        )
-        assert "Author's Opening Scene Guidance" in out
-        assert "An opening passage." in out
-
-    def test_suppresses_block_for_arrive_on_pristine_session(self):
-        """Same checkpoint shape (empty conversation, opening present),
-        but `(arrive)` instead of `(begin)` — the router's `(arrive)`
-        rules want the LLM to ignore the opening, so we must not
-        inject it."""
-        ckpt = self._ckpt_first_turn()
-        out = turn_loop_dispatcher._build_opening_directive(
-            ckpt, user_input="(arrive)",
-        )
-        assert out == ""
-
-    def test_suppresses_for_unrelated_user_input_on_pristine(self):
-        """Belt-and-braces: any user_input other than the literal
-        `(begin)` is treated as `(arrive)`-equivalent for this gate.
-        A regular `/act` typed into a pristine session shouldn't
-        trigger the opening block either."""
-        ckpt = self._ckpt_first_turn()
-        out = turn_loop_dispatcher._build_opening_directive(
-            ckpt, user_input="I look around",
-        )
-        assert out == ""
-
-    def test_suppresses_when_opening_narrative_empty(self):
-        ckpt = self._ckpt_first_turn(opening="")
-        out = turn_loop_dispatcher._build_opening_directive(
-            ckpt, user_input="(begin)",
-        )
-        assert out == ""
-
-    def test_suppresses_when_session_conversation_nonempty(self):
-        """Once the player has any history, the block never reinjects
-        — independent of user_input. This is the original gate; the
-        new user_input gate is additive."""
-        from app.schemas.conversation import ConversationMessage
-        ckpt = self._ckpt_first_turn()
-        ckpt.session_conversation = [
-            ConversationMessage(role="user", content="prior turn"),
-        ]
-        out = turn_loop_dispatcher._build_opening_directive(
-            ckpt, user_input="(begin)",
-        )
-        assert out == ""
-
-    def test_default_user_input_suppresses(self):
-        """The default empty string for `user_input` suppresses the
-        block — protects forgotten-arg call paths from accidentally
-        re-firing the opening guidance on later turns."""
-        ckpt = self._ckpt_first_turn()
-        out = turn_loop_dispatcher._build_opening_directive(ckpt)
-        assert out == ""
-
-    def test_strips_whitespace_around_begin(self):
-        """`(begin)` with surrounding whitespace still counts —
-        upstream callers don't always trim."""
-        ckpt = self._ckpt_first_turn()
-        out = turn_loop_dispatcher._build_opening_directive(
-            ckpt, user_input="  (begin)\n",
-        )
-        assert "Author's Opening Scene Guidance" in out

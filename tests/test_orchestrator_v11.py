@@ -519,6 +519,434 @@ class TestActorSelfMove:
         assert pip.location == "threshold"
 
 
+# ---- v11-r9a: self-arrival perception push ---------------------------------
+
+
+class TestSelfArrivalPerception:
+    """v11-r9a: every roster_move applied to a non-player character also
+    appends a `[your own action] ...` entry to that character's
+    `pending_observations`. Pre-r9a, NPCs had no engine-supplied record
+    of their own off-stage movement — tick narratives lived only on the
+    canonical event log — so when they next fired on-stage they
+    fabricated an entrance ("Ashara arrives at the table seven minutes
+    after Dan sits down") that the router then canonicalized.
+
+    With r9a, the agent's "## Since your last response" block opens with
+    the engine's own summary of what they just did, removing the
+    perceptual gap the fabrication was filling. The push is the SINGLE
+    structural fix for the cascade-arrival bug; the previous prompt-
+    level patches (presence-block header, anti-arrival rule) are no
+    longer needed because the agent now has the data."""
+
+    @pytest.mark.asyncio
+    async def test_npc_move_pushes_self_perception(self, patched_orchestrator):
+        """Router moves an NPC (Pip) on the actor's beat. Pip's
+        pending_observations gains a `[your own action]` entry that
+        carries the move reason verbatim and includes Pip's display
+        name — the format other observations use, so the agent
+        ingests it through the same channel."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="wanders off toward the threshold",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        pip = next(c for c in saved.characters if c.character_id == "pip")
+        assert pip.location == "threshold"
+        # Self-perception entry pushed, tagged as the character's own
+        # action, name-prefixed, reason verbatim with a terminal period.
+        self_entries = [
+            o for o in pip.pending_observations
+            if o.startswith("[your own action]")
+        ]
+        assert len(self_entries) == 1
+        assert self_entries[0] == (
+            "[your own action] Pip wanders off toward the threshold."
+        )
+
+    @pytest.mark.asyncio
+    async def test_player_self_move_does_not_push_perception(
+        self, patched_orchestrator,
+    ):
+        """Player /acts a self-move. The roster_move applies (Alice
+        relocates), but no `[your own action]` perception is pushed:
+        humans don't read pending_observations through an LLM, and
+        polluting their inbox would surface engine-internal text in
+        future flows that ever query it for a player render."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            ends_beat_reason="scene_transition",
+            roster_moves=[
+                RosterMove(
+                    character_id="alice",
+                    to_scene="threshold",
+                    reason="alice walks to the threshold",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I walk to the threshold.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        alice = next(c for c in saved.characters if c.character_id == "alice")
+        assert alice.location == "threshold"
+        # No self-perception entry: alice is player-bound.
+        self_entries = [
+            o for o in alice.pending_observations
+            if o.startswith("[your own action]")
+        ]
+        assert self_entries == []
+
+    @pytest.mark.asyncio
+    async def test_move_with_empty_reason_falls_back_to_scene_name(
+        self, patched_orchestrator,
+    ):
+        """The router schema allows reason="" (RosterMove docstring
+        explicitly contemplates it). When that happens the perception
+        falls back to the destination scene's `name` — never to the
+        bare scene_id, since the agent reads display names everywhere
+        else."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        pip = next(c for c in saved.characters if c.character_id == "pip")
+        self_entries = [
+            o for o in pip.pending_observations
+            if o.startswith("[your own action]")
+        ]
+        assert self_entries == ["[your own action] Pip moved to Threshold."]
+
+    @pytest.mark.asyncio
+    async def test_blocked_move_does_not_push_perception(
+        self, patched_orchestrator,
+    ):
+        """If a roster_move is blocked by the player-guard (router
+        tries to move a non-actor player), neither `location` nor
+        `pending_observations` should be touched — the move never
+        happened, so the moved-character's perception channel is
+        untouched too. Symmetric: bob (player, not the actor) gets
+        nothing."""
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="bob",
+                    to_scene="threshold",
+                    reason="router tries to drag bob along",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I gesture grandly.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        bob = next(c for c in saved.characters if c.character_id == "bob")
+        # Move was blocked by the player-guard.
+        assert bob.location == "gatehouse"
+        # And no perception was pushed for the move that didn't happen.
+        assert not any(
+            o.startswith("[your own action]") for o in bob.pending_observations
+        )
+
+
+class TestArrivalExitPerception:
+    """v11-r9b: when a roster_move shifts a character between scenes,
+    `_apply_roster_moves` ALSO pushes plain "X arrived." / "X left."
+    notifications onto every NPC scene-mate's `pending_observations`.
+
+    This is the live channel for "who is in your scene right now."
+    Pre-r9b the on-stage agent body re-emitted a `## Characters
+    Present` block every turn (full role + appearance for each
+    co-located character — ~500 tokens of duplication, the player
+    being a verbatim restate of the now-removed `## Player Characters`
+    system block); cutting that block needed a replacement signal
+    for the actual deltas (entries and exits). These notifications
+    fill that gap without re-sending static descriptions every turn.
+
+    No tag — these read as plain statements of scene fact, distinct
+    from `[your own action]` (which is the moved character's record
+    of their own move). Player characters are never recipients
+    (humans don't read pending_observations through an LLM)."""
+
+    @pytest.mark.asyncio
+    async def test_npc_arrival_pushes_arrived_to_destination_scene_mates(
+        self, patched_orchestrator,
+    ):
+        """Pip moves from the gatehouse to the threshold. Nyx is
+        already at the threshold; she gets an "Pip arrived." line
+        on her queue. No tag — it's a plain scene-fact entry."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="nyx", name="Nyx",
+            public_sheet=PublicSheet(role="guard"),
+            location="threshold", is_playable=False,
+        ))
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="pip walks to the threshold",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        nyx = next(c for c in saved.characters if c.character_id == "nyx")
+        assert "Pip arrived." in nyx.pending_observations
+
+    @pytest.mark.asyncio
+    async def test_npc_departure_pushes_left_to_origin_scene_mates(
+        self, patched_orchestrator,
+    ):
+        """Pip leaves the gatehouse (where bob, an unbound NPC, is
+        also standing). Bob — a non-player NPC at the origin — gets
+        "Pip left." on his queue. The destination scene mate (nyx
+        at threshold) gets the "arrived." line; the origin gets the
+        "left." line."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        # Bob in this test is an NPC, not a player binding (the
+        # _ckpt default has bob as a CharacterRecord with no
+        # binding here). Make him a clear non-player.
+        bob = next(c for c in ckpt.characters if c.character_id == "bob")
+        bob.is_playable = False
+        bob.public_sheet = PublicSheet(role="guard")
+        ckpt.characters.append(CharacterRecord(
+            character_id="nyx", name="Nyx",
+            public_sheet=PublicSheet(role="guard"),
+            location="threshold", is_playable=False,
+        ))
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="pip walks out",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        bob_saved = next(c for c in saved.characters if c.character_id == "bob")
+        nyx = next(c for c in saved.characters if c.character_id == "nyx")
+        assert "Pip left." in bob_saved.pending_observations
+        assert "Pip arrived." in nyx.pending_observations
+
+    @pytest.mark.asyncio
+    async def test_player_scene_mates_not_notified(self, patched_orchestrator):
+        """Players are never pushed arrival/exit lines — they read
+        narrator render, not pending_observations. Alice is at the
+        gatehouse; pip leaves; alice's queue stays clean of
+        "Pip left." (and any other r9b push)."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="pip wanders",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        alice = next(c for c in saved.characters if c.character_id == "alice")
+        assert "Pip left." not in alice.pending_observations
+        assert "Pip arrived." not in alice.pending_observations
+
+    @pytest.mark.asyncio
+    async def test_no_op_move_emits_no_arrival_or_exit(
+        self, patched_orchestrator,
+    ):
+        """A move whose destination equals the character's current
+        location is a no-op for scene composition: nobody perceived
+        an entrance or an exit. No "X arrived." / "X left." lines
+        are pushed."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="nyx", name="Nyx",
+            public_sheet=PublicSheet(role="guard"),
+            location="gatehouse", is_playable=False,
+        ))
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="gatehouse",  # same as pip's current location
+                    reason="pip stays put with narrative flavor",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        nyx = next(c for c in saved.characters if c.character_id == "nyx")
+        assert "Pip arrived." not in nyx.pending_observations
+        assert "Pip left." not in nyx.pending_observations
+
+    @pytest.mark.asyncio
+    async def test_moved_character_does_not_get_arrived_line(
+        self, patched_orchestrator,
+    ):
+        """The moved character's own queue gets `[your own action]`
+        (from the existing r9a push) but NOT a redundant
+        "Pip arrived." line — they don't need to be told they
+        entered the room they're standing in. Both pushes are
+        addressed to OTHER characters, and the moved character is
+        the one explicit exclusion."""
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="pip wanders to the threshold",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        pip = next(c for c in saved.characters if c.character_id == "pip")
+        # `[your own action]` push is here as before.
+        assert any(
+            o.startswith("[your own action]") for o in pip.pending_observations
+        )
+        # But no self-arrival/exit line.
+        assert "Pip arrived." not in pip.pending_observations
+        assert "Pip left." not in pip.pending_observations
+
+    @pytest.mark.asyncio
+    async def test_culled_scene_mate_skipped(self, patched_orchestrator):
+        """A culled character keeps a `location` in the roster (their
+        last-known position; the field is preserved so backstory
+        prose still parses) but they do NOT run agent calls and
+        their `pending_observations` is never read. Skip them on
+        the arrival/exit push, mirroring `broadcast_event`'s
+        handling of culled observers."""
+        from app.schemas.characters import CharacterStatus
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ghost = CharacterRecord(
+            character_id="ghost", name="Ghost",
+            public_sheet=PublicSheet(role="ex"),
+            location="threshold", is_playable=False,
+        )
+        ghost.status = CharacterStatus.culled
+        ckpt.characters.append(ghost)
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            roster_moves=[
+                RosterMove(
+                    character_id="pip",
+                    to_scene="threshold",
+                    reason="pip walks over",
+                ),
+            ],
+        ))
+
+        await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around.",
+            acting_character_id="alice",
+        ))
+
+        saved = mgr.save.call_args[0][0]
+        ghost_saved = next(c for c in saved.characters if c.character_id == "ghost")
+        assert "Pip arrived." not in ghost_saved.pending_observations
+
+
 # ---- v11-r6b: resolve_cat_ii ------------------------------------------------
 
 

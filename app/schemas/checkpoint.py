@@ -21,7 +21,7 @@ class ImportAnalysis(BaseModel):
     source_chars: int = 0
     source_words: int = 0
     output_chars: int = 0       # sum across lore, facts, narrative_rules,
-                                # per-character sheets, opening, envelopes
+                                # per-character sheets, envelopes
     output_words: int = 0
     duration_s: float = 0.0
     model: str = ""
@@ -51,14 +51,20 @@ class CheckpointFile(BaseModel):
     # completes successfully.
     import_analysis: ImportAnalysis | None = None
     session: SessionState
-    opening_narrative: str = ""
     # 1–2 paragraph player-facing world primer (truck-kun framing): the
     # first thing a fresh player sees after /story start. Distinct from
-    # opening_narrative (which is the in-fiction first beat for the
-    # actor character) and from the omniscient dossier (which leaked
-    # spoilers). Generated at import time as Call 6 of the extraction
-    # chain so it shares the cached prefix and is paid for once. Empty
-    # on pre-v8 checkpoints — render_briefing falls back to a stub.
+    # the omniscient dossier (which leaked spoilers). Generated at
+    # import time as one of the extraction calls so it shares the
+    # cached prefix and is paid for once. Empty on pre-v8 checkpoints
+    # — render_briefing falls back to a stub.
+    #
+    # Note: there is no longer an authored `opening_narrative` field —
+    # the opening scene is composed at runtime by the router (using
+    # world_state, character_records, and the `(begin)` OOC directive)
+    # and rendered per-POV by the narrator on the first turn. This
+    # keeps every turn on a single code path and avoids the POV-binding
+    # and race-window problems of an authored opener; see commit log
+    # for the rationale.
     player_primer: str = ""
     world_state: WorldState = Field(default_factory=WorldState)
     characters: list[CharacterRecord] = Field(default_factory=list)

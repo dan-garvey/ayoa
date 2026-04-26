@@ -130,6 +130,16 @@ def serialize_assistant_content(raw_content: list) -> list[dict]:
     ParsedTextBlock when output_format is used, and citations which are output-only).
     Preserves compaction blocks verbatim — the API requires them back on subsequent
     requests.
+
+    Drops `thinking` blocks. Anthropic only requires thinking blocks
+    to round-trip when extended thinking is paired with tool use
+    (the signature is needed to reconstruct the model's reasoning
+    across tool-result turns). Plain agent conversations don't have
+    that constraint, and passing thinking blocks back as part of
+    the next turn's history would (a) re-bill us for the already-paid
+    thinking tokens, (b) bloat the rolling conversation that the
+    cache lineage depends on, and (c) potentially confuse a future
+    model into treating its old reasoning as fresh.
     """
     serialized: list[dict] = []
     for block in raw_content:
@@ -141,6 +151,8 @@ def serialize_assistant_content(raw_content: list) -> list[dict]:
             # parsed_output as None-typed but attaches a real Pydantic model
             # when output_format is used.
             serialized.append({"type": "text", "text": getattr(block, "text", "") or ""})
+        elif block_type == "thinking":
+            continue
         else:
             # For compaction and other block types, pass through unchanged —
             # but still remove parsed_output/citations defensively if present.
@@ -229,6 +241,34 @@ class LLMClient:
         model_name = self.config.model_for_role(role)
         temp = temperature
         max_tok = max_tokens
+        thinking_budget = self.config.thinking_budget_for_role(role)
+        # Extended thinking has two hard API constraints we backstop
+        # here so call sites don't need to know about them:
+        #   1. budget_tokens must be < max_tokens. We bump max_tokens
+        #      up to budget + 1024 if the caller's max is too tight,
+        #      so there's always room for the visible response on
+        #      top of the thinking budget.
+        #   2. temperature must be 1.0. We override the caller's
+        #      temperature when thinking is on.
+        # When thinking_budget==0 (no thinking enabled for this role),
+        # neither override fires and behavior matches pre-r9b exactly.
+        if thinking_budget > 0:
+            if temp != 1.0:
+                logger.debug(
+                    "Extended thinking enabled for role=%s; overriding "
+                    "caller temperature %.2f to 1.0 (API requirement)",
+                    role, temp,
+                )
+                temp = 1.0
+            min_max = thinking_budget + 1024
+            if max_tok < min_max:
+                logger.debug(
+                    "Extended thinking enabled for role=%s; bumping "
+                    "max_tokens %d -> %d to leave room above the "
+                    "%d-token thinking budget",
+                    role, max_tok, min_max, thinking_budget,
+                )
+                max_tok = min_max
         system, conversation = _split_system(messages)
 
         raw_response = await self._call_with_retry(
@@ -241,6 +281,7 @@ class LLMClient:
             cache_user_tail=cache_user_tail,
             compact=compact,
             response_model=response_model,
+            thinking_budget=thinking_budget,
         )
 
         content = _extract_text(raw_response)
@@ -292,6 +333,7 @@ class LLMClient:
         cache_user_tail: bool,
         compact: bool,
         response_model: type[T] | None,
+        thinking_budget: int = 0,
     ) -> Any:
         """Call the Messages API via streaming to avoid HTTP timeouts on long outputs.
 
@@ -304,6 +346,20 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        # Extended thinking. The temperature/max_tokens overrides
+        # required by the API are applied upstream in `complete()` —
+        # see the `thinking_budget > 0` block there. Here we just
+        # add the parameter to the request body. Display defaults
+        # to "summarized" on Haiku 4.5; we don't pass `display`
+        # because we never surface thinking blocks to the user
+        # (`_extract_text` filters by `type=="text"`, and
+        # `serialize_assistant_content` strips thinking from the
+        # rolling history).
+        if thinking_budget > 0:
+            kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": thinking_budget,
+            }
         cache_control: dict[str, Any] = {"type": "ephemeral"}
         # Anthropic accepts ttl on the cache_control block. "5m" is the
         # default (implicit); "1h" extends to one hour at 2x write cost.

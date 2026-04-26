@@ -7,12 +7,8 @@ from app.engine.character_agent import CharacterAgent, _extract_parenthetical
 from app.engine.context_builder import (
     build_character_packet,
     build_character_state,
-    build_characters_present,
-    build_scene_context,
     build_world_context,
-    format_observed_facts,
     format_pending_observations_block,
-    format_prior_responses,
     resolve_scene_for_character,
 )
 from app.engine.prompt_manager import PromptManager
@@ -150,32 +146,6 @@ class TestContextBuilder:
         assert state["character_goals"] == "None specified."
         assert state["character_secrets"] == "None."
 
-    def test_build_scene_context_no_character_returns_unsited(self, sample_checkpoint):
-        """v11: with `current_scene_id` removed, callers that don't pass
-        a character_id get the unsited block. There's no global
-        "current scene" to fall back to — every scene answer is
-        per-character now."""
-        context = build_scene_context(sample_checkpoint)
-        assert "No scene information available" in context
-
-    def test_build_scene_context_keyed_to_character_location(self, sample_checkpoint, guard_character):
-        """build_scene_context honors the character's actual location.
-        After the guard moves to the archive, his agent prompt must
-        show the archive."""
-        sample_checkpoint.world_state.locations.scene_graph["archive"] = {
-            "name": "Sealed Archive",
-            "description": "Iron-banded shelves stretching into the dark.",
-        }
-        guard_character.location = "archive"
-        sample_checkpoint.characters = [guard_character]
-        context = build_scene_context(
-            sample_checkpoint, guard_character.character_id,
-        )
-        assert "Sealed Archive" in context
-        assert "Iron-banded" in context
-        # Other scenes in the graph must NOT leak in.
-        assert "Estate Courtyard" not in context
-
     def test_build_world_context_legacy_fallback(self, sample_checkpoint, guard_character):
         """Pre-v2 characters (known_context=="") fall back to global lore/facts."""
         assert guard_character.known_context == ""
@@ -191,16 +161,6 @@ class TestContextBuilder:
         assert context == guard_character.known_context
         # Global lore/premise absent
         assert "fantasy" not in context
-
-    def test_format_observed_facts(self):
-        facts = ["Player looks around.", "Player touches the wall."]
-        formatted = format_observed_facts(facts)
-        assert "Player looks around" in formatted
-        assert "Player touches the wall" in formatted
-
-    def test_format_observed_facts_empty(self):
-        formatted = format_observed_facts([])
-        assert "nothing unusual" in formatted
 
     def test_format_pending_empty(self, guard_character):
         assert format_pending_observations_block(guard_character) == ""
@@ -271,21 +231,21 @@ class TestSceneResolution:
         ckpt = self._ckpt()
         assert resolve_scene_for_character(ckpt, None) == ""
 
-    def test_characters_present_keyed_to_actor_location(self):
-        """Actor moved to the archive; `build_characters_present` must
-        list who's IN the archive — not who's at the importer's pivot.
-        Pre-v11 this read the global current_scene_id and saw the
-        wrong roster; v11 reads the actor's own location and gets the
-        right answer."""
-        ckpt = self._ckpt()
-        actor = self._char("guard", location="archive")
-        bystander_at_pivot = self._char("steward", location="courtyard")
-        bystander_at_archive = self._char("scribe", location="archive")
-        ckpt.characters = [actor, bystander_at_pivot, bystander_at_archive]
-
-        present = build_characters_present(actor, ckpt)
-        assert "Scribe" in present
-        assert "Steward" not in present
+    # v11-r9b: `test_characters_present_keyed_to_actor_location` was
+    # deleted along with `build_characters_present`. The on-stage agent
+    # body no longer renders a "Characters Present" block (it was a
+    # ~500-token-per-turn duplicate of the cached "## Player Characters"
+    # block + each NPC's world_context entry). Scene composition
+    # changes now flow through `_apply_roster_moves` arrival/exit
+    # perception pushes; see `TestArrivalExitPerception` in
+    # `test_orchestrator_v11.py`.
+    #
+    # v11-r10 (2026-04): "## Player Characters" itself was also
+    # dropped from the agent prompt — it was an explicit sycophancy
+    # primer ("treat each as a real human at the keyboard") that
+    # fought the entire reason we run agent NPCs. The reasoning lived
+    # in `agent.txt`'s system block; see `test_prompt_manager.py
+    # ::test_agent_renders` for the negative-assertion guard.
 
 
 class TestPovSceneForUser:
@@ -396,11 +356,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        result = await agent.respond(
-            guard_character,
-            ["Player looks around the courtyard."],
-            sample_checkpoint,
-        )
+        result = await agent.respond(guard_character, sample_checkpoint)
 
         assert result.character_id == "guard_17"
         # Dialogue + actions live in public_text; intent is split off
@@ -422,9 +378,7 @@ class TestCharacterAgent:
             'A flicker of irritation. "Storm\'s coming." (Stalling.)'
         )
         agent = CharacterAgent(mock_client, prompt_manager)
-        result = await agent.respond(
-            guard_character, ["fact"], sample_checkpoint,
-        )
+        result = await agent.respond(guard_character, sample_checkpoint)
         assert result.character_id == "guard_17"
 
     @pytest.mark.asyncio
@@ -444,9 +398,7 @@ class TestCharacterAgent:
         )
         agent = CharacterAgent(mock_client, prompt_manager)
         with caplog.at_level(logging.WARNING):
-            result = await agent.respond(
-                guard_character, ["fact"], sample_checkpoint,
-            )
+            result = await agent.respond(guard_character, sample_checkpoint)
         assert result.public_text  # full prose preserved
         assert result.intent == ""
         assert any(
@@ -462,9 +414,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(
-            guard_character, ["Player looks around."], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
 
         call_args = mock_client.complete.call_args
         prompt = "\n".join(
@@ -479,26 +429,30 @@ class TestCharacterAgent:
         assert "right hand twitches" in prompt
 
     @pytest.mark.asyncio
-    async def test_prompt_contains_observed_facts(
+    async def test_pending_observations_carry_in_scene_perception(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
+        """In-scene perception now reaches the agent through the
+        `pending_observations` inbox (populated by `broadcast_event`)
+        rather than the dead `## What You Observe This Turn` block.
+        Smoke that the inbox path delivers facts into the user
+        message verbatim — that's the only path left for "what just
+        happened in your scene this beat" to reach the agent."""
+        guard_character.pending_observations = [
+            "Player picks up a rock.",
+            "Player throws the rock at the wall.",
+        ]
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(
-            guard_character,
-            ["Player picks up a rock.", "Player throws the rock at the wall."],
-            sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
 
         call_args = mock_client.complete.call_args
-        prompt = "\n".join(
-            m["content"] for m in call_args.kwargs["messages"]
-            if isinstance(m["content"], str)
-        )
-        assert "picks up a rock" in prompt
-        assert "throws the rock" in prompt
+        user_msg = call_args.kwargs["messages"][-1]["content"]
+        user_text = user_msg if isinstance(user_msg, str) else user_msg[0]["text"]
+        assert "picks up a rock" in user_text
+        assert "throws the rock" in user_text
 
     @pytest.mark.asyncio
     async def test_uses_agent_role(
@@ -508,7 +462,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, ["fact"], sample_checkpoint)
+        await agent.respond(guard_character, sample_checkpoint)
 
         call_args = mock_client.complete.call_args
         assert call_args.kwargs["role"] == "agent"
@@ -528,9 +482,7 @@ class TestCharacterAgent:
 
         assert sample_checkpoint.character_conversations == {}
 
-        await agent.respond(
-            guard_character, ["fact1"], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
 
         convo = sample_checkpoint.character_conversations["guard_17"]
         assert len(convo) == 2
@@ -549,9 +501,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(
-            guard_character, ["current fact"], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
 
         # User message should contain the flushed observations.
         call_args = mock_client.complete.call_args
@@ -577,7 +527,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, ["fact"], sample_checkpoint)
+        await agent.respond(guard_character, sample_checkpoint)
 
         # Expect: system, prior user, prior assistant, current user
         messages = mock_client.complete.call_args.kwargs["messages"]
@@ -718,121 +668,17 @@ class TestExtractParenthetical:
         assert intent == ""
 
 
-class TestPriorResponsesLeakGuard:
-    """Cross-agent chokepoint: when agent B is rendered with knowledge of
-    agent A's earlier turn-level response, the engine MUST hand B only
-    A's `public_text`. A's `intent` (the trailing parenthetical, A's
-    private interior) reaching B's prompt is a load-bearing
-    information-asymmetry violation — it would let B "read" A's mind,
-    which is the entire failure mode the per-actor LLM split exists to
-    avoid (see CLAUDE.md "Per-character interior asymmetry is
-    load-bearing"). `format_prior_responses` is the chokepoint; this
-    suite pins its leak-free behavior.
-    """
-
-    def _ckpt_with(self, *characters: CharacterRecord) -> CheckpointFile:
-        return CheckpointFile(
-            session=SessionState(session_id="t"),
-            world_state=WorldState(
-                locations=LocationState(
-                    scene_graph={"hall": {
-                        "name": "Hall", "description": "", "connected_to": [],
-                    }},
-                ),
-            ),
-            characters=list(characters),
-        )
-
-    def test_intent_field_never_appears_in_rendered_block(self):
-        ckpt = self._ckpt_with(
-            CharacterRecord(
-                character_id="alice",
-                name="Alice",
-                location="hall",
-                public_sheet=PublicSheet(role="scholar"),
-            ),
-        )
-        prior = [
-            CharacterAgentOutput(
-                character_id="alice",
-                public_text='She frowns. "I see no other path."',
-                intent=(
-                    "PRIVATE_PLAN_TOKEN: stall the regent until the courier "
-                    "arrives, then break the seal."
-                ),
-            ),
-        ]
-        block = format_prior_responses(prior, ckpt)
-        # Public surface present.
-        assert "Alice" in block
-        assert "I see no other path" in block
-        # NONE of the intent text leaks. Distinct sentinel words verified
-        # individually so a partial-leak (e.g. only "PRIVATE_PLAN_TOKEN"
-        # is stripped but the body bleeds through) still fails.
-        assert "PRIVATE_PLAN_TOKEN" not in block
-        assert "stall the regent" not in block
-        assert "courier arrives" not in block
-        assert "break the seal" not in block
-
-    def test_silent_beat_renders_placeholder_not_empty(self):
-        # Agent emitted an interior-only turn (paren-only) — public_text
-        # is "". The cross-agent block must surface a recognizable
-        # marker so the downstream agent reads "X had a beat but didn't
-        # speak" rather than nothing at all. The intent itself still
-        # never appears.
-        ckpt = self._ckpt_with(
-            CharacterRecord(
-                character_id="bob",
-                name="Bob",
-                location="hall",
-                public_sheet=PublicSheet(role="guard"),
-            ),
-        )
-        prior = [
-            CharacterAgentOutput(
-                character_id="bob",
-                public_text="",
-                intent=(
-                    "WATCHING_FOR_SIGNAL: hand on hilt; if she moves "
-                    "toward the door, intercept."
-                ),
-            ),
-        ]
-        block = format_prior_responses(prior, ckpt)
-        assert "Bob" in block
-        # Some non-empty placeholder rendered.
-        assert "(silent beat)" in block
-        # Intent text fully suppressed.
-        assert "WATCHING_FOR_SIGNAL" not in block
-        assert "hand on hilt" not in block
-        assert "intercept" not in block
-
-    def test_falls_back_to_character_id_when_record_missing(self):
-        # Edge case: an agent output references a character_id that
-        # isn't in the roster (legacy save, mid-cull, etc.). Must not
-        # crash, must render with the id as the label, and must still
-        # not leak intent.
-        ckpt = self._ckpt_with()  # empty roster
-        prior = [
-            CharacterAgentOutput(
-                character_id="ghost_42",
-                public_text='A whisper from somewhere. "Soon."',
-                intent="PRIVATE_GHOST_INTENT: do not be seen.",
-            ),
-        ]
-        block = format_prior_responses(prior, ckpt)
-        assert "ghost_42" in block
-        assert "Soon" in block
-        assert "PRIVATE_GHOST_INTENT" not in block
-        assert "do not be seen" not in block
-
-    def test_empty_prior_responses_returns_neutral_placeholder(self):
-        ckpt = self._ckpt_with()
-        block = format_prior_responses([], ckpt)
-        # The exact wording is a contract with the agent prompt
-        # (which references "No other characters have responded yet"
-        # as a no-op signal); locking it here.
-        assert block == "No other characters have responded yet."
+# `TestPriorResponsesLeakGuard` was deleted in v11-r10 along with
+# `format_prior_responses`. The on-stage agent body no longer carries
+# a "## Other Characters' Responses This Turn" block — production
+# always passed `prior_responses=None` because cascade NPCs already
+# see prior responses through their own `pending_observations` inbox
+# (each cascade event broadcasts to scene-mates). The cross-agent
+# intent-leak chokepoint moved to `_extract_parenthetical` (which
+# splits public_text from intent at the source) and the router-
+# intention block in turn_loop_dispatcher (which forwards only
+# `output.public_text`). See `tests/test_turn_loop.py` for the
+# broadcast-event coverage that replaced this suite's role.
 
 
 class TestUnifiedAgentCacheLineage:
@@ -872,9 +718,7 @@ class TestUnifiedAgentCacheLineage:
         # Run respond, capture system message.
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(
-            guard_character, ["Player looks around."], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
         respond_messages = mock_client.complete.call_args.kwargs["messages"]
         respond_system = respond_messages[0]
         assert respond_system["role"] == "system"
@@ -902,9 +746,7 @@ class TestUnifiedAgentCacheLineage:
     ):
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(
-            guard_character, ["fact"], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
         messages = mock_client.complete.call_args.kwargs["messages"]
         user_content = messages[-1]["content"]
         # First non-empty line must be the mode header — the
@@ -945,9 +787,7 @@ class TestUnifiedAgentCacheLineage:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(
-            guard_character, ["fact"], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
         mock_client.complete.return_value = _llm_response(
             'He stands by the window. (Watching the gate.)'
         )
@@ -1030,6 +870,8 @@ class TestPerceptionMode:
         # Other mode markers must not also appear (mutually exclusive).
         assert AGENT_ON_STAGE_HEADER not in user_content
         assert AGENT_TICK_HEADER not in user_content
+        assert "Hard prose constraint" in user_content
+        assert "with the [quality] of someone/people who" in user_content
 
     @pytest.mark.asyncio
     async def test_perceive_does_not_append_to_rolling_history(
@@ -1080,9 +922,7 @@ class TestPerceptionMode:
         # perceive so the Anthropic prompt cache hits across modes.
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(
-            guard_character, ["Player looks around."], sample_checkpoint,
-        )
+        await agent.respond(guard_character, sample_checkpoint)
         respond_system = mock_client.complete.call_args.kwargs["messages"][0]
 
         mock_client.complete.reset_mock()

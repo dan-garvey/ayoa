@@ -24,6 +24,7 @@ from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.events import visible_fact_texts
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import RenderBufferEntry
 
@@ -181,27 +182,48 @@ _OBS_LEVEL_NAMES = {
 
 def _format_canonical_events_block(
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
+    pov_character_id: str = "",
 ) -> str:
     """Serialize the resolved events into a prose block the narrator
-    can read. One section per event with its observation level tag."""
+    can read. One section per event with its observation level tag.
+
+    The narrator's render input is `attempted_action` (what the actor
+    was trying to do, used for framing intent) plus `observable_facts`
+    (the surface-grade list — verbatim dialogue, visible gestures,
+    ambient sensory shifts — that drives the prose). The router's
+    `world_adjudication.resolved_outcome` is intentionally NOT
+    surfaced here; it's an audit-only one-line summary now and the
+    narrator was leaning on it for interpretive interior the prompt's
+    own rule 3 forbids. See the t8 plague-verse trace: the narrator
+    correctly drops "the strain of speaking close to the edge of what
+    she is permitted" when only obs facts are available, and renders
+    the visible flutter instead.
+    """
     if not resolved:
         return "No canonical events to render."
     sections: list[str] = []
     for idx, (entry, ev) in enumerate(resolved, start=1):
         obs = _OBS_LEVEL_NAMES.get(entry.observation_level, entry.observation_level)
         ca = ev.canonical_event
+        facts = visible_fact_texts(ca.observable_facts, pov_character_id)
+        if pov_character_id and not facts:
+            # No fact visible to this POV means the event must not leak
+            # through attempted_action either. This is what keeps a
+            # scoped under-table signal out of across-the-table renders.
+            continue
         lines = [
             f"## Event {idx}: {ev.event_id} [Observation: {obs}]",
             f"attempted_action: {ca.world_adjudication.attempted_action}",
-            f"resolved_outcome: {ca.world_adjudication.resolved_outcome}",
         ]
-        if ca.observable_facts:
+        if facts:
             lines.append("observable_facts:")
-            for fact in ca.observable_facts:
+            for fact in facts:
                 lines.append(f"- {fact}")
         else:
             lines.append("observable_facts: (none)")
         sections.append("\n".join(lines))
+    if not sections:
+        return "No canonical events visible to this POV."
     return "\n\n".join(sections)
 
 
@@ -262,31 +284,22 @@ async def compose_pov_render(
     narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
     scene_context = _build_scene_context(ckpt, pov_character_id)
     player_characters_block = build_player_characters_block(ckpt, pov_character_id)
-    canonical_event_block = _format_canonical_events_block(resolved)
-
-    # v11 per-POV callers don't accumulate agent outputs the way the
-    # legacy compose did — the canonical events themselves carry the
-    # resolved outcome. The template still requires the variable, so
-    # render a neutral placeholder.
-    agent_outputs_block = (
-        "Character responses are folded into each event's "
-        "`resolved_outcome` above."
+    canonical_event_block = _format_canonical_events_block(
+        resolved, pov_character_id,
     )
 
-    # Opening directive only fires on the very first render for this
-    # POV character (no prior per-character narrator history).
-    opening_directive = ""
+    # v11 per-POV callers don't accumulate agent outputs the way the
+    # legacy compose did — every cascade NPC's response is folded into
+    # the canonical event's `observable_facts` (their spoken lines
+    # quoted verbatim, their visible gestures enumerated). The
+    # template still requires the variable, so render a neutral
+    # placeholder.
+    agent_outputs_block = (
+        "Character responses are folded into each event's "
+        "`observable_facts` above."
+    )
+
     pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
-    if not pov_history and ckpt.opening_narrative:
-        first_is_begin = bool(resolved) and (
-            resolved[0][1].canonical_event.world_adjudication.attempted_action.strip()
-            .lower() == "(begin)"
-        )
-        if first_is_begin:
-            opening_directive = (
-                "## Opening Scene Directive\n"
-                f"{ckpt.opening_narrative}\n\n"
-            )
 
     render_t0 = time.monotonic()
     messages = prompt_mgr.render_conversation(
@@ -300,7 +313,6 @@ async def compose_pov_render(
         user_input=user_input,
         acting_character_name=acting_name,
         player_characters_block=player_characters_block,
-        opening_directive=opening_directive,
     )
     render_ms = (time.monotonic() - render_t0) * 1000
 

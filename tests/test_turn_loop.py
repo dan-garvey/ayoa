@@ -873,6 +873,36 @@ class TestObservationHarvestFork:
         # But the beat still closes cleanly on the harvest reason.
         assert result.ended_reason == "observation_harvest"
 
+    def test_harvest_drops_reflective_simile_sentences_before_append(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            ends_beat=True, agent_picks=["pip"],
+        ))
+        fake._route_responses[0].ends_beat_reason = "observation_harvest"
+        fake.queue_harvest([
+            (
+                "Pip wears patched leather, hands quiet at her sides. "
+                "Her eyes track the room with the precision of someone "
+                "cataloging which conversations matter. "
+                "A brass key hangs at her throat."
+            ),
+        ])
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="I study Pip",
+            scene_id="gatehouse",
+        ))
+
+        appended = ckpt.canonical_events[-1].canonical_event.observable_facts
+        loadouts = [f for f in appended if "[loadout — Pip]" in f]
+        assert len(loadouts) == 1
+        assert "patched leather" in loadouts[0]
+        assert "brass key" in loadouts[0]
+        assert "precision of someone" not in loadouts[0]
+        assert result.ended_reason == "observation_harvest"
+
     def test_harvest_skips_when_picks_filter_to_empty(self):
         # Router picks a HUMAN (drift / bug). The engine's
         # _filter_picks_for_dispatch strips humans before harvest
@@ -1381,18 +1411,42 @@ class TestParallelNarratorFanOut:
 
 
 class TestBroadcastEventNpcObservers:
-    """v11-r8b: `broadcast_event` pushes a perception line onto every
-    NPC observer's inbox — both off-scene (`[off-scene perception]`)
-    and in-scene (`[in-scene perception]`). The actor of the event
-    is excluded; their own action lives in their rolling history.
+    """`broadcast_event` pushes the canonical event's observable_facts
+    onto every NPC observer who is co-located with the broadcast
+    `scene_id`, and only those. The actor of the event is excluded;
+    their own action lives in their rolling history.
 
-    Pre-r8b only off-scene observers were pushed; in-scene NPCs were
-    silently skipped on the assumption they'd read the event "live"
-    via the cascade dispatcher's user-message block. That live
-    channel was empty (`observed_facts=[]`) and the playtest fallout
-    was ugly — cascade NPCs reacted to whatever stale entries were
-    in their queue and the router fabricated dialogue to fit.
-    Restoring symmetric push fixes the channel."""
+    History note:
+      - Pre-r8b only off-scene observers were pushed; in-scene NPCs
+        were silently skipped on the assumption they'd read the
+        event "live" via the cascade dispatcher's user-message
+        block. That assumption was wrong (the live channel carried
+        `observed_facts=[]`) — cascade NPCs reacted to stale queue
+        entries and the router fabricated dialogue to fit.
+      - r8b restored symmetric push (in-scene + off-scene).
+      - r9b deletes the off-scene channel entirely. The router's
+        per-event `resolved_outcome` regularly fused private and
+        public sub-beats into one omniscient summary; piping that
+        to off-scene observers (e.g. Ashara at the dining hall
+        receiving Dan Garvey's bedroom-wardrobe choice as an
+        `[off-scene perception]`) was a privacy leak and an
+        attribution-confusion seed. Cross-scene awareness now
+        requires a separate event whose `scene_id` is wherever the
+        news lands — not piggy-backed on an in-scene event's summary.
+      - r10 (Option B) replaces the `resolved_outcome` payload with
+        the full `observable_facts` list. The outcome string regularly
+        wove interpretive interior into surface beats ("the strain of
+        speaking close to the edge of what she is permitted"), and
+        broadcasting that to in-scene NPCs as their own perception
+        leaked author-voice interior into agent-facing context. The
+        observable_facts list is the router's surface-grade enumeration
+        — verbatim dialogue, visible gestures, ambient shifts — and
+        is the only thing observers receive now.
+      - r10 also drops the `[in-scene perception]` tag from the
+        push. The on-stage agent body's `## Scene` / `## What You
+        Observe This Turn` blocks are gone, so the inbox IS the
+        live sensorium for the scene; tagging entries adds noise
+        without routing value."""
 
     def _event(
         self,
@@ -1426,10 +1480,15 @@ class TestBroadcastEventNpcObservers:
             spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
         )
 
-    def test_off_scene_npc_observer_gets_inbox_line(self):
+    def test_off_scene_npc_observer_NOT_pushed(self):
+        """v11-r9b: off-scene observers are no longer pushed. Pre-r9b
+        marcus (at citrus_garden, not gatehouse) would have received
+        the event summary tagged `[off-scene perception]` because
+        the router listed him as an observer; r9b drops the off-scene
+        channel entirely so off-scene NPCs only learn about events
+        whose own `scene_id` they actually are in."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()
-        # marcus is an off-scene NPC
         marcus = CharacterRecord(
             character_id="marcus", name="Marcus",
             public_sheet=PublicSheet(role="contestant"),
@@ -1439,11 +1498,7 @@ class TestBroadcastEventNpcObservers:
         event = self._event(observer_ids=["marcus"])
 
         broadcast_event(ckpt, event, scene_id="gatehouse")
-        assert len(marcus.pending_observations) == 1
-        assert marcus.pending_observations[0].startswith(
-            "[off-scene perception]"
-        )
-        assert "note" in marcus.pending_observations[0]
+        assert marcus.pending_observations == []
 
     def test_in_scene_npc_observer_gets_in_scene_inbox_line(self):
         """v11-r8b regression guard: in-scene NPCs DO get pushed.
@@ -1455,7 +1510,8 @@ class TestBroadcastEventNpcObservers:
         broadcast_event(ckpt, event, scene_id="gatehouse")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert len(pip.pending_observations) == 1
-        assert pip.pending_observations[0].startswith("[in-scene perception]")
+        # No `[in-scene perception]` tag (r10) — the inbox IS the live
+        # sensorium for the scene, no routing label needed.
         assert "note" in pip.pending_observations[0]
 
     def test_actor_excluded_from_inbox_push(self):
@@ -1483,18 +1539,17 @@ class TestBroadcastEventNpcObservers:
         assert pip.pending_observations == []
         # Non-actor in-scene observer (nyx) got the push.
         assert len(nyx.pending_observations) == 1
-        assert nyx.pending_observations[0].startswith("[in-scene perception]")
 
-    def test_actor_excluded_off_scene_too(self):
-        """Actor exclusion is independent of the in-scene/off-scene
-        branch — actor never gets their own action pushed regardless
-        of where they are. (Off-scene actors are weird but allowed:
-        a router-authored event whose actor isn't co-located with
-        the broadcast scene, e.g. a courier delivery on a remote
-        agent's behalf.)"""
+    def test_actor_off_scene_gets_no_push(self):
+        """Off-scene observers receive nothing (r9b), so an off-scene
+        actor — who would already be excluded by the actor-exclusion
+        branch — has its own queue stay empty for two independent
+        reasons. The combined assertion makes the failure mode
+        clear: marcus is at citrus_garden, the event broadcasts at
+        gatehouse, marcus is the actor; queue stays empty either
+        way."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()
-        # Put the actor off-scene.
         marcus = CharacterRecord(
             character_id="marcus", name="Marcus",
             public_sheet=PublicSheet(role="contestant"),
@@ -1554,13 +1609,16 @@ class TestBroadcastEventNpcObservers:
         broadcast_event(ckpt, event, scene_id="gatehouse")
         assert ghost.pending_observations == []
 
-    def test_no_resolved_outcome_falls_back_to_first_fact(self):
+    def test_single_observable_fact_renders_inline(self):
+        """One-fact event renders as the bare fact on a single line
+        (no `[in-scene perception]` tag — r10). Marcus is in-scene at
+        the gatehouse so the push fires."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()
         marcus = CharacterRecord(
             character_id="marcus", name="Marcus",
             public_sheet=PublicSheet(role="contestant"),
-            location="citrus_garden", is_playable=False,
+            location="gatehouse", is_playable=False,
         )
         ckpt.characters.append(marcus)
 
@@ -1576,7 +1634,8 @@ class TestBroadcastEventNpcObservers:
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(
                     attempted_action="echo",
-                    feasible=True, resolved_outcome="",
+                    feasible=True,
+                    resolved_outcome="A bell rings twice in the distance.",
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=["A distant bell rings twice."],
@@ -1590,7 +1649,233 @@ class TestBroadcastEventNpcObservers:
 
         broadcast_event(ckpt, event, scene_id="gatehouse")
         assert len(marcus.pending_observations) == 1
-        assert "bell rings" in marcus.pending_observations[0]
+        assert marcus.pending_observations[0] == (
+            "A distant bell rings twice."
+        )
+
+    def test_multiple_observable_facts_render_as_bulleted_block(self):
+        """When an event carries multiple observable_facts, the inbox
+        entry is a single multi-line bulleted block — one bullet per
+        fact, no header line (r10 dropped the `[in-scene perception]`
+        tag). Keeps each fact addressable while still landing as one
+        queue entry per event."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        marcus = CharacterRecord(
+            character_id="marcus", name="Marcus",
+            public_sheet=PublicSheet(role="contestant"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.append(marcus)
+
+        observers = [
+            ObserverEntry(
+                character_id="marcus", observation_level="d",
+                response_priority=3,
+            ),
+        ]
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="speak",
+                    feasible=True,
+                    resolved_outcome="(audit summary)",
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[
+                    "Pip raises her glass to the table.",
+                    "Pip says: 'To the new arrival.'",
+                    "the room quiets and several glasses lift in response",
+                ],
+            ),
+            observers=observers,
+            requires_responders=False, required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True, ends_beat_reason="directed_at_player",
+            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert len(marcus.pending_observations) == 1
+        entry = marcus.pending_observations[0]
+        # No `[in-scene perception]` tag (r10) — entry is just the
+        # bulleted facts, one per line.
+        assert entry.startswith("  - Pip raises her glass to the table.")
+        assert "  - Pip says: 'To the new arrival.'" in entry
+        assert "  - the room quiets and several glasses lift in response" in entry
+
+    def test_scoped_observable_fact_only_reaches_visible_recipients(self):
+        """A mixed public/private event must not leak a scoped fact to
+        every observer in the same scene."""
+        from app.engine.turn_loop import broadcast_event
+        from app.schemas.events import ObservableFact
+
+        ckpt = _ckpt()
+        ashara = CharacterRecord(
+            character_id="ashara", name="Ashara",
+            public_sheet=PublicSheet(role="heir"),
+            location="gatehouse", is_playable=False,
+        )
+        aldric = CharacterRecord(
+            character_id="aldric", name="Aldric",
+            public_sheet=PublicSheet(role="heir"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.extend([ashara, aldric])
+
+        observers = [
+            ObserverEntry(
+                character_id="ashara", observation_level="d",
+                response_priority=4,
+            ),
+            ObserverEntry(
+                character_id="aldric", observation_level="d",
+                response_priority=3,
+            ),
+        ]
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="signal quietly while asking a question",
+                    feasible=True,
+                    resolved_outcome="Dan questions Thessaly and signals Ashara.",
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[
+                    ObservableFact.only(
+                        "Dan's foot touches Ashara's boot under the table.",
+                        ["ashara"],
+                    ),
+                    ObservableFact.all(
+                        "Dan asks Thessaly whether she knows curses.",
+                    ),
+                ],
+            ),
+            observers=observers,
+            requires_responders=False, required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True, ends_beat_reason="directed_at_player",
+            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse", actor_id="alice")
+
+        assert len(ashara.pending_observations) == 1
+        assert "foot touches Ashara's boot" in ashara.pending_observations[0]
+        assert "knows curses" in ashara.pending_observations[0]
+        assert aldric.pending_observations == [
+            "Dan asks Thessaly whether she knows curses."
+        ]
+
+    def test_resolved_outcome_does_NOT_leak_when_facts_differ(self):
+        """Option B regression guard. When `resolved_outcome` carries
+        narrator-grade interpretive prose ("the strain of speaking
+        close to the edge of what she is permitted") and
+        `observable_facts` carries the surface beats, NPCs must only
+        receive the facts. The interpretive interior is the omniscient
+        author's voice; pushing it as an agent's own perception was
+        the t8 plague-verse leak this fix closes."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        marcus = CharacterRecord(
+            character_id="marcus", name="Marcus",
+            public_sheet=PublicSheet(role="contestant"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.append(marcus)
+
+        observers = [
+            ObserverEntry(
+                character_id="marcus", observation_level="d",
+                response_priority=3,
+            ),
+        ]
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="recite a verse",
+                    feasible=True,
+                    resolved_outcome=(
+                        "Seraphel recites a fractured plague verse, the "
+                        "strain of speaking close to the edge of what she "
+                        "is permitted showing in her wings."
+                    ),
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[
+                    "Seraphel recites: 'The plague that fell on human "
+                    "ground / Killed only those who could be found'",
+                    "her wings draw tight against her back, then flutter "
+                    "sharply at the verse's end",
+                ],
+            ),
+            observers=observers,
+            requires_responders=False, required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True, ends_beat_reason="directed_at_player",
+            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert len(marcus.pending_observations) == 1
+        entry = marcus.pending_observations[0]
+        assert "wings draw tight" in entry
+        assert "what she is permitted" not in entry
+        assert "the strain of speaking" not in entry
+
+    def test_empty_observable_facts_means_no_push(self):
+        """An event with an empty `observable_facts` list produces no
+        inbox push — silence is correct, and we explicitly do NOT
+        fall back to `resolved_outcome`. A router that fails to emit
+        any observable surface for a beat has a bug; this test
+        guards against the engine masking that bug by piping the
+        audit string."""
+        from app.engine.turn_loop import broadcast_event
+        ckpt = _ckpt()
+        marcus = CharacterRecord(
+            character_id="marcus", name="Marcus",
+            public_sheet=PublicSheet(role="contestant"),
+            location="gatehouse", is_playable=False,
+        )
+        ckpt.characters.append(marcus)
+
+        observers = [
+            ObserverEntry(
+                character_id="marcus", observation_level="d",
+                response_priority=3,
+            ),
+        ]
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(
+                    attempted_action="t",
+                    feasible=True,
+                    resolved_outcome=(
+                        "A whole interpretive paragraph the engine must NOT "
+                        "leak, because the router emitted no observable "
+                        "facts to back it."
+                    ),
+                ),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[],
+            ),
+            observers=observers,
+            requires_responders=False, required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True, ends_beat_reason="directed_at_player",
+            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+        assert marcus.pending_observations == []
 
     def test_cascade_pick_sees_just_broadcast_event_in_inbox(self):
         """End-to-end semantic guard: when a cascade pick is selected

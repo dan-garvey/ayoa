@@ -18,7 +18,6 @@ from app.schemas.import_extraction import (
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
     LocationsExtraction,
-    OpeningExtraction,
     PrivateStateExtraction,
     PublicSheetExtraction,
     SceneExtraction,
@@ -96,10 +95,6 @@ def _roster() -> CharacterListExtraction:
     ])
 
 
-def _opening() -> OpeningExtraction:
-    return OpeningExtraction(text="You cross into Mirenza...")
-
-
 def _envelopes() -> CharacterKnowledgeListExtraction:
     return CharacterKnowledgeListExtraction(envelopes=[
         CharacterKnowledgeEnvelope(
@@ -116,7 +111,7 @@ def _envelopes() -> CharacterKnowledgeListExtraction:
 class TestBuildCheckpointEnvelope:
     def test_envelope_lands_on_character(self):
         ckpt = build_checkpoint(
-            _world(), _roster(), _opening(), _envelopes(), "test_story",
+            _world(), _roster(), _envelopes(), "test_story",
         )
         by_id = {c.character_id: c for c in ckpt.characters}
         assert "testimony crystals" in by_id["regent"].known_context
@@ -136,7 +131,7 @@ class TestBuildCheckpointEnvelope:
         ])
         with caplog.at_level("WARNING"):
             ckpt = build_checkpoint(
-                _world(), roster, _opening(), partial, "test_story",
+                _world(), roster, partial, "test_story",
             )
         by_id = {c.character_id: c for c in ckpt.characters}
         assert by_id["lira"].known_context == ""
@@ -144,18 +139,18 @@ class TestBuildCheckpointEnvelope:
 
     def test_stamps_current_version(self):
         ckpt = build_checkpoint(
-            _world(), _roster(), _opening(), _envelopes(), "test_story",
+            _world(), _roster(), _envelopes(), "test_story",
         )
         assert ckpt.importer_version == IMPORTER_VERSION
         # Any bump here means the extraction contract changed — re-import
         # in-flight stories if you rely on a new field.
-        assert IMPORTER_VERSION == "v8"
+        assert IMPORTER_VERSION == "v9"
 
 
 class TestImportAnalysisSchema:
     def test_defaults_to_none_on_checkpoint(self):
         ckpt = build_checkpoint(
-            _world(), _roster(), _opening(), _envelopes(), "test_story",
+            _world(), _roster(), _envelopes(), "test_story",
         )
         assert ckpt.import_analysis is None
 
@@ -187,7 +182,7 @@ class TestImportAnalysisSchema:
 class TestSerializeForAnalysis:
     def test_includes_main_text_fields(self):
         ckpt = build_checkpoint(
-            _world(), _roster(), _opening(), _envelopes(), "test_story",
+            _world(), _roster(), _envelopes(), "test_story",
         )
         rendered = _serialize_checkpoint_for_analysis(ckpt)
         assert "political intrigue" in rendered  # setting.genre
@@ -197,7 +192,6 @@ class TestSerializeForAnalysis:
         assert "Regent knows the truth" in rendered  # hidden_facts
         assert "Emeric Hale" in rendered  # character name
         assert "testimony crystals" in rendered  # known_context
-        assert "You cross into Mirenza" in rendered  # opening
 
     def test_missing_fields_are_silently_skipped(self):
         empty_world = WorldExtraction(
@@ -218,10 +212,9 @@ class TestSerializeForAnalysis:
             ),
         )
         empty_roster = CharacterListExtraction(characters=[])
-        empty_opening = OpeningExtraction(text="")
         empty_envelopes = CharacterKnowledgeListExtraction(envelopes=[])
         ckpt = build_checkpoint(
-            empty_world, empty_roster, empty_opening, empty_envelopes, "empty",
+            empty_world, empty_roster, empty_envelopes, "empty",
         )
         # Should not raise, should produce a (possibly sparse) string
         rendered = _serialize_checkpoint_for_analysis(ckpt)
@@ -237,3 +230,131 @@ class TestCharacterRecordEnvelopeDefault:
             public_sheet=PublicSheet(role="r"),
         )
         assert c.known_context == ""
+
+
+class TestLocationSeedPush:
+    """v11-r10: every author-seeded NPC with a known starting
+    location gets a `[your own action] <Name> at <Scene Name>.`
+    push into `pending_observations`. This is the inbox-level
+    counterpart to the importer-side `is_playable=true` path
+    (player characters are skipped because humans don't read
+    pending_observations through an LLM) and matches the shape
+    `_apply_roster_moves` writes when an NPC moves at runtime.
+
+    Without this seed, an NPC's very first agent dispatch arrives
+    with no location signal once the on-stage agent body's
+    historical `## Scene` block is gone (also r10) — the inbox is
+    the only channel left."""
+
+    def _world_with_two_scenes(self) -> WorldExtraction:
+        w = _world()
+        w.locations = LocationsExtraction(scene_graph=[
+            SceneExtraction(
+                scene_id="hall", name="Great Hall",
+                description="", connected_to=[],
+            ),
+            SceneExtraction(
+                scene_id="study", name="Regent's Study",
+                description="", connected_to=[],
+            ),
+        ])
+        return w
+
+    def _placed_roster(self) -> CharacterListExtraction:
+        return CharacterListExtraction(characters=[
+            CharacterExtraction(
+                character_id="regent",
+                name="Emeric Hale",
+                status="active",
+                location="study",
+                is_playable=False,
+                public_sheet=PublicSheetExtraction(
+                    role="Regent", appearance="", faction="",
+                ),
+                private_state=PrivateStateExtraction(
+                    goals=[], current_objectives=[], secrets=[],
+                    intentions_enabled=False,
+                ),
+                backstory="", personality="",
+            ),
+            CharacterExtraction(
+                character_id="lira",
+                name="Lira Fontaine",
+                status="active",
+                location="hall",
+                is_playable=False,
+                public_sheet=PublicSheetExtraction(
+                    role="Liaison", appearance="", faction="",
+                ),
+                private_state=PrivateStateExtraction(
+                    goals=[], current_objectives=[], secrets=[],
+                    intentions_enabled=False,
+                ),
+                backstory="", personality="",
+            ),
+        ])
+
+    def test_npc_with_location_gets_seed_push(self):
+        ckpt = build_checkpoint(
+            self._world_with_two_scenes(),
+            self._placed_roster(),
+            _envelopes(),
+            "test_story",
+        )
+        by_id = {c.character_id: c for c in ckpt.characters}
+        regent = by_id["regent"]
+        # Single seed entry, scene name (not id) interpolated, and
+        # the format matches `_apply_roster_moves`'s `[your own
+        # action] <Name> ...` shape so the agent reads them through
+        # the same channel.
+        assert regent.pending_observations == [
+            "[your own action] Emeric Hale at Regent's Study.",
+        ]
+
+    def test_seed_uses_scene_name_not_id(self):
+        ckpt = build_checkpoint(
+            self._world_with_two_scenes(),
+            self._placed_roster(),
+            _envelopes(),
+            "test_story",
+        )
+        by_id = {c.character_id: c for c in ckpt.characters}
+        lira = by_id["lira"]
+        # `hall` is the id; `Great Hall` is the name. The push must
+        # carry the name — that's what the agent reads as natural
+        # prose.
+        assert lira.pending_observations == [
+            "[your own action] Lira Fontaine at Great Hall.",
+        ]
+
+    def test_player_character_is_not_seeded(self):
+        """Players never read pending_observations through an LLM —
+        seeding their inbox would surface engine-internal text on a
+        future flow that ever queried it for a player render."""
+        roster = self._placed_roster()
+        roster.characters[0].is_playable = True  # regent is now player
+        ckpt = build_checkpoint(
+            self._world_with_two_scenes(), roster, _envelopes(),
+            "test_story",
+        )
+        by_id = {c.character_id: c for c in ckpt.characters}
+        assert by_id["regent"].pending_observations == []
+        # NPC sibling still seeded.
+        assert by_id["lira"].pending_observations == [
+            "[your own action] Lira Fontaine at Great Hall.",
+        ]
+
+    def test_npc_without_location_is_not_seeded(self):
+        """An author-seeded NPC with no resolvable location (legacy
+        importer path, schema-default empty string) gets no seed —
+        we don't want to interpolate `at .` or `at unknown.`. They'll
+        get a `[your own action]` push the first time they actually
+        move."""
+        roster = self._placed_roster()
+        roster.characters[0].location = ""  # regent unsited
+        ckpt = build_checkpoint(
+            self._world_with_two_scenes(), roster, _envelopes(),
+            "test_story",
+        )
+        by_id = {c.character_id: c for c in ckpt.characters}
+        assert by_id["regent"].pending_observations == []

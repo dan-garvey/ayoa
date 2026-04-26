@@ -4,8 +4,8 @@ Each character carries a rolling conversation on the checkpoint
 (`checkpoint.character_conversations[character_id]`). Every response and
 tick is appended verbatim — including the trailing parenthetical — so
 the agent's own future self sees its prior interior. Cross-agent /
-narrator chokepoints strip the parenthetical (see `_extract_parenthetical`
-and `format_prior_responses` in context_builder).
+narrator chokepoints strip the parenthetical via `_extract_parenthetical`
+before its public_text is forwarded.
 
 Cache lineage (v11): on-stage and off-stage calls share a SINGLE
 unified system prompt (`agent_v*.txt`) and a single rolling history
@@ -27,15 +27,9 @@ from app.engine.context_builder import (
     append_turn_to_conversation,
     build_character_packet,
     build_character_state,
-    build_characters_present,
-    build_player_characters_block,
-    build_scene_context,
     build_world_context,
     clear_character_inbox,
-    format_observed_facts,
     format_pending_observations_block,
-    format_prior_responses,
-    resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
@@ -121,36 +115,32 @@ class CharacterAgent:
     async def respond(
         self,
         character: CharacterRecord,
-        observed_facts: list[str],
         checkpoint: CheckpointFile,
-        prior_responses: list[CharacterAgentOutput] | None = None,
         acting_character_id: str = "",
     ) -> CharacterAgentOutput:
         """On-stage agent beat — character is in the active scene with the player(s).
 
-        Builds the on-stage user-message body (scene + presence +
-        observed facts + prior responders) and runs the unified beat.
-        See `_run_beat` for the shared plumbing; the only on-stage-
-        specific surface is the body assembled here.
+        The on-stage body (`format_agent_on_stage_body()`) is empty in
+        v11-r10: the agent reads everything they need this turn through
+        their `pending_observations` inbox (the block rendered above the
+        body). The cascade dispatch path used to also pipe in
+        `observed_facts` and `prior_responses` here, but production
+        always passed `[]` / `None` because in-scene perception and
+        cascade fan-out both land on the inbox via `broadcast_event`
+        (which pushes each observer's visible observable_facts onto
+        their in-scene inbox), so the parameters were dead
+        weight. They've been removed from the signature.
+
+        See `_run_beat` for the shared plumbing.
         """
-        mode_block = format_agent_on_stage_body(
-            scene_context=build_scene_context(
-                checkpoint, character.character_id,
-            ),
-            characters_present=build_characters_present(character, checkpoint),
-            observed_facts=format_observed_facts(observed_facts),
-            prior_character_responses=format_prior_responses(
-                prior_responses or [], checkpoint,
-            ),
-        )
         return await self._run_beat(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
             mode_header=AGENT_ON_STAGE_HEADER,
-            mode_block=mode_block,
+            mode_block=format_agent_on_stage_body(),
             log_label="respond",
-            log_extra=f"facts={len(observed_facts)}",
+            log_extra="on-stage",
         )
 
     async def perceive(
@@ -194,11 +184,13 @@ class CharacterAgent:
            prose, leave headroom for the model's own pacing). 600
            leaves slack but stays cheap.
 
-        `acting_character_id` is plumbed for context-builder helpers
-        that frame "the player who is currently doing things" — it
-        is NOT the observer (perception is observer-agnostic; this
-        is the actor whose /act triggered the harvest). Pass empty
-        string when called outside a beat (e.g. from `/query`).
+        `acting_character_id` is currently vestigial — the agent
+        prompt no longer surfaces who is acting this beat (that
+        framing primed the model toward sycophantic
+        protagonist-deference). The parameter is kept on the
+        signature for callers (perception harvest, /query) but
+        nothing inside this method consumes it. Pass empty string
+        when called outside a beat.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
@@ -216,10 +208,6 @@ class CharacterAgent:
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
 
-        acting_id, _, acting_name = resolve_acting_character(
-            checkpoint, acting_character_id,
-        )
-
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "agent",
@@ -228,10 +216,6 @@ class CharacterAgent:
             **char_state,
             world_context=build_world_context(character, checkpoint),
             pending_observations_block="",
-            acting_character_name=acting_name,
-            player_characters_block=build_player_characters_block(
-                checkpoint, acting_id,
-            ),
             mode_header=AGENT_PERCEPTION_HEADER,
             mode_block=format_agent_perception_body(),
         )
@@ -321,6 +305,10 @@ class CharacterAgent:
         and `mode_block` is the mode-specific body. This shared
         prefix is what lets one cache lineage cover both modes for
         the same character.
+
+        `acting_character_id` is currently vestigial — same reasoning
+        as `perceive` above. Kept on the signature so callers don't
+        have to special-case the boundary; nothing here consumes it.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
@@ -330,10 +318,6 @@ class CharacterAgent:
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
 
-        acting_id, _, acting_name = resolve_acting_character(
-            checkpoint, acting_character_id,
-        )
-
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
             "agent",
@@ -342,10 +326,6 @@ class CharacterAgent:
             **char_state,
             world_context=build_world_context(character, checkpoint),
             pending_observations_block=pending_block,
-            acting_character_name=acting_name,
-            player_characters_block=build_player_characters_block(
-                checkpoint, acting_id,
-            ),
             mode_header=mode_header,
             mode_block=mode_block,
         )

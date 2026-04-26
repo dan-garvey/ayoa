@@ -671,23 +671,38 @@ class EngineBridge:
 
         messages = [
             {"role": "system", "content": (
-                "You distill a character's personality into a single prose block "
+                "<role>\n"
+                "You are a characterization editor for an interactive fiction "
+                "engine.\n"
+                "</role>\n\n"
+                "<instructions>\n"
+                "Distill a character's personality into a single prose block "
                 "for engine-side use. Cover three things in one paragraph (or a "
                 "few): how they speak, how they carry themselves, and how to "
                 "play them under pressure. Base your write-up on the character's "
                 "authored identity and their prior rolling conversation if any. "
-                "No bullet points. No commentary outside the JSON."
+                "No bullet points. No commentary outside the JSON.\n"
+                "</instructions>\n\n"
+                "<output_schema>\n"
+                'Respond with ONLY valid JSON: {"personality": "<prose>"}\n'
+                "</output_schema>"
             )},
             {"role": "user", "content": (
+                "<character_context>\n"
                 f"Character: {target.name} ({character_id})\n"
                 f"Role: {target.public_sheet.role}\n"
                 f"Appearance: {target.public_sheet.appearance}\n"
                 f"Faction: {target.public_sheet.faction}\n"
                 f"Backstory: {target.backstory}\n"
                 f"Known context: {target.known_context}\n"
-                f"Goals: {', '.join(target.private_state.goals)}\n\n"
-                f"Recent conversation (may be empty for freshly-joined characters):\n{history_block}\n\n"
-                'Respond with ONLY valid JSON: {"personality": "<prose>"}'
+                f"Goals: {', '.join(target.private_state.goals)}\n"
+                "</character_context>\n\n"
+                "<recent_conversation>\n"
+                f"{history_block}\n"
+                "</recent_conversation>\n\n"
+                "<task>\n"
+                "Write the personality JSON now.\n"
+                "</task>"
             )},
         ]
         response = await self.client.complete(
@@ -1347,46 +1362,169 @@ class EngineBridge:
         """
         lock = await self._lock_for(session_id)
         async with lock:
-            try:
-                event_ids = self.sweep_stale_pins(session_id)
-            except Exception:
-                # Best-effort — never let an AFK sweep error crash a turn.
-                logger.exception(
-                    "v11 sweep_stale_pins failed for %s", session_id,
-                )
-                event_ids = []
-
-            # v11-r6b: drive adjudication of any events the sweep filled.
-            # Without this, a scene pinned on an AFK human sits open
-            # indefinitely — the next /act would bounce off the pin. By
-            # closing the sweep-populated events first, the hot path
-            # clears their state before the player's /act runs.
-            #
-            # v11-r7a: capture each resolution's TurnResponse so the
-            # frontend can fan its per-POV renders out. Previously the
-            # responses were dropped and pinned humans never saw their
-            # AFK-resolved beats.
-            pre_turn: list[TurnResponse] = []
-            for event_id in event_ids:
-                try:
-                    resp = await self.orchestrator.resolve_cat_ii(
-                        session_id, event_id,
-                    )
-                    if resp.per_player_renders:
-                        pre_turn.append(resp)
-                except Exception:
-                    logger.exception(
-                        "resolve_cat_ii failed for session=%s event=%s",
-                        session_id, event_id,
-                    )
-
-            response = await self.orchestrator.process_turn(TurnRequest(
+            return await self._run_turn_locked(
                 session_id=session_id,
                 user_input=user_input,
                 acting_character_id=acting_character_id,
-            ))
-            response.pre_turn_resolutions = pre_turn
-            return response
+            )
+
+    async def run_arrival_turn(
+        self,
+        *,
+        session_id: str,
+        acting_character_id: str,
+    ) -> TurnResponse:
+        """Run an `(arrive)` turn for a player joining a story that's
+        already underway. Always fires `(arrive)` — the canonical
+        opening (`(begin)`) is now driven exclusively by `/begin`
+        through `run_begin_turn`, which the caller invokes BEFORE this
+        method becomes the right tool.
+
+        Pre-r9d this method picked `(begin)` vs `(arrive)` itself by
+        inspecting `narrator_conversations`. That branch went away
+        with the lobby split: `/join` now binds-only when the story
+        hasn't begun, and the dedicated `/begin` command opens the
+        story. By the time anyone calls `run_arrival_turn`, the
+        opening has already happened and `(arrive)` is unambiguous.
+        """
+        lock = await self._lock_for(session_id)
+        async with lock:
+            logger.info(
+                "run_arrival_turn: session=%s actor=%s directive=(arrive)",
+                session_id, acting_character_id,
+            )
+            return await self._run_turn_locked(
+                session_id=session_id,
+                user_input="(arrive)",
+                acting_character_id=acting_character_id,
+            )
+
+    async def run_begin_turn(
+        self,
+        *,
+        session_id: str,
+        triggering_character_id: str = "",
+    ) -> TurnResponse:
+        """Fire the canonical opening turn (`(begin)`) for the session.
+
+        Driven by `/begin` after one or more players have `/join`'d
+        into the lobby (pre-play). The router sees `(begin)` and
+        composes the opening scene from `world_state` + the
+        `## Initial Roster`, placing EVERY bound player at the chosen
+        starting scene so each gets their own POV render through the
+        normal `_end_beat` per-POV fan-out.
+
+        Args:
+            session_id: the session to open.
+            triggering_character_id: the player who typed `/begin`.
+                Used as the `acting_character_id` so the router's
+                framing names them as the protagonist. May be empty
+                — the helper falls back to a deterministic pick from
+                the bound roster (sorted by id) so two simultaneous
+                `/begin`s converge on the same actor.
+
+        Raises:
+            ValueError: if no players are bound, or if the story has
+                already begun (any narrator history present). Both
+                are pre-checked under the per-session lock so two
+                racing `/begin`s can't both fire the opener.
+
+        TODO(multi-scene-opening): this function currently asks the
+        router to converge all bound players on one shared starting
+        scene (see event_router.txt OOC `(begin)` rules). When we
+        want distinct starting scenes per player, run the opening as
+        N parallel `(begin)` calls — one per bound player, each
+        seeded with their own intended location — and merge the
+        resulting per-POV renders. The current single-scene path is
+        the simplest correct first step; the multi-scene shape can
+        be additive on top of it.
+        """
+        lock = await self._lock_for(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+
+            # Bound players by id, sorted for deterministic
+            # actor selection when triggering_character_id is unset
+            # or has been kicked between dispatch and lock acquisition.
+            bound_ids = sorted((ckpt.session.character_bindings or {}).keys())
+            if not bound_ids:
+                raise ValueError(
+                    "Cannot /begin: no players are bound to this session. "
+                    "Have at least one player run /join first."
+                )
+
+            if any(ckpt.narrator_conversations.values()):
+                raise ValueError(
+                    "Cannot /begin: this story has already started. "
+                    "Late joiners use /join — it now fires (arrive) "
+                    "for any player binding after the opening."
+                )
+
+            actor_id = (
+                triggering_character_id
+                if triggering_character_id in bound_ids
+                else bound_ids[0]
+            )
+            logger.info(
+                "run_begin_turn: session=%s actor=%s bound=%s",
+                session_id, actor_id, bound_ids,
+            )
+            return await self._run_turn_locked(
+                session_id=session_id,
+                user_input="(begin)",
+                acting_character_id=actor_id,
+            )
+
+    async def _run_turn_locked(
+        self,
+        *,
+        session_id: str,
+        user_input: str,
+        acting_character_id: str,
+    ) -> TurnResponse:
+        """Body of `run_turn` — caller MUST already hold the per-session
+        lock. Extracted so `run_arrival_turn` can interleave its
+        directive choice with the same sweep+orchestrate flow."""
+        try:
+            event_ids = self.sweep_stale_pins(session_id)
+        except Exception:
+            # Best-effort — never let an AFK sweep error crash a turn.
+            logger.exception(
+                "v11 sweep_stale_pins failed for %s", session_id,
+            )
+            event_ids = []
+
+        # v11-r6b: drive adjudication of any events the sweep filled.
+        # Without this, a scene pinned on an AFK human sits open
+        # indefinitely — the next /act would bounce off the pin. By
+        # closing the sweep-populated events first, the hot path
+        # clears their state before the player's /act runs.
+        #
+        # v11-r7a: capture each resolution's TurnResponse so the
+        # frontend can fan its per-POV renders out. Previously the
+        # responses were dropped and pinned humans never saw their
+        # AFK-resolved beats.
+        pre_turn: list[TurnResponse] = []
+        for event_id in event_ids:
+            try:
+                resp = await self.orchestrator.resolve_cat_ii(
+                    session_id, event_id,
+                )
+                if resp.per_player_renders:
+                    pre_turn.append(resp)
+            except Exception:
+                logger.exception(
+                    "resolve_cat_ii failed for session=%s event=%s",
+                    session_id, event_id,
+                )
+
+        response = await self.orchestrator.process_turn(TurnRequest(
+            session_id=session_id,
+            user_input=user_input,
+            acting_character_id=acting_character_id,
+        ))
+        response.pre_turn_resolutions = pre_turn
+        return response
 
     async def run_query(
         self,
@@ -1720,4 +1858,3 @@ def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
             bound_user_id=bindings.get(char.character_id, ""),
         ))
     return summaries
-

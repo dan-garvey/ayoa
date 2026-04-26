@@ -13,7 +13,6 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -28,7 +27,12 @@ from app.engine.query_handler import (
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    SceneDelta,
+    WorldAdjudication,
+)
 from app.schemas.query import QueryResponse
 from app.schemas.state import LocationState, SessionState, WorldState
 
@@ -60,7 +64,7 @@ def _build_event(
     *,
     outcome: str,
     observers: list[tuple[str, str]],
-    facts: list[str] | None = None,
+    facts: list[object] | None = None,
 ) -> EventRouterOutput:
     """Build a minimal EventRouterOutput with the v11-required all-fields-set
     shape. `observers` is a list of (character_id, level) pairs."""
@@ -246,15 +250,16 @@ class TestFormatRecentEvents:
         e1 = _build_event(
             outcome="A messenger arrives.",
             observers=[("alice", "d")],
-            facts=["envelope on the table"],
+            facts=["a messenger steps up to the gate", "envelope on the table"],
         )
         e2 = _build_event(
             outcome="A bell tolls in the distance.",
             observers=[("bob", "i")],
+            facts=["a deep bell tolls somewhere east of the courtyard"],
         )
         ckpt = _build_checkpoint(canonical_events=[e1, e2])
         out = _format_recent_events(ckpt, "alice")
-        assert "messenger arrives" in out
+        assert "messenger steps up to the gate" in out
         assert "envelope on the table" in out
         assert "bell tolls" not in out
 
@@ -262,6 +267,7 @@ class TestFormatRecentEvents:
         e = _build_event(
             outcome="Lights flicker.",
             observers=[("alice", "i")],
+            facts=["the chandelier dims, brightens, dims again"],
         )
         ckpt = _build_checkpoint(canonical_events=[e])
         out = _format_recent_events(ckpt, "alice")
@@ -274,28 +280,96 @@ class TestFormatRecentEvents:
             _build_event(
                 outcome=f"Event {i}.",
                 observers=[("alice", "d")],
+                facts=[f"event {i} fact"],
             )
             for i in range(20)
         ]
         ckpt = _build_checkpoint(canonical_events=events)
         out = _format_recent_events(ckpt, "alice", max_events=3)
         # Last three events were #17, #18, #19; rendered chronologically.
-        assert "Event 19" in out
-        assert "Event 18" in out
-        assert "Event 17" in out
-        assert "Event 16" not in out
-        idx_17 = out.index("Event 17")
-        idx_19 = out.index("Event 19")
+        assert "event 19 fact" in out
+        assert "event 18 fact" in out
+        assert "event 17 fact" in out
+        assert "event 16 fact" not in out
+        idx_17 = out.index("event 17 fact")
+        idx_19 = out.index("event 19 fact")
         assert idx_17 < idx_19, "kept events should render chronologically"
 
     def test_unobserved_character_yields_no_events_marker(self):
         e = _build_event(
             outcome="Bob does something private.",
             observers=[("bob", "d")],
+            facts=["bob shifts on his stool"],
         )
         ckpt = _build_checkpoint(canonical_events=[e])
         out = _format_recent_events(ckpt, "alice")
         assert "hasn't observed any events" in out
+
+    def test_resolved_outcome_NOT_surfaced_to_asker(self):
+        """Option B: `resolved_outcome` is audit-only and must NOT
+        leak into the asking character's introspection. The router's
+        outcome string regularly contains narrator-grade interpretive
+        prose ("the strain of speaking close to the edge of what she
+        is permitted") that the asker has no perceptual basis for
+        knowing — surfacing it would let an agent "remember" interior
+        details they could not have observed. Only `observable_facts`
+        is rendered to the asker."""
+        e = _build_event(
+            outcome=(
+                "Seraphel recites a fractured plague verse, the strain "
+                "of speaking close to the edge of what she is permitted "
+                "showing in her wings."
+            ),
+            observers=[("alice", "d")],
+            facts=[
+                "Seraphel recites: 'The plague that fell on human "
+                "ground / Killed only those who could be found'",
+                "her wings draw tight against her back, then flutter sharply",
+            ],
+        )
+        ckpt = _build_checkpoint(canonical_events=[e])
+        out = _format_recent_events(ckpt, "alice")
+        assert "wings draw tight" in out
+        assert "what she is permitted" not in out
+        assert "the strain of speaking" not in out
+
+    def test_scoped_facts_filter_by_asking_character(self):
+        e = _build_event(
+            outcome="Dan questions Thessaly and signals Ashara.",
+            observers=[("alice", "d"), ("ashara", "d")],
+            facts=[
+                ObservableFact.only(
+                    "Dan's foot touches Ashara's boot under the table.",
+                    ["ashara"],
+                ),
+                ObservableFact.all(
+                    "Dan asks Thessaly whether she knows curses.",
+                ),
+            ],
+        )
+        ckpt = _build_checkpoint(canonical_events=[e])
+
+        alice_out = _format_recent_events(ckpt, "alice")
+        ashara_out = _format_recent_events(ckpt, "ashara")
+
+        assert "foot touches Ashara's boot" not in alice_out
+        assert "knows curses" in alice_out
+        assert "foot touches Ashara's boot" in ashara_out
+        assert "knows curses" in ashara_out
+
+    def test_event_with_no_observable_facts_renders_marker(self):
+        """An event with empty observable_facts shouldn't crash or
+        leak the outcome — it renders a clean placeholder so the
+        asker sees the event happened without any sensory contents."""
+        e = _build_event(
+            outcome="Something happens.",
+            observers=[("alice", "d")],
+            facts=[],
+        )
+        ckpt = _build_checkpoint(canonical_events=[e])
+        out = _format_recent_events(ckpt, "alice")
+        assert "no observable surface" in out
+        assert "Something happens" not in out
 
 
 class TestFormatPending:
@@ -452,6 +526,30 @@ class TestPromptContract:
         pm = PromptManager("app/prompts")
         rendered = pm.render(
             "query_handler",
+            setting_summary="SENTINEL_SETTING",
+            character_identity_block="SENTINEL_IDENTITY",
+            known_context_block="SENTINEL_KNOWN_CONTEXT",
+            scene_block="SENTINEL_SCENE",
+            player_characters_block="SENTINEL_PLAYERS",
+            recent_events_block="SENTINEL_RECENT_EVENTS",
+            pending_observations_block="SENTINEL_PENDING",
+            question="SENTINEL_QUESTION",
+        )
+        for sentinel in (
+            "SENTINEL_SETTING",
+            "SENTINEL_IDENTITY",
+            "SENTINEL_KNOWN_CONTEXT",
+            "SENTINEL_SCENE",
+            "SENTINEL_PLAYERS",
+            "SENTINEL_RECENT_EVENTS",
+            "SENTINEL_PENDING",
+            "SENTINEL_QUESTION",
+        ):
+            assert sentinel in rendered
+
+    def test_template_rejects_missing_required_variable(self):
+        pm = PromptManager("app/prompts")
+        kwargs = dict(
             setting_summary="x",
             character_identity_block="x",
             known_context_block="x",
@@ -459,14 +557,6 @@ class TestPromptContract:
             player_characters_block="x",
             recent_events_block="x",
             pending_observations_block="x",
-            question="x",
         )
-        assert "out-of-character query handler" in rendered
-        assert "<<<USER>>>" in rendered
-
-    def test_template_file_present(self):
-        path = Path("app/prompts/query_handler.txt")
-        assert path.is_file(), (
-            "query_handler.txt must exist alongside the other prompt "
-            "templates; PromptManager looks it up by exact stem."
-        )
+        with pytest.raises(KeyError):
+            pm.render("query_handler", **kwargs)

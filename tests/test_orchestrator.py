@@ -518,6 +518,45 @@ class TestCharacterSpawn:
         )
 
     @pytest.mark.asyncio
+    async def test_spawn_seeds_location_in_pending_observations(
+        self, mock_client, sample_checkpoint,
+    ):
+        """v11-r10: a freshly-spawned NPC's `pending_observations` must
+        carry a `[your own action] <Name> at <Scene Name>.` seed. Same
+        shape `_apply_roster_moves` writes when an NPC moves at runtime
+        and the importer writes for author-seeded NPCs at session
+        start. Without this seed, the spawn's first agent dispatch
+        arrives with no location signal once the on-stage agent body's
+        historical `## Scene` block is gone (also r10) — the inbox is
+        the only channel left."""
+        from app.schemas.takeover import AuthoredCharacter
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Tom the Stablehand",
+            location="courtyard",
+            role="stablehand",
+            appearance="", faction="", backstory="",
+            personality="", known_context="",
+            goals=[], current_objectives=[], secrets=[],
+            intentions_enabled=False,
+            router_summary="Stablehand at the courtyard.",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [SpawnRequest(character_id="stablehand_01", seed={"role": "stablehand"})],
+        )
+
+        assert len(spawned) == 1
+        # Scene name (`Courtyard`), not the id, so the entry reads as
+        # natural prose to the agent.
+        assert spawned[0].pending_observations == [
+            "[your own action] Tom the Stablehand at Courtyard.",
+        ]
+
+    @pytest.mark.asyncio
     async def test_spawn_dedups_within_batch(
         self, mock_client, sample_checkpoint,
     ):

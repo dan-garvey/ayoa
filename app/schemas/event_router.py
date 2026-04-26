@@ -56,9 +56,11 @@ class ObserverEntry(BaseModel):
 
     Observation level is a single-char enum: "d" = direct (in the scene),
     "i" = indirect (adjacent, heard/saw spillover), "f" = inferred
-    (aftermath or ambient inference only). Agents see `observable_facts`
-    from the canonical event; the level is used downstream to filter that
-    set, not to duplicate it per-observer.
+    (aftermath or ambient inference only). This is event-level
+    visibility. Fact-level visibility lives on each
+    `canonical_event.observable_facts[]` entry; downstream consumers
+    select events by observer, then filter that event's facts by
+    `audience` / `visible_to`.
 
     All fields REQUIRED — see EventRouterOutput docstring for the
     "Schema is too complex" rationale behind no defaults anywhere in
@@ -139,7 +141,8 @@ class EventRouterOutput(BaseModel):
         vs Cat II (contested). Cat II events open and collect responder
         intentions before canonicalization closes.
       - `agent_responder_picks`: NPCs the router wants to cascade into the
-        current beat. Capped by settings.max_responders.
+        current beat. Addressed NPCs (those the player named, asked, or
+        answered) are mandatory until each has had a turn this beat.
       - `ends_beat` + `ends_beat_reason`: the router's DM-pacing signal —
         when true, the beat composes its buffered events into a render
         and the scene's active_act_slot is released. Cat II adjudication
@@ -206,10 +209,13 @@ class EventRouterOutput(BaseModel):
 
     # ---- v11: post-canonicalization agent cascade ------------------------
     # Router-selected NPC agents to dispatch into the current beat as
-    # reactive intentions. Cap: clamped to settings.max_responders at the
-    # orchestrator layer. Humans are NEVER in this list; humans only
-    # enter via /act, gated by active_act_slot. Empty when the router
-    # thinks no NPC cascade is warranted.
+    # reactive intentions. No engine-side cap — the router uses
+    # `ends_beat` to do the pacing work. Humans are NEVER in this list;
+    # humans only enter via /act, gated by active_act_slot. Empty when
+    # the router thinks no NPC cascade is warranted. Addressed NPCs
+    # (those the player named, asked, or answered this beat) are
+    # mandatory and must remain in the picks across cascade calls
+    # until each has fired.
     agent_responder_picks: list[str]
 
     # ---- v11: DM pacing — end beat now, or let the cascade continue? ----
@@ -313,6 +319,19 @@ class EventRouterOutput(BaseModel):
                 self.agent_responder_picks = [
                     p for p in self.agent_responder_picks if p in observer_ids
                 ]
+        observer_ids = {o.character_id for o in self.observers}
+        for fact in self.canonical_event.observable_facts:
+            if fact.audience != "only":
+                continue
+            missing_visibility = [
+                cid for cid in fact.visible_to if cid not in observer_ids
+            ]
+            if missing_visibility:
+                raise ValueError(
+                    "observable_facts[].visible_to entries must also appear "
+                    "in observers for the event. Missing from observers: "
+                    + ", ".join(sorted(set(missing_visibility)))
+                )
         if self.ends_beat_reason == "observation_harvest":
             # Harvest is a fork in the engine: picks become perception
             # targets, not cascade actors. Both invariants below are

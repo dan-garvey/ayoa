@@ -34,6 +34,7 @@ from app.engine.context_builder import (
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.events import visible_fact_texts
 from app.schemas.query import QueryResponse
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,15 @@ def _format_recent_events(
     asking character is in the observer list (along with their
     observation level), then reverses the kept slice so the LLM reads
     them chronologically. Up to `max_events` entries.
+
+    Renders `observable_facts` only — the asking character should
+    only get to reflect on what they actually perceived. The router's
+    `world_adjudication.resolved_outcome` is narrator-grade prose
+    that smuggles interior interpretation; surfacing it here would
+    let the asked-about character "remember" things they couldn't
+    have observed (e.g. another character's restrictions, an actor's
+    interior reasoning). Same fix as `broadcast_event`'s in-scene
+    perception channel.
     """
     events = checkpoint.canonical_events or []
     if not events:
@@ -143,7 +153,7 @@ def _format_recent_events(
         "i": "indirectly perceived",
         "f": "inferred",
     }
-    kept: list[tuple[int, str, str, list[str]]] = []
+    kept: list[tuple[int, str, list[str]]] = []
     for idx in range(len(events) - 1, -1, -1):
         ev = events[idx]
         observer_match = next(
@@ -156,9 +166,12 @@ def _format_recent_events(
             observer_match.observation_level,
             observer_match.observation_level or "observed",
         )
-        outcome = ev.canonical_event.world_adjudication.resolved_outcome.strip()
-        facts = list(ev.canonical_event.observable_facts)
-        kept.append((idx, level, outcome, facts))
+        facts = visible_fact_texts(
+            ev.canonical_event.observable_facts, character_id,
+        )
+        if ev.canonical_event.observable_facts and not facts:
+            continue
+        kept.append((idx, level, facts))
         if len(kept) >= max_events:
             break
 
@@ -167,8 +180,11 @@ def _format_recent_events(
 
     kept.reverse()
     lines: list[str] = []
-    for idx, level, outcome, facts in kept:
-        lines.append(f"- [event #{idx}] ({level}) {outcome}")
+    for idx, level, facts in kept:
+        if not facts:
+            lines.append(f"- [event #{idx}] ({level}) (no observable surface)")
+            continue
+        lines.append(f"- [event #{idx}] ({level})")
         for f in facts:
             lines.append(f"    • {f}")
     return "\n".join(lines)

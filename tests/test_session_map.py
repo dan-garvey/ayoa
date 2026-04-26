@@ -167,6 +167,42 @@ class TestPovThreads:
         bot calls clear unconditionally on certain failure paths."""
         await smap.clear_pov_thread(channel_id=999, user_id=999)
 
+    async def test_clear_all_drops_only_that_channel(self, smap: SessionMap):
+        """`/clear` calls `clear_all_pov_threads(channel_id)` after
+        deleting the actual Discord threads. It must drop every cached
+        row for the channel, leave rows on other channels alone, and
+        leave the `sessions` row intact (the engine session survives
+        `/clear`)."""
+        await smap.upsert(
+            channel_id=10, guild_id=1, session_id="s",
+            owner_user_id=1, story_id="story",
+        )
+        await smap.set_pov_thread(
+            channel_id=10, user_id=20, thread_id=111, character_id="a",
+        )
+        await smap.set_pov_thread(
+            channel_id=10, user_id=21, thread_id=222, character_id="b",
+        )
+        await smap.set_pov_thread(
+            channel_id=11, user_id=20, thread_id=333, character_id="c",
+        )
+
+        dropped = await smap.clear_all_pov_threads(channel_id=10)
+
+        assert dropped == 2
+        assert await smap.get_pov_thread_id(10, 20) is None
+        assert await smap.get_pov_thread_id(10, 21) is None
+        # Other channel's POV thread survives.
+        assert await smap.get_pov_thread_id(11, 20) == 333
+        # Session binding survives — /clear is not /session end.
+        assert await smap.get(10) is not None
+
+    async def test_clear_all_on_empty_returns_zero(self, smap: SessionMap):
+        """Clearing a channel with no cached POV threads must return 0
+        without raising — `/clear` always calls this even on a fresh
+        channel that's never had a /join."""
+        assert await smap.clear_all_pov_threads(channel_id=99999) == 0
+
     async def test_init_is_idempotent(self, tmp_path: Path):
         """Re-running init on an existing DB must not blow up; the
         bot's startup path may call it on every connection."""

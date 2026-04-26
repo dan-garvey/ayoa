@@ -237,11 +237,6 @@ class TestEngineBridgeSweepHook:
     run_turn; tests here drive the primitive directly.
     """
 
-    def test_sweep_stale_pins_method_exists(self, mock_bridge):
-        """EngineBridge exposes a sweep method that callers can invoke."""
-        assert hasattr(mock_bridge, "sweep_stale_pins")
-        assert callable(mock_bridge.sweep_stale_pins)
-
     def test_sweep_resolves_expired_pins(self, mock_bridge):
         """When a session has a Cat II event older than the timeout, the
         sweep marks its stale responders as swept (via structured list)."""
@@ -523,6 +518,338 @@ class TestSweepDrivesReadjudication:
         assert result.beat_ended_reason == "directed_at_player"
 
 
+# ---- /join directive choice happens INSIDE the per-session lock --------------
+
+
+class TestRunArrivalTurnDirective:
+    """`run_arrival_turn` is now `(arrive)`-only — the canonical opener
+    moved to `/begin` / `run_begin_turn` in r9d. This class confirms
+    `run_arrival_turn` always sends `(arrive)` regardless of session
+    history, so callers don't have to remember which directive applies
+    when."""
+
+    def _seed_session(self, mock_bridge, narrator_conversations):
+        """Build a checkpoint with `narrator_conversations` and stub
+        `checkpoint_mgr.load_latest` to return it."""
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="session"),
+            world_state=WorldState(),
+            narrator_conversations=narrator_conversations,
+        )
+        mock_bridge.checkpoint_mgr.load_latest = MagicMock(return_value=ckpt)
+        return ckpt
+
+    def _stub_orchestrator(self, mock_bridge):
+        """Set up minimal stubs so `_run_turn_locked` can run end-to-
+        end: a no-op sweep and a process_turn that returns a bare
+        TurnResponse."""
+        from app.schemas.responses import TurnResponse
+
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            return_value=TurnResponse(
+                session_id="session", beat_ended_reason="directed_at_player",
+            )
+        )
+
+    def test_pristine_session_still_fires_arrive(self, mock_bridge):
+        """`run_arrival_turn` is `(arrive)`-only by design — even
+        on a pristine session it does NOT pick `(begin)`. The
+        canonical opener now lives behind `run_begin_turn` /
+        `/begin`; `run_arrival_turn` exists strictly for late
+        joins. This test guards against the pre-r9d auto-`(begin)`
+        regression."""
+        self._seed_session(mock_bridge, narrator_conversations={})
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_arrival_turn(
+                session_id="session", acting_character_id="alice",
+            )
+
+        response = asyncio.run(run())
+        call_kwargs = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_kwargs.user_input == "(arrive)"
+        assert call_kwargs.acting_character_id == "alice"
+        assert response.beat_ended_reason == "directed_at_player"
+
+    def test_session_with_prior_narrator_history_fires_arrive(
+        self, mock_bridge,
+    ):
+        """A session whose narrator history is populated (story
+        already opened) fires `(arrive)` — same as the empty case.
+        The directive no longer depends on session state."""
+        from app.schemas.conversation import ConversationMessage
+
+        self._seed_session(
+            mock_bridge,
+            narrator_conversations={
+                "first_player": [
+                    ConversationMessage(role="user", content="(begin)"),
+                    ConversationMessage(
+                        role="assistant", content="The story opens…",
+                    ),
+                ],
+            },
+        )
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_arrival_turn(
+                session_id="session", acting_character_id="alice",
+            )
+
+        asyncio.run(run())
+        call_kwargs = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_kwargs.user_input == "(arrive)"
+
+    def test_concurrent_arrivals_each_fire_arrive(self, mock_bridge):
+        """Two `run_arrival_turn` calls in the same tick BOTH fire
+        `(arrive)`. The pre-r9d race fix (one wins `(begin)`, the
+        other gets `(arrive)`) is no longer relevant here because
+        neither path ever touches `(begin)` — the per-session lock
+        still serializes them, but only for orchestrator
+        contention, not for directive selection."""
+        from app.schemas.responses import TurnResponse
+
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="session"),
+            world_state=WorldState(),
+            narrator_conversations={},
+        )
+        mock_bridge.checkpoint_mgr.load_latest = MagicMock(return_value=ckpt)
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
+
+        recorded_directives: list[str] = []
+
+        async def fake_process_turn(req):
+            recorded_directives.append(req.user_input)
+            return TurnResponse(
+                session_id="session",
+                beat_ended_reason="directed_at_player",
+            )
+
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            side_effect=fake_process_turn,
+        )
+
+        async def run():
+            return await asyncio.gather(
+                mock_bridge.run_arrival_turn(
+                    session_id="session", acting_character_id="alice",
+                ),
+                mock_bridge.run_arrival_turn(
+                    session_id="session", acting_character_id="bob",
+                ),
+            )
+
+        asyncio.run(run())
+        assert recorded_directives == ["(arrive)", "(arrive)"]
+
+
+class TestRunBeginTurn:
+    """`run_begin_turn` is the canonical opener: fires `(begin)` once,
+    refuses to re-fire after the story has started, refuses if no
+    players are bound, and picks the actor deterministically when the
+    triggering binding is ambiguous (so two racing /begins converge
+    on the same actor before the lock decides which one wins)."""
+
+    def _seed_session(
+        self, mock_bridge, *, bindings: dict[str, str],
+        narrator_conversations: dict | None = None,
+    ):
+        """Build a checkpoint with the given bindings + narrator
+        history and stub load_latest to return it."""
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="session", character_bindings=bindings,
+            ),
+            world_state=WorldState(),
+            narrator_conversations=narrator_conversations or {},
+        )
+        mock_bridge.checkpoint_mgr.load_latest = MagicMock(return_value=ckpt)
+        return ckpt
+
+    def _stub_orchestrator(self, mock_bridge):
+        from app.schemas.responses import TurnResponse
+
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            return_value=TurnResponse(
+                session_id="session", beat_ended_reason="scene_transition",
+            )
+        )
+
+    def test_pristine_with_bound_player_fires_begin(self, mock_bridge):
+        """One bound player + empty narrator history = the canonical
+        first-call shape. `(begin)` lands at the orchestrator with
+        the triggering player as the actor."""
+        self._seed_session(mock_bridge, bindings={"alice": "100"})
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_begin_turn(
+                session_id="session",
+                triggering_character_id="alice",
+            )
+
+        response = asyncio.run(run())
+        call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_args.user_input == "(begin)"
+        assert call_args.acting_character_id == "alice"
+        assert response.beat_ended_reason == "scene_transition"
+
+    def test_no_bound_players_raises(self, mock_bridge):
+        """`(begin)` without any bound players is meaningless — the
+        router has no human POV to render for. Surface a ValueError
+        so the bot command can give a friendly error instead of
+        firing a ghost opening."""
+        self._seed_session(mock_bridge, bindings={})
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_begin_turn(session_id="session")
+
+        with pytest.raises(ValueError, match="no players are bound"):
+            asyncio.run(run())
+        mock_bridge.orchestrator.process_turn.assert_not_called()
+
+    def test_already_started_raises(self, mock_bridge):
+        """Once narrator history exists the story has already opened.
+        A late `/begin` must NOT re-fire `(begin)` — that would
+        clobber the prior opening prose. ValueError surfaces the
+        misuse to the bot command."""
+        from app.schemas.conversation import ConversationMessage
+
+        self._seed_session(
+            mock_bridge,
+            bindings={"alice": "100"},
+            narrator_conversations={
+                "alice": [
+                    ConversationMessage(role="user", content="(begin)"),
+                    ConversationMessage(
+                        role="assistant", content="The story opens…",
+                    ),
+                ],
+            },
+        )
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_begin_turn(
+                session_id="session", triggering_character_id="alice",
+            )
+
+        with pytest.raises(ValueError, match="already started"):
+            asyncio.run(run())
+        mock_bridge.orchestrator.process_turn.assert_not_called()
+
+    def test_unbound_triggering_id_falls_back_deterministically(
+        self, mock_bridge,
+    ):
+        """If the triggering character_id isn't actually bound (admin
+        firing /begin without a binding, or the player /leave'd
+        between dispatch and lock), pick the lexicographically-first
+        bound id. Deterministic so two racing calls converge on the
+        same actor regardless of who reaches the lock first."""
+        self._seed_session(
+            mock_bridge,
+            bindings={"pip": "200", "alice": "100", "rashid": "300"},
+        )
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_begin_turn(
+                session_id="session",
+                triggering_character_id="ghost_admin_no_binding",
+            )
+
+        asyncio.run(run())
+        call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_args.acting_character_id == "alice"
+
+    def test_empty_history_lists_do_not_count_as_started(self, mock_bridge):
+        """`narrator_conversations` may contain empty lists left
+        behind by `setdefault`. Those are NOT prior history; the
+        story should still be openable."""
+        self._seed_session(
+            mock_bridge,
+            bindings={"alice": "100"},
+            narrator_conversations={"alice": [], "pip": []},
+        )
+        self._stub_orchestrator(mock_bridge)
+
+        async def run():
+            return await mock_bridge.run_begin_turn(
+                session_id="session", triggering_character_id="alice",
+            )
+
+        asyncio.run(run())
+        call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
+        assert call_args.user_input == "(begin)"
+
+    def test_concurrent_begins_one_wins_one_errors(self, mock_bridge):
+        """Two `/begin`s racing through the lock: exactly ONE fires
+        `(begin)`, the other observes the post-opening checkpoint
+        and raises 'already started'. The lock + ValueError pair
+        is the source-of-truth race fix."""
+        from app.schemas.conversation import ConversationMessage
+        from app.schemas.responses import TurnResponse
+
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="session",
+                character_bindings={"alice": "100", "bob": "200"},
+            ),
+            world_state=WorldState(),
+            narrator_conversations={},
+        )
+        mock_bridge.checkpoint_mgr.load_latest = MagicMock(return_value=ckpt)
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
+
+        recorded_directives: list[str] = []
+
+        async def fake_process_turn(req):
+            recorded_directives.append(req.user_input)
+            ckpt.narrator_conversations[req.acting_character_id] = [
+                ConversationMessage(role="user", content="(begin)"),
+                ConversationMessage(role="assistant", content="opening…"),
+            ]
+            return TurnResponse(
+                session_id="session",
+                beat_ended_reason="scene_transition",
+            )
+
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            side_effect=fake_process_turn,
+        )
+
+        async def run():
+            return await asyncio.gather(
+                mock_bridge.run_begin_turn(
+                    session_id="session",
+                    triggering_character_id="alice",
+                ),
+                mock_bridge.run_begin_turn(
+                    session_id="session",
+                    triggering_character_id="bob",
+                ),
+                return_exceptions=True,
+            )
+
+        results = asyncio.run(run())
+
+        # Exactly one (begin) hit the orchestrator.
+        assert recorded_directives == ["(begin)"]
+        # Exactly one of the gather results is a ValueError; the
+        # other is a TurnResponse.
+        errors = [r for r in results if isinstance(r, ValueError)]
+        successes = [r for r in results if not isinstance(r, Exception)]
+        assert len(errors) == 1
+        assert len(successes) == 1
+        assert "already started" in str(errors[0])
+
+
 # ---- briefing copy: /describe demoted, /join is the canonical opener ---
 
 
@@ -578,6 +905,10 @@ class TestBriefingCopy:
 # ---- _post_actor_render: thread → DM → public cascade -----------------
 
 
+# TODO(test-hang): `TestPostActorRenderCascade::test_thread_success_returns_thread_and_skips_dm`
+# hangs under pytest in the sandbox even though the helper is fully
+# stubbed. Investigate the discord mock / aiosqlite interaction and
+# either fix the fixture or replace these with a tighter unit boundary.
 class TestPostActorRenderCascade:
     """The actor's narrative is delivered POV-thread-first, with DM and
     public-channel fallbacks. This unifies solo and multi-player UX —

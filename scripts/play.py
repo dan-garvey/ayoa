@@ -38,7 +38,8 @@ Commands inside the REPL:
     /quit                       Exit (Ctrl-D also works)
 
 Anything not starting with '/' is an in-character action for the current
-actor. Use "(begin)" to open the scene per the author's opening directive.
+actor. Use "(begin)" to open the scene — the router composes the opening
+from world_state + the initial roster on the fly.
 """
 
 from __future__ import annotations
@@ -87,7 +88,8 @@ Commands:
   /quit                             Exit (Ctrl-D also works)
 
 Plain text is an in-character action for the current actor. Use "(begin)"
-to open the scene from the author's opening directive."""
+to open the scene — the router composes the opening from world_state +
+the initial roster on the fly."""
 
 
 def _has_story_loaded(engine: EngineBridge, session_id: str) -> bool:

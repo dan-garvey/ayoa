@@ -325,49 +325,6 @@ def _build_since_last_turn_block(acting_char) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _build_opening_directive(
-    checkpoint: CheckpointFile, user_input: str = "",
-) -> str:
-    """Populate the opening-turn directive block iff this is the first
-    turn AND the player's input is the `(begin)` OOC directive AND an
-    `opening_narrative` exists on the checkpoint.
-
-    Why all three gates:
-    - `session_conversation` empty: never re-inject the opening on
-      later turns (covered by the original implementation).
-    - `user_input == "(begin)"`: a fresh session can ALSO be entered
-      via `(arrive)` (a player joining an empty CLI session, or any
-      future flow that opens a session at a non-canonical entry).
-      The router prompt's `(arrive)` instructions tell the model to
-      ignore the opening narrative and place the character in a
-      sensible existing scene; injecting the opening guidance here
-      would directly contradict that and re-rail the placement.
-    - `opening_narrative` non-empty: nothing to inject if the
-      importer didn't author one.
-
-    The empty-string default for `user_input` keeps existing internal
-    callers conservative (the tick path explicitly threads an empty
-    string; we don't want a forgotten arg path to accidentally fire
-    the opening block on an off-stage tick that happened to land on
-    turn 1).
-    """
-    if checkpoint.session_conversation or not checkpoint.opening_narrative:
-        return ""
-    if user_input.strip() != "(begin)":
-        return ""
-    return (
-        "## Author's Opening Scene Guidance\n"
-        "This is the first turn. Read the passage below and apply "
-        "rule 14: any character the opening names as present in the "
-        "starting scene must be placed via `roster_moves` or `spawn` "
-        "and listed in `observers` with priority >= 3 so their agent "
-        "produces dialogue. The narrator will NOT transcribe dialogue "
-        "from this prose — only you can make characters speak this "
-        "turn, by placing them here.\n\n"
-        f"{checkpoint.opening_narrative}\n\n"
-    )
-
-
 def _build_recent_turn_recap(checkpoint: CheckpointFile) -> str:
     recap_note = checkpoint.session.pending_recap
     if not recap_note:
@@ -392,16 +349,19 @@ def _build_router_context(
     aside from the two intention-block slots the caller populates
     themselves.
 
-    `user_input` is forwarded to `_build_opening_directive` so the
-    opening-narrative author block fires only on a `(begin)` start —
-    `(arrive)` on an otherwise-pristine session must NOT inherit the
-    opening guidance (the router prompt instructs the model to place
-    the character in a sensible existing scene instead). Tick-mode
-    callers pass an empty string explicitly.
+    `user_input` is currently unused inside this helper (kept on the
+    signature for callers that already thread it through and for
+    future first-turn / arrival routing logic). Pre-v9 it gated an
+    `_build_opening_directive` injection that wrapped the imported
+    opening narrative — that whole pathway is gone now: the router
+    composes the opening scene from world_state + character_records
+    when it receives the `(begin)` OOC directive.
 
     Returns a dict ready to splat into `prompt_mgr.render_messages`
     after merging in `{intention_block}` and `{cat_ii_resolution_block}`.
     """
+    del user_input  # reserved for future first-turn routing knobs
+
     acting_id, acting_char, acting_name = resolve_acting_character(
         ckpt, acting_character_id,
     )
@@ -426,7 +386,6 @@ def _build_router_context(
             ckpt, acting_id,
         ),
         "since_last_turn_block": since_last_turn_block,
-        "opening_directive": _build_opening_directive(ckpt, user_input),
         "recent_turn_recap": _build_recent_turn_recap(ckpt),
         "world_facts_delta_block": _build_world_facts_delta(ckpt),
         "initial_roster_block": _build_initial_roster_block(ckpt),
@@ -604,10 +563,6 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            # Tick mode is always a non-(begin) turn — the on-stage
-            # beat that triggers it has already happened — so explicitly
-            # pass an empty user_input to suppress any first-turn
-            # opening directive even on edge cases.
             ctx = _build_router_context(
                 ckpt, acting_character_id, user_input="",
             )
@@ -704,9 +659,7 @@ class LLMDispatcher:
 
         output = await self._agent.respond(
             character=character,
-            observed_facts=[],
             checkpoint=ckpt,
-            prior_responses=None,
             acting_character_id=character_id,
         )
         public = output.public_text.strip()
