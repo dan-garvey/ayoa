@@ -95,6 +95,7 @@ import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.llm.client import LLMClient
 from app.schemas.characters import (
     CharacterRecord,
@@ -1871,6 +1872,7 @@ async def run_import_two_call(
         story_id,
     )
     checkpoint.player_primer = primer_text
+    sync_checkpoint_runtime_models(checkpoint, client.config)
     logger.info(
         "Six-call import complete in %.1fs (%d characters, %d scenes, primer=%d chars)",
         time.monotonic() - t_start,

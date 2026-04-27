@@ -1,6 +1,7 @@
 """Tests for the LLM client — unit tests with mocks and integration tests against live API."""
 
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -77,16 +78,85 @@ class TestExtractJson:
 # --- LLMConfig tests ---
 
 class TestLLMConfig:
+    def test_defaults_use_openai_with_router_on_gpt_5_2(self):
+        config = LLMConfig()
+        assert config.default_provider == "openai"
+        assert config.default_model == "gpt-5.1"
+        assert config.providers_in_use() == {"openai"}
+        assert config.role_models["event_router"] == "gpt-5.2"
+        assert config.role_models["narrator"] == "gpt-5.1"
+        assert config.role_models["agent"] == "gpt-5.1"
+        assert config.role_models["character_gen"] == "gpt-5.1"
+        assert config.role_models["query_handler"] == "gpt-5.1"
+        assert all(
+            effort == "medium"
+            for effort in config.openai_reasoning_efforts.values()
+        )
+        assert config.openai_reasoning_summary_for_role("event_router") == "auto"
+        assert config.openai_reasoning_summary_for_role("narrator") == ""
+
     def test_model_for_role(self):
         config = LLMConfig(role_models={"narrator": "big-model", "agent": "small-model"})
         assert config.model_for_role("narrator") == "big-model"
         assert config.model_for_role("agent") == "small-model"
         assert config.model_for_role("unknown") == config.default_model
 
+    def test_provider_for_role(self):
+        config = LLMConfig(
+            role_models={
+                "narrator": "openai:gpt-5.4-mini",
+                "agent": "claude-sonnet-4-6",
+            },
+            role_providers={"event_router": "openai"},
+        )
+        assert config.provider_for_role("narrator") == "openai"
+        assert config.model_for_role("narrator") == "gpt-5.4-mini"
+        assert config.provider_for_role("agent") == "anthropic"
+        assert config.provider_for_role("event_router") == "openai"
+
     def test_from_env(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+        with patch.dict(
+            "os.environ",
+            {
+                "ANTHROPIC_API_KEY": "test-key",
+                "OPENAI_API_KEY": "openai-key",
+                "OPEN_AI_NARRATOR": "narrator-openai-key",
+                "OPEN_AI_ROUTER": "router-openai-key",
+                "OPEN_AI_AGENT": "agent-openai-key",
+                "LLM_PROVIDER_ROUTER": "openai",
+                "LLM_PROVIDER_NARRATOR": "openai",
+                "LLM_MODEL_NARRATOR": "gpt-5.4-mini",
+                "LLM_OPENAI_REASONING_ROUTER": "high",
+                "LLM_OPENAI_REASONING_SUMMARY_ROUTER": "auto",
+                "LLM_REASONING_NARRATOR": "low",
+            },
+            clear=True,
+        ):
             config = LLMConfig.from_env()
             assert config.api_key == "test-key"
+            assert config.openai_api_key == "openai-key"
+            assert (
+                config.api_key_for_provider("openai", role="agent")
+                == "agent-openai-key"
+            )
+            assert (
+                config.api_key_for_provider("openai", role="event_router")
+                == "router-openai-key"
+            )
+            assert (
+                config.api_key_for_provider("openai", role="narrator")
+                == "narrator-openai-key"
+            )
+            assert (
+                config.api_key_for_provider("openai", role="query_handler")
+                == "narrator-openai-key"
+            )
+            assert config.provider_for_role("event_router") == "openai"
+            assert config.provider_for_role("narrator") == "openai"
+            assert config.model_for_role("narrator") == "gpt-5.4-mini"
+            assert config.openai_reasoning_effort_for_role("event_router") == "high"
+            assert config.openai_reasoning_summary_for_role("event_router") == "auto"
+            assert config.openai_reasoning_effort_for_role("narrator") == "low"
 
 
 # --- LLMClient unit tests (mocked API) ---
@@ -115,10 +185,50 @@ def _make_mock_response(content: str, model: str = "claude-haiku-4-5", parsed=No
     return response
 
 
+def _make_openai_response(
+    content: str,
+    model: str = "gpt-5.4-mini",
+    *,
+    output_tokens: int = 7,
+    reasoning_tokens: int = 0,
+    reasoning_summaries: list[str] | None = None,
+):
+    usage = MagicMock()
+    usage.input_tokens = 15
+    usage.output_tokens = output_tokens
+    usage.total_tokens = 15 + output_tokens
+    usage.input_tokens_details = MagicMock(cached_tokens=5)
+    usage.output_tokens_details = MagicMock(reasoning_tokens=reasoning_tokens)
+
+    response = MagicMock()
+    response.output_text = content
+    response.model = model
+    response.usage = usage
+    response.status = "completed"
+    response.output = []
+    if reasoning_summaries:
+        item = MagicMock()
+        item.type = "reasoning"
+        item.summary = []
+        for text in reasoning_summaries:
+            summary = MagicMock()
+            summary.text = text
+            item.summary.append(summary)
+        response.output.append(item)
+    return response
+
+
 @pytest.fixture
 def mock_config():
     return LLMConfig(
         api_key="fake-key",
+        role_models={
+            "event_router": "claude-sonnet-4-6",
+            "narrator": "claude-haiku-4-5",
+            "agent": "claude-sonnet-4-6",
+            "character_gen": "claude-sonnet-4-6",
+            "query_handler": "claude-haiku-4-5",
+        },
         max_retries=1,
         retry_base_delay=0.01,
     )
@@ -262,6 +372,175 @@ class TestLLMClientComplete:
                 temperature=0.5,
                 max_tokens=100,
             )
+
+    @pytest.mark.asyncio
+    async def test_openai_provider_uses_responses_api(self):
+        config = LLMConfig(
+            openai_api_key="fake-openai-key",
+            role_models={"narrator": "gpt-5.1"},
+            role_providers={"narrator": "openai"},
+            max_retries=0,
+        )
+        client = LLMClient(config=config)
+        openai_client = MagicMock()
+        openai_client.responses.create = AsyncMock(
+            return_value=_make_openai_response("Hello from OpenAI")
+        )
+        client._openai_clients["narrator"] = openai_client
+
+        result = await client.complete(
+            role="narrator",
+            messages=[
+                {"role": "system", "content": "You are concise."},
+                {"role": "user", "content": "Say hi."},
+            ],
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = openai_client.responses.create.call_args.kwargs
+        assert call_kwargs["model"] == "gpt-5.1"
+        assert call_kwargs["instructions"] == "You are concise."
+        assert call_kwargs["input"] == [{"role": "user", "content": "Say hi."}]
+        assert call_kwargs["reasoning"] == {"effort": "medium"}
+        assert "temperature" not in call_kwargs
+        assert call_kwargs["max_output_tokens"] == 100
+        assert result.content == "Hello from OpenAI"
+        assert result.usage["prompt_tokens"] == 10
+        assert result.usage["cache_read_input_tokens"] == 5
+        assert result.usage["visible_completion_tokens"] == 7
+        assert result.assistant_content == [
+            {"type": "text", "text": "Hello from OpenAI"}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_openai_usage_logs_reasoning_tokens(self, caplog):
+        config = LLMConfig(
+            openai_api_key="fake-openai-key",
+            role_models={"event_router": "gpt-5.2"},
+            role_providers={"event_router": "openai"},
+            max_retries=0,
+        )
+        client = LLMClient(config=config)
+        openai_client = MagicMock()
+        openai_client.responses.create = AsyncMock(
+            return_value=_make_openai_response(
+                "ok",
+                model="gpt-5.2",
+                output_tokens=11,
+                reasoning_tokens=4,
+                reasoning_summaries=["Checked scene state, then chose a route."],
+            )
+        )
+        client._openai_clients["event_router"] = openai_client
+
+        with caplog.at_level(logging.INFO, logger="app.llm.client"):
+            result = await client.complete(
+                role="event_router",
+                messages=[{"role": "user", "content": "Route this."}],
+                temperature=0.5,
+                max_tokens=100,
+            )
+
+        assert result.usage["completion_tokens"] == 11
+        assert result.usage["reasoning_tokens"] == 4
+        assert result.usage["visible_completion_tokens"] == 7
+        assert result.reasoning_summaries == [
+            "Checked scene state, then chose a route."
+        ]
+        assert "role=event_router" in caplog.text
+        assert "model=gpt-5.2" in caplog.text
+        assert "reasoning=4" in caplog.text
+        assert "visible_out=7" in caplog.text
+        assert "Checked scene state" in caplog.text
+        call_kwargs = openai_client.responses.create.call_args.kwargs
+        assert call_kwargs["reasoning"] == {
+            "effort": "medium",
+            "summary": "auto",
+        }
+
+    @pytest.mark.asyncio
+    async def test_openai_reasoning_omitted_for_non_reasoning_models(self):
+        config = LLMConfig(
+            openai_api_key="fake-openai-key",
+            role_models={"narrator": "gpt-4o"},
+            role_providers={"narrator": "openai"},
+            max_retries=0,
+        )
+        client = LLMClient(config=config)
+        openai_client = MagicMock()
+        openai_client.responses.create = AsyncMock(
+            return_value=_make_openai_response("Hello from OpenAI", model="gpt-4o")
+        )
+        client._openai_clients["narrator"] = openai_client
+
+        await client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": "Say hi."}],
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = openai_client.responses.create.call_args.kwargs
+        assert "reasoning" not in call_kwargs
+        assert call_kwargs["temperature"] == 0.5
+
+    def test_openai_client_uses_role_specific_api_key(self):
+        config = LLMConfig(
+            openai_api_key="global-openai-key",
+            openai_role_api_keys={
+                "narrator": "narrator-openai-key",
+                "event_router": "router-openai-key",
+            },
+        )
+        client = LLMClient(config=config)
+
+        with patch("app.llm.client.openai.AsyncOpenAI") as openai_ctor:
+            client._get_openai_client("narrator")
+            client._get_openai_client("event_router")
+            client._get_openai_client("query_handler")
+
+        assert openai_ctor.call_args_list[0].kwargs["api_key"] == "narrator-openai-key"
+        assert openai_ctor.call_args_list[1].kwargs["api_key"] == "router-openai-key"
+        assert openai_ctor.call_args_list[2].kwargs["api_key"] == "global-openai-key"
+
+    @pytest.mark.asyncio
+    async def test_openai_structured_output_passes_json_schema(self):
+        event = CanonicalEvent.model_validate({
+            "world_adjudication": {
+                "feasible": True,
+            },
+            "scene_delta": {"time_advanced_seconds": 2},
+            "observable_facts": ["The door swings open."],
+        })
+        config = LLMConfig(
+            openai_api_key="fake-openai-key",
+            role_models={"event_router": "openai:gpt-5.4"},
+            max_retries=0,
+        )
+        client = LLMClient(config=config)
+        openai_client = MagicMock()
+        openai_client.responses.create = AsyncMock(
+            return_value=_make_openai_response(event.model_dump_json(), model="gpt-5.4")
+        )
+        client._openai_clients["event_router"] = openai_client
+
+        result = await client.complete(
+            role="event_router",
+            messages=[{"role": "user", "content": "open door"}],
+            response_model=CanonicalEvent,
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        text_format = openai_client.responses.create.call_args.kwargs["text"]["format"]
+        reasoning = openai_client.responses.create.call_args.kwargs["reasoning"]
+        assert text_format["type"] == "json_schema"
+        assert text_format["name"] == "CanonicalEvent"
+        assert text_format["strict"] is True
+        assert reasoning == {"effort": "medium", "summary": "auto"}
+        assert isinstance(result.parsed, CanonicalEvent)
+        assert result.parsed.world_adjudication.feasible is True
 
     @pytest.mark.asyncio
     async def test_compact_false_uses_stable_stream(self, client):

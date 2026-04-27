@@ -16,6 +16,7 @@ import pytest
 from app.engine import narrator as narrator_module
 from app.engine import turn_loop_dispatcher
 from app.engine.prompt_manager import PromptManager
+from app.engine.turn_loop_contracts import ROUTER_CONTINUATION_HEADER
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.llm.client import LLMClient, LLMResponse
@@ -377,6 +378,32 @@ class TestRouteIntention:
         assert len(ckpt.session_conversation) == 4
         assert ckpt.session_conversation[-2].role == "user"
         assert ckpt.session_conversation[-1].role == "assistant"
+
+    def test_route_continuation_uses_recovery_block_not_intention(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        prior = _router_output()
+        prior.ends_beat = False
+        prior.ends_beat_reason = ""
+        prior.decision_rationale = "The beat stayed open without a pick."
+        mock_client.complete.return_value = _llm_response(_router_output())
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+
+        asyncio.run(dispatcher.route_continuation(
+            ckpt=ckpt,
+            actor_id="alice",
+            scene_id="gatehouse",
+            prior_result=prior,
+        ))
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert ROUTER_CONTINUATION_HEADER in user_content
+        assert "The beat stayed open without a pick." in user_content
+        assert "Alice attempts:" not in user_content
+        assert "Alice intends:" not in user_content
 
     def test_failed_router_call_restores_drained_session_queues(
         self, prompt_mgr, mock_client,

@@ -8,39 +8,11 @@ from __future__ import annotations
 
 import logging
 
-from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 
 logger = logging.getLogger(__name__)
-
-
-def iter_agent_beats(
-    agent_outputs: list[CharacterAgentOutput],
-    checkpoint: CheckpointFile,
-):
-    """Yield `(output, character | None)` pairs for each agent output.
-
-    Two consumers format agent beats differently — narrator produces
-    multi-section markdown with visibility-aware labels (name vs
-    appearance vs role, depending on whether the player has met the
-    character), while orchestrator's `_build_npc_turn_summary` produces
-    a single-line digest for silent observers' pending queues. The
-    formatting intentionally diverges because those consumers serve
-    different readers, but BOTH need the same roster lookup + the same
-    missing-character semantics.
-
-    This helper is the shared kernel: walk outputs, resolve characters
-    once via a dict (not N linear scans), hand back a tuple the caller
-    shapes as it wishes. If at some point a consumer needs different
-    missing-character behavior or a different character-id source, fork
-    here — but today they're aligned and a shared iterator keeps them
-    aligned.
-    """
-    chars_by_id = {c.character_id: c for c in checkpoint.characters}
-    for output in agent_outputs:
-        yield output, chars_by_id.get(output.character_id)
 
 
 def append_turn_to_conversation(
@@ -63,7 +35,9 @@ def append_turn_to_conversation(
     """
     from app.llm.client import serialize_assistant_content
 
-    assistant_content = serialize_assistant_content(response.raw_response.content)
+    assistant_content = getattr(response, "assistant_content", None)
+    if assistant_content is None:
+        assistant_content = serialize_assistant_content(response.raw_response.content)
     conversation.append(ConversationMessage(role="user", content=user_content))
     conversation.append(ConversationMessage(role="assistant", content=assistant_content))
 

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 from app.engine.character_agent import _extract_parenthetical
 from app.engine.character_manager import _normalize_router_summary
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
 from app.engine.settings import (
@@ -196,6 +197,7 @@ class EngineBridge:
 
         result = await run_import_two_call(self.client, source_text, story_id)
         checkpoint = result.checkpoint
+        sync_checkpoint_runtime_models(checkpoint, self.client.config)
 
         dst_dir.mkdir(parents=True, exist_ok=True)
         dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
@@ -328,10 +330,13 @@ class EngineBridge:
         data = json.loads(src.read_text())
         data["session"]["session_id"] = session_id
         data.pop("import_analysis", None)
-        (dst_dir / "ckpt_0000.json").write_text(json.dumps(data, indent=2))
+        ckpt = CheckpointFile.model_validate(data)
+        sync_checkpoint_runtime_models(ckpt, self.client.config)
+        (dst_dir / "ckpt_0000.json").write_text(ckpt.model_dump_json(indent=2))
         ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
         if ckpt.session.turn_index == 0:
             ckpt.session.turn_index = 1
+        sync_checkpoint_runtime_models(ckpt, self.client.config)
         self.checkpoint_mgr.save(ckpt)
         logger.info("Loaded story %s into session %s", story_id, session_id)
         return ckpt
@@ -350,12 +355,6 @@ class EngineBridge:
             removed += 1
         logger.info("Unloaded story from session %s (%d files)", session_id, removed)
         return removed
-
-    def session_id_for_channel(self, channel_id: int, story_id: str) -> str:
-        """Deterministic session id for (channel, story). Stable across /resume."""
-        # Short-hash-free: channel IDs are unique and story id is stable.
-        slug = re.sub(r"[^a-z0-9_]+", "_", story_id.lower()).strip("_")
-        return f"discord_{channel_id}_{slug}"
 
     def load_latest(self, session_id: str) -> CheckpointFile:
         return self.checkpoint_mgr.load_latest(session_id)
@@ -523,34 +522,6 @@ class EngineBridge:
             if c.character_id == cid:
                 return c.location or ""
         return ""
-
-    def set_character_appearance(
-        self,
-        session_id: str,
-        character_id: str,
-        description: str,
-    ) -> CheckpointFile:
-        """Update a single character's public appearance and save.
-
-        This replaces the old single-player set_player_character_description.
-        For multi-player sessions the caller passes the character_id of
-        whichever player character owns the description (their own binding).
-        The appearance string is used by the Player Characters block in all
-        engine prompts, and by the agent context builder's Characters Present
-        summary that NPCs see.
-        """
-        description = description.strip()
-        ckpt = self.checkpoint_mgr.load_latest(session_id)
-        target = next(
-            (c for c in ckpt.characters if c.character_id == character_id), None
-        )
-        if target is None:
-            raise ValueError(
-                f"Character '{character_id}' not found in session '{session_id}'"
-            )
-        target.public_sheet.appearance = description
-        self.checkpoint_mgr.save(ckpt)
-        return ckpt
 
     def set_character_identity(
         self,

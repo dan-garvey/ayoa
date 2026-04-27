@@ -3,11 +3,6 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class PersonalizeRequest(BaseModel):
-    session_id: str
-    player_name: str
-
-
 class TurnRequest(BaseModel):
     session_id: str
     checkpoint_id: str | None = None

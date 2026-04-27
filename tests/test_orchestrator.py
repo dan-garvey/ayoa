@@ -1,35 +1,16 @@
-"""Tests for the Orchestrator — turn pipeline integration.
-
-v11-A3c: the TestOrchestrator class tests reach into the v8
-process_turn body (router → agent → narrator LLM call sequence,
-per-phase latencies, pending_recap, turn_recap summarizer) that the
-v11 rewrite deleted. Coverage for the new thin-wrapper shape lives in
-tests/test_orchestrator_v11.py. The TestCharacterManager and
-TestCharacterSpawn classes survive — those exercise CharacterManager
-directly and don't depend on the orchestrator path.
-
-v11-r7j: the legacy `EventRouter` engine class was murdered. Skipped
-tests below still mention "EventRouter" in their docstrings as the
-historical name; that's accurate flavor for a class that no longer
-exists.
-"""
+"""Tests for character-manager behavior used by the orchestrator path."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from app.engine.character_manager import CharacterManager
-from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
-from app.engine.turn_recap import _TurnRecapOutput
 from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
-from app.schemas.agents import CharacterAgentOutput  # noqa: F401  (skipped tests construct fixtures lazily)
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
+from app.schemas.event_router import EventRouterOutput, SpawnRequest
 from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.requests import TurnRequest
 from app.schemas.state import LocationState, SessionState, WorldState
 
 # --- Fixtures ---
@@ -67,13 +48,6 @@ def sample_checkpoint():
         ],
     )
 
-@pytest.fixture
-def mock_checkpoint_mgr(sample_checkpoint):
-    mgr = MagicMock()
-    mgr.load_latest.return_value = sample_checkpoint
-    mgr.save.return_value = None
-    return mgr
-
 def _llm_response(parsed) -> LLMResponse:
     """Shape the LLMResponse. Character spawn parses JSON from
     response.content (structured output disabled — see benchmark), so
@@ -87,10 +61,6 @@ def _llm_response(parsed) -> LLMResponse:
     raw.content = [text_block]
     raw.model = "claude-sonnet-4-6"
     return LLMResponse(parsed=parsed, raw_response=raw, content=text, model="claude-sonnet-4-6")
-
-@pytest.fixture
-def prompt_manager():
-    return PromptManager("app/prompts")
 
 # --- Tests ---
 
@@ -133,111 +103,6 @@ class TestCharacterManager:
         mgr.apply_roster_updates(sample_checkpoint, routed)
         char = mgr.get_character(sample_checkpoint, "guard_17")
         assert char.status.value == "dormant"
-
-@pytest.mark.skip(
-    reason="v11: legacy orchestrator path superseded; rewrite coverage in "
-    "test_orchestrator_v11.py"
-)
-class TestOrchestrator:
-    @pytest.mark.asyncio
-    async def test_full_turn(self, mock_client, mock_checkpoint_mgr, prompt_manager):
-        """Test a complete turn with mocked LLM responses (canonical merged path)."""
-        # 3 LLM calls: EventRouter (merged NP1+Disc), Agent, NP2.
-        merged = EventRouterOutput(
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    feasible=True,
-                    resolved_outcome="Player looks around.",
-                ),
-                observable_facts=["Player looks around."],
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id="guard_17",
-                    response_priority=5,
-                ),
-            ],
-        )
-
-        agent_out = CharacterAgentOutput(
-            character_id="guard_17",
-            public_text='"Everything alright?"',
-            intent="",
-        )
-
-        narrator_out = NarratorFinalOutput(
-            final_text="You look around. \"Everything alright?\" Captain Vero asks.",
-            transcript_entry=TranscriptEntry(
-                user="I look around.",
-                assistant="You look around. \"Everything alright?\" Captain Vero asks.",
-            ),
-        )
-
-        mock_client.complete.side_effect = [
-            _llm_response(merged),
-            _llm_response(agent_out),
-            _llm_response(narrator_out),
-            _llm_response(_TurnRecapOutput(note="Captain Vero watched.")),
-        ]
-
-        orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
-        request = TurnRequest(session_id="test-session", user_input="I look around.")
-
-        response = await orchestrator.process_turn(request)
-
-        assert response.session_id == "test-session"
-        assert "look around" in response.output_text.lower()
-        assert response.turn_index == 1
-        # 4 LLM calls: router + agent + narrator + turn-recap summarizer.
-        assert mock_client.complete.call_count == 4
-        mock_checkpoint_mgr.save.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_turn_with_no_responders(
-        self, mock_client, mock_checkpoint_mgr, prompt_manager
-    ):
-        """Turn where no characters respond — EventRouter returns no observers."""
-        merged = EventRouterOutput(
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    feasible=True,
-                    resolved_outcome="Player thinks.",
-                ),
-            ),
-            observers=[],
-        )
-
-        narrator_out = NarratorFinalOutput(
-            final_text="You stand quietly, collecting your thoughts.",
-            transcript_entry=TranscriptEntry(
-                user="I think about things.",
-                assistant="You stand quietly, collecting your thoughts.",
-            ),
-        )
-
-        mock_client.complete.side_effect = [
-            _llm_response(merged),
-            _llm_response(narrator_out),
-            _llm_response(_TurnRecapOutput(note="")),
-        ]
-
-        orchestrator = Orchestrator(mock_client, mock_checkpoint_mgr, prompt_manager)
-        request = TurnRequest(session_id="test-session", user_input="I think about things.")
-
-        response = await orchestrator.process_turn(request)
-
-        assert "quietly" in response.output_text.lower()
-        # 2 LLM calls: EventRouter, NP2 (no agents)
-        # router + narrator + turn-recap (no agents this turn).
-        assert mock_client.complete.call_count == 3
-
-    # NOTE: a `test_debug_mode` lived here that asserted `response.debug`
-    # was populated when `request.debug=True`. v11-r7j murdered both
-    # `TurnRequest.debug` and `TurnResponse.debug` (the orchestrator
-    # never wrote the response payload — the test was a green lie
-    # because the surrounding class is `@pytest.mark.skip`'d on the
-    # legacy orchestrator path). The deletion is intentional.
-
 
 class TestCharacterSpawn:
     @pytest.mark.asyncio

@@ -5,12 +5,6 @@ human POV with a queued perception gets its own render, composed against
 a per-character rolling conversation stored on the checkpoint
 (`checkpoint.narrator_conversations[pov_character_id]`). Voice and
 continuity hold across the session on a per-POV basis.
-
-The legacy session-wide `Narrator.compose` flow is gone; the `Narrator`
-class below is a NotImplementedError shim that exists only so legacy
-skip-marked test modules can still import the symbol without an import
-error breaking test collection. It will be removed entirely once those
-tests are cleaned up.
 """
 
 from __future__ import annotations
@@ -31,103 +25,39 @@ from app.schemas.state import RenderBufferEntry
 logger = logging.getLogger(__name__)
 
 
-class Narrator:
-    """v11: legacy single-POV renderer. Removed; see `compose_pov_render`.
-
-    This shim exists only so legacy test modules (currently skip-marked
-    for the compose path) can still import the symbol. The only runtime
-    surface kept is `_format_agent_outputs`, which a handful of legacy-
-    unit tests still call directly and which has no production callers
-    in v11. Deletion of this whole class is pending full legacy-test
-    cleanup.
-    """
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    async def compose(self, *args, **kwargs):
-        raise NotImplementedError(
-            "Narrator.compose removed in v11; use compose_pov_render"
-        )
-
-    def _format_agent_outputs(
-        self,
-        agent_outputs,
-        checkpoint: CheckpointFile,
-        routed: EventRouterOutput | None = None,
-    ) -> str:
-        """Legacy shim — kept only for the pre-v11 unit tests that
-        exercise this helper in isolation. Production code does not call
-        this path; v11 folds agent responses into the canonical event's
-        observable facts via the router, and the narrator renders from
-        those facts. If the legacy tests are ever removed, delete this
-        method.
-
-        Renders `public_text` only — `intent` (the trailing parenthetical
-        on each agent output) is private to the agent and the engine.
-        Even in this dead-code shim we honor that contract so a stray
-        re-wiring can't accidentally route interior into narrator input.
-        """
-        if not agent_outputs:
-            return "No characters responded to this event."
-
-        _level_names = {"d": "direct", "i": "indirect", "f": "inferred"}
-        obs_levels: dict[str, str] = {}
-        if routed:
-            for obs in routed.observers:
-                obs_levels[obs.character_id] = _level_names.get(
-                    obs.observation_level, obs.observation_level,
-                )
-
-        from app.engine.context_builder import iter_agent_beats
-
-        known = set(checkpoint.world_state.known_characters)
-        sections = []
-        for output, char in iter_agent_beats(agent_outputs, checkpoint):
-            if output.character_id in known:
-                label = char.name if char else output.character_id
-            elif char and char.public_sheet.appearance:
-                label = char.public_sheet.appearance
-            elif char and char.public_sheet.role:
-                label = char.public_sheet.role
-            else:
-                label = output.character_id
-
-            parts = [f"### {label}"]
-            obs_level = obs_levels.get(output.character_id, "direct")
-            parts.append(f"[Observation: {obs_level}]")
-            body = (output.public_text or "").strip()
-            parts.append(body if body else "(silent beat)")
-
-            sections.append("\n".join(parts))
-
-        return "\n\n".join(sections)
-
-
-# ---------------------------------------------------------------------------
-# v11 per-POV narrator entry point
-# ---------------------------------------------------------------------------
-
-
-# Pre-v11-r7j a private `_build_setting_summary` lived here; the
-# TODO above asked for context_builder consolidation. Done in r7j —
-# see `app.engine.context_builder.build_setting_summary`. Imported
-# lazily in `compose_pov_render` to keep this module's top-level
-# import block focused on narrator-only dependencies.
-
-
 def _build_scene_context(
     checkpoint: CheckpointFile, pov_character_id: str | None = None,
+    resolved_events: (
+        list[tuple[RenderBufferEntry, EventRouterOutput]] | None
+    ) = None,
 ) -> str:
-    """Narrator-facing scene block — keyed on the POV character's actual
-    location. Returns an unsited block when no pov_character_id is
-    supplied or the character has no location set."""
+    """Narrator-facing scene block for the POV's post-event location.
+
+    During a beat, narrator rendering happens before the orchestrator
+    applies `roster_moves` to the checkpoint roster. Use buffered events'
+    moves first so scene-transition renders describe where the POV ended
+    up, not where the checkpoint still says they started.
+    """
     from app.engine.context_builder import resolve_scene_for_character
-    locations = checkpoint.world_state.locations
+    resolved_events = resolved_events or []
     scene_id = resolve_scene_for_character(checkpoint, pov_character_id)
+
+    scene_graph = dict(checkpoint.world_state.locations.scene_graph)
+    for _entry, ev in resolved_events:
+        for created in ev.scenes_created or []:
+            scene_graph[created.scene_id] = {
+                "name": created.name,
+                "description": created.description,
+                "connected_to": list(created.connected_to),
+            }
+        if pov_character_id:
+            for move in ev.roster_moves or []:
+                if move.character_id == pov_character_id and move.to_scene:
+                    scene_id = move.to_scene
+
     if not scene_id:
         return "No scene information available."
-    scene = locations.scene_graph.get(scene_id, {})
+    scene = scene_graph.get(scene_id, {})
     if not scene:
         return f"Current location: {scene_id}"
     name = scene.get("name", scene_id)
@@ -139,7 +69,7 @@ def _build_scene_context(
     if connected:
         connections = []
         for conn_id in connected:
-            conn_scene = locations.scene_graph.get(conn_id, {})
+            conn_scene = scene_graph.get(conn_id, {})
             conn_name = conn_scene.get("name", conn_id)
             connections.append(conn_name)
         parts.append(f"Connected to: {', '.join(connections)}")
@@ -282,21 +212,10 @@ async def compose_pov_render(
     from app.engine.context_builder import build_setting_summary
     setting_summary = build_setting_summary(ckpt)
     narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
-    scene_context = _build_scene_context(ckpt, pov_character_id)
+    scene_context = _build_scene_context(ckpt, pov_character_id, resolved)
     player_characters_block = build_player_characters_block(ckpt, pov_character_id)
     canonical_event_block = _format_canonical_events_block(
         resolved, pov_character_id,
-    )
-
-    # v11 per-POV callers don't accumulate agent outputs the way the
-    # legacy compose did — every cascade NPC's response is folded into
-    # the canonical event's `observable_facts` (their spoken lines
-    # quoted verbatim, their visible gestures enumerated). The
-    # template still requires the variable, so render a neutral
-    # placeholder.
-    agent_outputs_block = (
-        "Character responses are folded into each event's "
-        "`observable_facts` above."
     )
 
     pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
@@ -308,7 +227,6 @@ async def compose_pov_render(
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
         canonical_event=canonical_event_block,
-        agent_outputs=agent_outputs_block,
         scene_context=scene_context,
         user_input=user_input,
         acting_character_name=acting_name,

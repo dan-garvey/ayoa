@@ -957,6 +957,18 @@ class Dispatcher(Protocol):
         """
         ...
 
+    async def route_continuation(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        actor_id: str,
+        scene_id: str,
+        prior_result: EventRouterOutput,
+    ) -> EventRouterOutput:
+        """Advance an open beat when the prior router output supplied
+        no dispatchable next actor despite `ends_beat=false`."""
+        ...
+
     async def agent_intend(
         self,
         ckpt: CheckpointFile,
@@ -1084,6 +1096,29 @@ async def run_beat(
     event_actor_ids: list[str] = []
     current_intention = intention
     current_actor = actor_id
+    continuation_rescue_used = False
+    pending_result: EventRouterOutput | None = None
+
+    async def _queue_router_continuation(
+        prior_result: EventRouterOutput,
+    ) -> None:
+        nonlocal continuation_rescue_used, pending_result
+        if continuation_rescue_used:
+            raise RuntimeError(
+                "Router kept beat open without a dispatchable continuation: "
+                "ends_beat=false and no agent_responder_picks after the "
+                "continuation rescue."
+            )
+        continuation_rescue_used = True
+        pending_result = await dispatcher.route_continuation(
+            ckpt=ckpt,
+            actor_id=actor_id,
+            scene_id=scene_id,
+            prior_result=prior_result,
+        )
+        _log_router_rationale(
+            pending_result, actor_id, scene_id, kind="continuation",
+        )
 
     # --- Step 1: handle entry path ------------------------------------------
 
@@ -1173,31 +1208,48 @@ async def run_beat(
         claim_initiator_slot(ckpt, scene_id, actor_id)
 
     while True:
-        # Route the current intention.
-        result = await dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id=current_actor,
-            intention=current_intention,
-            scene_id=scene_id,
-            cat_ii_event=None,
-        )
-        _log_router_rationale(result, current_actor, scene_id, kind="route")
+        if pending_result is None:
+            # Route the current intention.
+            result = await dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id=current_actor,
+                intention=current_intention,
+                scene_id=scene_id,
+                cat_ii_event=None,
+            )
+            result_actor_id = current_actor
+            result_is_continuation = False
+            _log_router_rationale(
+                result, current_actor, scene_id, kind="route",
+            )
+        else:
+            result = pending_result
+            pending_result = None
+            result_actor_id = ""
+            result_is_continuation = True
 
         if result.requires_responders:
+            if result_is_continuation:
+                raise RuntimeError(
+                    "Router continuation opened Cat II; continuation mode "
+                    "must create a closed cue or pick a dispatchable NPC."
+                )
             # Cat II: open the event, pin humans, request agent
             # responder intentions immediately (they're fast).
             # Filter: the initiator can never be their own responder,
             # even if the router hallucinates it — would either double-
             # pin them or overwrite the initiator slot.
             required = [
-                r for r in result.required_responders if r != current_actor
+                r for r in result.required_responders if r != result_actor_id
             ]
             if not required:
                 # The only "responder" was the initiator themselves; treat
                 # this as Cat I — there's nothing to contest. Broadcast the
                 # canonical event as-is and continue.
-                broadcast_event(ckpt, result, scene_id, actor_id=current_actor)
-                event_actor_ids.append(current_actor)
+                broadcast_event(
+                    ckpt, result, scene_id, actor_id=result_actor_id,
+                )
+                event_actor_ids.append(result_actor_id)
                 events_closed += 1
                 if events_closed >= max_events:
                     return await _end_beat(
@@ -1228,14 +1280,8 @@ async def run_beat(
                     event=result,
                 )
                 if not picks:
-                    return await _end_beat(
-                        ckpt, dispatcher, scene_id,
-                        ended_reason="cascade_exhausted",
-                        events_closed=events_closed,
-                        event_actor_ids=event_actor_ids,
-                        acting_player_id=actor_id,
-                        acting_player_input=intention,
-                    )
+                    await _queue_router_continuation(result)
+                    continue
                 next_actor = picks[0]
                 next_intention = await dispatcher.agent_intend(
                     ckpt=ckpt, character_id=next_actor, scene_id=scene_id,
@@ -1247,7 +1293,7 @@ async def run_beat(
             evt = open_cat_ii(
                 ckpt=ckpt,
                 scene_id=scene_id,
-                initiator_id=current_actor,
+                initiator_id=result_actor_id,
                 initiator_intention=current_intention,
                 required_responders=required,
             )
@@ -1261,8 +1307,8 @@ async def run_beat(
             # observerless stub here and dropped the router's facts.
             result.ends_beat = True
             result.ends_beat_reason = "cat_ii_open"
-            broadcast_event(ckpt, result, scene_id, actor_id=current_actor)
-            event_actor_ids.append(current_actor)
+            broadcast_event(ckpt, result, scene_id, actor_id=result_actor_id)
+            event_actor_ids.append(result_actor_id)
             events_closed += 1
 
             # Agents among required_responders intend immediately; their
@@ -1348,8 +1394,8 @@ async def run_beat(
             )
 
         # Cat I path — canonical event closes immediately.
-        broadcast_event(ckpt, result, scene_id, actor_id=current_actor)
-        event_actor_ids.append(current_actor)
+        broadcast_event(ckpt, result, scene_id, actor_id=result_actor_id)
+        event_actor_ids.append(result_actor_id)
         events_closed += 1
 
         # v11-r8a: observation_harvest fork. The router signals
@@ -1435,16 +1481,8 @@ async def run_beat(
             event=result,
         )
         if not picks:
-            # Router signaled continue but gave no pick — treat as
-            # cascade_exhausted and end beat.
-            return await _end_beat(
-                ckpt, dispatcher, scene_id,
-                ended_reason="cascade_exhausted",
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-            )
+            await _queue_router_continuation(result)
+            continue
         # v11 first cut: chain one pick at a time. Multi-pick fan-out can
         # come later; for now, the first pick acts, we re-route, the
         # router can emit fresh picks on its next output.
@@ -1464,14 +1502,8 @@ async def run_beat(
                 next_intention = raw
                 break
         if next_actor is None or next_intention is None:
-            return await _end_beat(
-                ckpt, dispatcher, scene_id,
-                ended_reason="cascade_exhausted",
-                events_closed=events_closed,
-                event_actor_ids=event_actor_ids,
-                acting_player_id=actor_id,
-                acting_player_input=intention,
-            )
+            await _queue_router_continuation(result)
+            continue
         current_actor = next_actor
         current_intention = next_intention
 

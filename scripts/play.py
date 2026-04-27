@@ -92,15 +92,6 @@ to open the scene — the router composes the opening from world_state +
 the initial roster on the fly."""
 
 
-def _has_story_loaded(engine: EngineBridge, session_id: str) -> bool:
-    """True iff the session dir has at least one checkpoint on disk."""
-    try:
-        engine.load_latest(session_id)
-        return True
-    except FileNotFoundError:
-        return False
-
-
 class CLIState:
     """Per-session state for the interactive REPL.
 

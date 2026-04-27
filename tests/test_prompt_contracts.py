@@ -1,14 +1,13 @@
 from app.engine.turn_loop_contracts import (
-    PARTIAL_MODE_MARKER,
     SWEPT_RESPONDERS_SUBHEADER,
+    ROUTER_CONTINUATION_HEADER,
     TICK_FAN_IN_HEADER,
     format_agent_on_stage_body,
     format_agent_tick_body,
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
-    format_ooc_directive,
-    format_partial_render_marker,
+    format_router_continuation_block,
     format_tick_fan_in_block,
 )
 
@@ -23,10 +22,6 @@ class TestContractHelpers:
         out = format_npc_cascade_intention("Pip", "steps closer")
         assert "Pip intends: steps closer" in out
         assert "attempts:" not in out  # Crucial — NPC cascades must NOT use "attempts"
-
-    def test_ooc_framing(self):
-        out = format_ooc_directive("(begin)")
-        assert "(OOC) (begin)" in out
 
     def test_cat_ii_resolution_omits_swept_from_responder_list(self):
         block = format_cat_ii_resolution_block(
@@ -53,8 +48,16 @@ class TestContractHelpers:
         )
         assert SWEPT_RESPONDERS_SUBHEADER not in block
 
-    def test_partial_marker(self):
-        assert format_partial_render_marker() == PARTIAL_MODE_MARKER
+
+class TestRouterContinuationBlock:
+    def test_continuation_block_is_not_framed_as_character_intention(self):
+        block = format_router_continuation_block(
+            prior_rationale="Router left the beat open.",
+        )
+        assert block.startswith(ROUTER_CONTINUATION_HEADER)
+        assert "attempts:" not in block
+        assert "intends:" not in block
+        assert "Router left the beat open." in block
 
 
 class TestTickFanInBlock:

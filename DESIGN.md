@@ -1,467 +1,592 @@
-# Design Doc: Multi-Agent Narrative Engine
+# Design Doc: Ayoa Narrative Engine
 
-## 1. Overview
+## 1. Status
 
-This project is a single-user, chat-based narrative engine for interactive fiction. The engine accepts a user's action or dialogue, adjudicates what happens in the world, determines which characters plausibly perceive the event, gathers character-level responses from those observers, and produces a final narrated reply to the user.
+This document describes the current v11 architecture. It is no longer a
+v1 proposal. The implementation is a Discord-first, checkpointed,
+multi-character interactive fiction engine whose core runtime lives in
+`app/engine/orchestrator.py`, `app/engine/turn_loop.py`, and
+`app/engine/turn_loop_dispatcher.py`.
 
-The core loop is:
+The old "Narrator Phase 1 + Discriminator + Narrator Phase 2" design has
+been collapsed. The current loop is:
 
-1. User submits input.
-2. Narrator interprets the attempted action and world interaction.
-3. Discriminator determines who observes what, and may dynamically create new character agents.
-4. Observing character agents generate reactions based only on what they plausibly know.
-5. Narrator merges the results into a single final response, maintaining physics, time, and narrative consistency while preserving as much user and character agency as possible.
-6. State is checkpointed so the story can be resumed from a save file.
+1. A human submits an action for a bound character.
+2. The event router classifies and canonicalizes the intention.
+3. The turn loop broadcasts the canonical event to human render buffers
+   and NPC observation inboxes.
+4. NPC agents may respond, one routed intention at a time, until the
+   router ends the beat or the engine hits the event cap.
+5. The narrator renders each observing human's POV from visible
+   `observable_facts` only.
+6. Roster moves, scene creation, spawns, dormancy, culls, off-stage ticks,
+   transcript updates, and checkpoint saving are applied around the beat.
 
-The user-facing experience is simple: they type a choice, and they receive what happens next. Internally, the system is structured, inspectable, and resumable.
+The system is intentionally prompt-heavy. Prompt files under
+`app/prompts/` are versioned source artifacts. Prompt history is tracked
+by git, not by filename suffixes.
 
 ## 2. Goals
 
-The system must:
+The engine must:
 
-* support multi-turn interactive fiction through a chat interface
-* preserve information boundaries so agents only know what they plausibly observe
-* support a narrator with strong adjudication authority over world rules, physics, time, and final composition
-* support a discriminator that decides observation, response eligibility, and dynamic character generation
-* support dynamically generated character agents that are rarely removed and more often placed into dormancy
-* persist enough structured state to resume exactly from a checkpoint
-* support hidden/private character intentions as an optional feature
-* support debug modes that expose intermediate outputs
-* support streaming of the final user-facing response, with optional structured debug streaming
-* support per-role model selection under a common model gateway URL
-* support rich system prompting and optional thinking-capable model APIs
+* support multi-turn interactive fiction in Discord
+* support multiple human players bound to different characters
+* preserve information boundaries by construction
+* keep the player's input and physical agency intact
+* let NPC agents carry private continuity without leaking it to other roles
+* model shared perception, not just shared physical location
+* support contested actions without deciding another actor's response early
+* persist every committed state change in portable JSON checkpoints
+* provide enough logs and checkpoint artifacts to investigate playtest bugs
+* keep prompt context small enough for long-running sessions
 
-## 3. Non-goals for v1
+## 3. Non-goals
 
-The system does not need to:
+The current engine does not attempt to:
 
-* support multiple simultaneous users
-* support external tools such as search, shell, code execution, or file editing
-* guarantee deterministic replay
-* optimize for large-scale distributed deployment
-* expose chain-of-thought to the end user
-* implement hard real-time latency guarantees
+* expose a public HTTP story API
+* stream final prose to Discord token-by-token
+* expose raw chain-of-thought or thinking blocks
+* guarantee deterministic replay across LLM calls
+* run external tools from inside story agents
+* maintain a fully separate transcript for every human POV in the global
+  transcript list
 
-## 4. Core Design Principles
+## 4. Design Principles
 
-### 4.1 Knowledge must be local
+### 4.1 Facts Are The Contract
 
-Character agents must only receive the facts they could plausibly observe, infer, or remember. They must not be given hidden state, omniscient transcript access, or other characters' private intentions unless that knowledge has entered their world model legitimately.
+The router's `canonical_event.observable_facts` are the authoritative
+surface of what happened. The narrator renders those facts. NPCs receive
+their visible subset in `pending_observations`. If a detail must be known
+by someone, it must exist as an observable fact visible to that character.
 
-### 4.2 Narrator is the world referee
+### 4.2 Perception Is Not Location
 
-The narrator is not a passive formatter. The narrator adjudicates attempted actions against the world state and rules. If the user attempts the impossible, the narrator resolves the attempt into a plausible outcome rather than blindly endorsing it.
+`CharacterRecord.location` answers where a body is. A scene, for routing
+purposes, is a shared perceptual frame. Characters can share perception
+through co-presence, live audio, cameras, radio, telepathy, scrying,
+supernatural senses, spies, or any other established live channel.
 
-### 4.3 Character agency should survive contact with structure
+### 4.3 The Narrator Is A POV Renderer
 
-The narrator should preserve as much user and character agency as possible while still enforcing world logic. Character responses should feel like they come from distinct actors, not like paraphrases squeezed from one throat.
+The narrator is no longer the world adjudicator. It is a per-POV prose
+renderer. It receives visible facts, observation levels, current scene
+context, the acting player's original input, and the POV's rolling
+narrator history. It must not invent actions, dialogue, outcomes,
+interiority, or physical business that is not in the visible facts or the
+player's input.
 
-### 4.4 Internal representations should be structured
+### 4.4 The Router Owns Canonicalization
 
-Intermediate outputs should be JSON-like and machine-readable. Only the final response to the user should default to plain narrative text.
+The event router is the adjudication, perception, roster, and beat-pacing
+role. It decides:
 
-### 4.5 Saves are sacred
-
-Every turn must be resumable from a checkpoint/save file. Checkpoints must contain enough state to continue the story without hidden dependence on process memory.
-
-## 5. High-Level Architecture
-
-The system consists of the following components:
-
-### 5.1 Chat API Service
-
-The entrypoint for the UI. Accepts user input, loads the current checkpoint, orchestrates the turn pipeline, persists the new checkpoint, and returns the final response.
-
-### 5.2 Narrator
-
-The narrator runs in two phases:
-
-* **Narrator Phase 1: Adjudication**
-
-  * interprets user intent
-  * resolves attempted actions against world rules
-  * advances time and physical causality
-  * emits a canonical event description for downstream components
-
-* **Narrator Phase 2: Final Composition**
-
-  * receives character responses and world deltas
-  * merges them into a single coherent reply
-  * updates world and transcript-facing narrative state
-  * produces the final user-facing text
-
-### 5.3 Discriminator
-
-The discriminator consumes the canonical event and decides:
-
-* which characters perceive the event
-* what each observer specifically perceives
-* which characters are therefore eligible to respond
-* whether any new character agents should be created
-* whether any existing agents should be marked dormant or culled
-
-The discriminator is the gatekeeper of perception and therefore of knowledge.
-
-### 5.4 Character Agents
-
-Each character agent represents one world actor. An agent receives:
-
-* its own identity and stable character sheet
-* its private memory
-* the subset of current events it plausibly observes
-* limited scene context
-* constraints on what it may reveal
-
-An agent outputs:
-
-* public response fragments such as action, dialogue, expression
-* optional private intentions / internal state updates
-* memory writes relevant to that character
-
-### 5.5 Character Manager
-
-Responsible for:
-
-* maintaining the registry of character agents
-* spawning new agents from discriminator requests
-* marking agents active, dormant, or culled
-* storing character sheets and memory
-* providing the minimal context required by each agent
-
-### 5.6 State Store / Checkpoint Manager
-
-Responsible for:
-
-* loading and saving versioned checkpoints
-* maintaining transcript, world state, agent state, visibility history, and configuration
-* enabling save/load from a portable file
-
-### 5.7 Prompt Manager
-
-Responsible for:
-
-* storing template prompts for narrator, discriminator, and agents
-* injecting role-specific instructions, formatting contracts, and state snippets
-* versioning prompts so save files can record which prompt set produced a story turn
-
-### 5.8 Model Client
-
-Responsible for:
-
-* calling the shared LLM gateway
-* supporting per-role model names
-* optionally passing thinking/reasoning configuration if backend supports it
-* handling retries, timeouts, and streaming
-
-## 6. Recommended Turn Lifecycle
-
-Each user turn should follow this sequence.
-
-### Step 1: Load checkpoint
-
-Load the latest checkpoint or the checkpoint referenced by the request.
-
-### Step 2: Narrator Phase 1, adjudicate the attempted action
-
-Input:
-
-* user message
-* current world state
-* short recent transcript summary
-* current scene context
-* relevant global rules
-
-Output:
-
-* canonical event(s)
+* Cat I vs Cat II classification
+* feasibility
 * time advancement
-* scene deltas
-* normalized action outcome candidates
-* structured summary of what actually happened in the world
+* observable facts and fact-level visibility
+* observers and response priorities
+* NPC responder picks
+* beat end state
+* scene creation, roster moves, spawns, dormancy, and culls
 
-This output is internal and structured.
+### 4.5 Agents Author Intentions, Not State
 
-### Step 3: Discriminator, determine observation and roster changes
+Character agents produce free-form public prose plus one trailing
+parenthetical containing their private intent. The public prose becomes
+the next intention that the router canonicalizes. The parenthetical stays
+only in that agent's rolling history and is stripped at every cross-role
+boundary.
 
-Input:
+### 4.6 Checkpoints Are The Source Of Truth
 
-* canonical event(s)
-* character registry
-* locations / scene graph
-* visibility / audibility / proximity rules
-* current world state
+Every committed turn writes a checkpoint. The runtime can be rebuilt from
+checkpoint JSON plus the prompt/code version in git. Process memory,
+locks, and API caches are not trusted as durable state.
 
-Output:
+## 5. Runtime Components
 
-* observation map: which agent observes which facts
-* response roster: which agents should generate a response
-* spawn list for new agents
-* dormancy / cull updates
+### 5.1 Discord Bot And EngineBridge
 
-### Step 4: Spawn any new character agents
+`app/bot/commands.py` defines the slash-command surface:
 
-For each new agent requested by the discriminator:
+* `/session start|resume|list|end`
+* `/story list|info|start|import|delete`
+* `/join`, `/begin`, `/leave`, `/describe`
+* `/act`, `/query`, `/status`, `/settings`
+* `/rewind`
 
-* generate a character sheet
-* initialize private memory
-* assign location and scene affinity
-* register as active or dormant as appropriate
+The bot calls the engine in process through `EngineBridge`; there is no
+FastAPI layer in the current runtime. `SessionMap` stores Discord channel
+to session mappings, private POV thread mappings, and turn-message refs
+used by rewind cleanup.
 
-### Step 5: Fan out to observing agents
+### 5.2 Orchestrator
 
-For each agent allowed to respond:
+`Orchestrator.process_turn()` is the main turn entry point. It:
 
-* assemble a private prompt packet
-* include only their visible facts and their own memory
-* request structured output
+1. loads the latest checkpoint
+2. resolves the acting character
+3. resolves that character's physical scene
+4. acquires a per-session, per-scene lock
+5. checks active act slots
+6. calls `run_beat()`
+7. applies scene creations, roster updates, roster moves, and spawns
+8. appends one transcript entry for the beat
+9. runs eligible off-stage ticks
+10. increments the turn index and saves
+11. returns a `TurnResponse`
 
-These calls should run concurrently.
+### 5.3 Turn Loop
 
-### Step 6: Narrator Phase 2, compose final output
+`run_beat()` in `app/engine/turn_loop.py` is the v11 state machine. It
+supports fresh human actions, Cat II responder actions, NPC cascades,
+observation harvest, partial renders for contested attempts, max-event
+backstops, and per-human render fan-out.
 
-Input:
+Important state:
 
-* canonical event(s)
-* agent public outputs
-* optional agent private intention updates
-* updated world state candidates
+* `active_act_slots`: per-scene lock state for initiators and Cat II
+  responders
+* `open_cat_ii_events`: contested events awaiting responders
+* `render_buffers`: per-human queues of canonical event ids waiting for
+  narrator render
+* `canonical_events`: append-only log of closed canonical events
 
-Output:
+### 5.4 LLMDispatcher
 
-* final narrative text for the user
-* committed world state updates
-* transcript entry
-* optional narrator summary for future context compression
+`LLMDispatcher` binds the abstract turn-loop protocol to the live roles:
 
-### Step 7: Persist checkpoint
+* `route_intention()` calls the `event_router` prompt
+* `route_tick_intentions()` bundles off-stage tick outputs into one
+  router call
+* `agent_intend()` calls `CharacterAgent.respond()`
+* `harvest_perceptions()` calls `CharacterAgent.perceive()` in parallel
+* `narrator_compose()` calls `compose_pov_render()`
 
-Write a versioned checkpoint containing all committed state for the end of the turn.
+It also owns the router context-trimming calls that surface initial
+rosters, world-fact deltas, one-shot scene context, and pending state
+changes.
 
-### Step 8: Return response
+### 5.5 Event Router
 
-In normal mode, return only the final user-facing text.
-In debug mode, also return structured intermediate artifacts.
+The event router prompt and `EventRouterOutput` schema replace both the
+old narrator adjudication phase and the old discriminator role. The
+router emits one structured object per routed intention or tick fan-in.
 
-## 7. Data Model
+The top-level object carries:
 
-## 7.1 Session State
+* `event_id`
+* `decision_rationale`
+* `canonical_event`
+* Cat I / Cat II fields
+* `agent_responder_picks`
+* `ends_beat` and `ends_beat_reason`
+* `observers`
+* `spawn`, `dormant`, `cull`
+* `roster_moves`
+* `scenes_created`
+
+The nested `canonical_event` deliberately carries only:
+
+* `world_adjudication.feasible`
+* `scene_delta.time_advanced_seconds`
+* `observable_facts`
+
+Legacy audit fields such as `attempted_action` and `resolved_outcome`
+are retired. Old checkpoints that still contain them are loaded by
+dropping those fields during validation.
+
+### 5.6 Character Agents
+
+Each character has one rolling conversation in
+`checkpoint.character_conversations[character_id]`. The same prompt is
+used for:
+
+* on-stage response mode
+* off-stage tick mode
+* perception/loadout mode
+
+On-stage and tick outputs are free prose followed by a trailing
+parenthetical. The engine parses that into:
 
 ```json
 {
-  "session_id": "uuid",
-  "story_id": "string",
-  "turn_index": 42,
-  "created_at": "timestamp",
-  "updated_at": "timestamp",
-  "config": {
-    "models": {
-      "narrator": "claude-sonnet-4-6",
-      "discriminator": "claude-sonnet-4-6",
-      "agent_default": "claude-sonnet-4-6"
-    },
-    "debug": false,
-    "stream_mode": "final_only"
-  }
+  "character_id": "rashid",
+  "public_text": "Rashid sets his glass down. 'Say that again.'",
+  "intent": "force the claim into the open without revealing his own source"
 }
 ```
 
-## 7.2 World State
+Only `public_text` leaves the agent. `intent` remains private continuity
+inside that character's own history.
+
+### 5.7 Narrator
+
+`compose_pov_render()` is the only production narrator entry point. It
+renders one human POV at a time from render-buffered canonical events.
+Events are resolved by id against `checkpoint.canonical_events`, filtered
+by fact visibility, and tagged with direct / indirect / inferred
+observation level.
+
+The narrator output schema is:
 
 ```json
 {
-  "time": {
-    "scene_time": "2026-04-10T15:21:00Z",
-    "turn_count": 42
-  },
-  "locations": {
-    "scene_graph": {}
-  },
-  "facts": [
-    "The courtyard is wet from earlier rain.",
-    "The main building is made of stone."
-  ],
-  "physics_ruleset": {
-    "strength_limits": "human_baseline",
-    "magic_enabled": false
-  },
-  "global_flags": {}
+  "final_text": "string"
 }
 ```
 
-## 7.3 Character Record
+The engine constructs the transcript entry from the real player input
+and the rendered `final_text`.
+
+### 5.8 Character Manager
+
+The character manager applies router-directed roster mutations:
+
+* status changes: active, dormant, culled
+* LLM-backed spawns from `SpawnRequest`
+* spawn summaries queued into `pending_router_state_changes`
+
+Roster moves are applied by the orchestrator because movement has to
+respect act-slot, pinned-character, and player-bound guards.
+
+### 5.9 Context Builder And Prompt Manager
+
+`context_builder.py` owns shared context formatting and visibility-aware
+helper logic. `PromptManager` loads `app/prompts/{name}.txt`, expands
+partials, strips HTML comments, splits system/user sections on
+`<<<USER>>>`, and renders rolling conversations.
+
+Prompt templates are versioned in git. They are not copied into
+version-suffixed filenames, and checkpoint JSON does not store prompt
+version ids.
+
+### 5.10 LLM Client
+
+`LLMClient` is the provider boundary for live model calls. Callers send
+role, messages, sampling settings, and an optional Pydantic response
+model; the client selects the configured provider/model for that role
+and normalizes the result back into `LLMResponse`.
+
+It supports:
+
+* per-role provider and model selection
+* Anthropic Messages and OpenAI Responses adapters
+* Pydantic structured output normalized into `response.parsed`
+* Anthropic prompt caching and server-side compaction
+* per-role Anthropic extended-thinking budgets
+* provider-specific retry handling for transient failures
+
+Provider/model selection can be configured with model prefixes such as
+`openai:gpt-5.4-mini`, explicit `role_providers`, or environment
+overrides like `LLM_PROVIDER_NARRATOR=openai` and
+`LLM_MODEL_NARRATOR=gpt-5.4-mini`.
+
+Active model roles include `event_router`, `narrator`, `agent`,
+`character_gen`, and `query_handler`. The old
+`discriminator` role is vestigial and is not used by live calls.
+
+## 6. Turn Lifecycle
+
+### 6.1 Fresh Action
+
+1. A player submits `/act`.
+2. `EngineBridge.run_turn()` sweeps stale Cat II pins before processing
+   the new action.
+3. `Orchestrator.process_turn()` resolves actor and scene, then locks the
+   scene.
+4. `check_act_slot()` either accepts, rejects, or treats the input as a
+   Cat II responder intention.
+5. `run_beat()` routes the current intention through the event router.
+6. The router emits a Cat I or Cat II event.
+
+### 6.2 Cat I
+
+Cat I is self-closing: dialogue, passive action, unambiguous movement,
+ordinary observation, OOC directives, and social attempts where the
+speech act itself happens.
+
+The turn loop broadcasts the event, then either:
+
+* ends and renders, if `ends_beat=true`
+* performs observation harvest, if `ends_beat_reason=observation_harvest`
+* dispatches the first valid NPC pick and routes that agent's intention
+* forces render if `max_events_per_beat` is reached
+
+### 6.3 Cat II
+
+Cat II is contested: violence, contested possession, forced movement
+through opposition, consensual physical contact where reciprocation
+matters, and similar actions whose outcome depends on another actor's
+response.
+
+Cat II flow:
+
+1. The router emits an attempt-in-progress event.
+2. The engine opens an `OpenCatIIEvent`.
+3. Human responders are pinned in `active_act_slots`.
+4. Agent responders intend immediately.
+5. If all responders are present, the router resolves the event inline.
+6. If any human is pending, the narrator renders partial-mode prose and
+   the beat pauses.
+7. When the human responds, the router receives the initiator and
+   responder intentions and emits the resolved canonical event.
+8. After a Cat II event resolves, an NPC initiator gets the first
+   follow-up turn when applicable.
+
+### 6.4 Broadcast
+
+`broadcast_event()` appends the router output to `canonical_events` and
+fans it out:
+
+* local human observers get render-buffer entries
+* mediated human observers get render-buffer entries only when facts name
+  them explicitly
+* local NPC observers get their visible facts appended to
+  `pending_observations`
+* mediated NPC observers get only facts that name them in `visible_to`
+* the event actor does not receive their own action as an inbox entry
+
+Broad `all_observers` facts do not cross a physical/channel boundary by
+themselves. Remote observers need scoped facts.
+
+### 6.5 Render
+
+When the beat ends, `_end_beat()` flushes each human's render buffer,
+calls `narrator_compose()`, stores per-POV narrator history, and returns
+`per_player_renders`.
+
+The legacy `output_text` mirrors the acting player's render for older
+callers.
+
+### 6.6 Roster And World Mutation
+
+After `run_beat()` returns, the orchestrator applies each closed event's:
+
+* `scenes_created`
+* `dormant`
+* `cull`
+* `roster_moves`
+* `spawn`
+
+Movement uses `roster_moves` only. Player-bound characters can be moved
+only by their own action. Pinned characters cannot be externally moved
+unless the move is the resolution of their own action.
+
+### 6.7 Off-Stage Ticks
+
+After the on-stage beat, `_run_ticks()` may fire off-stage NPC ticks
+based on:
+
+* `ticks_enabled`
+* scene-change cooldown
+* stagnation threshold
+* tick concurrency cap
+* NPC status, play binding, pin state, prior action this turn, and
+  whether the NPC is in the active scene
+
+Successful tick outputs are bundled into one router fan-in call. The
+router emits an off-stage canonical event and any implied mutations. No
+narrator render happens for tick-only events.
+
+## 7. Event And Visibility Model
+
+### 7.1 ObservableFact
+
+Each observable fact is an object:
 
 ```json
 {
-  "character_id": "guard_17",
-  "name": "Captain Vero",
+  "text": "Rashid says, to the table: 'Say that again.'",
+  "audience": "all_observers",
+  "visible_to": []
+}
+```
+
+For scoped facts:
+
+```json
+{
+  "text": "A producer whispers in Dante's earpiece: 'A late contestant is on site.'",
+  "audience": "only",
+  "visible_to": ["dante_royale"]
+}
+```
+
+Facts are split by audience, not by sentence. If the same exact audience
+perceives a full exchange, one packet is usually better than many small
+packets.
+
+### 7.2 ObserverEntry
+
+Observers carry event-level perception and response pressure:
+
+```json
+{
+  "character_id": "dante_royale",
+  "observation_level": "d",
+  "response_priority": 4
+}
+```
+
+Observation levels:
+
+* `d`: direct
+* `i`: indirect
+* `f`: inferred
+
+`observation_level` says how the observer encountered the event.
+Fact-level `audience` / `visible_to` says which facts they receive.
+
+### 7.3 Responder Picks
+
+`agent_responder_picks` are NPCs the router wants to dispatch next.
+Human-controlled characters are stripped by the engine. NPC location and
+perception eligibility are router responsibilities, but the schema still
+enforces that picks appear in `observers`. For a remote NPC to respond,
+the router must include that NPC as an observer and give them a concrete
+perceptual path.
+
+## 8. Character State
+
+### 8.1 CharacterRecord
+
+Important fields:
+
+```json
+{
+  "character_id": "dante_royale",
+  "name": "Dante Royale",
   "status": "active",
-  "location": "estate_courtyard",
+  "location": "great_hall",
+  "is_playable": true,
   "public_sheet": {
-    "role": "guard captain",
-    "traits": ["disciplined", "dry humor"],
-    "voice": "clipped and formal"
+    "role": "host",
+    "appearance": "",
+    "faction": ""
   },
   "private_state": {
-    "goals": ["maintain order"],
-    "attitudes": {
-      "user": -0.1
-    },
+    "goals": [],
+    "current_objectives": [],
+    "secrets": [],
     "intentions_enabled": true
   },
-  "memory": {
-    "episodic": [],
-    "summaries": []
-  }
+  "pending_observations": [],
+  "backstory": "",
+  "personality": "",
+  "known_context": ""
 }
 ```
 
-## 7.4 Canonical Event
+`is_playable` means "claimable by a human", not "currently
+human-controlled." Human control is determined by
+`session.character_bindings` and the legacy `session.player_character_id`
+fallback.
 
-Produced by Narrator Phase 1.
+### 8.2 Pending Observations
 
-```json
-{
-  "event_id": "evt_0042",
-  "user_intent": "lift the building with bare hands",
-  "world_adjudication": {
-    "attempted_action": "user attempts impossible feat",
-    "feasible": false,
-    "resolved_outcome": "visible failed strain with no structural movement"
-  },
-  "scene_delta": {
-    "time_advanced_seconds": 6
-  },
-  "observable_facts": [
-    "The user braces against the building.",
-    "The building does not move.",
-    "The user visibly strains."
-  ]
-}
-```
+`pending_observations` is an NPC inbox. It is populated by:
 
-## 7.5 Discriminator Output
+* visible facts from `broadcast_event()`
+* private or mediated facts scoped to the character
+* roster movement facts such as "X arrived" or "X left"
+* a moved NPC's own action marker
 
-```json
-{
-  "event_id": "evt_0042",
-  "observers": [
-    {
-      "character_id": "guard_17",
-      "observation_level": "direct",
-      "facts": [
-        "The user braces against the building.",
-        "The building does not move.",
-        "The user visibly strains."
-      ],
-      "should_respond": true
-    }
-  ],
-  "spawn": [],
-  "dormant": [],
-  "cull": []
-}
-```
+The inbox is drained into the agent's next on-stage or tick prompt.
 
-## 7.6 Character Agent Output
+### 8.3 Private Continuity
 
-```json
-{
-  "character_id": "guard_17",
-  "public_response": {
-    "actions": ["takes one step closer"],
-    "dialogue": ["Need a lever, not a miracle."],
-    "expression": "one brow lifts"
-  },
-  "private_updates": {
-    "intentions": ["monitor the user more closely"],
-    "attitude_delta": {
-      "user": -0.05
-    }
-  },
-  "memory_writes": [
-    "Observed the user attempt an impossible physical feat and fail."
-  ]
-}
-```
+Mutable interior continuity lives in each agent's rolling conversation,
+primarily in the private trailing parenthetical. It is not mirrored onto
+the character record as `private_updates`, `last_intent`, or directives.
 
-## 7.7 Narrator Final Output
+## 9. Context Management
 
-```json
-{
-  "final_text": "You plant both palms against the stone and drive upward until your arms shake. Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, one brow raised. \"Need a lever, not a miracle.\""
-}
-```
+Context is deliberately one-shot or delta-based where possible.
 
-The narrator emits `final_text` only. The engine builds the
-`TranscriptEntry` from the verbatim player input passed into the
-dispatcher (`user`) and the rendered prose (`assistant`); see
-`compose_pov_render` in `app/engine/narrator.py`.
+Router context:
 
-## 8. Save File Requirements
+* system prompt contains stable role contract and schema contract
+* initial NPC roster appears only on the first router call
+* world facts are surfaced once through a delta tracker
+* importer-seeded scene context is surfaced once per scene
+* router-created scenes rely on router history
+* external engine changes surface through `pending_router_state_changes`
+* actor inbox entries surface through "Arrived For You Since Last Turn"
 
-A save file must contain enough information to resume from a turn boundary with no dependence on hidden in-memory state.
+Agent context:
 
-Minimum required contents:
+* stable character identity is in the system prompt
+* per-turn user message carries pending observations and mode body
+* there is no repeating "Characters Present" block
+* local arrivals and exits arrive through the observation inbox
 
-* session metadata
-* full transcript or lossless transcript representation
-* structured world state
-* character registry
-* per-character private memory
-* visibility history or sufficient event history to preserve knowledge boundaries
-* narrator/discriminator/agent config
-* prompt version identifiers
-* model selection and any reasoning-related settings used
-* latest committed turn index
-* latest committed checkpoint timestamp
+Narrator context:
 
-Recommended save format for v1:
+* each human POV has a separate rolling narrator conversation
+* the narrator gets visible facts and observation tags
+* agent responses are already folded into those facts
 
-* versioned JSON file per checkpoint
+## 10. Dynamic Character And Arrival Flows
 
-Recommended upgrade path:
+### 10.1 Router Spawns
 
-* optional append-only event log plus periodic snapshots
+The router may emit `spawn` requests for meaningful recurring
+characters. `CharacterManager.spawn_characters()` calls `character_gen`
+to create the record, then queues a compact router summary into
+`pending_router_state_changes` so the next router call knows what the
+engine added.
 
-For v1, prefer simplicity over infrastructure theater. A versioned JSON save file is enough.
+### 10.2 LLM-Free Custom Player Characters
 
-### Save File Schema Sketch
+`EngineBridge.create_player_character_simple()` creates a player-authored
+character directly from name, appearance, and optional backstory. It
+leaves location and deeper interior blank, binds the user, and queues a
+state-change line telling the router to infer a concrete story role and
+immediate on-ramp.
 
-```json
-{
-  "schema_version": "1.0",
-  "session": {},
-  "world_state": {},
-  "characters": [],
-  "transcript": [],
-  "visibility_log": [],
-  "config": {},
-  "prompt_versions": {
-    "narrator": "v1",
-    "discriminator": "v1",
-    "agent": "v1"
-  }
-}
-```
+The router must turn that on-ramp into in-fiction observable facts for
+the NPCs who would plausibly know. For example, in a production-show
+story, a producer/host may receive a quiet roster update that a late
+contestant has been added and must be made to work.
 
-## 9. API Design
+### 10.3 Takeover And Replacement
 
-## 9.1 External Story API
+Takeover paths bind a human to an existing or LLM-authored character and
+surface the change to the router through the same state-change queue.
+When a player leaves, the engine can synthesize enough personality from
+their rolling play history for the agent to take the character back over.
 
-Recommended endpoint:
+## 11. Discord Session Behavior
 
-```http
-POST /v1/story/turn
-```
+Discord is the primary UX.
+
+* Sessions are mapped to channels.
+* Human players are mapped to character ids.
+* Private POV delivery uses private threads where possible, falling back
+  to DMs.
+* `TurnResponse.per_player_renders` is delivered to the relevant
+  players.
+* Each posted turn message is tracked in `SessionMap`.
+* `/rewind` deletes later checkpoints and deletes or hides tracked
+  Discord messages for the deleted turns.
+
+## 12. Request And Response Contract
+
+The live engine contract is Pydantic, not HTTP.
 
 Request:
 
 ```json
 {
-  "session_id": "uuid",
-  "checkpoint_id": "optional-string",
-  "user_input": "I try the locked door.",
-  "stream": true
+  "session_id": "uuid-or-slug",
+  "checkpoint_id": null,
+  "user_input": "I ask Dante why the new contestant is here.",
+  "acting_character_id": "dan",
+  "stream": false
 }
 ```
 
@@ -469,473 +594,161 @@ Response:
 
 ```json
 {
-  "session_id": "uuid",
+  "session_id": "uuid-or-slug",
   "checkpoint_id": "ckpt_0043",
   "turn_index": 43,
-  "output_text": "You twist the handle. It doesn't budge...",
+  "output_text": "You ask Dante...",
   "per_player_renders": {
-    "main_character": "You twist the handle. It doesn't budge..."
+    "dan": "You ask Dante...",
+    "dante_royale": "Dan turns toward Dante..."
   },
   "beat_ended_reason": "directed_at_player",
   "pre_turn_resolutions": []
 }
 ```
 
-Note: a `debug` / `debug_flags` round-trip lived on TurnRequest /
-TurnResponse through v11-r7i; it was murdered in v11-r7j after the
-playtest review found that the orchestrator never actually populated
-the response payload. Per-turn router rationale, agent outputs,
-phase latencies, and cache stats are emitted by the engine logger
-(`turn_loop.router[route] …` lines) and persisted in the per-turn
-checkpoint files instead.
+`debug` and `debug_flags` were removed from `TurnRequest`, and
+`TurnResponse.debug` was removed. Per-turn diagnostics live in logs and
+checkpoint artifacts. The `stream` field remains on the request for
+compatibility but is not a live Discord streaming feature.
 
-## 9.2 Streaming Behavior
+## 13. Checkpoint Schema
 
-Default streaming behavior should stream only the final narrator-composed response to the user.
+Current checkpoints use schema version `3.0`.
 
-For debug mode, allow optional structured event streaming via SSE or chunked JSON lines. Event types may include:
-
-* `narrator_phase_1_complete`
-* `discriminator_complete`
-* `agent_response_partial`
-* `agent_response_complete`
-* `narrator_final_partial`
-* `checkpoint_saved`
-
-Debug streaming should be opt-in. The normal UX should remain clean and invisible.
-
-## 9.3 Internal Model Client Contract
-
-The engine calls the Anthropic Messages API using role-specific model names via the `anthropic` SDK.
-
-Example base request shape:
-
-```python
-client = anthropic.AsyncAnthropic()
-response = await client.messages.create(
-    model=model_name,               # e.g. "claude-sonnet-4-6"
-    system="<system prompt>",
-    messages=[{"role": "user", "content": "<assembled prompt>"}],
-    max_tokens=1000,
-)
-```
-
-Wrap this behind a client abstraction:
-
-```python
-class LLMClient:
-    def complete(self, role: str, messages: list[dict], response_model=None, max_tokens: int | None = None):
-        ...
-```
-
-`options` should be reserved for future fields such as reasoning/thinking settings, sampling controls, and structured-output hints.
-
-## 10. Prompting Strategy
-
-## 10.1 Narrator Prompt
-
-The narrator prompt should include:
-
-* world rules and physical constraints
-* current scene
-* recent transcript summary
-* relevant world facts
-* explicit instruction to preserve agency while adjudicating plausibility
-* strict output schema
-
-The narrator must not simply "yes-and" impossible actions. It must convert user attempts into plausible outcomes.
-
-## 10.2 Discriminator Prompt
-
-The discriminator prompt should include:
-
-* canonical event
-* character registry with locations and current relevance
-* observation rules
-* explicit instruction to prevent hidden-state leakage
-* authority to request dynamic character creation, dormancy, or culling
-* strict output schema
-
-## 10.3 Character Agent Prompt
-
-Each character prompt should include:
-
-* stable character sheet
-* private memory summary
-* observed facts only
-* explicit instruction not to reference unknown information
-* output contract for public response and optional private updates
-
-## 10.4 Prompt Versioning
-
-All prompt templates must be versioned and recorded in the checkpoint. That way, when a story goes strange in chapter forty-seven, the forensic lantern has something to shine on.
-
-## 11. Dynamic Character Generation
-
-Because characters can be generated dynamically and are rarely culled, the system should treat the active roster as elastic.
-
-### 11.1 Spawn Flow
-
-When the discriminator returns a spawn request:
-
-1. invoke a character generation routine
-2. create a new character sheet
-3. assign initial goals, voice, and location
-4. initialize private memory
-5. register the agent as active or dormant
-
-### 11.2 Dormancy vs Culling
-
-Prefer dormancy over deletion.
-
-* **Dormant** means retained in the save file, not considered for response unless reactivated
-* **Culled** means removed from active consideration and optionally archived
-
-This prevents unnecessary loss of continuity.
-
-### 11.3 Character Genesis Schema
+Top-level shape:
 
 ```json
 {
-  "spawn": [
-    {
-      "character_id": "stablehand_03",
-      "seed": {
-        "role": "stablehand",
-        "reason_for_presence": "heard shouting from the courtyard",
-        "location": "stable_yard"
-      }
-    }
-  ]
+  "schema_version": "3.0",
+  "importer_version": "string",
+  "import_analysis": null,
+  "session": {},
+  "player_primer": "string",
+  "world_state": {},
+  "characters": [],
+  "session_conversation": [],
+  "narrator_conversations": {},
+  "character_conversations": {},
+  "canonical_events": [],
+  "transcript": [],
+  "visibility_log": [],
+  "config": {}
 }
 ```
 
-## 12. Hidden Intentions
+Important notes:
 
-Private intentions are optional but supported.
+* `canonical_events` stores full `EventRouterOutput` objects.
+* `transcript` is display/audit only and is not fed back into prompts.
+* `session_conversation` is the router's rolling history.
+* `narrator_conversations` are per human POV.
+* `character_conversations` are per character.
+* `world_state.locations` has a scene graph, not a current scene.
+* Runtime location is on each `CharacterRecord.location`.
+* `player_primer` replaces authored opening prose; the opening scene is
+  generated by the router on `(begin)`.
 
-If enabled for a character, the agent may emit:
+## 14. Prompt Strategy
 
-* current short-term intention
-* goal shifts
-* suspicion / trust / fear deltas
-* memory writes not exposed to the user
+Prompt files are source. Current prompt files include:
 
-These fields must not be included in prompts for other characters unless they become externally observable in a later turn.
+* `event_router.txt`
+* `agent.txt`
+* `narrator_phase2.txt`
+* `character_gen.txt`
+* `takeover.txt`
+* `query_handler.txt`
 
-This gives the system a pressure chamber under the floorboards without letting steam leak through the floor.
+Prompt rules:
 
-## 13. Knowledge Isolation and Leakage Prevention
-
-The implementation must prevent hidden-state leakage by construction, not by hopeful prompt wording alone.
-
-Required safeguards:
-
-* do not pass full transcript to character agents by default
-* construct per-agent observation packets
-* separate public and private state stores
-* record visibility history so future memories only derive from actual perception
-* validate agent outputs for references to unknown facts
-* drop or repair invalid outputs before final composition
-
-Recommended validation pass:
-
-* extract entities and claims from each agent output
-* compare against agent-visible facts and memory
-* flag impossible references
-* either redact, retry, or let narrator ignore invalid fragments
-
-## 14. Context Management
-
-Context will grow like ivy if left unchecked. The system should separate context into layers.
-
-### 14.1 Global Context
-
-Stable world rules and story setup.
-
-### 14.2 Scene Context
-
-Current location, local actors, recent events, active tensions.
-
-### 14.3 Character Context
-
-Character sheet, private memory summary, last directly relevant events.
-
-### 14.4 Transcript Compression
-
-Older transcript content should be periodically summarized into structured summaries. The raw transcript may still be kept in the save file, but prompts should consume compressed context.
-
-Recommended rule:
-
-* keep recent N turns verbatim
-* summarize earlier turns into role-specific memory/state summaries
+* use XML-style tags for major sections
+* avoid redundant markdown headers immediately inside tags
+* avoid implementation details the LLM does not need
+* provide input/output contracts, not pipeline internals
+* do not tell a model to remember its own history
+* do not add tests that freeze approved prompt prose
+* do add tests for runtime contracts and forbidden prompt leakage
 
 ## 15. Error Handling
 
-The system should fail like a careful stagehand, not like a chandelier.
+LLM failures:
 
-### 15.1 Model Call Failure
+* transient API errors are retried with exponential backoff and jitter
+* permanent schema/prompt errors raise
+* a router or narrator failure aborts the turn before checkpoint commit
+* individual off-stage tick failures are logged and swallowed
+* a failed tick fan-in router call does not erase the already-rendered
+  on-stage turn
 
-If a model call fails:
+Structured output:
 
-* retry with bounded exponential backoff
-* if a character agent fails, continue if possible and mark the agent output missing
-* if narrator or discriminator fails, abort the turn and do not commit checkpoint
+* event router and narrator calls use Pydantic response models
+* all fields in `EventRouterOutput` are required to keep the structured
+  output grammar small
+* schema validators assign missing event ids, coerce unknown beat reasons
+  where safe, enforce Cat II invariants, and enforce fact visibility
+  membership
 
-### 15.2 Invalid Structured Output
+Discord failures:
 
-If any component returns invalid JSON or schema mismatch:
+* turn-message tracking failures are logged but do not fail the engine
+  turn
+* rewind cleanup falls back from delete to edit/hide when Discord delete
+  fails
 
-* attempt one repair pass
-* if repair fails, retry once with stronger formatting instruction
-* if still invalid, fail the turn or degrade gracefully depending on role criticality
+## 16. Observability
 
-### 15.3 Partial Agent Failure
+The system exposes:
 
-The narrator should be able to compose a final response even if some non-critical agents fail, as long as core world adjudication succeeded.
+* per-role logging
+* router decision rationale in logs and checkpoint conversation history
+* checkpoint snapshots per turn
+* canonical event logs
+* per-character rolling conversations
+* per-POV narrator conversations
+* import preservation analysis
+* tracked Discord turn-message refs
 
-## 16. Observability and Debuggability
+The router `decision_rationale` field is temporary diagnostic overhead.
+When router behavior is stable enough, remove the schema field, prompt
+field, and log plumbing together.
 
-The system should support a clean normal mode and a lantern-under-the-floorboards debug mode.
+## 17. Current Gaps And Maintenance Notes
 
-Must support:
+Known stale or transitional areas:
 
-* per-role latency
-* model used per call
-* prompt version IDs
-* token counts if available
-* raw structured outputs for narrator, discriminator, agents
-* visibility map for a turn
-* checkpoint diff summary
+* some legacy tests and shim classes still reference the old
+  `EventRouter` / single narrator flow
+* `SessionConfig.models.discriminator` remains for compatibility even
+  though the active LLM config no longer calls a discriminator role
+* `visibility_log` exists but the main v11 flow relies on
+  `canonical_events`, render buffers, and NPC inboxes
+* global `transcript` stores one selected POV per beat; other POV prose
+  lives in `narrator_conversations`
+* debug streaming and public HTTP APIs are not implemented
+* prompt version ids are not stored in checkpoints; git history is the
+  version source
 
-Recommended debug artifact per turn:
+These are acceptable as long as the design doc names them honestly and
+tests cover the live contracts rather than preserving dead architecture.
 
-```json
-{
-  "turn_index": 43,
-  "latency_ms": {
-    "narrator_phase_1": 1900,
-    "discriminator": 900,
-    "agents_total": 3400,
-    "narrator_phase_2": 2100
-  },
-  "models": {
-    "narrator": "claude-sonnet-4-6",
-    "discriminator": "claude-sonnet-4-6",
-    "agent_default": "claude-sonnet-4-6"
-  }
-}
-```
+## 18. Acceptance Criteria
 
-Do not expose chain-of-thought by default. Persist structured outputs, summaries, and decision artifacts instead.
+The current engine is healthy when:
 
-## 17. Concurrency and Performance
-
-Since this is a single-user demo, keep the implementation simple but parallel where it matters.
-
-Recommendations:
-
-* narrator and discriminator run sequentially
-* observing character agents run concurrently
-* final narrator composition runs after all agent responses or a timeout
-* impose a maximum number of responding agents per turn to prevent latency blowups
-
-Suggested v1 defaults:
-
-* max responding agents: 4 to 8
-* max spawn per turn: 1 to 3
-* agent timeout: bounded and shorter than narrator timeout
-
-If too many characters can observe a scene, use the discriminator to pick the most relevant responders.
-
-## 18. Suggested Repo Structure
-
-```text
-project/
-  app/
-    api/
-      story_routes.py
-    engine/
-      orchestrator.py
-      narrator.py
-      discriminator.py
-      character_manager.py
-      checkpoint_manager.py
-      prompt_manager.py
-      validators.py
-      context_builder.py
-    llm/
-      client.py
-      models.py
-    schemas/
-      requests.py
-      responses.py
-      state.py
-      events.py
-      characters.py
-    storage/
-      saves/
-      transcripts/
-    prompts/
-      narrator_v1.txt
-      discriminator_v1.txt
-      agent_v1.txt
-      character_gen_v1.txt
-    tests/
-      test_turn_flow.py
-      test_visibility.py
-      test_checkpoint_resume.py
-      test_agent_leakage.py
-  ui/
-    chat_demo.py
-  README.md
-```
-
-## 19. Orchestration Pseudocode
-
-```python
-def process_turn(request):
-    state = checkpoint_manager.load(request.session_id, request.checkpoint_id)
-
-    canonical_event = narrator.phase_1(
-        user_input=request.user_input,
-        world_state=state.world_state,
-        transcript=context_builder.recent_transcript(state),
-        scene_context=context_builder.scene_context(state),
-    )
-
-    discrim = discriminator.run(
-        canonical_event=canonical_event,
-        characters=state.characters,
-        world_state=state.world_state,
-    )
-
-    character_manager.apply_roster_updates(
-        state=state,
-        spawn=discrim.spawn,
-        dormant=discrim.dormant,
-        cull=discrim.cull,
-    )
-
-    agent_futures = []
-    for obs in discrim.observers:
-        if obs.should_respond:
-            prompt_packet = context_builder.character_packet(
-                state=state,
-                character_id=obs.character_id,
-                observed_facts=obs.facts,
-            )
-            agent_futures.append(run_character_agent_async(prompt_packet))
-
-    agent_outputs = gather_with_timeouts(agent_futures)
-
-    validated_outputs = validators.filter_agent_outputs(
-        agent_outputs=agent_outputs,
-        visibility_map=discrim.observers,
-        state=state,
-    )
-
-    final = narrator.phase_2(
-        canonical_event=canonical_event,
-        agent_outputs=validated_outputs,
-        world_state=state.world_state,
-    )
-
-    state = apply_final_updates(state, final, canonical_event, discrim, validated_outputs)
-
-    checkpoint_id = checkpoint_manager.save(state)
-
-    return build_response(
-        final_text=final.final_text,
-        checkpoint_id=checkpoint_id,
-        # Pre-v11-r7j a `debug=build_debug_payload(...)` arg lived
-        # here; both the field and the helper were murdered when
-        # the playtest review confirmed nothing populated it.
-        stream=request.stream
-    )
-```
-
-## 20. Implementation Plan
-
-### Phase 1: Skeleton
-
-* create project structure
-* define schemas
-* implement model client
-* implement save/load manager
-* implement basic `/v1/story/turn` route
-
-### Phase 2: Narrator + Discriminator Loop
-
-* implement narrator phase 1
-* implement discriminator
-* implement narrator phase 2
-* wire a single hardcoded character roster
-
-### Phase 3: Dynamic Character System
-
-* implement character manager
-* implement character spawning
-* implement dormancy/culling mechanics
-* add optional private intentions
-
-### Phase 4: Knowledge Isolation
-
-* build visibility map pipeline
-* implement per-agent context builder
-* add leakage validator tests
-
-### Phase 5: Streaming + Debug
-
-* add final-text streaming
-* add opt-in debug payloads
-* add structured debug event streaming
-
-### Phase 6: Prompt Refinement + Compression
-
-* prompt versioning
-* context summarization
-* transcript compression
-* better scene-memory shaping
-
-## 21. Acceptance Criteria
-
-The v1 system is acceptable when all of the following are true:
-
-1. A user can submit a turn and receive a coherent narrated response.
-2. Impossible actions are plausibly adjudicated rather than blindly accepted.
-3. Only characters who plausibly observe an event are allowed to respond.
-4. Character agents do not reference hidden information.
-5. New character agents can be spawned dynamically by discriminator decision.
-6. A full story session can be saved and resumed from a checkpoint file.
-7. Normal mode returns only the final response.
-8. Debug mode exposes canonical event, discriminator output, and character outputs.
-9. The system supports per-role model configuration through the shared gateway.
-10. The pipeline continues gracefully when a non-critical character agent fails.
-
-## 22. Recommended Defaults
-
-For v1, I recommend:
-
-* Python backend
-* FastAPI for the story API
-* Pydantic for schemas
-* asyncio for agent fan-out
-* JSON save files for checkpoints
-* per-turn save-on-success
-* one narrator model, one discriminator model, one default character model, all configurable
-* strict internal JSON contracts between components
-* no raw chain-of-thought persistence
-
-## 23. One Open Choice I Would Preserve
-
-The biggest design seam worth keeping is this:
-
-Should private character intentions be continuously updated every turn, or only when a character actually responds?
-
-My recommendation for v1 is:
-
-* update private intentions only for characters that respond or are directly involved in the event
-* allow dormant/background intention drift later if needed
-
-That keeps complexity from blooming into a vine jungle too early.
+1. A bound player can submit `/act` and receive a coherent POV render.
+2. Multiple bound players can receive separate POV renders from the same
+   beat.
+3. Cat I actions close without stealing another actor's response.
+4. Cat II actions render the attempt and wait for required responders.
+5. NPC observers receive only facts visible to them.
+6. Remote observers receive only facts scoped through a concrete live
+   channel.
+7. NPC agents do not receive another agent's parenthetical intent.
+8. The narrator renders from visible observable facts without adding
+   unsupported action or attitude.
+9. Router-created movement, scenes, spawns, dormancy, and culls persist
+   to checkpoint state.
+10. `/rewind` removes later checkpoints and cleans up tracked Discord
+    turn messages.

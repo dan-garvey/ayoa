@@ -7,11 +7,10 @@ channel from its story (the checkpoint files on disk stay intact).
 from __future__ import annotations
 
 import time
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
-
-import aiosqlite
 
 DEFAULT_DB_PATH = Path("app/storage/bot/sessionmap.db")
 
@@ -92,18 +91,17 @@ class SessionMap:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     async def init(self) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.executescript(_SCHEMA)
-            await db.commit()
+        with sqlite3.connect(self.db_path) as db:
+            db.executescript(_SCHEMA)
 
     async def get(self, channel_id: int) -> Optional[SessionRow]:
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
                 "SELECT channel_id, guild_id, session_id, owner_user_id, "
                 "story_id, created_at FROM sessions WHERE channel_id = ?",
                 (channel_id,),
-            ) as cursor:
-                row = await cursor.fetchone()
+            )
+            row = cursor.fetchone()
         if row is None:
             return None
         return SessionRow(*row)
@@ -117,8 +115,8 @@ class SessionMap:
         owner_user_id: int,
         story_id: str,
     ) -> None:
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            db.execute(
                 "INSERT INTO sessions "
                 "(channel_id, guild_id, session_id, owner_user_id, story_id, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?) "
@@ -130,7 +128,6 @@ class SessionMap:
                 "created_at=excluded.created_at",
                 (channel_id, guild_id, session_id, owner_user_id, story_id, int(time.time())),
             )
-            await db.commit()
 
     async def delete(self, channel_id: int) -> bool:
         """Detach this channel from its session AND drop every cached
@@ -144,18 +141,17 @@ class SessionMap:
         alive in Discord — they're just forgotten by the bot, so the
         next `/join` lazily creates fresh ones.
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
                 "DELETE FROM sessions WHERE channel_id = ?", (channel_id,)
             )
-            await db.execute(
+            db.execute(
                 "DELETE FROM pov_threads WHERE channel_id = ?", (channel_id,),
             )
-            await db.execute(
+            db.execute(
                 "DELETE FROM turn_messages WHERE channel_id = ?",
                 (channel_id,),
             )
-            await db.commit()
             return cursor.rowcount > 0
 
     # ---- pov threads (ux-threads-7) -----------------------------------------
@@ -166,13 +162,13 @@ class SessionMap:
         """Return the cached private-thread id for this (channel, user),
         or None if no thread has been opened yet (or it was forgotten
         by clear_pov_thread)."""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
                 "SELECT thread_id FROM pov_threads "
                 "WHERE channel_id = ? AND user_id = ?",
                 (channel_id, user_id),
-            ) as cursor:
-                row = await cursor.fetchone()
+            )
+            row = cursor.fetchone()
         return int(row[0]) if row else None
 
     async def set_pov_thread(
@@ -185,8 +181,8 @@ class SessionMap:
     ) -> None:
         """Cache (or overwrite) the private-thread id for this user. The
         thread persists across re-binds; character_id is diagnostic."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            db.execute(
                 "INSERT INTO pov_threads "
                 "(channel_id, user_id, thread_id, character_id, created_at) "
                 "VALUES (?, ?, ?, ?, ?) "
@@ -195,20 +191,18 @@ class SessionMap:
                 "character_id=excluded.character_id",
                 (channel_id, user_id, thread_id, character_id, int(time.time())),
             )
-            await db.commit()
 
     async def clear_pov_thread(
         self, channel_id: int, user_id: int,
     ) -> None:
         """Forget the cached thread id (e.g. after the bot couldn't post
         to it — the next ensure call will create a fresh one)."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            db.execute(
                 "DELETE FROM pov_threads "
                 "WHERE channel_id = ? AND user_id = ?",
                 (channel_id, user_id),
             )
-            await db.commit()
 
     async def clear_all_pov_threads(self, channel_id: int) -> int:
         """Forget every cached POV-thread row for `channel_id` without
@@ -222,12 +216,11 @@ class SessionMap:
 
         Returns the number of rows deleted.
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
                 "DELETE FROM pov_threads WHERE channel_id = ?",
                 (channel_id,),
             )
-            await db.commit()
             return cursor.rowcount
 
     # ---- turn messages ------------------------------------------------------
@@ -250,8 +243,8 @@ class SessionMap:
         turn render as it posts it and later uses these refs to delete or
         hide only the messages from rewound turns.
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            db.execute(
                 "INSERT OR IGNORE INTO turn_messages "
                 "(channel_id, session_id, turn_index, discord_channel_id, "
                 "message_id, delivery, recipient_user_id, created_at) "
@@ -267,7 +260,6 @@ class SessionMap:
                     int(time.time()),
                 ),
             )
-            await db.commit()
 
     async def list_turn_messages(
         self,
@@ -281,8 +273,8 @@ class SessionMap:
             return []
         placeholders = ",".join("?" for _ in turn_list)
         params = (channel_id, session_id, *turn_list)
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
                 "SELECT channel_id, session_id, turn_index, "
                 "discord_channel_id, message_id, delivery, "
                 "recipient_user_id, created_at "
@@ -292,8 +284,8 @@ class SessionMap:
                 "ORDER BY turn_index, created_at, "
                 "discord_channel_id, message_id",
                 params,
-            ) as cursor:
-                rows = await cursor.fetchall()
+            )
+            rows = cursor.fetchall()
         return [TurnMessageRef(*row) for row in rows]
 
     async def forget_turn_messages(
@@ -304,9 +296,9 @@ class SessionMap:
         if not ref_list:
             return 0
         deleted = 0
-        async with aiosqlite.connect(self.db_path) as db:
+        with sqlite3.connect(self.db_path) as db:
             for ref in ref_list:
-                cursor = await db.execute(
+                cursor = db.execute(
                     "DELETE FROM turn_messages "
                     "WHERE channel_id = ? AND session_id = ? "
                     "AND turn_index = ? AND discord_channel_id = ? "
@@ -320,7 +312,6 @@ class SessionMap:
                     ),
                 )
                 deleted += cursor.rowcount
-            await db.commit()
         return deleted
 
     async def clear_all_turn_messages(self, channel_id: int) -> int:
@@ -328,10 +319,9 @@ class SessionMap:
 
         Used when `/clear` deletes the underlying channel/thread content.
         """
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
                 "DELETE FROM turn_messages WHERE channel_id = ?",
                 (channel_id,),
             )
-            await db.commit()
             return cursor.rowcount

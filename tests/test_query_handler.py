@@ -41,9 +41,7 @@ from app.schemas.state import LocationState, SessionState, WorldState
 
 
 def _llm_response(parsed):
-    """Mirror the test_turn_recap helper — a fake LLMResponse carrying a
-    parsed Pydantic model. The raw_response is a MagicMock with the
-    minimum block shape callers inspect."""
+    """Fake LLMResponse carrying a parsed Pydantic model."""
     from app.llm.client import LLMResponse
     raw = MagicMock()
     text_block = MagicMock()

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
 import anthropic
+import openai
 import pydantic
 from pydantic import BaseModel
 
@@ -46,6 +47,8 @@ class LLMResponse:
     model: str = ""
     usage: dict[str, int] = field(default_factory=dict)
     raw_response: Any = None
+    assistant_content: list[dict] | None = None
+    reasoning_summaries: list[str] = field(default_factory=list)
 
 
 def extract_json(text: str) -> str:
@@ -180,8 +183,169 @@ def _extract_parsed(response: Any) -> Any:
     return None
 
 
+def _content_to_text(content: Any) -> str:
+    """Collapse stored text blocks into plain text for providers that
+    do not accept Anthropic content-block history verbatim."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return str(content or "")
+
+    parts: list[str] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type in {"text", "input_text", "output_text"}:
+            parts.append(str(block.get("text", "")))
+    return "".join(parts)
+
+
+def _normalise_openai_messages(
+    messages: list[dict[str, Any]],
+) -> tuple[str | None, list[dict[str, str]]]:
+    system, conversation = _split_system(messages)
+    return system, [
+        {
+            "role": m.get("role", "user"),
+            "content": _content_to_text(m.get("content", "")),
+        }
+        for m in conversation
+    ]
+
+
+def _extract_openai_text(response: Any) -> str:
+    text = getattr(response, "output_text", None)
+    if text:
+        return text
+
+    parts: list[str] = []
+    for item in getattr(response, "output", []) or []:
+        for block in getattr(item, "content", []) or []:
+            block_type = getattr(block, "type", "")
+            if block_type in {"output_text", "text"}:
+                parts.append(getattr(block, "text", "") or "")
+    return "".join(parts)
+
+
+def _extract_openai_reasoning_summaries(response: Any) -> list[str]:
+    summaries: list[str] = []
+    for item in getattr(response, "output", []) or []:
+        if getattr(item, "type", "") != "reasoning":
+            continue
+        for summary in getattr(item, "summary", []) or []:
+            text = getattr(summary, "text", "") or ""
+            if text:
+                summaries.append(text)
+    return summaries
+
+
+def _usage_attr(obj: Any, name: str, default: int = 0) -> int:
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return int(obj.get(name, default) or default)
+    return int(getattr(obj, name, default) or default)
+
+
+def _normalise_openai_usage(raw_usage: Any) -> dict[str, int]:
+    if not raw_usage:
+        return {}
+    input_tokens = _usage_attr(raw_usage, "input_tokens")
+    output_tokens = _usage_attr(raw_usage, "output_tokens")
+    total_tokens = _usage_attr(
+        raw_usage, "total_tokens", input_tokens + output_tokens,
+    )
+    details = (
+        raw_usage.get("input_tokens_details")
+        if isinstance(raw_usage, dict)
+        else getattr(raw_usage, "input_tokens_details", None)
+    )
+    output_details = (
+        raw_usage.get("output_tokens_details")
+        if isinstance(raw_usage, dict)
+        else getattr(raw_usage, "output_tokens_details", None)
+    )
+    cached_tokens = _usage_attr(details, "cached_tokens")
+    reasoning_tokens = _usage_attr(output_details, "reasoning_tokens")
+    prompt_tokens = max(0, input_tokens - cached_tokens)
+    visible_completion_tokens = max(0, output_tokens - reasoning_tokens)
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": output_tokens,
+        "visible_completion_tokens": visible_completion_tokens,
+        "total_tokens": total_tokens,
+        "cache_read_input_tokens": cached_tokens,
+        "cache_creation_input_tokens": 0,
+        "full_input_tokens": input_tokens,
+        "reasoning_tokens": reasoning_tokens,
+    }
+
+
+def _log_llm_usage(
+    *,
+    role: str,
+    provider: str,
+    model: str,
+    usage: dict[str, int],
+) -> None:
+    if not usage:
+        return
+    logger.info(
+        "LLM usage role=%s provider=%s model=%s in=%d out=%d visible_out=%d "
+        "reasoning=%d cache_read=%d cache_write=%d full_in=%d total=%d",
+        role,
+        provider,
+        model,
+        usage.get("prompt_tokens", 0),
+        usage.get("completion_tokens", 0),
+        usage.get(
+            "visible_completion_tokens",
+            max(
+                0,
+                usage.get("completion_tokens", 0)
+                - usage.get("reasoning_tokens", 0),
+            ),
+        ),
+        usage.get("reasoning_tokens", 0),
+        usage.get("cache_read_input_tokens", 0),
+        usage.get("cache_creation_input_tokens", 0),
+        usage.get("full_input_tokens", 0),
+        usage.get("total_tokens", 0),
+    )
+
+
+def _log_reasoning_summaries(
+    *,
+    role: str,
+    provider: str,
+    model: str,
+    summaries: list[str],
+) -> None:
+    for idx, summary in enumerate(summaries, start=1):
+        logger.info(
+            "LLM reasoning summary role=%s provider=%s model=%s part=%d/%d: %s",
+            role,
+            provider,
+            model,
+            idx,
+            len(summaries),
+            summary.replace("\n", "\\n"),
+        )
+
+
+def _openai_model_supports_reasoning(model: str) -> bool:
+    model_lower = model.lower()
+    return model_lower.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _openai_model_supports_temperature(model: str) -> bool:
+    model_lower = model.lower()
+    return not model_lower.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
 class LLMClient:
-    """Async LLM client wrapping the Anthropic Messages API."""
+    """Async LLM client with per-role provider dispatch."""
 
     def __init__(self, config: LLMConfig | None = None):
         self.config = config or LLMConfig.from_env()
@@ -189,6 +353,7 @@ class LLMClient:
         if self.config.api_key:
             kwargs["api_key"] = self.config.api_key
         self._client = anthropic.AsyncAnthropic(**kwargs)
+        self._openai_clients: dict[str, openai.AsyncOpenAI] = {}
 
     async def complete(
         self,
@@ -203,19 +368,18 @@ class LLMClient:
         compact: bool = False,
         stream: bool = False,
     ) -> LLMResponse:
-        """Call Claude and optionally enforce a Pydantic schema on the response.
+        """Call the configured provider and optionally enforce a Pydantic schema.
 
         Args:
             role: The engine role making this call (narrator, discriminator, agent, etc.).
                   Used to select the model via config.
-            messages: Chat messages in OpenAI-style format. A message with role="system"
-                      is peeled off and sent as Anthropic's top-level `system` param.
-            response_model: If provided, the API is asked to emit JSON matching this
-                            Pydantic model's schema. The SDK parses and validates the
-                            response — no client-side repair loop is needed.
+            messages: Chat messages in OpenAI-style format. Provider adapters translate
+                      system placement and persisted assistant content as needed.
+            response_model: If provided, the provider is asked to emit JSON matching
+                            this Pydantic model's schema. Anthropic SDK parsing and
+                            OpenAI client-side validation both return `parsed`.
             temperature: Sampling temperature. Required — each call site picks
-                         a task-appropriate value. Not supported on Opus 4.7
-                         — switch the role's model if you need sampling control.
+                         a task-appropriate value.
             max_tokens: Max output tokens. Required — pick per task.
             cache: If True and a `system` message is present, place an ephemeral cache
                    breakpoint at the end of the system block so calls that share the
@@ -232,12 +396,46 @@ class LLMClient:
                      `config.compact_trigger_tokens`. Callers that send rolling
                      conversation history are the ones that benefit; single-request
                      calls will never approach the threshold and pay nothing extra.
-            stream: Reserved; streaming is used internally to avoid HTTP timeouts.
+            stream: Reserved; adapters pick their own transport strategy.
 
         Returns:
             LLMResponse with content and optionally parsed model.
         """
         del stream
+        provider = self.config.provider_for_role(role)
+        if provider == "anthropic":
+            return await self._complete_anthropic(
+                role=role,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_model=response_model,
+                cache=cache,
+                cache_user_tail=cache_user_tail,
+                compact=compact,
+            )
+        if provider == "openai":
+            return await self._complete_openai(
+                role=role,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_model=response_model,
+            )
+        raise ValueError(f"Unsupported LLM provider {provider!r} for role {role!r}")
+
+    async def _complete_anthropic(
+        self,
+        *,
+        role: str,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+        response_model: type[T] | None,
+        cache: bool,
+        cache_user_tail: bool,
+        compact: bool,
+    ) -> LLMResponse:
         model_name = self.config.model_for_role(role)
         temp = temperature
         max_tok = max_tokens
@@ -314,13 +512,199 @@ class LLMClient:
                 f"Raw text: {content[:500]}"
             )
 
+        model = raw_response.model or model_name
+        _log_llm_usage(
+            role=role,
+            provider="anthropic",
+            model=model,
+            usage=usage,
+        )
+
         return LLMResponse(
             content=content,
             parsed=parsed,
-            model=raw_response.model or model_name,
+            model=model,
             usage=usage,
             raw_response=raw_response,
+            assistant_content=serialize_assistant_content(raw_response.content),
         )
+
+    def _get_openai_client(self, role: str) -> openai.AsyncOpenAI:
+        if role not in self._openai_clients:
+            kwargs: dict[str, Any] = {"timeout": self.config.timeout}
+            api_key = self.config.api_key_for_provider("openai", role=role)
+            if api_key:
+                kwargs["api_key"] = api_key
+            self._openai_clients[role] = openai.AsyncOpenAI(**kwargs)
+        return self._openai_clients[role]
+
+    async def _complete_openai(
+        self,
+        *,
+        role: str,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+        response_model: type[T] | None,
+    ) -> LLMResponse:
+        model_name = self.config.model_for_role(role)
+        system, conversation = _normalise_openai_messages(messages)
+        raw_response = await self._call_openai_with_retry(
+            role=role,
+            model=model_name,
+            system=system,
+            messages=conversation,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_model=response_model,
+            reasoning_effort=self.config.openai_reasoning_effort_for_role(role),
+            reasoning_summary=self.config.openai_reasoning_summary_for_role(role),
+        )
+
+        content = _extract_openai_text(raw_response)
+        status = getattr(raw_response, "status", None)
+        if status == "incomplete":
+            details = getattr(raw_response, "incomplete_details", None)
+            reason = getattr(details, "reason", "") if details else ""
+            raise ValueError(
+                f"OpenAI response incomplete at max_tokens={max_tokens}"
+                f"{f' ({reason})' if reason else ''}."
+            )
+
+        parsed = None
+        if response_model is not None:
+            try:
+                parsed = response_model.model_validate_json(content)
+            except Exception as e:
+                raise ValueError(
+                    f"Model returned no parsed output for {response_model.__name__}. "
+                    f"Raw text: {content[:500]}"
+                ) from e
+
+        usage = _normalise_openai_usage(getattr(raw_response, "usage", None))
+        model = getattr(raw_response, "model", None) or model_name
+        reasoning_summaries = _extract_openai_reasoning_summaries(raw_response)
+        _log_llm_usage(
+            role=role,
+            provider="openai",
+            model=model,
+            usage=usage,
+        )
+        _log_reasoning_summaries(
+            role=role,
+            provider="openai",
+            model=model,
+            summaries=reasoning_summaries,
+        )
+
+        return LLMResponse(
+            content=content,
+            parsed=parsed,
+            model=model,
+            usage=usage,
+            raw_response=raw_response,
+            assistant_content=[{"type": "text", "text": content}],
+            reasoning_summaries=reasoning_summaries,
+        )
+
+    async def _call_openai_with_retry(
+        self,
+        *,
+        role: str,
+        model: str,
+        system: str | None,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        response_model: type[T] | None,
+        reasoning_effort: str = "",
+        reasoning_summary: str = "",
+    ) -> Any:
+        client = self._get_openai_client(role)
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "input": messages,
+            "max_output_tokens": max_tokens,
+        }
+        if _openai_model_supports_temperature(model):
+            kwargs["temperature"] = temperature
+        if system:
+            kwargs["instructions"] = system
+        if _openai_model_supports_reasoning(model):
+            reasoning: dict[str, str] = {}
+            if reasoning_effort:
+                reasoning["effort"] = reasoning_effort
+            if reasoning_summary:
+                reasoning["summary"] = reasoning_summary
+            if reasoning:
+                kwargs["reasoning"] = reasoning
+        if response_model is not None:
+            kwargs["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": response_model.__name__,
+                    "schema": response_model.model_json_schema(),
+                    "strict": True,
+                }
+            }
+
+        def _backoff_sleep_seconds(attempt: int) -> float:
+            delay = self.config.retry_base_delay * (2 ** attempt)
+            jitter = self.config.retry_jitter
+            if jitter > 0:
+                delay *= 1.0 + random.uniform(-jitter, jitter)
+            return min(delay, self.config.retry_max_delay)
+
+        last_error: Exception | None = None
+        for attempt in range(self.config.max_retries + 1):
+            try:
+                return await client.responses.create(**kwargs)
+            except (
+                openai.APIConnectionError,
+                openai.APITimeoutError,
+                openai.InternalServerError,
+                openai.RateLimitError,
+            ) as e:
+                last_error = e
+                if attempt < self.config.max_retries:
+                    delay = _backoff_sleep_seconds(attempt)
+                    logger.warning(
+                        "OpenAI LLM call failed (attempt %d/%d), retrying in %.1fs: %s",
+                        attempt + 1, self.config.max_retries + 1, delay, e,
+                    )
+                    await asyncio.sleep(delay)
+            except openai.APIStatusError as e:
+                status_code = getattr(e, "status_code", 0) or 0
+                if status_code < 500 and status_code != 429:
+                    raise
+                last_error = e
+                if attempt < self.config.max_retries:
+                    delay = _backoff_sleep_seconds(attempt)
+                    logger.warning(
+                        "OpenAI API status error (attempt %d/%d, status=%s), "
+                        "retrying in %.1fs: %s",
+                        attempt + 1, self.config.max_retries + 1,
+                        status_code, delay, e,
+                    )
+                    await asyncio.sleep(delay)
+
+        assert last_error is not None
+        attempts = self.config.max_retries + 1
+        is_rate = isinstance(last_error, openai.RateLimitError) or (
+            isinstance(last_error, openai.APIStatusError)
+            and getattr(last_error, "status_code", 0) == 429
+        )
+        if is_rate:
+            msg = (
+                f"OpenAI rate limit hit (retried {attempts} times). Wait "
+                f"a moment before sending another action."
+            )
+        else:
+            msg = (
+                f"OpenAI call failed after {attempts} attempts. The "
+                f"connection or model is unstable; try again in a moment."
+            )
+        raise TransientLLMError(msg, attempts, last_error) from last_error
 
     async def _call_with_retry(
         self,
@@ -613,5 +997,7 @@ class LLMClient:
         raise TransientLLMError(msg, attempts, last_error) from last_error
 
     async def close(self):
-        """Close the underlying HTTP client."""
+        """Close underlying HTTP clients."""
         await self._client.close()
+        for client in self._openai_clients.values():
+            await client.close()

@@ -3,26 +3,6 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
-class PhaseLatency(BaseModel):
-    """Latency + token usage for a single pipeline phase."""
-    phase: str
-    duration_ms: float
-    model: str = ""
-    # Token usage for this phase's LLM call. Cache metrics let you verify
-    # turn-over-turn that the prior conversation is being read from cache
-    # rather than re-processed. Multiple LLM calls in a single phase
-    # (e.g. agent fan-out) are summed.
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cache_read_input_tokens: int = 0
-    cache_creation_input_tokens: int = 0
-    # Time spent building the prompt (context gathering, template render)
-    # before the LLM call fired. Separated from duration_ms so you can
-    # spot rendering-heavy turns that weren't caused by slow API time.
-    # Summed across calls the same way as token counts.
-    prompt_render_ms: float = 0.0
-
-
 class TurnResponse(BaseModel):
     session_id: str
     checkpoint_id: str = ""

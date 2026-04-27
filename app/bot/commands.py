@@ -152,6 +152,22 @@ async def _send_private(inter: discord.Interaction, text: str) -> None:
         await inter.followup.send(chunk, ephemeral=True)
 
 
+async def _clear_interaction_response(inter: discord.Interaction) -> None:
+    """Best-effort cleanup for a deferred slash-command response.
+
+    Successful `/act` renders land in the player's POV thread/DM. The
+    interaction response is only a temporary "thinking" placeholder, so
+    remove it instead of leaving "Posted to ..." acknowledgement clutter
+    in the channel/client.
+    """
+    try:
+        await inter.delete_original_response()
+    except discord.NotFound:
+        return
+    except Exception:
+        logger.debug("interaction response cleanup failed", exc_info=True)
+
+
 @dataclass
 class TurnMessageCleanup:
     tracked: int = 0
@@ -469,11 +485,15 @@ async def _send_public_turn_render(
     content: Optional[str] = None,
     embeds: Optional[list[discord.Embed]] = None,
 ) -> None:
-    msg = await inter.followup.send(
-        content=content,
-        embeds=embeds,
-        wait=True,
-    )
+    channel = _session_text_channel(inter)
+    if channel is not None:
+        msg = await channel.send(content=content, embeds=embeds)
+    else:
+        msg = await inter.followup.send(
+            content=content,
+            embeds=embeds,
+            wait=True,
+        )
     await _record_turn_message(
         smap=smap,
         session_channel_id=_session_channel_id(inter),
@@ -1125,7 +1145,7 @@ def register(
             )
             return
 
-        await inter.response.defer(thinking=True)
+        await inter.response.defer(thinking=True, ephemeral=True)
 
         # Download attachment and import. 3 sequential LLM calls take 3–8
         # minutes; Discord's followup window is 15 min so we're comfortable.
@@ -2214,8 +2234,8 @@ def register(
         # fires on the shape of the content itself (fully parenthesized
         # input), NOT on the surrounding "attempts:" framing. So OOC
         # routing is correct here and no code change is needed. If the
-        # router prompt's OOC detection ever narrows, revisit this path
-        # to use `format_ooc_directive` directly instead.
+        # router prompt's OOC detection ever narrows, revisit the
+        # intention framing here.
         arrival_action = "(begin)"
         logger.info(
             "Describe+open for %s by %s: %s",
@@ -2343,12 +2363,13 @@ def register(
                 "run_turn hit transient LLM error after %d attempts: %s",
                 e.attempts, e.last_error,
             )
-            await inter.followup.send(embed=render_error(str(e)))
+            await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
             return
         except Exception as e:
             logger.exception("run_turn failed")
             await inter.followup.send(
-                embed=render_error(f"`{type(e).__name__}: {e}`")
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
             )
             return
 
@@ -2488,16 +2509,9 @@ def register(
                     turn_index=response.turn_index,
                 )
                 if venue == "thread" and thread is not None:
-                    await inter.followup.send(
-                        f"Scene paused. Continued in {thread.mention}.",
-                        ephemeral=True,
-                    )
+                    await _clear_interaction_response(inter)
                 elif venue == "dm":
-                    await inter.followup.send(
-                        "Scene paused. Continued in your DMs "
-                        "(POV thread unavailable here).",
-                        ephemeral=True,
-                    )
+                    await _clear_interaction_response(inter)
                 else:
                     await _send_public_turn_render(
                         inter=inter,
@@ -2526,14 +2540,9 @@ def register(
                 turn_index=response.turn_index,
             )
             if venue == "thread" and thread is not None:
-                await inter.followup.send(
-                    f"Posted to {thread.mention}.", ephemeral=True,
-                )
+                await _clear_interaction_response(inter)
             elif venue == "dm":
-                await inter.followup.send(
-                    "Posted to your DMs (POV thread unavailable here).",
-                    ephemeral=True,
-                )
+                await _clear_interaction_response(inter)
             else:
                 # Both private paths failed — public fallback so the
                 # actor still sees their beat.
@@ -2703,22 +2712,29 @@ def register(
                     child.disabled = True
             self.stop()
 
-            await click_inter.response.defer(thinking=True, ephemeral=True)
+            await click_inter.response.edit_message(
+                embed=render_info(
+                    "Rewinding...",
+                    f"Rewinding to **Turn {self._target_turn}** and "
+                    "cleaning up tracked Discord messages.",
+                ),
+                view=None,
+            )
 
             try:
                 result = await engine.rewind_session(
                     self._session_id, self._target_turn,
                 )
             except (ValueError, FileNotFoundError) as e:
-                await click_inter.followup.send(
-                    embed=render_error(str(e)), ephemeral=True,
+                await click_inter.edit_original_response(
+                    embed=render_error(str(e)), view=None,
                 )
                 return
             except Exception as e:
                 logger.exception("rewind_session failed")
-                await click_inter.followup.send(
+                await click_inter.edit_original_response(
                     embed=render_error(f"`{type(e).__name__}: {e}`"),
-                    ephemeral=True,
+                    view=None,
                 )
                 return
 
@@ -2774,15 +2790,20 @@ def register(
                 f"Use `/act` to continue from here.",
             )
             try:
-                await click_inter.followup.send(embed=announce, ephemeral=False)
+                channel = _session_text_channel(click_inter)
+                if channel is None:
+                    raise RuntimeError("no text channel for rewind announcement")
+                await channel.send(embed=announce)
+                await _clear_interaction_response(click_inter)
             except Exception:
-                # Public post failed (perms? channel gone?) — fall back
-                # to ephemeral so the invoker at least sees confirmation.
+                # Public post or ephemeral cleanup failed. Keep the
+                # edited preview as a private confirmation so the
+                # invoker still sees the outcome.
                 logger.exception(
-                    "rewind: public announcement failed",
+                    "rewind: public announcement/preview cleanup failed",
                 )
-                await click_inter.followup.send(
-                    embed=announce, ephemeral=True,
+                await click_inter.edit_original_response(
+                    embed=announce, view=None,
                 )
 
         @discord.ui.button(
@@ -2798,8 +2819,12 @@ def register(
                 if isinstance(child, discord.ui.Button):
                     child.disabled = True
             self.stop()
-            await click_inter.response.send_message(
-                "Rewind cancelled — nothing was deleted.", ephemeral=True,
+            await click_inter.response.edit_message(
+                embed=render_info(
+                    "Rewind cancelled",
+                    "Nothing was deleted.",
+                ),
+                view=None,
             )
 
     @tree.command(

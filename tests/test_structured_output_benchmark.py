@@ -1,12 +1,12 @@
-"""Benchmark structured-output (output_format) vs post-hoc JSON parsing.
+"""Benchmark structured-output/schema-constrained output vs post-hoc JSON parsing.
 
-Hits the real Anthropic API, so automatically skipped when ANTHROPIC_API_KEY
-is not set. Runs N trials for each strategy against the same prompt + schema
-and emits a comparison table.
+Hits the configured real LLM provider. Integration tests are skipped by
+default; pass --run-integration to opt in. Runs N trials for each strategy
+against the same prompt + schema and emits a comparison table.
 
 Run explicitly:
 
-    .venv/bin/pytest tests/test_structured_output_benchmark.py -v -s
+    .venv/bin/pytest tests/test_structured_output_benchmark.py --run-integration -v -s
 
 (The `-s` flag lets the comparison table reach stdout.)
 
@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import statistics
 import time
@@ -32,9 +31,27 @@ from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.takeover import AuthoredCharacter
 
+
+def _has_required_provider_keys() -> bool:
+    config = LLMConfig.from_env()
+    for provider in config.providers_in_use():
+        if provider == "anthropic":
+            if not config.api_key_for_provider("anthropic"):
+                return False
+        elif provider == "openai":
+            roles = config.roles_for_provider("openai")
+            if roles:
+                for role in roles:
+                    if not config.api_key_for_provider("openai", role=role):
+                        return False
+            elif not config.api_key_for_provider("openai"):
+                return False
+    return True
+
+
 SKIP_IF_NO_KEY = pytest.mark.skipif(
-    not os.environ.get("ANTHROPIC_API_KEY"),
-    reason="ANTHROPIC_API_KEY not set; integration benchmark requires a real key.",
+    not _has_required_provider_keys(),
+    reason="configured LLM provider key(s) not set; integration benchmark requires real keys.",
 )
 
 N_TRIALS = 3

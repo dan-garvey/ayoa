@@ -1,48 +1,163 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 
 from pydantic import BaseModel, Field
 
 
+_VALID_PROVIDERS = {"anthropic", "openai"}
+_VALID_OPENAI_REASONING_EFFORTS = {
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+}
+_VALID_OPENAI_REASONING_SUMMARIES = {
+    "auto",
+    "concise",
+    "detailed",
+    "none",
+}
+_DEFAULT_MODEL = "gpt-5.1"
+_ROUTER_MODEL = "gpt-5.2"
+_ROLE_ENV_ALIASES = {
+    "agent": ("AGENT",),
+    "character_gen": ("CHARACTER_GEN", "AGENT"),
+    "event_router": ("ROUTER",),
+    "narrator": ("NARRATOR",),
+    "query_handler": ("QUERY_HANDLER", "QUERY", "NARRATOR"),
+}
+
+
+def _normalise_provider(provider: str) -> str:
+    value = provider.strip().lower()
+    if value not in _VALID_PROVIDERS:
+        raise ValueError(
+            f"LLM provider must be one of {sorted(_VALID_PROVIDERS)}, got {provider!r}"
+        )
+    return value
+
+
+def _normalise_openai_reasoning_effort(effort: str) -> str:
+    value = effort.strip().lower()
+    if value not in _VALID_OPENAI_REASONING_EFFORTS:
+        raise ValueError(
+            "OpenAI reasoning effort must be one of "
+            f"{sorted(_VALID_OPENAI_REASONING_EFFORTS)}, got {effort!r}"
+        )
+    return value
+
+
+def _normalise_openai_reasoning_summary(summary: str) -> str:
+    value = summary.strip().lower()
+    if value not in _VALID_OPENAI_REASONING_SUMMARIES:
+        raise ValueError(
+            "OpenAI reasoning summary must be one of "
+            f"{sorted(_VALID_OPENAI_REASONING_SUMMARIES)}, got {summary!r}"
+        )
+    return "" if value == "none" else value
+
+
+def _split_provider_model(model: str) -> tuple[str | None, str]:
+    if ":" not in model:
+        return None, model
+    provider, bare_model = model.split(":", 1)
+    return _normalise_provider(provider), bare_model
+
+
+def _parse_env_map(raw: str | None) -> dict[str, str]:
+    """Parse JSON or comma-separated role=value env overrides."""
+    if not raw:
+        return {}
+    text = raw.strip()
+    if not text:
+        return {}
+    if text.startswith("{"):
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM env map must be a JSON object")
+        return {str(k): str(v) for k, v in parsed.items()}
+
+    result: dict[str, str] = {}
+    for part in text.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(
+                f"LLM env map entries must be role=value, got {item!r}"
+            )
+        key, value = item.split("=", 1)
+        result[key.strip()] = value.strip()
+    return result
+
+
+def _role_env_suffix(role: str) -> str:
+    return re.sub(r"[^A-Z0-9]+", "_", role.upper()).strip("_")
+
+
+def _role_env_suffixes(role: str) -> tuple[str, ...]:
+    suffixes = [_role_env_suffix(role)]
+    suffixes.extend(_ROLE_ENV_ALIASES.get(role, ()))
+    return tuple(dict.fromkeys(s for s in suffixes if s))
+
+
+def _first_env_value(names: tuple[str, ...]) -> str:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return ""
+
+
+def _first_role_env_value(role: str, prefix: str) -> str:
+    return _first_env_value(
+        tuple(f"{prefix}_{suffix}" for suffix in _role_env_suffixes(role))
+    )
+
+
+def _openai_role_api_key_env_names(role: str) -> tuple[str, ...]:
+    names: list[str] = []
+
+    # Local cost-tracking keys may use short role names:
+    # OPEN_AI_AGENT, OPEN_AI_ROUTER, OPEN_AI_NARRATOR.
+    for alias in _ROLE_ENV_ALIASES.get(role, ()):
+        names.append(f"OPEN_AI_{alias}")
+
+    for suffix in _role_env_suffixes(role):
+        names.extend((
+            f"OPENAI_API_KEY_{suffix}",
+            f"OPEN_AI_API_KEY_{suffix}",
+            f"OPENAI_{suffix}_API_KEY",
+            f"OPEN_AI_{suffix}_API_KEY",
+            f"OPEN_AI_{suffix}",
+        ))
+
+    return tuple(dict.fromkeys(names))
+
+
 class LLMConfig(BaseModel):
+    # Back-compat: `api_key` is the Anthropic key used by the original
+    # single-provider client. New code should call api_key_for_provider().
     api_key: str = ""
+    openai_api_key: str = ""
+    openai_role_api_keys: dict[str, str] = Field(default_factory=dict)
+
+    default_provider: str = "openai"
+    role_providers: dict[str, str] = Field(default_factory=dict)
 
     # The discriminator role was merged into the event router in v2; no
     # caller asks for role="discriminator" anymore, so it's omitted here.
-    #
-    # Agent: Sonnet. Tried Haiku for playtesting cost (most per-turn
-    # spend is the agent cascade fan-out) but the playtests caught
-    # quality regressions Haiku couldn't carry — attribution drift
-    # under multi-NPC cascades, weaker prose, missed subtext on
-    # interior beats. The agent is the load-bearing surface for
-    # in-character voice consistency, so we eat the cost.
-    #
-    # Narrator: Haiku as of Option B (v11-r10). The narrator's job
-    # contracted sharply once `observable_facts` became the sole render
-    # source — it no longer has to interpret narrator-grade interior
-    # prose, infer what the actor was thinking, or compose meaning out
-    # of an ambiguous outcome string. The job is
-    # now: take 4-6 surface facts, weave them into POV prose, drop
-    # facts the observation level forbids, don't editorialize. That's
-    # a transformation, not an authorship task. Haiku is well-matched
-    # to it and cuts the per-turn narrator cost ~5x. Flip back to
-    # Sonnet via config if a playtest shows prose quality regressing.
     role_models: dict[str, str] = Field(default_factory=lambda: {
-        "event_router": "claude-sonnet-4-6",
-        "narrator": "claude-haiku-4-5",
-        "agent": "claude-sonnet-4-6",
-        "character_gen": "claude-sonnet-4-6",
-        # Terse post-turn summarization (delta notes for the router).
-        # Cheap, narrow task — Haiku is plenty.
-        "summarizer": "claude-haiku-4-5",
-        # Out-of-character /query consultation. Read-only, short
-        # answer, single-character POV bound. Latency matters more
-        # than depth here — players are staring at Discord waiting
-        # for "what do I see?" / "what was her name?" — so Haiku is
-        # the default. Flip to Sonnet via env if you want richer
-        # in-fiction refusal flavor.
-        "query_handler": "claude-haiku-4-5",
+        "event_router": _ROUTER_MODEL,
+        "narrator": _DEFAULT_MODEL,
+        "agent": _DEFAULT_MODEL,
+        "character_gen": _DEFAULT_MODEL,
+        "query_handler": _DEFAULT_MODEL,
     })
 
     # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
@@ -80,8 +195,24 @@ class LLMConfig(BaseModel):
         "agent": 2048,
         "event_router": 2048,
     })
+    # OpenAI reasoning models use effort levels rather than token budgets.
+    # GPT-5.1 defaults to "none"; start at medium so the router and agents
+    # get explicit reasoning instead of silently running in fast/no-reasoning
+    # mode. Per-role env overrides can lower cheap roles later.
+    openai_reasoning_efforts: dict[str, str] = Field(default_factory=lambda: {
+        "event_router": "medium",
+        "narrator": "medium",
+        "agent": "medium",
+        "character_gen": "medium",
+        "query_handler": "medium",
+    })
+    # Raw OpenAI reasoning tokens are not exposed by the API. This optional
+    # per-role setting requests provider-authored summaries instead.
+    openai_reasoning_summaries: dict[str, str] = Field(default_factory=lambda: {
+        "event_router": "auto",
+    })
 
-    default_model: str = "claude-sonnet-4-6"
+    default_model: str = _DEFAULT_MODEL
     # Retries are for transient API failures: 529 overloaded, 500/503,
     # network blips, streaming disconnects. Anthropic's overload events
     # in particular ride out in 5-30s windows; 4 retries × exp-backoff
@@ -101,16 +232,11 @@ class LLMConfig(BaseModel):
     # surface the failure cleanly than hold the slash command for
     # half a minute.
     retry_max_delay: float = 30.0
-    # Anthropic's server-side deadline for a single request is 10 minutes.
-    # Client timeouts shorter than that truncate long structured-output
-    # grammar-compilation passes and surface as "Request timed out or
-    # interrupted." See https://docs.anthropic.com/en/api/errors#long-requests
-    # — they explicitly recommend using streaming (we do) plus not undercutting
-    # the server's own deadline with a shorter client-side one.
+    # Keep the client deadline high enough for long structured-output
+    # requests and transient provider-side work, especially during imports.
     timeout: float = 600.0
-    # Compaction trigger (beta). Sonnet 4.6 has a 1M context window with no
-    # long-context pricing tier, so we defer compaction until we're within
-    # ~100K tokens of the window limit. Tune down for smaller-window models.
+    # Compaction trigger for providers/models that support server-side
+    # context compaction. Tune down for smaller-window models.
     compact_trigger_tokens: int = 900_000
 
     # Cache TTL for ephemeral prompt-cache blocks. "1h" is the longest
@@ -122,12 +248,71 @@ class LLMConfig(BaseModel):
     cache_ttl: str = "1h"
 
     def model_for_role(self, role: str) -> str:
-        return self.role_models.get(role, self.default_model)
+        _, model = _split_provider_model(self.role_models.get(role, self.default_model))
+        return model
+
+    def provider_for_role(self, role: str) -> str:
+        configured = self.role_providers.get(role)
+        if configured:
+            return _normalise_provider(configured)
+
+        provider, model = _split_provider_model(
+            self.role_models.get(role, self.default_model)
+        )
+        if provider:
+            return provider
+
+        model_lower = model.lower()
+        if model_lower.startswith("claude-"):
+            return "anthropic"
+        if model_lower.startswith(("gpt-", "o1", "o3", "o4")):
+            return "openai"
+        return _normalise_provider(self.default_provider)
+
+    def roles_for_provider(self, provider: str) -> set[str]:
+        provider = _normalise_provider(provider)
+        roles = set(self.role_models) | set(self.role_providers)
+        return {
+            role
+            for role in roles
+            if self.provider_for_role(role) == provider
+        }
+
+    def providers_in_use(self) -> set[str]:
+        roles = set(self.role_models) | set(self.role_providers)
+        providers = {self.provider_for_role(role) for role in roles}
+        if not roles:
+            providers.add(_normalise_provider(self.default_provider))
+        return providers
+
+    def openai_api_key_for_role(self, role: str) -> str:
+        return self.openai_role_api_keys.get(role, "") or self.openai_api_key
+
+    def openai_role_api_key_env_names(self, role: str) -> tuple[str, ...]:
+        return _openai_role_api_key_env_names(role)
+
+    def api_key_for_provider(self, provider: str, role: str | None = None) -> str:
+        provider = _normalise_provider(provider)
+        if provider == "anthropic":
+            return self.api_key
+        if provider == "openai":
+            if role:
+                return self.openai_api_key_for_role(role)
+            return self.openai_api_key
+        raise AssertionError(f"unreachable provider {provider!r}")
 
     def thinking_budget_for_role(self, role: str) -> int:
         """Per-role extended-thinking budget in tokens. 0 means no
         thinking (default behavior)."""
         return self.role_thinking_budgets.get(role, 0)
+
+    def openai_reasoning_effort_for_role(self, role: str) -> str:
+        effort = self.openai_reasoning_efforts.get(role, "")
+        return _normalise_openai_reasoning_effort(effort) if effort else ""
+
+    def openai_reasoning_summary_for_role(self, role: str) -> str:
+        summary = self.openai_reasoning_summaries.get(role, "")
+        return _normalise_openai_reasoning_summary(summary) if summary else ""
 
     @classmethod
     def from_env(cls) -> LLMConfig:
@@ -136,7 +321,84 @@ class LLMConfig(BaseModel):
             raise ValueError(
                 f"ANTHROPIC_CACHE_TTL must be '5m' or '1h', got {ttl!r}"
             )
+        defaults = cls()
+        role_models = dict(defaults.role_models)
+        role_models.update(_parse_env_map(os.environ.get("LLM_ROLE_MODELS")))
+        role_providers = dict(defaults.role_providers)
+        role_providers.update(_parse_env_map(os.environ.get("LLM_ROLE_PROVIDERS")))
+        openai_reasoning_efforts = dict(defaults.openai_reasoning_efforts)
+        openai_reasoning_efforts.update(
+            _parse_env_map(os.environ.get("LLM_OPENAI_REASONING_EFFORTS"))
+        )
+        openai_reasoning_summaries = dict(defaults.openai_reasoning_summaries)
+        openai_reasoning_summaries.update(
+            _parse_env_map(os.environ.get("LLM_OPENAI_REASONING_SUMMARIES"))
+        )
+
+        known_roles = set(role_models) | set(role_providers)
+        known_roles.update(openai_reasoning_efforts)
+        known_roles.update(openai_reasoning_summaries)
+        global_reasoning = os.environ.get("LLM_OPENAI_REASONING_EFFORT", "")
+        global_reasoning_summary = os.environ.get(
+            "LLM_OPENAI_REASONING_SUMMARY", "",
+        )
+        for role in known_roles:
+            model_override = _first_role_env_value(role, "LLM_MODEL")
+            provider_override = _first_role_env_value(role, "LLM_PROVIDER")
+            reasoning_override = (
+                _first_role_env_value(role, "LLM_OPENAI_REASONING")
+                or _first_role_env_value(role, "LLM_REASONING")
+            )
+            reasoning_summary_override = (
+                _first_role_env_value(role, "LLM_OPENAI_REASONING_SUMMARY")
+                or _first_role_env_value(role, "LLM_REASONING_SUMMARY")
+            )
+            if model_override:
+                role_models[role] = model_override
+            if provider_override:
+                role_providers[role] = provider_override
+            if reasoning_override:
+                openai_reasoning_efforts[role] = reasoning_override
+            elif global_reasoning:
+                openai_reasoning_efforts[role] = global_reasoning
+            if reasoning_summary_override:
+                openai_reasoning_summaries[role] = reasoning_summary_override
+            elif global_reasoning_summary:
+                openai_reasoning_summaries[role] = global_reasoning_summary
+
+        openai_reasoning_efforts = {
+            role: _normalise_openai_reasoning_effort(effort)
+            for role, effort in openai_reasoning_efforts.items()
+            if effort
+        }
+        openai_reasoning_summaries = {
+            role: summary
+            for role, summary in (
+                (role, _normalise_openai_reasoning_summary(summary))
+                for role, summary in openai_reasoning_summaries.items()
+                if summary
+            )
+            if summary
+        }
+
+        openai_role_api_keys = _parse_env_map(
+            os.environ.get("LLM_OPENAI_ROLE_API_KEYS")
+        )
+        for role in known_roles:
+            role_key = _first_env_value(_openai_role_api_key_env_names(role))
+            if role_key:
+                openai_role_api_keys[role] = role_key
+
         return cls(
             api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+            openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+            openai_role_api_keys=openai_role_api_keys,
+            default_provider=os.environ.get(
+                "LLM_DEFAULT_PROVIDER", defaults.default_provider,
+            ),
+            role_models=role_models,
+            role_providers=role_providers,
+            openai_reasoning_efforts=openai_reasoning_efforts,
+            openai_reasoning_summaries=openai_reasoning_summaries,
             cache_ttl=ttl,
         )

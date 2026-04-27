@@ -15,6 +15,7 @@ CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
 INTENTION_BLOCK_HEADER = "## Intention"
 TICK_FAN_IN_HEADER = "## Off-Stage Tick"
+ROUTER_CONTINUATION_HEADER = "## Continuation Required"
 
 # v11 unified-agent mode markers. The agent template (`agent_v*.txt`)
 # is a SINGLE system prompt for both on-stage and off-stage calls so a
@@ -57,11 +58,6 @@ def format_npc_cascade_intention(name: str, intention: str) -> str:
     return f"{INTENTION_BLOCK_HEADER}\n{name} intends: {intention}"
 
 
-def format_ooc_directive(user_input: str) -> str:
-    """OOC author-directive like `(begin)` / `(skip to morning)`."""
-    return f"{INTENTION_BLOCK_HEADER}\n(OOC) {user_input}"
-
-
 def format_cat_ii_resolution_block(
     *,
     initiator_id: str,
@@ -98,13 +94,6 @@ def format_cat_ii_resolution_block(
     return "\n".join(lines)
 
 
-def format_partial_render_marker() -> str:
-    """Narrator PARTIAL mode marker. Caller prepends this to the user
-    input when the human being rendered to is a pinned Cat II
-    responder."""
-    return PARTIAL_MODE_MARKER
-
-
 def format_tick_fan_in_block(
     entries: list[tuple[str, str, str, str]],
 ) -> str:
@@ -136,6 +125,45 @@ def format_tick_fan_in_block(
         text = (public_text or "").strip() or "(no public action)"
         lines.append(f"- **{name}** (id: `{char_id}`, at `{loc}`): {text}")
     lines.append("")
+    return "\n".join(lines)
+
+
+def format_router_continuation_block(*, prior_rationale: str = "") -> str:
+    """Ask the router to repair an open beat with no continuation path.
+
+    This is not a new character intention. It is a router-only recovery
+    mode used after the prior router output kept `ends_beat=false` but
+    left no dispatchable NPC pick. The next router output must either
+    create a concrete human-facing beat boundary or supply a real NPC
+    continuation.
+    """
+    lines = [
+        ROUTER_CONTINUATION_HEADER,
+        "",
+        (
+            "The beat is still open, but no NPC was selected to act next. "
+            "Do not hand control back on an unresolved pause."
+        ),
+        "",
+        (
+            "Author the next canonical event that gives the scene forward "
+            "motion. Use concrete observable facts, a meaningful "
+            "environmental or production cue, an existing off-screen "
+            "character moving into perception, or a narratively meaningful "
+            "spawn. Do not invent an action by the acting character unless "
+            "the established situation already makes that action unavoidable."
+        ),
+        "",
+        (
+            "If this new event creates a clear human-facing affordance, set "
+            "`ends_beat=true` and choose the correct `ends_beat_reason`. "
+            "If the beat still needs NPC action, set `ends_beat=false` and "
+            "include dispatchable NPC ids in `agent_responder_picks`."
+        ),
+    ]
+    cleaned = (prior_rationale or "").strip()
+    if cleaned:
+        lines.extend(["", f"Prior diagnostic: {cleaned}"])
     return "\n".join(lines)
 
 

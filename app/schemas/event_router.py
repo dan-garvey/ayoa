@@ -76,17 +76,62 @@ class ObserverEntry(BaseModel):
     response_priority: int
 
 
+class SpawnSeed(BaseModel):
+    """Router-authored direction for character generation.
+
+    OpenAI strict structured outputs require object schemas to declare
+    `additionalProperties: false`, so this cannot be a freeform dict.
+    Keep the fields broad enough for the router's narrative direction
+    while preserving a fixed schema shape.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    role: str
+    reason: str
+    location: str
+    objectives: list[str]
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.model_dump().get(key, default)
+
+    def items(self):
+        return self.model_dump().items()
+
+
 class SpawnRequest(BaseModel):
-    """Router-directed creation of a new character. `seed` is a freeform
-    dict (role, reason, location, objectives, ...) consumed by
-    character_gen.
+    """Router-directed creation of a new character. `seed` is a fixed
+    object consumed by character_gen.
 
     All fields REQUIRED. The LLM emits `seed={}` for spawns with no
     additional context."""
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
-    seed: dict[str, Any]
+    seed: SpawnSeed
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_legacy_seed(cls, data: Any) -> Any:
+        """Upgrade older checkpoints/tests that stored partial freeform
+        seed dicts. The LLM-facing schema remains all-required."""
+        if not isinstance(data, dict):
+            return data
+        seed = data.get("seed")
+        if not isinstance(seed, dict):
+            return data
+
+        coerced = {
+            "role": str(seed.get("role", "") or ""),
+            "reason": str(seed.get("reason", "") or ""),
+            "location": str(seed.get("location", "") or ""),
+            "objectives": seed.get("objectives") or [],
+        }
+        if not isinstance(coerced["objectives"], list):
+            coerced["objectives"] = [str(coerced["objectives"])]
+
+        data = dict(data)
+        data["seed"] = coerced
+        return data
 
 
 class RosterMove(BaseModel):
@@ -179,11 +224,12 @@ class EventRouterOutput(BaseModel):
     # grammar).
     event_id: str
 
-    # ---- v11-r7g: TEMPORARY diagnostic — one-sentence justification ------
-    # The router emits a single sentence explaining its core routing
-    # decision this turn (Cat I vs Cat II classification, why this
-    # ends_beat value, why these picks). We log it at INFO so playtest
-    # transcripts surface the "why" alongside the "what".
+    # ---- v11-r7g: TEMPORARY diagnostic — terse justification ------------
+    # The router emits a concise diagnostic note explaining its core
+    # routing decision this turn (Cat I vs Cat II classification, why
+    # this ends_beat value and ends_beat_reason, why these picks). We
+    # log it at INFO so playtest transcripts surface the "why" alongside
+    # the "what".
     #
     # NON-FREE in tokens — adds ~1 sentence to every router response,
     # and the LLM has to compose it before emitting structural fields.
@@ -336,19 +382,16 @@ class EventRouterOutput(BaseModel):
                 )
         if self.ends_beat_reason == "observation_harvest":
             # Harvest is a fork in the engine: picks become perception
-            # targets, not cascade actors. Both invariants below are
-            # CLAMP-not-raise so prompt drift doesn't crash a session;
-            # the engine falls back to the normal Cat I close in either
-            # malformed case (no picks → no harvest fired, just renders;
-            # ends_beat=false → ignored, harvest implies beat-end).
+            # targets, not cascade actors. These are CLAMP-not-raise
+            # checks so prompt drift doesn't crash a session.
             if not self.agent_responder_picks:
                 import logging
                 logging.getLogger(__name__).warning(
                     "ends_beat_reason='observation_harvest' but "
                     "agent_responder_picks is empty; nothing to harvest. "
-                    "Falling through to standard Cat I beat close — the "
-                    "render will be sparse. Router prompt drift?",
+                    "Coercing to cascade_exhausted.",
                 )
+                self.ends_beat_reason = "cascade_exhausted"
             if not self.ends_beat:
                 import logging
                 logging.getLogger(__name__).warning(

@@ -37,6 +37,7 @@ from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
+    format_router_continuation_block,
     format_tick_fan_in_block,
 )
 from app.llm.client import LLMClient
@@ -373,43 +374,17 @@ def _build_since_last_turn_block(acting_char) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _build_recent_turn_recap(checkpoint: CheckpointFile) -> str:
-    recap_note = checkpoint.session.pending_recap
-    if not recap_note:
-        return ""
-    return (
-        "## Previous Turn — Narrator Delta Note\n"
-        "A terse summary of state-level beats the narrator rendered "
-        "last turn that aren't already in your prior `canonical_event` "
-        "(environmental changes, completed NPC actions, implicit "
-        "movement, objects placed). Factor these into this turn's "
-        "adjudication.\n\n"
-        f"- {recap_note}\n\n"
-    )
-
-
 def _build_router_context(
     ckpt: CheckpointFile,
     acting_character_id: str,
-    user_input: str = "",
 ) -> dict[str, str]:
     """Collect every context variable the event_router template needs
     aside from the two intention-block slots the caller populates
     themselves.
 
-    `user_input` is currently unused inside this helper (kept on the
-    signature for callers that already thread it through and for
-    future first-turn / arrival routing logic). Pre-v9 it gated an
-    `_build_opening_directive` injection that wrapped the imported
-    opening narrative — that whole pathway is gone now: the router
-    composes the opening scene from world_state + character_records
-    when it receives the `(begin)` OOC directive.
-
     Returns a dict ready to splat into `prompt_mgr.render_messages`
     after merging in `{intention_block}` and `{cat_ii_resolution_block}`.
     """
-    del user_input  # reserved for future first-turn routing knobs
-
     acting_id, acting_char, acting_name = resolve_acting_character(
         ckpt, acting_character_id,
     )
@@ -433,7 +408,6 @@ def _build_router_context(
             ckpt, acting_id,
         ),
         "since_last_turn_block": since_last_turn_block,
-        "recent_turn_recap": _build_recent_turn_recap(ckpt),
         "world_facts_delta_block": _build_world_facts_delta(ckpt),
         "initial_roster_block": _build_initial_roster_block(ckpt),
         "state_changes_block": _build_state_changes_block(ckpt),
@@ -482,7 +456,7 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(ckpt, actor_id, user_input=intention)
+            ctx = _build_router_context(ckpt, actor_id)
 
             # Resolve the actor's display name for the intention framing.
             actor_char = next(
@@ -567,6 +541,73 @@ class LLMDispatcher:
         return result
 
     # ------------------------------------------------------------------
+    # route_continuation
+    # ------------------------------------------------------------------
+
+    async def route_continuation(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        actor_id: str,
+        scene_id: str,
+        prior_result: EventRouterOutput,
+    ) -> EventRouterOutput:
+        """Ask the router to advance an open beat with no next pick."""
+        del scene_id
+
+        saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
+        saved_scene_contexts = list(
+            ckpt.session.surfaced_router_scene_contexts
+        )
+        saved_state_changes = list(
+            ckpt.session.pending_router_state_changes
+        )
+        try:
+            ctx = _build_router_context(ckpt, actor_id)
+            continuation_block = format_router_continuation_block(
+                prior_rationale=prior_result.decision_rationale,
+            )
+
+            template_vars = {
+                **ctx,
+                "intention_block": continuation_block,
+                "cat_ii_resolution_block": "",
+                "tick_fan_in_block": "",
+            }
+
+            messages = self.prompt_mgr.render_conversation(
+                "event_router",
+                history=ckpt.session_conversation,
+                **template_vars,
+            )
+            user_content = messages[-1]["content"]
+
+            logger.info(
+                "LLMDispatcher.route_continuation: actor=%s", actor_id,
+            )
+
+            response = await self.client.complete(
+                role="event_router",
+                messages=messages,
+                response_model=EventRouterOutput,
+                temperature=0.35,
+                max_tokens=5000,
+                cache=True,
+                compact=True,
+            )
+        except Exception:
+            ckpt.session.surfaced_world_facts = saved_surfaced_facts
+            ckpt.session.surfaced_router_scene_contexts = saved_scene_contexts
+            ckpt.session.pending_router_state_changes = saved_state_changes
+            raise
+
+        result: EventRouterOutput = response.parsed
+        append_turn_to_conversation(
+            ckpt.session_conversation, user_content, response,
+        )
+        return result
+
+    # ------------------------------------------------------------------
     # route_tick_intentions  (Commit 6: off-stage tick fan-in)
     # ------------------------------------------------------------------
 
@@ -615,9 +656,7 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(
-                ckpt, acting_character_id, user_input="",
-            )
+            ctx = _build_router_context(ckpt, acting_character_id)
 
             tick_block = format_tick_fan_in_block(tick_outputs)
 

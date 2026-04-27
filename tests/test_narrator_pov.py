@@ -22,7 +22,7 @@ from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.event_router import EventRouterOutput, ObserverEntry, RosterMove
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
@@ -226,6 +226,72 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert not user_msg["content"].startswith(PARTIAL_MODE_MARKER)
+
+    @pytest.mark.asyncio
+    async def test_scene_context_uses_buffered_roster_move(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.world_state.locations.scene_graph["threshold"] = {
+            "name": "Threshold",
+            "description": "A second room past the arch.",
+            "connected_to": ["gatehouse"],
+        }
+        move_event = EventRouterOutput(
+            event_id="evt_move",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                scene_delta=SceneDelta(time_advanced_seconds=5),
+                observable_facts=[
+                    ObservableFact.all("Alice crosses into the threshold."),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="scene_transition",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[
+                RosterMove(
+                    character_id="alice",
+                    to_scene="threshold",
+                    reason="crosses the arch",
+                ),
+            ],
+            scenes_created=[],
+        )
+        ckpt.canonical_events.append(move_event)
+        buffered = [
+            RenderBufferEntry(event_id="evt_move", observation_level="direct"),
+        ]
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            partial_mode=False,
+        )
+
+        assert ckpt.characters[0].location == "gatehouse"
+        user_msg = mock_client.complete.call_args.kwargs["messages"][-1]
+        scene_block = user_msg["content"].split("## Current Scene\n", 1)[1]
+        scene_block = scene_block.split("\n\n## Acting Player", 1)[0]
+        assert "Location: Threshold" in scene_block
+        assert "A second room past the arch." in scene_block
+        assert "Location: Gatehouse" not in scene_block
 
     @pytest.mark.asyncio
     async def test_partial_mode_prepends_marker(

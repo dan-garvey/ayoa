@@ -4,7 +4,7 @@ Run with: `.venv/bin/python -m app.bot`
 
 Reads DISCORD_BOT_TOKEN (required) and DISCORD_GUILD_ID (optional but
 recommended for dev — guild-scoped command syncs are instant) from the
-environment. Also picks up ANTHROPIC_API_KEY for the engine.
+environment. Also picks up the configured LLM provider API keys.
 
 Loads `.env` automatically via python-dotenv if present.
 """
@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from app.bot.commands import register
 from app.bot.engine_bridge import EngineBridge
 from app.bot.session_map import SessionMap
+from app.llm.config import LLMConfig
 
 _LOG_FILE = Path(".bot.log")
 _LOG_FMT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -48,8 +49,24 @@ async def _run() -> int:
     if not token:
         print("ERROR: DISCORD_BOT_TOKEN not set", file=sys.stderr)
         return 1
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set (engine needs it)", file=sys.stderr)
+    llm_config = LLMConfig.from_env()
+    providers = llm_config.providers_in_use()
+    missing_llm_keys: list[str] = []
+    if "anthropic" in providers and not llm_config.api_key_for_provider("anthropic"):
+        missing_llm_keys.append("ANTHROPIC_API_KEY")
+    if "openai" in providers:
+        openai_roles = llm_config.roles_for_provider("openai")
+        if openai_roles:
+            for role in sorted(openai_roles):
+                if llm_config.api_key_for_provider("openai", role=role):
+                    continue
+                role_env = llm_config.openai_role_api_key_env_names(role)[0]
+                missing_llm_keys.append(f"{role_env} or OPENAI_API_KEY for {role}")
+        elif not llm_config.api_key_for_provider("openai"):
+            missing_llm_keys.append("OPENAI_API_KEY")
+    if missing_llm_keys:
+        missing = ", ".join(missing_llm_keys)
+        print(f"ERROR: {missing} not set (engine needs it)", file=sys.stderr)
         return 1
 
     guild_id_raw = os.environ.get("DISCORD_GUILD_ID")

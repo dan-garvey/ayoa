@@ -78,9 +78,7 @@ class CheckpointFile(BaseModel):
     narrator_conversations: dict[str, list[ConversationMessage]] = Field(default_factory=dict)
     character_conversations: dict[str, list[ConversationMessage]] = Field(default_factory=dict)
     # v11: the canonical event log. Every closed canonical event appended
-    # here. Source of truth for rendering, recap, replay, and debug. The
-    # router's recap pass (Haiku summarizer) produces compact summaries
-    # over a tail of this log.
+    # here. Source of truth for rendering, replay, and debug.
     canonical_events: list[EventRouterOutput] = Field(default_factory=list)
     # Display/audit log only — no longer fed into prompts.
     transcript: list[TranscriptEntry] = Field(default_factory=list)

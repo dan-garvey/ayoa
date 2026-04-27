@@ -904,10 +904,6 @@ class TestBriefingCopy:
 # ---- _post_actor_render: thread → DM → public cascade -----------------
 
 
-# TODO(test-hang): `TestPostActorRenderCascade::test_thread_success_returns_thread_and_skips_dm`
-# hangs under pytest in the sandbox even though the helper is fully
-# stubbed. Investigate the discord mock / aiosqlite interaction and
-# either fix the fixture or replace these with a tighter unit boundary.
 class TestPostActorRenderCascade:
     """The actor's narrative is delivered POV-thread-first, with DM and
     public-channel fallbacks. This unifies solo and multi-player UX —
@@ -931,7 +927,6 @@ class TestPostActorRenderCascade:
           * `"raise"` — thread exists; `.send` raises RuntimeError.
         """
         from app.bot import commands as bot_commands
-        from app.bot.session_map import SessionMap
 
         monkeypatch.setattr(
             bot_commands, "_session_text_channel",
@@ -979,8 +974,9 @@ class TestPostActorRenderCascade:
         inter.channel_id = 777
         inter.user = user
 
-        smap = SessionMap(db_path=tmp_path / "actor_render.db")
-        asyncio.run(smap.init())
+        smap = MagicMock()
+        smap.clear_pov_thread = AsyncMock()
+        smap.record_turn_message = AsyncMock()
 
         import discord as _discord
         embeds = [MagicMock(spec=_discord.Embed)]
@@ -1125,18 +1121,87 @@ class _FakeDiscordClient:
         return self._users.get(user_id)
 
 
-class TestRewindDiscordCleanup:
-    def _smap(self, tmp_path: Path) -> "SessionMap":
-        from app.bot.session_map import SessionMap
+class _FakeTurnMessageStore:
+    def __init__(self):
+        self._refs = []
+        self._created_at = 0
 
-        smap = SessionMap(db_path=tmp_path / "rewind_cleanup.db")
-        asyncio.run(smap.init())
-        return smap
+    async def record_turn_message(
+        self,
+        *,
+        channel_id: int,
+        session_id: str,
+        turn_index: int,
+        discord_channel_id: int,
+        message_id: int,
+        delivery: str,
+        recipient_user_id=None,
+    ):
+        from app.bot.session_map import TurnMessageRef
+
+        self._created_at += 1
+        self._refs.append(
+            TurnMessageRef(
+                channel_id=channel_id,
+                session_id=session_id,
+                turn_index=turn_index,
+                discord_channel_id=discord_channel_id,
+                message_id=message_id,
+                delivery=delivery,
+                recipient_user_id=recipient_user_id,
+                created_at=self._created_at,
+            )
+        )
+
+    async def list_turn_messages(
+        self,
+        *,
+        channel_id: int,
+        session_id: str,
+        turns,
+    ):
+        turn_set = {int(t) for t in turns}
+        refs = [
+            ref for ref in self._refs
+            if ref.channel_id == channel_id
+            and ref.session_id == session_id
+            and ref.turn_index in turn_set
+        ]
+        return sorted(
+            refs,
+            key=lambda r: (
+                r.turn_index, r.created_at,
+                r.discord_channel_id, r.message_id,
+            ),
+        )
+
+    async def forget_turn_messages(self, refs):
+        targets = {
+            (
+                ref.channel_id, ref.session_id, ref.turn_index,
+                ref.discord_channel_id, ref.message_id,
+            )
+            for ref in refs
+        }
+        before = len(self._refs)
+        self._refs = [
+            ref for ref in self._refs
+            if (
+                ref.channel_id, ref.session_id, ref.turn_index,
+                ref.discord_channel_id, ref.message_id,
+            ) not in targets
+        ]
+        return before - len(self._refs)
+
+
+class TestRewindDiscordCleanup:
+    def _smap(self) -> _FakeTurnMessageStore:
+        return _FakeTurnMessageStore()
 
     def test_deletes_only_messages_from_rewound_turns(
         self, tmp_path: Path,
     ):
-        smap = self._smap(tmp_path)
+        smap = self._smap()
         turn_3_msg = _FakeDiscordMessage(3000)
         turn_4_msg = _FakeDiscordMessage(4000)
         turn_5_msg = _FakeDiscordMessage(5000)
@@ -1181,7 +1246,7 @@ class TestRewindDiscordCleanup:
         assert [r.message_id for r in remaining] == [3000]
 
     def test_edits_message_when_delete_fails(self, tmp_path: Path):
-        smap = self._smap(tmp_path)
+        smap = self._smap()
         msg = _FakeDiscordMessage(4000, delete_raises=True)
         channel = _FakeDiscordChannel(900, {4000: msg})
         client = _FakeDiscordClient(channels={900: channel})
@@ -1215,7 +1280,7 @@ class TestRewindDiscordCleanup:
         assert remaining == []
 
     def test_dm_refs_resolve_through_recipient_user(self, tmp_path: Path):
-        smap = self._smap(tmp_path)
+        smap = self._smap()
         msg = _FakeDiscordMessage(4000)
         dm_channel = _FakeDiscordChannel(901, {4000: msg})
         user = _FakeDiscordUser(42, dm_channel)

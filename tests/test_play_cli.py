@@ -54,7 +54,6 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.takeover = MagicMock()
     engine.unbind_user = MagicMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
-    engine.set_character_appearance = MagicMock(return_value=_empty_ckpt(bindings))
     engine.set_character_identity = MagicMock(return_value=_empty_ckpt(bindings))
     engine.run_turn = AsyncMock()
     return engine

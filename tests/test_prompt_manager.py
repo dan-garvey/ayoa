@@ -101,7 +101,6 @@ class TestPromptManagerWithRealTemplates:
             "agent_v11",
             "character_gen_v3",
             "takeover_v1",
-            "turn_recap_v1",
         ):
             with pytest.raises(FileNotFoundError):
                 mgr._find_template(legacy)
@@ -127,7 +126,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="aldric",
             player_characters_block="- **Aldric** (acting this turn) (id: aldric) — scholar. Tall, broad-shouldered, grey-streaked hair.",
             since_last_turn_block="",
-            recent_turn_recap="",
             # Commit-3: dropped `world_facts` (full) + `character_registry`
             # from per-turn context. Replaced with three new optional
             # blocks; on most calls these are empty strings.
@@ -216,7 +214,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="x",
             player_characters_block="x",
             since_last_turn_block="",
-            recent_turn_recap="",
             world_facts_delta_block="",
             initial_roster_block="",
             state_changes_block="",
@@ -252,7 +249,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="x",
             player_characters_block="x",
             since_last_turn_block="",
-            recent_turn_recap="",
             world_facts_delta_block="",
             initial_roster_block="",
             state_changes_block="",

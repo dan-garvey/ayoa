@@ -306,6 +306,28 @@ class TestCanonicalEvent:
 
 
 class TestEventRouterOutput:
+    def test_json_schema_is_openai_strict_object_compatible(self):
+        """OpenAI strict structured outputs reject nested object schemas
+        unless every object explicitly sets additionalProperties=false."""
+        schema = EventRouterOutput.model_json_schema()
+        missing = []
+
+        def walk(node, path=()):
+            if isinstance(node, dict):
+                if (
+                    node.get("type") == "object"
+                    and node.get("additionalProperties") is not False
+                ):
+                    missing.append(path)
+                for key, value in node.items():
+                    walk(value, path + (key,))
+            elif isinstance(node, list):
+                for i, value in enumerate(node):
+                    walk(value, path + (str(i),))
+
+        walk(schema)
+        assert missing == []
+
     def test_construct(self):
         r = EventRouterOutput(**ROUTER_OUTPUT_EXAMPLE)
         assert len(r.observers) == 1

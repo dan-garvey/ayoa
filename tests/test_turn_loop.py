@@ -131,6 +131,7 @@ class FakeDispatcher:
 
     def __init__(self):
         self.route_calls: list[dict] = []
+        self.continuation_calls: list[dict] = []
         self.agent_calls: list[dict] = []
         self.narrator_calls: list[dict] = []
         self.harvest_calls: list[dict] = []
@@ -156,6 +157,10 @@ class FakeDispatcher:
 
     async def route_intention(self, **kw) -> EventRouterOutput:
         self.route_calls.append(kw)
+        return self._route_responses.pop(0)
+
+    async def route_continuation(self, **kw) -> EventRouterOutput:
+        self.continuation_calls.append(kw)
         return self._route_responses.pop(0)
 
     async def agent_intend(self, **kw) -> str:
@@ -835,15 +840,16 @@ class TestValidationHardening:
         rebuilt = EventRouterOutput.model_validate(out_dict)
         assert rebuilt.ends_beat_reason == ""
 
-    def test_empty_agent_intention_drops_pick_and_ends_beat(self):
+    def test_empty_agent_intention_routes_continuation_instead_of_ending(self):
         ckpt = _ckpt(bindings={"alice": "1"})
         fake = FakeDispatcher()
         fake.queue_route(_router_out(
             agent_picks=["pip"], ends_beat=False,
         ))
+        fake.queue_route(_router_out(ends_beat=True))
         # Agent returns an empty string — should be treated as failure,
-        # beat ends cascade_exhausted rather than routing the empty
-        # intention through adjudication.
+        # but an open beat must not be returned to the player as
+        # cascade_exhausted. The router gets one continuation call.
         fake.queue_agent("")
 
         result = asyncio.run(run_beat(
@@ -851,7 +857,38 @@ class TestValidationHardening:
             actor_id="alice", intention="wait",
             scene_id="gatehouse",
         ))
-        assert result.ended_reason == "cascade_exhausted"
+        assert result.ended_reason == "directed_at_player"
+        assert len(fake.continuation_calls) == 1
+        assert result.events_closed == 2
+
+    def test_false_endbeat_with_no_picks_routes_continuation(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(ends_beat=False))
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt, dispatcher=fake,
+            actor_id="alice", intention="wait",
+            scene_id="gatehouse",
+        ))
+
+        assert result.ended_reason == "directed_at_player"
+        assert len(fake.continuation_calls) == 1
+        assert result.events_closed == 2
+
+    def test_repeated_false_endbeat_without_picks_errors(self):
+        ckpt = _ckpt(bindings={"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(ends_beat=False))
+        fake.queue_route(_router_out(ends_beat=False))
+
+        with pytest.raises(RuntimeError, match="without a dispatchable"):
+            asyncio.run(run_beat(
+                ckpt=ckpt, dispatcher=fake,
+                actor_id="alice", intention="wait",
+                scene_id="gatehouse",
+            ))
 
     def test_refusal_text_no_longer_drops_pick(self):
         """v11-r5: refusal detection moved to the prompt (agent
@@ -918,13 +955,13 @@ class TestObservationHarvestSchema:
         rebuilt = EventRouterOutput.model_validate(out_dict)
         assert rebuilt.ends_beat is True
 
-    def test_observation_harvest_with_empty_picks_warns_but_validates(
+    def test_observation_harvest_with_empty_picks_coerces_to_cascade_exhausted(
         self, caplog
     ):
-        # Empty picks is malformed (nothing to harvest) but the
-        # validator clamps-not-raises so a one-off prompt drift
-        # doesn't crash a session. Engine side falls through as a
-        # sparse Cat I close — see test_harvest_skips_when_no_picks.
+        # Empty picks is malformed: there are no target agents to
+        # harvest. The validator clamps-not-raises so a one-off prompt
+        # drift doesn't crash a session, but the telemetry reason must
+        # not continue claiming a harvest happened.
         import logging
         out = _router_out(ends_beat=True)  # picks default to []
         out_dict = out.model_dump()
@@ -933,9 +970,10 @@ class TestObservationHarvestSchema:
         from app.schemas.event_router import EventRouterOutput
         with caplog.at_level(logging.WARNING):
             rebuilt = EventRouterOutput.model_validate(out_dict)
-        assert rebuilt.ends_beat_reason == "observation_harvest"
+        assert rebuilt.ends_beat_reason == "cascade_exhausted"
         assert any(
-            "observation_harvest" in r.message and "empty" in r.message
+            "observation_harvest" in r.message
+            and "nothing to harvest" in r.message
             for r in caplog.records
         )
 

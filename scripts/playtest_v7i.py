@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sys
 from collections import defaultdict
 from io import StringIO
@@ -26,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 
 from app.bot.engine_bridge import EngineBridge
+from app.llm.config import LLMConfig
 
 load_dotenv()
 
@@ -152,9 +152,31 @@ def _setup_logging() -> _CaptureHandler:
 # Driver
 # -----------------------------------------------------------------------------
 
+def _missing_llm_keys(config: LLMConfig) -> list[str]:
+    missing: list[str] = []
+    if (
+        "anthropic" in config.providers_in_use()
+        and not config.api_key_for_provider("anthropic")
+    ):
+        missing.append("ANTHROPIC_API_KEY")
+    if "openai" in config.providers_in_use():
+        openai_roles = config.roles_for_provider("openai")
+        if openai_roles:
+            for role in sorted(openai_roles):
+                if config.api_key_for_provider("openai", role=role):
+                    continue
+                role_env = config.openai_role_api_key_env_names(role)[0]
+                missing.append(f"{role_env} or OPENAI_API_KEY for {role}")
+        elif not config.api_key_for_provider("openai"):
+            missing.append("OPENAI_API_KEY")
+    return missing
+
+
 async def _run() -> None:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set", file=sys.stderr)
+    missing_llm_keys = _missing_llm_keys(LLMConfig.from_env())
+    if missing_llm_keys:
+        missing = ", ".join(missing_llm_keys)
+        print(f"ERROR: {missing} not set", file=sys.stderr)
         sys.exit(1)
 
     capture = _setup_logging()

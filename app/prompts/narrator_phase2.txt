@@ -149,9 +149,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 ## What Happened (Canonical Event)
 {canonical_event}
 
-## Character Responses
-{agent_outputs}
-
 ## Current Scene
 {scene_context}
 

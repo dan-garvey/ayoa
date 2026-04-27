@@ -23,9 +23,6 @@ Helpers kept from v8:
   - `_apply_scene_creations` (scene-graph growth is still orchestrator-
     owned; `run_beat` broadcasts canonical events but doesn't mutate the
     scene graph).
-  - `_log_cache_summary` (per-turn cache/spend readout; currently unused
-    in the v11 wrapper because per-phase latencies aren't gathered yet —
-    left intact for when they come back).
 """
 
 from __future__ import annotations
@@ -36,6 +33,7 @@ import logging
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import (
     BeatResult,
@@ -64,7 +62,7 @@ from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
-from app.schemas.responses import PhaseLatency, TurnResponse
+from app.schemas.responses import TurnResponse
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +232,7 @@ class Orchestrator:
         effects → save → build response.
         """
         ckpt = self.checkpoint_mgr.load_latest(request.session_id)
+        sync_checkpoint_runtime_models(ckpt, self.client.config)
 
         # 1. Resolve the acting character.
         acting_id = self._resolve_acting_character(ckpt, request)
@@ -401,6 +400,7 @@ class Orchestrator:
         response.
         """
         ckpt = self.checkpoint_mgr.load_latest(session_id)
+        sync_checkpoint_runtime_models(ckpt, self.client.config)
         evt = next(
             (e for e in ckpt.session.open_cat_ii_events if e.event_id == event_id),
             None,
@@ -424,6 +424,7 @@ class Orchestrator:
             # Re-read: another task may have closed this event while we
             # were waiting for the lock.
             ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
             evt_live = next(
                 (e for e in ckpt.session.open_cat_ii_events
                  if e.event_id == event_id),
@@ -1070,56 +1071,3 @@ class Orchestrator:
         )
 
         return ticked
-
-
-def _log_cache_summary(latencies: list[PhaseLatency]) -> None:
-    """Per-turn cache + spend readout at INFO. Retained from the v8
-    pipeline; currently unused by the v11 wrapper because per-phase
-    latencies aren't yet reconstructed from the dispatcher. Re-enable
-    by feeding latencies collected inside LLMDispatcher/run_beat once
-    that plumbing exists."""
-    if not latencies:
-        return
-
-    def cost_units(l: PhaseLatency) -> float:
-        return (
-            l.input_tokens
-            + 1.25 * l.cache_creation_input_tokens
-            + 0.1 * l.cache_read_input_tokens
-            + l.output_tokens
-        )
-
-    total_read = sum(l.cache_read_input_tokens for l in latencies)
-    total_write = sum(l.cache_creation_input_tokens for l in latencies)
-    total_in = sum(l.input_tokens for l in latencies)
-    total_out = sum(l.output_tokens for l in latencies)
-    total_prompt = total_read + total_write + total_in
-    turn_rate = (total_read / total_prompt) if total_prompt else 0.0
-    turn_cost = sum(cost_units(l) for l in latencies) or 1.0
-    top = max(latencies, key=cost_units)
-    logger.info(
-        "Cache usage this turn: read=%d write=%d fresh=%d out=%d  "
-        "hit_rate=%.1f%%  top_spender=%s (%.0f%%)",
-        total_read, total_write, total_in, total_out,
-        turn_rate * 100,
-        top.phase, cost_units(top) / turn_cost * 100,
-    )
-    for l in latencies:
-        prompt_tot = (
-            l.cache_read_input_tokens
-            + l.cache_creation_input_tokens
-            + l.input_tokens
-        )
-        rate = (l.cache_read_input_tokens / prompt_tot) if prompt_tot else 0.0
-        share = cost_units(l) / turn_cost
-        logger.info(
-            "  phase=%-16s read=%5d write=%5d fresh=%5d out=%5d  "
-            "hit=%.1f%%  share=%.0f%%",
-            l.phase,
-            l.cache_read_input_tokens,
-            l.cache_creation_input_tokens,
-            l.input_tokens,
-            l.output_tokens,
-            rate * 100,
-            share * 100,
-        )

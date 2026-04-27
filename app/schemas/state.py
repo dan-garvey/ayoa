@@ -7,10 +7,10 @@ from pydantic import BaseModel, Field
 
 
 class ModelConfig(BaseModel):
-    event_router: str = "claude-sonnet-4-6"
-    narrator: str = "claude-sonnet-4-6"
-    discriminator: str = "claude-sonnet-4-6"
-    agent_default: str = "claude-sonnet-4-6"
+    event_router: str = "gpt-5.2"
+    narrator: str = "gpt-5.1"
+    discriminator: str = "gpt-5.2"
+    agent_default: str = "gpt-5.1"
 
 
 class SlotEntry(BaseModel):
@@ -187,13 +187,6 @@ class SessionState(BaseModel):
     # no live save references them.
     tick_turn_counter: int = 0
     tick_cadence: int = 10
-    # One-slot rolling buffer for the router's missing-narrator-context
-    # problem. A Haiku summarizer produces a terse delta note at end of
-    # turn N describing what the narrator rendered that the router
-    # needs to know. That note is consumed by turn N+1's router call
-    # (embedded in its user message, which then archives into
-    # session_conversation) and cleared. Empty on a fresh session.
-    pending_recap: str = ""
     # Commit-3 (router-trim): which `world_state.facts` entries have
     # already been surfaced to the router in some prior turn's user
     # message. The per-turn user message now carries
