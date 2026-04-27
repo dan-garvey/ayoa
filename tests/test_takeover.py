@@ -330,10 +330,14 @@ class TestCreatePlayerCharacterSimple:
 
         # Router needs a heads-up about the new arrival.
         changes = loaded.session.pending_router_state_changes
-        assert any(
-            "akari_tanaka" in line and "[player-bound]" in line
-            for line in changes
-        ), changes
+        arrival_change = next(
+            line for line in changes
+            if "akari_tanaka" in line and "[player-bound]" in line
+        )
+        assert "appearance:" in arrival_change
+        assert "player-supplied backstory:" in arrival_change
+        assert "sparse player-authored arrival" in arrival_change
+        assert "observable_facts" in arrival_change
 
     def test_backstory_optional(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()

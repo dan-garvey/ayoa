@@ -1002,6 +1002,11 @@ class EngineBridge:
         bits = [f"appearance: {appearance[:200]}"]
         if backstory:
             bits.append(f"player-supplied backstory: {backstory[:300]}")
+        bits.append(
+            "sparse player-authored arrival: infer a concrete story role "
+            "and immediate on-ramp from the premise; surface that on-ramp "
+            "as in-fiction observable_facts to the NPCs who would know"
+        )
         ckpt.session.pending_router_state_changes.append(
             f"Custom player character created: {new_char.name} "
             f"(id: {new_id}) — {'; '.join(bits)}. [player-bound]"

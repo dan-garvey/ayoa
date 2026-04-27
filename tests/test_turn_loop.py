@@ -1069,9 +1069,9 @@ class TestObservationHarvestFork:
         # is graceful, not a crash.
         assert result.ended_reason == "observation_harvest"
 
-    def test_harvest_filters_off_scene_picks(self):
-        # Router picks an off-scene NPC; the same engine filter
-        # strips them. Only the in-scene pick gets a perception.
+    def test_harvest_keeps_off_location_npc_picks(self):
+        # Router owns NPC perception eligibility. The engine strips
+        # human-controlled ids, but it no longer drops off-location NPCs.
         ckpt = _ckpt(bindings={"alice": "1"})
         ckpt.characters.append(
             CharacterRecord(
@@ -1086,16 +1086,16 @@ class TestObservationHarvestFork:
             ends_beat=True, agent_picks=["pip", "nyx"],
         ))
         fake._route_responses[0].ends_beat_reason = "observation_harvest"
-        fake.queue_harvest(["Pip silent."])  # one entry, for pip only
+        fake.queue_harvest(["Pip silent.", "Nyx silent."])
 
         asyncio.run(run_beat(
             ckpt=ckpt, dispatcher=fake,
             actor_id="alice", intention="look",
             scene_id="gatehouse",
         ))
-        # Harvest fired for in-scene pick only.
+        # Harvest fired for both NPC picks.
         assert len(fake.harvest_calls) == 1
-        assert fake.harvest_calls[0]["character_ids"] == ["pip"]
+        assert fake.harvest_calls[0]["character_ids"] == ["pip", "nyx"]
 
     def test_harvest_passes_acting_character_id_to_dispatcher(self):
         ckpt = _ckpt(bindings={"alice": "1"})
@@ -1208,7 +1208,7 @@ class TestPicksSubsetOfObservers:
         )
         assert out.agent_responder_picks == ["alice"]  # pip clamped
 
-    def test_remote_pick_allowed_when_event_scopes_fact_to_them(self):
+    def test_remote_npc_pick_allowed_without_engine_visibility_gate(self):
         from app.engine.turn_loop import _filter_picks_for_dispatch
 
         ckpt = _ckpt(bindings={"alice": "1"})
@@ -1224,12 +1224,7 @@ class TestPicksSubsetOfObservers:
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
-                observable_facts=[
-                    ObservableFact.only(
-                        "A live channel carries Alice's question to Watcher.",
-                        ["watcher"],
-                    ),
-                ],
+                observable_facts=[],
             ),
             observers=[
                 ObserverEntry(
@@ -1289,15 +1284,11 @@ class TestPinnedGuards:
 
 
 class TestFilterPicksForDispatch:
-    """v11-r7g: engine-level filter applied to agent_responder_picks
-    before dispatching agent_intend.
+    """Engine-level guard applied to agent_responder_picks.
 
-    Two filters: (1) drop human-bound characters (humans only enter via
-    /act, never via cascade), (2) drop NPCs with no perceptual context.
-    Local NPCs pass by physical co-presence; mediated NPCs pass only
-    when fact-level visibility names them. Pre-r7g picks at unrelated
-    locations were dispatched and routinely returned empty/refusal
-    intentions, producing WARNING noise.
+    The guard is intentionally narrow: drop human-bound characters
+    because humans only enter via /act. NPC location/perception
+    eligibility is a router decision, not an engine-side filter.
     """
 
     def _ckpt_with_chars(
@@ -1328,7 +1319,7 @@ class TestFilterPicksForDispatch:
             ckpt, "gatehouse", ["npc_a"],
         ) == ["npc_a"]
 
-    def test_out_of_scene_npc_filtered(self):
+    def test_out_of_scene_npc_passes_through(self):
         from app.engine.turn_loop import _filter_picks_for_dispatch
         ckpt = self._ckpt_with_chars(
             [
@@ -1338,10 +1329,9 @@ class TestFilterPicksForDispatch:
             ],
             bindings={"alice": "1"},
         )
-        # npc_far gets dropped; npc_in survives.
         assert _filter_picks_for_dispatch(
             ckpt, "gatehouse", ["npc_in", "npc_far"],
-        ) == ["npc_in"]
+        ) == ["npc_in", "npc_far"]
 
     def test_human_pick_filtered_even_in_scene(self):
         from app.engine.turn_loop import _filter_picks_for_dispatch

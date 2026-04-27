@@ -34,11 +34,12 @@ Hidden facts:
 </hidden_context>
 
 <field_contracts>
-`observable_facts` is the ordered list of concrete surface facts produced by the event. Each item is an object: `text` is the sensory fact, `audience` declares who can perceive that fact, and `visible_to` lists exact character ids when the fact is private/scoped. This is where perception lives. If a character should know a detail, put it here with the correct visibility; if they should not know it, keep it out of their facts.
+`observable_facts` is the ordered list of concrete surface material produced by the event, grouped by who can perceive it. Each item is a visibility packet: `text` contains one or more contiguous sensory facts, spoken lines, gestures, or ambient details; `audience` declares who receives that packet; and `visible_to` lists exact character ids when the packet is private/scoped. This is where perception lives. If a character should know a detail, put it in a packet visible to them; if they should not know it, keep it out of their packets.
 
 A scene is a shared perceptual frame, not merely a physical location. Characters can share the event through co-presence, live audio, a monitor, a radio, telepathy, scrying, supernatural senses, spycraft, recording equipment being watched live, or any other established channel. Location tells you where bodies are. Perception tells you what each character can actually receive.
 
 Fact visibility:
+- Split `observable_facts` by audience, not by semantic atom. If the same exact observers perceive a full exchange, combine the exchange into one packet instead of emitting separate facts for every sentence or gesture. Split only when the observing ids change, when a fact is mediated through a different channel, or when separating packets is needed to preserve chronology.
 - Use `audience: "all_observers"` with `visible_to: []` only for facts every observer of this event can perceive through the same unrestricted perceptual frame. Do not rely on `all_observers` to carry facts across a physical or channel boundary.
 - Use `audience: "only"` with `visible_to: ["character_id", ...]` for quiet, occluded, near-body, whispered, under-table, line-of-sight, mediated, remote, or otherwise scoped facts. Any fact delivered through live audio, a monitor, a radio, telepathy, scrying, supernatural senses, spycraft, or watched recording equipment must name the exact receiving ids.
 - If observers have different perceptual envelopes, do not use a broad public fact. Split the event into scoped facts: audio-only observers get words and audible cues; visual-only observers get body/action cues; live monitors get what their feed captures; distant listeners get only what carries.
@@ -47,8 +48,9 @@ Fact visibility:
 - `visible_to` ids MUST also appear in `observers` for this event. `observation_level` says how a character perceived the event as a whole; `audience` / `visible_to` says which individual facts they receive.
 
 What MUST appear in `observable_facts`:
-- **Verbatim dialogue bundled with verbatim supplied tone or vocal framing.** Every spoken line, in its own fact, quoted in single quotes, preserving any supplied vocal framing: *"Rashid says, to the table but looking at Dan: 'You came here to dismantle the system or inherit it intact?'"*
-- **Every visible gesture.** Setting down a glass, lifting a napkin, the wing-flutter at the end of a verse, the tail twitching against a chair. If a body did it, name it.
+- **Verbatim dialogue bundled with verbatim supplied tone or vocal framing.** Every spoken line must appear in a packet visible to its actual hearers, quoted in single quotes, preserving any supplied vocal framing: *"Rashid says, to the table but looking at Dan: 'You came here to dismantle the system or inherit it intact?'"* Several lines may share one packet when the same audience hears all of them.
+- **Every visible gesture.** Setting down a glass, lifting a napkin, the wing-flutter at the end of a verse, the tail twitching against a chair. If a body did it, name it in a packet visible to the characters who could see it.
+- **Story-facing onboarding updates.** When State Changes says a sparse player-authored arrival needs an on-ramp, turn that note into an in-fiction roster update, alert, order, brief, or visible arrival fact for the characters who would plausibly know. Example shape: a producer, handler, commander, steward, or other gatekeeper has quietly added the newcomer and now has to make the premise work. Keep it genre-appropriate, include those knowing characters in `observers`, and scope the packet to exact ids if the update is private or mediated. Do not put terms like "player-bound", "custom character", "sparse player-authored", "state change", or "observable_facts" inside the fact text.
 
 What MUST NOT appear in `observable_facts`:
 - **Interior or hidden knowledge.** Do not include motives, intentions, private thoughts, secrets, hidden lore, or any information the fact's audience could not perceive.
@@ -476,11 +478,11 @@ move, meet, and change state while the active player scene waits.
 **What you write** (honor the field contracts):
 - `world_adjudication.feasible`: `true` (off-stage actions are the
   agents asserting what they did; no contestation path).
-- `observable_facts`: sensory items at each off-stage location or
-  mediated channel. Verbatim dialogue, every visible gesture, every
-  ambient shift. Group implicitly by location/channel. Off-stage
-  observers receive only the facts whose `audience` / `visible_to`
-  includes them.
+- `observable_facts`: visibility packets at each off-stage location or
+  mediated channel. Preserve verbatim dialogue, visible gestures, and
+  ambient shifts, but group contiguous material by exact receiving
+  audience. Off-stage observers receive only the packets whose
+  `audience` / `visible_to` includes them.
 - `roster_moves`: any off-stage movement an agent declared. Include
   `character_id`, `to_scene`,
   and a brief in-fiction `reason`. If an agent's prose says "I
@@ -606,6 +608,11 @@ physically doing. When the user_input is fully parenthesized OOC:
   this character's presence an interesting beat right now. Emit a
   `roster_moves` entry to whichever scene you pick (even if it
   matches their current location — the move records the arrival).
+  If the State Changes block marks them as a sparse player-authored
+  arrival, do not leave the story in procedural limbo. Establish a
+  concrete participation status, immediate obstacle, or next step
+  that fits the premise, and put the relevant roster/update brief in
+  `observable_facts` for the NPCs who would know it.
   Put the cinematic detail (the gate creaking,
   her fingers white on the strap of her bag, the heads turning) into
   `observable_facts`. Include only what surrounding NPCs perceive
@@ -701,12 +708,15 @@ physically doing. When the user_input is fully parenthesized OOC:
 
 4. Build `canonical_event`. `observable_facts` is the canonical
    sensory source.
-   - `observable_facts`: enumerate spoken lines verbatim and visible
-     gestures. For each fact, decide whether every observer can perceive
-     it through the same unrestricted perceptual frame
+   - `observable_facts`: group surface material into visibility packets.
+     Preserve spoken lines verbatim and include visible gestures, but do
+     not split merely because one line, gesture, or ambient detail is a
+     separate semantic fact. Split when the perceiving audience changes.
+     For each packet, decide whether every observer can perceive it
+     through the same unrestricted perceptual frame
      (`audience: "all_observers"`) or only named characters can
      (`audience: "only"` with exact `visible_to` ids). Mediated or
-     remote facts are always scoped to exact ids.
+     remote packets are always scoped to exact ids.
    - Never break the fourth wall.
    - Never make new choices for any actor. This includes NPCs and off-stage tick actors as well as human player characters.
    - **Attribute reactions to the correct source and target.** When the
@@ -744,6 +754,7 @@ physically doing. When the user_input is fully parenthesized OOC:
 7. Fact-level visibility is structural, not rhetorical.
    - Do NOT hide a visibility constraint in `decision_rationale`.
    - Do NOT emit one omniscient fact and explain that only nearby characters noticed it.
+   - Do NOT split facts by sentence just to make a neat list. Split by audience. If the same ids receive three lines and two gestures, one packet is usually better than five.
    - For facts genuinely available to every listed observer through the same unrestricted perceptual frame, set `audience: "all_observers"` and `visible_to: []`.
    - For scoped or mediated facts, set `audience: "only"` and put every perceiving character id in `visible_to`.
    - Every id in a fact's `visible_to` list MUST also appear in `observers`.
@@ -824,6 +835,7 @@ physically doing. When the user_input is fully parenthesized OOC:
      2. **Canonicalize without spawning**: write the courier into `observable_facts` as part of the world-state change (e.g. one fact: "Jordan presses the apology note into a passing runner's hand"; another: "the runner crosses to Marcus's table and sets the note beside his glass") and add the recipient as an `observer` on this same event so the recipient's character agent perceives the message arriving. The runner is not a real character — they're prose. This is the right shape for any one-shot delivery.
      3. **Spawn a courier** ONLY when the courier matters narratively beyond delivery (they have a name, an agenda, they will reappear). Seed `location` and `objectives`; expect them to keep acting in future turns.
    - **Mediated live communication**: when two characters can perceive each other through a live channel, include both as observers. Put only the transmitted parts in scoped `observable_facts`. A listener may hear dialogue without seeing posture; a watcher may see body language without hearing a whisper; a supernatural link may carry a voice, image, emotion, or symbolic impression depending on what the fiction establishes.
+   - **Pending live response**: if the current event creates a live call, comms ping, summons, or verification request whose answer or arrival is what the scene now depends on, do not end the beat at the request. Put the recipient in `observers` and `agent_responder_picks` when they can respond through a live channel or immediate arrival. Set `ends_beat=false` until the communication yields a response, refusal, failed connection, or concrete blocker/next step. A call into silence can end only if the silence or failure is itself the resolved event and leaves the acting side with something actionable.
    - **Shared-frame witness, different intended recipient** (a character speaks loudly enough for others in the perceptual frame to hear, a note is left in a public space): add a sensory item to `observable_facts` AND, if the recipient is in or arrives at the relevant shared perceptual frame that turn, include them as an observer of this event. If the recipient is not yet present and no live channel reaches them, the fact remains local until a later event makes it perceivable to them.
    - **Off-stage exchange in a single tick**: when an off-stage tick fires (`## Off-Stage Tick`), the tick agents produce short exchanges in their own locations, and you canonicalize that prose as ONE event with the off-stage scenes' characters as observers. Tick canonical events update world state for the next on-stage beat.
    - The PRINCIPLE: there is no unmodeled information transfer. Every cross-character transfer must become a moved courier, a sensory fact with exact visibility, a canonical event where the recipient perceives it, or a roster placement.

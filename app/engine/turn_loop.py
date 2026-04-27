@@ -707,39 +707,34 @@ def _filter_picks_for_dispatch(
     picks: list[str],
     event: EventRouterOutput | None = None,
 ) -> list[str]:
-    """v11-r7g: drop picks the engine refuses to dispatch.
+    """Drop human-controlled picks before NPC dispatch.
 
-    Two filters, in order:
-      1. Humans — anyone the engine considers human-controlled,
-         per `collect_player_ids`. Humans don't cascade via the
-         router; they only enter through `/act`. Using
-         `collect_player_ids` here (rather than the bare bindings
-         dict) is the load-bearing fix for the playable-2 era:
-         `session.player_character_id` may name the creator's bound
-         character without there being a corresponding entry in
-         `character_bindings` (older saves; CLI single-player
-         flows). Filtering on bindings alone let those creator-
-         bound characters slip into NPC dispatch and produced the
-         "router tried to make my own character speak" symptom.
-      2. NPCs with no perceptual context — ordinary picks must be in
-         the physical event location. Remote/mediated picks are allowed
-         only when this event explicitly scopes a visible fact to them,
-         which means they have a live channel to react through.
+    Humans do not cascade via the router; they only enter through
+    `/act`. Using `collect_player_ids` here (rather than the bare
+    bindings dict) is the load-bearing fix for the playable-2 era:
+    `session.player_character_id` may name the creator's bound
+    character without there being a corresponding entry in
+    `character_bindings` (older saves; CLI single-player flows).
+    Filtering on bindings alone let those creator-bound characters
+    slip into NPC dispatch and produced the "router tried to make my
+    own character speak" symptom.
+
+    NPC picks are intentionally not filtered by physical location or
+    fact-level visibility here. Whether an off-location NPC should act
+    is a router decision; if it picks a remote producer, caller, spirit,
+    watcher, or other mediated participant, we dispatch that NPC and let
+    prompt/schema tuning decide whether the pick was good.
 
     Returns the filtered list preserving router order.
     """
+    del scene_id, event
     # Local import to avoid an engine-package import cycle on module
     # load (context_builder pulls some of the same schemas turn_loop
     # exports). Cheap — the function is tiny and the import is cached.
     from app.engine.context_builder import collect_player_ids
 
     humans = collect_player_ids(ckpt)
-    in_scene = _scene_member_ids(ckpt, scene_id)
-    return [
-        rid for rid in picks
-        if rid not in humans
-        and (rid in in_scene or _has_explicit_visible_fact(event, rid))
-    ]
+    return [rid for rid in picks if rid not in humans]
 
 
 async def _agent_intention_for_dispatch(
@@ -1226,8 +1221,8 @@ async def run_beat(
                     )
                 # Keep cascading via picks — reuse the normal path by
                 # letting the loop iterate. Break out of the inner if
-                # and continue. v11-r7g: filter humans + out-of-scene
-                # in one helper.
+                # and continue. The helper strips human-controlled ids;
+                # NPC eligibility stays with the router.
                 picks = _filter_picks_for_dispatch(
                     ckpt, scene_id, result.agent_responder_picks,
                     event=result,
@@ -1371,9 +1366,8 @@ async def run_beat(
         # Mutating the canonical event after broadcast is safe:
         # `broadcast_event` only takes references (event_id into render
         # buffers) and the narrator reads the live
-        # `observable_facts` list at compose time. The harvest path
-        # respects the same human / no-perception filter as the cascade
-        # picks.
+        # `observable_facts` list at compose time. The harvest path uses
+        # the same human-only pick guard as the cascade path.
         if result.ends_beat_reason == "observation_harvest":
             harvest_picks = _filter_picks_for_dispatch(
                 ckpt, scene_id, result.agent_responder_picks,
@@ -1433,10 +1427,9 @@ async def run_beat(
             )
 
         # Pick the next actor for the cascade. Agents only — humans
-        # don't continue a beat unless they /act fresh. v11-r7g:
-        # also filter out-of-scene picks (the router routinely
-        # over-reaches to NPCs at other locations who then return
-        # empty/refusal intentions).
+        # don't continue a beat unless they /act fresh. NPC location /
+        # perception eligibility is owned by the router; the engine only
+        # strips human-controlled ids here.
         picks = _filter_picks_for_dispatch(
             ckpt, scene_id, result.agent_responder_picks,
             event=result,
