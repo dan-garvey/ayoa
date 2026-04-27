@@ -550,6 +550,53 @@ class TestCatIIBeat:
         # Slot released.
         assert "gatehouse" not in ckpt.session.active_act_slots
 
+    def test_cat_ii_resolution_reaches_npc_initiator_after_human_response(self):
+        ckpt = _ckpt(bindings={"bob": "2"})
+        evt = open_cat_ii(
+            ckpt,
+            scene_id="gatehouse",
+            initiator_id="pip",
+            initiator_intention="Pip throws Bob",
+            required_responders=["bob"],
+        )
+        pin_cat_ii_responder(ckpt, "gatehouse", "bob", evt.event_id)
+
+        resolution = _router_out(ends_beat=True)
+        resolution.observers = [
+            ObserverEntry(
+                character_id="bob",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=5,
+            ),
+        ]
+        resolution.canonical_event.observable_facts = [
+            ObservableFact.all("Bob pivots through the throw."),
+            ObservableFact.all("Pip ends the exchange with his grip broken."),
+        ]
+
+        fake = FakeDispatcher()
+        fake.queue_route(resolution)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="bob",
+            intention="I pivot out",
+            scene_id="gatehouse",
+            cat_ii_event_id=evt.event_id,
+        ))
+
+        assert result.ended_reason == "cat_ii_resolution"
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert len(pip.pending_observations) == 1
+        assert "Bob pivots through the throw." in pip.pending_observations[0]
+        assert "Pip ends the exchange" in pip.pending_observations[0]
+
     def test_cat_ii_multi_responder_pauses_until_all_intentions_in(self):
         ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
         evt = open_cat_ii(

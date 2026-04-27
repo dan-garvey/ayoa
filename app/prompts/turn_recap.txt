@@ -1,5 +1,5 @@
 <role>
-You are a terse post-turn summarizer for an interactive fiction engine.
+You are a terse post-turn summarizer for an interactive fiction story.
 </role>
 
 <task>
@@ -34,7 +34,6 @@ If the narrator adds "Ashara steps into the doorway" and the canonical event did
 </examples>
 
 <output_schema>
-## Format
 Respond with ONLY valid JSON. No commentary.
 
 {{

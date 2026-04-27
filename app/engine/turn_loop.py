@@ -1083,9 +1083,11 @@ async def run_beat(
                 "Router returned Cat II nesting on an adjudication call; "
                 "Part C invariant violated."
             )
-        broadcast_event(
-            ckpt, resolved, resolution_scene, actor_id=evt.initiator_id,
-        )
+        # A Cat II resolution is not a single actor's self-action; it is the
+        # adjudicated outcome of every collected intention. Broadcast it to all
+        # NPC observers, including the initiator, so agents retain the final
+        # result instead of only the player render seeing it.
+        broadcast_event(ckpt, resolved, resolution_scene)
         # Cat II adjudication always ends the beat.
         return await _end_beat(
             ckpt, dispatcher, scene_id,
@@ -1233,9 +1235,10 @@ async def run_beat(
                         "Router returned Cat II nesting on an adjudication "
                         "call; Part C invariant violated."
                     )
-                broadcast_event(
-                    ckpt, resolved, scene_id, actor_id=evt.initiator_id,
-                )
+                # Cat II resolution belongs to every participant in the
+                # contest, so do not exclude the initiator from the observer
+                # inbox fan-out.
+                broadcast_event(ckpt, resolved, scene_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
                 return await _end_beat(

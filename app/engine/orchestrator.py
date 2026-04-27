@@ -449,9 +449,11 @@ class Orchestrator:
                         "Cat II resolution returned nested Cat II "
                         "(Part C invariant violated)."
                     )
-                broadcast_event(
-                    ckpt, resolved, scene_id, actor_id=evt_live.initiator_id,
-                )
+                # A Cat II resolution is the adjudicated outcome of all
+                # collected intentions. Every NPC observer, including the
+                # initiator, needs the final result in their inbox for future
+                # turns.
+                broadcast_event(ckpt, resolved, scene_id)
                 beat_result = await _end_beat(
                     ckpt, dispatcher, scene_id,
                     ended_reason="cat_ii_resolution",

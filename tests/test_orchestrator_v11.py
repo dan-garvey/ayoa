@@ -20,7 +20,12 @@ from app.engine.orchestrator import Orchestrator
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry, RosterMove
-from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    SceneDelta,
+    WorldAdjudication,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import LocationState, SessionState, WorldState
@@ -980,7 +985,24 @@ class TestResolveCatII:
 
         # Router adjudicates the Cat II into a single canonical event
         # that ends the beat.
-        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+        resolution = _router_out(ends_beat=True)
+        resolution.observers = [
+            ObserverEntry(
+                character_id="alice",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=5,
+            ),
+        ]
+        resolution.canonical_event.observable_facts = [
+            ObservableFact.all("Alice is swept but keeps her guard up."),
+            ObservableFact.all("Pip ends the exchange with his footing checked."),
+        ]
+        FakeDispatcher.queue_route(resolution)
 
         response = await orch.resolve_cat_ii("s", evt.event_id)
 
@@ -995,6 +1017,10 @@ class TestResolveCatII:
         assert response.per_player_renders["alice"] == "POV_RENDER"
         # One canonical event landed.
         assert len(saved.canonical_events) == 1
+        pip = next(c for c in saved.characters if c.character_id == "pip")
+        assert len(pip.pending_observations) == 1
+        assert "Alice is swept" in pip.pending_observations[0]
+        assert "Pip ends the exchange" in pip.pending_observations[0]
 
     @pytest.mark.asyncio
     async def test_nonexistent_event_is_idempotent_noop(

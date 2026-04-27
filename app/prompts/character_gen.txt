@@ -18,8 +18,6 @@ Generate a new character who fits naturally into the established setting and has
 </context>
 
 <instructions>
-## Instructions
-
 1. Create a character who fits the world's genre, era, and tone naturally.
 2. Their role and reason for presence should be grounded in the world logic.
 3. Include concrete physical appearance details, but keep them selective: 1-2 memorable details beat a full catalog.
@@ -28,7 +26,7 @@ Generate a new character who fits naturally into the established setting and has
 6. Keep backstory concise but specific — a few sentences that explain who they are.
 7. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
 8. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
-9. `router_summary` is a one or two sentence identity-and-intent line for the router (the omniscient adjudicator). It will be surfaced to the router on the very next adjudication call and then live in its history. Write it as third-person ledger prose: role and immediate situation, where they appeared, and what they're trying to do right now. NOT in-character voice. NOT a backstory paragraph. NOT a restatement of `goals` (those are existential drives; this is the immediate situational read). Do NOT lead with the character's name — the engine prefixes the line with `Spawned: NAME (id: X) —` so opening the summary with the name again wastes tokens. Mention the location by name when it sharpens the picture. Keep it tight (one or two sentences) — the router only needs enough to know how to deploy this character.
+9. `router_summary` is a one or two sentence identity-and-intent line for the router (the omniscient adjudicator). Write it as third-person ledger prose: role and immediate situation, where they appeared, and what they're trying to do right now. NOT in-character voice. NOT a backstory paragraph. NOT a restatement of `goals` (those are existential drives; this is the immediate situational read). Do NOT lead with the character's name; mention the location by name when it sharpens the picture. Keep it tight (one or two sentences) — the router only needs enough to deploy this character.
 
 <examples>
 <example>
@@ -38,8 +36,6 @@ router_summary: "Nervous stablehand at the courtyard, stays close to the gate be
 </instructions>
 
 <output_schema>
-## Output Format
-
 Respond with ONLY valid JSON. No commentary, no markdown fences.
 
 {{
@@ -58,7 +54,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "router_summary": "string — one or two sentences in third-person ledger prose: identity + location + immediate intent for the router to use on its next call"
 }}
 
-**Every field above is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**
+**Every field in this schema is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**
 </output_schema>
 
 <<<USER>>>
