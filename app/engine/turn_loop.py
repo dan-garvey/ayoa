@@ -4,7 +4,8 @@ This module codifies the Plan-v11 state machine for the turn pipeline.
 It replaces the one-shot `process_turn → single narrator render` shape
 with a beat-cascading loop: intentions flow in, are classified Cat I
 (self-closing) or Cat II (contested responder-collecting), canonical
-events are adjudicated, broadcast to in-scene observers, and the beat
+events are adjudicated, broadcast to observers in the shared perceptual
+frame, and the beat
 continues through agent reactions until the router signals ends_beat
 or the backstop fires.
 
@@ -18,14 +19,16 @@ or the backstop fires.
     Cat I → canonicalize, broadcast, check ends_beat.
     Cat II → open event, collect required responders (agents intend
       immediately; humans pin slot and wait), adjudicate on close,
-      ends_beat=true implicit.
+      then give the initiator the first follow-up if they are an NPC.
 
   broadcast(event):
-    Append to every in-scene human's render buffer.
-    Feed every in-scene agent's observation context.
+    Append to every local human's render buffer, plus mediated humans
+    explicitly named by visible facts.
+    Feed local agents, plus mediated agents explicitly named by visible
+    facts, through their observation context.
 
   beat_end?:
-    If true → render each in-scene human via their buffer, flush
+    If true → render each human with a queued buffer, flush
     buffers, release slots in scene, park loop.
     If false → pick next actor (agent-only, by pressure or
       responder_picks from the event), call agent.intend(),
@@ -482,7 +485,7 @@ def abort_scene(ckpt: CheckpointFile, scene_id: str) -> int:
     are flushed so mid-beat aborts don't leak stale events into the next
     beat's render fan-out.
     """
-    # Snapshot in-scene humans BEFORE slots are popped — humans_in_scene
+    # Snapshot physically local humans BEFORE slots are popped — humans_in_scene
     # derives from character location + bindings, so slot state doesn't
     # affect it, but pinning this ordering keeps intent clear.
     in_scene_humans = humans_in_scene(ckpt, scene_id)
@@ -586,6 +589,7 @@ def append_to_render_buffer(
     character_id: str,
     event_id: str,
     observation_level: str = "direct",
+    fact_visibility: str = "all",
 ) -> None:
     """Queue a canonical event for a human's next render."""
     buf = ckpt.session.render_buffers.setdefault(character_id, [])
@@ -593,6 +597,7 @@ def append_to_render_buffer(
         RenderBufferEntry(
             event_id=event_id,
             observation_level=observation_level,
+            fact_visibility=fact_visibility,
         )
     )
 
@@ -608,24 +613,25 @@ def flush_render_buffer(
 
 
 def humans_in_scene(ckpt: CheckpointFile, scene_id: str) -> list[str]:
-    """Return character_ids of human-bound characters currently in the
-    given scene. A 'human-bound' character is one with an entry in
-    session.character_bindings.
-    """
-    bindings = ckpt.session.character_bindings or {}
+    """Return human-controlled character_ids physically in `scene_id`."""
+    from app.engine.context_builder import collect_player_ids
+
+    player_ids = collect_player_ids(ckpt)
     return [
         c.character_id
         for c in ckpt.characters
-        if c.location == scene_id and c.character_id in bindings
+        if c.location == scene_id and c.character_id in player_ids
     ]
 
 
 def _scene_member_ids(ckpt: CheckpointFile, scene_id: str) -> set[str]:
-    """v11-r7g: set of character_ids currently in `scene_id`, used to
-    filter the router's agent_responder_picks before dispatch.
+    """Set of character_ids physically located at `scene_id`.
+
+    Used to filter the router's agent_responder_picks before dispatch;
+    mediated picks are handled separately via fact-level visibility.
 
     Pre-r7g the engine accepted any pick the router emitted; the
-    router's prompt asked for in-scene picks but didn't enforce it,
+    router's prompt asked for local picks but didn't enforce it,
     and the playtest log showed routine over-reaches: Mira /act'd at
     archive_main_hall, the router picked `pip` and `nyx` (both at
     bell_of_arrivals), agent_intend() returned empty/refusal because
@@ -641,6 +647,28 @@ def _scene_member_ids(ckpt: CheckpointFile, scene_id: str) -> set[str]:
     return {
         c.character_id for c in ckpt.characters if c.location == scene_id
     }
+
+
+def _has_explicit_visible_fact(
+    event: EventRouterOutput | None,
+    character_id: str,
+) -> bool:
+    """True when an event scopes at least one fact directly to a character.
+
+    Used for mediated observers who are not standing in the physical
+    event location. Broad `all_observers` facts are intentionally not
+    enough to cross that boundary; the router must name the character in
+    `visible_to` for camera feeds, scrying, telepathy, radio, pod audio,
+    or similar shared-perception channels.
+    """
+    if event is None or not character_id:
+        return False
+    for fact in event.canonical_event.observable_facts:
+        if isinstance(fact, str):
+            continue
+        if fact.audience == "only" and character_id in fact.visible_to:
+            return True
+    return False
 
 
 def _log_router_rationale(
@@ -677,6 +705,7 @@ def _filter_picks_for_dispatch(
     ckpt: CheckpointFile,
     scene_id: str,
     picks: list[str],
+    event: EventRouterOutput | None = None,
 ) -> list[str]:
     """v11-r7g: drop picks the engine refuses to dispatch.
 
@@ -692,12 +721,10 @@ def _filter_picks_for_dispatch(
          flows). Filtering on bindings alone let those creator-
          bound characters slip into NPC dispatch and produced the
          "router tried to make my own character speak" symptom.
-      2. Out-of-scene NPCs — picks must be in the beat's scene to
-         have any perceptual context to react to. Out-of-scene picks
-         routinely produced empty/refusal intentions in the playtest;
-         filtering at the engine boundary saves an LLM call AND
-         removes the WARNING noise pre-r7g produced for legitimate
-         router over-reach.
+      2. NPCs with no perceptual context — ordinary picks must be in
+         the physical event location. Remote/mediated picks are allowed
+         only when this event explicitly scopes a visible fact to them,
+         which means they have a live channel to react through.
 
     Returns the filtered list preserving router order.
     """
@@ -710,8 +737,29 @@ def _filter_picks_for_dispatch(
     in_scene = _scene_member_ids(ckpt, scene_id)
     return [
         rid for rid in picks
-        if rid not in humans and rid in in_scene
+        if rid not in humans
+        and (rid in in_scene or _has_explicit_visible_fact(event, rid))
     ]
+
+
+async def _agent_intention_for_dispatch(
+    dispatcher: Dispatcher,
+    ckpt: CheckpointFile,
+    character_id: str,
+    scene_id: str,
+) -> str | None:
+    """Fetch one NPC intention and normalize empty/refusal outputs."""
+    raw = await dispatcher.agent_intend(
+        ckpt=ckpt,
+        character_id=character_id,
+        scene_id=scene_id,
+    )
+    if raw and raw.strip() and not _is_agent_refusal(raw):
+        return raw
+    logger.warning(
+        "Dropped empty/refusal intention from agent %s", character_id,
+    )
+    return None
 
 
 def broadcast_event(
@@ -721,13 +769,17 @@ def broadcast_event(
     actor_id: str = "",
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
-    (a) every in-scene human's render buffer, and (b) every NPC observer's
-    `pending_observations` queue (in-scene and off-scene alike, except the
-    event's own actor).
+    (a) every local human's render buffer plus any mediated human
+    explicitly named by a visible fact, and (b) every NPC observer's
+    `pending_observations` queue when they are either local or explicitly
+    named by a mediated fact, except the event's own actor.
 
-    `scene_id` is the caller-authoritative scene — always the beat's
-    scene, never derived from session state, so concurrent scenes
-    can't leak buffers into each other.
+    `scene_id` is the caller-authoritative physical event location,
+    never derived from session state, so concurrent locations can't leak
+    buffers into each other. The fictional "scene" can be broader than
+    that physical location when a fact-level channel exists: audio links,
+    cameras, scrying, supernatural senses, radio, telepathy, or any
+    other shared-perception condition.
 
     `actor_id` is the character whose intention produced this event
     (the player who /act'd, or the cascade NPC whose intention the
@@ -745,45 +797,36 @@ def broadcast_event(
     across process restarts.
 
     The NPC inbox path is the engine implementation of the perception
-    channel router rule 13 promises. As of v11-r9b, fan-out is
-    strictly in-scene:
+    channel the router describes in `observable_facts`.
 
-    - **In-scene observers** (NPCs co-located with the event but not
+    - **Local observers** (NPCs co-located with the event but not
       the actor): receive their visible observable_facts as inbox entries
-      (no `[in-scene perception]` tag — the entries are the agent's
-      live sensorium for this scene and don't need a routing
+      (no routing tag — the entries are the agent's
+      live sensorium and don't need a routing
       label). These are the cascade pool. When one of them is picked
       as `agent_responder` for this same beat, their `respond` call
       drains the queue and they see the just-broadcast event as the
       most recent entry — which IS the live event they're being asked
       to react to.
-      In-scene NPCs who AREN'T picked this beat keep accumulating
+      Local NPCs who AREN'T picked this beat keep accumulating
       events silently and drain on whatever future beat picks them.
-      This is the only viable channel: dispatching a per-event LLM
-      call to every in-scene non-actor would burn budget on agents
+      Dispatching a per-event LLM call to every local non-actor would
+      burn budget on agents
       who have no opening to speak this beat. The user message they
       receive when they finally fire carries the full set in one shot.
 
-    - **Off-scene observers** are NOT pushed (v11-r9b). Pre-r9b the
-      router's `observers` list could include characters in other
-      scenes (a courier delivery to a remote NPC, an ambient world
-      event), and `broadcast_event` would push the same one-line
-      summary to all of them tagged `[off-scene perception]`. That
-      worked when summaries were narrow ("a courier carries the
-      writ to Marcus") but failed catastrophically when an event
-      fused private and public sub-beats into one omniscient
-      summary line: the t8 playtest caught Ashara
-      receiving "Dan Garvey pulls on clothes from the wardrobe he
-      didn't choose and walks downstairs ..." as an off-scene
-      perception in the dining hall — a privacy violation and an
-      attribution-confusion seed. Off-scene awareness now requires
-      a separate event whose `scene_id` is where the news actually
-      lands.
+    - **Mediated observers** (not co-located): receive only facts that
+      explicitly include their id in `visible_to`. Broad
+      `all_observers` facts never cross the location boundary. Pre-r9b
+      every router-listed remote observer received the same one-line
+      summary, which leaked private composite prose into unrelated
+      rooms. The mediated path keeps the useful case (monitors, live
+      audio, magic senses, spies) while preserving the leak fix.
 
-    Pre-r8b the in-scene path was a bug-hatchery: cascade NPCs got
+    Pre-r8b the local observer path was a bug-hatchery: cascade NPCs got
     `observed_facts=[]` from `LLMDispatcher.agent_intend`, so they
     reacted to whatever stale entries already sat in their queue
-    (typically off-scene perceptions from when the scene opened).
+    (typically stale perceptions from when the location opened).
     The router then saw an off-topic intention and fabricated
     plausible dialogue to fit the cascade slot — the "narrator
     summarized dialogue" symptom the v11-r8b playtest caught was
@@ -795,7 +838,7 @@ def broadcast_event(
     the v11-r7h self-move path).
     """
     ckpt.canonical_events.append(event)
-    humans = humans_in_scene(ckpt, scene_id)
+    local_humans = humans_in_scene(ckpt, scene_id)
 
     obs_level_by_char: dict[str, str] = {}
     for o in event.observers:
@@ -804,18 +847,20 @@ def broadcast_event(
             "d": "direct", "i": "indirect", "f": "inferred",
         }.get(o.observation_level, "direct")
 
-    for h in humans:
+    for h in local_humans:
         level = obs_level_by_char.get(h, "direct")
         append_to_render_buffer(ckpt, h, event.event_id, level)
 
-    bindings = ckpt.session.character_bindings or {}
+    from app.engine.context_builder import collect_player_ids
+
+    player_ids = collect_player_ids(ckpt)
     in_scene_ids = _scene_member_ids(ckpt, scene_id)
     by_id = {c.character_id: c for c in ckpt.characters}
     # NPC perception payload. Pre-v11-r10 this was the router's
     # one-line event summary — narrator-grade prose with interior
     # interpretation woven in ("the strain of speaking close to the
     # edge of what she is permitted"), which leaked author-voice
-    # interior into in-scene NPCs as their own perception. r10 moved
+    # interior into local NPCs as their own perception. r10 moved
     # the channel to `observable_facts`. r11 adds fact-level
     # visibility: public facts go to every observer, but private
     # facts (`audience="only"`) are filtered per recipient before
@@ -823,7 +868,23 @@ def broadcast_event(
     canonical = event.canonical_event
 
     for o in event.observers:
-        if o.character_id in bindings:
+        if o.character_id not in player_ids:
+            continue
+        if o.character_id in local_humans:
+            continue
+        if not _has_explicit_visible_fact(event, o.character_id):
+            continue
+        level = obs_level_by_char.get(o.character_id, "direct")
+        append_to_render_buffer(
+            ckpt,
+            o.character_id,
+            event.event_id,
+            level,
+            fact_visibility="explicit_only",
+        )
+
+    for o in event.observers:
+        if o.character_id in player_ids:
             continue
         if o.character_id == actor_id:
             # Actor of the event — their own action is already in their
@@ -834,7 +895,14 @@ def broadcast_event(
         recipient = by_id.get(o.character_id)
         if recipient is None or recipient.status == "culled":
             continue
-        facts = visible_fact_texts(canonical.observable_facts, o.character_id)
+        is_local = o.character_id in in_scene_ids
+        if not is_local and not _has_explicit_visible_fact(event, o.character_id):
+            continue
+        facts = visible_fact_texts(
+            canonical.observable_facts,
+            o.character_id,
+            include_all_observers=is_local,
+        )
         if facts:
             if len(facts) == 1:
                 payload = facts[0]
@@ -847,25 +915,9 @@ def broadcast_event(
             # outcome. (We deliberately do NOT fall back to any
             # summary string; that's the leak this fix closes.)
             continue
-        # v11-r9b: off-scene observers no longer get a summary pushed.
-        # Pre-r9b every router-listed observer received the full event
-        # summary regardless of where they were
-        # standing — the t8 playtest caught this surfacing Dan
-        # Garvey's private bedroom wardrobe choice on Ashara's queue
-        # because the router fused his transit-and-arrival into one
-        # outcome string and listed her as an observer of his
-        # arrival. The fan-out is now strictly in-scene: a character
-        # only gets an inbox push for events that actually fired in
-        # the room they were standing in. Real cross-scene
-        # awareness (a courier carrying a note, a public
-        # announcement, magic) belongs in a separate event whose
-        # `scene_id` is wherever the news lands, not piggy-backed
-        # on an in-scene event's omniscient summary.
-        if o.character_id not in in_scene_ids:
-            continue
         recipient.pending_observations.append(payload)
 
-    return humans
+    return local_humans
 
 
 # ---- The beat loop ---------------------------------------------------------
@@ -873,7 +925,7 @@ def broadcast_event(
 # This is the heart of v11. `run_beat` is the orchestrator entry point for
 # one player's /act or Cat II responder intention. It cascades through
 # agent reactions until the router ends the beat, then fans the narrator
-# out per in-scene human and releases the scene's slots.
+# out per human with a queued perception and releases the scene's slots.
 #
 # TODO(v11-wireup): the calls into the router, narrator, and character_agent
 # are sketched as protocol methods; these need to be bound to the real
@@ -1028,10 +1080,15 @@ async def run_beat(
 
     Termination:
     - Router's ends_beat=true → render fan-out, slot release.
-    - Cat II event adjudicates (always implicit ends_beat) → same.
+    - Cat II event adjudicates; NPC initiators get first follow-up,
+      otherwise render fan-out and slot release.
     - max_events_per_beat reached → forced render + slot release.
     """
     max_events = ckpt.session.config.settings.max_events_per_beat
+    events_closed = 0
+    event_actor_ids: list[str] = []
+    current_intention = intention
+    current_actor = actor_id
 
     # --- Step 1: handle entry path ------------------------------------------
 
@@ -1088,23 +1145,37 @@ async def run_beat(
         # NPC observers, including the initiator, so agents retain the final
         # result instead of only the player render seeing it.
         broadcast_event(ckpt, resolved, resolution_scene)
-        # Cat II adjudication always ends the beat.
-        return await _end_beat(
-            ckpt, dispatcher, scene_id,
-            ended_reason="cat_ii_resolution",
-            events_closed=1,
-            event_actor_ids=[evt.initiator_id],
-            acting_player_id=actor_id,
-            acting_player_input=intention,
+        events_closed = 1
+        event_actor_ids.append(evt.initiator_id)
+
+        initiator_pick = _filter_picks_for_dispatch(
+            ckpt, resolution_scene, [evt.initiator_id], event=resolved,
         )
+        followup = None
+        if initiator_pick:
+            followup = await _agent_intention_for_dispatch(
+                dispatcher, ckpt, evt.initiator_id, resolution_scene,
+            )
+        if followup is None:
+            return await _end_beat(
+                ckpt, dispatcher, scene_id,
+                ended_reason="cat_ii_resolution",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+            )
+
+        # The Cat II initiator gets first follow-up after the adjudication.
+        # Human initiators cannot be dispatched here, so they naturally fall
+        # through to the player render above.
+        scene_id = resolution_scene
+        current_actor = evt.initiator_id
+        current_intention = followup
 
     # Fresh initiator path.
-    claim_initiator_slot(ckpt, scene_id, actor_id)
-
-    events_closed = 0
-    event_actor_ids: list[str] = []
-    current_intention = intention
-    current_actor = actor_id
+    if cat_ii_event_id is None:
+        claim_initiator_slot(ckpt, scene_id, actor_id)
 
     while True:
         # Route the current intention.
@@ -1159,6 +1230,7 @@ async def run_beat(
                 # in one helper.
                 picks = _filter_picks_for_dispatch(
                     ckpt, scene_id, result.agent_responder_picks,
+                    event=result,
                 )
                 if not picks:
                     return await _end_beat(
@@ -1241,6 +1313,18 @@ async def run_beat(
                 broadcast_event(ckpt, resolved, scene_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
+                initiator_pick = _filter_picks_for_dispatch(
+                    ckpt, scene_id, [evt.initiator_id], event=resolved,
+                )
+                followup = None
+                if initiator_pick:
+                    followup = await _agent_intention_for_dispatch(
+                        dispatcher, ckpt, evt.initiator_id, scene_id,
+                    )
+                if followup is not None:
+                    current_actor = evt.initiator_id
+                    current_intention = followup
+                    continue
                 return await _end_beat(
                     ckpt, dispatcher, scene_id,
                     ended_reason="cat_ii_resolution",
@@ -1253,10 +1337,10 @@ async def run_beat(
             # re-enter run_beat with their cat_ii_event_id.
             #
             # v11-r6a/r12: render the already-broadcast router event in
-            # PARTIAL mode and keep pins alive. All in-scene humans with
-            # buffered observations render, not just the responder and
-            # initiator; NPC observers already received the same facts
-            # through `broadcast_event`.
+            # PARTIAL mode and keep pins alive. All humans with buffered
+            # observations render, not just the responder and initiator;
+            # NPC observers already received their visible facts through
+            # `broadcast_event`.
             return await _end_beat(
                 ckpt, dispatcher, scene_id,
                 ended_reason="cat_ii_pending",
@@ -1275,7 +1359,8 @@ async def run_beat(
 
         # v11-r8a: observation_harvest fork. The router signals
         # `ends_beat_reason="observation_harvest"` when the actor is
-        # purely observing in-scene NPCs (looking, studying, scanning
+        # purely observing perceptually available NPCs (looking,
+        # studying, scanning
         # without dialogue or contact). We bypass the cascade and
         # instead fire each pick's `perceive()` in parallel to harvest
         # one self-presentation fragment per target. Fragments are
@@ -1287,13 +1372,12 @@ async def run_beat(
         # `broadcast_event` only takes references (event_id into render
         # buffers) and the narrator reads the live
         # `observable_facts` list at compose time. The harvest path
-        # respects the same human / out-of-scene filter as the
-        # cascade picks (a router that picked a human or an off-scene
-        # character should not cause us to fire a perception call on
-        # them).
+        # respects the same human / no-perception filter as the cascade
+        # picks.
         if result.ends_beat_reason == "observation_harvest":
             harvest_picks = _filter_picks_for_dispatch(
                 ckpt, scene_id, result.agent_responder_picks,
+                event=result,
             )
             if harvest_picks:
                 fragments = await dispatcher.harvest_perceptions(
@@ -1355,6 +1439,7 @@ async def run_beat(
         # empty/refusal intentions).
         picks = _filter_picks_for_dispatch(
             ckpt, scene_id, result.agent_responder_picks,
+            event=result,
         )
         if not picks:
             # Router signaled continue but gave no pick — treat as
@@ -1378,18 +1463,13 @@ async def run_beat(
         next_actor = None
         next_intention: str | None = None
         for candidate in picks:
-            raw = await dispatcher.agent_intend(
-                ckpt=ckpt,
-                character_id=candidate,
-                scene_id=scene_id,
+            raw = await _agent_intention_for_dispatch(
+                dispatcher, ckpt, candidate, scene_id,
             )
-            if raw and raw.strip() and not _is_agent_refusal(raw):
+            if raw is not None:
                 next_actor = candidate
                 next_intention = raw
                 break
-            logger.warning(
-                "Dropped empty/refusal intention from agent %s", candidate,
-            )
         if next_actor is None or next_intention is None:
             return await _end_beat(
                 ckpt, dispatcher, scene_id,
@@ -1430,8 +1510,8 @@ async def _end_beat(
       pinned) also sees the cliffhanger.
     - `render_only=set(...)`: only render POVs whose character_id is in
       this set. Reserved for callers that need narrower fan-out; the
-      Cat II-open path deliberately leaves this unset so every in-scene
-      human observer with a buffered event sees the attempted action.
+      Cat II-open path deliberately leaves this unset so every human
+      observer with a buffered event sees the attempted action.
 
     v11-r7j params:
     - `acting_player_id` + `acting_player_input`: the actual /act'd
@@ -1444,6 +1524,20 @@ async def _end_beat(
     renders: dict[str, str] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
     candidates = humans_in_scene(ckpt, scene_id)
+    # Remote/mediated human observers can receive render-buffer entries
+    # even when their physical location differs from `scene_id`.
+    # Include any bound human with queued events so the beat that created
+    # the perception also renders it, instead of letting it surface on an
+    # unrelated later /act.
+    from app.engine.context_builder import collect_player_ids
+    player_ids = collect_player_ids(ckpt)
+    queued_humans = [
+        h for h, buf in ckpt.session.render_buffers.items()
+        if h in player_ids and buf
+    ]
+    for h in queued_humans:
+        if h not in candidates:
+            candidates.append(h)
     if render_only is not None:
         candidates = [h for h in candidates if h in render_only]
     partial_override: bool | None = True if force_partial else None

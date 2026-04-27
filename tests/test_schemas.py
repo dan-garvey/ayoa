@@ -294,6 +294,11 @@ class TestCanonicalEvent:
         assert visible_fact_texts(facts, "aldric") == [
             "The public question lands at the table.",
         ]
+        assert visible_fact_texts(
+            facts, "ashara", include_all_observers=False,
+        ) == [
+            "Dan's foot touches Ashara's boot under the table.",
+        ]
 
     def test_scoped_fact_requires_visible_recipient(self):
         with pytest.raises(ValidationError):

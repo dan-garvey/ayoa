@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -65,6 +65,12 @@ class RenderBufferEntry(BaseModel):
     # character, copied from the event's observer list at broadcast
     # time.
     observation_level: str = "direct"
+    # "all" = local/shared-perception render: include facts marked
+    # all_observers plus facts explicitly scoped to this POV.
+    # "explicit_only" = mediated/remote render: include only facts that
+    # name this POV in visible_to. This prevents broad room facts from
+    # leaking through a camera feed, scrying link, radio channel, etc.
+    fact_visibility: Literal["all", "explicit_only"] = "all"
 
 
 class SessionSettings(BaseModel):

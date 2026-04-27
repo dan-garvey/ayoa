@@ -35,8 +35,9 @@ class TurnResponse(BaseModel):
     output_text: str = ""
     # v11: per-POV beat renders, keyed by character_id. Populated by
     # `run_beat`'s fan-out through `Dispatcher.narrator_compose`; one
-    # entry per in-scene human with at least one observed event this
-    # beat. Empty when the beat paused mid-Cat-II (see
+    # entry per human POV with at least one observed event this beat,
+    # whether local or connected by explicit live perception. Empty when
+    # the beat paused mid-Cat-II (see
     # `beat_ended_reason`) or nobody was present to observe.
     per_player_renders: dict[str, str] = Field(default_factory=dict)
     # v11: why the beat stopped. Values come from `BeatResult.ended_reason`

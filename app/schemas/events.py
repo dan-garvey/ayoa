@@ -98,25 +98,35 @@ class ObservableFact(BaseModel):
 def visible_fact_texts(
     facts: Iterable[ObservableFact | str],
     character_id: str = "",
+    *,
+    include_all_observers: bool = True,
 ) -> list[str]:
     """Return fact text visible to `character_id`.
 
     Empty `character_id` is used by legacy/debug formatting paths and
     returns only facts addressed to all observers.
+
+    `include_all_observers=False` is for mediated observers who are not
+    physically in the event location: they receive only facts explicitly
+    scoped to them by `visible_to`, not broad room facts.
     """
     visible: list[str] = []
     for fact in facts:
         if isinstance(fact, str):
+            if not include_all_observers:
+                continue
             text = fact.strip()
             if text:
                 visible.append(text)
             continue
-        if fact.audience == "all_observers" or (
-            character_id and fact.is_visible_to(character_id)
-        ):
-            text = fact.text.strip()
-            if text:
-                visible.append(text)
+        if fact.audience == "all_observers":
+            if not include_all_observers:
+                continue
+        elif not (character_id and fact.is_visible_to(character_id)):
+            continue
+        text = fact.text.strip()
+        if text:
+            visible.append(text)
     return visible
 
 

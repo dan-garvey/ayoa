@@ -23,7 +23,12 @@ from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import CanonicalEvent, SceneDelta, WorldAdjudication
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    SceneDelta,
+    WorldAdjudication,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
     LocationState,
@@ -330,6 +335,7 @@ class TestFormatCanonicalEventsBlock:
     def _resolved(
         self, *, event_id: str, outcome: str, facts: list[object],
         level: str = "direct", observers: list[str] | None = None,
+        fact_visibility: str = "all",
     ):
         ev = EventRouterOutput(
             event_id=event_id,
@@ -356,7 +362,11 @@ class TestFormatCanonicalEventsBlock:
             ends_beat_reason="",
             spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
         )
-        entry = RenderBufferEntry(event_id=event_id, observation_level=level)
+        entry = RenderBufferEntry(
+            event_id=event_id,
+            observation_level=level,
+            fact_visibility=fact_visibility,
+        )
         return [(entry, ev)]
 
     def test_facts_surface_audit_fields_do_not(self):
@@ -397,8 +407,6 @@ class TestFormatCanonicalEventsBlock:
 
     def test_scoped_facts_filter_by_pov_before_narrator_sees_them(self):
         from app.engine.narrator import _format_canonical_events_block
-        from app.schemas.events import ObservableFact
-
         resolved = self._resolved(
             event_id="evt_private",
             outcome="Dan questions Thessaly and signals Ashara.",
@@ -421,6 +429,28 @@ class TestFormatCanonicalEventsBlock:
         assert "knows curses" in as_ashara
         assert "foot touches Ashara's boot" not in as_aldric
         assert "knows curses" in as_aldric
+
+    def test_remote_explicit_only_buffer_drops_public_room_facts(self):
+        from app.engine.narrator import _format_canonical_events_block
+
+        resolved = self._resolved(
+            event_id="evt_monitor",
+            outcome="A monitored room event.",
+            facts=[
+                ObservableFact.all("The room lights flicker."),
+                ObservableFact.only(
+                    "A live monitor carries Alice's voice into the booth.",
+                    ["remote_watcher"],
+                ),
+            ],
+            observers=["alice", "remote_watcher"],
+            fact_visibility="explicit_only",
+        )
+
+        out = _format_canonical_events_block(resolved, "remote_watcher")
+
+        assert "live monitor carries Alice's voice" in out
+        assert "room lights flicker" not in out
 
 
 # NOTE: The `TestOpeningVerbatimRender` class lived here in v8 and earlier.

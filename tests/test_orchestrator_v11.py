@@ -1003,11 +1003,29 @@ class TestResolveCatII:
             ObservableFact.all("Pip ends the exchange with his footing checked."),
         ]
         FakeDispatcher.queue_route(resolution)
+        FakeDispatcher.queue_agent("Pip releases the angle and checks Alice's guard.")
+        followup = _router_out(ends_beat=True)
+        followup.observers = [
+            ObserverEntry(
+                character_id="alice",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=1,
+            ),
+        ]
+        followup.canonical_event.observable_facts = [
+            ObservableFact.all("Pip releases the angle and checks Alice's guard."),
+        ]
+        FakeDispatcher.queue_route(followup)
 
         response = await orch.resolve_cat_ii("s", evt.event_id)
 
         # Event closed out.
-        assert response.beat_ended_reason == "cat_ii_resolution"
+        assert response.beat_ended_reason == "directed_at_player"
         saved = mgr.save.call_args[0][0]
         assert all(
             e.event_id != evt.event_id for e in saved.session.open_cat_ii_events
@@ -1015,8 +1033,10 @@ class TestResolveCatII:
         # Render fanned out to the in-scene human (alice).
         assert "alice" in response.per_player_renders
         assert response.per_player_renders["alice"] == "POV_RENDER"
-        # One canonical event landed.
-        assert len(saved.canonical_events) == 1
+        # Resolution plus the NPC initiator's first follow-up landed.
+        assert len(saved.canonical_events) == 2
+        assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
+        assert FakeDispatcher.route_calls[1]["actor_id"] == "pip"
         pip = next(c for c in saved.characters if c.character_id == "pip")
         assert len(pip.pending_observations) == 1
         assert "Alice is swept" in pip.pending_observations[0]

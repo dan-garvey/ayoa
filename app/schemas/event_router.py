@@ -54,10 +54,12 @@ class ObserverEntry(BaseModel):
     respond. Observers at priority 0 should be omitted entirely — they're
     routing noise, not silent responders.
 
-    Observation level is a single-char enum: "d" = direct (in the scene),
-    "i" = indirect (adjacent, heard/saw spillover), "f" = inferred
+    Observation level is a single-char enum: "d" = direct (clear live
+    access through presence or a mediated channel), "i" = indirect
+    (adjacent, degraded, muffled, or partial spillover), "f" = inferred
     (aftermath or ambient inference only). This is event-level
-    visibility. Fact-level visibility lives on each
+    visibility, not a guarantee that every fact is shared. Fact-level
+    visibility lives on each
     `canonical_event.observable_facts[]` entry; downstream consumers
     select events by observer, then filter that event's facts by
     `audience` / `visible_to`.

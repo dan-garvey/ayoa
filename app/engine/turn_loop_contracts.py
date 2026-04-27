@@ -162,12 +162,12 @@ def format_agent_on_stage_body() -> str:
       the same facts in `## Scene` was duplicate context every beat.
 
     - **`## What You Observe This Turn`** rendered the `observed_facts`
-      list every production caller passed as `[]`. In-scene perception
-      lands on the cascade NPC's `pending_observations` queue via
+      list every production caller passed as `[]`. Perception lands on
+      the cascade NPC's `pending_observations` queue via
       `broadcast_event` (which pushes each observer's visible
-      observable_facts onto their in-scene inbox), not
-      through this body. The block was rendering literal "" on every
-      beat.
+      observable_facts onto their inbox when local or explicitly named
+      by a mediated fact), not through this body. The block was
+      rendering literal "" on every beat.
 
     - **`## Other Characters' Responses This Turn`** rendered the
       `prior_responses` list every production caller passed as `None`.

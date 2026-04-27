@@ -137,7 +137,7 @@ def _format_recent_events(
 
     Renders `observable_facts` only — the asking character should
     only get to reflect on what they actually perceived. Same fact
-    channel as `broadcast_event`'s in-scene perception path.
+    filtering contract as `broadcast_event`'s perception path.
     """
     events = checkpoint.canonical_events or []
     if not events:

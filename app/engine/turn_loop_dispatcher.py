@@ -355,8 +355,8 @@ def _build_since_last_turn_block(acting_char) -> str:
     Pre-Commit-2 this also rendered `incoming_directives`, a
     structured inter-agent message bus. Directives are gone;
     cross-character communication now flows through normal scene prose
-    (a courier walks in and speaks) plus the v11-r7j off-scene
-    perception inbox populated by `broadcast_event`.
+    (a courier walks in and speaks) plus local or explicitly mediated
+    perception inbox entries populated by `broadcast_event`.
     """
     if acting_char is None:
         return ""

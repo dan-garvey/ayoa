@@ -68,24 +68,21 @@ class CharacterRecord(BaseModel):
     is_playable: bool = False
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
     private_state: PrivateState = Field(default_factory=PrivateState)
-    # Staging area for observations the character witnessed silently (turns where
-    # they didn't respond). Flushed into the next agent user message when the
-    # character is asked to respond, then cleared. Commit 2 removed the
-    # parallel `incoming_directives` queue: cross-character communication
-    # now travels through normal canonical events (a courier walks in and
-    # speaks; a note is rendered in `observable_facts` and the recipient
-    # is added to that event's `observers`).
+    # Staging area for observations the character perceived silently
+    # (turns where they didn't respond). Flushed into the next agent
+    # user message when the character is asked to respond, then cleared.
+    # Commit 2 removed the parallel `incoming_directives` queue:
+    # cross-character communication now travels through normal canonical
+    # events (a courier walks in and speaks; a note is rendered in
+    # `observable_facts` and the recipient is added to that event's
+    # `observers`).
     #
-    # Population path (v11-r7j): `broadcast_event` in `app/engine/turn_loop.py`
-    # appends a one-line "[off-scene perception] …" entry for every NPC
-    # observer who is NOT in the broadcast scene. This is the engine
-    # implementation of router rule 13's cross-scene perception
-    # promise: when the router writes a courier delivering a note to
-    # Marcus from a different scene and lists Marcus as an observer,
-    # Marcus's next agent call sees the inbox entry. In-scene NPC
-    # observers are NOT pushed (they read the live event via their
-    # normal context block when picked as responders; pushing onto the
-    # inbox would double-count).
+    # Population path: `broadcast_event` in `app/engine/turn_loop.py`
+    # appends visible `observable_facts` for local NPC observers and for
+    # mediated/remote NPC observers explicitly named in fact-level
+    # `visible_to`. Broad room facts do not cross a location boundary
+    # unless the router scopes them through a concrete perception
+    # channel such as live audio, camera feed, magic, radio, or spycraft.
     pending_observations: list[str] = Field(default_factory=list)
     # Long-form text fields for rich character content. `personality`
     # now absorbs what used to live in `narrative_notes` + traits/voice

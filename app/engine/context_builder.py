@@ -284,9 +284,10 @@ def build_world_context(
 #     that actually needed to differ between turns; the static block
 #     wasn't carrying any of that information anyway.
 #
-# Routers still need an in-scene roster (different concern) — that
-# helper lives at `turn_loop_dispatcher._build_characters_present`
-# and is intentionally separate.
+# Routers still need a physically present roster for the acting
+# character's current location (different concern) — that helper lives
+# at `turn_loop_dispatcher._build_characters_present` and is
+# intentionally separate.
 
 
 def resolve_acting_character(
@@ -403,16 +404,16 @@ def clear_character_inbox(character: CharacterRecord) -> None:
 
     - `broadcast_event` in `turn_loop.py` pushes each observer's visible
       `observable_facts` (untagged — the entries are the agent's live
-      sensorium for the scene, no routing label needed) onto every
-      NPC observer who IS in the broadcast scene (and isn't the
-      actor). Pre-r9b this fan-out also covered off-scene observers
-      tagged `[off-scene perception]`; that channel was deleted
-      because the old one-line event summary regularly fused private
-      and public sub-beats into one omniscient string and any
-      off-scene character listed as an observer received the whole
-      thing (e.g. Dan's bedroom wardrobe choice landing in Ashara's
-      dining-hall queue). Cross-scene awareness now requires a
-      separate event whose `scene_id` is where the news lands.
+      sensorium, no routing label needed) onto every local NPC observer
+      who is not the actor, plus mediated/remote NPC observers explicitly
+      named by fact-level `visible_to`. Pre-r9b this fan-out also covered
+      off-location observers tagged `[off-scene perception]`; that
+      channel was deleted because the old one-line event summary
+      regularly fused private and public sub-beats into one omniscient
+      string and any off-location character listed as an observer
+      received the whole thing. Cross-location awareness now requires a
+      concrete live perceptual path encoded in `observable_facts`, or a
+      later local event where the news arrives.
 
     - `_apply_roster_moves` in `orchestrator.py` pushes
       `[your own action] …` onto the moved NPC's queue (so they

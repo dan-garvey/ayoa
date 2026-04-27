@@ -1,7 +1,7 @@
 """Narrator composition — v11 per-POV render path.
 
 `compose_pov_render` is the only production narrator entry point. Each
-in-scene human gets their own render from their own POV, composed against
+human POV with a queued perception gets its own render, composed against
 a per-character rolling conversation stored on the checkpoint
 (`checkpoint.narrator_conversations[pov_character_id]`). Voice and
 continuity hold across the session on a per-POV basis.
@@ -201,7 +201,13 @@ def _format_canonical_events_block(
     for idx, (entry, ev) in enumerate(resolved, start=1):
         obs = _OBS_LEVEL_NAMES.get(entry.observation_level, entry.observation_level)
         ca = ev.canonical_event
-        facts = visible_fact_texts(ca.observable_facts, pov_character_id)
+        facts = visible_fact_texts(
+            ca.observable_facts,
+            pov_character_id,
+            include_all_observers=(
+                getattr(entry, "fact_visibility", "all") != "explicit_only"
+            ),
+        )
         if pov_character_id and not facts:
             # No fact visible to this POV means the event must not
             # surface in their render at all.

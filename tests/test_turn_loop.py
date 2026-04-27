@@ -581,6 +581,24 @@ class TestCatIIBeat:
 
         fake = FakeDispatcher()
         fake.queue_route(resolution)
+        fake.queue_agent("Pip resets his grip and looks at Bob.")
+        followup = _router_out(ends_beat=True)
+        followup.observers = [
+            ObserverEntry(
+                character_id="bob",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=1,
+            ),
+        ]
+        followup.canonical_event.observable_facts = [
+            ObservableFact.all("Pip resets his grip and looks at Bob."),
+        ]
+        fake.queue_route(followup)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -591,7 +609,10 @@ class TestCatIIBeat:
             cat_ii_event_id=evt.event_id,
         ))
 
-        assert result.ended_reason == "cat_ii_resolution"
+        assert result.ended_reason == "directed_at_player"
+        assert result.events_closed == 2
+        assert fake.agent_calls[0]["character_id"] == "pip"
+        assert fake.route_calls[1]["actor_id"] == "pip"
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert len(pip.pending_observations) == 1
         assert "Bob pivots through the throw." in pip.pending_observations[0]
@@ -627,6 +648,7 @@ class TestCatIIBeat:
 
         # Now Alice /acts. This closes the event.
         fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_agent("")
         result2 = asyncio.run(run_beat(
             ckpt=ckpt, dispatcher=fake,
             actor_id="alice", intention="I duck",
@@ -1186,6 +1208,51 @@ class TestPicksSubsetOfObservers:
         )
         assert out.agent_responder_picks == ["alice"]  # pip clamped
 
+    def test_remote_pick_allowed_when_event_scopes_fact_to_them(self):
+        from app.engine.turn_loop import _filter_picks_for_dispatch
+
+        ckpt = _ckpt(bindings={"alice": "1"})
+        watcher = CharacterRecord(
+            character_id="watcher", name="Watcher",
+            public_sheet=PublicSheet(role="operator"),
+            location="control_room", is_playable=False,
+        )
+        ckpt.characters.append(watcher)
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[
+                    ObservableFact.only(
+                        "A live channel carries Alice's question to Watcher.",
+                        ["watcher"],
+                    ),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="watcher", observation_level="d",
+                    response_priority=4,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=["watcher"],
+            ends_beat=False,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
+        )
+
+        assert _filter_picks_for_dispatch(
+            ckpt, "gatehouse", ["watcher"], event=event,
+        ) == ["watcher"]
+
 
 class TestPinnedGuards:
     """v11-r5: the router cannot dormant/cull/roster_move a character
@@ -1226,11 +1293,11 @@ class TestFilterPicksForDispatch:
     before dispatching agent_intend.
 
     Two filters: (1) drop human-bound characters (humans only enter via
-    /act, never via cascade), (2) drop characters not currently in the
-    beat's scene (pre-r7g picks at other locations were dispatched and
-    routinely returned empty/refusal intentions, producing WARNING
-    noise; the playtest log showed `pip` and `nyx` at bell_of_arrivals
-    being picked while the player /act'd at archive_main_hall).
+    /act, never via cascade), (2) drop NPCs with no perceptual context.
+    Local NPCs pass by physical co-presence; mediated NPCs pass only
+    when fact-level visibility names them. Pre-r7g picks at unrelated
+    locations were dispatched and routinely returned empty/refusal
+    intentions, producing WARNING noise.
     """
 
     def _ckpt_with_chars(
@@ -1527,12 +1594,62 @@ class TestParallelNarratorFanOut:
         assert "alice" in result.renders
         assert len(fake.narrator_calls) == 1
 
+    def test_remote_buffered_human_renders_at_same_beat_end(self):
+        """A mediated POV can be physically outside the event location.
+        If broadcast queued a render buffer for them, `_end_beat` should
+        render it now rather than waiting for an unrelated future /act."""
+        from app.engine.turn_loop import _end_beat, append_to_render_buffer
+        from app.schemas.event_router import EventRouterOutput
+        from app.schemas.events import (
+            CanonicalEvent, SceneDelta, WorldAdjudication,
+        )
+
+        ckpt = _ckpt(bindings={"alice": "1", "bob": "2"})
+        bob = next(c for c in ckpt.characters if c.character_id == "bob")
+        bob.location = "remote_room"
+        event = EventRouterOutput(
+            event_id="",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                scene_delta=SceneDelta(time_advanced_seconds=0),
+                observable_facts=[],
+            ),
+            observers=[],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+            roster_moves=[],
+            scenes_created=[],
+        )
+        ckpt.canonical_events.append(event)
+        append_to_render_buffer(
+            ckpt, "bob", event.event_id, "indirect",
+            fact_visibility="explicit_only",
+        )
+
+        fake = FakeDispatcher()
+        result = asyncio.run(_end_beat(
+            ckpt, fake, "gatehouse",
+            ended_reason="directed_at_player",
+            events_closed=1,
+            event_actor_ids=["alice"],
+        ))
+
+        assert "bob" in result.renders
+        assert fake.narrator_calls[0]["character_id"] == "bob"
+
 
 class TestBroadcastEventNpcObservers:
     """`broadcast_event` pushes the canonical event's observable_facts
-    onto every NPC observer who is co-located with the broadcast
-    `scene_id`, and only those. The actor of the event is excluded;
-    their own action lives in their rolling history.
+    onto every local NPC observer, plus mediated/remote NPC observers
+    explicitly named by fact-level `visible_to`. The actor of the event
+    is excluded; their own action lives in their rolling history.
 
     History note:
       - Pre-r8b only off-scene observers were pushed; in-scene NPCs
@@ -1542,20 +1659,20 @@ class TestBroadcastEventNpcObservers:
         `observed_facts=[]`) — cascade NPCs reacted to stale queue
         entries and the router fabricated dialogue to fit.
       - r8b restored symmetric push (in-scene + off-scene).
-      - r9b deletes the off-scene channel entirely. The router's
+      - r9b deleted the off-scene summary channel. The router's
         per-event `resolved_outcome` regularly fused private and
         public sub-beats into one omniscient summary; piping that
         to off-scene observers (e.g. Ashara at the dining hall
         receiving Dan Garvey's bedroom-wardrobe choice as an
         `[off-scene perception]`) was a privacy leak and an
         attribution-confusion seed. Cross-scene awareness now
-        requires a separate event whose `scene_id` is wherever the
-        news lands — not piggy-backed on an in-scene event's summary.
+        requires exact fact-level visibility, not a piggy-backed
+        summary.
       - r10 (Option B) replaces the `resolved_outcome` payload with
         the full `observable_facts` list. The outcome string regularly
         wove interpretive interior into surface beats ("the strain of
         speaking close to the edge of what she is permitted"), and
-        broadcasting that to in-scene NPCs as their own perception
+        broadcasting that to local NPCs as their own perception
         leaked author-voice interior into agent-facing context. The
         observable_facts list is the router's surface-grade enumeration
         — verbatim dialogue, visible gestures, ambient shifts — and
@@ -1571,6 +1688,7 @@ class TestBroadcastEventNpcObservers:
         *,
         observer_ids: list[str],
         outcome: str = "Jordan hands a note to a runner.",
+        facts: list[object] | None = None,
     ) -> EventRouterOutput:
         observers = [
             ObserverEntry(
@@ -1587,7 +1705,7 @@ class TestBroadcastEventNpcObservers:
                     resolved_outcome=outcome,
                 ),
                 scene_delta=SceneDelta(time_advanced_seconds=0),
-                observable_facts=[outcome],
+                observable_facts=facts if facts is not None else [outcome],
             ),
             observers=observers,
             requires_responders=False,
@@ -1597,13 +1715,10 @@ class TestBroadcastEventNpcObservers:
             spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
         )
 
-    def test_off_scene_npc_observer_NOT_pushed(self):
-        """v11-r9b: off-scene observers are no longer pushed. Pre-r9b
-        marcus (at citrus_garden, not gatehouse) would have received
-        the event summary tagged `[off-scene perception]` because
-        the router listed him as an observer; r9b drops the off-scene
-        channel entirely so off-scene NPCs only learn about events
-        whose own `scene_id` they actually are in."""
+    def test_off_location_npc_observer_not_pushed_without_explicit_fact(self):
+        """Remote observers need explicit fact-level visibility. Listing
+        them as observers is not enough to pipe broad room facts into
+        their inbox."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()
         marcus = CharacterRecord(
@@ -1616,6 +1731,61 @@ class TestBroadcastEventNpcObservers:
 
         broadcast_event(ckpt, event, scene_id="gatehouse")
         assert marcus.pending_observations == []
+
+    def test_off_location_npc_gets_only_explicit_mediated_facts(self):
+        """A remote observer on a live channel receives only facts scoped
+        to them, not broad facts from the physical event location."""
+        from app.engine.turn_loop import broadcast_event
+
+        ckpt = _ckpt()
+        watcher = CharacterRecord(
+            character_id="watcher", name="Watcher",
+            public_sheet=PublicSheet(role="operator"),
+            location="control_room", is_playable=False,
+        )
+        ckpt.characters.append(watcher)
+        event = self._event(
+            observer_ids=["watcher"],
+            facts=[
+                ObservableFact.all("Alice sets a glass on the table."),
+                ObservableFact.only(
+                    "The live feed carries Alice's words into the control room.",
+                    ["watcher"],
+                ),
+            ],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+
+        assert watcher.pending_observations == [
+            "The live feed carries Alice's words into the control room."
+        ]
+
+    def test_off_location_human_gets_explicit_only_render_buffer(self):
+        """Mediated human observers render the beat immediately, but their
+        buffer is marked so the narrator only sees scoped facts."""
+        from app.engine.turn_loop import broadcast_event
+
+        ckpt = _ckpt(bindings={"alice": "1"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.location = "control_room"
+        event = self._event(
+            observer_ids=["alice"],
+            facts=[
+                ObservableFact.all("Pip mouths something across the room."),
+                ObservableFact.only(
+                    "Alice hears Pip's line through the earpiece.",
+                    ["alice"],
+                ),
+            ],
+        )
+
+        broadcast_event(ckpt, event, scene_id="gatehouse")
+
+        assert alice.pending_observations == []
+        [entry] = ckpt.session.render_buffers["alice"]
+        assert entry.event_id == event.event_id
+        assert entry.fact_visibility == "explicit_only"
 
     def test_in_scene_npc_observer_gets_in_scene_inbox_line(self):
         """v11-r8b regression guard: in-scene NPCs DO get pushed.
@@ -1658,13 +1828,8 @@ class TestBroadcastEventNpcObservers:
         assert len(nyx.pending_observations) == 1
 
     def test_actor_off_scene_gets_no_push(self):
-        """Off-scene observers receive nothing (r9b), so an off-scene
-        actor — who would already be excluded by the actor-exclusion
-        branch — has its own queue stay empty for two independent
-        reasons. The combined assertion makes the failure mode
-        clear: marcus is at citrus_garden, the event broadcasts at
-        gatehouse, marcus is the actor; queue stays empty either
-        way."""
+        """The actor still does not get their own action echoed into
+        their inbox, even if a mediated event lists them as observer."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt()
         marcus = CharacterRecord(
@@ -1684,10 +1849,9 @@ class TestBroadcastEventNpcObservers:
         """Humans get render buffer entries, not inbox lines. The
         narrator surfaces canonical events to humans through the
         rendered buffer; pushing onto a human's inbox would have no
-        consumer (humans don't run agent prompts). True for both
-        in-scene humans and off-scene humans (the latter just don't
-        see the event at all this beat — they'll see it via narrator
-        on their next /act if still bound)."""
+        consumer because humans don't run agent prompts. A remote human
+        with no explicit visible fact receives neither inbox nor render
+        buffer entry."""
         from app.engine.turn_loop import broadcast_event
         ckpt = _ckpt(bindings={"alice": "1"})
         # Move alice off-scene so the only thing tested is the
@@ -1698,6 +1862,7 @@ class TestBroadcastEventNpcObservers:
 
         broadcast_event(ckpt, event, scene_id="gatehouse")
         assert alice.pending_observations == []
+        assert ckpt.session.render_buffers.get("alice") in (None, [])
 
     def test_in_scene_human_observer_NOT_pushed(self):
         """In-scene human is bound — gets render buffer, not inbox."""

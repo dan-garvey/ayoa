@@ -1066,3 +1066,180 @@ class TestPostActorRenderCascade:
         ))
         assert venue == "none"
         assert returned_thread is None
+
+
+# ---- rewind Discord message cleanup ---------------------------------------
+
+
+class _FakeDiscordMessage:
+    def __init__(self, message_id: int, *, delete_raises: bool = False):
+        self.id = message_id
+        self.delete_raises = delete_raises
+        self.deleted = False
+        self.edited_content = None
+        self.edited_embeds = None
+
+    async def delete(self):
+        if self.delete_raises:
+            raise RuntimeError("delete denied")
+        self.deleted = True
+
+    async def edit(self, *, content=None, embeds=None):
+        self.edited_content = content
+        self.edited_embeds = embeds
+
+
+class _FakeDiscordChannel:
+    def __init__(self, channel_id: int, messages):
+        self.id = channel_id
+        self._messages = messages
+
+    async def fetch_message(self, message_id: int):
+        return self._messages[message_id]
+
+
+class _FakeDiscordUser:
+    def __init__(self, user_id: int, dm_channel):
+        self.id = user_id
+        self.dm_channel = dm_channel
+
+    async def create_dm(self):
+        return self.dm_channel
+
+
+class _FakeDiscordClient:
+    def __init__(self, *, channels=None, users=None):
+        self._channels = channels or {}
+        self._users = users or {}
+
+    def get_channel(self, channel_id: int):
+        return self._channels.get(channel_id)
+
+    async def fetch_channel(self, channel_id: int):
+        return self._channels.get(channel_id)
+
+    def get_user(self, user_id: int):
+        return self._users.get(user_id)
+
+    async def fetch_user(self, user_id: int):
+        return self._users.get(user_id)
+
+
+class TestRewindDiscordCleanup:
+    def _smap(self, tmp_path: Path) -> "SessionMap":
+        from app.bot.session_map import SessionMap
+
+        smap = SessionMap(db_path=tmp_path / "rewind_cleanup.db")
+        asyncio.run(smap.init())
+        return smap
+
+    def test_deletes_only_messages_from_rewound_turns(
+        self, tmp_path: Path,
+    ):
+        smap = self._smap(tmp_path)
+        turn_3_msg = _FakeDiscordMessage(3000)
+        turn_4_msg = _FakeDiscordMessage(4000)
+        turn_5_msg = _FakeDiscordMessage(5000)
+        channel = _FakeDiscordChannel(
+            900,
+            {
+                3000: turn_3_msg,
+                4000: turn_4_msg,
+                5000: turn_5_msg,
+            },
+        )
+        client = _FakeDiscordClient(channels={900: channel})
+
+        async def _run():
+            for turn, message_id in ((3, 3000), (4, 4000), (5, 5000)):
+                await smap.record_turn_message(
+                    channel_id=10,
+                    session_id="sess",
+                    turn_index=turn,
+                    discord_channel_id=900,
+                    message_id=message_id,
+                    delivery="thread",
+                )
+            return await bot_commands._delete_rewound_turn_messages(
+                client=client,
+                smap=smap,
+                channel_id=10,
+                session_id="sess",
+                deleted_turns=[4, 5],
+            )
+
+        cleanup = asyncio.run(_run())
+
+        assert cleanup.tracked == 2
+        assert cleanup.deleted == 2
+        assert turn_3_msg.deleted is False
+        assert turn_4_msg.deleted is True
+        assert turn_5_msg.deleted is True
+        remaining = asyncio.run(smap.list_turn_messages(
+            channel_id=10, session_id="sess", turns=[3, 4, 5],
+        ))
+        assert [r.message_id for r in remaining] == [3000]
+
+    def test_edits_message_when_delete_fails(self, tmp_path: Path):
+        smap = self._smap(tmp_path)
+        msg = _FakeDiscordMessage(4000, delete_raises=True)
+        channel = _FakeDiscordChannel(900, {4000: msg})
+        client = _FakeDiscordClient(channels={900: channel})
+
+        async def _run():
+            await smap.record_turn_message(
+                channel_id=10,
+                session_id="sess",
+                turn_index=4,
+                discord_channel_id=900,
+                message_id=4000,
+                delivery="thread",
+            )
+            return await bot_commands._delete_rewound_turn_messages(
+                client=client,
+                smap=smap,
+                channel_id=10,
+                session_id="sess",
+                deleted_turns=[4],
+            )
+
+        cleanup = asyncio.run(_run())
+
+        assert cleanup.deleted == 0
+        assert cleanup.hidden == 1
+        assert msg.edited_content == "_Rewound turn hidden._"
+        assert msg.edited_embeds == []
+        remaining = asyncio.run(smap.list_turn_messages(
+            channel_id=10, session_id="sess", turns=[4],
+        ))
+        assert remaining == []
+
+    def test_dm_refs_resolve_through_recipient_user(self, tmp_path: Path):
+        smap = self._smap(tmp_path)
+        msg = _FakeDiscordMessage(4000)
+        dm_channel = _FakeDiscordChannel(901, {4000: msg})
+        user = _FakeDiscordUser(42, dm_channel)
+        client = _FakeDiscordClient(users={42: user})
+
+        async def _run():
+            await smap.record_turn_message(
+                channel_id=10,
+                session_id="sess",
+                turn_index=4,
+                discord_channel_id=901,
+                message_id=4000,
+                delivery="dm",
+                recipient_user_id=42,
+            )
+            return await bot_commands._delete_rewound_turn_messages(
+                client=client,
+                smap=smap,
+                channel_id=10,
+                session_id="sess",
+                deleted_turns=[4],
+            )
+
+        cleanup = asyncio.run(_run())
+
+        assert cleanup.deleted == 1
+        assert msg.deleted is True

@@ -26,6 +26,7 @@ per-session lock so concurrent /act commands on the same channel serialize.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import os
 import re
@@ -37,7 +38,7 @@ from discord import app_commands
 
 from app.bot.embed import render_briefing, render_error, render_info, render_turn
 from app.bot.engine_bridge import EngineBridge
-from app.bot.session_map import SessionMap
+from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.checkpoint import CheckpointFile
 
@@ -151,6 +152,52 @@ async def _send_private(inter: discord.Interaction, text: str) -> None:
         await inter.followup.send(chunk, ephemeral=True)
 
 
+@dataclass
+class TurnMessageCleanup:
+    tracked: int = 0
+    deleted: int = 0
+    hidden: int = 0
+    missing: int = 0
+    failed: int = 0
+
+
+async def _record_turn_message(
+    *,
+    smap: SessionMap,
+    session_channel_id: int,
+    session_id: str,
+    turn_index: Optional[int],
+    message: object,
+    delivery: str,
+    discord_channel_id: Optional[int] = None,
+    recipient_user_id: Optional[int] = None,
+) -> None:
+    if not session_id or turn_index is None:
+        return
+    message_id = getattr(message, "id", None)
+    if message_id is None:
+        return
+    message_channel = getattr(message, "channel", None)
+    channel_id = discord_channel_id or getattr(message_channel, "id", None)
+    if channel_id is None:
+        return
+    try:
+        await smap.record_turn_message(
+            channel_id=session_channel_id,
+            session_id=session_id,
+            turn_index=int(turn_index),
+            discord_channel_id=int(channel_id),
+            message_id=int(message_id),
+            delivery=delivery,
+            recipient_user_id=recipient_user_id,
+        )
+    except Exception:
+        logger.exception(
+            "turn-message tracking failed for session=%s turn=%s message=%s",
+            session_id, turn_index, message_id,
+        )
+
+
 async def _ensure_pov_thread(
     *,
     channel: discord.abc.Messageable,
@@ -250,6 +297,8 @@ async def _post_actor_render(
     char_name: str,
     embeds: list[discord.Embed],
     intro_content: Optional[str] = None,
+    session_id: str = "",
+    turn_index: Optional[int] = None,
 ) -> tuple[str, Optional[discord.Thread]]:
     """Post the ACTOR's own beat privately: POV thread first, DM fallback,
     `("none", None)` if both fail (caller should then post publicly to
@@ -284,7 +333,17 @@ async def _post_actor_render(
 
     if thread is not None:
         try:
-            await thread.send(content=intro_content, embeds=embeds)
+            msg = await thread.send(content=intro_content, embeds=embeds)
+            await _record_turn_message(
+                smap=smap,
+                session_channel_id=_session_channel_id(inter),
+                session_id=session_id,
+                turn_index=turn_index,
+                message=msg,
+                delivery="thread",
+                discord_channel_id=thread.id,
+                recipient_user_id=user.id,
+            )
             return ("thread", thread)
         except Exception:
             logger.exception(
@@ -296,7 +355,16 @@ async def _post_actor_render(
             )
 
     try:
-        await user.send(content=intro_content, embeds=embeds)
+        msg = await user.send(content=intro_content, embeds=embeds)
+        await _record_turn_message(
+            smap=smap,
+            session_channel_id=_session_channel_id(inter),
+            session_id=session_id,
+            turn_index=turn_index,
+            message=msg,
+            delivery="dm",
+            recipient_user_id=user.id,
+        )
         return ("dm", None)
     except Exception:
         logger.exception(
@@ -315,6 +383,8 @@ async def _post_to_pov(
     char_name: str,
     text: str,
     bot: "discord.Client",
+    session_id: str = "",
+    turn_index: Optional[int] = None,
 ) -> bool:
     """Post `text` to the user's POV thread in the channel where this
     interaction lives. Falls back to DM on any thread-related failure.
@@ -351,7 +421,17 @@ async def _post_to_pov(
     if thread is not None:
         try:
             for chunk in chunks:
-                await thread.send(chunk)
+                msg = await thread.send(chunk)
+                await _record_turn_message(
+                    smap=smap,
+                    session_channel_id=session_chan_id,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                    message=msg,
+                    delivery="thread",
+                    discord_channel_id=thread.id,
+                    recipient_user_id=user_id,
+                )
             return True
         except Exception:
             logger.exception(
@@ -362,13 +442,161 @@ async def _post_to_pov(
 
     try:
         for chunk in chunks:
-            await user.send(chunk)
+            msg = await user.send(chunk)
+            await _record_turn_message(
+                smap=smap,
+                session_channel_id=session_chan_id,
+                session_id=session_id,
+                turn_index=turn_index,
+                message=msg,
+                delivery="dm",
+                recipient_user_id=user_id,
+            )
         return True
     except Exception:
         logger.exception(
             "post_to_pov: DM fallback to user %s failed", user_id,
         )
         return False
+
+
+async def _send_public_turn_render(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    session_id: str,
+    turn_index: int,
+    content: Optional[str] = None,
+    embeds: Optional[list[discord.Embed]] = None,
+) -> None:
+    msg = await inter.followup.send(
+        content=content,
+        embeds=embeds,
+        wait=True,
+    )
+    await _record_turn_message(
+        smap=smap,
+        session_channel_id=_session_channel_id(inter),
+        session_id=session_id,
+        turn_index=turn_index,
+        message=msg,
+        delivery="public",
+    )
+
+
+async def _message_channel_for_ref(
+    client: discord.Client,
+    ref: TurnMessageRef,
+):
+    if ref.delivery == "dm" and ref.recipient_user_id is not None:
+        user = client.get_user(ref.recipient_user_id)
+        if user is None:
+            try:
+                user = await client.fetch_user(ref.recipient_user_id)
+            except Exception:
+                logger.exception(
+                    "rewind cleanup: fetch_user(%s) failed",
+                    ref.recipient_user_id,
+                )
+                return None
+        dm_channel = getattr(user, "dm_channel", None)
+        if dm_channel is None:
+            try:
+                dm_channel = await user.create_dm()
+            except Exception:
+                logger.exception(
+                    "rewind cleanup: create_dm(%s) failed",
+                    ref.recipient_user_id,
+                )
+                return None
+        return dm_channel
+
+    channel = client.get_channel(ref.discord_channel_id)
+    if channel is not None:
+        return channel
+    try:
+        return await client.fetch_channel(ref.discord_channel_id)
+    except discord.NotFound:
+        return None
+    except Exception:
+        logger.exception(
+            "rewind cleanup: fetch_channel(%s) failed",
+            ref.discord_channel_id,
+        )
+        return None
+
+
+async def _delete_rewound_turn_messages(
+    *,
+    client: discord.Client,
+    smap: SessionMap,
+    channel_id: int,
+    session_id: str,
+    deleted_turns: list[int],
+) -> TurnMessageCleanup:
+    refs = await smap.list_turn_messages(
+        channel_id=channel_id,
+        session_id=session_id,
+        turns=deleted_turns,
+    )
+    cleanup = TurnMessageCleanup(tracked=len(refs))
+    handled: list[TurnMessageRef] = []
+
+    for ref in refs:
+        channel = await _message_channel_for_ref(client, ref)
+        if channel is None:
+            cleanup.failed += 1
+            continue
+
+        try:
+            msg = await channel.fetch_message(ref.message_id)
+        except discord.NotFound:
+            cleanup.missing += 1
+            handled.append(ref)
+            continue
+        except Exception:
+            cleanup.failed += 1
+            logger.exception(
+                "rewind cleanup: fetch_message(%s) failed in channel %s",
+                ref.message_id, ref.discord_channel_id,
+            )
+            continue
+
+        try:
+            await msg.delete()
+            cleanup.deleted += 1
+            handled.append(ref)
+            continue
+        except discord.NotFound:
+            cleanup.missing += 1
+            handled.append(ref)
+            continue
+        except Exception:
+            logger.warning(
+                "rewind cleanup: delete failed for message %s in channel %s; "
+                "trying edit fallback",
+                ref.message_id, ref.discord_channel_id,
+                exc_info=True,
+            )
+
+        try:
+            await msg.edit(content="_Rewound turn hidden._", embeds=[])
+            cleanup.hidden += 1
+            handled.append(ref)
+        except discord.NotFound:
+            cleanup.missing += 1
+            handled.append(ref)
+        except Exception:
+            cleanup.failed += 1
+            logger.exception(
+                "rewind cleanup: edit fallback failed for message %s "
+                "in channel %s",
+                ref.message_id, ref.discord_channel_id,
+            )
+
+    if handled:
+        await smap.forget_turn_messages(handled)
+    return cleanup
 
 
 def _chunks(text: str, size: int) -> list[str]:
@@ -1202,6 +1430,8 @@ def register(
             char_name=char_name,
             embeds=embeds,
             intro_content=intro,
+            session_id=session_id,
+            turn_index=response.turn_index,
         )
         if venue == "thread" and thread is not None:
             await inter.followup.send(
@@ -1216,13 +1446,21 @@ def register(
                 ephemeral=True,
             )
         else:
-            await inter.followup.send(content=intro, embeds=embeds)
+            await _send_public_turn_render(
+                inter=inter,
+                smap=smap,
+                session_id=session_id,
+                turn_index=response.turn_index,
+                content=intro,
+                embeds=embeds,
+            )
 
         await _fan_out_per_player_renders(
             inter=inter,
             session_id=session_id,
             actor_cid=binding_cid,
             per_player=response.per_player_renders or {},
+            turn_index=response.turn_index,
         )
 
     async def _fan_out_per_player_renders(
@@ -1231,6 +1469,7 @@ def register(
         session_id: str,
         actor_cid: str,
         per_player: dict[str, str],
+        turn_index: int,
     ) -> None:
         """DM each non-acting bound human their POV render for the
         last beat. Mirrors the /act fan-out path so multi-POV beats
@@ -1274,6 +1513,8 @@ def register(
                 char_name=other_name,
                 text=prose,
                 bot=inter.client,
+                session_id=session_id,
+                turn_index=turn_index,
             )
             if ok:
                 notified.append(other_name)
@@ -1753,6 +1994,8 @@ def register(
                 char_name=actor_name,
                 embeds=embeds,
                 intro_content=intro,
+                session_id=row.session_id,
+                turn_index=response.turn_index,
             )
             if venue == "thread" and thread is not None:
                 await inter.followup.send(
@@ -1766,7 +2009,14 @@ def register(
                     ephemeral=True,
                 )
             else:
-                await inter.followup.send(content=intro, embeds=embeds)
+                await _send_public_turn_render(
+                    inter=inter,
+                    smap=smap,
+                    session_id=row.session_id,
+                    turn_index=response.turn_index,
+                    content=intro,
+                    embeds=embeds,
+                )
         else:
             await inter.followup.send(
                 embed=render_info(
@@ -1781,6 +2031,7 @@ def register(
             session_id=row.session_id,
             actor_cid=triggering_cid,
             per_player=per_player,
+            turn_index=response.turn_index,
         )
 
     # ---- /leave -------------------------------------------------------------
@@ -2028,6 +2279,8 @@ def register(
             char_name=bound_name,
             embeds=embeds,
             intro_content=intro,
+            session_id=row.session_id,
+            turn_index=response.turn_index,
         )
         if venue == "thread" and thread is not None:
             await inter.followup.send(
@@ -2041,7 +2294,14 @@ def register(
                 ephemeral=True,
             )
         else:
-            await inter.followup.send(content=intro, embeds=embeds)
+            await _send_public_turn_render(
+                inter=inter,
+                smap=smap,
+                session_id=row.session_id,
+                turn_index=response.turn_index,
+                content=intro,
+                embeds=embeds,
+            )
 
     # ---- /act ---------------------------------------------------------------
 
@@ -2139,6 +2399,7 @@ def register(
             renders: dict[str, str],
             *,
             skip_cid: str | None,
+            turn_index: int,
             note_prefix: str = "",
         ) -> list[str]:
             """Post each (cid, prose) in `renders` to that user's POV
@@ -2171,6 +2432,8 @@ def register(
                     char_name=char_name,
                     text=payload,
                     bot=inter.client,
+                    session_id=row.session_id,
+                    turn_index=turn_index,
                 )
                 if ok:
                     notified.append(char_name)
@@ -2184,6 +2447,7 @@ def register(
             await _dm_per_pov(
                 pre_resp.per_player_renders or {},
                 skip_cid=None,
+                turn_index=pre_resp.turn_index,
                 note_prefix=(
                     "_(Auto-resolved while you were away — your prior "
                     "scene closed out.)_"
@@ -2220,6 +2484,8 @@ def register(
                     char_name=actor_name,
                     embeds=embeds,
                     intro_content=pause_note,
+                    session_id=row.session_id,
+                    turn_index=response.turn_index,
                 )
                 if venue == "thread" and thread is not None:
                     await inter.followup.send(
@@ -2233,8 +2499,13 @@ def register(
                         ephemeral=True,
                     )
                 else:
-                    await inter.followup.send(
-                        content=pause_note, embeds=embeds,
+                    await _send_public_turn_render(
+                        inter=inter,
+                        smap=smap,
+                        session_id=row.session_id,
+                        turn_index=response.turn_index,
+                        content=pause_note,
+                        embeds=embeds,
                     )
             else:
                 await inter.followup.send(content=pause_note, ephemeral=True)
@@ -2251,6 +2522,8 @@ def register(
                 character_id=binding,
                 char_name=actor_name,
                 embeds=embeds,
+                session_id=row.session_id,
+                turn_index=response.turn_index,
             )
             if venue == "thread" and thread is not None:
                 await inter.followup.send(
@@ -2264,7 +2537,13 @@ def register(
             else:
                 # Both private paths failed — public fallback so the
                 # actor still sees their beat.
-                await inter.followup.send(embeds=embeds)
+                await _send_public_turn_render(
+                    inter=inter,
+                    smap=smap,
+                    session_id=row.session_id,
+                    turn_index=response.turn_index,
+                    embeds=embeds,
+                )
 
         # Step 3: DM the actor's beat to the OTHER bound humans in the
         # scene. Acting user already saw it in-channel above, so
@@ -2272,6 +2551,7 @@ def register(
         if per_player:
             notified_names = await _dm_per_pov(
                 per_player, skip_cid=binding,
+                turn_index=response.turn_index,
             )
             if notified_names:
                 try:
@@ -2449,19 +2729,48 @@ def register(
                 len(result.deleted_turns),
             )
 
+            try:
+                cleanup = await _delete_rewound_turn_messages(
+                    client=click_inter.client,
+                    smap=smap,
+                    channel_id=_session_channel_id(click_inter),
+                    session_id=self._session_id,
+                    deleted_turns=result.deleted_turns,
+                )
+            except Exception:
+                logger.exception(
+                    "rewind: Discord turn-message cleanup failed",
+                )
+                cleanup = TurnMessageCleanup(
+                    tracked=0,
+                    failed=len(result.deleted_turns),
+                )
+
             # Public announcement so co-players know the world
             # backed up. Includes who triggered it for accountability.
             scene_line = (
                 f"\nResume scene: `{result.scene_id}`"
                 if result.scene_id else ""
             )
+            cleanup_line = ""
+            if cleanup.tracked:
+                bits = [f"{cleanup.deleted} deleted"]
+                if cleanup.hidden:
+                    bits.append(f"{cleanup.hidden} hidden")
+                if cleanup.missing:
+                    bits.append(f"{cleanup.missing} already gone")
+                if cleanup.failed:
+                    bits.append(f"{cleanup.failed} failed")
+                cleanup_line = (
+                    "\nDiscord messages: " + ", ".join(bits) + "."
+                )
             announce = render_info(
                 "Session rewound",
                 f"**{click_inter.user.display_name}** rewound the story to "
                 f"**Turn {result.new_latest}**.\n"
                 f"Turns {result.deleted_turns[0]}–{result.deleted_turns[-1]} "
                 f"({len(result.deleted_turns)} checkpoint(s)) erased."
-                f"{scene_line}\n\n"
+                f"{cleanup_line}{scene_line}\n\n"
                 f"Use `/act` to continue from here.",
             )
             try:
@@ -2599,7 +2908,8 @@ def register(
             f"{preview.deleted_turns[0]}–{preview.deleted_turns[-1]} "
             f"({len(preview.deleted_turns)} checkpoint(s))"
             f"{actor_line}{scene_line}\n\n"
-            f"⚠️ This permanently erases the deleted turns from disk. "
+            f"⚠️ This permanently erases the deleted turns from disk and "
+            f"deletes or hides tracked Discord messages for those turns. "
             f"Players who joined after turn {preview.target_turn} will "
             f"need to `/join` again."
         )
@@ -2835,6 +3145,14 @@ def register(
                 channel.id,
             )
             cache_dropped = 0
+        try:
+            turn_refs_dropped = await smap.clear_all_turn_messages(channel.id)
+        except Exception:
+            logger.exception(
+                "clear: clear_all_turn_messages failed for channel %s",
+                channel.id,
+            )
+            turn_refs_dropped = 0
 
         # 3) Purge the channel itself. purge() uses bulk_delete for
         # messages < 14 days and falls back to per-message delete for
@@ -2857,9 +3175,11 @@ def register(
             return
 
         logger.info(
-            "Cleared %d messages and %d threads (%d cache rows) "
+            "Cleared %d messages and %d threads (%d pov cache rows, "
+            "%d turn-message rows) "
             "in #%s by %s; %d thread failures",
             len(deleted), threads_deleted, cache_dropped,
+            turn_refs_dropped,
             channel.name, inter.user.display_name, thread_failures,
         )
 

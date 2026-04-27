@@ -125,10 +125,10 @@ class CharacterAgent:
         their `pending_observations` inbox (the block rendered above the
         body). The cascade dispatch path used to also pipe in
         `observed_facts` and `prior_responses` here, but production
-        always passed `[]` / `None` because in-scene perception and
-        cascade fan-out both land on the inbox via `broadcast_event`
-        (which pushes each observer's visible observable_facts onto
-        their in-scene inbox), so the parameters were dead
+        always passed `[]` / `None` because perception and cascade fan-out
+        both land on the inbox via `broadcast_event` (which pushes each
+        observer's visible observable_facts onto their inbox when local
+        or explicitly named by a mediated fact), so the parameters were dead
         weight. They've been removed from the signature.
 
         See `_run_beat` for the shared plumbing.
@@ -198,8 +198,9 @@ class CharacterAgent:
         # a side query, not an on-stage beat. The pending_observations
         # queue holds events the character hasn't yet reacted to in
         # fiction; the next `respond`/`tick` is what consumes them.
-        # Draining here would silently swallow off-scene perceptions the
-        # next on-stage turn needs to acknowledge. We also pass an EMPTY
+        # Draining here would silently swallow off-location or mediated
+        # perceptions the next on-stage turn needs to acknowledge. We
+        # also pass an EMPTY
         # pending-observations block to the render — a self-presentation
         # query shouldn't be primed by "react to these incoming events."
         # The character's freshest in-fiction interior is already in

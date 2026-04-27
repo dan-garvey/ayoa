@@ -213,3 +213,131 @@ class TestPovThreads:
             channel_id=1, user_id=1, thread_id=42, character_id="x",
         )
         assert await sm.get_pov_thread_id(channel_id=1, user_id=1) == 42
+
+
+# ---- turn messages --------------------------------------------------------
+
+
+class TestTurnMessages:
+    async def test_record_and_list_by_turns(self, smap: SessionMap):
+        await smap.record_turn_message(
+            channel_id=10,
+            session_id="s1",
+            turn_index=3,
+            discord_channel_id=100,
+            message_id=1000,
+            delivery="thread",
+            recipient_user_id=42,
+        )
+        await smap.record_turn_message(
+            channel_id=10,
+            session_id="s1",
+            turn_index=4,
+            discord_channel_id=101,
+            message_id=1001,
+            delivery="public",
+        )
+        await smap.record_turn_message(
+            channel_id=10,
+            session_id="s2",
+            turn_index=3,
+            discord_channel_id=102,
+            message_id=1002,
+            delivery="thread",
+        )
+
+        refs = await smap.list_turn_messages(
+            channel_id=10,
+            session_id="s1",
+            turns=[3, 4],
+        )
+
+        assert [r.turn_index for r in refs] == [3, 4]
+        assert [r.message_id for r in refs] == [1000, 1001]
+        assert refs[0].recipient_user_id == 42
+
+    async def test_forget_removes_only_named_refs(self, smap: SessionMap):
+        for turn, message_id in ((3, 1000), (4, 1001)):
+            await smap.record_turn_message(
+                channel_id=10,
+                session_id="s1",
+                turn_index=turn,
+                discord_channel_id=100,
+                message_id=message_id,
+                delivery="thread",
+            )
+        refs = await smap.list_turn_messages(
+            channel_id=10,
+            session_id="s1",
+            turns=[3],
+        )
+
+        assert await smap.forget_turn_messages(refs) == 1
+
+        remaining = await smap.list_turn_messages(
+            channel_id=10,
+            session_id="s1",
+            turns=[3, 4],
+        )
+        assert [r.message_id for r in remaining] == [1001]
+
+    async def test_session_delete_drops_turn_messages(self, smap: SessionMap):
+        await smap.upsert(
+            channel_id=10, guild_id=1, session_id="s1",
+            owner_user_id=1, story_id="story",
+        )
+        await smap.record_turn_message(
+            channel_id=10,
+            session_id="s1",
+            turn_index=3,
+            discord_channel_id=100,
+            message_id=1000,
+            delivery="thread",
+        )
+        await smap.record_turn_message(
+            channel_id=11,
+            session_id="s2",
+            turn_index=3,
+            discord_channel_id=101,
+            message_id=1001,
+            delivery="thread",
+        )
+
+        await smap.delete(10)
+
+        assert await smap.list_turn_messages(
+            channel_id=10, session_id="s1", turns=[3],
+        ) == []
+        other = await smap.list_turn_messages(
+            channel_id=11, session_id="s2", turns=[3],
+        )
+        assert [r.message_id for r in other] == [1001]
+
+    async def test_clear_all_turn_messages_is_channel_scoped(
+        self, smap: SessionMap,
+    ):
+        await smap.record_turn_message(
+            channel_id=10,
+            session_id="s1",
+            turn_index=3,
+            discord_channel_id=100,
+            message_id=1000,
+            delivery="thread",
+        )
+        await smap.record_turn_message(
+            channel_id=11,
+            session_id="s2",
+            turn_index=3,
+            discord_channel_id=101,
+            message_id=1001,
+            delivery="thread",
+        )
+
+        assert await smap.clear_all_turn_messages(10) == 1
+        assert await smap.list_turn_messages(
+            channel_id=10, session_id="s1", turns=[3],
+        ) == []
+        other = await smap.list_turn_messages(
+            channel_id=11, session_id="s2", turns=[3],
+        )
+        assert [r.message_id for r in other] == [1001]

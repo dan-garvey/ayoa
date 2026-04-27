@@ -7,9 +7,9 @@ adapter that:
 
   1. loads the checkpoint,
   2. resolves which character is acting,
-  3. acquires the per-(session, scene) scene lock so two concurrent
-     /acts on the same scene serialize,
-  4. validates the incoming /act against the scene's active_act_slot,
+  3. acquires the per-(session, location id) act-slot lock so two
+     concurrent /acts in the same physical slot serialize,
+  4. validates the incoming /act against that slot,
   5. runs one beat to completion via `run_beat`,
   6. applies roster side-effects of every event that closed this beat,
   7. saves the checkpoint,
@@ -46,8 +46,11 @@ from app.engine.turn_loop import (
     check_act_slot,
     close_cat_ii,
     format_slot_rejection,
+    release_scene_slots,
     run_beat,
+    _agent_intention_for_dispatch,
     _end_beat,
+    _filter_picks_for_dispatch,
 )
 from app.llm.client import LLMClient
 
@@ -243,8 +246,9 @@ class Orchestrator:
             ckpt.session.turn_index, request.session_id, acting_id, scene_id,
         )
 
-        # 3. Acquire per-scene lock. Prevents two concurrent /acts on the
-        # same scene from both seeing FREE on their check_act_slot.
+        # 3. Acquire the location-id lock. Prevents two concurrent /acts
+        # in the same physical slot from both seeing FREE on their
+        # check_act_slot.
         lock = await self.scene_locks.get(request.session_id, scene_id)
         async with lock:
             # 4. Validate against the scene's active_act_slot.
@@ -311,8 +315,9 @@ class Orchestrator:
                     self._apply_roster_moves(ckpt, evt, actor_id=evt_actor)
                     # Spawns remain async LLM calls; if none declared,
                     # the helper is a no-op. The acting actor's POST-move
-                    # scene is passed as the spawn-location fallback so
-                    # courier-style NPCs materialize where the action is.
+                    # physical location is passed as the spawn-location
+                    # fallback so courier-style NPCs materialize where
+                    # the action is.
                     if evt.spawn:
                         spawn_loc = (
                             self._resolve_scene_id(ckpt, evt_actor)
@@ -388,8 +393,9 @@ class Orchestrator:
 
         Acquires the scene lock for the event's scene, re-checks
         readiness, drives `route_intention` on the adjudication path,
-        closes the event, broadcasts the canonical result, fans renders
-        out via `_end_beat`, applies roster side-effects, and saves.
+        closes the event, broadcasts the canonical result, lets an NPC
+        initiator take the first follow-up when applicable, fans renders
+        out, applies roster side-effects, and saves.
         Returns a TurnResponse describing the resolution; if the event
         was already closed (race) returns an empty "cat_ii_stale"
         response.
@@ -444,6 +450,7 @@ class Orchestrator:
                     cat_ii_event=evt_live,
                 )
                 close_cat_ii(ckpt, evt_live.event_id)
+                release_scene_slots(ckpt, scene_id)
                 if resolved.requires_responders:
                     raise ValueError(
                         "Cat II resolution returned nested Cat II "
@@ -454,12 +461,40 @@ class Orchestrator:
                 # initiator, needs the final result in their inbox for future
                 # turns.
                 broadcast_event(ckpt, resolved, scene_id)
-                beat_result = await _end_beat(
-                    ckpt, dispatcher, scene_id,
-                    ended_reason="cat_ii_resolution",
-                    events_closed=1,
-                    event_actor_ids=[evt_live.initiator_id],
+                initiator_pick = _filter_picks_for_dispatch(
+                    ckpt, scene_id, [evt_live.initiator_id],
+                    event=resolved,
                 )
+                followup = None
+                if initiator_pick:
+                    followup = await _agent_intention_for_dispatch(
+                        dispatcher, ckpt, evt_live.initiator_id, scene_id,
+                    )
+                if followup is not None:
+                    followup_result = await run_beat(
+                        ckpt=ckpt,
+                        dispatcher=dispatcher,
+                        actor_id=evt_live.initiator_id,
+                        intention=followup,
+                        scene_id=scene_id,
+                    )
+                    beat_result = BeatResult(
+                        renders=followup_result.renders,
+                        events_closed=1 + followup_result.events_closed,
+                        ended_reason=followup_result.ended_reason,
+                        transcript_entries=followup_result.transcript_entries,
+                        event_actor_ids=[
+                            evt_live.initiator_id,
+                            *followup_result.event_actor_ids,
+                        ],
+                    )
+                else:
+                    beat_result = await _end_beat(
+                        ckpt, dispatcher, scene_id,
+                        ended_reason="cat_ii_resolution",
+                        events_closed=1,
+                        event_actor_ids=[evt_live.initiator_id],
+                    )
             else:
                 # Still pending responders — nothing to adjudicate yet.
                 beat_result = BeatResult(
@@ -679,15 +714,15 @@ class Orchestrator:
                     )
                 target.pending_observations.append(entry)
 
-            # v11-r9b: scene composition is no longer carried in the
-            # agent's per-turn user message (the `## Characters
-            # Present` block is gone). The live signal of who's in
-            # your scene is now this perception push: every NPC
-            # already in `old` learns that the moved character
-            # left, and every NPC already in `move.to_scene` learns
-            # that the moved character arrived. No tag — these read
-            # as plain statements of scene fact, alongside the
-            # visible observable_facts `broadcast_event` is putting on their
+            # v11-r9b: local roster composition is no longer carried in
+            # the agent's per-turn user message (the `## Characters
+            # Present` block is gone). The live signal of who's
+            # physically co-present is now this perception push: every
+            # NPC already in `old` learns that the moved character left,
+            # and every NPC already in `move.to_scene` learns that the
+            # moved character arrived. No tag — these read as plain
+            # statements of local fact, alongside the visible
+            # observable_facts `broadcast_event` is putting on their
             # queue from the same beat. Players are
             # excluded from these pushes (they read narrator render,
             # not pending_observations), and the moved character is
@@ -759,11 +794,11 @@ class Orchestrator:
             cascade is the right channel for them to act
 
         TODO (world-time coherence, see CLAUDE.md): in multi-player
-        sessions with concurrent scenes, an NPC in *any* currently-
-        bound player's scene is on-stage for someone, not just for
-        the actor of this turn. Today we only exclude the acting
-        player's scene; revisit when multi-scene/multi-player turn
-        ordering gets a real model.
+        sessions with concurrent physical locations, an NPC in *any*
+        currently-bound player's location is on-stage for someone, not
+        just for the actor of this turn. Today we only exclude the
+        acting player's location; revisit when multi-location /
+        multi-player turn ordering gets a real model.
 
         Order is roster order; that's also the order their tick
         outputs will reach the unified router in Commit 6.
@@ -897,7 +932,7 @@ class Orchestrator:
             logger.info(
                 "Tick scheduler: %s fire but no eligible NPCs "
                 "(roster=%d, acted=%d; pinned, player, dormant, "
-                "in-scene, or intentions_disabled filtered all out); "
+                "on-stage, or intentions_disabled filtered all out); "
                 "counter reset.",
                 reason, len(ckpt.characters), len(acted_this_turn),
             )
