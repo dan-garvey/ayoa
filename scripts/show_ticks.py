@@ -2,11 +2,7 @@
 """Extract off-stage tick-agent outputs from a checkpoint.
 
 Ticks are interleaved into each character's rolling conversation alongside
-regular responses. They're identified by either of the tick-mode markers
-the unified agent prompt uses on its tick user message — the modern
-first-token mode header (`## TICK`, v11+) or the legacy body header
-(`## What You Do This Tick`, present in pre-v11 checkpoints AND still
-present in the v11 tick body so legacy saves keep parsing).
+regular responses. They're identified by the tick-mode user message headers.
 
 Usage:
     .venv/bin/python scripts/show_ticks.py <path_to_ckpt.json>
@@ -23,8 +19,8 @@ from pathlib import Path
 
 
 TICK_MARKERS = (
-    "## TICK",                  # v11+ first-token mode header
-    "## What You Do This Tick", # legacy + v11 body sub-header
+    "## TICK",
+    "## What You Do This Tick",
 )
 
 
@@ -39,8 +35,7 @@ def _content_text(msg: dict) -> str:
 
 def _tick_pairs(msgs: list[dict]) -> list[tuple[str, str]]:
     """Walk user/assistant pairs and return only those whose user message
-    carries any of the tick markers (modern first-token header or legacy
-    body header — see TICK_MARKERS)."""
+    carries a tick marker."""
     out: list[tuple[str, str]] = []
     i = 0
     while i + 1 < len(msgs):
@@ -75,27 +70,7 @@ def _split_parenthetical(text: str) -> tuple[str, str]:
 
 
 def _print_tick(idx: int, assistant_text: str) -> None:
-    """v11+: agent outputs are prose + trailing parenthetical, not JSON.
-
-    Pre-rework ticks were structured JSON with `private_updates` fields;
-    those checkpoints fall through to the JSON branch for back-compat.
-    """
-    if assistant_text.lstrip().startswith("{"):
-        try:
-            obj = json.loads(assistant_text)
-        except json.JSONDecodeError:
-            print(f"  tick {idx} (legacy json): (unparseable)")
-            return
-        pu = obj.get("private_updates", {})
-        print(f"  tick {idx} (legacy json):")
-        for o in pu.get("current_objectives", []) or []:
-            print(f"    - {o}")
-        if pu.get("moved_to"):
-            print(f"    moved_to: {pu['moved_to']}")
-        for s in pu.get("scenes_created", []) or []:
-            print(f"    scenes_created: {s.get('scene_id')} — {s.get('name', '')}")
-        return
-
+    """Agent outputs are prose plus a trailing parenthetical intent note."""
     prose, intent = _split_parenthetical(assistant_text)
     print(f"  tick {idx}:")
     if prose.strip():

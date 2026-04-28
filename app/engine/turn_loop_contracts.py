@@ -146,7 +146,7 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
         ),
         "",
         (
-            "Author the next canonical event that gives the scene forward "
+            "Author the next canonical event that gives the active moment forward "
             "motion. Use concrete observable facts, a meaningful "
             "environmental or production cue, an existing off-screen "
             "character moving into perception, or a narratively meaningful "
@@ -180,14 +180,11 @@ def format_agent_on_stage_body() -> str:
     - **`## Scene`** was a per-turn restatement of where the character
       is standing and a co-located roster. Initial location now lands
       via the importer / spawn helper, which pushes
-      `[your own action] <Name> at <Scene Name>.` into
-      `pending_observations` once at character creation, and
-      subsequent moves push the same shape through
-      `_apply_roster_moves` in `orchestrator.py`. Roster comings and
-      goings already flow through `pending_observations` as
-      `"X arrived." / "X left."` lines. The agent reads all of this
-      through their inbox (the block above this one), so re-emitting
-      the same facts in `## Scene` was duplicate context every beat.
+      `[your own action] <Name> at <Location Label>.` into
+      `pending_observations` once at character creation. The agent
+      reads this through their inbox (the block above this one), so
+      re-emitting the same facts in `## Scene` was duplicate context
+      every beat.
 
     - **`## What You Observe This Turn`** rendered the `observed_facts`
       list every production caller passed as `[]`. Perception lands on
@@ -201,7 +198,7 @@ def format_agent_on_stage_body() -> str:
       `prior_responses` list every production caller passed as `None`.
       Cascade NPCs see prior cascade responses through the same
       `pending_observations` channel: each cascade event broadcasts
-      to its scene-mates, so by the time NPC #2 fires they have NPC
+      to its declared observers, so by the time NPC #2 fires they have NPC
       #1's just-broadcast event in their inbox. The block was
       rendering literal "" on every beat.
 
@@ -225,8 +222,8 @@ def format_agent_perception_body() -> str:
     surface — the character's identity AND current state (goals,
     objectives, secrets) live in the cached system prompt and are
     the only inputs the model needs to author its visual loadout.
-    No scene context: presentation is observer-agnostic and largely
-    scene-invariant. No "what to advance" prompt: perception is not
+    No location context: presentation is observer-agnostic and largely
+    location-invariant. No "what to advance" prompt: perception is not
     action. The pending_observations slot above this body is sent
     empty for perception calls (set in `character_agent.perceive`),
     so a perception query is never primed by "react to these
@@ -249,7 +246,7 @@ def format_agent_perception_body() -> str:
     )
 
 
-def format_agent_tick_body(*, scene_context: str) -> str:
+def format_agent_tick_body(*, location_context: str) -> str:
     """v11 unified-agent off-stage tick user-message body.
 
     The full user message is
@@ -264,7 +261,7 @@ def format_agent_tick_body(*, scene_context: str) -> str:
     instruction.
     """
     return (
-        f"## Where You Are\n{scene_context}\n\n"
+        f"## Where You Are\n{location_context}\n\n"
         f"## What You Do This Tick\n"
         "No direct observations — you are off-stage. Advance one "
         "objective in your own location, in a single tight beat."

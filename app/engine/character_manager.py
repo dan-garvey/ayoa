@@ -114,13 +114,11 @@ def _push_spawn_state_change(
 
     role = char.public_sheet.role or "unknown role"
     loc = char.location or "unknown"
-    scene_graph = checkpoint.world_state.locations.scene_graph
-    loc_name = scene_graph.get(loc, {}).get("name", loc)
     objs = [o for o in (char.private_state.current_objectives or []) if o]
     parts = [
         f"Spawned: {char.name} (id: {char.character_id})",
         f"role={role}",
-        f"location={loc_name} ({loc})",
+        f"location={loc}",
     ]
     if objs:
         parts.append("objectives=" + "; ".join(objs))
@@ -133,13 +131,9 @@ def _push_spawn_state_change(
 
 
 def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
-    """v11: ids currently holding a scene's active_act_slot OR listed as a
-    required responder on an open Cat II event. Used to guard roster
-    changes that would incoherently move/dormant/cull a character the
-    engine is waiting on."""
+    """Ids currently holding a beat slot or listed on an open Cat II event."""
     pinned: set[str] = set()
-    for slot in checkpoint.session.active_act_slots.values():
-        pinned.update(slot.keys())
+    pinned.update(checkpoint.session.active_act_slots.keys())
     for evt in checkpoint.session.open_cat_ii_events:
         pinned.add(evt.initiator_id)
         pinned.update(evt.required_responders)
@@ -176,7 +170,7 @@ class CharacterManager:
         """
         from app.engine.turn_loop import purge_character_state
 
-        # v11: a character who is currently pinned in a scene (initiator
+        # v11: a character who is currently pinned in a beat (initiator
         # or Cat II responder) cannot coherently be dormanted or culled
         # mid-beat — the fiction has them actively engaged. The router
         # should not produce this shape; if it does, we skip the status
@@ -187,7 +181,7 @@ class CharacterManager:
             if char_id in pinned_ids:
                 logger.warning(
                     "Ignored dormant on %s: character is currently pinned in "
-                    "a scene's active_act_slot or as a Cat II responder. "
+                    "the active_act_slot or as a Cat II responder. "
                     "The router should resolve the open event before "
                     "dormanting them.",
                     char_id,
@@ -236,9 +230,10 @@ class CharacterManager:
     ) -> list[CharacterRecord]:
         """Generate new characters from router spawn requests via LLM.
 
-        `acting_actor_location` is the scene of whoever's action triggered
-        these spawns — initiator's scene for Cat I, post-beat scene for the
-        in-beat path, the off-stage actor's scene for tick-driven spawns.
+        `acting_actor_location` is the location label of whoever's action
+        triggered these spawns — initiator location for Cat I, post-beat
+        actor location for the in-beat path, the off-stage actor's location
+        for tick-driven spawns.
         It's the fallback when the router omits `seed.location`, so a new
         character materializes near the action rather than at some
         unrelated default.
@@ -324,15 +319,10 @@ class CharacterManager:
         `_push_spawn_state_change` and otherwise discarded.
 
         Spawn-location resolution chain:
-          1. router-supplied `req.seed["location"]` — the router knows
-             where this person should appear (recipient's scene for a
-             courier, event scene for a witness, etc.)
-          2. `default_location` — the acting actor's scene, passed by
-             the orchestrator. Materializes the spawn near the action.
+          1. router-supplied `req.seed["location"]`
+          2. `default_location` — the acting actor's current location label
           3. the LLM's `authored.location` — last-resort, only hit when
-             both router and orchestrator omit a location. Logged loudly
-             because the LLM has no reason to know which scene_ids are
-             real and may pick one that isn't in scene_graph.
+             both router and orchestrator omit a location.
         """
         from app.engine.context_builder import build_setting_summary
         setting_summary = build_setting_summary(checkpoint)
@@ -340,29 +330,18 @@ class CharacterManager:
         physics = checkpoint.world_state.physics_ruleset
         world_rules = f"Strength limits: {physics.strength_limits}\nMagic: {'enabled' if physics.magic_enabled else 'disabled'}"
 
-        locations = checkpoint.world_state.locations
         seed_loc = (req.seed.get("location") or "").strip()
-        scene_id = seed_loc or default_location
-        if not scene_id:
+        location = seed_loc or default_location
+        if not location:
             logger.warning(
                 "Spawning %s with no resolvable location (no seed.location, "
                 "no default_location passed by caller). Will trust the "
-                "character_gen LLM's authored location and warn if it "
-                "doesn't land in scene_graph.",
+                "character_gen LLM's authored location.",
                 req.character_id,
             )
-        scene = locations.scene_graph.get(scene_id, {}) if scene_id else {}
-        if scene_id:
-            scene_context = (
-                f"Location: {scene.get('name', scene_id)}\n"
-                f"{scene.get('description', '')}"
-            )
-        else:
-            scene_context = (
-                "Location: (none supplied — pick a scene that exists in "
-                "the world from the existing scene_graph; do NOT invent "
-                "a new scene_id here)"
-            )
+        location_context = (
+            f"Location: {location}" if location else "Location: (none supplied)"
+        )
 
         seed_lines = []
         for k, v in req.seed.items():
@@ -376,11 +355,11 @@ class CharacterManager:
             setting_summary=setting_summary,
             world_lore=world_lore,
             world_rules=world_rules,
-            scene_context=scene_context,
+            location_context=location_context,
             character_id=req.character_id,
             spawn_seed=spawn_seed,
             existing_characters=existing,
-            location=scene_id,
+            location=location,
         )
 
         from app.schemas.takeover import AuthoredCharacter
@@ -393,37 +372,25 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
-        # Override the LLM's authored.location ONLY when we have a
-        # concrete scene to drop them into (router-supplied or
-        # actor-derived). When neither is set, trust the LLM but
-        # validate against scene_graph and warn on miss — the router
-        # will see the character as "unsited" until they move.
-        if scene_id:
-            char.location = scene_id
+        # Override the LLM's authored.location only when the router or
+        # caller supplied a concrete location label. When neither is set,
+        # trust the LLM.
+        if location:
+            char.location = location
         elif not char.location:
             logger.warning(
                 "Spawn %s has no location (router omitted, caller omitted, "
                 "LLM emitted empty). Character will be unsited.",
                 req.character_id,
             )
-        elif char.location not in locations.scene_graph:
-            logger.warning(
-                "Spawn %s authored location %r which is not in scene_graph; "
-                "router will see them as unsited until they move.",
-                req.character_id, char.location,
-            )
 
-        # Seed the location signal — same shape importer/`_apply_roster_moves`
-        # uses, so the freshly-spawned NPC's first dispatch knows where
-        # they are without relying on the agent prompt's `## Scene` block.
+        # Seed the location signal so the freshly-spawned NPC's first
+        # dispatch knows where they are.
         # Players never read pending_observations, so spawned-as-playable
         # characters are skipped (rare, but possible).
         if not char.is_playable and char.location:
-            scene_name = locations.scene_graph.get(
-                char.location, {}
-            ).get("name", char.location)
             char.pending_observations.append(
-                f"[your own action] {char.name} at {scene_name}."
+                f"[your own action] {char.name} at {char.location}."
             )
 
         return char, authored.router_summary

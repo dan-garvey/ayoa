@@ -79,17 +79,17 @@ class RewindResult:
     inclusive, but the rewind is robust to gaps (an old corrupted save
     that was already missing simply doesn't appear in the list).
 
-    `scene_id` and `actor_character_id` are recovered from the loaded
-    checkpoint to help the frontend render a "you are now at <scene>"
-    line. Both may be empty if the session has no bound actor (e.g. a
-    fresh session before any /join).
+    `location` and `actor_character_id` are recovered from the loaded
+    checkpoint to help the frontend render a "resume at <location>" line.
+    Both may be empty if the session has no bound actor (e.g. a fresh
+    session before any /join).
     """
     session_id: str
     target_turn: int
     previous_latest: int
     new_latest: int
     deleted_turns: list[int]
-    scene_id: str = ""
+    location: str = ""
     actor_character_id: str = ""
 
 
@@ -409,7 +409,7 @@ class EngineBridge:
             previous_latest=latest,
             new_latest=target_turn,
             deleted_turns=would_delete,
-            scene_id=self._actor_scene_after_rewind(ckpt),
+            location=self._actor_location_after_rewind(ckpt),
             actor_character_id=ckpt.session.player_character_id,
         )
 
@@ -506,15 +506,16 @@ class EngineBridge:
             previous_latest=current_latest,
             new_latest=new_latest,
             deleted_turns=deleted,
-            scene_id=self._actor_scene_after_rewind(ckpt),
+            location=self._actor_location_after_rewind(ckpt),
             actor_character_id=ckpt.session.player_character_id,
         )
 
-    def _actor_scene_after_rewind(self, ckpt: CheckpointFile) -> str:
-        """Best-effort: return the scene id of the bound actor after
-        rewind, so the confirmation embed can tell the user where they
-        landed. Empty string if we can't resolve it (no bound character,
-        unknown character_id) — the embed just omits the location line."""
+    def _actor_location_after_rewind(self, ckpt: CheckpointFile) -> str:
+        """Best-effort: return the bound actor's location after rewind.
+
+        Empty string if we can't resolve it (no bound character, unknown
+        character_id) — the embed just omits the location line.
+        """
         cid = ckpt.session.player_character_id
         if not cid:
             return ""
@@ -778,7 +779,7 @@ class EngineBridge:
         v11-A5: purges any v11 state (active_act_slots entries, open Cat II
         event responder lists/collected intentions, render buffers) the
         character held before removing the binding. Prevents stranded pins
-        from freezing the scene when a player /leave's mid-beat.
+        from freezing the beat when a player /leave's mid-beat.
         """
         from app.engine.turn_loop import purge_character_state
 
@@ -1001,9 +1002,9 @@ class EngineBridge:
         replacing with the player's concept. Returns the candidate list
         and an optional preamble. No mutation.
 
-        `invoking_user_id` is forwarded to the prompt's POV-scene
+        `invoking_user_id` is forwarded to the prompt's POV-location
         resolver so multi-player sessions don't see another player's
-        scene as "the action" in the suggest context."""
+        location as "the action" in the suggest context."""
         from app.schemas.takeover import TakeoverSuggestOutput
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
@@ -1143,9 +1144,8 @@ class EngineBridge:
         picked_target: required only for mode='replace'.
         invoking_user_id: the Discord/CLI user running this takeover.
             Forwarded to `_build_takeover_context` so the prompt's
-            `current_scene` block tracks the invoking user's scene
-            instead of falling through to the creator binding (which
-            in multi-player would land on the wrong scene).
+            current location block tracks the invoking user's position
+            instead of falling through to the creator binding.
         """
         from app.schemas.takeover import (
             TakeoverAuthoredOutput,
@@ -1385,9 +1385,9 @@ class EngineBridge:
 
         Driven by `/begin` after one or more players have `/join`'d
         into the lobby (pre-play). The router sees `(begin)` and
-        composes the opening scene from `world_state` + the
+        composes the opening beat from `world_state` + the
         `## Initial Roster`, placing EVERY bound player at the chosen
-        starting scene so each gets their own POV render through the
+        starting location so each gets their own POV render through the
         normal `_end_beat` per-POV fan-out.
 
         Args:
@@ -1405,14 +1405,14 @@ class EngineBridge:
                 are pre-checked under the per-session lock so two
                 racing `/begin`s can't both fire the opener.
 
-        TODO(multi-scene-opening): this function currently asks the
+        TODO(multi-location-opening): this function currently asks the
         router to converge all bound players on one shared starting
-        scene (see event_router.txt OOC `(begin)` rules). When we
-        want distinct starting scenes per player, run the opening as
+        location (see event_router.txt OOC `(begin)` rules). When we
+        want distinct starting locations per player, run the opening as
         N parallel `(begin)` calls — one per bound player, each
         seeded with their own intended location — and merge the
-        resulting per-POV renders. The current single-scene path is
-        the simplest correct first step; the multi-scene shape can
+        resulting per-POV renders. The current single-location path is
+        the simplest correct first step; the multi-location shape can
         be additive on top of it.
         """
         lock = await self._lock_for(session_id)
@@ -1471,7 +1471,7 @@ class EngineBridge:
             event_ids = []
 
         # v11-r6b: drive adjudication of any events the sweep filled.
-        # Without this, a scene pinned on an AFK human sits open
+        # Without this, a beat pinned on an AFK human sits open
         # indefinitely — the next /act would bounce off the pin. By
         # closing the sweep-populated events first, the hot path
         # clears their state before the player's /act runs.
@@ -1576,15 +1576,12 @@ def _build_takeover_context(
     NOT a constraint here — the router is authoring for itself).
 
     `invoking_user_id`: the Discord user (or CLI session) running the
-    takeover. Threaded into `pov_scene_for_user` so the prompt's
-    `current_scene` block reflects WHERE THIS USER IS, not the
-    creator binding or "first is_playable" fallback. In multi-player
-    sessions those fallbacks would otherwise hand the takeover LLM
-    another player's scene as "the action," which is the wrong frame.
+    takeover. Threaded into `pov_location_for_user` so the prompt's
+    location block reflects where this user is, not another binding.
     """
     from app.engine.context_builder import (
         build_setting_summary,
-        pov_scene_for_user,
+        pov_location_for_user,
     )
     setting_summary = build_setting_summary(ckpt)
     world_lore = ckpt.world_state.lore or "No detailed lore."
@@ -1599,33 +1596,8 @@ def _build_takeover_context(
         f"Magic: {'enabled' if physics.magic_enabled else 'disabled'}"
     )
 
-    locations = ckpt.world_state.locations
-    # The "current scene" the takeover prompt cares about is "where THE
-    # INVOKING USER is right now." Multi-player sessions can have
-    # players in different scenes, and "where the action is" must be
-    # keyed on whoever invoked takeover, not on a session-global
-    # default. `pov_scene_for_user` resolves: bound character → creator
-    # binding → first is_playable → "". For takeover the invoking user
-    # almost always has a binding (they took over from somewhere); if
-    # they don't (rare: brand-new join replacing their first NPC),
-    # the creator-binding fallback is the next-best frame.
-    scene_id = pov_scene_for_user(ckpt, user_id=invoking_user_id)
-    scene = locations.scene_graph.get(scene_id, {}) if scene_id else {}
-    scene_graph_lines = []
-    for sid, sdata in locations.scene_graph.items():
-        if isinstance(sdata, dict):
-            sname = sdata.get("name", sid)
-            conn = sdata.get("connected_to", []) or []
-            scene_graph_lines.append(
-                f"- {sname} (id: {sid})"
-                + (f"; connected to {', '.join(conn)}" if conn else "")
-            )
-    scene_graph = "\n".join(scene_graph_lines) or "(empty)"
-    current_scene = (
-        f"{scene.get('name', scene_id)} (id: {scene_id})\n"
-        f"{scene.get('description', '')}".strip()
-        if scene_id else "(no active scene)"
-    )
+    location = pov_location_for_user(ckpt, user_id=invoking_user_id)
+    current_location_context = location or "(no active location)"
 
     registry_lines = []
     bindings = ckpt.session.character_bindings or {}
@@ -1674,8 +1646,7 @@ def _build_takeover_context(
         "hidden_lore": hidden_lore,
         "hidden_facts": hidden_facts,
         "world_rules": world_rules,
-        "scene_graph": scene_graph,
-        "current_scene": current_scene,
+        "current_location_context": current_location_context,
         "character_registry": character_registry,
         "recent_session_summary": recent_session_summary,
         "picked_target_block": picked_target_block,

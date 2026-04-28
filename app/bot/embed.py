@@ -124,7 +124,8 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
         value=(
             "Run `/join` to step into the story — claim an existing "
             "character or create your own. Then `/act <what you do>` "
-            "plays a turn."
+            "plays a turn; `/defer` lets the story continue without "
+            "your character acting."
         ),
         inline=False,
     )

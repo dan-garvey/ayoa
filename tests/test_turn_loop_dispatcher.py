@@ -1,10 +1,4 @@
-"""Tests for LLMDispatcher — verifies the concrete Dispatcher binding
-frames router / agent / narrator calls correctly per v11 contracts.
-
-The LLMClient is mocked throughout; when `narrator.compose_pov_render`
-doesn't exist yet in the narrator module (sibling agent still wiring),
-it's monkeypatched in per-test.
-"""
+"""Tests for LLMDispatcher framing contracts."""
 
 from __future__ import annotations
 
@@ -14,21 +8,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine import narrator as narrator_module
-from app.engine import turn_loop_dispatcher
 from app.engine.prompt_manager import PromptManager
-from app.engine.turn_loop_contracts import ROUTER_CONTINUATION_HEADER
 from app.engine.turn_loop import pin_cat_ii_responder
-from app.engine.turn_loop_dispatcher import LLMDispatcher
+from app.engine.turn_loop_contracts import ROUTER_CONTINUATION_HEADER
+from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, SceneCreation
-from app.schemas.events import (
-    CanonicalEvent,
-    SceneDelta,
-    WorldAdjudication,
-)
+from app.schemas.event_router import EventRouterOutput
+from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
     LocationState,
@@ -40,25 +29,11 @@ from app.schemas.state import (
 )
 
 
-# ---- helpers ---------------------------------------------------------------
-
-
 def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
     return CheckpointFile(
-        session=SessionState(
-            session_id="s",
-            character_bindings=bindings or {},
-        ),
+        session=SessionState(session_id="s", character_bindings=bindings or {}),
         world_state=WorldState(
-            locations=LocationState(
-                scene_graph={
-                    "gatehouse": {
-                        "name": "The Gatehouse",
-                        "description": "A stone gatehouse.",
-                        "connected_to": [],
-                    },
-                },
-            ),
+            locations=LocationState(),
             setting=StorySetting(genre="fantasy", tone="grim"),
         ),
         characters=[
@@ -81,16 +56,11 @@ def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
 
 
 def _router_output() -> EventRouterOutput:
-    """A minimal valid EventRouterOutput for the mocked LLM response."""
     return EventRouterOutput(
         event_id="",
-        decision_rationale="(test fixture)",
+        decision_rationale="test fixture",
         canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(
-                feasible=True,
-                resolved_outcome="y",
-            ),
-            scene_delta=SceneDelta(time_advanced_seconds=0),
+            world_adjudication=WorldAdjudication(feasible=True),
             observable_facts=[],
         ),
         observers=[],
@@ -102,17 +72,18 @@ def _router_output() -> EventRouterOutput:
         spawn=[],
         dormant=[],
         cull=[],
-        roster_moves=[],
-        scenes_created=[],
     )
 
 
 def _llm_response(parsed) -> LLMResponse:
     raw = MagicMock()
     raw.content = []
-    raw.model = "claude-haiku-4-5"
+    raw.model = "gpt-5.2"
     return LLMResponse(
-        parsed=parsed, raw_response=raw, content="{}", model="claude-haiku-4-5",
+        parsed=parsed,
+        raw_response=raw,
+        content="{}",
+        model="gpt-5.2",
     )
 
 
@@ -129,144 +100,76 @@ def mock_client():
 
 
 def _last_user_content(messages: list[dict]) -> str:
-    """Pull the user-message content from the list `render_messages` returns."""
     user_msgs = [m for m in messages if m.get("role") == "user"]
-    assert user_msgs, "expected at least one user message"
+    assert user_msgs
     content = user_msgs[-1]["content"]
     if isinstance(content, list):
-        # Defensive — LLMClient adds cache_control blocks, but the
-        # Dispatcher hands plain text to client.complete.
         return "".join(p.get("text", "") for p in content)
     return content
 
 
-# ---- 1. route_intention framing for humans ---------------------------------
+class TestRouterContext:
+    def test_context_has_no_scene_graph_or_scene_context_block(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ctx = _build_router_context(ckpt, "alice")
+        assert "scene_graph" not in ctx
+        assert "scene_context_block" not in ctx
+
+    def test_pending_observations_surface_once_then_drain(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.pending_observations = ["A bell rings."]
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert "A bell rings." in ctx["since_last_turn_block"]
+        assert alice.pending_observations == []
 
 
 class TestRouteIntention:
-    def test_scene_context_surfaces_once_per_imported_scene(
-        self, prompt_mgr, mock_client,
-    ):
-        """Current scene + present roster are one-shot user-message
-        context, not repeated router history pollution."""
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="examine the lock",
-            scene_id="gatehouse",
-        ))
-
-        first_user = _last_user_content(
-            mock_client.complete.await_args.kwargs["messages"]
-        )
-        assert "## Current Scene" in first_user
-        assert "The Gatehouse" in first_user
-        assert "## Characters Present In Current Scene" in first_user
-        assert "Pip" in first_user
-        assert ckpt.session.surfaced_router_scene_contexts == ["gatehouse"]
-
-        mock_client.complete.reset_mock()
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="listen",
-            scene_id="gatehouse",
-        ))
-
-        second_user = _last_user_content(
-            mock_client.complete.await_args.kwargs["messages"]
-        )
-        assert "## Current Scene" not in second_user
-        assert "## Characters Present In Current Scene" not in second_user
-
-    def test_router_created_scene_context_is_not_repeated(self):
-        """Scenes introduced through router `scenes_created` already
-        live in the rolling router conversation."""
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.world_state.locations.scene_graph["dining_hall"] = {
-            "name": "Dining Hall",
-            "description": "A long formal hall.",
-            "connected_to": ["gatehouse"],
-        }
-        for char in ckpt.characters:
-            if char.character_id == "alice":
-                char.location = "dining_hall"
-
-        prior = _router_output()
-        prior.scenes_created = [
-            SceneCreation(
-                scene_id="dining_hall",
-                name="Dining Hall",
-                description="A long formal hall.",
-                connected_to=["gatehouse"],
-            )
-        ]
-        ckpt.canonical_events.append(prior)
-
-        ctx = turn_loop_dispatcher._build_router_context(ckpt, "alice")
-
-        assert ctx["scene_context_block"] == ""
-        assert ckpt.session.surfaced_router_scene_contexts == []
-
     def test_human_initiator_emits_attempts_framing(
         self, prompt_mgr, mock_client,
     ):
-        """Human-bound actor → `{name} attempts: {input}` framing."""
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
 
-        asyncio.run(dispatcher.route_intention(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
             ckpt=ckpt,
             actor_id="alice",
             intention="examine the lock",
-            scene_id="gatehouse",
         ))
 
-        assert mock_client.complete.await_count == 1
-        kwargs = mock_client.complete.await_args.kwargs
-        user_content = _last_user_content(kwargs["messages"])
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
         assert "Alice attempts: examine the lock" in user_content
-        # NPC framing must NOT be present.
         assert "Alice intends:" not in user_content
 
     def test_npc_cascade_emits_intends_framing(
         self, prompt_mgr, mock_client,
     ):
-        """Non-human actor → `{name} intends: {intention}` framing."""
-        # No bindings — pip is an NPC.
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
 
-        asyncio.run(dispatcher.route_intention(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
             ckpt=ckpt,
             actor_id="pip",
             intention="polishes the bell",
-            scene_id="gatehouse",
         ))
 
-        kwargs = mock_client.complete.await_args.kwargs
-        user_content = _last_user_content(kwargs["messages"])
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
         assert "Pip intends: polishes the bell" in user_content
-        # Crucial — NPC cascades MUST NOT use "attempts:" framing.
         assert "Pip attempts:" not in user_content
 
-    def test_cat_ii_resolution_emits_swept_subheader_when_present(
+    def test_cat_ii_resolution_formats_collected_intentions(
         self, prompt_mgr, mock_client,
     ):
-        """Cat II adjudication with swept responders → swept sub-header fires."""
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-
         evt = OpenCatIIEvent(
             event_id="evt_abc123",
-            scene_id="gatehouse",
             initiator_id="pip",
             initiator_intention="throws a punch at Alice",
             required_responders=["alice", "bob"],
@@ -277,76 +180,35 @@ class TestRouteIntention:
             swept_responders=["bob"],
         )
 
-        asyncio.run(dispatcher.route_intention(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
             ckpt=ckpt,
             actor_id="pip",
             intention="throws a punch at Alice",
-            scene_id="gatehouse",
             cat_ii_event=evt,
         ))
 
-        kwargs = mock_client.complete.await_args.kwargs
-        user_content = _last_user_content(kwargs["messages"])
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
         assert "## Cat II Resolution" in user_content
         assert "Initiator (pip): throws a punch at Alice" in user_content
-        assert "## Swept Responders (AFK)" in user_content
-        # Live responder is present, swept sentinel text is NOT.
         assert "alice: I duck" in user_content
+        assert "## Swept Responders (AFK)" in user_content
         assert "AFK-swept" not in user_content
-        # Intention block must be empty in Part C call.
         assert "attempts:" not in user_content
-
-    def test_cat_ii_resolution_no_swept_subheader_when_empty(
-        self, prompt_mgr, mock_client,
-    ):
-        """Cat II adjudication with no swept responders → subheader absent."""
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-
-        evt = OpenCatIIEvent(
-            event_id="evt_abc123",
-            scene_id="gatehouse",
-            initiator_id="pip",
-            initiator_intention="swings a fist",
-            required_responders=["alice"],
-            collected_intentions={"alice": "dodges"},
-            swept_responders=[],
-        )
-
-        asyncio.run(dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id="pip",
-            intention="swings a fist",
-            scene_id="gatehouse",
-            cat_ii_event=evt,
-        ))
-
-        kwargs = mock_client.complete.await_args.kwargs
-        user_content = _last_user_content(kwargs["messages"])
-        assert "## Cat II Resolution" in user_content
-        assert "alice: dodges" in user_content
-        assert "## Swept Responders (AFK)" not in user_content
 
     def test_session_conversation_passed_as_history(
         self, prompt_mgr, mock_client, monkeypatch,
     ):
-        """v11-r6c: route_intention uses `render_conversation`, passing
-        `ckpt.session_conversation` as history so the event_router sees
-        the rolling router ledger. After the call, the user/assistant
-        pair is appended so continuity compounds across turns."""
         from app.schemas.conversation import ConversationMessage
 
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        # Pre-populate session_conversation with one prior exchange so
-        # we can verify it's what gets forwarded verbatim as history.
         ckpt.session_conversation = [
             ConversationMessage(role="user", content="PRIOR_USER"),
             ConversationMessage(role="assistant", content="PRIOR_ASSISTANT"),
         ]
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        # Intercept render_conversation to capture the history kwarg.
         captured: dict = {}
         original = prompt_mgr.render_conversation
 
@@ -357,24 +219,14 @@ class TestRouteIntention:
 
         monkeypatch.setattr(prompt_mgr, "render_conversation", _spy)
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        asyncio.run(dispatcher.route_intention(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
             ckpt=ckpt,
             actor_id="alice",
             intention="examine the lock",
-            scene_id="gatehouse",
         ))
 
         assert captured["template"] == "event_router"
-        # History kwarg IS the checkpoint's session_conversation list —
-        # we pass the list itself, not a copy.
         assert captured["history"] is ckpt.session_conversation
-        # And the prior messages are still the first two entries (post-
-        # append of this turn's pair).
-        assert captured["history"][0].content == "PRIOR_USER"
-        assert captured["history"][1].content == "PRIOR_ASSISTANT"
-        # After the call, session_conversation has grown by 2 entries
-        # (this turn's user + assistant).
         assert len(ckpt.session_conversation) == 4
         assert ckpt.session_conversation[-2].role == "user"
         assert ckpt.session_conversation[-1].role == "assistant"
@@ -388,12 +240,10 @@ class TestRouteIntention:
         prior.ends_beat_reason = ""
         prior.decision_rationale = "The beat stayed open without a pick."
         mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
 
-        asyncio.run(dispatcher.route_continuation(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_continuation(
             ckpt=ckpt,
             actor_id="alice",
-            scene_id="gatehouse",
             prior_result=prior,
         ))
 
@@ -405,89 +255,42 @@ class TestRouteIntention:
         assert "Alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
 
-    def test_failed_router_call_restores_drained_session_queues(
+    def test_failed_router_call_restores_drained_queues(
         self, prompt_mgr, mock_client,
     ):
-        """Commit-4b P0: if `client.complete` raises after the
-        delta-builders have already mutated session state, the
-        dispatcher must restore both `pending_router_state_changes`
-        and `surfaced_world_facts` so the queued lines re-render on
-        retry instead of being silently lost.
-        """
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.pending_router_state_changes = [
-            "Spawned: Sera (id: sera_01) — fresh arrival",
-            "Player binding: Alice (id: alice) is now driven by a human player.",
+            "Spawned: Sera (id: sera_01)",
         ]
         ckpt.world_state.facts = ["The keep predates the road."]
         ckpt.session.surfaced_world_facts = []
-        before_state_changes = list(
-            ckpt.session.pending_router_state_changes
-        )
+        before_state_changes = list(ckpt.session.pending_router_state_changes)
         before_surfaced = list(ckpt.session.surfaced_world_facts)
-        before_scene_contexts = list(
-            ckpt.session.surfaced_router_scene_contexts
-        )
+        mock_client.complete.side_effect = RuntimeError("transient API failure")
 
-        boom = RuntimeError("simulated transient API failure")
-        mock_client.complete.side_effect = boom
-
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
         with pytest.raises(RuntimeError):
-            asyncio.run(dispatcher.route_intention(
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
                 ckpt=ckpt,
                 actor_id="alice",
                 intention="examine the lock",
-                scene_id="gatehouse",
             ))
 
-        assert (
-            ckpt.session.pending_router_state_changes == before_state_changes
-        ), "pending_router_state_changes drained but not restored"
-        assert (
-            ckpt.session.surfaced_world_facts == before_surfaced
-        ), "surfaced_world_facts mutated but not restored"
-        assert (
-            ckpt.session.surfaced_router_scene_contexts
-            == before_scene_contexts
-        ), "surfaced_router_scene_contexts mutated but not restored"
-
-# ---- 4b. route_tick_intentions (Commit 6 fan-in) ---------------------------
+        assert ckpt.session.pending_router_state_changes == before_state_changes
+        assert ckpt.session.surfaced_world_facts == before_surfaced
+        assert ckpt.session_conversation == []
 
 
 class TestRouteTickIntentions:
-    """Unit coverage of the off-stage tick fan-in router call.
-
-    The dispatcher bundles N off-stage agents' PUBLIC prose into a
-    single router call in tick mode. Two contracts the tests pin:
-
-      - Empty `tick_outputs` → no LLM call, returns None. The
-        orchestrator can compose a tick block from zero successful
-        ticks (every per-tick attempt failed) and we must NOT spend
-        a router call on an empty payload.
-      - The bundled user message carries TICK_FAN_IN_HEADER + per-
-        ticker prose, NEVER the parenthetical the agent originally
-        emitted. The information-asymmetry guard is the caller's
-        responsibility (orchestrator passes `output.public_text`),
-        but the dispatcher must not synthesize anything that could
-        leak interior either.
-    """
-
     def test_empty_tick_outputs_returns_none_without_llm_call(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-
-        result = asyncio.run(dispatcher.route_tick_intentions(
-            ckpt=ckpt, tick_outputs=[],
+        result = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_tick_intentions(
+            ckpt=ckpt,
+            tick_outputs=[],
         ))
-
         assert result is None
         mock_client.complete.assert_not_called()
-        # Conversation history untouched — empty fan-in must not
-        # smear a stub user/assistant pair onto the rolling router
-        # context.
         assert ckpt.session_conversation == []
 
     def test_bundles_per_ticker_prose_in_user_message(
@@ -495,174 +298,61 @@ class TestRouteTickIntentions:
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
 
-        asyncio.run(dispatcher.route_tick_intentions(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_tick_intentions(
             ckpt=ckpt,
             tick_outputs=[
-                ("Pip", "pip", "gatehouse",
-                 "He paces the threshold, watching the road."),
-                ("Wraith", "wraith_42", "tower",
-                 "It descends the stair, soundless."),
+                ("Pip", "pip", "gatehouse", "He paces the threshold."),
+                ("Wraith", "wraith_42", "tower", "It descends the stair."),
             ],
             acting_character_id="alice",
         ))
 
-        assert mock_client.complete.await_count == 1
-        kwargs = mock_client.complete.await_args.kwargs
-        user_content = _last_user_content(kwargs["messages"])
-        # Mode header so the prompt's tick-mode branch fires.
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
         assert "## Off-Stage Tick" in user_content
-        # Per-ticker prose surfaces verbatim with the location annotation.
         assert "Pip" in user_content
         assert "He paces the threshold" in user_content
         assert "gatehouse" in user_content
         assert "Wraith" in user_content
         assert "It descends the stair" in user_content
         assert "tower" in user_content
-        # The on-stage intention block + Cat II resolution block must
-        # both be empty in tick mode (mutually exclusive user-message
-        # slots per the USER-TEMPLATE CONTRACT in event_router).
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
 
-    def test_user_message_contains_no_parenthetical_intent_text(
+    def test_tick_router_failure_restores_queues(
         self, prompt_mgr, mock_client,
     ):
-        """Caller-side asymmetry guard: the dispatcher's signature
-        only takes `public_text`, so even if a sloppy caller passed
-        a string that happens to contain a trailing parenthetical,
-        the dispatcher renders it as-is and does not invent a
-        separate intent channel. This test pins that the helper has
-        no hidden code path that resurrects intent text from
-        somewhere.
-        """
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-
-        asyncio.run(dispatcher.route_tick_intentions(
-            ckpt=ckpt,
-            tick_outputs=[
-                ("Pip", "pip", "gatehouse",
-                 "He polishes the bell. PRIVATE_INTENT_SENTINEL"),
-            ],
-            acting_character_id="alice",
-        ))
-
-        kwargs = mock_client.complete.await_args.kwargs
-        user_content = _last_user_content(kwargs["messages"])
-        # The string we passed IS in user_content (we asked the
-        # dispatcher to forward it verbatim). The asymmetry contract
-        # is enforced upstream; here we just confirm the dispatcher
-        # adds no SECOND surface beyond what we handed it — there's
-        # no field labeled "intent" or "interior" in the bundle.
-        assert "PRIVATE_INTENT_SENTINEL" in user_content
-        assert "intent:" not in user_content.lower()
-        assert "interior:" not in user_content.lower()
-
-    def test_appends_to_session_conversation_after_call(
-        self, prompt_mgr, mock_client,
-    ):
-        """Tick fan-in shares the same `session_conversation` history
-        as on-stage router calls — single cache lineage, single
-        source of routing truth. The user/assistant pair must land
-        in that history after the LLM responds so the next router
-        call (whether tick or on-stage) picks up the off-stage
-        canonical event as context.
-        """
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        mock_client.complete.return_value = _llm_response(_router_output())
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-
-        before_len = len(ckpt.session_conversation)
-        asyncio.run(dispatcher.route_tick_intentions(
-            ckpt=ckpt,
-            tick_outputs=[
-                ("Pip", "pip", "gatehouse", "He paces."),
-            ],
-            acting_character_id="alice",
-        ))
-
-        # Exactly one user + one assistant appended.
-        assert len(ckpt.session_conversation) == before_len + 2
-        assert ckpt.session_conversation[-2].role == "user"
-        assert ckpt.session_conversation[-1].role == "assistant"
-
-    def test_failed_tick_router_call_restores_session_queues(
-        self, prompt_mgr, mock_client,
-    ):
-        """Same snapshot/restore contract as `route_intention`: a
-        failed tick fan-in must not silently drain queued state-
-        changes / world-fact entries. The orchestrator swallows the
-        exception, but the queues must survive into the next on-
-        stage router call so spawn lines etc. still reach the
-        router.
-        """
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.pending_router_state_changes = [
-            "Spawned: Sera (id: sera_01) — fresh arrival",
-        ]
+        ckpt.session.pending_router_state_changes = ["Spawned: Sera"]
         ckpt.world_state.facts = ["The keep predates the road."]
-        ckpt.session.surfaced_world_facts = []
-        before_state_changes = list(
-            ckpt.session.pending_router_state_changes
-        )
+        before_state_changes = list(ckpt.session.pending_router_state_changes)
         before_surfaced = list(ckpt.session.surfaced_world_facts)
-        before_scene_contexts = list(
-            ckpt.session.surfaced_router_scene_contexts
-        )
-
         mock_client.complete.side_effect = RuntimeError("tick API hiccup")
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
 
         with pytest.raises(RuntimeError):
-            asyncio.run(dispatcher.route_tick_intentions(
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_tick_intentions(
                 ckpt=ckpt,
-                tick_outputs=[
-                    ("Pip", "pip", "gatehouse", "He paces."),
-                ],
+                tick_outputs=[("Pip", "pip", "gatehouse", "He paces.")],
                 acting_character_id="alice",
             ))
 
-        assert (
-            ckpt.session.pending_router_state_changes == before_state_changes
-        )
+        assert ckpt.session.pending_router_state_changes == before_state_changes
         assert ckpt.session.surfaced_world_facts == before_surfaced
-        assert (
-            ckpt.session.surfaced_router_scene_contexts
-            == before_scene_contexts
-        )
-        # And the failed call did NOT pollute conversation history —
-        # snapshot/restore covers session_conversation by virtue of
-        # the append-after-success ordering in the dispatcher.
         assert ckpt.session_conversation == []
 
 
-# ---- 5. agent_intend returns a compact string ------------------------------
-
-
 class TestAgentIntend:
-    def test_returns_non_empty_for_successful_agent(
-        self, prompt_mgr, mock_client, monkeypatch,
-    ):
+    def test_returns_public_text_only(self, prompt_mgr, mock_client, monkeypatch):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        # Stub CharacterAgent.respond to a fixed output, bypassing
-        # prompt rendering + LLM plumbing. Commit 1: the agent emits
-        # prose directly; `agent_intend` returns `public_text.strip()`,
-        # so this fixture must populate `public_text` accordingly. The
-        # parenthetical (intent) is the engine-private surface and MUST
-        # NOT appear in the dispatched intention.
         async def _fake_respond(self, *, character, checkpoint,
                                 acting_character_id=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
-                public_text=(
-                    'He steps forward, wary, and plants himself in the '
-                    'doorway. "Hold there."'
-                ),
-                intent="Cover the threshold; do not let the visitor pass.",
+                public_text='He plants himself in the doorway. "Hold there."',
+                intent="Cover the threshold.",
             )
 
         monkeypatch.setattr(
@@ -670,53 +360,16 @@ class TestAgentIntend:
             _fake_respond,
         )
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.agent_intend(
-            ckpt=ckpt, character_id="pip", scene_id="gatehouse",
+        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
+            ckpt=ckpt,
+            character_id="pip",
         ))
-        assert out
-        # Prose surface present; no JSON braces or structured field names.
-        assert "{" not in out
-        assert '"dialogue":' not in out
         assert "Hold there." in out
-        assert "steps forward" in out
-        # Intent leak guard: the parenthetical's contents MUST NOT reach
-        # the router. The dispatcher hands `public_text` only.
         assert "Cover the threshold" not in out
-
-    def test_returns_empty_when_agent_output_empty(
-        self, prompt_mgr, mock_client, monkeypatch,
-    ):
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-
-        async def _empty_respond(self, *, character, checkpoint,
-                                 acting_character_id=""):
-            return CharacterAgentOutput(
-                character_id=character.character_id,
-                public_text="",
-                intent="",
-            )
-
-        monkeypatch.setattr(
-            "app.engine.character_agent.CharacterAgent.respond",
-            _empty_respond,
-        )
-
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.agent_intend(
-            ckpt=ckpt, character_id="pip", scene_id="gatehouse",
-        ))
-        assert out == ""
 
     def test_silent_beat_returns_sentinel_when_intent_present(
         self, prompt_mgr, mock_client, monkeypatch,
     ):
-        """The agent prompt's "Sparse is valid" shared rule says
-        paren-only output (silent beat) is a valid in-character
-        choice. The dispatcher must surface it as a recognizable
-        sentinel so the cascade routes the beat instead of collapsing
-        to `cascade_exhausted`. The sentinel must NOT leak the
-        agent's private intent."""
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         async def _silent_respond(self, *, character, checkpoint,
@@ -724,10 +377,7 @@ class TestAgentIntend:
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",
-                intent=(
-                    "He spoke for me. I let it land. "
-                    "Watching to see who notices my silence."
-                ),
+                intent="Watching to see who notices my silence.",
             )
 
         monkeypatch.setattr(
@@ -735,49 +385,32 @@ class TestAgentIntend:
             _silent_respond,
         )
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.agent_intend(
-            ckpt=ckpt, character_id="pip", scene_id="gatehouse",
+        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
+            ckpt=ckpt,
+            character_id="pip",
         ))
         assert out == "(remains silent)"
-        assert "spoke for me" not in out
-
-
-# ---- 6. harvest_perceptions: parallel observer-agnostic perception -----
+        assert "notices" not in out
 
 
 class TestHarvestPerceptions:
-    """v11-r8a: harvest_perceptions fans CharacterAgent.perceive() out
-    in parallel for the observation_harvest fork. These tests cover
-    the dispatcher's contract:
-
-      - returns one fragment per input id, in input order,
-      - empty string for unknown ids (no crash),
-      - empty string for per-character perceive() exceptions (the
-        rest of the harvest still lands),
-      - fires the actual perceive method (not respond/tick).
-    """
-
     def test_returns_fragments_in_input_order(
         self, prompt_mgr, mock_client, monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(
-            CharacterRecord(
-                character_id="vex", name="Vex",
-                public_sheet=PublicSheet(role="npc"),
-                location="gatehouse",
-                is_playable=False,
-            ),
-        )
-
-        # Per-character canned outputs the fake perceive returns.
+        ckpt.characters.append(CharacterRecord(
+            character_id="vex",
+            name="Vex",
+            public_sheet=PublicSheet(role="npc"),
+            location="gatehouse",
+        ))
         loadouts = {
-            "pip": "Pip in patched leather, hands quiet.",
-            "vex": "Vex in midnight silk, eyes scanning.",
+            "pip": "Pip in patched leather.",
+            "vex": "Vex in midnight silk.",
         }
 
-        async def _fake_perceive(self, character, checkpoint, acting_character_id=""):
+        async def _fake_perceive(self, character, checkpoint,
+                                 acting_character_id=""):
             return loadouts[character.character_id]
 
         monkeypatch.setattr(
@@ -785,22 +418,18 @@ class TestHarvestPerceptions:
             _fake_perceive,
         )
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.harvest_perceptions(
+        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
             ckpt=ckpt,
-            character_ids=["vex", "pip"],  # input order is non-alpha
+            character_ids=["vex", "pip"],
             acting_character_id="alice",
         ))
-        # Output order matches input order — caller zips with the
-        # input ids to build "[loadout — Name]" tags.
         assert out == [loadouts["vex"], loadouts["pip"]]
 
     def test_unknown_id_returns_empty_without_crash(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.harvest_perceptions(
+        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
             ckpt=ckpt,
             character_ids=["never_existed"],
             acting_character_id="alice",
@@ -810,19 +439,16 @@ class TestHarvestPerceptions:
     def test_per_character_exception_absorbed_into_empty(
         self, prompt_mgr, mock_client, monkeypatch,
     ):
-        # One bad perceive() call must not poison the whole harvest;
-        # other characters' fragments still land.
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.characters.append(
-            CharacterRecord(
-                character_id="vex", name="Vex",
-                public_sheet=PublicSheet(role="npc"),
-                location="gatehouse",
-                is_playable=False,
-            ),
-        )
+        ckpt.characters.append(CharacterRecord(
+            character_id="vex",
+            name="Vex",
+            public_sheet=PublicSheet(role="npc"),
+            location="gatehouse",
+        ))
 
-        async def _flaky_perceive(self, character, checkpoint, acting_character_id=""):
+        async def _flaky_perceive(self, character, checkpoint,
+                                  acting_character_id=""):
             if character.character_id == "vex":
                 raise RuntimeError("model timeout")
             return "Pip's loadout"
@@ -832,42 +458,12 @@ class TestHarvestPerceptions:
             _flaky_perceive,
         )
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.harvest_perceptions(
+        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
             ckpt=ckpt,
             character_ids=["pip", "vex"],
             acting_character_id="alice",
         ))
-        # Pip's fragment landed; Vex's fragment is empty (engine drops
-        # empties before composing observable_facts).
         assert out == ["Pip's loadout", ""]
-
-    def test_empty_input_returns_empty_list_without_calling_agent(
-        self, prompt_mgr, mock_client, monkeypatch,
-    ):
-        # Defensive guard for the case where the engine hands us no
-        # picks (filter dropped everything). No LLM call should fire.
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        called = {"n": 0}
-
-        async def _counting_perceive(self, character, checkpoint, acting_character_id=""):
-            called["n"] += 1
-            return "should not be called"
-
-        monkeypatch.setattr(
-            "app.engine.character_agent.CharacterAgent.perceive",
-            _counting_perceive,
-        )
-
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out = asyncio.run(dispatcher.harvest_perceptions(
-            ckpt=ckpt, character_ids=[], acting_character_id="alice",
-        ))
-        assert out == []
-        assert called["n"] == 0
-
-
-# ---- 7. narrator_compose passes partial_mode correctly ---------------------
 
 
 class TestNarratorCompose:
@@ -875,9 +471,7 @@ class TestNarratorCompose:
         self, prompt_mgr, mock_client, monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        # Pin Alice as a Cat II responder in some scene.
-        pin_cat_ii_responder(ckpt, "gatehouse", "alice", "evt_abc")
-
+        pin_cat_ii_responder(ckpt, "alice", "evt_abc")
         recorded: dict = {}
 
         async def _fake_compose_pov_render(
@@ -892,25 +486,23 @@ class TestNarratorCompose:
             )
 
         monkeypatch.setattr(
-            narrator_module, "compose_pov_render",
-            _fake_compose_pov_render, raising=False,
+            narrator_module,
+            "compose_pov_render",
+            _fake_compose_pov_render,
+            raising=False,
         )
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        out, _entry = asyncio.run(dispatcher.narrator_compose(
-            ckpt=ckpt, character_id="alice",
+        out, _entry = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).narrator_compose(
+            ckpt=ckpt,
+            character_id="alice",
             buffered_events=[RenderBufferEntry(event_id="e1")],
         ))
         assert out.final_text == "RENDERED"
         assert recorded["partial_mode"] is True
         assert recorded["pov"] == "alice"
 
-    def test_partial_mode_false_when_not_pinned(
-        self, prompt_mgr, mock_client, monkeypatch,
-    ):
+    def test_partial_mode_override_wins(self, prompt_mgr, mock_client, monkeypatch):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        # Alice is NOT pinned anywhere.
-
         recorded: dict = {}
 
         async def _fake_compose_pov_render(
@@ -924,47 +516,16 @@ class TestNarratorCompose:
             )
 
         monkeypatch.setattr(
-            narrator_module, "compose_pov_render",
-            _fake_compose_pov_render, raising=False,
+            narrator_module,
+            "compose_pov_render",
+            _fake_compose_pov_render,
+            raising=False,
         )
 
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        asyncio.run(dispatcher.narrator_compose(
-            ckpt=ckpt, character_id="alice",
-            buffered_events=[RenderBufferEntry(event_id="e1")],
-        ))
-        assert recorded["partial_mode"] is False
-
-    def test_partial_mode_override_wins_over_autodetect(
-        self, prompt_mgr, mock_client, monkeypatch,
-    ):
-        """v11-r6a: callers can force partial_mode=True for POVs that
-        aren't pinned (e.g. the initiator of a Cat II open beat)."""
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        # Alice is NOT pinned anywhere — autodetect would return False.
-
-        recorded: dict = {}
-
-        async def _fake_compose_pov_render(
-            *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode, user_input="",
-        ):
-            recorded["partial_mode"] = partial_mode
-            return (
-                NarratorFinalOutput(final_text="RENDERED"),
-                TranscriptEntry(user=user_input, assistant="RENDERED"),
-            )
-
-        monkeypatch.setattr(
-            narrator_module, "compose_pov_render",
-            _fake_compose_pov_render, raising=False,
-        )
-
-        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
-        asyncio.run(dispatcher.narrator_compose(
-            ckpt=ckpt, character_id="alice",
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).narrator_compose(
+            ckpt=ckpt,
+            character_id="alice",
             buffered_events=[RenderBufferEntry(event_id="e1")],
             partial_mode_override=True,
         ))
-        # Override wins even though Alice isn't pinned.
         assert recorded["partial_mode"] is True

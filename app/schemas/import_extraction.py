@@ -17,8 +17,8 @@ Every field is REQUIRED (no `default=`, no `default_factory=`). Anthropic's
 structured-output grammar compiler treats default-bearing fields as
 optionals, and the optional permutations explode for deeply-nested schemas
 — a 95 KB master prompt failed import with `Grammar compilation timed out.
-(400)` after the compiler choked on the WorldExtraction → LocationsExtraction
-→ SceneExtraction tree with optionals at every layer. Making everything
+(400)` after the compiler choked on deeply nested optional schemas.
+Making everything
 required collapses the search space; the LLM emits explicit `""` / `[]` /
 `false` for empty content, which downstream `_build_*` helpers handle the
 same way they handled the old defaults.
@@ -49,26 +49,6 @@ class SettingExtraction(BaseModel):
 class PhysicsRulesetExtraction(BaseModel):
     strength_limits: str
     magic_enabled: bool
-
-
-class SceneExtraction(BaseModel):
-    # Scene ID is a field (not a dict key) because the structured-output path
-    # doesn't cleanly support dict[str, Model] — the generated schema uses
-    # additionalProperties: $ref which the API's validator strips. Converted
-    # to a dict at checkpoint-build time.
-    scene_id: str
-    name: str
-    description: str
-    connected_to: list[str]
-
-
-class LocationsExtraction(BaseModel):
-    """Scene topology only. There is no "starting scene" field — initial
-    placement is the per-character responsibility of `CharacterExtraction.location`.
-    The pre-v11 `current_scene_id` here mapped onto a runtime field of
-    the same name that nothing actually maintained; both are gone.
-    """
-    scene_graph: list[SceneExtraction]
 
 
 class PublicWorldExtraction(BaseModel):
@@ -105,15 +85,14 @@ class HiddenWorldExtraction(BaseModel):
 class WorldExtraction(BaseModel):
     """Merged world bundle consumed by `build_checkpoint`. From v7
     onwards this is assembled in Python from `PublicWorldExtraction`
-    (Call 1) + `HiddenWorldExtraction` (Call 2) + `LocationsExtraction`
-    (Call 3); the LLM never emits a `WorldExtraction` directly anymore.
+    (Call 1) + `HiddenWorldExtraction` (Call 2); the LLM never emits a
+    `WorldExtraction` directly anymore.
     Retained as a single shape so downstream assembly code stays
     unchanged across importer versions."""
     setting: SettingExtraction
     lore: str
     facts: list[str]
     physics_ruleset: PhysicsRulesetExtraction
-    locations: LocationsExtraction
     narrative_rules: str
     hidden_lore: str
     hidden_facts: list[str]
@@ -196,7 +175,7 @@ class CharacterKnowledgeListExtraction(BaseModel):
 # Note: there used to be an `OpeningExtraction` schema here (and a
 # `CharsAndOpeningExtraction` wrapper) that asked the model to author
 # the story's opening passage as second-person prose. We removed that
-# in v9 — the opening scene is now composed at runtime by the router
+# in v9 — the opening beat is now composed at runtime by the router
 # (using world_state, character_records, and the `(begin)` OOC
 # directive) and rendered per-POV by the narrator on the first turn.
 # This keeps every turn on a single code path and avoids the POV-

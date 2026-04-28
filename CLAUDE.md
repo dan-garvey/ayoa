@@ -111,8 +111,8 @@ Rule:
    next contributor knows not to trust it on read.
 
 The v11 cycle hit two of these the hard way:
-`world_state.locations.current_scene_id` was set at import and never
-updated, but every reader trusted it; `TurnResponse.debug` had a full
+the old global location field was set at import and never updated, but
+every reader trusted it; `TurnResponse.debug` had a full
 schema with no orchestrator writer at all. Both wasted reviewer time
 and one of them silently misled a 31-turn playtest summary. Don't do
 this again.
@@ -121,11 +121,11 @@ this again.
 
 These are real, known sharp edges that have NOT been solved. If you are
 touching the tick scheduler, the rolling agent conversations, or
-anything that times the world (turn counters, scene transitions,
-async/multi-scene play), you must read the relevant entry first or you
+anything that times the world (turn counters, contextual transitions,
+parallel play), you must read the relevant entry first or you
 will silently make the problem worse.
 
-### Coherent world time across asynchronous, multi-scene play (TODO)
+### Coherent world time across asynchronous play (TODO)
 
 Today the engine carries two distinct notions of "time":
 
@@ -151,16 +151,15 @@ This matters because:
   that's not a faithful "the player has been camping for N turns"
   signal.
 - Cross-scene causality (an antagonist in scene A reacts to a player
-  victory in scene B) needs an ordering primitive richer than per-
-  scene `last_event_at`.
+  victory elsewhere) needs an ordering primitive richer than a single
+  local `last_event_at`.
 - "Did this happen before or after that?" gets answered differently
-  depending on which scene's perspective you ask from.
+  depending on which participant's perspective you ask from.
 
 We have NOT solved this. If you are reaching for a simple turn
 counter to gate behavior, ask whether that gate makes sense across
-two scenes running concurrently. If the answer is "no" or "I don't
-know," surface it on a TODO and prefer a per-scene counter (with an
-explicit cross-scene reconciliation step) over a session-global one.
+parallel action. If the answer is "no" or "I don't know," surface it
+on a TODO instead of adding a brittle global counter.
 
 ### Tick fan-out latency / concurrency (TODO)
 
@@ -178,8 +177,8 @@ after the on-stage beat closes, but don't make the player wait for
 them; await them inside the next `process_turn`'s router prep so
 that the next router call sees their outputs without the current
 player's render blocking on them. This needs careful design around
-race conditions when two players act in quick succession, the
-`scene_locks` discipline, and what happens when a tick fan-out is
+race conditions when two players act in quick succession, session-level
+act-slot locking, and what happens when a tick fan-out is
 still in flight at checkpoint-save time.
 
 For now: synchronous fan-out is fine, but every change that adds
@@ -210,13 +209,9 @@ patched-mid-session resume goes out.
 
 ### Vestigial schema fields (do not trust on read)
 
-- ~~`world_state.locations.current_scene_id`~~ — **REMOVED in v11-r7i.**
-  Field is gone from `LocationState` and `LocationsExtraction`. Per-
-  actor scene is `character.location`; player-facing surfaces
-  (CLI/Discord status, takeover context) use `pov_scene_for_user`
-  which derives from the binding. Old saves with the field still on
-  disk load cleanly via Pydantic v2's `extra='ignore'` (covered by
-  `test_legacy_current_scene_id_silently_dropped`).
+- The old global location field is gone from `LocationState` and
+  `LocationsExtraction`. `CharacterRecord.location` is an opaque
+  continuity label; perception is observer-driven.
 - ~~`TurnResponse.debug` (DebugPayload)~~ — **REMOVED in v11-r7j.**
   Field is gone from `TurnResponse`; `TurnRequest.debug` /
   `TurnRequest.debug_flags` are also gone. Per-turn router rationale,
@@ -279,10 +274,9 @@ appears:
 - `CharacterManager.spawn_characters` dedups by `character_id`
   within a single batch. Duplicate ids land as a warning + drop, not
   as multiple roster records sharing one id.
-- The orchestrator passes the acting actor's scene as
+- The orchestrator passes the acting actor's location label as
   `acting_actor_location`; spawns whose `seed.location` is empty
-  materialize there instead of the (now-murdered) global
-  `current_scene_id`. Router-supplied `seed.location` still wins.
+  use that label. Router-supplied `seed.location` still wins.
 - Covered by `test_spawn_dedups_within_batch`,
   `test_spawn_uses_acting_actor_location_when_seed_omits`, and
   `test_spawn_seed_location_beats_actor_location`.

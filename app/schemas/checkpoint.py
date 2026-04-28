@@ -59,7 +59,7 @@ class CheckpointFile(BaseModel):
     # — render_briefing falls back to a stub.
     #
     # Note: there is no longer an authored `opening_narrative` field —
-    # the opening scene is composed at runtime by the router (using
+    # the opening beat is composed at runtime by the router (using
     # world_state, character_records, and the `(begin)` OOC directive)
     # and rendered per-POV by the narrator on the first turn. This
     # keeps every turn on a single code path and avoids the POV-binding

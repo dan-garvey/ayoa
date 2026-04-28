@@ -342,7 +342,6 @@ class TestLLMClientComplete:
             "world_adjudication": {
                 "feasible": True,
             },
-            "scene_delta": {"time_advanced_seconds": 2},
             "observable_facts": ["The door swings open."],
         })
         mock = _install_stream_mock(client, _make_mock_response("{}", parsed=event))
@@ -510,7 +509,6 @@ class TestLLMClientComplete:
             "world_adjudication": {
                 "feasible": True,
             },
-            "scene_delta": {"time_advanced_seconds": 2},
             "observable_facts": ["The door swings open."],
         })
         config = LLMConfig(
@@ -834,7 +832,6 @@ class TestLLMClientIntegration:
                     "You are a world-state engine. Respond ONLY with valid JSON, no markdown.\n"
                     'Schema: {"event_id": string, "user_intent": string, '
                     '"world_adjudication": {"feasible": bool}, '
-                    '"scene_delta": {"time_advanced_seconds": int}, '
                     '"observable_facts": [string]}'
                 ),
             },

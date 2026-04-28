@@ -30,20 +30,6 @@ class WorldAdjudication(BaseModel):
         return value
 
 
-class SceneDelta(BaseModel):
-    """Per-event time delta. Only carries time advancement; all
-    character relocation flows through `EventRouterOutput.roster_moves`
-    (see `Orchestrator._apply_roster_moves`).
-
-    All fields REQUIRED — defaults expand the API's grammar compiler
-    past the "Schema is too complex" ceiling when this nests inside
-    EventRouterOutput. LLM emits 0 for absent values."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    time_advanced_seconds: int
-
-
 class ObservableFact(BaseModel):
     """One surface fact plus its fact-level visibility.
 
@@ -135,9 +121,9 @@ class CanonicalEvent(BaseModel):
 
     `user_intent`, `world_adjudication.attempted_action`, and
     `event_id` were dropped; the canonical event now carries only
-    feasibility, time delta, and observable facts. The orchestrator tags
-    visibility logs directly from turn_index so there's no need for the
-    router to emit an event id inside this nested object.
+    feasibility and observable facts. The orchestrator tags visibility
+    logs directly from turn_index so there's no need for the router to
+    emit an event id inside this nested object.
 
     All fields REQUIRED — see EventRouterOutput docstring for the
     "Schema is too complex" rationale."""
@@ -145,7 +131,6 @@ class CanonicalEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     world_adjudication: WorldAdjudication
-    scene_delta: SceneDelta
     observable_facts: list[ObservableFact]
 
     @field_validator("observable_facts", mode="before")

@@ -28,7 +28,6 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import (
     CanonicalEvent,
-    SceneDelta,
     WorldAdjudication,
 )
 from app.schemas.state import (
@@ -45,7 +44,7 @@ def _make_ckpt(
     *,
     turn_index: int,
     canonical_event_count: int = 0,
-    scene_id: str = "hall",
+    location: str = "hall",
     actor_id: str = "aldric",
     extra_chars: list[CharacterRecord] | None = None,
 ) -> CheckpointFile:
@@ -57,7 +56,7 @@ def _make_ckpt(
             character_id=actor_id,
             name="Aldric Verantus",
             is_playable=True,
-            location=scene_id,
+            location=location,
             public_sheet=PublicSheet(role="envoy"),
         ),
     ]
@@ -75,7 +74,6 @@ def _make_ckpt(
                         feasible=True,
                         resolved_outcome=f"Turn {turn_index} event {i}.",
                     ),
-                    scene_delta=SceneDelta(time_advanced_seconds=0),
                     observable_facts=[],
                 ),
                 observers=[
@@ -93,8 +91,6 @@ def _make_ckpt(
                 spawn=[],
                 dormant=[],
                 cull=[],
-                roster_moves=[],
-                scenes_created=[],
             )
         )
 
@@ -114,16 +110,7 @@ def _make_ckpt(
         ),
         world_state=WorldState(
             facts=facts,
-            locations=LocationState(
-                scene_graph={
-                    scene_id: {
-                        "name": "Great Hall",
-                        "description": "",
-                        "connected_to": [],
-                        "properties": {},
-                    },
-                },
-            ),
+            locations=LocationState(),
         ),
         characters=chars,
         canonical_events=events,
@@ -169,7 +156,7 @@ class TestPreviewRewind:
         assert result.new_latest == 2
         assert result.deleted_turns == [3, 4, 5]
         assert result.actor_character_id == "aldric"
-        assert result.scene_id == "hall"
+        assert result.location == "hall"
 
     def test_preview_does_not_touch_disk(self, bridge: EngineBridge):
         _seed_session(bridge, last_turn=4)
@@ -347,19 +334,19 @@ class TestRewindMetadata:
     embed text. A regression here makes the user-facing message
     cryptic."""
 
-    def test_actor_and_scene_recovered(self, bridge: EngineBridge):
+    def test_actor_and_location_recovered(self, bridge: EngineBridge):
         _seed_session(bridge, last_turn=4)
 
         result = asyncio.run(bridge.rewind_session(SESSION_ID, 1))
 
         assert result.actor_character_id == "aldric"
-        assert result.scene_id == "hall"
+        assert result.location == "hall"
 
     def test_no_bound_actor_yields_empty_strings(
         self, bridge: EngineBridge,
     ):
         # A session with no player_character_id (pristine, before any
-        # /join) should still rewind cleanly; the actor/scene fields
+        # /join) should still rewind cleanly; the actor/location fields
         # just come back empty so the embed can omit those lines.
         for t in range(3):
             ckpt = _make_ckpt(turn_index=t)
@@ -370,5 +357,5 @@ class TestRewindMetadata:
         result = asyncio.run(bridge.rewind_session(SESSION_ID, 1))
 
         assert result.actor_character_id == ""
-        assert result.scene_id == ""
+        assert result.location == ""
         assert bridge.list_checkpoint_turns(SESSION_ID) == [0, 1]

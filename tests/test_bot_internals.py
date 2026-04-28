@@ -257,7 +257,6 @@ class TestEngineBridgeSweepHook:
         ckpt.session.config.settings.cat_ii_human_timeout_seconds = 1
         evt = OpenCatIIEvent(
             event_id="evt_a",
-            scene_id="gate",
             initiator_id="pip",
             initiator_intention="punch",
             required_responders=["alice"],
@@ -328,19 +327,16 @@ class TestPurgeOnUnbind:
         )
         evt = OpenCatIIEvent(
             event_id="evt_b",
-            scene_id="gate",
             initiator_id="pip",
             initiator_intention="punch",
             required_responders=["bob"],
         )
         ckpt.session.open_cat_ii_events.append(evt)
-        ckpt.session.active_act_slots["gate"] = {
-            "bob": SlotEntry(
-                reason="cat_ii_responder",
-                cat_ii_event_id="evt_b",
-                claimed_at="",
-            ),
-        }
+        ckpt.session.active_act_slots["bob"] = SlotEntry(
+            reason="cat_ii_responder",
+            cat_ii_event_id="evt_b",
+            claimed_at="",
+        )
         ckpt.session.render_buffers["bob"] = [
             RenderBufferEntry(event_id="evt_prior", observation_level="direct"),
         ]
@@ -353,7 +349,7 @@ class TestPurgeOnUnbind:
         # Binding gone.
         assert "bob" not in reloaded.session.character_bindings
         # Slot pin gone.
-        assert "bob" not in reloaded.session.active_act_slots.get("gate", {})
+        assert "bob" not in reloaded.session.active_act_slots
         # Bob removed from the open event's required_responders.
         assert not any(
             "bob" in e.required_responders
@@ -373,7 +369,6 @@ class TestApplyRosterUpdatesPurgesCulled:
         from app.schemas.event_router import EventRouterOutput
         from app.schemas.events import (
             CanonicalEvent,
-            SceneDelta,
             WorldAdjudication,
         )
         from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
@@ -394,7 +389,6 @@ class TestApplyRosterUpdatesPurgesCulled:
         ckpt.session.open_cat_ii_events.append(
             OpenCatIIEvent(
                 event_id="evt_c",
-                scene_id="gate",
                 initiator_id="villain",
                 initiator_intention="swing",
                 required_responders=["hero"],
@@ -409,7 +403,6 @@ class TestApplyRosterUpdatesPurgesCulled:
                     feasible=True,
                     resolved_outcome="x",
                 ),
-                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],
@@ -421,8 +414,6 @@ class TestApplyRosterUpdatesPurgesCulled:
             spawn=[],
             dormant=[],
             cull=["villain"],
-            roster_moves=[],
-            scenes_created=[],
         )
         mgr = CharacterManager()
         mgr.apply_roster_updates(ckpt, routed)
@@ -675,7 +666,7 @@ class TestRunBeginTurn:
         mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
-                session_id="session", beat_ended_reason="scene_transition",
+                session_id="session", beat_ended_reason="state_change",
             )
         )
 
@@ -696,7 +687,7 @@ class TestRunBeginTurn:
         call_args = mock_bridge.orchestrator.process_turn.call_args.args[0]
         assert call_args.user_input == "(begin)"
         assert call_args.acting_character_id == "alice"
-        assert response.beat_ended_reason == "scene_transition"
+        assert response.beat_ended_reason == "state_change"
 
     def test_no_bound_players_raises(self, mock_bridge):
         """`(begin)` without any bound players is meaningless — the
@@ -816,7 +807,7 @@ class TestRunBeginTurn:
             ]
             return TurnResponse(
                 session_id="session",
-                beat_ended_reason="scene_transition",
+                beat_ended_reason="state_change",
             )
 
         mock_bridge.orchestrator.process_turn = AsyncMock(

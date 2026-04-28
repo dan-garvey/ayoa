@@ -94,12 +94,12 @@ ACTIONS: list[tuple[str, str, str]] = [
      "into the next beat — body language only, no fresh question.",
      "Tests cascade closure of the pinned event."),
 
-    # 5: scene move via natural language. Router should emit roster_moves.
+    # 5: movement via natural language.
     ("scene_move_request",
      "I gesture toward the citrus garden. 'walk with me a minute? "
      "the great hall feeds on first impressions.' I head toward the "
      "private citrus garden, expecting him to follow.",
-     "Scene move via NL — router roster_moves test."),
+     "Movement via NL."),
 
     # 6: confessional dialogue in a private space. Tests asymmetry —
     # nothing in this prose should leak as parenthetical to other NPCs.
@@ -420,8 +420,8 @@ async def main() -> None:
                 await _ensure_session(bridge)
                 # Verify the rolling history survived.
                 ckpt = bridge.load_latest(SESSION)
-                # v11: no global current_scene_id; report the player
-                # character's location as the "active scene" instead.
+                # Report the player character's opaque location label
+                # after reload.
                 player_loc = ""
                 pcid = ckpt.session.player_character_id
                 if pcid:
@@ -556,7 +556,7 @@ def _summarize() -> None:
         if r.get("event") == "post_reload_state":
             lines.append(
                 f"  - post_reload turn_index={r.get('turn_index')} "
-                f"active_scene={r.get('active_scene')!r} "
+                f"player_location={r.get('player_location')!r} "
                 f"session_conv_len={r.get('session_conv_len')}"
             )
 

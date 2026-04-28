@@ -119,8 +119,7 @@ class TestAgentModeContract:
         Observe This Turn`, `## Other Characters' Responses This
         Turn` — were all removed because the agent already learns
         the same information through their `pending_observations`
-        inbox (location seeded at importer/spawn, moves pushed by
-        `_apply_roster_moves`, in-scene perception pushed by
+        inbox (location seeded at importer/spawn, perception pushed by
         `broadcast_event`). Pin the empty-body shape so a future
         edit that re-adds a per-turn block here is loud."""
         body = format_agent_on_stage_body()
@@ -128,7 +127,7 @@ class TestAgentModeContract:
 
     def test_tick_body_renders_location_and_standing_instruction(self):
         body = format_agent_tick_body(
-            scene_context="Location: Library (id: library)\nDusty stacks.",
+            location_context="Location: Library (id: library)\nDusty stacks.",
         )
         assert "## Where You Are" in body
         assert "## What You Do This Tick" in body
@@ -145,7 +144,7 @@ class TestAgentModeContract:
         # Turn`, `## Other Characters' Responses This Turn`) are
         # gone everywhere now and must not resurface in tick body
         # either.
-        body = format_agent_tick_body(scene_context="x")
+        body = format_agent_tick_body(location_context="x")
         assert "## Scene" not in body
         assert "## What You Observe This Turn" not in body
         assert "## Other Characters' Responses This Turn" not in body

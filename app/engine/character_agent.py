@@ -118,7 +118,7 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
     ) -> CharacterAgentOutput:
-        """On-stage agent beat — character is in the active scene with the player(s).
+        """On-stage agent beat — character is contextually present for the beat.
 
         The on-stage body (`format_agent_on_stage_body()`) is empty in
         v11-r10: the agent reads everything they need this turn through
@@ -250,7 +250,7 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
     ) -> CharacterAgentOutput:
-        """Off-stage tick — character is NOT in a scene with the player.
+        """Off-stage tick — character is not contextually present with the player.
 
         They get one short beat in their own location to advance an
         objective. Same unified system prompt as `respond`; the
@@ -260,22 +260,17 @@ class CharacterAgent:
         ticks and responses (one history per character, one cache
         lineage per character).
         """
-        own_scene_id = character.location or ""
-        own_scene = checkpoint.world_state.locations.scene_graph.get(own_scene_id, {})
-        if own_scene_id and isinstance(own_scene, dict):
-            scene_ctx = (
-                f"Location: {own_scene.get('name', own_scene_id)} (id: {own_scene_id})\n"
-                f"{own_scene.get('description', '') or ''}"
-            ).strip()
-        else:
-            scene_ctx = "Off-screen / unspecified location."
+        location_context = (
+            f"Location: {character.location}"
+            if character.location else "Off-screen / unspecified location."
+        )
 
         return await self._run_beat(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
             mode_header=AGENT_TICK_HEADER,
-            mode_block=format_agent_tick_body(scene_context=scene_ctx),
+            mode_block=format_agent_tick_body(location_context=location_context),
             log_label="tick",
             log_extra="off-stage",
         )

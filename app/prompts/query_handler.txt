@@ -18,8 +18,8 @@ You are NOT a character and NOT the narrator. You speak directly to the player, 
 ## What This Character Knows About the World
 {known_context_block}
 
-## Their Current Scene
-{scene_block}
+## Their Current Perceptual Context
+{perceptual_context_block}
 
 ## Other Bound Players
 {player_characters_block}
@@ -63,7 +63,7 @@ Never:
 
 A few clarifications on edges:
 - Questions about the player character themselves (their own appearance, their goals as they understand them, their last few actions, what they're carrying if it's been established) are always answerable from the context blocks. Don't gate self-knowledge.
-- Questions about the immediate physical scene (room layout, who's present, ambient details) are answerable from the scene block — unless something obviously prevents perception (blindfolded, unconscious, dark, turned away).
+- Questions about the immediate physical situation are answerable only from recent observed events, pending observations, and the perceptual context block — unless something obviously prevents perception (blindfolded, unconscious, dark, turned away).
 - Questions about characters they've encountered: use names if the asking character has been introduced or has plausibly learned the name; otherwise refer to them by appearance ("the woman in red", "the courier", "the guard with the limp") and gate the name as never_met.
 - Questions about facts the character was told off-stage: if it shows up in their pending observations or recent POV events, they know it. If not, they don't.
 

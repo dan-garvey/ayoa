@@ -13,7 +13,6 @@ from app.schemas.characters import (
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
-    SceneDelta,
     WorldAdjudication,
     visible_fact_texts,
 )
@@ -28,12 +27,8 @@ from app.schemas.checkpoint import CheckpointFile
 # --- Design doc example data (sections 7.1-7.7) ---
 
 WORLD_STATE_EXAMPLE = {
-    "time": {"scene_time": "2026-04-10T15:21:00Z", "turn_count": 42},
-    # Pre-v11 also carried `current_scene_id` here; it was murdered
-    # because runtime never updated it. Pydantic v2's extra='ignore'
-    # would silently drop a stale entry on load (we no longer write
-    # one); test_round_trip below exercises the load-as-empty path.
-    "locations": {"scene_graph": {}},
+    "time": {"story_time": "2026-04-10T15:21:00Z", "turn_count": 42},
+    "locations": {},
     "facts": ["The courtyard is wet from earlier rain.", "The main building is made of stone."],
     "physics_ruleset": {"strength_limits": "human_baseline", "magic_enabled": False},
     "global_flags": {},
@@ -58,7 +53,6 @@ CANONICAL_EVENT_EXAMPLE = {
     "world_adjudication": {
         "feasible": False,
     },
-    "scene_delta": {"time_advanced_seconds": 6},
     "observable_facts": [
         "The user braces against the building.",
         "The building does not move.",
@@ -76,7 +70,6 @@ ROUTER_OUTPUT_EXAMPLE = {
         "world_adjudication": {
             "feasible": False,
         },
-        "scene_delta": {"time_advanced_seconds": 0},
         "observable_facts": [],
     },
     "requires_responders": False,
@@ -94,8 +87,6 @@ ROUTER_OUTPUT_EXAMPLE = {
     "spawn": [],
     "dormant": [],
     "cull": [],
-    "roster_moves": [],
-    "scenes_created": [],
 }
 
 AGENT_OUTPUT_EXAMPLE = {
@@ -128,24 +119,6 @@ class TestWorldState:
         ws = WorldState(**WORLD_STATE_EXAMPLE)
         rebuilt = WorldState(**ws.model_dump())
         assert rebuilt == ws
-
-    def test_legacy_current_scene_id_silently_dropped(self):
-        """Pre-v11 saves carried `locations.current_scene_id`. Pydantic
-        v2's default `extra='ignore'` lets them load cleanly — the
-        field is silently dropped, scene_graph + everything else
-        survives. Verifies vestigial-field-destruction policy rule 1
-        (`extra='ignore'` is the migration path; no deprecation flag
-        needed)."""
-        legacy = {
-            **WORLD_STATE_EXAMPLE,
-            "locations": {
-                "current_scene_id": "old_pivot_scene",
-                "scene_graph": {"old_pivot_scene": {"name": "Old"}},
-            },
-        }
-        ws = WorldState(**legacy)
-        assert "old_pivot_scene" in ws.locations.scene_graph
-        assert not hasattr(ws.locations, "current_scene_id")
 
     def test_defaults(self):
         ws = WorldState()
@@ -250,7 +223,6 @@ class TestCanonicalEvent:
     def test_construct(self):
         ce = CanonicalEvent(**CANONICAL_EVENT_EXAMPLE)
         assert ce.world_adjudication.feasible is False
-        assert ce.scene_delta.time_advanced_seconds == 6
         assert len(ce.observable_facts) == 3
         assert all(f.audience == "all_observers" for f in ce.observable_facts)
 

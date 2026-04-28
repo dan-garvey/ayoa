@@ -98,17 +98,7 @@ def _make_checkpoint(characters: list[CharacterRecord] | None = None,
             turn_index=1,
             character_bindings=bindings or {},
         ),
-        world_state=WorldState(
-            locations=LocationState(
-                scene_graph={
-                    "courtyard": {
-                        "name": "Courtyard",
-                        "description": "A stone courtyard.",
-                        "connected_to": [],
-                    },
-                },
-            ),
-        ),
+        world_state=WorldState(locations=LocationState()),
         characters=characters,
     )
 

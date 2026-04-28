@@ -10,7 +10,7 @@ from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, SpawnRequest
-from app.schemas.events import CanonicalEvent, WorldAdjudication, SceneDelta
+from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.state import LocationState, SessionState, WorldState
 
 # --- Fixtures ---
@@ -26,17 +26,7 @@ def mock_client():
 def sample_checkpoint():
     return CheckpointFile(
         session=SessionState(session_id="test-session", turn_index=0),
-        world_state=WorldState(
-            locations=LocationState(
-                scene_graph={
-                    "courtyard": {
-                        "name": "Courtyard",
-                        "description": "A stone courtyard.",
-                        "connected_to": [],
-                    },
-                },
-            ),
-        ),
+        world_state=WorldState(locations=LocationState()),
         characters=[
             CharacterRecord(
                 character_id="guard_17",
@@ -85,7 +75,6 @@ class TestCharacterManager:
                 world_adjudication=WorldAdjudication(
                     feasible=True, resolved_outcome="",
                 ),
-                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],
@@ -97,8 +86,6 @@ class TestCharacterManager:
             spawn=[],
             dormant=["guard_17"],
             cull=[],
-            roster_moves=[],
-            scenes_created=[],
         )
         mgr.apply_roster_updates(sample_checkpoint, routed)
         char = mgr.get_character(sample_checkpoint, "guard_17")
@@ -357,7 +344,6 @@ class TestCharacterSpawn:
                     feasible=True,
                     resolved_outcome="The messenger dies on the spot.",
                 ),
-                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=[],
             ),
             observers=[],
@@ -369,8 +355,6 @@ class TestCharacterSpawn:
             spawn=[],
             dormant=[],
             cull=["doomed_01"],
-            roster_moves=[],
-            scenes_created=[],
         )
         mgr.apply_roster_updates(sample_checkpoint, cull_routed)
 
@@ -383,10 +367,9 @@ class TestCharacterSpawn:
     async def test_spawn_seeds_location_in_pending_observations(
         self, mock_client, sample_checkpoint,
     ):
-        """v11-r10: a freshly-spawned NPC's `pending_observations` must
-        carry a `[your own action] <Name> at <Scene Name>.` seed. Same
-        shape `_apply_roster_moves` writes when an NPC moves at runtime
-        and the importer writes for author-seeded NPCs at session
+        """A freshly-spawned NPC's `pending_observations` must
+        carry a `[your own action] <Name> at <location>.` seed. Same
+        shape the importer writes for author-seeded NPCs at session
         start. Without this seed, the spawn's first agent dispatch
         arrives with no location signal once the on-stage agent body's
         historical `## Scene` block is gone (also r10) — the inbox is
@@ -412,10 +395,8 @@ class TestCharacterSpawn:
         )
 
         assert len(spawned) == 1
-        # Scene name (`Courtyard`), not the id, so the entry reads as
-        # natural prose to the agent.
         assert spawned[0].pending_observations == [
-            "[your own action] Tom the Stablehand at Courtyard.",
+            "[your own action] Tom the Stablehand at courtyard.",
         ]
 
     @pytest.mark.asyncio
@@ -501,14 +482,12 @@ class TestCharacterSpawn:
         """v11-r7i: when the router omits `seed.location`, the new
         character materializes at the acting actor's scene (passed by
         the orchestrator). Pre-r7i the fallback was the global
-        `current_scene_id` which was stale; new behavior drops the
-        spawn at the actor's actual scene."""
+        global location pivot; new behavior drops the spawn at the actor's
+        opaque location label."""
         from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
-        # The LLM authors location="ignored" — the engine should
-        # OVERRIDE this with the resolved scene_id and the spawn
-        # should land in "library" (acting_actor_location), not the
-        # LLM's choice.
+        # The LLM authors location="ignored" — the engine should override
+        # this with the supplied acting_actor_location, not the LLM's choice.
         authored = AuthoredCharacter(
             name="Courier",
             location="ignored_by_engine",
@@ -520,10 +499,6 @@ class TestCharacterSpawn:
             router_summary="A courier.",
         )
         mock_client.complete.return_value = _llm_response(authored)
-        sample_checkpoint.world_state.locations.scene_graph["library"] = {
-            "name": "Library", "description": "Quiet stacks.",
-        }
-
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
         spawned = await mgr.spawn_characters(
             sample_checkpoint,
@@ -538,7 +513,7 @@ class TestCharacterSpawn:
         self, mock_client, sample_checkpoint,
     ):
         """When the router DOES specify `seed.location`, that wins over
-        the acting actor's scene — the router knows where the spawn
+        the acting actor's location — the router knows where the spawn
         should appear (e.g. recipient's scene for a courier, witness
         location for a bystander). Actor-location is only the
         fallback when seed is silent."""
@@ -552,13 +527,6 @@ class TestCharacterSpawn:
             intentions_enabled=False, router_summary="Steward.",
         )
         mock_client.complete.return_value = _llm_response(authored)
-        sample_checkpoint.world_state.locations.scene_graph["chapel"] = {
-            "name": "Chapel", "description": "",
-        }
-        sample_checkpoint.world_state.locations.scene_graph["library"] = {
-            "name": "Library", "description": "",
-        }
-
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
         spawned = await mgr.spawn_characters(
             sample_checkpoint,

@@ -108,7 +108,7 @@ If the fallback semantics ever change, four sites must be updated in lockstep. P
 `character_agent.py:107-113`, `event_router.py:95-99`, `narrator.py:117-122` all do: capture user_content before `client.complete`, extract assistant_content via `serialize_assistant_content`, append both to the correct conversation list on the checkpoint. Identical code, three homes. Extract to a helper; it becomes a one-liner at each site and cements the invariant.
 
 **F2.3 `collect_player_ids` scans the full roster on every call, called multiple times per turn.**
-Called from `orchestrator.py:118` (roster moves), `orchestrator.py:163` (responder selection), `orchestrator.py:462` (tick eligibility), `event_router.py:259` (character registry). For a 50-character story, that's 200+ character iterations per turn. Compute once at the top of `process_turn` and thread through, or cache on the checkpoint.
+Called from responder selection, tick eligibility, and router context construction. For a 50-character story, that can become 150+ character iterations per turn. Compute once at the top of `process_turn` and thread through, or cache on the checkpoint.
 
 **F2.4 Character attitudes can still be keyed by the string `"user"`.**
 `app/schemas/import_extraction.py:237` references the legacy key; `app/engine/character_manager.py:62` assumes all keys are real `character_id`s. A legacy-authored checkpoint with `attitudes["user"]` will silently never apply deltas to anyone. Add a migration step in `CheckpointManager.load_file()` that rewrites `"user"` → `session.player_character_id`.
@@ -123,12 +123,6 @@ Called from `orchestrator.py:118` (roster moves), `orchestrator.py:163` (respond
 
 **F3.1 Agent timeouts are logged and skipped; the turn proceeds without the character.**
 `orchestrator.py:235-249` and `orchestrator.py:257-279`. If a "compelled" responder (priority 5) fails, the narrator is told "no response" and produces prose that ignores a character the router said *must* respond. Options: retry once, emit a "X remains silent" fallback, or fail the turn loudly. The current silent-continue breaks narrative continuity.
-
-**F3.2 Scene transitions to invalid scene_ids are silently dropped.**
-`orchestrator.py:96-105`. Router emits `scene_delta.new_scene_id`; if it's not in the scene_graph, we log and ignore. The resolved outcome prose may reference moving; the player's scene didn't change. Fail the turn or reject the router output.
-
-**F3.3 Roster moves to invalid scenes / missing characters / player-bound characters are logged-then-ignored.**
-`orchestrator.py:120-149`. Same pattern. If the router is misbehaving, dozens of roster_moves get dropped and the player sees no world-state changes despite prose that may imply them.
 
 **F3.4 `_spawn_one` failures are caught and silently skipped.**
 `character_manager.py:113-121`. If the spawn LLM call fails, the character never appears and no one knows. Consider: if spawn failure rate > 50%, fail the turn instead.
@@ -287,9 +281,6 @@ These three files have no module-level documentation. `validators.py` has comple
 
 **F10.5 Comments reference removed concepts.**
 `character_manager.py:54-55` still says `memory_writes` is "kept for compatibility" — but the thing it was compatible with has since been removed. Tidy.
-
-**F10.6 `RosterMove` docstring is thin.**
-`app/schemas/event_router.py:9-12`. Doesn't document when the move is observable to the player vs silent, which matters for narrator rendering.
 
 **F10.7 `attitude_delta` semantics are undocumented on the schema.**
 `app/schemas/agents.py:36`. Delta vs absolute? What happens if target is unknown? What's the clamp? All in the code, none in the docs.

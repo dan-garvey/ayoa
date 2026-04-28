@@ -5,8 +5,8 @@ Renders the system prompt the same way `CharacterAgent._run_beat` does
 (template + character-derived variables), then prints the conversation
 history exactly as it was at the time of the checkpoint. The LATEST user
 message in the conversation is the user-message body that the LLM saw on
-that turn (mode header + scene context + observed facts + prior
-responses + pending observations + acting-character framing).
+that turn (mode header + mode body + pending observations +
+acting-character framing).
 
 This is a debug tool: load the checkpoint AFTER the turn you want to
 inspect (e.g. ckpt_0027 to see what Ashara was sent during turn 27).

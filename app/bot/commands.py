@@ -3,7 +3,7 @@
 Commands:
     /session start <name>                 — create + bind an empty session to this channel
     /session end                          — detach this channel's session
-    /session resume                       — show the last scene
+    /session resume                       — show the last turn
     /session list                         — list existing sessions
     /story list                           — list available stories
     /story start <story_id>               — load a story into the current session
@@ -17,6 +17,7 @@ Commands:
     /leave                                — release your character
     /describe [name] [appearance]         — set/update name and appearance
     /act <action>                         — submit a turn
+    /defer                                — submit no action and let the scene continue
     /query <question>                     — ask an out-of-character question
     /status                               — summarize current state
 
@@ -1012,7 +1013,7 @@ def register(
             )
             return
 
-        # Live-session path: group by location vs. current scene, and
+        # Live-session path: group by location and
         # highlight the invoker's own binding.
         try:
             ckpt = engine.checkpoint_mgr.load_latest(row.session_id)
@@ -1024,12 +1025,10 @@ def register(
             )
             return
 
-        # v11: scene = the invoker's POV scene (location of their bound
-        # character, falling back to the creator binding, then any
-        # is_playable). The pre-v11 global current_scene_id is gone.
-        from app.engine.context_builder import pov_scene_for_user
+        # v11: location = the invoker's POV location label.
+        from app.engine.context_builder import pov_location_for_user
         uid = str(inter.user.id)
-        scene_id = pov_scene_for_user(ckpt, user_id=uid)
+        location = pov_location_for_user(ckpt, user_id=uid)
         claimed_by_me = {
             cid for cid, bound in ckpt.session.character_bindings.items()
             if bound == uid
@@ -1051,7 +1050,7 @@ def register(
             elif status == "dormant":
                 dormant.append(cid)
             else:  # active
-                if c.location == scene_id:
+                if c.location == location:
                     here.append(cid)
                 else:
                     elsewhere.append(cid)
@@ -1066,7 +1065,7 @@ def register(
             return "\n".join(lines)
 
         body_parts = [
-            _block(f"Here ({scene_id or 'no scene'})", here),
+            _block(f"Here ({location or 'no active location'})", here),
             _block("Claimed by you", my_ids),
             _block("Active (elsewhere)", elsewhere),
             _block("Dormant", dormant),
@@ -1218,9 +1217,8 @@ def register(
 
         elapsed = time.monotonic() - start
         logger.info(
-            "Imported %s in %.1fs: %d scenes, %d characters",
+            "Imported %s in %.1fs: %d characters",
             story_id, elapsed,
-            len(ckpt.world_state.locations.scene_graph),
             len(ckpt.characters),
         )
 
@@ -1230,7 +1228,6 @@ def register(
         intro = (
             f"Imported **{story_id}** in {int(elapsed)}s — "
             f"{len(ckpt.characters)} characters, "
-            f"{len(ckpt.world_state.locations.scene_graph)} scenes. "
             f"Start with `/session start name:<save>` then `/story start story_id:{story_id}`."
         )
         await inter.followup.send(content=intro)
@@ -1292,7 +1289,7 @@ def register(
     #
     #   - **Mid-play (story already opened by `/begin`):** fire
     #     `(arrive)` via `engine.run_arrival_turn` so the router
-    #     places the character into a sensible live scene and the
+    #     places the character into a sensible live situation and the
     #     narrator renders the arrival.
     #
     # The split came in r9d alongside the `/begin` command. Pre-r9d
@@ -1455,13 +1452,13 @@ def register(
         )
         if venue == "thread" and thread is not None:
             await inter.followup.send(
-                f"**{char_name}** joined. Your scene opens in "
+                f"**{char_name}** joined. Your story opens in "
                 f"{thread.mention}.",
                 ephemeral=True,
             )
         elif venue == "dm":
             await inter.followup.send(
-                f"**{char_name}** joined. Your scene opens in your DMs "
+                f"**{char_name}** joined. Your story opens in your DMs "
                 "(POV thread unavailable here).",
                 ephemeral=True,
             )
@@ -1897,7 +1894,7 @@ def register(
     #
     # No-arg slash command. Opens the canonical story for everyone in
     # the lobby — fires `(begin)` through `engine.run_begin_turn`,
-    # which composes the opening scene from world_state and places
+    # which composes the opening beat from world_state and places
     # every bound player at the chosen starting location. Each bound
     # player gets their own POV render fanned out via the same per-
     # player path that /act uses.
@@ -1915,7 +1912,7 @@ def register(
 
     @tree.command(
         name="begin",
-        description="Open the story — fires the canonical opening scene for everyone in the lobby.",
+        description="Open the story for everyone in the lobby.",
         guild=guild,
     )
     async def _begin(inter: discord.Interaction):
@@ -1971,7 +1968,7 @@ def register(
             ))
             return
 
-        # The router placed every bound player at the opening scene
+        # The router placed every bound player at the opening location
         # (see event_router.txt OOC `(begin)` rules), so per_player
         # carries one render per bound POV. Pick the triggering
         # player's render for the actor path; fan the rest out via
@@ -2219,7 +2216,7 @@ def register(
         # Pre-play: fire the opening turn using the OOC meta-channel. The
         # event_router prompt recognizes fully-parenthesized input as an
         # author's directive rather than an in-character attempt, so
-        # `(begin)` cleanly maps to "compose the opening scene from
+        # `(begin)` cleanly maps to "compose the opening beat from
         # world_state and place this character in it" — see the
         # `(begin)` instructions in event_router.txt for the full
         # contract. (Pre-v9 this leaned on an authored opening passage
@@ -2282,7 +2279,7 @@ def register(
         intro_line = " — ".join(intro_bits)
         intro = (
             (f"{intro_line}\n\n" if intro_line else "")
-            + "The scene opens. Use `/act <action>` from here on."
+            + "The story opens. Use `/act <action>` or `/defer` from here on."
         )
 
         # /describe's defensive pre-play opener follows the same
@@ -2471,7 +2468,7 @@ def register(
                 turn_index=pre_resp.turn_index,
                 note_prefix=(
                     "_(Auto-resolved while you were away — your prior "
-                    "scene closed out.)_"
+                    "beat closed out.)_"
                 ),
             )
 
@@ -2554,8 +2551,8 @@ def register(
                     embeds=embeds,
                 )
 
-        # Step 3: DM the actor's beat to the OTHER bound humans in the
-        # scene. Acting user already saw it in-channel above, so
+        # Step 3: DM the actor's beat to the OTHER bound humans with
+        # queued POV renders. Acting user already saw it in-channel above, so
         # skip_cid=binding.
         if per_player:
             notified_names = await _dm_per_pov(
@@ -2575,6 +2572,18 @@ def register(
                     logger.exception(
                         "per-POV fan-out: ephemeral ack failed",
                     )
+
+    # ---- /defer -------------------------------------------------------------
+
+    @tree.command(
+        name="defer",
+        description="Take no action and let the scene continue.",
+        guild=guild,
+    )
+    async def _defer(inter: discord.Interaction):
+        # Reuse /act so null turns get identical binding, locking, render,
+        # and fan-out behavior.
+        await _act.callback(inter, "(defer)")
 
     # ---- /query -------------------------------------------------------------
     # Out-of-character consultation. The router is busy adjudicating
@@ -2764,9 +2773,9 @@ def register(
 
             # Public announcement so co-players know the world
             # backed up. Includes who triggered it for accountability.
-            scene_line = (
-                f"\nResume scene: `{result.scene_id}`"
-                if result.scene_id else ""
+            location_line = (
+                f"\nResume location: `{result.location}`"
+                if result.location else ""
             )
             cleanup_line = ""
             if cleanup.tracked:
@@ -2786,7 +2795,7 @@ def register(
                 f"**Turn {result.new_latest}**.\n"
                 f"Turns {result.deleted_turns[0]}–{result.deleted_turns[-1]} "
                 f"({len(result.deleted_turns)} checkpoint(s)) erased."
-                f"{cleanup_line}{scene_line}\n\n"
+                f"{cleanup_line}{location_line}\n\n"
                 f"Use `/act` to continue from here.",
             )
             try:
@@ -2918,9 +2927,9 @@ def register(
             )
             return
 
-        scene_line = (
-            f"\n**Resume scene:** `{preview.scene_id}`"
-            if preview.scene_id else ""
+        location_line = (
+            f"\n**Resume location:** `{preview.location}`"
+            if preview.location else ""
         )
         actor_line = (
             f"\n**Resume actor:** `{preview.actor_character_id}`"
@@ -2932,7 +2941,7 @@ def register(
             f"**Will delete:** turns "
             f"{preview.deleted_turns[0]}–{preview.deleted_turns[-1]} "
             f"({len(preview.deleted_turns)} checkpoint(s))"
-            f"{actor_line}{scene_line}\n\n"
+            f"{actor_line}{location_line}\n\n"
             f"⚠️ This permanently erases the deleted turns from disk and "
             f"deletes or hides tracked Discord messages for those turns. "
             f"Players who joined after turn {preview.target_turn} will "
@@ -2979,24 +2988,17 @@ def register(
             )
             return
 
-        # v11: pick the invoker's POV scene; multi-player sessions can
-        # have players in different scenes simultaneously, and the
-        # /session status they see should reflect THEIR scene, not a
-        # global "current scene" (which doesn't exist anymore).
-        from app.engine.context_builder import pov_scene_for_user
-        scene_id = pov_scene_for_user(ckpt, user_id=str(inter.user.id))
-        scene_name = scene_id or "(no active scene)"
-        if scene_id:
-            scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
-            if isinstance(scene, dict) and scene.get("name"):
-                scene_name = scene["name"]
+        # v11: pick the invoker's POV location label.
+        from app.engine.context_builder import pov_location_for_user
+        location = pov_location_for_user(ckpt, user_id=str(inter.user.id))
+        location_name = location or "(no active location)"
 
         bound_ids = set(ckpt.session.character_bindings.keys())
         present = [
             c.name for c in ckpt.characters
-            if c.location == scene_id and c.status.value == "active"
+            if c.location == location and c.status.value == "active"
             and c.character_id not in bound_ids
-        ] if scene_id else []
+        ] if location else []
 
         bindings_lines: list[str] = []
         for char_id, user_id in ckpt.session.character_bindings.items():
@@ -3011,8 +3013,8 @@ def register(
         body_lines = [
             f"**Story:** `{row.story_id}`",
             f"**Turn:** {ckpt.session.turn_index}",
-            f"**Scene:** {scene_name}",
-            f"**Present (NPCs):** {', '.join(present) if present else 'no one else'}",
+            f"**Location:** {location_name}",
+            f"**Same-location NPCs:** {', '.join(present) if present else 'no one else'}",
             "",
             "**Players:**",
             *bindings_lines,
@@ -3318,13 +3320,13 @@ def register(
 
     # v11-r3d: /abort_beat admin recovery command. A wedged Cat II event
     # (responder disconnected, session frozen) can only be cleared by an
-    # admin invoking this command; it force-releases the scene's slot
-    # state and abandons any open Cat II events in that scene. The
+    # admin invoking this command; it force-releases the beat slot
+    # state and abandons any open Cat II events. The
     # event LOG is preserved — this does not rewrite history, just
     # unblocks the next /act.
     @tree.command(
         name="abort_beat",
-        description="[Admin] Force-unwedge the current scene's beat.",
+        description="[Admin] Force-unwedge the current beat.",
         guild=guild,
     )
     async def _abort_beat(inter: discord.Interaction):
@@ -3346,17 +3348,9 @@ def register(
             )
             return
         try:
-            from app.engine.turn_loop import abort_scene
+            from app.engine.turn_loop import abort_beat
             ckpt = engine.load_latest(row.session_id)
-            # v11: /abort_beat operates on a SCENE, but the global
-            # current_scene_id is gone. Use the active_act_slots map
-            # — that's the source of truth for "which scene currently
-            # has a pinned beat that an admin might need to release."
-            # If multiple are open we abort the first; admins can
-            # re-run for others. If none, scene_id="" and abort_scene
-            # returns 0 (no-op, audit-logged below).
-            scene_id = next(iter(ckpt.session.active_act_slots), "")
-            dropped = abort_scene(ckpt, scene_id) if scene_id else 0
+            dropped = abort_beat(ckpt)
             engine.checkpoint_mgr.save(ckpt)
         except Exception as e:
             logger.exception("abort_beat failed")
@@ -3368,24 +3362,24 @@ def register(
         # identity with the events that got abandoned.
         logger.info(
             "abort_beat completed: admin_id=%s channel_id=%s session_id=%s "
-            "scene_id=%s dropped=%d",
-            inter.user.id, inter.channel_id, row.session_id, scene_id, dropped,
+            "dropped=%d",
+            inter.user.id, inter.channel_id, row.session_id, dropped,
         )
         await inter.response.send_message(
-            f"Scene `{scene_id}` released. {dropped} pending reaction(s) "
+            f"Beat released. {dropped} pending reaction(s) "
             f"cancelled. Next /act can claim the slot.",
             ephemeral=True,
         )
         # v11-A5: thread-visible notification so players see that the
-        # scene was released without needing an admin to manually re-echo
+        # beat was released without needing an admin to manually re-echo
         # the state. Skipped for no-op aborts (nothing to announce when
         # zero events were dropped).
         if dropped > 0:
             try:
                 await inter.followup.send(
-                    f"⚠️ Scene released by admin. {dropped} pending "
+                    f"Beat released by admin. {dropped} pending "
                     f"reaction(s) cancelled — the next /act reopens the "
-                    f"scene.",
+                    f"beat.",
                     ephemeral=False,
                 )
             except Exception:

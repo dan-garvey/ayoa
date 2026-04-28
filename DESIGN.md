@@ -19,8 +19,8 @@ been collapsed. The current loop is:
    router ends the beat or the engine hits the event cap.
 5. The narrator renders each observing human's POV from visible
    `observable_facts` only.
-6. Roster moves, scene creation, spawns, dormancy, culls, off-stage ticks,
-   transcript updates, and checkpoint saving are applied around the beat.
+6. Spawns, dormancy, culls, off-stage ticks, transcript updates, and
+   checkpoint saving are applied around the beat.
 
 The system is intentionally prompt-heavy. Prompt files under
 `app/prompts/` are versioned source artifacts. Prompt history is tracked
@@ -62,17 +62,17 @@ surface of what happened. The narrator renders those facts. NPCs receive
 their visible subset in `pending_observations`. If a detail must be known
 by someone, it must exist as an observable fact visible to that character.
 
-### 4.2 Perception Is Not Location
+### 4.2 Perception Is Contextual
 
-`CharacterRecord.location` answers where a body is. A scene, for routing
-purposes, is a shared perceptual frame. Characters can share perception
-through co-presence, live audio, cameras, radio, telepathy, scrying,
-supernatural senses, spies, or any other established live channel.
+`CharacterRecord.location` is an opaque continuity label, not routing
+authority. The router decides who perceives each event from live context:
+co-presence, live audio, cameras, radio, telepathy, scrying,
+supernatural senses, spies, or any other established channel.
 
 ### 4.3 The Narrator Is A POV Renderer
 
 The narrator is no longer the world adjudicator. It is a per-POV prose
-renderer. It receives visible facts, observation levels, current scene
+renderer. It receives visible facts, observation levels, relevant
 context, the acting player's original input, and the POV's rolling
 narrator history. It must not invent actions, dialogue, outcomes,
 interiority, or physical business that is not in the visible facts or the
@@ -80,7 +80,7 @@ player's input.
 
 ### 4.4 The Router Owns Canonicalization
 
-The event router is the adjudication, perception, roster, and beat-pacing
+The event router is the adjudication, perception, and beat-pacing
 role. It decides:
 
 * Cat I vs Cat II classification
@@ -90,7 +90,7 @@ role. It decides:
 * observers and response priorities
 * NPC responder picks
 * beat end state
-* scene creation, roster moves, spawns, dormancy, and culls
+* spawns, dormancy, and culls
 
 ### 4.5 Agents Author Intentions, Not State
 
@@ -129,11 +129,10 @@ used by rewind cleanup.
 
 1. loads the latest checkpoint
 2. resolves the acting character
-3. resolves that character's physical scene
-4. acquires a per-session, per-scene lock
+3. acquires a per-session lock
 5. checks active act slots
 6. calls `run_beat()`
-7. applies scene creations, roster updates, roster moves, and spawns
+7. applies character lifecycle changes and spawns
 8. appends one transcript entry for the beat
 9. runs eligible off-stage ticks
 10. increments the turn index and saves
@@ -148,7 +147,7 @@ backstops, and per-human render fan-out.
 
 Important state:
 
-* `active_act_slots`: per-scene lock state for initiators and Cat II
+* `active_act_slots`: per-beat lock state for initiators and Cat II
   responders
 * `open_cat_ii_events`: contested events awaiting responders
 * `render_buffers`: per-human queues of canonical event ids waiting for
@@ -167,8 +166,7 @@ Important state:
 * `narrator_compose()` calls `compose_pov_render()`
 
 It also owns the router context-trimming calls that surface initial
-rosters, world-fact deltas, one-shot scene context, and pending state
-changes.
+rosters, world-fact deltas, and pending state changes.
 
 ### 5.5 Event Router
 
@@ -186,13 +184,10 @@ The top-level object carries:
 * `ends_beat` and `ends_beat_reason`
 * `observers`
 * `spawn`, `dormant`, `cull`
-* `roster_moves`
-* `scenes_created`
 
 The nested `canonical_event` deliberately carries only:
 
 * `world_adjudication.feasible`
-* `scene_delta.time_advanced_seconds`
 * `observable_facts`
 
 Legacy audit fields such as `attempted_action` and `resolved_outcome`
@@ -296,8 +291,7 @@ Active model roles include `event_router`, `narrator`, `agent`,
 1. A player submits `/act`.
 2. `EngineBridge.run_turn()` sweeps stale Cat II pins before processing
    the new action.
-3. `Orchestrator.process_turn()` resolves actor and scene, then locks the
-   scene.
+3. `Orchestrator.process_turn()` resolves actor, then locks the session.
 4. `check_act_slot()` either accepts, rejects, or treats the input as a
    Cat II responder intention.
 5. `run_beat()` routes the current intention through the event router.
@@ -366,15 +360,12 @@ callers.
 
 After `run_beat()` returns, the orchestrator applies each closed event's:
 
-* `scenes_created`
 * `dormant`
 * `cull`
-* `roster_moves`
 * `spawn`
 
-Movement uses `roster_moves` only. Player-bound characters can be moved
-only by their own action. Pinned characters cannot be externally moved
-unless the move is the resolution of their own action.
+Movement is expressed in `observable_facts`. There is no separate router
+movement side-effect.
 
 ### 6.7 Off-Stage Ticks
 
@@ -382,11 +373,10 @@ After the on-stage beat, `_run_ticks()` may fire off-stage NPC ticks
 based on:
 
 * `ticks_enabled`
-* scene-change cooldown
 * stagnation threshold
 * tick concurrency cap
 * NPC status, play binding, pin state, prior action this turn, and
-  whether the NPC is in the active scene
+  whether the NPC is eligible to act
 
 Successful tick outputs are bundled into one router fan-in call. The
 router emits an off-stage canonical event and any implied mutations. No
@@ -492,7 +482,7 @@ fallback.
 
 * visible facts from `broadcast_event()`
 * private or mediated facts scoped to the character
-* roster movement facts such as "X arrived" or "X left"
+* movement facts such as "X arrived" or "X left"
 * a moved NPC's own action marker
 
 The inbox is drained into the agent's next on-stage or tick prompt.
@@ -512,8 +502,8 @@ Router context:
 * system prompt contains stable role contract and schema contract
 * initial NPC roster appears only on the first router call
 * world facts are surfaced once through a delta tracker
-* importer-seeded scene context is surfaced once per scene
-* router-created scenes rely on router history
+* importer-seeded continuity context is surfaced once
+* router-authored context relies on router history
 * external engine changes surface through `pending_router_state_changes`
 * actor inbox entries surface through "Arrived For You Since Last Turn"
 
@@ -644,9 +634,9 @@ Important notes:
 * `session_conversation` is the router's rolling history.
 * `narrator_conversations` are per human POV.
 * `character_conversations` are per character.
-* `world_state.locations` has a scene graph, not a current scene.
-* Runtime location is on each `CharacterRecord.location`.
-* `player_primer` replaces authored opening prose; the opening scene is
+* `world_state.locations` has no runtime topology.
+* `CharacterRecord.location` is an opaque continuity label.
+* `player_primer` replaces authored opening prose; opening context is
   generated by the router on `(begin)`.
 
 ## 14. Prompt Strategy
@@ -748,7 +738,7 @@ The current engine is healthy when:
 7. NPC agents do not receive another agent's parenthetical intent.
 8. The narrator renders from visible observable facts without adding
    unsupported action or attitude.
-9. Router-created movement, scenes, spawns, dormancy, and culls persist
+9. Router-created spawns, dormancy, and culls persist
    to checkpoint state.
 10. `/rewind` removes later checkpoints and cleans up tracked Discord
     turn messages.

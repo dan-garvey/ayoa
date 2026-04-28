@@ -41,7 +41,7 @@ PLAYER_CHAR_ID = "mira_calder"  # opening protagonist
 
 # Script — 30 distinct turns, designed to exercise:
 #   • opening (begin) flow
-#   • simple movement (router self-move via roster_moves)
+#   • simple movement through observable facts
 #   • dialogue with NPCs
 #   • multi-NPC scenes (cascade depth)
 #   • environmental/observational beats
@@ -266,7 +266,8 @@ async def _run() -> None:
     )
     print(f"\nFinal Mira location: {mira.location if mira else '?'}")
     print(f"Total characters in roster: {len(ckpt.characters)}")
-    print(f"Total scenes in graph: {len(ckpt.world_state.locations.scene_graph)}")
+    distinct_locations = {c.location for c in ckpt.characters if c.location}
+    print(f"Total occupied location labels: {len(distinct_locations)}")
 
     print("\nDone. Inspect playtest_v7i_logs.txt for full log + decision rationales.")
 

@@ -30,7 +30,6 @@ from app.engine.context_builder import (
     build_setting_summary,
     clear_character_inbox,
     resolve_acting_character,
-    resolve_scene_for_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
@@ -67,129 +66,6 @@ def _build_world_rules(checkpoint: CheckpointFile) -> str:
     parts = [f"Strength limits: {physics.strength_limits}"]
     parts.append(f"Magic: {'enabled' if physics.magic_enabled else 'disabled'}")
     return "\n".join(parts)
-
-
-def _build_scene_context(
-    checkpoint: CheckpointFile, character_id: str | None = None,
-) -> str:
-    """Router-facing scene context block — keyed on `character_id`'s
-    actual location read from the roster. Returns an unsited block when
-    no character_id is supplied or the character has no location set.
-    """
-    locations = checkpoint.world_state.locations
-    scene_id = resolve_scene_for_character(checkpoint, character_id)
-    if not scene_id:
-        return "No scene information available."
-
-    scene = locations.scene_graph.get(scene_id, {})
-    if not scene:
-        return f"Current location: {scene_id}"
-
-    name = scene.get("name", scene_id)
-    desc = scene.get("description", "")
-    connected = scene.get("connected_to", [])
-
-    parts = [f"Current location: {name} (id: {scene_id})"]
-    if desc:
-        parts.append(f"Description: {desc}")
-    if connected:
-        conn_details = []
-        for conn_id in connected:
-            conn_scene = locations.scene_graph.get(conn_id, {})
-            conn_name = conn_scene.get("name", conn_id)
-            conn_details.append(f"{conn_name} ({conn_id})")
-        parts.append(f"Connected to: {', '.join(conn_details)}")
-
-    return "\n".join(parts)
-
-
-def _build_scene_graph(checkpoint: CheckpointFile) -> str:
-    scene_graph = checkpoint.world_state.locations.scene_graph
-    if not scene_graph:
-        return "No scene graph available."
-
-    entries = []
-    for scene_id, scene in scene_graph.items():
-        name = scene.get("name", scene_id)
-        desc = scene.get("description", "")
-        connected = scene.get("connected_to", [])
-        parts = [f"- {name} (id: {scene_id})"]
-        if desc:
-            parts.append(f"  Description: {desc}")
-        if connected:
-            parts.append(f"  Connected to: {', '.join(connected)}")
-        entries.append("\n".join(parts))
-
-    return "\n".join(entries)
-
-
-def _build_characters_present(
-    checkpoint: CheckpointFile, character_id: str | None = None,
-) -> str:
-    """Router-facing "characters present" block — keyed on
-    `character_id`'s actual location (from the roster). Returns an
-    unsited block when no character_id is supplied.
-    """
-    scene_id = resolve_scene_for_character(checkpoint, character_id)
-    if not scene_id:
-        return "No other characters are present in this scene."
-    present = []
-    for char in checkpoint.characters:
-        if char.location == scene_id and char.status.value == "active":
-            role = char.public_sheet.role or "unknown role"
-            present.append(f"- {char.name} ({role})")
-
-    if not present:
-        return "No other characters are present in this scene."
-    return "\n".join(present)
-
-
-def _router_created_scene_ids(checkpoint: CheckpointFile) -> set[str]:
-    """Scene ids the router has already authored in prior outputs."""
-    created: set[str] = set()
-    for event in checkpoint.canonical_events:
-        for scene in event.scenes_created or []:
-            if isinstance(scene, dict):
-                scene_id = scene.get("scene_id", "")
-            else:
-                scene_id = getattr(scene, "scene_id", "")
-            if scene_id:
-                created.add(scene_id)
-    return created
-
-
-def _build_scene_context_block(
-    checkpoint: CheckpointFile, character_id: str | None = None,
-) -> str:
-    """One-shot router grounding for importer-seeded scene context.
-
-    The rolling router conversation already records movement,
-    `roster_moves`, and any `scenes_created` the router authored.
-    Repeating the current location plus present roster every call
-    pollutes the user's message history and biases future routing
-    toward stale setup text. Surface this block only the first time the
-    actor is in a non-router-created scene.
-    """
-    scene_id = resolve_scene_for_character(checkpoint, character_id)
-    if not scene_id:
-        return ""
-    if scene_id in _router_created_scene_ids(checkpoint):
-        return ""
-
-    surfaced = list(checkpoint.session.surfaced_router_scene_contexts)
-    if scene_id in surfaced:
-        return ""
-    checkpoint.session.surfaced_router_scene_contexts = [
-        *surfaced,
-        scene_id,
-    ]
-
-    return (
-        "## Current Scene\n"
-        f"{_build_scene_context(checkpoint, character_id)}\n\n"
-        "## Characters Present In Current Scene\n"
-        f"{_build_characters_present(checkpoint, character_id)}\n\n"
-    )
 
 
 def _build_world_facts_delta(checkpoint: CheckpointFile) -> str:
@@ -234,9 +110,8 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     EVERY turn — name + role + status + location for every non-player
     character (~80 tokens × N NPCs, ~1000 tokens/turn for hollowstone).
     The router has its own session conversation history, so re-feeding
-    identity every turn was duplication: turn-1's inject + every
-    subsequent `roster_moves` and `spawn` outcome the router itself
-    authored is already in history.
+    identity every turn was duplication: turn-1's inject plus spawn
+    outcomes are already in history.
 
     This block lands ONCE — on turn 1 only — and carries richer signal
     than the dropped registry: name, id, role, location, goals,
@@ -259,8 +134,6 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
 
     from app.engine.context_builder import collect_player_ids
     player_ids = collect_player_ids(checkpoint)
-    scene_graph = checkpoint.world_state.locations.scene_graph
-
     entries: list[str] = []
     for char in checkpoint.characters:
         if char.character_id in player_ids:
@@ -268,14 +141,11 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
         if char.status.value != "active":
             continue
 
-        location = char.location or "unknown"
-        loc_name = scene_graph.get(location, {}).get("name", location)
         role = char.public_sheet.role or "unknown role"
 
         parts = [
             f"- {char.name} (id: {char.character_id})",
             f"  Role: {role}",
-            f"  Location: {loc_name} ({location})",
         ]
         goals = [g for g in (char.private_state.goals or []) if g]
         if goals:
@@ -295,9 +165,7 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     header = (
         "## Initial Roster\n"
         "Every active NPC in this world, with their long-term goals "
-        "and active pursuits. See the system prompt's \"Character "
-        "interior\" section for how to weight these signals when "
-        "picking responders.\n\n"
+        "and active pursuits.\n\n"
     )
     return header + "\n\n".join(entries) + "\n"
 
@@ -355,7 +223,7 @@ def _build_since_last_turn_block(acting_char) -> str:
 
     Pre-Commit-2 this also rendered `incoming_directives`, a
     structured inter-agent message bus. Directives are gone;
-    cross-character communication now flows through normal scene prose
+    cross-character communication now flows through normal event prose
     (a courier walks in and speaks) plus local or explicitly mediated
     perception inbox entries populated by `broadcast_event`.
     """
@@ -398,8 +266,6 @@ def _build_router_context(
         "setting_summary": build_setting_summary(ckpt),
         "world_lore": ckpt.world_state.lore or "No detailed lore available.",
         "world_rules": _build_world_rules(ckpt),
-        "scene_context_block": _build_scene_context_block(ckpt, acting_id),
-        "scene_graph": _build_scene_graph(ckpt),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": _build_hidden_facts(ckpt),
         "acting_character_name": acting_name,
@@ -435,23 +301,18 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         actor_id: str,
         intention: str,
-        scene_id: str,
         cat_ii_event: OpenCatIIEvent | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention through event_router."""
-        del scene_id  # Scene id is picked up from ckpt.world_state.locations.
 
         # Snapshot context-trim session fields BEFORE
         # `_build_router_context` mutates them, so we can restore on
         # exception and avoid silently losing queued state-change /
-        # world-fact / scene-context entries on a failed router call.
+        # world-fact entries on a failed router call.
         # Flagged by the
         # Commit-4 reviewers (same pattern the now-deleted legacy
         # EventRouter.run had to handle).
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
-        saved_scene_contexts = list(
-            ckpt.session.surfaced_router_scene_contexts
-        )
         saved_state_changes = list(
             ckpt.session.pending_router_state_changes
         )
@@ -528,7 +389,6 @@ class LLMDispatcher:
             )
         except Exception:
             ckpt.session.surfaced_world_facts = saved_surfaced_facts
-            ckpt.session.surfaced_router_scene_contexts = saved_scene_contexts
             ckpt.session.pending_router_state_changes = saved_state_changes
             raise
 
@@ -549,16 +409,11 @@ class LLMDispatcher:
         *,
         ckpt: CheckpointFile,
         actor_id: str,
-        scene_id: str,
         prior_result: EventRouterOutput,
     ) -> EventRouterOutput:
         """Ask the router to advance an open beat with no next pick."""
-        del scene_id
 
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
-        saved_scene_contexts = list(
-            ckpt.session.surfaced_router_scene_contexts
-        )
         saved_state_changes = list(
             ckpt.session.pending_router_state_changes
         )
@@ -597,7 +452,6 @@ class LLMDispatcher:
             )
         except Exception:
             ckpt.session.surfaced_world_facts = saved_surfaced_facts
-            ckpt.session.surfaced_router_scene_contexts = saved_scene_contexts
             ckpt.session.pending_router_state_changes = saved_state_changes
             raise
 
@@ -630,12 +484,12 @@ class LLMDispatcher:
         On empty `tick_outputs`, returns None without any LLM call. On
         any non-empty list, makes ONE router call in tick mode (signaled
         by the `## Off-Stage Tick` user-message header) and returns the
-        EventRouterOutput. Caller is responsible for applying
-        roster_moves / scenes_created / canonical_event to ckpt; this
+        EventRouterOutput. Caller is responsible for applying the
+        canonical event to ckpt; this
         method only handles the LLM call and conversation-history append.
 
         `acting_character_id` is the player who acted on the on-stage
-        beat preceding this tick; used to resolve display name/scene
+        beat preceding this tick; used to resolve display name/location
         framing for the shared router context. The tick itself is not
         attributed to that player — it just has to come from somewhere
         for the existing context-builder helpers (which expect an
@@ -643,15 +497,12 @@ class LLMDispatcher:
 
         Snapshot/restore of context-trim session fields mirrors
         `route_intention` so a failed tick router call doesn't silently
-        drain queued state-change / world-fact / scene-context entries.
+        drain queued state-change / world-fact entries.
         """
         if not tick_outputs:
             return None
 
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
-        saved_scene_contexts = list(
-            ckpt.session.surfaced_router_scene_contexts
-        )
         saved_state_changes = list(
             ckpt.session.pending_router_state_changes
         )
@@ -695,7 +546,6 @@ class LLMDispatcher:
             )
         except Exception:
             ckpt.session.surfaced_world_facts = saved_surfaced_facts
-            ckpt.session.surfaced_router_scene_contexts = saved_scene_contexts
             ckpt.session.pending_router_state_changes = saved_state_changes
             raise
 
@@ -714,7 +564,6 @@ class LLMDispatcher:
         *,
         ckpt: CheckpointFile,
         character_id: str,
-        scene_id: str,
     ) -> str:
         """Invoke the character agent and return its prose for the router.
 
@@ -737,8 +586,6 @@ class LLMDispatcher:
             the parser logged a "missing trailing parenthetical"
             warning and we have nothing to route). The cascade ends.
         """
-        del scene_id  # Agent pulls scene from the character's own location.
-
         character = next(
             (c for c in ckpt.characters if c.character_id == character_id),
             None,
@@ -863,7 +710,7 @@ class LLMDispatcher:
         user field every time.
 
         `partial_mode` defaults to True iff this character is currently
-        pinned as a Cat II responder in any scene — the narrator renders
+        pinned as a Cat II responder in the current beat — the narrator renders
         a partial view because the beat still has outstanding resolution
         work. `partial_mode_override`, when not None, wins over the slot
         scan (v11-r6a: Cat II-open render path sets this True for the
@@ -890,10 +737,6 @@ class LLMDispatcher:
 def _is_pinned_as_cat_ii_responder(
     ckpt: CheckpointFile, character_id: str,
 ) -> bool:
-    """True iff `character_id` has a slot entry with reason
-    `cat_ii_responder` in ANY scene."""
-    for slot in ckpt.session.active_act_slots.values():
-        entry = slot.get(character_id)
-        if entry is not None and entry.reason == "cat_ii_responder":
-            return True
-    return False
+    """True iff `character_id` is pinned as a Cat II responder this beat."""
+    entry = ckpt.session.active_act_slots.get(character_id)
+    return bool(entry is not None and entry.reason == "cat_ii_responder")

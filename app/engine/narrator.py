@@ -25,57 +25,6 @@ from app.schemas.state import RenderBufferEntry
 logger = logging.getLogger(__name__)
 
 
-def _build_scene_context(
-    checkpoint: CheckpointFile, pov_character_id: str | None = None,
-    resolved_events: (
-        list[tuple[RenderBufferEntry, EventRouterOutput]] | None
-    ) = None,
-) -> str:
-    """Narrator-facing scene block for the POV's post-event location.
-
-    During a beat, narrator rendering happens before the orchestrator
-    applies `roster_moves` to the checkpoint roster. Use buffered events'
-    moves first so scene-transition renders describe where the POV ended
-    up, not where the checkpoint still says they started.
-    """
-    from app.engine.context_builder import resolve_scene_for_character
-    resolved_events = resolved_events or []
-    scene_id = resolve_scene_for_character(checkpoint, pov_character_id)
-
-    scene_graph = dict(checkpoint.world_state.locations.scene_graph)
-    for _entry, ev in resolved_events:
-        for created in ev.scenes_created or []:
-            scene_graph[created.scene_id] = {
-                "name": created.name,
-                "description": created.description,
-                "connected_to": list(created.connected_to),
-            }
-        if pov_character_id:
-            for move in ev.roster_moves or []:
-                if move.character_id == pov_character_id and move.to_scene:
-                    scene_id = move.to_scene
-
-    if not scene_id:
-        return "No scene information available."
-    scene = scene_graph.get(scene_id, {})
-    if not scene:
-        return f"Current location: {scene_id}"
-    name = scene.get("name", scene_id)
-    desc = scene.get("description", "")
-    connected = scene.get("connected_to", [])
-    parts = [f"Location: {name}"]
-    if desc:
-        parts.append(f"Description: {desc}")
-    if connected:
-        connections = []
-        for conn_id in connected:
-            conn_scene = scene_graph.get(conn_id, {})
-            conn_name = conn_scene.get("name", conn_id)
-            connections.append(conn_name)
-        parts.append(f"Connected to: {', '.join(connections)}")
-    return "\n".join(parts)
-
-
 def _resolve_buffered_events(
     ckpt: CheckpointFile,
     buffered_events: list[RenderBufferEntry],
@@ -134,9 +83,7 @@ def _format_canonical_events_block(
         facts = visible_fact_texts(
             ca.observable_facts,
             pov_character_id,
-            include_all_observers=(
-                getattr(entry, "fact_visibility", "all") != "explicit_only"
-            ),
+            include_all_observers=True,
         )
         if pov_character_id and not facts:
             # No fact visible to this POV means the event must not
@@ -179,7 +126,7 @@ async def compose_pov_render(
     `user_input` is the actual player utterance for the beat (for the
     acting POV). For non-acting POVs in a multi-human beat it should be
     the empty string — they didn't speak this turn. The string is shown
-    to the narrator as scene-setting context AND is used verbatim as
+    to the narrator as player-action context AND is used verbatim as
     `transcript_entry.user` in the returned envelope. Pre-r7j this was
     always "" and the prompt asked the LLM to echo it as the transcript
     user field, which produced `"{name} — "` in /history forever.
@@ -212,7 +159,6 @@ async def compose_pov_render(
     from app.engine.context_builder import build_setting_summary
     setting_summary = build_setting_summary(ckpt)
     narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
-    scene_context = _build_scene_context(ckpt, pov_character_id, resolved)
     player_characters_block = build_player_characters_block(ckpt, pov_character_id)
     canonical_event_block = _format_canonical_events_block(
         resolved, pov_character_id,
@@ -227,7 +173,6 @@ async def compose_pov_render(
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
         canonical_event=canonical_event_block,
-        scene_context=scene_context,
         user_input=user_input,
         acting_character_name=acting_name,
         player_characters_block=player_characters_block,

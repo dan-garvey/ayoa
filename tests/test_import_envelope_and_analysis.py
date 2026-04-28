@@ -17,10 +17,8 @@ from app.schemas.import_extraction import (
     CharacterKnowledgeEnvelope,
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
-    LocationsExtraction,
     PrivateStateExtraction,
     PublicSheetExtraction,
-    SceneExtraction,
     SettingExtraction,
     WorldExtraction,
 )
@@ -45,12 +43,6 @@ def _world() -> WorldExtraction:
         narrative_rules="",
         hidden_lore="The Aetheri were deliberately erased.",
         hidden_facts=["Regent knows the truth.", "Nessa is a Keeper operative."],
-        locations=LocationsExtraction(
-            scene_graph=[SceneExtraction(
-                scene_id="hall", name="Hall",
-                description="", connected_to=[],
-            )],
-        ),
     )
 
 
@@ -204,12 +196,6 @@ class TestSerializeForAnalysis:
             narrative_rules="",
             hidden_lore="",
             hidden_facts=[],
-            locations=LocationsExtraction(
-                scene_graph=[SceneExtraction(
-                    scene_id="hall", name="Hall",
-                    description="", connected_to=[],
-                )],
-            ),
         )
         empty_roster = CharacterListExtraction(characters=[])
         empty_envelopes = CharacterKnowledgeListExtraction(envelopes=[])
@@ -234,31 +220,16 @@ class TestCharacterRecordEnvelopeDefault:
 
 class TestLocationSeedPush:
     """v11-r10: every author-seeded NPC with a known starting
-    location gets a `[your own action] <Name> at <Scene Name>.`
+    location gets a `[your own action] <Name> at <location>.`
     push into `pending_observations`. This is the inbox-level
-    counterpart to the importer-side `is_playable=true` path
-    (player characters are skipped because humans don't read
-    pending_observations through an LLM) and matches the shape
-    `_apply_roster_moves` writes when an NPC moves at runtime.
+    counterpart to the importer-side `is_playable=true` path (player
+    characters are skipped because humans don't read pending_observations
+    through an LLM).
 
     Without this seed, an NPC's very first agent dispatch arrives
     with no location signal once the on-stage agent body's
-    historical `## Scene` block is gone (also r10) — the inbox is
+    historical location block is gone — the inbox is
     the only channel left."""
-
-    def _world_with_two_scenes(self) -> WorldExtraction:
-        w = _world()
-        w.locations = LocationsExtraction(scene_graph=[
-            SceneExtraction(
-                scene_id="hall", name="Great Hall",
-                description="", connected_to=[],
-            ),
-            SceneExtraction(
-                scene_id="study", name="Regent's Study",
-                description="", connected_to=[],
-            ),
-        ])
-        return w
 
     def _placed_roster(self) -> CharacterListExtraction:
         return CharacterListExtraction(characters=[
@@ -266,7 +237,7 @@ class TestLocationSeedPush:
                 character_id="regent",
                 name="Emeric Hale",
                 status="active",
-                location="study",
+                location="Regent's Study",
                 is_playable=False,
                 public_sheet=PublicSheetExtraction(
                     role="Regent", appearance="", faction="",
@@ -281,7 +252,7 @@ class TestLocationSeedPush:
                 character_id="lira",
                 name="Lira Fontaine",
                 status="active",
-                location="hall",
+                location="Great Hall",
                 is_playable=False,
                 public_sheet=PublicSheetExtraction(
                     role="Liaison", appearance="", faction="",
@@ -296,33 +267,27 @@ class TestLocationSeedPush:
 
     def test_npc_with_location_gets_seed_push(self):
         ckpt = build_checkpoint(
-            self._world_with_two_scenes(),
+            _world(),
             self._placed_roster(),
             _envelopes(),
             "test_story",
         )
         by_id = {c.character_id: c for c in ckpt.characters}
         regent = by_id["regent"]
-        # Single seed entry, scene name (not id) interpolated, and
-        # the format matches `_apply_roster_moves`'s `[your own
-        # action] <Name> ...` shape so the agent reads them through
-        # the same channel.
+        # Single seed entry with the location label.
         assert regent.pending_observations == [
             "[your own action] Emeric Hale at Regent's Study.",
         ]
 
-    def test_seed_uses_scene_name_not_id(self):
+    def test_seed_uses_location_label_verbatim(self):
         ckpt = build_checkpoint(
-            self._world_with_two_scenes(),
+            _world(),
             self._placed_roster(),
             _envelopes(),
             "test_story",
         )
         by_id = {c.character_id: c for c in ckpt.characters}
         lira = by_id["lira"]
-        # `hall` is the id; `Great Hall` is the name. The push must
-        # carry the name — that's what the agent reads as natural
-        # prose.
         assert lira.pending_observations == [
             "[your own action] Lira Fontaine at Great Hall.",
         ]
@@ -334,7 +299,7 @@ class TestLocationSeedPush:
         roster = self._placed_roster()
         roster.characters[0].is_playable = True  # regent is now player
         ckpt = build_checkpoint(
-            self._world_with_two_scenes(), roster, _envelopes(),
+            _world(), roster, _envelopes(),
             "test_story",
         )
         by_id = {c.character_id: c for c in ckpt.characters}
@@ -353,7 +318,7 @@ class TestLocationSeedPush:
         roster = self._placed_roster()
         roster.characters[0].location = ""  # regent unsited
         ckpt = build_checkpoint(
-            self._world_with_two_scenes(), roster, _envelopes(),
+            _world(), roster, _envelopes(),
             "test_story",
         )
         by_id = {c.character_id: c for c in ckpt.characters}

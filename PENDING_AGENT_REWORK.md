@@ -11,7 +11,7 @@ The 30-turn playtest found two structural problems:
 1. **Background ticks have never fired in v11.** `CharacterAgent.tick()` exists; nothing in `app/` calls it. The "world feels static" symptom traces back to here. If the antagonist can only act when the player is on screen, the player wins by avoiding the antagonist.
 2. **The router is blind to character interior.** It picks responders and decides movement using only `name + role + location`. No goals, no objectives, no recent intent. That's why NPCs don't show up when they should and why the world doesn't react to player actions in narratively-aligned ways.
 
-Investigating these surfaced a third problem: most of `CharacterAgentOutput.private_updates` is dead in v11. The schema requires it, the prompt asks for it, nothing consumes it. `current_objectives`, `directives_sent`, `moved_to`, `scenes_created` — all dead. Only `public_response.{actions, dialogue, expression}` is read downstream, and even that is just woven back into prose by the narrator.
+Investigating these surfaced a third problem: most of `CharacterAgentOutput.private_updates` is dead in v11. The schema requires it, the prompt asks for it, nothing consumes it. `current_objectives`, `directives_sent`, and `moved_to` are all dead. Only `public_response.{actions, dialogue, expression}` is read downstream, and even that is just woven back into prose by the narrator.
 
 ---
 
@@ -28,7 +28,7 @@ class CharacterAgentOutput:
     intent: str        # contents of the trailing parenthetical; engine + router only, never narrator or other agents
 ```
 
-Drop entirely: `PublicResponse`, `PrivateUpdates`, `DirectiveSend`, agent-side `SceneCreation`, `moved_to`, `scenes_created`, `directives_sent`, `current_objectives` as a writeback target.
+Drop entirely: `PublicResponse`, `PrivateUpdates`, `DirectiveSend`, `moved_to`, `directives_sent`, `current_objectives` as a writeback target.
 
 Agent emits prose followed by a single trailing `(...)`. Engine's parser extracts only the LAST trailing parenthetical group; warn (don't fail) if absent. Mid-prose parentheticals as stage directions stay in `public_text`.
 
@@ -67,14 +67,14 @@ What the router DOES get on the turn-1 "## Initial Roster" block:
 - `goals` (long-term, importer-seed, static)
 - `current_objectives` (importer-seed, static — agents do NOT write this)
 
-After turn 1, the router infers interior pressure from public signals only: cascade `intends:` text, prior canonical events, its own past `roster_moves` and `spawn` outputs. There is no "freshest interior" channel from agents to the router. If you find yourself wanting one, surface it in fiction (a courier walks in, a witness sees an action) rather than as a private-data leak.
+After turn 1, the router infers interior pressure from public signals only: cascade `intends:` text, prior canonical events, and its own prior character-lifecycle outputs. There is no "freshest interior" channel from agents to the router. If you find yourself wanting one, surface it in fiction (a courier walks in, a witness sees an action) rather than as a private-data leak.
 
 ### 6. Background ticks go through the SAME router
 
 One router, one `session_conversation`. Tick fires produce a router call with a different user-message framing:
 
-- **On-stage call**: user message frames "actor X attempts Y" → router emits canonical event + observers + picks + roster_moves.
-- **Tick call**: user message frames "these N off-stage characters ticked, here are their intents" → router emits roster_moves + off-screen canonical events. No picks, no observers, no narrator focus.
+- **On-stage call**: user message frames "actor X attempts Y" -> router emits canonical event + observers + picks + character lifecycle changes.
+- **Tick call**: user message frames "these N off-stage characters ticked, here are their intents" -> router emits off-screen canonical events plus any needed lifecycle changes. No narrator focus.
 
 Both share the same `EventRouterOutput` schema; tick calls produce a narrower subset. The system prompt rule for tick mode is a partial that activates when the user message contains the tick framing.
 
@@ -82,7 +82,7 @@ The router's history is unified: it sees its own on-stage decisions AND its own 
 
 ### 7. Trim `character_registry` from per-turn user message
 
-`character_registry` (full roster, ~80 tokens × all NPCs, ~1000 tokens/turn for hollowstone) is the bloat. Router has it from history (turn-1 inject + its own roster_moves over time + spawn outcomes). Drop entirely from the per-turn user message.
+`character_registry` (full roster, ~80 tokens × all NPCs, ~1000 tokens/turn for hollowstone) is the bloat. Router has it from history (turn-1 inject + spawn outcomes). Drop entirely from the per-turn user message.
 
 `world_facts` similarly — replace with `world_facts_delta` (only new facts since last call). Empty most turns.
 
@@ -105,28 +105,16 @@ Trigger model:
 
 ```python
 session.turns_since_last_tick += 1
-
-scene_changed = (
-    session.tick_last_scene_id != ""
-    and current_scene != session.tick_last_scene_id
-)
-
-scene_change_fires = (
-    scene_changed
-    and session.turns_since_last_tick >= session.tick_scene_change_cooldown  # default 5
-    and session.config.settings.ticks_on_scene_change
-)
 stagnation_fires = (
     session.turns_since_last_tick >= session.tick_stagnation_max  # default 15
 )
 
-if scene_change_fires or stagnation_fires:
+if stagnation_fires:
     await _run_ticks(...)
     session.turns_since_last_tick = 0
-session.tick_last_scene_id = current_scene
 ```
 
-Drop `tick_cadence` / `tick_turn_counter`. Add `turns_since_last_tick`, `tick_scene_change_cooldown=5`, `tick_stagnation_max=15`.
+Drop `tick_cadence` / `tick_turn_counter`. Add `turns_since_last_tick` and `tick_stagnation_max=15`.
 
 Eligibility filter (port from pre-v11):
 - `private_state.intentions_enabled` is True
@@ -155,11 +143,9 @@ Mitigations to consider only if observed:
 - Periodic anchoring: every K turns, re-inject a "## Current Roster Snapshot" block.
 - Disable compaction on the router specifically (compaction summarizes old assistant messages where granular state mutations live).
 
-### R2. Whether to drop `characters_present` entirely or enrich it
+### R2. Whether to restore a compact roster reminder
 
-Today it's name + role for current scene only (~150 tokens). Could enrich with goals/objectives/last_intent (~800 tokens, much richer signal for picking) or drop entirely (router scans history for current scene roster).
-
-Defer until playtest shows whether the router's picking quality is bottlenecked by lack of present-scene interior, or whether interior in the initial roster + state-changes blocks is enough.
+Today the router relies on its initial roster and rolling history. If picking quality regresses, consider a compact reminder with goals/objectives, but avoid restoring repeated location or presence dumps.
 
 ### R3. Spawning trivial NPCs
 
@@ -175,7 +161,7 @@ The trim swaps `world_facts` for `world_facts_delta`. If world facts mutate freq
 
 ### R5. Importer alignment with opening_directive
 
-Mira's turn-2 self-move in the playtest was caused by the importer placing her at `archive_main_hall` while the opening_directive said she should be at `bell_of_arrivals`. The router corrected via `roster_moves` on turn 1 (correct behavior), but the symptom looked like a self-move bug. Importer should reconcile starting locations with the opening_directive at import time so turn 1 doesn't need to fix it.
+Mira's turn-2 self-move in the playtest was caused by the importer placing her at `archive_main_hall` while the opening_directive said she should be at `bell_of_arrivals`. Importer should reconcile starting locations with the opening_directive at import time so turn 1 doesn't need to repair it in prose.
 
 ---
 
@@ -188,7 +174,7 @@ Commit ordering matters because some commits rely on others.
 - Add `_extract_parenthetical(text) -> (public_text, intent)` helper with last-trailing-paren extraction + warning on missing
 - `CharacterAgent.respond` and `.tick` emit prose with trailing parenthetical; parser splits
 - `agent_v9.txt` and `agent_tick_v2.txt` rewritten short (target ~8 rules instead of current ~22)
-- Drop `PublicResponse`, `PrivateUpdates`, `DirectiveSend`, agent-side `SceneCreation` from `app/schemas/agents.py`
+- Drop `PublicResponse`, `PrivateUpdates`, and `DirectiveSend` from `app/schemas/agents.py`
 - Delete `_serialize_agent_intention` in `turn_loop_dispatcher.py`; dispatcher uses `output.public_text` directly
 - Update `narrator.py:88-105` (phase-1 assembly) to consume `public_text` only as a single labeled paragraph per character (not bullet-broken)
 - Update `context_builder.py:format_prior_responses` to use `public_text` only
@@ -229,17 +215,17 @@ The remaining Commit-3 work is what's actually shipped:
 - Surface per-tick `LLMResponse.usage` in the log line
 
 ### Commit 6 — Tick router fan-in (unified router, tick mode)
-- Add tick-mode framing to the user message: "## Off-Stage Tick — N characters ticked\n{per-character public_text + intent + location}\n{compact scene graph delta}"
-- Add `router_tick_mode_block.txt` partial in `app/prompts/_partials/` for the system-prompt-side guidance ("on tick calls, emit only roster_moves / scenes_created / dormant / cull / canonical_event_text")
+- Add tick-mode framing to the user message: "## Off-Stage Tick — N characters ticked\n{per-character public_text + intent + location}"
+- Add `router_tick_mode_block.txt` partial in `app/prompts/_partials/` for the system-prompt-side guidance ("on tick calls, emit only off-screen canonical events plus needed lifecycle changes")
 - Add `Orchestrator._route_tick_intentions(ckpt, tick_outputs) -> EventRouterOutput | None`
-- Apply path: `_apply_scene_creations`, `apply_roster_updates`, `_apply_roster_moves(actor_id=None)`, append off-screen `canonical_event_text` to `ckpt.canonical_events`
+- Apply path: `apply_roster_updates`, append off-screen `canonical_event_text` to `ckpt.canonical_events`
 - Tick-emitted canonical events tagged off-screen so on-stage routing can identify them as recent activity (the actor's `since_last_turn_block` may surface them as observed facts when the player walks into the affected scene)
 
 ### Commit 7 — Test hardening
 - Test: agent output with parenthetical → narrator's input never contains it
 - Test: agent A's prior_responses for agent B contains A's `public_text` only
 - Test: `_extract_parenthetical` handles edge cases (no trailing paren, multiple parens mid-prose, nested parens, multiline trailing paren)
-- Test: tick fan-in correctly bundles N agents and the router emits expected `roster_moves` + `canonical_event_text`
+- Test: tick fan-in correctly bundles N agents and the router emits expected off-screen `canonical_event_text`
 - Test: two off-stage characters with intents toward each other produce a single conversational canonical event in one tick fire
 - Test: spawn_characters writes router_summary; next router call's state_changes_block surfaces it; subsequent calls don't
 - Un-skip `tests/test_ticks_and_directives.py` scheduler tests; rewrite for the new trigger model
@@ -273,10 +259,10 @@ The remaining Commit-3 work is what's actually shipped:
 
 ## Background context (don't relitigate)
 
-- Pre-v11 ticks fired at end of `process_turn` after narrator render, before save. `_run_ticks` did cadence-OR-scene-change with reset-on-fire. `_apply_agent_private_updates` handled directive routing + objectives writeback + self-`moved_to`. All deleted in the v11 rewrite, never re-ported. `tests/test_ticks_and_directives.py:14-19` flags this.
+- Pre-v11 ticks fired at end of `process_turn` after narrator render, before save. `_run_ticks` used a cadence-driven reset model. `_apply_agent_private_updates` handled directive routing + objectives writeback + self-`moved_to`. All deleted in the v11 rewrite, never re-ported. `tests/test_ticks_and_directives.py:14-19` flags this.
 - The 30-turn playtest (`playtest_v7i_logs.txt` / `playtest_v7i_console.txt`) had ZERO tick fires across all 30 turns. Proximate cause of "the world feels static."
 - The on-stage router today picks responders blindly — registry is identity-only. Root cause of "the antagonist never shows up when he should."
 - `private_updates` on `CharacterAgentOutput` is half-real: schema-required, prompt-emitted, never consumed. All four fields dead in v11.
-- Router system prompt currently contains: `setting_summary`, `player_characters_block`, `world_lore`, `world_rules`, `scene_graph`, `hidden_lore`, `hidden_facts`. These are static or session-static, cached as system-prompt prefix. Don't move them.
-- Router per-turn user message currently contains: `current_scene`, `characters_present`, `world_facts`, `character_registry`, opening/recap/since-last-turn blocks, intention block. The bloat is `character_registry` (~1000 tokens/turn for hollowstone). Other items are small and most are dynamic.
+- Router system prompt currently contains: `setting_summary`, `player_characters_block`, `world_lore`, `world_rules`, `hidden_lore`, `hidden_facts`. These are static or session-static, cached as system-prompt prefix. Don't move them.
+- Router per-turn user message currently contains `world_facts`, opening/recap/since-last-turn blocks, and the intention block. Avoid restoring repeated roster/location dumps.
 - LLM client caches the system prompt prefix and (when `len(messages) > 1`) the last user message. `cache=True` is the v11 default for both router and agent calls.

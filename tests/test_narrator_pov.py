@@ -22,11 +22,10 @@ from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry, RosterMove
+from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
-    SceneDelta,
     WorldAdjudication,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -44,7 +43,7 @@ from app.schemas.state import (
 
 
 def _ckpt() -> CheckpointFile:
-    """Minimal checkpoint with one scene, two canonical events, and a
+    """Minimal checkpoint with two canonical events and a
     single human-bound character."""
     ckpt = CheckpointFile(
         session=SessionState(
@@ -53,15 +52,7 @@ def _ckpt() -> CheckpointFile:
             player_character_id="alice",
         ),
         world_state=WorldState(
-            locations=LocationState(
-                scene_graph={
-                    "gatehouse": {
-                        "name": "Gatehouse",
-                        "description": "Weathered stone arch.",
-                        "connected_to": [],
-                    },
-                },
-            ),
+            locations=LocationState(),
             setting=StorySetting(genre="fantasy", tone="quiet"),
         ),
         characters=[
@@ -89,7 +80,6 @@ def _ckpt() -> CheckpointFile:
                 feasible=True,
                 resolved_outcome="Alice sees the arch.",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=["The arch is weathered."],
         ),
         observers=[
@@ -103,8 +93,6 @@ def _ckpt() -> CheckpointFile:
         spawn=[],
         dormant=[],
         cull=[],
-        roster_moves=[],
-        scenes_created=[],
     )
     ev2 = EventRouterOutput(
         event_id="evt_beta",
@@ -114,7 +102,6 @@ def _ckpt() -> CheckpointFile:
                 feasible=True,
                 resolved_outcome="Pip dips his chin.",
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=["Pip nods."],
         ),
         observers=[
@@ -128,8 +115,6 @@ def _ckpt() -> CheckpointFile:
         spawn=[],
         dormant=[],
         cull=[],
-        roster_moves=[],
-        scenes_created=[],
     )
     ckpt.canonical_events.extend([ev1, ev2])
     return ckpt
@@ -228,71 +213,6 @@ class TestComposePovRender:
         assert not user_msg["content"].startswith(PARTIAL_MODE_MARKER)
 
     @pytest.mark.asyncio
-    async def test_scene_context_uses_buffered_roster_move(
-        self, mock_client, prompt_manager,
-    ):
-        ckpt = _ckpt()
-        ckpt.world_state.locations.scene_graph["threshold"] = {
-            "name": "Threshold",
-            "description": "A second room past the arch.",
-            "connected_to": ["gatehouse"],
-        }
-        move_event = EventRouterOutput(
-            event_id="evt_move",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                scene_delta=SceneDelta(time_advanced_seconds=5),
-                observable_facts=[
-                    ObservableFact.all("Alice crosses into the threshold."),
-                ],
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id="alice",
-                    observation_level="d",
-                    response_priority=3,
-                ),
-            ],
-            requires_responders=False,
-            required_responders=[],
-            agent_responder_picks=[],
-            ends_beat=True,
-            ends_beat_reason="scene_transition",
-            spawn=[],
-            dormant=[],
-            cull=[],
-            roster_moves=[
-                RosterMove(
-                    character_id="alice",
-                    to_scene="threshold",
-                    reason="crosses the arch",
-                ),
-            ],
-            scenes_created=[],
-        )
-        ckpt.canonical_events.append(move_event)
-        buffered = [
-            RenderBufferEntry(event_id="evt_move", observation_level="direct"),
-        ]
-
-        await compose_pov_render(
-            client=mock_client,
-            prompt_mgr=prompt_manager,
-            ckpt=ckpt,
-            pov_character_id="alice",
-            buffered_events=buffered,
-            partial_mode=False,
-        )
-
-        assert ckpt.characters[0].location == "gatehouse"
-        user_msg = mock_client.complete.call_args.kwargs["messages"][-1]
-        scene_block = user_msg["content"].split("## Current Scene\n", 1)[1]
-        scene_block = scene_block.split("\n\n## Acting Player", 1)[0]
-        assert "Location: Threshold" in scene_block
-        assert "A second room past the arch." in scene_block
-        assert "Location: Gatehouse" not in scene_block
-
     @pytest.mark.asyncio
     async def test_partial_mode_prepends_marker(
         self, mock_client, prompt_manager,
@@ -401,7 +321,6 @@ class TestFormatCanonicalEventsBlock:
     def _resolved(
         self, *, event_id: str, outcome: str, facts: list[object],
         level: str = "direct", observers: list[str] | None = None,
-        fact_visibility: str = "all",
     ):
         ev = EventRouterOutput(
             event_id=event_id,
@@ -410,7 +329,6 @@ class TestFormatCanonicalEventsBlock:
                 world_adjudication=WorldAdjudication(feasible=True,
                     resolved_outcome=outcome,
                 ),
-                scene_delta=SceneDelta(time_advanced_seconds=0),
                 observable_facts=list(facts),
             ),
             observers=[
@@ -426,12 +344,11 @@ class TestFormatCanonicalEventsBlock:
             agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="",
-            spawn=[], dormant=[], cull=[], roster_moves=[], scenes_created=[],
+            spawn=[], dormant=[], cull=[],
         )
         entry = RenderBufferEntry(
             event_id=event_id,
             observation_level=level,
-            fact_visibility=fact_visibility,
         )
         return [(entry, ev)]
 
@@ -495,29 +412,6 @@ class TestFormatCanonicalEventsBlock:
         assert "knows curses" in as_ashara
         assert "foot touches Ashara's boot" not in as_aldric
         assert "knows curses" in as_aldric
-
-    def test_remote_explicit_only_buffer_drops_public_room_facts(self):
-        from app.engine.narrator import _format_canonical_events_block
-
-        resolved = self._resolved(
-            event_id="evt_monitor",
-            outcome="A monitored room event.",
-            facts=[
-                ObservableFact.all("The room lights flicker."),
-                ObservableFact.only(
-                    "A live monitor carries Alice's voice into the booth.",
-                    ["remote_watcher"],
-                ),
-            ],
-            observers=["alice", "remote_watcher"],
-            fact_visibility="explicit_only",
-        )
-
-        out = _format_canonical_events_block(resolved, "remote_watcher")
-
-        assert "live monitor carries Alice's voice" in out
-        assert "room lights flicker" not in out
-
 
 # NOTE: The `TestOpeningVerbatimRender` class lived here in v8 and earlier.
 # It exercised a now-removed verbatim shortcut that rendered the importer's

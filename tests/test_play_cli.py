@@ -8,6 +8,7 @@ regular test suite."""
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -148,6 +149,28 @@ class TestAs:
         assert state.current_actor == "aldric"  # unchanged
 
 
+class TestDeferCommand:
+    def test_defer_submits_null_turn_for_current_actor(self, run):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=SimpleNamespace(
+            beat_ended_reason="state_change",
+            turn_index=3,
+            output_text="",
+            pre_turn_resolutions=[],
+            per_player_renders={},
+        ))
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/defer"))
+
+        engine.run_turn.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            user_input="(defer)",
+            acting_character_id="aldric",
+        )
+
+
 @pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
 class TestActingDescribe:
     def test_plain_text_acts_as_current(self, run):
@@ -255,7 +278,7 @@ class TestRewindCommand:
                 previous_latest=turns[-1],
                 new_latest=target,
                 deleted_turns=[t for t in turns if t > target],
-                scene_id="hall",
+                location="hall",
                 actor_character_id="aldric",
             )
 

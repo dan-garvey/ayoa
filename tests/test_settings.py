@@ -1,11 +1,4 @@
-"""Tests for user-tunable settings exposed via /set on EngineBridge.
-
-The legacy v8 tick-path scene creation suite (gated by the
-agents_can_create_scenes flag) used to live here as a skip-marked
-class. Commit 2 deleted it along with the dead `private_updates`
-schema it relied on. Commit 5 wired the v11 tick scheduler — its
-trigger-and-eligibility coverage lives in `tests/test_tick_scheduler.py`.
-"""
+"""Tests for user-tunable settings exposed via /set on EngineBridge."""
 
 from __future__ import annotations
 
@@ -47,18 +40,7 @@ def _ckpt() -> CheckpointFile:
             session_id=SESSION_ID,
             player_character_id="aldric",
         ),
-        world_state=WorldState(
-            locations=LocationState(
-                scene_graph={
-                    "hall": {
-                        "name": "Great Hall",
-                        "description": "",
-                        "connected_to": [],
-                        "properties": {},
-                    },
-                },
-            ),
-        ),
+        world_state=WorldState(locations=LocationState()),
         characters=[
             CharacterRecord(
                 character_id="aldric",
@@ -107,7 +89,7 @@ class TestSettingsRegistry:
         # removed the only setting without replacing it. Add one or remove
         # the UI.
         assert SETTINGS, "no settings registered"
-        assert "agents_can_create_scenes" in SETTINGS_BY_KEY
+        assert "ticks_enabled" in SETTINGS_BY_KEY
 
     def test_every_spec_round_trips_its_default(self):
         """Every setting's default value should render cleanly back through
@@ -124,7 +106,7 @@ class TestSettingsRegistry:
 class TestSettingsHelpers:
     def test_get_setting_returns_default_on_fresh_ckpt(self):
         ckpt = _ckpt()
-        assert get_setting(ckpt, "agents_can_create_scenes") is False
+        assert get_setting(ckpt, "ticks_enabled") is True
 
     def test_get_unknown_raises(self):
         ckpt = _ckpt()
@@ -133,9 +115,9 @@ class TestSettingsHelpers:
 
     def test_set_setting_applies_parsed_value(self):
         ckpt = _ckpt()
-        new = set_setting(ckpt, "agents_can_create_scenes", "on")
-        assert new is True
-        assert ckpt.session.config.settings.agents_can_create_scenes is True
+        new = set_setting(ckpt, "ticks_enabled", "off")
+        assert new is False
+        assert ckpt.session.config.settings.ticks_enabled is False
 
     def test_set_setting_unknown_raises(self):
         ckpt = _ckpt()
@@ -145,15 +127,15 @@ class TestSettingsHelpers:
     def test_set_setting_bad_value_raises(self):
         ckpt = _ckpt()
         with pytest.raises(ValueError):
-            set_setting(ckpt, "agents_can_create_scenes", "kinda")
+            set_setting(ckpt, "ticks_enabled", "kinda")
 
     def test_list_view_shape(self):
         ckpt = _ckpt()
         view = list_settings_view(ckpt)
         assert len(view) == len(SETTINGS)
         keys = {row["key"] for row in view}
-        assert "agents_can_create_scenes" in keys
-        row = next(r for r in view if r["key"] == "agents_can_create_scenes")
+        assert "ticks_enabled" in keys
+        row = next(r for r in view if r["key"] == "ticks_enabled")
         for field in (
             "key", "value", "rendered_value",
             "default", "rendered_default", "description",
@@ -166,12 +148,12 @@ class TestSettingsHelpers:
 
 class TestEngineBridgeSettings:
     def test_get_returns_default(self, bridge: EngineBridge):
-        assert bridge.get_setting(SESSION_ID, "agents_can_create_scenes") is False
+        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is True
 
     def test_set_persists_across_reloads(self, bridge: EngineBridge):
-        bridge.set_setting(SESSION_ID, "agents_can_create_scenes", "true")
+        bridge.set_setting(SESSION_ID, "ticks_enabled", "false")
         # New handle, fresh disk read.
-        assert bridge.get_setting(SESSION_ID, "agents_can_create_scenes") is True
+        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is False
 
     def test_list_has_rows(self, bridge: EngineBridge):
         rows = bridge.list_settings(SESSION_ID)
@@ -180,4 +162,4 @@ class TestEngineBridgeSettings:
 
     def test_known_setting_keys(self, bridge: EngineBridge):
         keys = bridge.known_setting_keys()
-        assert "agents_can_create_scenes" in keys
+        assert "ticks_enabled" in keys

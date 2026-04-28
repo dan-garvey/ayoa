@@ -14,7 +14,6 @@ from app.schemas.events import CanonicalEvent
 EndsBeatReason = Literal[
     "",  # free-form / not yet set
     "directed_at_player",
-    "scene_transition",
     "state_change",
     "cascade_exhausted",
     "cat_ii_resolution",
@@ -24,7 +23,7 @@ EndsBeatReason = Literal[
     "cat_ii_pending",
     "cat_ii_stale",
     # observation_harvest: the actor's intention is pure targeted
-    # observation of present characters (looking, studying, sizing
+    # observation of perceptually available characters (looking, studying, sizing
     # up, scanning) with no dialogue and no physical interaction.
     # The router puts the observation TARGETS (NPCs the actor is
     # looking at) in `agent_responder_picks`; the engine takes a
@@ -134,51 +133,6 @@ class SpawnRequest(BaseModel):
         return data
 
 
-class RosterMove(BaseModel):
-    """Router-directed movement of an existing character between scenes.
-    Applied by the orchestrator — updates the target character's
-    `location` field. Empty list on turns where nobody's moving.
-
-    All fields REQUIRED. The LLM emits `reason=""` for moves with no
-    explanation."""
-    model_config = ConfigDict(extra="forbid")
-
-    character_id: str
-    to_scene: str  # scene_id (must exist in scene_graph)
-    reason: str
-
-
-class SceneCreation(BaseModel):
-    """Router-directed creation of a new scene.
-
-    The scene graph is seeded at import time from the master prompt, but
-    stories naturally imply spaces the author didn't explicitly enumerate
-    — a side room, a vista a balcony overlooks, a shop the player glances
-    into. When a player action requires a scene that doesn't exist yet,
-    the router creates it here rather than silently dropping the move.
-
-    Applied by the orchestrator BEFORE any movement logic on the same
-    turn, so `roster_moves.to_scene` and spawn seed locations may
-    reference a scene this list introduces.
-
-    Reverse edges are added automatically — if this scene connects to
-    `hallway`, the orchestrator also adds this scene's id to
-    `hallway.connected_to`. The graph stays traversable in both
-    directions without the router having to spell that out.
-
-    All fields REQUIRED. The LLM emits `description=""` and
-    `connected_to=[]` when those are absent."""
-    model_config = ConfigDict(extra="forbid")
-
-    scene_id: str  # snake_case, unique across the graph
-    name: str
-    description: str
-    # Scene_ids this new scene is directly reachable from. Entries may
-    # reference existing scenes OR other scenes in the same
-    # scenes_created batch (for newly-paired adjacent spaces).
-    connected_to: list[str]
-
-
 class EventRouterOutput(BaseModel):
     """Merged adjudication + perception output — AND in v11, the router's
     beat-pacing decision.
@@ -192,7 +146,7 @@ class EventRouterOutput(BaseModel):
         answered) are mandatory until each has had a turn this beat.
       - `ends_beat` + `ends_beat_reason`: the router's DM-pacing signal —
         when true, the beat composes its buffered events into a render
-        and the scene's active_act_slot is released. Cat II adjudication
+        and the active beat slot is released. Cat II adjudication
         always ends the beat (implicit, regardless of this field). For
         Cat I events the router decides explicitly.
 
@@ -210,9 +164,7 @@ class EventRouterOutput(BaseModel):
     All-required collapses the grammar to a single fixed shape. The
     LLM emits explicit `""` / `[]` / `false` for empty content; an
     `event_id` of `""` triggers the `_assign_event_id` validator which
-    mints a fresh one. Downstream code is unchanged — the merged
-    object always has the legacy shape regardless of what the LLM
-    chose to emit per field.
+    mints a fresh one.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -275,8 +227,8 @@ class EventRouterOutput(BaseModel):
     # rejects typos and future branching is safe.
     ends_beat_reason: EndsBeatReason
 
-    # ---- Legacy observation / roster plumbing (unchanged) ---------------
-    # `observers` is retained for the render-buffer determination: every
+    # ---- Observation and character lifecycle outputs --------------------
+    # `observers` drives render-buffer determination: every
     # character in the observer list gets this event into their render
     # buffer if they're human. Agents get it as observation context for
     # future intend() calls. The router_responder_picks above is a
@@ -286,15 +238,13 @@ class EventRouterOutput(BaseModel):
     spawn: list[SpawnRequest]
     dormant: list[str]
     cull: list[str]
-    roster_moves: list[RosterMove]
-    scenes_created: list[SceneCreation]
 
     @model_validator(mode="before")
     @classmethod
     def _clamp_unknown_reason(cls, data: Any) -> Any:
         """Pydantic's Literal[] validation rejects unknown values with a
         ValidationError. For a field whose purpose is telemetry, that's
-        too harsh — a model typo ("scene-transition" vs "scene_transition")
+        too harsh — a model typo in `ends_beat_reason`
         should be a warn-log, not a crash. Coerce any unknown string to
         "" and log; the caller will see the beat close correctly.
         """

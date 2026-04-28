@@ -9,7 +9,7 @@ from app.engine.context_builder import (
     build_character_state,
     build_world_context,
     format_pending_observations_block,
-    resolve_scene_for_character,
+    resolve_location_for_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
@@ -88,14 +88,7 @@ def sample_checkpoint():
     return CheckpointFile(
         session=SessionState(session_id="test"),
         world_state=WorldState(
-            locations=LocationState(
-                scene_graph={
-                    "courtyard": {
-                        "name": "Estate Courtyard",
-                        "description": "A wide stone courtyard with a dry fountain.",
-                    },
-                },
-            ),
+            locations=LocationState(),
             setting=StorySetting(
                 genre="fantasy",
                 tone="dark intrigue",
@@ -176,24 +169,19 @@ class TestContextBuilder:
         assert "Footsteps receding" in block
 
 
-class TestSceneResolution:
-    """v11: actor-keyed scene context. Every router / narrator / agent
-    context block reads `character.location` for the acting character
-    — the pre-v11 global `world_state.locations.current_scene_id` is
-    gone. These tests pin the helper + the two builder functions that
-    consume it. The dispatcher / narrator wrappers (which delegate
-    here) are exercised via the integration paths in
-    test_orchestrator_v11.py."""
+class TestLocationResolution:
+    """Actor-keyed location context.
 
-    def _ckpt(self, *, graph=None):
-        graph = graph or {
-            "courtyard": {"name": "Estate Courtyard", "description": "Wide stones."},
-            "archive": {"name": "Sealed Archive", "description": "Iron-banded shelves."},
-        }
+    Runtime no longer keeps a scene graph or global current scene. The
+    helper returns the character's own location label and otherwise stays
+    silent.
+    """
+
+    def _ckpt(self):
         return CheckpointFile(
             session=SessionState(session_id="t"),
             world_state=WorldState(
-                locations=LocationState(scene_graph=graph),
+                locations=LocationState(),
                 setting=StorySetting(),
             ),
         )
@@ -209,49 +197,30 @@ class TestSceneResolution:
     def test_resolve_uses_character_location(self):
         ckpt = self._ckpt()
         ckpt.characters = [self._char("guard", location="archive")]
-        assert resolve_scene_for_character(ckpt, "guard") == "archive"
+        assert resolve_location_for_character(ckpt, "guard") == "archive"
 
     def test_resolve_returns_empty_when_character_unset(self):
-        """Character has `location=""` (schema default — legacy import
-        path or pre-spawn race). v11: there's no global fallback;
-        callers must handle the empty-string case."""
+        """Character has `location=""`; callers must handle the empty case."""
         ckpt = self._ckpt()
         ckpt.characters = [self._char("guard", location="")]
-        assert resolve_scene_for_character(ckpt, "guard") == ""
+        assert resolve_location_for_character(ckpt, "guard") == ""
 
     def test_resolve_returns_empty_when_character_missing(self):
         """Unknown character_id (typo, race) — return "", don't raise."""
         ckpt = self._ckpt()
         ckpt.characters = []
-        assert resolve_scene_for_character(ckpt, "ghost") == ""
+        assert resolve_location_for_character(ckpt, "ghost") == ""
 
     def test_resolve_none_character_id_returns_empty(self):
-        """v11: callers that don't pass a character_id get "". The
-        pre-v11 importer-pivot fallback is gone."""
+        """Callers that don't pass a character_id get ""."""
         ckpt = self._ckpt()
-        assert resolve_scene_for_character(ckpt, None) == ""
-
-    # v11-r9b: `test_characters_present_keyed_to_actor_location` was
-    # deleted along with `build_characters_present`. The on-stage agent
-    # body no longer renders a "Characters Present" block (it was a
-    # ~500-token-per-turn duplicate of the cached "## Player Characters"
-    # block + each NPC's world_context entry). Scene composition
-    # changes now flow through `_apply_roster_moves` arrival/exit
-    # perception pushes; see `TestArrivalExitPerception` in
-    # `test_orchestrator_v11.py`.
-    #
-    # v11-r10 (2026-04): "## Player Characters" itself was also
-    # dropped from the agent prompt — it was an explicit sycophancy
-    # primer ("treat each as a real human at the keyboard") that
-    # fought the entire reason we run agent NPCs. The reasoning lived
-    # in `agent.txt`'s system block; see `test_prompt_manager.py
-    # ::test_agent_renders` for the negative-assertion guard.
+        assert resolve_location_for_character(ckpt, None) == ""
 
 
-class TestPovSceneForUser:
-    """v11 player-facing scene resolution. The CLI status line, Discord
-    embeds, and the takeover prompt's `current_scene` block all read
-    `pov_scene_for_user`. The function must (a) prefer the asking
+class TestPovLocationForUser:
+    """Player-facing location resolution. The CLI status line, Discord
+    embeds, and the takeover prompt all read `pov_location_for_user`.
+    The function must (a) prefer the asking
     user's bound character, (b) fall through cleanly to the creator
     binding and then "first is_playable," and (c) NEVER hand back a
     culled character's last-known location — that's a stale ghost
@@ -261,10 +230,7 @@ class TestPovSceneForUser:
         return CheckpointFile(
             session=SessionState(session_id="t"),
             world_state=WorldState(
-                locations=LocationState(scene_graph={
-                    "courtyard": {"name": "Courtyard", "description": "."},
-                    "archive": {"name": "Archive", "description": "."},
-                }),
+                locations=LocationState(),
                 setting=StorySetting(),
             ),
         )
@@ -281,7 +247,7 @@ class TestPovSceneForUser:
         return c
 
     def test_user_id_binding_wins(self):
-        from app.engine.context_builder import pov_scene_for_user
+        from app.engine.context_builder import pov_location_for_user
 
         ckpt = self._ckpt()
         ckpt.characters = [
@@ -291,24 +257,24 @@ class TestPovSceneForUser:
         ckpt.session.character_bindings = {"p1": "11", "p2": "22"}
         ckpt.session.player_character_id = "p1"
 
-        assert pov_scene_for_user(ckpt, user_id="22") == "archive"
-        assert pov_scene_for_user(ckpt, user_id="11") == "courtyard"
+        assert pov_location_for_user(ckpt, user_id="22") == "archive"
+        assert pov_location_for_user(ckpt, user_id="11") == "courtyard"
 
     def test_falls_back_to_creator_binding(self):
-        from app.engine.context_builder import pov_scene_for_user
+        from app.engine.context_builder import pov_location_for_user
 
         ckpt = self._ckpt()
         ckpt.characters = [self._player("p1", location="archive")]
         ckpt.session.player_character_id = "p1"
-        assert pov_scene_for_user(ckpt) == "archive"
+        assert pov_location_for_user(ckpt) == "archive"
 
     def test_skips_culled_player(self):
         """A culled player's last-known location must not surface as
         "where the action is." Bug-3: takeover prompts and CLI status
-        lines were rendering a dead player's scene as the active one
-        because pov_scene_for_user only checked is_playable + location,
+        lines were rendering a dead player's location as the active one
+        because pov_location_for_user only checked is_playable + location,
         never status."""
-        from app.engine.context_builder import pov_scene_for_user
+        from app.engine.context_builder import pov_location_for_user
 
         ckpt = self._ckpt()
         dead = self._player("ghost", location="archive", status="culled")
@@ -318,10 +284,10 @@ class TestPovSceneForUser:
 
         # Creator binding points at the dead one — must skip and find
         # the live `is_playable`.
-        assert pov_scene_for_user(ckpt) == "courtyard"
+        assert pov_location_for_user(ckpt) == "courtyard"
 
     def test_skips_culled_via_user_id_lookup(self):
-        from app.engine.context_builder import pov_scene_for_user
+        from app.engine.context_builder import pov_location_for_user
 
         ckpt = self._ckpt()
         dead = self._player("dead_pc", location="archive", status="culled")
@@ -329,11 +295,11 @@ class TestPovSceneForUser:
         ckpt.session.character_bindings = {"dead_pc": "99"}
 
         # User's bound character was culled; nothing else to fall
-        # back to → "" (UI renders "(no active scene)").
-        assert pov_scene_for_user(ckpt, user_id="99") == ""
+        # back to -> "" (UI renders "(no active location)").
+        assert pov_location_for_user(ckpt, user_id="99") == ""
 
     def test_returns_empty_when_no_player(self):
-        from app.engine.context_builder import pov_scene_for_user
+        from app.engine.context_builder import pov_location_for_user
 
         ckpt = self._ckpt()
         npc = CharacterRecord(
@@ -344,7 +310,7 @@ class TestPovSceneForUser:
         )
         npc.is_playable = False
         ckpt.characters = [npc]
-        assert pov_scene_for_user(ckpt) == ""
+        assert pov_location_for_user(ckpt) == ""
 
 
 class TestCharacterAgent:

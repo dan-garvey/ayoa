@@ -6,7 +6,7 @@ bindings, per-session locks, rolling conversations, and multi-player POV all
 behave identically. The CLI simulates multiple Discord users from one
 terminal by minting synthetic integer user_ids (1, 2, 3, ...) per /join,
 which exercises the full binding code path and lets you playtest multi-
-character scenes without needing two Discord accounts.
+character POVs without needing two Discord accounts.
 
 Usage:
     .venv/bin/python scripts/play.py --session <name>
@@ -30,6 +30,7 @@ Commands inside the REPL:
     /leave [character_id]       Release a claim (default: current actor)
     /as <character_id>          Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
+    /defer                      Submit no action and let the scene continue
     /query <question>           Ask an out-of-character question (POV-bounded)
     /rewind [<N>]               List or rewind to a turn checkpoint
     /settings                   Show / update experimental settings
@@ -38,7 +39,7 @@ Commands inside the REPL:
     /quit                       Exit (Ctrl-D also works)
 
 Anything not starting with '/' is an in-character action for the current
-actor. Use "(begin)" to open the scene — the router composes the opening
+actor. Use "(begin)" to open the story — the router composes the opening
 from world_state + the initial roster on the fly.
 """
 
@@ -77,6 +78,7 @@ Commands:
   /leave [character_id]             Release a claim (default: current actor)
   /as <character_id>                Switch which claimed character acts next
   /describe                         Set name + appearance of the current actor
+  /defer                            Submit no action and let the scene continue
   /query <question>                 Ask an out-of-character question (POV-bounded)
   /rewind                           List available turn checkpoints
   /rewind <N>                       Rewind to ckpt_N (deletes ckpt_>N — no undo)
@@ -88,7 +90,7 @@ Commands:
   /quit                             Exit (Ctrl-D also works)
 
 Plain text is an in-character action for the current actor. Use "(begin)"
-to open the scene — the router composes the opening from world_state +
+to open the story — the router composes the opening from world_state +
 the initial roster on the fly."""
 
 
@@ -212,7 +214,7 @@ class CLIState:
         print(f"Tone: {setting.tone}")
         print(f"Premise: {setting.premise}")
         print(f"Characters: {len(ckpt.characters)}")
-        print(f"Scenes: {len(ckpt.world_state.locations.scene_graph)}")
+        print("Scenes: (router-managed perception)")
         print()
 
     def cmd_story_start(self, arg: str) -> None:
@@ -293,12 +295,8 @@ class CLIState:
         if not self._require_story():
             return
         ckpt = self.engine.load_latest(self.session_id)
-        # v11: scene = the acting character's location (or the first
-        # claimed character if no current_actor). The pre-v11 global
-        # current_scene_id is gone; this CLI surface is single-user
-        # so we don't need pov_scene_for_user's binding logic.
-        from app.engine.context_builder import resolve_scene_for_character
-        scene_id = resolve_scene_for_character(
+        from app.engine.context_builder import resolve_location_for_character
+        location = resolve_location_for_character(
             ckpt,
             self.current_actor or next(iter(self.claims), None),
         )
@@ -319,7 +317,7 @@ class CLIState:
             elif status == "culled":
                 culled.append(c.character_id)
             else:
-                if c.location == scene_id:
+                if c.location == location:
                     here.append(c.character_id)
                 else:
                     elsewhere.append(c.character_id)
@@ -327,7 +325,7 @@ class CLIState:
         def _suffix(cid: str) -> str:
             return ""
 
-        print(f"## Here ({scene_id})")
+        print(f"## Here ({location or 'no active location'})")
         for cid in here:
             print(f"  {cid}{_suffix(cid)}")
         if not here:
@@ -393,19 +391,15 @@ class CLIState:
             print("story: (none loaded) — /story list then /story start <id>")
             return
         ckpt = self.engine.load_latest(self.session_id)
-        from app.engine.context_builder import resolve_scene_for_character
-        scene_id = resolve_scene_for_character(
+        from app.engine.context_builder import resolve_location_for_character
+        location = resolve_location_for_character(
             ckpt,
             self.current_actor or next(iter(self.claims), None),
         )
-        if scene_id:
-            scene = ckpt.world_state.locations.scene_graph.get(scene_id, {})
-            scene_name = scene.get("name", scene_id) if isinstance(scene, dict) else scene_id
-        else:
-            scene_name = "(no active scene — /act to begin)"
+        location_name = location or "(no active location — /act to begin)"
         print(f"story: {self.story_id}")
         print(f"turn: {ckpt.session.turn_index}")
-        print(f"scene: {scene_name}{' (' + scene_id + ')' if scene_id else ''}")
+        print(f"location: {location_name}")
         if not self.claims:
             print("claims: (none)")
             return
@@ -677,7 +671,7 @@ class CLIState:
         print(f"updated {self.current_actor}")
 
         # Mirror the Discord bot: if no narrator turns yet, fire (begin) so
-        # the scene opens with the description in hand.
+        # the opening lands with the description in hand.
         #
         # v11-r6c note: `(begin)` rides through the normal /act path and
         # gets wrapped as "{name} attempts: (begin)" by the dispatcher.
@@ -687,7 +681,7 @@ class CLIState:
         # dedicated CLI code path. Same reasoning as /describe in the
         # Discord frontend.
         if not any(ckpt.narrator_conversations.values()):
-            print("opening scene…")
+            print("opening story…")
             await self._act("(begin)")
 
     async def cmd_query(self, arg: str) -> None:
@@ -791,14 +785,14 @@ class CLIState:
         except (ValueError, FileNotFoundError) as e:
             print(f"error: {e}")
             return
-        scene_note = (
-            f" — actor {result.actor_character_id} at scene {result.scene_id}"
-            if result.actor_character_id and result.scene_id
+        location_note = (
+            f" — actor {result.actor_character_id} at location {result.location}"
+            if result.actor_character_id and result.location
             else ""
         )
         print(
             f"rewound to turn {result.new_latest}; deleted "
-            f"{len(result.deleted_turns)} checkpoint(s){scene_note}"
+            f"{len(result.deleted_turns)} checkpoint(s){location_note}"
         )
 
     def cmd_settings(self, arg: str) -> None:
@@ -888,6 +882,9 @@ class CLIState:
 
     # ---- action pipeline -----------------------------------------------------
 
+    async def cmd_defer(self, arg: str) -> None:
+        await self._act("(defer)")
+
     async def _act(self, text: str) -> None:
         if not self._require_story():
             return
@@ -906,7 +903,7 @@ class CLIState:
             return
 
         # v11-r6b/r7a: mirror the Discord bot's /act branching so the
-        # CLI playtest path surfaces paused scenes and slot rejections
+        # CLI playtest path surfaces paused beats and slot rejections
         # with targeted messages, AND prints the PARTIAL cliffhanger
         # render when one is available (cat_ii_pending).
         if response.beat_ended_reason == "slot_rejected":
@@ -929,7 +926,7 @@ class CLIState:
             actor_render = per_player.get(self.current_actor) or ""
             print()
             print(
-                "(scene paused — another player is resolving a contested "
+                "(beat paused — another player is resolving a contested "
                 "action; /act again later to continue)"
             )
             if actor_render:

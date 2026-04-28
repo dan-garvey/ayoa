@@ -3,7 +3,7 @@
 Covers:
 - QueryResponse schema basics + happy-path and gated-path round-trip
 - answer_query LLM dispatch (mocked) — role, response_model, returned shape
-- Internal block formatters (scene, recent events, pending observations)
+- Internal block formatters (perceptual context, recent events, pending observations)
 - Trust boundary — hidden_lore / hidden_facts must NEVER reach the prompt
 - Prompt template renders cleanly with all required variables
 - Recent-events filter — only includes events the asking character observed
@@ -21,7 +21,7 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.query_handler import (
     _format_pending,
     _format_recent_events,
-    _format_scene,
+    _format_perceptual_context,
     answer_query,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
@@ -30,7 +30,6 @@ from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
-    SceneDelta,
     WorldAdjudication,
 )
 from app.schemas.query import QueryResponse
@@ -74,7 +73,6 @@ def _build_event(
                 feasible=True,
                 resolved_outcome=outcome,
             ),
-            scene_delta=SceneDelta(time_advanced_seconds=0),
             observable_facts=list(facts or []),
         ),
         requires_responders=False,
@@ -93,8 +91,6 @@ def _build_event(
         spawn=[],
         dormant=[],
         cull=[],
-        roster_moves=[],
-        scenes_created=[],
     )
 
 
@@ -138,16 +134,7 @@ def _build_checkpoint(
     )
     chars = [alice, bob] + list(extra_characters or [])
 
-    locations = LocationState(scene_graph={
-        "garden": {
-            "name": "The Garden",
-            "description": "Ivy crawling over a stone wall.",
-        },
-        "library": {
-            "name": "Old Library",
-            "description": "Dust and shelves.",
-        },
-    })
+    locations = LocationState()
     world = WorldState(
         locations=locations,
         hidden_lore=hidden_lore,
@@ -198,42 +185,23 @@ class TestQueryResponseSchema:
 # ---- internal helpers --------------------------------------------------------
 
 
-class TestFormatScene:
-    def test_with_others_present(self):
+class TestFormatPerceptualContext:
+    def test_location_label(self):
         ckpt = _build_checkpoint()
-        out = _format_scene(ckpt, "alice")
-        assert "Location: The Garden" in out
-        assert "Ivy crawling over a stone wall." in out
-        assert "Bob" in out
-        assert "Gardener" in out
-
-    def test_alone_in_scene(self):
-        """Bob is removed; alice is the only one in the garden."""
-        ckpt = _build_checkpoint()
-        ckpt.characters = [c for c in ckpt.characters if c.character_id != "bob"]
-        out = _format_scene(ckpt, "alice")
-        assert "Location: The Garden" in out
-        assert "No one else is present" in out
+        out = _format_perceptual_context(ckpt, "alice")
+        assert "Last known location label: garden" in out
+        assert "Recent Events and Pending Observations" in out
 
     def test_unsited_character(self):
         ckpt = _build_checkpoint()
         ckpt.characters[0].location = ""
-        out = _format_scene(ckpt, "alice")
+        out = _format_perceptual_context(ckpt, "alice")
         assert "unknown" in out
 
     def test_unknown_character_id(self):
         ckpt = _build_checkpoint()
-        out = _format_scene(ckpt, "ghost")
+        out = _format_perceptual_context(ckpt, "ghost")
         assert "unknown" in out
-
-    def test_culled_character_excluded_from_present(self):
-        ckpt = _build_checkpoint()
-        bob = next(c for c in ckpt.characters if c.character_id == "bob")
-        bob.status = CharacterStatus.culled
-        out = _format_scene(ckpt, "alice")
-        assert "Bob" not in out
-        assert "No one else is present" in out
-
 
 class TestFormatRecentEvents:
     def test_no_events_yields_no_events_marker(self):
@@ -526,7 +494,7 @@ class TestPromptContract:
             setting_summary="SENTINEL_SETTING",
             character_identity_block="SENTINEL_IDENTITY",
             known_context_block="SENTINEL_KNOWN_CONTEXT",
-            scene_block="SENTINEL_SCENE",
+            perceptual_context_block="SENTINEL_CONTEXT",
             player_characters_block="SENTINEL_PLAYERS",
             recent_events_block="SENTINEL_RECENT_EVENTS",
             pending_observations_block="SENTINEL_PENDING",
@@ -536,7 +504,7 @@ class TestPromptContract:
             "SENTINEL_SETTING",
             "SENTINEL_IDENTITY",
             "SENTINEL_KNOWN_CONTEXT",
-            "SENTINEL_SCENE",
+            "SENTINEL_CONTEXT",
             "SENTINEL_PLAYERS",
             "SENTINEL_RECENT_EVENTS",
             "SENTINEL_PENDING",
@@ -550,7 +518,7 @@ class TestPromptContract:
             setting_summary="x",
             character_identity_block="x",
             known_context_block="x",
-            scene_block="x",
+            perceptual_context_block="x",
             player_characters_block="x",
             recent_events_block="x",
             pending_observations_block="x",

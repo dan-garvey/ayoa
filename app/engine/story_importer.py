@@ -1,7 +1,7 @@
 """Master-prompt → CheckpointFile import pipeline.
 
 Active path: `run_import_two_call` (name retained for caller
-compatibility; v9 now runs FIVE LLM calls that share a cached
+compatibility; v10 now runs four LLM calls that share a cached
 source-prompt prefix):
   1. PUBLIC world (setting, public lore, public facts, physics,
      narrative rules) — serial. Primes the shared cache so subsequent
@@ -10,14 +10,12 @@ source-prompt prefix):
      reads Call 1 as cached history. Split off from Call 1 because
      dense conspiracy stories pack so much into hidden content that
      a combined public+hidden call still overran the 64K output cap.
-  3. Locations (scene_graph) — continuation that
-     reads Calls 1+2 as cached history.
-  4. Characters — continuation that reads Calls 1-3. (v9 dropped the
-     paired opening-prose extraction; the opening scene is now
+  3. Characters — continuation that reads Calls 1-2. (v9 dropped the
+     paired opening-prose extraction; the opening beat is now
      composed at runtime by the router and rendered by the narrator
      on the first `(begin)` turn, so there is no authored opener to
      extract here.)
-  5. Knowledge envelope extraction — continuation that sees the
+  4. Knowledge envelope extraction — continuation that sees the
      full extracted world + roster and outputs per-character
      `known_context`.
 
@@ -108,7 +106,6 @@ from app.schemas.import_extraction import (
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
     HiddenWorldExtraction,
-    LocationsExtraction,
     PlayerPrimerExtraction,
     PublicWorldExtraction,
     WorldExtraction,
@@ -156,13 +153,8 @@ MAX_EXTRACTION_TOKENS = 64_000
 # call now gets the full 64K output budget. Cache-prefix continuity is
 # preserved — every call after Call 1 reads the prior chain warm.
 # v5 → v6: four-call pipeline. v5's Call 1 (`WorldExtraction`) STILL
-# truncated mid-string on the same 95KB master prompt — the dense
-# scene_graph for a multi-district story plus rich lore/hidden_lore
-# overran 64K on its own. Split world into world-skeleton (everything
-# except locations) and locations (scene_graph) as
-# two consecutive calls. The merged shape `WorldExtraction` is now
-# assembled in Python from the two responses, so downstream
-# `build_checkpoint` does not change. Cache continuity preserved.
+# truncated mid-string on the same 95KB master prompt. Split world into
+# narrower follow-up calls. Cache continuity preserved.
 # v6 → v7: five-call pipeline. v6's Call 1 (`WorldSkeletonExtraction`)
 # STILL truncated at column 265,192 of JSON on the same 95KB master
 # prompt — dense conspiracy stories pack so much into lore + hidden_
@@ -190,7 +182,7 @@ MAX_EXTRACTION_TOKENS = 64_000
 # author writes "you" assuming a specific protagonist), it created
 # a special-case render path that bypassed the router→narrator
 # pipeline, and it forced race-window mitigations on `/join`. The
-# opening scene is now composed at runtime by the omniscient
+# opening beat is now composed at runtime by the omniscient
 # router (using world_state, character_records, and the `(begin)`
 # OOC directive) and rendered per-POV by the narrator on the first
 # turn — every turn now goes through the same code path. Older
@@ -263,14 +255,13 @@ will read your output here as cached history:
 
 - Hidden / spoiler / conspiracy content (hidden_lore, hidden_facts) →
   Call 2. Do not anticipate it here, do not even hint at it.
-- Locations (scene_graph) → Call 3.
 - **Characters** (rosters, backstories, personalities, secrets,
-  goals, factions) → Call 4. Do NOT put character profiles into
+  goals, factions) → Call 3. Do NOT put character profiles into
   `lore`. Do NOT include character names, character histories, or
   character-specific detail in any field below. The world layer is
   about the WORLD; the character layer is about the people IN it.
 - **Opening narrative prose**: There is no authored-opening
-  extraction stage in this pipeline. The opening scene is composed
+  extraction stage in this pipeline. The opening beat is composed
   at runtime by the router using the world + character state you
   extract here. Do NOT include any second-person prose, scene-
   setting passages, or "you walk into…" framing here. The world
@@ -408,53 +399,13 @@ empty (`""` and `[]`).
   paragraph-length composites — those go in `hidden_lore`."""
 
 
-LOCATIONS_EXTRACTION_INSTRUCTIONS = """\
-Extract the location graph from the source prompt. The world skeleton
-(setting, lore, facts, physics, hidden lore, narrative rules) is
-ALREADY in the conversation above — do not re-extract it.
-
-This call's job is the scene_graph and the starting scene only.
-Be exhaustive: every named room, wing, district, outdoor space, sealed
-chamber, hidden tunnel, archive vault — anywhere the player might be
-or move to — gets its own entry. There is no length limit.
-
-## Field guidance
-
-- **scene_graph**: A list with one entry per location the source
-  describes. Each entry:
-    - `scene_id`: lowercase snake_case unique identifier (e.g. `diplomatic_quarter`)
-    - `name`: human-readable label
-    - `description`: full sensory description as the source presents it
-    - `connected_to`: list of other scene_ids reachable directly from here
-  Do not invent connections the source does not describe; do not omit
-  connections the source does describe. All scene_ids in `connected_to`
-  should match an existing entry's `scene_id`.
-
-  **Sub-scenes are distinct scenes.** Sealed chambers, inner wings,
-  restricted sections, hidden rooms, access tunnels that sit inside a
-  larger district, archive vaults inside an archive — each gets its
-  own entry in `scene_graph`, with its own `scene_id`, and
-  `connected_to` the parent scene. Do NOT fold a sealed chamber into
-  its parent district's description — sealed/restricted sub-scenes
-  are exactly where plot-critical discovery happens, and the engine
-  cannot route a player into a scene that does not exist in the
-  graph. If the source describes `gatehouse_district` AND a
-  `gatehouse_sealed_section` inside it, both must appear as separate
-  entries."""
-
-
 # Legacy combined world prompt — used by v3/v4 single-call paths
 # (`extract_world`, `run_import_combined`) that still emit a full
-# `WorldExtraction` with locations in one shot. v7
-# (`run_import_two_call`) splits this into public-world + hidden-world
-# + locations as three separate prompts above to fit each call under
-# the 64K output cap.
+# `WorldExtraction` in one shot.
 WORLD_EXTRACTION_INSTRUCTIONS = (
     PUBLIC_WORLD_EXTRACTION_INSTRUCTIONS
     + "\n\n## Hidden world (also part of this call)\n\n"
     + HIDDEN_WORLD_EXTRACTION_INSTRUCTIONS
-    + "\n\n## Locations (also part of this call)\n\n"
-    + LOCATIONS_EXTRACTION_INSTRUCTIONS
 )
 
 
@@ -482,8 +433,8 @@ depth as the source describes them.
   (off-planet contacts, distant figures). Default to "active" unless the
   source signals otherwise.
 
-- **location**: starting scene_id. Leave empty if the source does not anchor
-  them to a specific starting scene.
+- **location**: starting location or perceptual context label. Leave empty if
+  the source does not anchor them to a specific starting context.
 
 - **is_playable**: **true** for every character a human could reasonably
   STEP INTO — the protagonist, every contestant on a dating show, every
@@ -691,7 +642,7 @@ character named. Do not drop cross-character linkages — they are
 the primary source of in-fiction tension and rediscovery.
 
 (There is no authored-opening extraction in this pipeline — the
-opening scene is composed at runtime by the router from the world
+opening beat is composed at runtime by the router from the world
 and character state you extract here.)
 
 ---
@@ -719,22 +670,8 @@ the player. Use the public world YOU JUST EXTRACTED as ground truth
 {hidden_world_instructions}"""
 
 
-LOCATIONS_CONTINUATION_INSTRUCTIONS = """\
-You just extracted the public and hidden world above (setting, lore,
-facts, physics, narrative rules, hidden_lore, hidden_facts).
-
-Now produce the location graph in this structured response. Use the
-world state YOU JUST EXTRACTED as ground truth — do not re-derive
-it from the master prompt. Keep the same exhaustiveness standard:
-every named location the source describes, every connection it
-spells out.
-
-{locations_instructions}"""
-
-
 CHARACTERS_CONTINUATION_INSTRUCTIONS = """\
-You just extracted the public + hidden world and the location graph
-above.
+You just extracted the public + hidden world above.
 
 Now produce `characters` in this structured response. Use the
 world state YOU JUST EXTRACTED as ground truth — do not re-derive
@@ -752,8 +689,8 @@ other character named.
 
 (There is no authored-opening extraction in this pipeline. Do not
 include any second-person opening prose, "you walk into the room"
-framing, or scene-setting passages; the opening scene is composed
-by the router at runtime when the player issues `(begin)`.)
+framing, or scene-setting passages; the opening is composed by the
+router at runtime when the player issues `(begin)`.)
 
 ---
 
@@ -856,7 +793,7 @@ same secret in `world.hidden_facts` should land on the plausible
 reflect the world you just extracted, not hallucinated parallel
 content.
 
-(There is no authored-opening extraction. The opening scene is
+(There is no authored-opening extraction. The opening beat is
 composed by the router at runtime; do not include opening prose
 anywhere in this output.)
 
@@ -922,8 +859,8 @@ async def extract_world(client: LLMClient, source: str) -> WorldExtraction:
         "  Setting: %s / %s", data.setting.genre or "?", data.setting.tone or "?"
     )
     logger.info(
-        "  Locations: %d scenes, Facts: %d, Hidden facts: %d",
-        len(data.locations.scene_graph), len(data.facts), len(data.hidden_facts),
+        "  Facts: %d, Hidden facts: %d",
+        len(data.facts), len(data.hidden_facts),
     )
     logger.info(
         "  Lore: %d chars, Hidden lore: %d chars, Narrative rules: %d chars",
@@ -1051,7 +988,7 @@ def build_checkpoint(
     story_id: str,
 ) -> CheckpointFile:
     """Assemble the three extractions into a CheckpointFile. Non-fatal warnings
-    are emitted for scene-graph integrity issues and duplicate character ids."""
+    are emitted for duplicate character ids."""
     session = SessionState(
         session_id=story_id,
         story_id=story_id,
@@ -1065,29 +1002,13 @@ def build_checkpoint(
         premise=world.setting.premise,
     )
 
-    scene_graph: dict[str, dict] = {}
-    for scene in world.locations.scene_graph:
-        if not scene.scene_id:
-            logger.warning("Scene with empty scene_id dropped: name=%r", scene.name)
-            continue
-        if scene.scene_id in scene_graph:
-            logger.warning("Duplicate scene_id %r — keeping first occurrence", scene.scene_id)
-            continue
-        scene_graph[scene.scene_id] = {
-            "name": scene.name,
-            "description": scene.description,
-            "connected_to": scene.connected_to,
-            "properties": {},
-        }
-    locations = LocationState(scene_graph=scene_graph)
-
     physics = PhysicsRuleset(
         strength_limits=world.physics_ruleset.strength_limits,
         magic_enabled=world.physics_ruleset.magic_enabled,
     )
 
     world_state = WorldState(
-        locations=locations,
+        locations=LocationState(),
         facts=world.facts,
         physics_ruleset=physics,
         setting=setting,
@@ -1137,36 +1058,16 @@ def build_checkpoint(
             known_context=envelope.known_context if envelope else "",
         )
         # Seed the location signal: NPCs need to know where they start
-        # the story, in the same shape `_apply_roster_moves` writes when
-        # they later move. Player characters never read
+        # the story. Player characters never read
         # `pending_observations`, so skip them. Without this push the
         # very first agent dispatch for a seeded NPC arrives with no
         # location context once the agent prompt's redundant `## Scene`
         # block goes away.
         if not cd.is_playable and cd.location:
-            scene_name = scene_graph.get(cd.location, {}).get("name", cd.location)
             record.pending_observations.append(
-                f"[your own action] {cd.name} at {scene_name}."
+                f"[your own action] {cd.name} at {cd.location}."
             )
         characters.append(record)
-
-    # `current_scene_id` was murdered in v11 — initial placement is now
-    # the per-character `CharacterExtraction.location` field. Verify
-    # below that every character lands in a known scene.
-    for cd in roster.characters:
-        if cd.location and cd.location not in scene_graph:
-            logger.warning(
-                "Character %r placed at %r which is not in scene_graph — "
-                "runtime will treat them as unsited until they move",
-                cd.character_id, cd.location,
-            )
-    for scene in world.locations.scene_graph:
-        for target in scene.connected_to:
-            if target not in scene_graph:
-                logger.warning(
-                    "Scene %r connects to %r but %r is not defined in scene_graph",
-                    scene.scene_id, target, target,
-                )
 
     playable_chars = [c for c in roster.characters if c.is_playable]
     if playable_chars:
@@ -1281,14 +1182,6 @@ def _serialize_checkpoint_for_analysis(ckpt: CheckpointFile) -> str:
         parts.append("# Hidden Facts\n" + "\n".join(f"- {f}" for f in ws.hidden_facts))
     if ckpt.config.narrative_rules:
         parts.append(f"# Narrative Rules\n{ckpt.config.narrative_rules}")
-
-    if ws.locations.scene_graph:
-        scene_lines = ["# Scene Graph"]
-        for sid, scene in ws.locations.scene_graph.items():
-            name = scene.get("name", sid) if isinstance(scene, dict) else sid
-            desc = scene.get("description", "") if isinstance(scene, dict) else ""
-            scene_lines.append(f"## {name} ({sid})\n{desc}")
-        parts.append("\n\n".join(scene_lines))
 
     if ckpt.characters:
         char_lines = ["# Characters"]
@@ -1417,7 +1310,7 @@ async def run_import(
         Depends on the extracted world + roster.
 
     (v9 dropped a parallel `extract_opening` stage that used to run
-    alongside stage 2 — the opening scene is now composed at runtime
+    alongside stage 2 — the opening beat is now composed at runtime
     by the router instead of being authored at import time.)
 
     Preservation analysis is intentionally NOT part of this function.
@@ -1448,10 +1341,9 @@ async def run_import(
 
     checkpoint = build_checkpoint(world, roster, knowledge, story_id)
     logger.info(
-        "Import complete in %.1fs (%d characters, %d scenes)",
+        "Import complete in %.1fs (%d characters)",
         time.monotonic() - t_start,
         len(checkpoint.characters),
-        len(checkpoint.world_state.locations.scene_graph),
     )
     return checkpoint
 
@@ -1504,7 +1396,7 @@ async def run_import_combined(
     pass can replay them as cached history.
 
     (v9 dropped the `opening` member from the combined extraction —
-    the opening scene is composed at runtime by the router, not
+    the opening beat is composed at runtime by the router, not
     authored at import time.)
 
     Writes a cache breakpoint on the user message (via
@@ -1544,8 +1436,7 @@ async def run_import_combined(
         bundle.world.setting.genre or "?", bundle.world.setting.tone or "?",
     )
     logger.info(
-        "  Locations: %d scenes, Facts: %d, Hidden facts: %d",
-        len(bundle.world.locations.scene_graph),
+        "  Facts: %d, Hidden facts: %d",
         len(bundle.world.facts),
         len(bundle.world.hidden_facts),
     )
@@ -1559,10 +1450,9 @@ async def run_import_combined(
         story_id,
     )
     logger.info(
-        "Combined import complete in %.1fs (%d characters, %d scenes)",
+        "Combined import complete in %.1fs (%d characters)",
         time.monotonic() - t_start,
         len(checkpoint.characters),
-        len(checkpoint.world_state.locations.scene_graph),
     )
 
     return _CombinedImportResult(
@@ -1595,15 +1485,6 @@ def _hidden_world_user_prompt() -> str:
         hidden_world_instructions=HIDDEN_WORLD_EXTRACTION_INSTRUCTIONS,
     )
     return f"<stage_instructions name=\"hidden_world\">\n{body}\n</stage_instructions>"
-
-
-def _locations_user_prompt() -> str:
-    """Assemble the Call-3 user message: locations as a continuation
-    that reads Calls 1+2 as cached history."""
-    body = LOCATIONS_CONTINUATION_INSTRUCTIONS.format(
-        locations_instructions=LOCATIONS_EXTRACTION_INSTRUCTIONS,
-    )
-    return f"<stage_instructions name=\"locations\">\n{body}\n</stage_instructions>"
 
 
 def _characters_user_prompt() -> str:
@@ -1672,7 +1553,7 @@ async def run_import_two_call(
     added Call 6 (player primer) — it shares the cached prefix from
     earlier calls, so it's effectively paid for once. v9 dropped
     the authored opening from Call 4, leaving the call with
-    characters alone (the opening scene is now composed at runtime
+    characters alone (the opening beat is now composed at runtime
     by the router; see IMPORTER_VERSION v8→v9 note for rationale).
 
     The merged `WorldExtraction` shape is assembled in Python from
@@ -1695,7 +1576,7 @@ async def run_import_two_call(
         IMPORTER_VERSION, len(source_text), len(source_text.split()),
     )
     # v9: Call 4 produces characters alone (no paired `opening`).
-    # The opening scene is composed at runtime by the router from
+    # The opening beat is composed at runtime by the router from
     # the world + character state extracted across Calls 1-4.
 
     system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
@@ -1750,31 +1631,7 @@ async def run_import_two_call(
         len(hidden_world.hidden_facts), len(hidden_world.hidden_lore),
     )
 
-    # Call 3 — locations (continuation; reads Calls 1+2 as cached
-    # history thanks to cache_user_tail on each prior user turn).
-    locations_user = _locations_user_prompt()
-    locations_messages = hidden_messages + [
-        {"role": "assistant", "content": hidden_response.content or ""},
-        {"role": "user", "content": locations_user},
-    ]
-    t_loc = time.monotonic()
-    locations_response = await client.complete(
-        role="narrator",
-        messages=locations_messages,
-        response_model=LocationsExtraction,
-        temperature=0.3,
-        max_tokens=MAX_EXTRACTION_TOKENS,
-        cache_user_tail=True,
-    )
-    _log_usage("locations", locations_response)
-    locations: LocationsExtraction = locations_response.parsed
-    logger.info(
-        "  Locations (%.1fs): %d scenes",
-        time.monotonic() - t_loc,
-        len(locations.scene_graph),
-    )
-
-    # Merge public + hidden + locations into the unified WorldExtraction
+    # Merge public + hidden into the unified WorldExtraction
     # shape downstream `build_checkpoint` already understands. The LLM
     # never emits a WorldExtraction directly under v7; this is the
     # join.
@@ -1783,20 +1640,19 @@ async def run_import_two_call(
         lore=public_world.lore,
         facts=public_world.facts,
         physics_ruleset=public_world.physics_ruleset,
-        locations=locations,
         narrative_rules=public_world.narrative_rules,
         hidden_lore=hidden_world.hidden_lore,
         hidden_facts=hidden_world.hidden_facts,
     )
 
-    # Call 4 — characters (continuation; reads the full world
-    # (public + hidden + locations) as cached history). Pre-v9 this
-    # call also extracted the authored opening scene; now characters
+    # Call 3 — characters (continuation; reads the public + hidden world
+    # as cached history). Pre-v9 this
+    # call also extracted the authored opening beat; now characters
     # is the only payload — the runtime router composes the opening
     # from the world + character state.
     chars_user = _characters_user_prompt()
-    chars_messages = locations_messages + [
-        {"role": "assistant", "content": locations_response.content or ""},
+    chars_messages = hidden_messages + [
+        {"role": "assistant", "content": hidden_response.content or ""},
         {"role": "user", "content": chars_user},
     ]
     t_chars = time.monotonic()
@@ -1874,10 +1730,9 @@ async def run_import_two_call(
     checkpoint.player_primer = primer_text
     sync_checkpoint_runtime_models(checkpoint, client.config)
     logger.info(
-        "Six-call import complete in %.1fs (%d characters, %d scenes, primer=%d chars)",
+        "Import complete in %.1fs (%d characters, primer=%d chars)",
         time.monotonic() - t_start,
         len(checkpoint.characters),
-        len(checkpoint.world_state.locations.scene_graph),
         len(primer_text),
     )
 

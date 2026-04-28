@@ -67,7 +67,7 @@ USER_PROMPT = """Produce a character matching this JSON schema (ALL fields requi
 
 {
   "name": "string — full name",
-  "location": "string — scene_id",
+  "location": "string — starting location label",
   "role": "string — role or occupation",
   "appearance": "string — physical description",
   "faction": "string — affiliation or empty string",

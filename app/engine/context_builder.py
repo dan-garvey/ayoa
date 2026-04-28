@@ -1,8 +1,4 @@
-"""Context builder — constructs prompt context for character agents.
-
-Builds character packets and scene context that are visibility-aware (only
-includes information the character can know).
-"""
+"""Context builder — constructs prompt context for character agents."""
 
 from __future__ import annotations
 
@@ -87,24 +83,19 @@ def build_character_state(char: CharacterRecord) -> dict[str, str]:
     }
 
 
-def resolve_scene_for_character(
+def resolve_location_for_character(
     checkpoint: CheckpointFile, character_id: str | None,
 ) -> str:
-    """The scene a character is currently in. Reads from the roster's
-    `character.location` field — the truth-of-record for "where is X."
+    """A character's opaque location label from the roster.
 
     Returns "" when the character has no resolvable location:
       - no character_id is given (legacy callers without an actor binding),
       - the character isn't in the roster (pristine tests, mid-spawn races),
       - the character's `location` is unset (importer placed nobody there,
-        or a character_gen pass left it blank — also a fixable defect now
-        that spawning derives location from the acting actor's scene).
+        or a character_gen pass left it blank).
 
-    Callers must handle the empty-string case (most render an empty or
-    "no scene information" block). There is no global fallback: the
-    pre-v11 `world_state.locations.current_scene_id` was the importer's
-    "world pivot" set ONCE and never updated, and reading it gave every
-    LLM context-builder a wrong answer the moment any character moved.
+    Callers must handle the empty-string case. There is no global
+    location fallback.
     """
     if character_id:
         for c in checkpoint.characters:
@@ -144,11 +135,11 @@ def build_setting_summary(checkpoint: CheckpointFile) -> str:
     return "\n".join(parts) if parts else "No setting information available."
 
 
-def pov_scene_for_user(
+def pov_location_for_user(
     checkpoint: CheckpointFile, user_id: str | None = None,
 ) -> str:
-    """Best-effort "current scene" for player-facing displays (CLI,
-    Discord embeds, status lines). Resolves in this order:
+    """Best-effort current location label for player-facing displays
+    (CLI, Discord embeds, status lines). Resolves in this order:
 
     1. The location of the character bound to `user_id` (if `user_id`
        is given and they hold a binding in `session.character_bindings`).
@@ -158,21 +149,16 @@ def pov_scene_for_user(
        roster (pristine sessions before any /join — useful for /status
        previews of an unclaimed story).
     4. "" — if nothing resolves, the surface should render
-       "(no active scene)" rather than a stale fallback.
+       "(no active location)" rather than a stale fallback.
 
     Culled characters are skipped at every step. A culled character
-    keeps their last `location` string in the roster (so their backstory
-    line still parses), but they are no longer in the scene; rendering
+    keeps their last `location` string in the roster, but rendering
     their dead location as "where the player is now" would mislead
-    every downstream UI surface AND the takeover prompt's
-    `current_scene` block. Dormant characters are still considered —
-    dormancy is "off-screen but alive," which is exactly what a player
-    POV usually IS in a single-player checkpoint.
+    every downstream UI surface. Dormant characters are still considered.
 
-    There is no fallback to a world-level "current scene" anymore —
-    that field was murdered in v11. For multi-player sessions the
-    "current scene" depends on who's asking; for single-player the
-    creator binding is the answer. Either way it's per-character.
+    There is no fallback to a world-level current location. For
+    multi-player sessions the label depends on who's asking; for
+    single-player the creator binding is the answer.
     """
     def _alive(c: CharacterRecord) -> bool:
         return c.status != "culled"
@@ -237,31 +223,6 @@ def build_world_context(
         parts.append(f"\nWorld lore:\n{checkpoint.world_state.lore}")
 
     return "\n".join(parts) if parts else "No world context available."
-
-
-# v11-r9b: `build_characters_present` was deleted. It used to render
-# "## Characters Present" for the agent's on-stage user message, with
-# every co-located character's full role + appearance pasted in EVERY
-# beat. Per the r9b context-management pass:
-#
-#   - The player's appearance is already in the cached
-#     `## Player Characters` block of the agent's system prompt.
-#     Repeating it in the per-turn user message paid for ~500 tokens
-#     of cache-busting duplication and seeded prose echo.
-#   - Per-NPC blurbs were the same kind of repeat for the agent's
-#     own world_context (which carries each NPC's name + role +
-#     appearance once, in the cached system prompt).
-#   - Real scene composition CHANGES are now signaled through
-#     pending_observations — `_apply_roster_moves` in orchestrator.py
-#     pushes "X arrived." / "X left." entries onto every scene-mate's
-#     inbox whenever the roster shifts. That is the live channel
-#     that actually needed to differ between turns; the static block
-#     wasn't carrying any of that information anyway.
-#
-# Routers still need a physically present roster for the acting
-# character's current location (different concern) — that helper lives
-# at `turn_loop_dispatcher._build_characters_present` and is
-# intentionally separate.
 
 
 def resolve_acting_character(
@@ -381,7 +342,7 @@ def clear_character_inbox(character: CharacterRecord) -> None:
       sensorium, no routing label needed) onto every local NPC observer
       who is not the actor, plus mediated/remote NPC observers explicitly
       named by fact-level `visible_to`. Pre-r9b this fan-out also covered
-      off-location observers tagged `[off-scene perception]`; that
+      off-location observers tagged `[off-location perception]`; that
       channel was deleted because the old one-line event summary
       regularly fused private and public sub-beats into one omniscient
       string and any off-location character listed as an observer
@@ -389,15 +350,9 @@ def clear_character_inbox(character: CharacterRecord) -> None:
       concrete live perceptual path encoded in `observable_facts`, or a
       later local event where the news arrives.
 
-    - `_apply_roster_moves` in `orchestrator.py` pushes
-      `[your own action] …` onto the moved NPC's queue (so they
-      don't re-narrate their own arrival) and unflagged
-      `"X arrived." / "X left."` lines onto every scene-mate's
-      queue. The latter is the live channel for "who is in your
-      scene right now" — the on-stage user message no longer
-      carries a `## Characters Present` block (that block was
-      removed in v11-r9b alongside the off-scene perception
-      channel).
+    Movement is no longer a separate router side-effect. Any arrival,
+    departure, or transfer other characters perceive must be encoded as
+    `observable_facts` on the event.
 
     This helper retains the name `clear_character_inbox` so callers
     don't churn, but its job is now scoped to the one remaining queue.

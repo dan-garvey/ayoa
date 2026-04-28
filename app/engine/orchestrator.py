@@ -7,8 +7,7 @@ adapter that:
 
   1. loads the checkpoint,
   2. resolves which character is acting,
-  3. acquires the per-(session, location id) act-slot lock so two
-     concurrent /acts in the same physical slot serialize,
+  3. acquires the per-session act-slot lock so concurrent /acts serialize,
   4. validates the incoming /act against that slot,
   5. runs one beat to completion via `run_beat`,
   6. applies roster side-effects of every event that closed this beat,
@@ -19,10 +18,6 @@ The only LLM-facing object the orchestrator constructs directly is the
 `LLMDispatcher` — the single adapter that binds the router, narrator,
 and character_agent modules into the protocol `run_beat` depends on.
 
-Helpers kept from v8:
-  - `_apply_scene_creations` (scene-graph growth is still orchestrator-
-    owned; `run_beat` broadcasts canonical events but doesn't mutate the
-    scene graph).
 """
 
 from __future__ import annotations
@@ -37,14 +32,14 @@ from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import (
     BeatResult,
-    SceneLockManager,
+    SessionLockManager,
     SlotConflict,
     broadcast_event,
     cat_ii_is_ready,
     check_act_slot,
     close_cat_ii,
     format_slot_rejection,
-    release_scene_slots,
+    release_beat_slots,
     run_beat,
     _agent_intention_for_dispatch,
     _end_beat,
@@ -60,7 +55,6 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 
@@ -113,101 +107,12 @@ def _append_transcript_entry(
         entry = next(iter(entries.values()))
     ckpt.transcript.append(entry)
 
-
-def _apply_scene_creations(checkpoint: CheckpointFile, creations) -> None:
-    """Grow the scene graph with router-created scenes.
-
-    Two passes:
-      1. Create each scene: validate id uniqueness, filter connected_to
-         refs to scenes that exist (either pre-existing or elsewhere in
-         this same batch), dedupe.
-      2. Enforce bidirectionality: for every forward edge A → B in the
-         graph, ensure B → A also exists. This covers both directions
-         of batch-internal edges regardless of declaration order, and
-         closes the reverse edge when a new scene connects to a
-         pre-existing one.
-
-    Runs after every closed event in a beat so later events can reference
-    scenes introduced earlier in the same beat.
-    """
-    if not creations:
-        return
-
-    scene_graph = checkpoint.world_state.locations.scene_graph
-    batch_ids = {s.scene_id for s in creations if s.scene_id}
-    created_ids: list[str] = []
-
-    # Pass 1: create each new scene with its declared (and filtered)
-    # connected_to list.
-    for scene in creations:
-        if not scene.scene_id:
-            logger.warning("Scene creation with empty scene_id — ignored")
-            continue
-        if scene.scene_id in scene_graph:
-            logger.warning(
-                "Router tried to create scene %r but it already exists — ignored",
-                scene.scene_id,
-            )
-            continue
-
-        valid_connections: list[str] = []
-        for conn in scene.connected_to:
-            if conn == scene.scene_id:
-                continue  # self-reference is nonsense, drop silently
-            if conn in scene_graph or conn in batch_ids:
-                if conn not in valid_connections:
-                    valid_connections.append(conn)
-            else:
-                logger.warning(
-                    "New scene %r connects to unknown scene %r — edge dropped",
-                    scene.scene_id, conn,
-                )
-
-        scene_graph[scene.scene_id] = {
-            "name": scene.name,
-            "description": scene.description,
-            "connected_to": valid_connections,
-            "properties": {},
-        }
-        created_ids.append(scene.scene_id)
-        logger.info(
-            "Scene created: %s (id: %s, connects to: %s)",
-            scene.name, scene.scene_id,
-            ", ".join(valid_connections) or "(none)",
-        )
-
-    # Pass 2: ensure bidirectionality for edges touching any newly-
-    # created scene.
-    for new_id in created_ids:
-        new_scene = scene_graph.get(new_id)
-        if not isinstance(new_scene, dict):
-            continue
-
-        for conn in new_scene.get("connected_to", []) or []:
-            neighbor = scene_graph.get(conn)
-            if not isinstance(neighbor, dict):
-                continue
-            n_conns = list(neighbor.get("connected_to", []) or [])
-            if new_id not in n_conns:
-                n_conns.append(new_id)
-                neighbor["connected_to"] = n_conns
-
-        for other_id, other in scene_graph.items():
-            if other_id == new_id or not isinstance(other, dict):
-                continue
-            if new_id in (other.get("connected_to", []) or []):
-                my_conns = list(new_scene.get("connected_to", []) or [])
-                if other_id not in my_conns:
-                    my_conns.append(other_id)
-                    new_scene["connected_to"] = my_conns
-
-
 class Orchestrator:
     """Binds `turn_loop.run_beat` to the LLM/storage layers.
 
     One instance lives per `EngineBridge`; sessions in the same process
-    share the `SceneLockManager` so concurrent /acts targeting the same
-    scene serialize against a single asyncio.Lock.
+    share the `SessionLockManager` so concurrent /acts serialize against
+    a single asyncio.Lock.
     """
 
     def __init__(
@@ -220,16 +125,16 @@ class Orchestrator:
         self.prompt_mgr = prompt_mgr
         self.checkpoint_mgr = checkpoint_mgr
         self.char_mgr = CharacterManager(client, prompt_mgr)
-        # One manager per Orchestrator. Same-scene /acts serialize here;
-        # different scenes acquire independent locks.
-        self.scene_locks = SceneLockManager()
+        # One manager per Orchestrator. /acts in the same session
+        # serialize here; perception fan-out is observer-driven.
+        self.session_locks = SessionLockManager()
 
     async def process_turn(self, request: TurnRequest) -> TurnResponse:
         """Process a single turn end-to-end, v11-style.
 
-        Steps: load checkpoint → resolve actor & scene → acquire scene
-        lock → slot check → run beat → apply per-event roster side-
-        effects → save → build response.
+        Steps: load checkpoint → resolve actor → acquire session lock →
+        slot check → run beat → apply per-event roster side-effects →
+        save → build response.
         """
         ckpt = self.checkpoint_mgr.load_latest(request.session_id)
         sync_checkpoint_runtime_models(ckpt, self.client.config)
@@ -237,21 +142,17 @@ class Orchestrator:
         # 1. Resolve the acting character.
         acting_id = self._resolve_acting_character(ckpt, request)
 
-        # 2. Determine which scene the acting character occupies.
-        scene_id = self._resolve_scene_id(ckpt, acting_id)
-
         logger.info(
-            "Turn %d for session %s (acting=%s, scene=%s)",
-            ckpt.session.turn_index, request.session_id, acting_id, scene_id,
+            "Turn %d for session %s (acting=%s)",
+            ckpt.session.turn_index, request.session_id, acting_id,
         )
 
-        # 3. Acquire the location-id lock. Prevents two concurrent /acts
-        # in the same physical slot from both seeing FREE on their
-        # check_act_slot.
-        lock = await self.scene_locks.get(request.session_id, scene_id)
+        # 3. Acquire the session lock. Prevents two concurrent /acts
+        # from both seeing FREE on their check_act_slot.
+        lock = await self.session_locks.get(request.session_id)
         async with lock:
-            # 4. Validate against the scene's active_act_slot.
-            check = check_act_slot(ckpt, scene_id, acting_id)
+            # 4. Validate against the session's active_act_slot.
+            check = check_act_slot(ckpt, acting_id)
 
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
@@ -282,45 +183,34 @@ class Orchestrator:
                 dispatcher=dispatcher,
                 actor_id=acting_id,
                 intention=request.user_input,
-                scene_id=scene_id,
                 cat_ii_event_id=cat_ii_event_id,
             )
 
             # 6. Apply roster side-effects of every event that closed
             # this beat. `run_beat` broadcasts + renders but leaves
-            # scene_creations / roster_moves / spawn / dormant / cull
-            # for the orchestrator to apply. Walk the tail of
-            # canonical_events matching the count it reports, paired
-            # with `event_actor_ids` so _apply_roster_moves can recognize
-            # actor-self-moves (the v11-r7h unified movement path).
+            # spawn / dormant / cull for the orchestrator to apply.
             closed = beat_result.events_closed
             if closed > 0:
                 closed_this_beat = ckpt.canonical_events[-closed:]
                 actors = beat_result.event_actor_ids
                 # Defensive: invariant says lengths match; if they don't
                 # (e.g. a future refactor forgot to track an actor), pad
-                # with None so apply still runs but self-moves get blocked
-                # by the player-bound/pin guards rather than misattributed.
+                # with None so spawn fallback logic stays conservative.
                 if len(actors) != closed:
                     logger.warning(
                         "BeatResult event_actor_ids length %d != events_closed %d "
-                        "in scene %s; self-moves on this beat will be skipped.",
-                        len(actors), closed, scene_id,
+                        "; spawn location fallback may be empty.",
+                        len(actors), closed,
                     )
                     actors = actors + [None] * (closed - len(actors))
                 for evt, evt_actor in zip(closed_this_beat, actors):
-                    _apply_scene_creations(ckpt, evt.scenes_created)
                     self.char_mgr.apply_roster_updates(ckpt, evt)
-                    self._apply_roster_moves(ckpt, evt, actor_id=evt_actor)
                     # Spawns remain async LLM calls; if none declared,
-                    # the helper is a no-op. The acting actor's POST-move
-                    # physical location is passed as the spawn-location
-                    # fallback so courier-style NPCs materialize where
-                    # the action is.
+                    # the helper is a no-op.
                     if evt.spawn:
                         spawn_loc = (
-                            self._resolve_scene_id(ckpt, evt_actor)
-                            if evt_actor else scene_id
+                            self._resolve_location(ckpt, evt_actor)
+                            if evt_actor else ""
                         )
                         await self.char_mgr.spawn_characters(
                             ckpt, evt.spawn,
@@ -345,21 +235,15 @@ class Orchestrator:
             # gets a `## Off-Stage Tick` block listing each ticker's
             # public prose + location). The router emits one
             # canonical event capturing the off-stage developments,
-            # plus any `roster_moves` / `scenes_created` the agents
-            # implied; we apply those mutations to the checkpoint
+            # plus any spawn/dormancy/cull changes; we apply those to the checkpoint
             # off-stage (no narrator pass — the player wasn't there).
             # Per-tick errors and the fan-in router error are both
             # logged-and-swallowed so a single LLM hiccup doesn't
-            # drop the rest of the turn. Picks up the actor's
-            # POST-beat scene (which may differ from `scene_id`
-            # when the actor self-moved during the beat) so the
-            # scheduler tracks where the player ACTUALLY is now.
-            post_beat_scene = self._resolve_scene_id(ckpt, acting_id)
+            # drop the rest of the turn.
             await self._run_ticks(
                 ckpt,
                 acted_this_turn=set(beat_result.event_actor_ids),
                 acting_id=acting_id,
-                current_scene=post_beat_scene,
             )
 
             # 7. Save. run_beat has already mutated active_act_slots,
@@ -390,7 +274,7 @@ class Orchestrator:
         intentions). Used by EngineBridge.run_turn after sweep returns
         event ids, to close them out BEFORE the current /act processes.
 
-        Acquires the scene lock for the event's scene, re-checks
+        Acquires the session lock for the event, re-checks
         readiness, drives `route_intention` on the adjudication path,
         closes the event, broadcasts the canonical result, lets an NPC
         initiator take the first follow-up when applicable, fans renders
@@ -418,8 +302,7 @@ class Orchestrator:
                 beat_ended_reason="cat_ii_stale",
             )
 
-        scene_id = evt.scene_id
-        lock = await self.scene_locks.get(session_id, scene_id)
+        lock = await self.session_locks.get(session_id)
         async with lock:
             # Re-read: another task may have closed this event while we
             # were waiting for the lock.
@@ -447,11 +330,10 @@ class Orchestrator:
                     ckpt=ckpt,
                     actor_id=evt_live.initiator_id,
                     intention=evt_live.initiator_intention,
-                    scene_id=scene_id,
                     cat_ii_event=evt_live,
                 )
                 close_cat_ii(ckpt, evt_live.event_id)
-                release_scene_slots(ckpt, scene_id)
+                release_beat_slots(ckpt)
                 if resolved.requires_responders:
                     raise ValueError(
                         "Cat II resolution returned nested Cat II "
@@ -461,15 +343,15 @@ class Orchestrator:
                 # collected intentions. Every NPC observer, including the
                 # initiator, needs the final result in their inbox for future
                 # turns.
-                broadcast_event(ckpt, resolved, scene_id)
+                broadcast_event(ckpt, resolved)
                 initiator_pick = _filter_picks_for_dispatch(
-                    ckpt, scene_id, [evt_live.initiator_id],
+                    ckpt, [evt_live.initiator_id],
                     event=resolved,
                 )
                 followup = None
                 if initiator_pick:
                     followup = await _agent_intention_for_dispatch(
-                        dispatcher, ckpt, evt_live.initiator_id, scene_id,
+                        dispatcher, ckpt, evt_live.initiator_id,
                     )
                 if followup is not None:
                     followup_result = await run_beat(
@@ -477,7 +359,6 @@ class Orchestrator:
                         dispatcher=dispatcher,
                         actor_id=evt_live.initiator_id,
                         intention=followup,
-                        scene_id=scene_id,
                     )
                     beat_result = BeatResult(
                         renders=followup_result.renders,
@@ -491,7 +372,7 @@ class Orchestrator:
                     )
                 else:
                     beat_result = await _end_beat(
-                        ckpt, dispatcher, scene_id,
+                        ckpt, dispatcher,
                         ended_reason="cat_ii_resolution",
                         events_closed=1,
                         event_actor_ids=[evt_live.initiator_id],
@@ -514,21 +395,18 @@ class Orchestrator:
                 if len(actors) != beat_result.events_closed:
                     logger.warning(
                         "Cat II BeatResult event_actor_ids length %d != "
-                        "events_closed %d in scene %s; self-moves on this "
-                        "beat will be skipped.",
-                        len(actors), beat_result.events_closed, scene_id,
+                        "events_closed %d; spawn location fallback may be empty.",
+                        len(actors), beat_result.events_closed,
                     )
                     actors = actors + [None] * (
                         beat_result.events_closed - len(actors)
                     )
                 for ev, ev_actor in zip(closed_this_beat, actors):
-                    _apply_scene_creations(ckpt, ev.scenes_created)
                     self.char_mgr.apply_roster_updates(ckpt, ev)
-                    self._apply_roster_moves(ckpt, ev, actor_id=ev_actor)
                     if ev.spawn:
                         spawn_loc = (
-                            self._resolve_scene_id(ckpt, ev_actor)
-                            if ev_actor else scene_id
+                            self._resolve_location(ckpt, ev_actor)
+                            if ev_actor else ""
                         )
                         await self.char_mgr.spawn_characters(
                             ckpt, ev.spawn,
@@ -582,187 +460,15 @@ class Orchestrator:
             "Callers must supply a character id for multi-player sessions."
         )
 
-    def _resolve_scene_id(
+    def _resolve_location(
         self, ckpt: CheckpointFile, acting_id: str
     ) -> str:
-        """The scene the acting character is currently in, read from
-        the roster. Returns "" when the character has no resolvable
-        location (no entry, or location unset). Callers that need a
-        non-empty scene should refuse the turn rather than fall back
-        to a global."""
+        """The acting character's opaque location label, read from the
+        roster. Returns "" when the character has no resolvable location."""
         for c in ckpt.characters:
             if c.character_id == acting_id and c.location:
                 return c.location
         return ""
-
-    def _apply_roster_moves(
-        self,
-        ckpt: CheckpointFile,
-        routed: EventRouterOutput,
-        actor_id: str | None = None,
-    ) -> None:
-        """Apply router-directed character relocations.
-
-        `roster_moves` is the engine's single movement mechanism: every
-        location change this turn — NPCs walking in/out, the acting
-        character self-moving as the result of their /act, opening-turn
-        placement — flows through here.
-
-        Three guards filter out moves that would corrupt state:
-          - **Pinned characters** (mid-action, the engine is waiting on
-            their intention) cannot be externally relocated; the pin
-            would be stranded. EXCEPT when the pinned character IS the
-            actor on the closing event — the move IS the resolution of
-            their own action.
-          - **Player-bound characters** cannot be externally relocated;
-            humans enter only via /act. EXCEPT when they're the actor —
-            they ARE acting, and the move is the outcome of that act.
-          - Unknown scene_ids and unknown character_ids are skipped
-            (nothing to point at).
-
-        `actor_id` identifies the acting character on the event being
-        applied; pass None for paths with no single actor (legacy
-        callers only — the v11 pipeline always knows the actor). With
-        None the actor exceptions can't fire and player/pinned guards
-        block all moves on those characters.
-        """
-        if not routed.roster_moves:
-            return
-
-        from app.engine.context_builder import collect_player_ids
-
-        scene_graph = ckpt.world_state.locations.scene_graph
-        pinned_ids = _pinned_character_ids(ckpt)
-        player_ids = collect_player_ids(ckpt)
-
-        for move in routed.roster_moves:
-            is_actor_self_move = (
-                actor_id is not None and move.character_id == actor_id
-            )
-            if move.character_id in pinned_ids and not is_actor_self_move:
-                logger.warning(
-                    "Router tried to move pinned character %s; ignored. "
-                    "Pinned characters must resolve their open event before "
-                    "they can be relocated (unless the move IS the resolution "
-                    "of their own action).",
-                    move.character_id,
-                )
-                continue
-            if move.character_id in player_ids and not is_actor_self_move:
-                logger.warning(
-                    "Router tried to move player-bound character %s; ignored. "
-                    "Player-bound characters move only via their own /act "
-                    "(self-move on the event they initiated).",
-                    move.character_id,
-                )
-                continue
-            if move.to_scene not in scene_graph:
-                logger.warning(
-                    "Router roster_move to unknown scene %r for %s; ignored",
-                    move.to_scene, move.character_id,
-                )
-                continue
-            target = next(
-                (c for c in ckpt.characters if c.character_id == move.character_id),
-                None,
-            )
-            if target is None:
-                logger.warning(
-                    "Router roster_move for unknown character %s; ignored",
-                    move.character_id,
-                )
-                continue
-            old = target.location
-            target.location = move.to_scene
-            kind = "self-move" if is_actor_self_move else "roster move"
-            logger.info(
-                "%s: %s %s -> %s (%s)",
-                kind, target.name, old or "(unset)", move.to_scene,
-                move.reason or "no reason given",
-            )
-            # Surface every NPC move to the moved character's
-            # pending_observations so they don't re-narrate the
-            # arrival on their next on-stage beat. Pre-r9a, agents
-            # had no engine-supplied record of their own off-stage
-            # movement (tick narratives lived on the canonical
-            # event log but never landed in the agent's perception
-            # channel), so when they next fired on-stage they
-            # treated the morning rhythm as an open invitation to
-            # write themselves arriving — "Ashara arrives at the
-            # table seven minutes after Dan sits down" — and the
-            # router faithfully canonicalized the fabricated
-            # entrance. With this push, the agent's "## Since your
-            # last response" block opens with their own action
-            # ("[your own action] Ashara vel Kothren returns to the
-            # dining hall after checking the library plague
-            # volumes."), removing the perceptual gap that the
-            # arrival-fabrication was filling. Skipped for player-
-            # bound characters: humans don't read pending
-            # observations through an LLM, and the surface that
-            # matters for them is the narrator render.
-            if move.character_id not in player_ids:
-                new_scene_name = (
-                    scene_graph.get(move.to_scene, {}).get("name")
-                    or move.to_scene
-                )
-                reason = (move.reason or "").strip()
-                if reason:
-                    entry = f"[your own action] {target.name} {reason}."
-                else:
-                    entry = (
-                        f"[your own action] {target.name} moved to "
-                        f"{new_scene_name}."
-                    )
-                target.pending_observations.append(entry)
-
-            # v11-r9b: local roster composition is no longer carried in
-            # the agent's per-turn user message (the `## Characters
-            # Present` block is gone). The live signal of who's
-            # physically co-present is now this perception push: every
-            # NPC already in `old` learns that the moved character left,
-            # and every NPC already in `move.to_scene` learns that the
-            # moved character arrived. No tag — these read as plain
-            # statements of local fact, alongside the visible
-            # observable_facts `broadcast_event` is putting on their
-            # queue from the same beat. Players are
-            # excluded from these pushes (they read narrator render,
-            # not pending_observations), and the moved character is
-            # excluded (they get their own `[your own action]`
-            # entry above and don't need to be told they entered
-            # the room they're standing in). Dormant characters
-            # still get the push — dormancy is "off-screen but
-            # alive," and a dormant character co-located in a scene
-            # still perceives arrivals and exits there. Culled
-            # characters are skipped (they don't run agent calls).
-            # A no-op move (old == to_scene) emits nothing — nothing
-            # changed for anyone in either scene to perceive.
-            if old != move.to_scene:
-                target_name = target.name
-                if old:
-                    for c in ckpt.characters:
-                        if c.character_id == move.character_id:
-                            continue
-                        if c.character_id in player_ids:
-                            continue
-                        if c.location != old:
-                            continue
-                        if c.status == "culled":
-                            continue
-                        c.pending_observations.append(
-                            f"{target_name} left."
-                        )
-                for c in ckpt.characters:
-                    if c.character_id == move.character_id:
-                        continue
-                    if c.character_id in player_ids:
-                        continue
-                    if c.location != move.to_scene:
-                        continue
-                    if c.status == "culled":
-                        continue
-                    c.pending_observations.append(
-                        f"{target_name} arrived."
-                    )
 
     # ---------------------------------------------------------- tick scheduler
 
@@ -770,18 +476,11 @@ class Orchestrator:
         self,
         ckpt: CheckpointFile,
         acted_this_turn: set[str],
-        active_scene: str = "",
     ) -> list[CharacterRecord]:
         """Filter the roster to characters that should run an off-stage
         tick on this beat.
 
-        Tick is for OFF-STAGE characters only. Anyone in the acting
-        player's current scene already had the opportunity to advance
-        the world via the on-stage cascade this turn — if the router
-        didn't pick them, that was the router's call, and ticking
-        them off-stage would step on that decision.
-
-        Six guards:
+        Five guards:
           - `private_state.intentions_enabled` is True — importer flag
             for "this character matters enough to advance off-screen"
           - `status == active` — dormant/culled don't tick
@@ -791,18 +490,9 @@ class Orchestrator:
             responders this beat) — they already had their say
           - NOT in `_pinned_character_ids(ckpt)` — pinned NPCs are
             mid-Cat-II, ticking races their pending resolution
-          - NOT in `active_scene` — they're on-stage for this turn,
-            cascade is the right channel for them to act
-
-        TODO (world-time coherence, see CLAUDE.md): in multi-player
-        sessions with concurrent physical locations, an NPC in *any*
-        currently-bound player's location is on-stage for someone, not
-        just for the actor of this turn. Today we only exclude the
-        acting player's location; revisit when multi-location /
-        multi-player turn ordering gets a real model.
 
         Order is roster order; that's also the order their tick
-        outputs will reach the unified router in Commit 6.
+        outputs will reach the unified router.
         """
         from app.engine.context_builder import collect_player_ids
 
@@ -821,8 +511,6 @@ class Orchestrator:
                 continue
             if char.character_id in pinned_ids:
                 continue
-            if active_scene and char.location == active_scene:
-                continue
             eligible.append(char)
         return eligible
 
@@ -831,7 +519,6 @@ class Orchestrator:
         ckpt: CheckpointFile,
         acted_this_turn: set[str],
         acting_id: str,
-        current_scene: str,
     ) -> list[tuple[CharacterRecord, CharacterAgentOutput]]:
         """Decide whether to fire a tick pass this beat, and if so,
         fan out `CharacterAgent.tick()` for every eligible NPC under a
@@ -840,17 +527,10 @@ class Orchestrator:
         Trigger model (Commit 5 / decision #9):
           - `turns_since_last_tick` increments unconditionally each
             beat (even when no tick fires).
-          - **Scene-change branch**: fires if the actor's post-beat
-            scene differs from the previous tracked scene AND the
-            cooldown has elapsed AND `ticks_on_scene_change` is on.
-            Cooldown prevents a tick on every turn during quick
-            scene-hopping.
           - **Stagnation branch**: fires unconditionally after
             `tick_stagnation_max` idle beats so the world keeps
-            moving even when the player camps in one scene.
+            moving even when the player stays in one conversation.
           - On any fire, reset `turns_since_last_tick` to 0.
-          - Always update `tick_last_scene_id` to the post-beat scene
-            so the next call has a baseline.
 
         Concurrency: a fresh `asyncio.Semaphore` per call, sized at
         `min(settings.tick_concurrency, TICK_CONCURRENCY_HARD_CAP)`.
@@ -861,9 +541,8 @@ class Orchestrator:
         `public_text` (parenthetical stripped — interior never leaves
         the agent) into a single unified-router call in tick mode.
         The router emits one canonical event capturing off-stage
-        developments + any roster_moves / scenes_created the agents
-        declared. We apply those mutations to the checkpoint and
-        append the canonical event to `ckpt.canonical_events`.
+        developments. We apply roster updates and append the canonical
+        event to `ckpt.canonical_events`.
         Returns the per-character tick outputs primarily for tests
         and observability; the orchestrator caller doesn't otherwise
         use them.
@@ -888,42 +567,20 @@ class Orchestrator:
 
         sess.turns_since_last_tick += 1
 
-        scene_changed = bool(
-            sess.tick_last_scene_id
-            and current_scene
-            and current_scene != sess.tick_last_scene_id
-        )
-        cooldown_satisfied = (
-            sess.turns_since_last_tick >= settings.tick_scene_change_cooldown
-        )
-        scene_change_fires = (
-            scene_changed
-            and cooldown_satisfied
-            and settings.ticks_on_scene_change
-        )
         stagnation_fires = (
             sess.turns_since_last_tick >= settings.tick_stagnation_max
         )
 
-        sess.tick_last_scene_id = current_scene
-
-        if not (scene_change_fires or stagnation_fires):
+        if not stagnation_fires:
             logger.debug(
                 "Tick scheduler: no fire (turns_since_last_tick=%d, "
-                "scene_changed=%s, cooldown_ok=%s, stagnation_ok=%s, "
-                "ticks_on_scene_change=%s)",
-                sess.turns_since_last_tick, scene_changed,
-                cooldown_satisfied, stagnation_fires,
-                settings.ticks_on_scene_change,
+                "stagnation_ok=%s)",
+                sess.turns_since_last_tick, stagnation_fires,
             )
             return []
 
-        eligible = self._eligible_for_tick(
-            ckpt, acted_this_turn, active_scene=current_scene,
-        )
-        reason = (
-            "scene_change" if scene_change_fires else "stagnation"
-        )
+        eligible = self._eligible_for_tick(ckpt, acted_this_turn)
+        reason = "stagnation"
         if not eligible:
             # Still reset the counter — we DID try to fire, eligibility
             # was just empty (e.g. all NPCs are dormant, on-stage, or
@@ -933,7 +590,7 @@ class Orchestrator:
             logger.info(
                 "Tick scheduler: %s fire but no eligible NPCs "
                 "(roster=%d, acted=%d; pinned, player, dormant, "
-                "on-stage, or intentions_disabled filtered all out); "
+                "or intentions_disabled filtered all out); "
                 "counter reset.",
                 reason, len(ckpt.characters), len(acted_this_turn),
             )
@@ -946,8 +603,8 @@ class Orchestrator:
 
         logger.info(
             "Tick scheduler: %s fire — %d eligible NPC(s), "
-            "concurrency cap %d, post-beat scene %s",
-            reason, len(eligible), cap, current_scene or "(none)",
+            "concurrency cap %d",
+            reason, len(eligible), cap,
         )
 
         async def _one(
@@ -996,9 +653,8 @@ class Orchestrator:
         # Bundle every successful tick's public prose (parenthetical
         # stripped — `output.public_text` only) into one router call
         # in tick mode. The router emits a single canonical event
-        # capturing off-stage developments plus any roster_moves /
-        # scenes_created the agents implied. We apply those mutations
-        # off-stage. No narrator pass — the player wasn't there.
+        # capturing off-stage developments. No narrator pass — the
+        # player wasn't there.
         if not ticked:
             return ticked
 
@@ -1025,8 +681,8 @@ class Orchestrator:
             # outputs are still in the agents' rolling histories
             # (their future replays inherit the interior), and the
             # next /act will go through the on-stage router as
-            # normal. World state just doesn't pick up off-stage
-            # roster_moves on this beat.
+            # normal. World state just doesn't pick up the off-stage
+            # canonical event on this beat.
             logger.exception(
                 "Tick fan-in router call failed; off-stage agent "
                 "outputs are in their own conversations but no "
@@ -1037,20 +693,11 @@ class Orchestrator:
         if routed is None:
             return ticked
 
-        _apply_scene_creations(ckpt, routed.scenes_created)
         self.char_mgr.apply_roster_updates(ckpt, routed)
-        # actor_id=None — no single off-stage actor; the player-bound
-        # and pinned guards in `_apply_roster_moves` will keep the
-        # router from accidentally relocating any human or any
-        # mid-Cat-II NPC even if it tries.
-        self._apply_roster_moves(ckpt, routed, actor_id=None)
         if routed.spawn:
-            # Tick-driven spawns have no single "acting actor scene" —
-            # the router saw N off-stage agents in possibly different
-            # scenes. Pass "" so spawns fall back to either router-
-            # supplied seed.location or the spawn LLM's authored
-            # location. The router's tick-mode prompt tells it to
-            # populate seed.location for any spawn it requests.
+            # Tick-driven spawns have no single acting actor location.
+            # Pass "" so spawns fall back to either router-supplied
+            # seed.location or the spawn LLM's authored location.
             await self.char_mgr.spawn_characters(
                 ckpt, routed.spawn, acting_actor_location="",
             )
@@ -1059,14 +706,10 @@ class Orchestrator:
         # The narrator never composes off this entry (no human render
         # for tick events); this append exists for the router's
         # session_conversation continuity (which the dispatcher's
-        # `route_tick_intentions` already handles) AND for any future
-        # cross-scene observability path that walks the canonical
-        # log.
+        # `route_tick_intentions` already handles).
         ckpt.canonical_events.append(routed)
         logger.info(
-            "Tick fan-in routed: %d roster_move(s), %d scene(s) "
-            "created, %d spawn(s); off-stage canonical event appended.",
-            len(routed.roster_moves), len(routed.scenes_created),
+            "Tick fan-in routed: %d spawn(s); off-stage canonical event appended.",
             len(routed.spawn),
         )
 

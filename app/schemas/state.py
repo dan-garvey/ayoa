@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -14,8 +14,8 @@ class ModelConfig(BaseModel):
 
 
 class SlotEntry(BaseModel):
-    """v11: one participant in a scene's active_act_slot. A scene may have
-    zero (free), one (initiator or single Cat II responder), or many
+    """v11: one participant in the session's active act slot. A beat may
+    have zero (free), one (initiator or single Cat II responder), or many
     entries (multi-character Cat II). The reason determines what /act
     from that user is allowed to do.
     """
@@ -35,7 +35,6 @@ class OpenCatIIEvent(BaseModel):
     required_responders have intended.
     """
     event_id: str
-    scene_id: str
     # Character whose initial intention opened this event.
     initiator_id: str
     # The intention text that opened the event (for the router's
@@ -65,12 +64,6 @@ class RenderBufferEntry(BaseModel):
     # character, copied from the event's observer list at broadcast
     # time.
     observation_level: str = "direct"
-    # "all" = local/shared-perception render: include facts marked
-    # all_observers plus facts explicitly scoped to this POV.
-    # "explicit_only" = mediated/remote render: include only facts that
-    # name this POV in visible_to. This prevents broad room facts from
-    # leaking through a camera feed, scrying link, radio channel, etc.
-    fact_visibility: Literal["all", "explicit_only"] = "all"
 
 
 class SessionSettings(BaseModel):
@@ -81,47 +74,26 @@ class SessionSettings(BaseModel):
     fields meant for live tuning. Add new toggles here and they become
     automatically available in /settings list / set.
     """
-    # Allow off-stage NPC ticks to invent new scenes via their output's
-    # scenes_created field. Default off — the router owns world topology
-    # in the baseline pipeline. Flip on to experiment with more
-    # emergent world-building from character-level intent.
-    agents_can_create_scenes: bool = False
     # Concurrency cap for the off-stage tick pass. Ticks are independent
     # so the only cost of raising this is API rate usage; lowering
     # trades latency for safety on small quotas. Hard-capped engine-side
     # by `app.engine.orchestrator.TICK_CONCURRENCY_HARD_CAP` regardless
     # of what's configured here.
     tick_concurrency: int = 4
-    # Commit 5: minimum turns between tick-fires triggered by scene
-    # change. Without this guard, hopping between two adjacent scenes
-    # (very common in early play) would fire a tick on every turn and
-    # blow the per-turn API budget. Counted from the LAST tick fire,
-    # not from the last scene change. Cooperates with `ticks_on_scene_change`:
-    # if that toggle is False, this field is unused. 5 is the v11
-    # default — small enough to keep NPCs feeling responsive when the
-    # player advances, large enough that quick back-and-forth scenes
-    # don't trigger a fan-out per turn.
-    tick_scene_change_cooldown: int = 5
     # Commit 5: hard ceiling on consecutive turns with NO tick fire.
-    # Even if the player camps in one scene and never triggers the
-    # scene-change branch, the world should still advance off-screen
-    # after this many turns. Acts as the "world keeps moving" floor
+    # Even if the player camps in one conversation, the world should
+    # still advance off-screen after this many turns. Acts as the
+    # "world keeps moving" floor
     # so the antagonist's plot doesn't go to sleep just because the
     # player stays in the courtyard. 15 is the v11 default — long
     # enough that idle turns don't burn the budget, short enough that
     # camping doesn't make the world feel frozen.
     tick_stagnation_max: int = 15
-    # When True, the tick pass also fires on scene change (in addition to
-    # the stagnation counter). Scene changes happen frequently in play,
-    # so even with the cooldown above this is the primary tick driver.
-    # Default True; flip off to disable scene-change ticks entirely
-    # (stagnation-only) for token-budget experiments.
-    ticks_on_scene_change: bool = True
     # Master kill switch for the off-stage tick scheduler. When False,
     # `Orchestrator._run_ticks` short-circuits at the top: no eligibility
     # filtering, no agent fan-out, no router fan-in, no canonical-event
-    # append. `turns_since_last_tick` and `tick_last_scene_id` are NOT
-    # touched in disabled mode either, so flipping this back on later
+    # append. `turns_since_last_tick` is NOT touched in disabled mode
+    # either, so flipping this back on later
     # resumes the trigger model from wherever it left off rather than
     # firing a backlog. Useful for token-budget runs, isolating on-stage
     # behavior in playtests, and diagnosing whether a behavior originates
@@ -170,15 +142,10 @@ class SessionState(BaseModel):
     character_bindings: dict[str, str] = Field(default_factory=dict)
     # Off-stage tick scheduler state.
     #
-    # Commit 5 (v11) replaced the old cadence counter with a turns-since-
     # last-tick counter that the scheduler resets only on a real fire.
-    # Trigger model lives in `Orchestrator._run_ticks`; settings are on
-    # `SessionSettings.tick_scene_change_cooldown` (gates scene-change
-    # fires) and `tick_stagnation_max` (forces a fire after N idle
-    # turns). `tick_last_scene_id` still tracks the actor's previous
-    # post-beat scene so the scheduler can detect a change.
+    # Trigger model lives in `Orchestrator._run_ticks`; `tick_stagnation_max`
+    # forces a fire after N idle turns.
     turns_since_last_tick: int = 0
-    tick_last_scene_id: str = ""
     # DEPRECATED (Commit 5): pre-v11 cadence-based tick scheduler.
     # `tick_turn_counter` is no longer incremented; `tick_cadence` is
     # no longer read. Kept on the schema for one release so old saves
@@ -196,11 +163,6 @@ class SessionState(BaseModel):
     # land here on turn 1 and are never re-surfaced; the rare runtime-
     # added fact lands on whatever turn it was added.
     surfaced_world_facts: list[str] = Field(default_factory=list)
-    # Router context-trim bookkeeping: scene/location + present-roster
-    # blocks are high-bulk grounding that should be surfaced only once
-    # for importer-seeded scenes. Router-created scenes are already in
-    # router history via `scenes_created`, so they are never listed here.
-    surfaced_router_scene_contexts: list[str] = Field(default_factory=list)
     # Commit-3 (router-trim): one-shot lines describing things the
     # engine applied that the router did NOT itself author — spawn
     # outcomes (Commit 4 will populate router_summary into these),
@@ -214,11 +176,10 @@ class SessionState(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
 
-    # v11: beat-pacing state. One active_act_slot per scene_id; an entry's
-    # key within the inner dict is the character_id of the slot-holder.
-    # A scene may have zero, one, or many entries (many = multi-responder
-    # Cat II). An unmapped scene_id means the scene is free.
-    active_act_slots: dict[str, dict[str, SlotEntry]] = Field(default_factory=dict)
+    # v11: beat-pacing state. Keyed by slot-holder character_id. The session
+    # has one live beat gate; contextual presence is routed through event
+    # observers rather than scene-local lock maps.
+    active_act_slots: dict[str, SlotEntry] = Field(default_factory=dict)
     # v11: in-flight Cat II events awaiting responder intentions.
     open_cat_ii_events: list[OpenCatIIEvent] = Field(default_factory=list)
     # v11: per-player queue of canonical events awaiting render. Keyed by
@@ -234,26 +195,18 @@ class SessionState(BaseModel):
 
 
 class TimeState(BaseModel):
-    scene_time: datetime = Field(default_factory=datetime.utcnow)
+    story_time: datetime = Field(default_factory=datetime.utcnow)
     turn_count: int = 0
 
 
 class LocationState(BaseModel):
-    """Importer-built scene topology. The runtime "where is X" question
-    is answered by the per-character `CharacterRecord.location` field,
-    NOT by any field here.
+    """No runtime scene topology.
 
-    A pre-v11 `current_scene_id` lived on this model as the importer's
-    "world pivot" — the scene the story opened in. It was set ONCE at
-    import and never updated by any runtime code path, but every
-    router/narrator/agent context-builder read it as if it were the
-    current scene; that desync was the root cause of "the LLM thinks
-    the player is at the bell tower forever even after they moved."
-    The field is gone in v11. Old saves with `current_scene_id` in
-    their JSON load cleanly because Pydantic v2's default `extra='ignore'`
-    silently drops it; new saves serialize without it.
+    CharacterRecord.location remains as an opaque continuity label, but
+    perception and participation are determined by router-authored
+    observer lists and fact-level visibility packets.
     """
-    scene_graph: dict[str, Any] = Field(default_factory=dict)
+    pass
 
 
 class PhysicsRuleset(BaseModel):

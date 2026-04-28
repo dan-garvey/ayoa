@@ -12,7 +12,7 @@ or the backstop fires.
 ## State machine summary
 
   enter(intention, actor_id):
-    validate against scene.active_act_slot — claim, reject, or
+    validate against session active_act_slots — claim, reject, or
     interpret-as-Cat-II-responder.
 
   classify(intention) → Cat I | Cat II
@@ -29,7 +29,7 @@ or the backstop fires.
 
   beat_end?:
     If true → render each human with a queued buffer, flush
-    buffers, release slots in scene, park loop.
+    buffers, release beat slots, park loop.
     If false → pick next actor (agent-only, by pressure or
       responder_picks from the event), call agent.intend(),
       recurse.
@@ -45,7 +45,7 @@ the old v8 pipeline — the v11 path is gated until it's fully wired.
 ## Terminology
 
   Beat — a stretch of canonical events that closes on ends_beat.
-  active_act_slot — a scene's lock, holding 0..N character-slot entries.
+  active_act_slot — the session's beat gate, holding 0..N character-slot entries.
   Cat I — self-closing intention (dialogue, passive, unambiguous).
   Cat II — contested intention, collects responder intentions.
 """
@@ -96,7 +96,6 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
-    SceneDelta,
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -170,30 +169,28 @@ def _sanitize_harvest_fragment(text: str) -> str:
     return " ".join(kept).strip()
 
 
-class SceneLockManager:
-    """v11: per-scene asyncio.Lock indexed by (session_id, scene_id).
+class SessionLockManager:
+    """v11: one asyncio.Lock per session.
 
-    The orchestrator holds an instance; every /act acquires the lock
-    for its scene before running check_act_slot → run_beat. Prevents
+    The orchestrator holds an instance; every /act acquires the session
+    lock before running check_act_slot → run_beat. Prevents
     the race where two concurrent /acts both see FREE and both claim
     the initiator slot.
 
     Locks are created lazily. They are NOT persisted; a process restart
-    starts with no locks held (all scenes implicitly released on
-    startup).
+    starts with no locks held.
     """
 
     def __init__(self):
-        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         self._mutex = asyncio.Lock()
 
-    async def get(self, session_id: str, scene_id: str) -> asyncio.Lock:
-        key = (session_id, scene_id)
+    async def get(self, session_id: str) -> asyncio.Lock:
         async with self._mutex:
-            lock = self._locks.get(key)
+            lock = self._locks.get(session_id)
             if lock is None:
                 lock = asyncio.Lock()
-                self._locks[key] = lock
+                self._locks[session_id] = lock
             return lock
 
 
@@ -203,11 +200,11 @@ class SlotConflict(Enum):
     The orchestrator maps these to user-facing messages. Four distinct
     failure modes, each with a specific explanation:
     """
-    # Someone else holds the scene's initiator slot.
+    # Someone else holds the beat's initiator slot.
     INITIATOR_HELD = "initiator_held"
     # A Cat II is pinned on another human — this user can't act.
     CAT_II_OTHER_HELD = "cat_ii_other_held"
-    # This user is pinned as a Cat II responder in this scene. Their
+    # This user is pinned as a Cat II responder. Their
     # /act IS accepted but interpreted as their responder intention,
     # not as a fresh initiator. (This is a marker, not an error.)
     CAT_II_SELF_RESPONDER = "cat_ii_self_responder"
@@ -220,7 +217,7 @@ class SlotConflict(Enum):
 
 @dataclass
 class SlotCheck:
-    """Outcome of validating an incoming /act against the scene's slots.
+    """Outcome of validating an incoming /act against the beat slots.
 
     If `conflict == FREE` → orchestrator proceeds to claim and process.
     If `conflict == CAT_II_SELF_RESPONDER` → the /act is a responder
@@ -237,15 +234,14 @@ class SlotCheck:
 
 def check_act_slot(
     ckpt: CheckpointFile,
-    scene_id: str,
     acting_character_id: str,
 ) -> SlotCheck:
-    """Validate an incoming /act against the scene's active_act_slot.
+    """Validate an incoming /act against the session's active act slot.
 
     Returns a SlotCheck indicating whether to accept, reject, or
     interpret-as-Cat-II-response.
     """
-    slot = ckpt.session.active_act_slots.get(scene_id, {})
+    slot = ckpt.session.active_act_slots
     if not slot:
         return SlotCheck(conflict=SlotConflict.FREE)
 
@@ -288,12 +284,10 @@ def check_act_slot(
 
 def claim_initiator_slot(
     ckpt: CheckpointFile,
-    scene_id: str,
     character_id: str,
 ) -> None:
-    """Claim the scene's initiator slot for a human about to run a beat."""
-    slot = ckpt.session.active_act_slots.setdefault(scene_id, {})
-    slot[character_id] = SlotEntry(
+    """Claim the session's initiator slot for a human about to run a beat."""
+    ckpt.session.active_act_slots[character_id] = SlotEntry(
         reason="initiator",
         cat_ii_event_id=None,
         claimed_at=_utcnow_iso(),
@@ -302,22 +296,20 @@ def claim_initiator_slot(
 
 def pin_cat_ii_responder(
     ckpt: CheckpointFile,
-    scene_id: str,
     character_id: str,
     cat_ii_event_id: str,
 ) -> None:
-    """Pin a human as a Cat II responder. The scene cannot accept
+    """Pin a human as a Cat II responder. The session cannot accept
     unrelated /acts from other humans until the event closes."""
-    slot = ckpt.session.active_act_slots.setdefault(scene_id, {})
-    slot[character_id] = SlotEntry(
+    ckpt.session.active_act_slots[character_id] = SlotEntry(
         reason="cat_ii_responder",
         cat_ii_event_id=cat_ii_event_id,
         claimed_at=_utcnow_iso(),
     )
 
 
-def release_scene_slots(ckpt: CheckpointFile, scene_id: str) -> None:
-    """Release slot entries for a scene at beat end.
+def release_beat_slots(ckpt: CheckpointFile) -> None:
+    """Release slot entries at beat end.
 
     CRITICAL: this does NOT clobber pins tied to still-open Cat II
     events. If a beat ends while a different Cat II is still awaiting
@@ -325,7 +317,7 @@ def release_scene_slots(ckpt: CheckpointFile, scene_id: str) -> None:
     slots and responder slots whose owning event has already closed are
     released.
     """
-    slot = ckpt.session.active_act_slots.get(scene_id)
+    slot = ckpt.session.active_act_slots
     if not slot:
         return
     open_evt_ids = {e.event_id for e in ckpt.session.open_cat_ii_events}
@@ -334,9 +326,9 @@ def release_scene_slots(ckpt: CheckpointFile, scene_id: str) -> None:
         if entry.reason == "cat_ii_responder" and entry.cat_ii_event_id in open_evt_ids:
             keep[cid] = entry
     if keep:
-        ckpt.session.active_act_slots[scene_id] = keep
+        ckpt.session.active_act_slots = keep
     else:
-        ckpt.session.active_act_slots.pop(scene_id, None)
+        ckpt.session.active_act_slots = {}
 
 
 def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
@@ -347,7 +339,7 @@ def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
     render buffers) doesn't leak.
 
     What this does:
-    - Drops the character's entry from every scene's active_act_slots.
+    - Drops the character's entry from the active act slots.
     - Removes the character from every open Cat II event's required
       responders AND collected intentions. If the event has no
       remaining required responders missing (all filled / none left),
@@ -359,11 +351,7 @@ def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
       are historical, not live state.
     """
     # 1. Slots.
-    for scene_id, slot in list(ckpt.session.active_act_slots.items()):
-        if character_id in slot:
-            slot.pop(character_id, None)
-            if not slot:
-                ckpt.session.active_act_slots.pop(scene_id, None)
+    ckpt.session.active_act_slots.pop(character_id, None)
 
     # 2. Open Cat II events.
     remaining_events: list[OpenCatIIEvent] = []
@@ -438,9 +426,9 @@ def sweep_stale_cat_ii_pins(
             # Structured marker, not a magic string. Part C of the router
             # prompt skips swept responders entirely — they don't end up
             # in the adjudication input, so no meta text can leak into
-            # canonical event facts. The rendered scene will show the
+            # canonical event facts. The render will show the
             # character as present-but-non-reactive via narrator
-            # guidance, never as "does not act — away from the scene".
+            # guidance, never as "does not act — away from the action".
             if h not in evt.swept_responders:
                 evt.swept_responders.append(h)
                 mutated = True
@@ -473,11 +461,10 @@ def _parse_iso(s: str):
     return dt
 
 
-def abort_scene(ckpt: CheckpointFile, scene_id: str) -> int:
-    """Admin-escape: force-release every slot in a scene, abandon every
-    open Cat II event in that scene, AND flush render buffers for every
-    human currently in the scene. Returns the number of events
-    abandoned.
+def abort_beat(ckpt: CheckpointFile) -> int:
+    """Admin-escape: force-release every slot, abandon every open Cat II
+    event, and flush every queued render buffer. Returns the number of
+    events abandoned.
 
     Used by the `/abort_beat` admin command when a pin gets wedged.
     Preserves the canonical_events log (we keep history) but the
@@ -485,45 +472,33 @@ def abort_scene(ckpt: CheckpointFile, scene_id: str) -> int:
     are flushed so mid-beat aborts don't leak stale events into the next
     beat's render fan-out.
     """
-    # Snapshot physically local humans BEFORE slots are popped — humans_in_scene
-    # derives from character location + bindings, so slot state doesn't
-    # affect it, but pinning this ordering keeps intent clear.
-    in_scene_humans = humans_in_scene(ckpt, scene_id)
     buffers_cleared = 0
-    for h in in_scene_humans:
+    for h, existing in list(ckpt.session.render_buffers.items()):
         existing = ckpt.session.render_buffers.get(h)
         if existing:
             buffers_cleared += 1
         ckpt.session.render_buffers[h] = []
 
-    ckpt.session.active_act_slots.pop(scene_id, None)
+    ckpt.session.active_act_slots = {}
     before = len(ckpt.session.open_cat_ii_events)
-    ckpt.session.open_cat_ii_events = [
-        e for e in ckpt.session.open_cat_ii_events if e.scene_id != scene_id
-    ]
+    ckpt.session.open_cat_ii_events = []
     dropped = before - len(ckpt.session.open_cat_ii_events)
     logger.warning(
-        "abort_scene: %s released; %d open Cat II events abandoned; "
+        "abort_beat: slots released; %d open Cat II events abandoned; "
         "%d render buffers cleared",
-        scene_id, dropped, buffers_cleared,
+        dropped, buffers_cleared,
     )
     return dropped
 
 
 def release_character_slot(
     ckpt: CheckpointFile,
-    scene_id: str,
     character_id: str,
 ) -> None:
-    """Release one character's slot entry while leaving the scene's
-    other entries intact. Used when a single Cat II responder closes
-    their intention but others are still pending."""
-    slot = ckpt.session.active_act_slots.get(scene_id)
-    if slot is None:
-        return
-    slot.pop(character_id, None)
-    if not slot:
-        ckpt.session.active_act_slots.pop(scene_id, None)
+    """Release one character's slot entry while leaving other entries
+    intact. Used when a single Cat II responder closes their intention
+    but others are still pending."""
+    ckpt.session.active_act_slots.pop(character_id, None)
 
 
 def new_event_id() -> str:
@@ -533,16 +508,14 @@ def new_event_id() -> str:
 
 def open_cat_ii(
     ckpt: CheckpointFile,
-    scene_id: str,
     initiator_id: str,
     initiator_intention: str,
     required_responders: list[str],
 ) -> OpenCatIIEvent:
     """Open a Cat II event and register it on the checkpoint. Humans
-    among required_responders are pinned into the scene's slot."""
+    among required_responders are pinned into the beat slot."""
     evt = OpenCatIIEvent(
         event_id=new_event_id(),
-        scene_id=scene_id,
         initiator_id=initiator_id,
         initiator_intention=initiator_intention,
         required_responders=list(required_responders),
@@ -589,7 +562,6 @@ def append_to_render_buffer(
     character_id: str,
     event_id: str,
     observation_level: str = "direct",
-    fact_visibility: str = "all",
 ) -> None:
     """Queue a canonical event for a human's next render."""
     buf = ckpt.session.render_buffers.setdefault(character_id, [])
@@ -597,7 +569,6 @@ def append_to_render_buffer(
         RenderBufferEntry(
             event_id=event_id,
             observation_level=observation_level,
-            fact_visibility=fact_visibility,
         )
     )
 
@@ -612,67 +583,8 @@ def flush_render_buffer(
     return out
 
 
-def humans_in_scene(ckpt: CheckpointFile, scene_id: str) -> list[str]:
-    """Return human-controlled character_ids physically in `scene_id`."""
-    from app.engine.context_builder import collect_player_ids
-
-    player_ids = collect_player_ids(ckpt)
-    return [
-        c.character_id
-        for c in ckpt.characters
-        if c.location == scene_id and c.character_id in player_ids
-    ]
-
-
-def _scene_member_ids(ckpt: CheckpointFile, scene_id: str) -> set[str]:
-    """Set of character_ids physically located at `scene_id`.
-
-    Used to filter the router's agent_responder_picks before dispatch;
-    mediated picks are handled separately via fact-level visibility.
-
-    Pre-r7g the engine accepted any pick the router emitted; the
-    router's prompt asked for local picks but didn't enforce it,
-    and the playtest log showed routine over-reaches: Mira /act'd at
-    archive_main_hall, the router picked `pip` and `nyx` (both at
-    bell_of_arrivals), agent_intend() returned empty/refusal because
-    they had nothing to react to, and the engine logged a warning per
-    pick. Same root cause as the spawn-cap (router over-eager) but
-    cheaper to fix at the engine boundary because the pick set is
-    small and the location data is local.
-
-    Set rather than list because membership tests dominate the call
-    site (filter comprehension); with ~20-character rosters either
-    is fine but set documents intent.
-    """
-    return {
-        c.character_id for c in ckpt.characters if c.location == scene_id
-    }
-
-
-def _has_explicit_visible_fact(
-    event: EventRouterOutput | None,
-    character_id: str,
-) -> bool:
-    """True when an event scopes at least one fact directly to a character.
-
-    Used for mediated observers who are not standing in the physical
-    event location. Broad `all_observers` facts are intentionally not
-    enough to cross that boundary; the router must name the character in
-    `visible_to` for camera feeds, scrying, telepathy, radio, pod audio,
-    or similar shared-perception channels.
-    """
-    if event is None or not character_id:
-        return False
-    for fact in event.canonical_event.observable_facts:
-        if isinstance(fact, str):
-            continue
-        if fact.audience == "only" and character_id in fact.visible_to:
-            return True
-    return False
-
-
 def _log_router_rationale(
-    result: EventRouterOutput, actor_id: str, scene_id: str,
+    result: EventRouterOutput, actor_id: str,
     *, kind: str = "route",
 ) -> None:
     """v11-r7g (TEMPORARY DIAGNOSTIC): surface the router's one-sentence
@@ -693,8 +605,8 @@ def _log_router_rationale(
     if not rationale:
         rationale = "(no rationale emitted)"
     logger.info(
-        "router[%s] actor=%s scene=%s cat=%s ends_beat=%s reason=%r picks=%s :: %s",
-        kind, actor_id, scene_id,
+        "router[%s] actor=%s cat=%s ends_beat=%s reason=%r picks=%s :: %s",
+        kind, actor_id,
         "II" if result.requires_responders else "I",
         result.ends_beat, result.ends_beat_reason,
         result.agent_responder_picks, rationale,
@@ -703,7 +615,6 @@ def _log_router_rationale(
 
 def _filter_picks_for_dispatch(
     ckpt: CheckpointFile,
-    scene_id: str,
     picks: list[str],
     event: EventRouterOutput | None = None,
 ) -> list[str]:
@@ -727,7 +638,7 @@ def _filter_picks_for_dispatch(
 
     Returns the filtered list preserving router order.
     """
-    del scene_id, event
+    del event
     # Local import to avoid an engine-package import cycle on module
     # load (context_builder pulls some of the same schemas turn_loop
     # exports). Cheap — the function is tiny and the import is cached.
@@ -741,13 +652,11 @@ async def _agent_intention_for_dispatch(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
     character_id: str,
-    scene_id: str,
 ) -> str | None:
     """Fetch one NPC intention and normalize empty/refusal outputs."""
     raw = await dispatcher.agent_intend(
         ckpt=ckpt,
         character_id=character_id,
-        scene_id=scene_id,
     )
     if raw and raw.strip() and not _is_agent_refusal(raw):
         return raw
@@ -760,21 +669,15 @@ async def _agent_intention_for_dispatch(
 def broadcast_event(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
-    scene_id: str,
     actor_id: str = "",
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
-    (a) every local human's render buffer plus any mediated human
-    explicitly named by a visible fact, and (b) every NPC observer's
-    `pending_observations` queue when they are either local or explicitly
-    named by a mediated fact, except the event's own actor.
+    every human observer's render buffer and every NPC observer's
+    `pending_observations` queue, except the event's own actor.
 
-    `scene_id` is the caller-authoritative physical event location,
-    never derived from session state, so concurrent locations can't leak
-    buffers into each other. The fictional "scene" can be broader than
-    that physical location when a fact-level channel exists: audio links,
-    cameras, scrying, supernatural senses, radio, telepathy, or any
-    other shared-perception condition.
+    Perception is structural: the router declares event observers and
+    fact-level visibility packets. Location is not a fallback and does
+    not create implicit observation.
 
     `actor_id` is the character whose intention produced this event
     (the player who /act'd, or the cascade NPC whose intention the
@@ -792,31 +695,10 @@ def broadcast_event(
     across process restarts.
 
     The NPC inbox path is the engine implementation of the perception
-    channel the router describes in `observable_facts`.
-
-    - **Local observers** (NPCs co-located with the event but not
-      the actor): receive their visible observable_facts as inbox entries
-      (no routing tag — the entries are the agent's
-      live sensorium and don't need a routing
-      label). These are the cascade pool. When one of them is picked
-      as `agent_responder` for this same beat, their `respond` call
-      drains the queue and they see the just-broadcast event as the
-      most recent entry — which IS the live event they're being asked
-      to react to.
-      Local NPCs who AREN'T picked this beat keep accumulating
-      events silently and drain on whatever future beat picks them.
-      Dispatching a per-event LLM call to every local non-actor would
-      burn budget on agents
-      who have no opening to speak this beat. The user message they
-      receive when they finally fire carries the full set in one shot.
-
-    - **Mediated observers** (not co-located): receive only facts that
-      explicitly include their id in `visible_to`. Broad
-      `all_observers` facts never cross the location boundary. Pre-r9b
-      every router-listed remote observer received the same one-line
-      summary, which leaked private composite prose into unrelated
-      rooms. The mediated path keeps the useful case (monitors, live
-      audio, magic senses, spies) while preserving the leak fix.
+    channel the router describes in `observable_facts`. When an NPC is
+    picked as `agent_responder` for this same beat, their `respond` call
+    drains the queue and they see the just-broadcast event as the most
+    recent entry.
 
     Pre-r8b the local observer path was a bug-hatchery: cascade NPCs got
     `observed_facts=[]` from `LLMDispatcher.agent_intend`, so they
@@ -828,13 +710,9 @@ def broadcast_event(
     the visible end of that chain.
 
     Note: the `actor_id` of the event is also surfaced via
-    BeatResult.event_actor_ids by callers that need actor-aware
-    event-application downstream (e.g. _apply_roster_moves for
-    the v11-r7h self-move path).
+    BeatResult.event_actor_ids for callers that need actor-aware
+    event application.
     """
-    ckpt.canonical_events.append(event)
-    local_humans = humans_in_scene(ckpt, scene_id)
-
     obs_level_by_char: dict[str, str] = {}
     for o in event.observers:
         # Legacy: observation_level is a single-char code ("d"|"i"|"f").
@@ -842,14 +720,11 @@ def broadcast_event(
             "d": "direct", "i": "indirect", "f": "inferred",
         }.get(o.observation_level, "direct")
 
-    for h in local_humans:
-        level = obs_level_by_char.get(h, "direct")
-        append_to_render_buffer(ckpt, h, event.event_id, level)
+    ckpt.canonical_events.append(event)
 
     from app.engine.context_builder import collect_player_ids
 
     player_ids = collect_player_ids(ckpt)
-    in_scene_ids = _scene_member_ids(ckpt, scene_id)
     by_id = {c.character_id: c for c in ckpt.characters}
     # NPC perception payload. Pre-v11-r10 this was the router's
     # one-line event summary — narrator-grade prose with interior
@@ -860,25 +735,22 @@ def broadcast_event(
     # visibility: public facts go to every observer, but private
     # facts (`audience="only"`) are filtered per recipient before
     # anything reaches an NPC inbox.
+    visible_humans: list[str] = []
     canonical = event.canonical_event
 
     for o in event.observers:
-        if o.character_id not in player_ids:
-            continue
-        if o.character_id in local_humans:
-            continue
-        if not _has_explicit_visible_fact(event, o.character_id):
-            continue
-        level = obs_level_by_char.get(o.character_id, "direct")
-        append_to_render_buffer(
-            ckpt,
+        facts = visible_fact_texts(
+            canonical.observable_facts,
             o.character_id,
-            event.event_id,
-            level,
-            fact_visibility="explicit_only",
+            include_all_observers=True,
         )
+        if not facts:
+            continue
+        if o.character_id in player_ids:
+            level = obs_level_by_char.get(o.character_id, "direct")
+            append_to_render_buffer(ckpt, o.character_id, event.event_id, level)
+            visible_humans.append(o.character_id)
 
-    for o in event.observers:
         if o.character_id in player_ids:
             continue
         if o.character_id == actor_id:
@@ -890,14 +762,6 @@ def broadcast_event(
         recipient = by_id.get(o.character_id)
         if recipient is None or recipient.status == "culled":
             continue
-        is_local = o.character_id in in_scene_ids
-        if not is_local and not _has_explicit_visible_fact(event, o.character_id):
-            continue
-        facts = visible_fact_texts(
-            canonical.observable_facts,
-            o.character_id,
-            include_all_observers=is_local,
-        )
         if facts:
             if len(facts) == 1:
                 payload = facts[0]
@@ -912,7 +776,7 @@ def broadcast_event(
             continue
         recipient.pending_observations.append(payload)
 
-    return local_humans
+    return visible_humans
 
 
 # ---- The beat loop ---------------------------------------------------------
@@ -920,7 +784,7 @@ def broadcast_event(
 # This is the heart of v11. `run_beat` is the orchestrator entry point for
 # one player's /act or Cat II responder intention. It cascades through
 # agent reactions until the router ends the beat, then fans the narrator
-# out per human with a queued perception and releases the scene's slots.
+# out per human with a queued perception and releases the beat slots.
 #
 # TODO(v11-wireup): the calls into the router, narrator, and character_agent
 # are sketched as protocol methods; these need to be bound to the real
@@ -943,7 +807,6 @@ class Dispatcher(Protocol):
         ckpt: CheckpointFile,
         actor_id: str,
         intention: str,
-        scene_id: str,
         cat_ii_event: OpenCatIIEvent | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention. Returns a canonical
@@ -962,7 +825,6 @@ class Dispatcher(Protocol):
         *,
         ckpt: CheckpointFile,
         actor_id: str,
-        scene_id: str,
         prior_result: EventRouterOutput,
     ) -> EventRouterOutput:
         """Advance an open beat when the prior router output supplied
@@ -973,7 +835,6 @@ class Dispatcher(Protocol):
         self,
         ckpt: CheckpointFile,
         character_id: str,
-        scene_id: str,
     ) -> str:
         """Ask an agent for their next intention (as free-form text).
         Returns the intention string; the orchestrator re-routes it
@@ -1054,10 +915,8 @@ class BeatResult:
     `event_actor_ids` is a list parallel to the tail of
     `ckpt.canonical_events` (length == `events_closed`, in beat-order):
     `event_actor_ids[i]` is the character_id whose intention produced
-    `canonical_events[-events_closed + i]`. Required by the orchestrator's
-    apply loop in v11-r7h so `_apply_roster_moves` can recognize self-
-    moves (the actor moving themselves) and apply them despite the
-    player-bound / pinned guards. Empty when `events_closed == 0`.
+    `canonical_events[-events_closed + i]`. Empty when
+    `events_closed == 0`.
     """
     renders: dict[str, str]
     events_closed: int
@@ -1071,7 +930,6 @@ async def run_beat(
     dispatcher: Dispatcher,
     actor_id: str,
     intention: str,
-    scene_id: str,
     cat_ii_event_id: str | None = None,
 ) -> BeatResult:
     """Run one beat to completion.
@@ -1113,11 +971,10 @@ async def run_beat(
         pending_result = await dispatcher.route_continuation(
             ckpt=ckpt,
             actor_id=actor_id,
-            scene_id=scene_id,
             prior_result=prior_result,
         )
         _log_router_rationale(
-            pending_result, actor_id, scene_id, kind="continuation",
+            pending_result, actor_id, kind="continuation",
         )
 
     # --- Step 1: handle entry path ------------------------------------------
@@ -1134,7 +991,7 @@ async def run_beat(
                 transcript_entries={}, event_actor_ids=[],
             )
         # Free this specific character's slot — others may still be pinned.
-        release_character_slot(ckpt, scene_id, actor_id)
+        release_character_slot(ckpt, actor_id)
         if not cat_ii_is_ready(evt):
             # Still waiting on other responders. Beat stays paused.
             return BeatResult(
@@ -1144,21 +1001,14 @@ async def run_beat(
                 transcript_entries={}, event_actor_ids=[],
             )
         # All responders in — adjudicate.
-        # Use evt.scene_id (where the event opened) rather than the
-        # caller's scene_id — the responder may have moved scenes
-        # between pin and /act (unlikely but possible via admin or
-        # roster_move), and the canonical event belongs to the scene
-        # where it originated.
-        resolution_scene = evt.scene_id
         resolved = await dispatcher.route_intention(
             ckpt=ckpt,
             actor_id=evt.initiator_id,
             intention=evt.initiator_intention,
-            scene_id=resolution_scene,
             cat_ii_event=evt,
         )
         _log_router_rationale(
-            resolved, evt.initiator_id, resolution_scene, kind="cat_ii_resolve",
+            resolved, evt.initiator_id, kind="cat_ii_resolve",
         )
         close_cat_ii(ckpt, evt.event_id)
         # Defensive guard: if the router's resolution call ever returns
@@ -1174,21 +1024,21 @@ async def run_beat(
         # adjudicated outcome of every collected intention. Broadcast it to all
         # NPC observers, including the initiator, so agents retain the final
         # result instead of only the player render seeing it.
-        broadcast_event(ckpt, resolved, resolution_scene)
+        broadcast_event(ckpt, resolved)
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
 
         initiator_pick = _filter_picks_for_dispatch(
-            ckpt, resolution_scene, [evt.initiator_id], event=resolved,
+            ckpt, [evt.initiator_id], event=resolved,
         )
         followup = None
         if initiator_pick:
             followup = await _agent_intention_for_dispatch(
-                dispatcher, ckpt, evt.initiator_id, resolution_scene,
+                dispatcher, ckpt, evt.initiator_id,
             )
         if followup is None:
             return await _end_beat(
-                ckpt, dispatcher, scene_id,
+                ckpt, dispatcher,
                 ended_reason="cat_ii_resolution",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
@@ -1199,13 +1049,12 @@ async def run_beat(
         # The Cat II initiator gets first follow-up after the adjudication.
         # Human initiators cannot be dispatched here, so they naturally fall
         # through to the player render above.
-        scene_id = resolution_scene
         current_actor = evt.initiator_id
         current_intention = followup
 
     # Fresh initiator path.
     if cat_ii_event_id is None:
-        claim_initiator_slot(ckpt, scene_id, actor_id)
+        claim_initiator_slot(ckpt, actor_id)
 
     while True:
         if pending_result is None:
@@ -1214,13 +1063,12 @@ async def run_beat(
                 ckpt=ckpt,
                 actor_id=current_actor,
                 intention=current_intention,
-                scene_id=scene_id,
                 cat_ii_event=None,
             )
             result_actor_id = current_actor
             result_is_continuation = False
             _log_router_rationale(
-                result, current_actor, scene_id, kind="route",
+                result, current_actor, kind="route",
             )
         else:
             result = pending_result
@@ -1246,14 +1094,12 @@ async def run_beat(
                 # The only "responder" was the initiator themselves; treat
                 # this as Cat I — there's nothing to contest. Broadcast the
                 # canonical event as-is and continue.
-                broadcast_event(
-                    ckpt, result, scene_id, actor_id=result_actor_id,
-                )
+                broadcast_event(ckpt, result, actor_id=result_actor_id)
                 event_actor_ids.append(result_actor_id)
                 events_closed += 1
                 if events_closed >= max_events:
                     return await _end_beat(
-                        ckpt, dispatcher, scene_id,
+                        ckpt, dispatcher,
                         ended_reason="max_events_cap",
                         events_closed=events_closed,
                         event_actor_ids=event_actor_ids,
@@ -1263,7 +1109,7 @@ async def run_beat(
                 # Fall through to the standard Cat I ends_beat check.
                 if result.ends_beat:
                     return await _end_beat(
-                        ckpt, dispatcher, scene_id,
+                        ckpt, dispatcher,
                         ended_reason=result.ends_beat_reason
                             or "cascade_exhausted",
                         events_closed=events_closed,
@@ -1276,7 +1122,7 @@ async def run_beat(
                 # and continue. The helper strips human-controlled ids;
                 # NPC eligibility stays with the router.
                 picks = _filter_picks_for_dispatch(
-                    ckpt, scene_id, result.agent_responder_picks,
+                    ckpt, result.agent_responder_picks,
                     event=result,
                 )
                 if not picks:
@@ -1284,7 +1130,7 @@ async def run_beat(
                     continue
                 next_actor = picks[0]
                 next_intention = await dispatcher.agent_intend(
-                    ckpt=ckpt, character_id=next_actor, scene_id=scene_id,
+                    ckpt=ckpt, character_id=next_actor,
                 )
                 current_actor = next_actor
                 current_intention = next_intention
@@ -1292,7 +1138,6 @@ async def run_beat(
 
             evt = open_cat_ii(
                 ckpt=ckpt,
-                scene_id=scene_id,
                 initiator_id=result_actor_id,
                 initiator_intention=current_intention,
                 required_responders=required,
@@ -1307,7 +1152,7 @@ async def run_beat(
             # observerless stub here and dropped the router's facts.
             result.ends_beat = True
             result.ends_beat_reason = "cat_ii_open"
-            broadcast_event(ckpt, result, scene_id, actor_id=result_actor_id)
+            broadcast_event(ckpt, result, actor_id=result_actor_id)
             event_actor_ids.append(result_actor_id)
             events_closed += 1
 
@@ -1317,13 +1162,12 @@ async def run_beat(
             for rid in required:
                 if rid in bindings:
                     # Human — pin slot, wait.
-                    pin_cat_ii_responder(ckpt, scene_id, rid, evt.event_id)
+                    pin_cat_ii_responder(ckpt, rid, evt.event_id)
                 else:
                     # Agent — intend inline.
                     ai_intent = await dispatcher.agent_intend(
                         ckpt=ckpt,
                         character_id=rid,
-                        scene_id=scene_id,
                     )
                     collect_cat_ii_intention(
                         ckpt, evt.event_id, rid, ai_intent
@@ -1335,11 +1179,10 @@ async def run_beat(
                     ckpt=ckpt,
                     actor_id=evt.initiator_id,
                     intention=evt.initiator_intention,
-                    scene_id=scene_id,
                     cat_ii_event=evt,
                 )
                 _log_router_rationale(
-                    resolved, evt.initiator_id, scene_id,
+                    resolved, evt.initiator_id,
                     kind="cat_ii_resolve_inline",
                 )
                 close_cat_ii(ckpt, evt.event_id)
@@ -1351,23 +1194,23 @@ async def run_beat(
                 # Cat II resolution belongs to every participant in the
                 # contest, so do not exclude the initiator from the observer
                 # inbox fan-out.
-                broadcast_event(ckpt, resolved, scene_id)
+                broadcast_event(ckpt, resolved)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
                 initiator_pick = _filter_picks_for_dispatch(
-                    ckpt, scene_id, [evt.initiator_id], event=resolved,
+                    ckpt, [evt.initiator_id], event=resolved,
                 )
                 followup = None
                 if initiator_pick:
                     followup = await _agent_intention_for_dispatch(
-                        dispatcher, ckpt, evt.initiator_id, scene_id,
+                        dispatcher, ckpt, evt.initiator_id,
                     )
                 if followup is not None:
                     current_actor = evt.initiator_id
                     current_intention = followup
                     continue
                 return await _end_beat(
-                    ckpt, dispatcher, scene_id,
+                    ckpt, dispatcher,
                     ended_reason="cat_ii_resolution",
                     events_closed=events_closed,
                     event_actor_ids=event_actor_ids,
@@ -1383,7 +1226,7 @@ async def run_beat(
             # NPC observers already received their visible facts through
             # `broadcast_event`.
             return await _end_beat(
-                ckpt, dispatcher, scene_id,
+                ckpt, dispatcher,
                 ended_reason="cat_ii_pending",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
@@ -1394,7 +1237,7 @@ async def run_beat(
             )
 
         # Cat I path — canonical event closes immediately.
-        broadcast_event(ckpt, result, scene_id, actor_id=result_actor_id)
+        broadcast_event(ckpt, result, actor_id=result_actor_id)
         event_actor_ids.append(result_actor_id)
         events_closed += 1
 
@@ -1407,7 +1250,7 @@ async def run_beat(
         # one self-presentation fragment per target. Fragments are
         # appended to the just-broadcast event's `observable_facts`
         # so the narrator's render reads them naturally as part of
-        # the scene's perceptual surface.
+        # the event's perceptual surface.
         #
         # Mutating the canonical event after broadcast is safe:
         # `broadcast_event` only takes references (event_id into render
@@ -1416,7 +1259,7 @@ async def run_beat(
         # the same human-only pick guard as the cascade path.
         if result.ends_beat_reason == "observation_harvest":
             harvest_picks = _filter_picks_for_dispatch(
-                ckpt, scene_id, result.agent_responder_picks,
+                ckpt, result.agent_responder_picks,
                 event=result,
             )
             if harvest_picks:
@@ -1464,7 +1307,7 @@ async def run_beat(
             if events_closed >= max_events and not result.ends_beat:
                 reason = "max_events_cap"
             return await _end_beat(
-                ckpt, dispatcher, scene_id,
+                ckpt, dispatcher,
                 ended_reason=reason,
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
@@ -1477,7 +1320,7 @@ async def run_beat(
         # perception eligibility is owned by the router; the engine only
         # strips human-controlled ids here.
         picks = _filter_picks_for_dispatch(
-            ckpt, scene_id, result.agent_responder_picks,
+            ckpt, result.agent_responder_picks,
             event=result,
         )
         if not picks:
@@ -1495,7 +1338,7 @@ async def run_beat(
         next_intention: str | None = None
         for candidate in picks:
             raw = await _agent_intention_for_dispatch(
-                dispatcher, ckpt, candidate, scene_id,
+                dispatcher, ckpt, candidate,
             )
             if raw is not None:
                 next_actor = candidate
@@ -1511,7 +1354,6 @@ async def run_beat(
 async def _end_beat(
     ckpt: CheckpointFile,
     dispatcher: Dispatcher,
-    scene_id: str,
     ended_reason: str,
     events_closed: int,
     event_actor_ids: list[str],
@@ -1522,8 +1364,8 @@ async def _end_beat(
     acting_player_id: str | None = None,
     acting_player_input: str = "",
 ) -> BeatResult:
-    """Compose per-human renders, flush buffers, (optionally) release
-    scene slots.
+    """Compose per-human renders, flush buffers, and optionally release
+    beat slots.
 
     v11-r6a params:
     - `release_slots=False`: used by the Cat II-open render path so the
@@ -1542,33 +1384,24 @@ async def _end_beat(
     - `acting_player_id` + `acting_player_input`: the actual /act'd
       player and their verbatim utterance. Threaded into the matching
       POV's narrator call so the engine-built TranscriptEntry carries
-      the real input. Other POVs (incidental humans in the scene) get
+      the real input. Other POVs (incidental human observers) get
       `user_input=""`. Pre-r7j the LLM owned the transcript entry and
       no real input ever made it that far.
     """
     renders: dict[str, str] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
-    candidates = humans_in_scene(ckpt, scene_id)
-    # Remote/mediated human observers can receive render-buffer entries
-    # even when their physical location differs from `scene_id`.
-    # Include any bound human with queued events so the beat that created
-    # the perception also renders it, instead of letting it surface on an
-    # unrelated later /act.
     from app.engine.context_builder import collect_player_ids
     player_ids = collect_player_ids(ckpt)
-    queued_humans = [
+    candidates = [
         h for h, buf in ckpt.session.render_buffers.items()
         if h in player_ids and buf
     ]
-    for h in queued_humans:
-        if h not in candidates:
-            candidates.append(h)
     if render_only is not None:
         candidates = [h for h in candidates if h in render_only]
     partial_override: bool | None = True if force_partial else None
 
     # v11-r6c: fan out narrator calls in parallel. Independent POVs; no
-    # shared state to mutate mid-call. Trims a 3-human scene from 3×
+    # shared state to mutate mid-call. Trims a 3-human render from 3×
     # narrator latency to 1× (slowest POV). Buffers are flushed up front
     # so the concurrent tasks see consistent inputs and no task observes
     # a race against another's flush.
@@ -1603,11 +1436,11 @@ async def _end_beat(
             transcript_entries[h] = entry
 
     if release_slots:
-        release_scene_slots(ckpt, scene_id)
+        release_beat_slots(ckpt)
     logger.info(
-        "Beat closed in %s: events=%d reason=%s renders=%d "
+        "Beat closed: events=%d reason=%s renders=%d "
         "release_slots=%s force_partial=%s",
-        scene_id, events_closed, ended_reason, len(renders),
+        events_closed, ended_reason, len(renders),
         release_slots, force_partial,
     )
     return BeatResult(
@@ -1643,18 +1476,18 @@ def format_slot_rejection(
     if check.conflict == SlotConflict.INITIATOR_HELD:
         base = (
             f"**{holder_name}** is taking their turn — your /act didn't "
-            f"go through. You'll see a new render appear when the scene "
+            f"go through. You'll see a new render appear when the beat "
             f"re-opens; try again then."
         )
     elif check.conflict == SlotConflict.CAT_II_OTHER_HELD:
         base = (
-            f"The scene is paused on **{holder_name}** — someone's action "
+            f"The beat is paused on **{holder_name}** — someone's action "
             f"is waiting on their response. Your /act didn't go through. "
             f"You'll see a new render when the beat closes."
         )
     elif check.conflict == SlotConflict.SELF_BUSY:
         base = (
-            "Your previous /act is still processing. Give the scene a "
+            "Your previous /act is still processing. Give the beat a "
             "moment before submitting again."
         )
     elif check.conflict == SlotConflict.CAT_II_SELF_RESPONDER:
@@ -1663,7 +1496,7 @@ def format_slot_rejection(
         # provide a friendly confirmation if they do.
         base = (
             "Your /act was accepted as your response to the current contested "
-            "action. The scene will resolve once all responders have moved."
+            "action. The beat will resolve once all responders have moved."
         )
     else:
         base = "Your /act could not be accepted right now."

@@ -3,7 +3,7 @@
 Players use /query to ask things they can't ask in fiction: what do I
 see right now, what was that NPC's name, what day is it, have I met
 this person. The handler reads the asking character's envelope (their
-known_context, current scene, recent canonical events they observed,
+known_context, current perceptual context, recent canonical events they observed,
 pending observations, and the bound-player roster) and either answers
 concisely or refuses in-fiction when the character can't plausibly
 know the answer.
@@ -73,52 +73,26 @@ def _format_character_identity(
     return "\n".join(parts)
 
 
-def _format_scene(checkpoint: CheckpointFile, character_id: str) -> str:
-    """Render the asking character's current scene PLUS who else is
-    present there. The handler uses this to answer "what do I see /
-    who is here" without having to consult the global roster.
+def _format_perceptual_context(
+    checkpoint: CheckpointFile, character_id: str,
+) -> str:
+    """Render the asking character's last known opaque location label.
+
+    Live perception comes from recent observed events and pending
+    observations, not from a scene graph or co-location inference.
     """
     char = next(
         (c for c in checkpoint.characters if c.character_id == character_id),
         None,
     )
     if char is None or not char.location:
-        return "(unknown — the character has no current scene set)"
+        return "(unknown — the character has no current location label)"
 
-    scene = checkpoint.world_state.locations.scene_graph.get(char.location, {})
-    if isinstance(scene, dict):
-        name = scene.get("name", char.location)
-        desc = scene.get("description", "")
-    else:
-        name = char.location
-        desc = ""
-
-    others_present: list[str] = []
-    for c in checkpoint.characters:
-        if c.character_id == character_id:
-            continue
-        if c.location != char.location or c.status.value != "active":
-            continue
-        # Surface BOTH name and appearance — the handler decides which
-        # to use based on whether the asking character has been
-        # "introduced" (its prompt instructs name vs appearance based
-        # on context).
-        role = c.public_sheet.role or "unknown role"
-        appearance = c.public_sheet.appearance or "nondescript"
-        others_present.append(
-            f"- {c.name} (id: `{c.character_id}`) — {role}; {appearance}"
-        )
-
-    parts = [f"Location: {name}"]
-    if desc:
-        parts.append(desc)
-    parts.append("")
-    if others_present:
-        parts.append("Also present in this scene:")
-        parts.extend(others_present)
-    else:
-        parts.append("No one else is present in this scene.")
-    return "\n".join(parts)
+    return (
+        f"Last known location label: {char.location}\n"
+        "Use Recent Events and Pending Observations for what they can "
+        "currently perceive."
+    )
 
 
 def _format_recent_events(
@@ -226,7 +200,9 @@ async def answer_query(
             checkpoint, character_id,
         ),
         known_context_block=known_context_block,
-        scene_block=_format_scene(checkpoint, character_id),
+        perceptual_context_block=_format_perceptual_context(
+            checkpoint, character_id,
+        ),
         player_characters_block=build_player_characters_block(
             checkpoint, character_id,
         ),

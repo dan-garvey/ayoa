@@ -72,18 +72,6 @@ def _parse_int_positive(raw: str) -> int:
 
 SETTINGS: list[SettingDef] = [
     SettingDef(
-        key="agents_can_create_scenes",
-        default=False,
-        description=(
-            "Allow off-stage NPC ticks to invent new scenes via their "
-            "scenes_created output. Default off; the router owns world "
-            "topology in the baseline pipeline. Flip on to experiment "
-            "with more emergent world-building from character-level intent."
-        ),
-        parse=_parse_bool,
-        render=_render_bool,
-    ),
-    SettingDef(
         key="tick_concurrency",
         default=4,
         description=(
@@ -94,24 +82,12 @@ SETTINGS: list[SettingDef] = [
         parse=_parse_int_positive,
     ),
     SettingDef(
-        key="ticks_on_scene_change",
-        default=True,
-        description=(
-            "Whether the off-stage tick pass fires on scene change in "
-            "addition to the cadence counter. On = extra tick every time "
-            "the active scene shifts (more world liveness, more cost). "
-            "Off = only the cadence counter triggers ticks."
-        ),
-        parse=_parse_bool,
-        render=_render_bool,
-    ),
-    SettingDef(
         key="ticks_enabled",
         default=True,
         description=(
             "Master kill switch for the off-stage tick scheduler. Off = "
-            "no background NPC ticks at all (no scene-change fires, no "
-            "stagnation fires, no fan-out). Useful for token-budget runs "
+            "no background NPC ticks at all (no stagnation fires, no "
+            "fan-out). Useful for token-budget runs "
             "and for isolating on-stage behavior in diagnostics. The "
             "tick counters freeze in disabled mode, so flipping back on "
             "resumes the trigger model from where it left off rather "

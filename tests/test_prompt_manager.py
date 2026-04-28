@@ -112,16 +112,8 @@ class TestPromptManagerWithRealTemplates:
             setting_summary="Genre: fantasy\nTone: dark",
             world_lore="The kingdom has been at war.",
             world_rules="No magic. Human baseline strength.",
-            scene_graph="- courtyard (id: courtyard)",
-            scene_context_block=(
-                "## Current Scene\n"
-                "A stone courtyard in the rain.\n\n"
-                "## Characters Present In Current Scene\n"
-                "- Captain Vero (guard): disciplined\n\n"
-            ),
             hidden_lore="Secret conspiracy details.",
             hidden_facts="- Hidden fact one",
-            user_input="I try to lift the building.",
             acting_character_name="Aldric",
             acting_character_id="aldric",
             player_characters_block="- **Aldric** (acting this turn) (id: aldric) — scholar. Tall, broad-shouldered, grey-streaked hair.",
@@ -139,14 +131,13 @@ class TestPromptManagerWithRealTemplates:
         assert "I try to lift the building" in result
         assert "Aldric" in result
         assert "No magic" in result
-        assert "Captain Vero" in result
         assert "Tall, broad-shouldered" in result
 
     def test_agent_renders(self):
         # v11: unified on-stage + tick template. The mode-specific
         # body lives in `mode_block` (caller-assembled string from
         # `format_agent_*_body`) and the first-token mode signal
-        # lives in `mode_header`. The on-stage-specific scene /
+        # lives in `mode_header`. The on-stage-specific location /
         # presence / observed-facts / prior-responders surfaces moved
         # OUT of the template's variable list and INTO mode_block;
         # the system prefix is now identical between respond and
@@ -162,8 +153,7 @@ class TestPromptManagerWithRealTemplates:
         # template; this test stops asserting on the dropped block.
         mgr = PromptManager(prompts_dir="app/prompts")
         on_stage_body = (
-            "## Scene\nEstate courtyard, raining.\n\n"
-            "## What You Observe This Turn\n"
+            "## What Reached You This Turn\n"
             "Aldric strains against the building.\n\n"
             "## Other Characters' Responses This Turn\n"
             "No other characters have responded yet."
@@ -194,8 +184,7 @@ class TestPromptManagerWithRealTemplates:
         # Mode header AND body markers both present; the agent's
         # "Mode Routing" section keys off the header line.
         assert "## ON-STAGE" in result
-        assert "## Scene" in result
-        assert "Estate courtyard, raining" in result
+        assert "## What Reached You This Turn" in result
         # Sycophancy guard: the dropped block must not reappear.
         assert "## Player Characters" not in result
         assert "human-played" not in result
@@ -207,9 +196,7 @@ class TestPromptManagerWithRealTemplates:
         messages = mgr.render_messages(
             "event_router",
             setting_summary="x", world_lore="x", world_rules="x",
-            scene_graph="x", scene_context_block="",
             hidden_lore="x", hidden_facts="x",
-            user_input="x",
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
@@ -242,9 +229,7 @@ class TestPromptManagerWithRealTemplates:
             "event_router",
             history=history,
             setting_summary="x", world_lore="x", world_rules="x",
-            scene_graph="x", scene_context_block="",
             hidden_lore="x", hidden_facts="x",
-            user_input="x",
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",

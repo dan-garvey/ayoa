@@ -92,7 +92,7 @@ class AuthoredCharacter(BaseModel):
     # router on the call AFTER this character is created. One or two
     # sentences. The router uses it to know who this person is, what
     # role they fill, and what they're trying to do, so it can pick
-    # them as a responder, place them in scenes, and adjudicate the
+    # them as a responder, place them in the active situation, and adjudicate the
     # cascade without needing to re-feed their full record. Lands in
     # the next router prompt's "## State Changes Since Your Last Call"
     # block once and then lives on in router history. Author it as
