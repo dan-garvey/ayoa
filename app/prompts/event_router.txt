@@ -422,6 +422,11 @@ field carries the looker's *targets* instead of response actors. The
 picks-⊆-observers invariant still applies; the per-pick cap still
 applies.)
 
+(Special case: when `ends_beat_reason="query_response"`, the same field
+may carry NPCs whose current visual presentation is needed to answer a
+private player query. These are perception targets, not response actors,
+and they do not need to observe the private query fact.)
+
 Guidance:
 - **NEVER include humans in this list.** The Player Characters block lists every human-bound id; none of them belongs in `agent_responder_picks`. (They DO belong in `observers` — different list, different job.)
 - **Addressed NPCs are mandatory picks.** If the player's intention
@@ -439,14 +444,15 @@ Guidance:
 - When `ends_beat=true`, `agent_responder_picks` is usually EMPTY —
   no cascade is intended. Exception: if the beat ends with a
   location transition, the new frame's pressing NPCs may be
-  the picks that start the NEXT beat.
+  the picks that start the NEXT beat. For `query_response`, picks may
+  carry private perception targets instead of cascade actors.
 - When `ends_beat=false`, there should be AT LEAST ONE pick, or else
   the cascade will terminate for lack of next actor.
 
-INVARIANT: every character_id in `agent_responder_picks` MUST also
-appear in `observers`. You cannot dispatch a cascade to an agent who
-didn't perceive the event. If you want an agent to act, put them in
-observers too.
+INVARIANT: except for `query_response` private perception targets, every
+character_id in `agent_responder_picks` MUST also appear in `observers`.
+You cannot dispatch a cascade to an agent who didn't perceive the event.
+If you want an agent to act, put them in observers too.
 
 ### Part C: Cat II resolution — composing the adjudicated event
 
@@ -478,8 +484,16 @@ What you write (honor the field contracts at the top of this prompt):
 - `observers`: every character who perceives the resolution.
 
 The initiator's original intention and every collected responder
-intention are authoritative inputs. Do not drop a responder's choice.
-Do not invent new intentions. This is purely composition.
+intention are authoritative inputs, but they are NOT authoritative
+outcomes. A responder's declared counteraction is an attempted
+counter, argument, refusal, brace, intercept, or consent signal — not
+proof that their preferred outcome succeeds. Adjudicate the result from
+the full surface situation: initiator intent, responder intentions,
+physical position, capability, leverage, timing, surprise, prior setup,
+environmental constraints, and established rules. Do not drop a
+responder's choice, but do not let the most recent responder simply
+write the outcome by assertion. Do not invent new intentions. This is
+adjudication expressed as observable surface.
 
 **Nested Cat II is forbidden.** Even if a responder's intention
 would itself be Cat II in isolation (Bob's intercept could be read
@@ -569,7 +583,7 @@ act, meet, and change state while the active player moment waits.
 ### Out-of-character input
 
 Text the player wraps entirely in parentheses — e.g. `(begin)`, `(defer)`,
-`(skip to morning)`, `(fade to black)`, `(two hours later)` — is an out-of-character
+`(query: what do I know about her?)`, `(skip to morning)`, `(fade to black)`, `(two hours later)` — is an out-of-character
 author's note, not an in-fiction attempt. It is a directive about how
 the story should proceed, not something the acting character is
 physically doing. When the user_input is fully parenthesized OOC:
@@ -651,6 +665,21 @@ physically doing. When the user_input is fully parenthesized OOC:
   mechanical observable fact that advances the pressure. End the beat
   only when the current situation already leaves the player with a
   concrete next action.
+- For `(query: ...)`: the acting player is asking for a private POV
+  clarification, not taking an in-fiction action. Answer by emitting
+  observable surface or bounded knowledge as a fact visible only to
+  `{acting_character_id}`. Use `audience: "only"` with
+  `visible_to: ["{acting_character_id}"]`; include only
+  `{acting_character_id}` in `observers` unless another character
+  perceives a real in-fiction event. Set `ends_beat=true` and
+  `ends_beat_reason="query_response"`. Do not reveal hidden facts,
+  private motives, secrets, off-screen events, or non-observable
+  conclusions unless this character could already perceive, infer,
+  remember, or legitimately know them. If the question asks about the
+  current visual presentation of perceptually available NPCs, put those
+  NPC ids in `agent_responder_picks`; they are perception targets for
+  private enrichment, not response actors, and they need not appear in
+  `observers` for the private query itself.
 - **observers**: route per the shared perceptual frame after the
   transition. For `(begin)` and `(arrive)`, NPCs who perceive the
   arrival observe it as it happens — a newcomer entering the moment,
@@ -843,9 +872,9 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "cull": [],
   "requires_responders": true or false,
   "required_responders": ["character_id — Cat II only, else empty list"],
-  "agent_responder_picks": ["character_id — NPCs the router wants to cascade next OR (when ends_beat_reason is observation_harvest) the perceptually available targets being LOOKED at; humans never in this list; addressed NPCs are mandatory until each has had a turn this beat"],
+  "agent_responder_picks": ["character_id — NPCs the router wants to cascade next OR (when ends_beat_reason is observation_harvest) the perceptually available targets being LOOKED at OR (when ends_beat_reason is query_response) private perception-enrichment targets; humans never in this list; addressed NPCs are mandatory until each has had a turn this beat"],
   "ends_beat": true or false,
-  "ends_beat_reason": "string — one of: directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest. Emit empty string when none fits."
+  "ends_beat_reason": "string — one of: directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response. Emit empty string when none fits."
 }}
 </output_schema>
 

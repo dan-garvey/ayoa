@@ -218,6 +218,53 @@ class TestBeatCascade:
         assert "alice" in result.renders
         assert ckpt.session.active_act_slots == {}
 
+    def test_query_response_harvests_private_perception_targets(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(EventRouterOutput(
+            event_id="",
+            decision_rationale="private query answer",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.only("You focus on Pip.", ["alice"]),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=1,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=["pip"],
+            ends_beat=True,
+            ends_beat_reason="query_response",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+        fake.queue_harvest(["Pip wears a red coat."])
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="(query: what does Pip look like?)",
+        ))
+
+        assert result.events_closed == 1
+        assert result.ended_reason == "query_response"
+        assert fake.harvest_calls[0]["character_ids"] == ["pip"]
+        facts = ckpt.canonical_events[0].canonical_event.observable_facts
+        assert [fact.text for fact in facts] == [
+            "You focus on Pip.",
+            "[loadout — Pip] Pip wears a red coat.",
+        ]
+        assert "alice" in result.renders
+
     def test_cat_i_cascades_through_agent_pick(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
@@ -290,6 +337,37 @@ class TestCatIIBeat:
         assert result.events_closed == 2
         assert ckpt.canonical_events[0].ends_beat_reason == "cat_ii_open"
         assert ckpt.session.open_cat_ii_events == []
+
+    def test_cat_ii_inline_overrun_logs_cap_telemetry(self, caplog):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.max_events_per_beat = 1
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            ends_beat=False,
+        ))
+        fake.queue_agent("Pip dodges")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        with caplog.at_level("WARNING", logger="app.engine.turn_loop"):
+            result = asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I attack Pip",
+            ))
+
+        assert result.events_closed == 2
+        assert result.ended_reason == "cat_ii_resolution"
+        message = caplog.messages[-1]
+        assert "Beat cap overrun" in message
+        assert "configured_cap=1" in message
+        assert "events_rendered=2" in message
+        assert "ended_reason=cat_ii_resolution" in message
+        assert "cat_ii_open_likely=True" in message
+        assert "cat_ii_resolution_likely=True" in message
+        assert "cat_ii_followup_likely=False" in message
 
     def test_cat_ii_with_human_responder_pauses_and_renders_partial(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})

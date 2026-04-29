@@ -37,7 +37,6 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
             "narrator": "openai:gpt-5.1",
             "agent": "claude-sonnet-4-6",
             "character_gen": "gpt-5.1",
-            "query_handler": "gpt-5.1",
         },
     )
 

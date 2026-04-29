@@ -165,6 +165,96 @@ Mira's turn-2 self-move in the playtest was caused by the importer placing her a
 
 ---
 
+## New playtest concerns: volatile reactor / invisible observer
+
+These came out of the `volatile_reactor_s1` playtest using `/defer` as an
+invisible observer. Do not treat the prior "Cat II is mostly good" read as
+settled; the latest review says Cat II is not yet in a good spot.
+
+### V1. Cat II resolution may overweight responder intentions
+
+From the player-facing result, Cat II outcomes feel too strongly weighted
+toward "whatever the responder says happens." The router should adjudicate
+the contested outcome from all relevant facts: initiator intent, responder
+intentions, physical position, capability, prior setup, risk, surprise,
+timing, and established constraints. A responder's declared counteraction is
+not automatically the winning outcome.
+
+Design question for the router prompt/schema: whether Cat II resolution needs
+more explicit outcome-balancing language, a separate "adjudication basis"
+field, or a narrower instruction that responder intentions are attempts and
+arguments, not authoritative facts.
+
+### V2. Cat II render duplication
+
+NPC-only inline Cat II currently broadcasts the open attempt, collects agent
+responses, then renders the resolved event that repeats the initiating action.
+The player sees the same shove/threat/action twice: once as the Cat II-open
+fact and once inside the Cat II-resolution fact.
+
+Likely fix: narrator prompt should expect repeated attempt/resolution material
+and elide the repeated setup in the final render. Longer-term, the turn loop
+may want a render-level collapse for inline NPC-only Cat II while still
+broadcasting the open attempt to NPC inboxes for response collection.
+
+### V3. Narrator must elide semantic repetition generally
+
+The narrator should not render every canonical fact verbatim when multiple
+facts are semantically repetitive. It should preserve new information and
+new consequences, but summarize, compress, or omit repeats. This applies to:
+
+- Cat II open facts repeated again in Cat II resolution.
+- A character taking notes or reading back what another agent already said.
+- Any log, recap, report, echo, or formal restatement that would be redundant
+  if rendered in full after the original statement.
+
+Rule shape for the narrator prompt: "If a later fact restates earlier material
+without changing its meaning, render the change in social/legal/physical state
+instead of repeating the text."
+
+### V4. Agent perspective may be too externalized
+
+Agents may act more tightly within role if their prompt has them draft from
+inside the character, potentially in first person, rather than composing
+third-person prose as an external writer. This needs care because the router
+and narrator still need surface-observable public text, and parenthetical
+interiority must remain private to the agent.
+
+Design question: test whether first-person intention drafting improves
+character fidelity, then decide where conversion back to public observable
+surface belongs.
+
+### V5. Track beat-cap overruns before deciding whether to remove the cap
+
+The volatile reactor playtest produced a render with more events than the
+configured `max_events_per_beat`. Inline Cat II resolution and initiator
+follow-up can push past the cap. Before removing or reworking the cap, add
+telemetry that logs:
+
+- configured cap
+- events rendered in the beat
+- whether the beat exceeded the cap
+- ending reason
+- whether Cat II open/resolution/follow-up caused the overrun
+
+After enough playtest data, decide whether the cap should be removed,
+softened, or enforced earlier.
+
+### V6. `/query` needs a redesign through the router
+
+First pass implemented: `/query` now routes through the normal
+router/narrator turn path as `(query: ...)`, with a `query_response`
+beat-end reason and optional private perception-harvest targets.
+Remaining follow-up:
+
+- Decide whether Discord `/query` should remain ephemeral or post the
+  private POV render into the player's POV thread like `/act`.
+- The query path must preserve information boundaries: private facts should
+  only surface if the querying player could observe, infer, remember, or
+  legitimately know them.
+
+---
+
 ## Implementation plan
 
 Commit ordering matters because some commits rely on others.

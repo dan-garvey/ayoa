@@ -2586,11 +2586,9 @@ def register(
         await _act.callback(inter, "(defer)")
 
     # ---- /query -------------------------------------------------------------
-    # Out-of-character consultation. The router is busy adjudicating
-    # `/act`s on every turn; `/query` is a separate read-only path that
-    # asks "what does my character know / see / remember right now?"
-    # without touching the timeline. Answers are ephemeral so the
-    # OOC sidebar never pollutes the public/POV channels.
+    # Out-of-character consultation. `/query` now enters the router as
+    # a private OOC clarification so the answer is canonically grounded
+    # as an observable fact for the asking POV.
 
     @tree.command(
         name="query",

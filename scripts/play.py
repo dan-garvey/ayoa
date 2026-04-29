@@ -687,12 +687,9 @@ class CLIState:
     async def cmd_query(self, arg: str) -> None:
         """Out-of-character question for the current actor's POV.
 
-        Read-only consultation: the engine answers from what THIS
-        character knows / sees / remembers, and gates in-fiction
-        when the asking character couldn't have the answer
-        ("you can't see — you're blindfolded", "you've never met
-        them", etc.). Doesn't advance the turn or mutate the
-        checkpoint.
+        Router-grounded consultation: the engine answers from what THIS
+        character can perceive, infer, remember, or legitimately know,
+        and records the answer as a private observable fact for this POV.
         """
         if not self._require_story():
             return

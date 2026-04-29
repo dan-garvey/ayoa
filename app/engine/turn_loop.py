@@ -666,6 +666,56 @@ async def _agent_intention_for_dispatch(
     return None
 
 
+async def _append_harvest_fragments(
+    dispatcher: Dispatcher,
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    picks: list[str],
+    current_actor: str,
+    log_label: str,
+) -> None:
+    """Append perception fragments to a just-broadcast event.
+
+    Used by normal observation harvest and by private query answers
+    that need an NPC's current visual self-presentation. Mutating the
+    event after broadcast is intentional: render buffers store event ids
+    and narrator composition resolves the live canonical event by id.
+    """
+    if not picks:
+        logger.warning(
+            "%s requested perception harvest but no harvestable picks "
+            "remained after filtering.",
+            log_label,
+        )
+        return
+
+    fragments = await dispatcher.harvest_perceptions(
+        ckpt=ckpt,
+        character_ids=picks,
+        acting_character_id=current_actor,
+    )
+    by_id = {c.character_id: c for c in ckpt.characters}
+    appended = 0
+    for cid, fragment in zip(picks, fragments):
+        text = _sanitize_harvest_fragment(fragment)
+        if not text:
+            logger.warning(
+                "%s: empty fragment for %s; dropped", log_label, cid,
+            )
+            continue
+        name = by_id.get(cid)
+        name = name.name if name else cid
+        result.canonical_event.observable_facts.append(
+            ObservableFact.all(f"[loadout — {name}] {text}")
+        )
+        appended += 1
+    logger.info(
+        "%s: %d/%d fragments appended to event %s",
+        log_label, appended, len(picks), result.event_id,
+    )
+
+
 def broadcast_event(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
@@ -777,6 +827,28 @@ def broadcast_event(
         recipient.pending_observations.append(payload)
 
     return visible_humans
+
+
+def _beat_cap_overrun_cause(
+    ckpt: CheckpointFile,
+    events_closed: int,
+    ended_reason: str,
+) -> tuple[bool, bool, bool]:
+    """Best-effort cause flags for passive beat-cap overrun telemetry."""
+    if events_closed <= 0:
+        return False, False, False
+
+    closed_events = ckpt.canonical_events[-events_closed:]
+    closed_reasons = [event.ends_beat_reason for event in closed_events]
+    cat_ii_open = (
+        ended_reason == "cat_ii_pending"
+        or any(reason == "cat_ii_open" for reason in closed_reasons)
+    )
+    cat_ii_resolution = ended_reason == "cat_ii_resolution" or (
+        cat_ii_open and events_closed >= 2
+    )
+    cat_ii_followup = cat_ii_resolution and events_closed >= 3
+    return cat_ii_open, cat_ii_resolution, cat_ii_followup
 
 
 # ---- The beat loop ---------------------------------------------------------
@@ -1262,43 +1334,23 @@ async def run_beat(
                 ckpt, result.agent_responder_picks,
                 event=result,
             )
-            if harvest_picks:
-                fragments = await dispatcher.harvest_perceptions(
-                    ckpt=ckpt,
-                    character_ids=harvest_picks,
-                    acting_character_id=current_actor,
-                )
-                # Build "<Name>: <fragment>" lines so the narrator can
-                # tell whose loadout each line describes. Empty
-                # fragments (LLM failure for that pick) are dropped
-                # silently — one bad perception should not poison the
-                # render. The order matches harvest_picks (preserves
-                # router intent).
-                by_id = {c.character_id: c for c in ckpt.characters}
-                appended = 0
-                for cid, fragment in zip(harvest_picks, fragments):
-                    text = _sanitize_harvest_fragment(fragment)
-                    if not text:
-                        logger.warning(
-                            "Harvest: empty fragment for %s; dropped", cid,
-                        )
-                        continue
-                    name = by_id.get(cid)
-                    name = name.name if name else cid
-                    result.canonical_event.observable_facts.append(
-                        ObservableFact.all(f"[loadout — {name}] {text}")
-                    )
-                    appended += 1
-                logger.info(
-                    "Observation harvest: %d/%d fragments appended to "
-                    "event %s",
-                    appended, len(harvest_picks), result.event_id,
-                )
-            else:
-                logger.warning(
-                    "ends_beat_reason='observation_harvest' but no "
-                    "harvestable picks after filtering; falling through "
-                    "as a sparse Cat I close.",
+            await _append_harvest_fragments(
+                dispatcher, ckpt, result,
+                picks=harvest_picks,
+                current_actor=current_actor,
+                log_label="Observation harvest",
+            )
+        elif result.ends_beat_reason == "query_response":
+            query_picks = _filter_picks_for_dispatch(
+                ckpt, result.agent_responder_picks,
+                event=result,
+            )
+            if query_picks:
+                await _append_harvest_fragments(
+                    dispatcher, ckpt, result,
+                    picks=query_picks,
+                    current_actor=current_actor,
+                    log_label="Query harvest",
                 )
 
         # Ends-beat decision.
@@ -1437,6 +1489,24 @@ async def _end_beat(
 
     if release_slots:
         release_beat_slots(ckpt)
+    max_events = ckpt.session.config.settings.max_events_per_beat
+    if events_closed > max_events:
+        (
+            cat_ii_open,
+            cat_ii_resolution,
+            cat_ii_followup,
+        ) = _beat_cap_overrun_cause(ckpt, events_closed, ended_reason)
+        logger.warning(
+            "Beat cap overrun: configured_cap=%d events_rendered=%d "
+            "ended_reason=%s cat_ii_open_likely=%s "
+            "cat_ii_resolution_likely=%s cat_ii_followup_likely=%s",
+            max_events,
+            events_closed,
+            ended_reason,
+            cat_ii_open,
+            cat_ii_resolution,
+            cat_ii_followup,
+        )
     logger.info(
         "Beat closed: events=%d reason=%s renders=%d "
         "release_slots=%s force_partial=%s",

@@ -25,6 +25,7 @@ import pytest
 from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
+from app.schemas.responses import TurnResponse
 from app.schemas.state import SessionState, WorldState
 
 
@@ -117,6 +118,32 @@ def _minimal_combined_result(story_id: str):
         ],
         assistant_text='{"fake": "assistant echo"}',
     )
+
+
+class TestEngineBridgeQuery:
+    def test_run_query_routes_through_turn_loop(self, mock_bridge: EngineBridge):
+        mock_bridge.run_turn = AsyncMock(return_value=TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0001",
+            turn_index=1,
+            output_text="You can see Pip's red coat.",
+            per_player_renders={"alice": "You can see Pip's red coat."},
+            beat_ended_reason="query_response",
+        ))
+
+        result = asyncio.run(mock_bridge.run_query(
+            session_id="s",
+            character_id="alice",
+            question=" what does Pip look like? ",
+        ))
+
+        mock_bridge.run_turn.assert_awaited_once_with(
+            session_id="s",
+            user_input="(query: what does Pip look like?)",
+            acting_character_id="alice",
+        )
+        assert result.answer == "You can see Pip's red coat."
+        assert result.knowledge_gated is False
 
 
 class TestImportAnalysisCallback:

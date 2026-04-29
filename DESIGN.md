@@ -281,7 +281,7 @@ overrides like `LLM_PROVIDER_NARRATOR=openai` and
 `LLM_MODEL_NARRATOR=gpt-5.4-mini`.
 
 Active model roles include `event_router`, `narrator`, `agent`,
-`character_gen`, and `query_handler`. The old
+and `character_gen`. The old
 `discriminator` role is vestigial and is not used by live calls.
 
 ## 6. Turn Lifecycle
@@ -648,7 +648,6 @@ Prompt files are source. Current prompt files include:
 * `narrator_phase2.txt`
 * `character_gen.txt`
 * `takeover.txt`
-* `query_handler.txt`
 
 Prompt rules:
 

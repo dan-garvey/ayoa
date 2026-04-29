@@ -29,7 +29,6 @@ _ROLE_ENV_ALIASES = {
     "character_gen": ("CHARACTER_GEN", "AGENT"),
     "event_router": ("ROUTER",),
     "narrator": ("NARRATOR",),
-    "query_handler": ("QUERY_HANDLER", "QUERY", "NARRATOR"),
 }
 
 
@@ -157,7 +156,6 @@ class LLMConfig(BaseModel):
         "narrator": _DEFAULT_MODEL,
         "agent": _DEFAULT_MODEL,
         "character_gen": _DEFAULT_MODEL,
-        "query_handler": _DEFAULT_MODEL,
     })
 
     # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
@@ -204,7 +202,6 @@ class LLMConfig(BaseModel):
         "narrator": "medium",
         "agent": "medium",
         "character_gen": "medium",
-        "query_handler": "medium",
     })
     # Raw OpenAI reasoning tokens are not exposed by the API. This optional
     # per-role setting requests provider-authored summaries instead.

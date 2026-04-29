@@ -87,7 +87,6 @@ class TestLLMConfig:
         assert config.role_models["narrator"] == "gpt-5.1"
         assert config.role_models["agent"] == "gpt-5.1"
         assert config.role_models["character_gen"] == "gpt-5.1"
-        assert config.role_models["query_handler"] == "gpt-5.1"
         assert all(
             effort == "medium"
             for effort in config.openai_reasoning_efforts.values()
@@ -145,10 +144,6 @@ class TestLLMConfig:
             )
             assert (
                 config.api_key_for_provider("openai", role="narrator")
-                == "narrator-openai-key"
-            )
-            assert (
-                config.api_key_for_provider("openai", role="query_handler")
                 == "narrator-openai-key"
             )
             assert config.provider_for_role("event_router") == "openai"
@@ -227,7 +222,6 @@ def mock_config():
             "narrator": "claude-haiku-4-5",
             "agent": "claude-sonnet-4-6",
             "character_gen": "claude-sonnet-4-6",
-            "query_handler": "claude-haiku-4-5",
         },
         max_retries=1,
         retry_base_delay=0.01,
@@ -497,7 +491,7 @@ class TestLLMClientComplete:
         with patch("app.llm.client.openai.AsyncOpenAI") as openai_ctor:
             client._get_openai_client("narrator")
             client._get_openai_client("event_router")
-            client._get_openai_client("query_handler")
+            client._get_openai_client("character_gen")
 
         assert openai_ctor.call_args_list[0].kwargs["api_key"] == "narrator-openai-key"
         assert openai_ctor.call_args_list[1].kwargs["api_key"] == "router-openai-key"

@@ -1509,32 +1509,26 @@ class EngineBridge:
         character_id: str,
         question: str,
     ) -> "QueryResponse":
-        """Answer an out-of-character /query for `character_id` in
-        `session_id`. Read-only — no checkpoint mutation, no
-        per-session lock, no turn advancement, no broadcast. The
-        asking character's POV envelope bounds the answer; questions
-        outside that envelope come back with `knowledge_gated=True`
-        and an in-fiction refusal.
+        """Answer /query through the router/narrator path.
 
-        Deliberately bypasses the per-session lock that wraps
-        `run_turn`. The query is a pure read of the latest
-        checkpoint snapshot on disk — concurrent /query and /act
-        on the same session are safe because /act writes a brand-new
-        checkpoint file rather than mutating in place. A query
-        running while a turn is mid-flight may read the
-        pre-turn snapshot; that's an acceptable staleness window
-        (the alternative is making the user wait on the lock for an
-        OOC question, which would be worse).
+        A query is no longer a separate read-only LLM role. It enters
+        the normal turn loop as a fully parenthesized OOC directive, so
+        the router emits a private observable fact and the narrator
+        renders it from the querying character's POV. This mutates the
+        checkpoint like any other private beat.
         """
-        # Local import to keep the engine layer's full dependency
-        # graph out of EngineBridge's module load — query_handler
-        # transitively imports the schema + prompt manager + LLM
-        # client, all of which are fine but the lazy import keeps
-        # the symbol surface small at import time.
-        from app.engine.query_handler import answer_query
-        ckpt = self.checkpoint_mgr.load_latest(session_id)
-        return await answer_query(
-            self.client, self.prompt_mgr, ckpt, character_id, question,
+        from app.schemas.query import QueryResponse
+
+        response = await self.run_turn(
+            session_id=session_id,
+            user_input=f"(query: {question.strip()})",
+            acting_character_id=character_id,
+        )
+        gated = response.beat_ended_reason == "slot_rejected"
+        return QueryResponse(
+            answer=(response.output_text or "").strip(),
+            knowledge_gated=gated,
+            gate_reason="slot_rejected" if gated else "",
         )
 
 
