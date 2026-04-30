@@ -1393,11 +1393,11 @@ class EngineBridge:
         Args:
             session_id: the session to open.
             triggering_character_id: the player who typed `/begin`.
-                Used as the `acting_character_id` so the router's
-                framing names them as the protagonist. May be empty
-                — the helper falls back to a deterministic pick from
-                the bound roster (sorted by id) so two simultaneous
-                `/begin`s converge on the same actor.
+                Used as the `acting_character_id` in the router's
+                per-turn context. May be empty — the helper falls
+                back to a deterministic pick from the bound roster
+                (sorted by id) so two simultaneous `/begin`s converge
+                on the same actor.
 
         Raises:
             ValueError: if no players are bound, or if the story has

@@ -767,6 +767,41 @@ class TestSchemaValidators:
         )
         assert out.agent_responder_picks == ["alice"]
 
+    def test_observation_harvest_picks_do_not_need_to_observe(self):
+        out = EventRouterOutput(
+            event_id="",
+            decision_rationale="test fixture",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.only("Alice studies Pip.", ["alice"]),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=1,
+                )
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=["pip"],
+            ends_beat=True,
+            ends_beat_reason="observation_harvest",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        )
+        assert out.agent_responder_picks == ["pip"]
+
+    def test_off_stage_tick_is_valid_end_reason(self):
+        out = _router_out(ends_beat=True)
+        data = out.model_dump()
+        data["ends_beat_reason"] = "off_stage_tick"
+        rebuilt = EventRouterOutput.model_validate(data)
+        assert rebuilt.ends_beat_reason == "off_stage_tick"
+
     def test_unknown_ends_beat_reason_coerced_to_empty(self):
         out = _router_out(ends_beat=True)
         data = out.model_dump()

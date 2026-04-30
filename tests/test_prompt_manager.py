@@ -212,6 +212,46 @@ class TestPromptManagerWithRealTemplates:
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
 
+    def test_event_router_keeps_turn_context_out_of_system_prefix(self):
+        """Router cache efficiency depends on actor/player turn state
+        living in the volatile user tail, not the cached system prefix."""
+        mgr = PromptManager(prompts_dir="app/prompts")
+        messages = mgr.render_messages(
+            "event_router",
+            setting_summary="Genre: fantasy",
+            world_lore="The kingdom has been at war.",
+            world_rules="No magic. Human baseline strength.",
+            hidden_lore="Secret conspiracy details.",
+            hidden_facts="- Hidden fact one",
+            acting_character_name="Aldric UniqueActor",
+            acting_character_id="aldric_unique_actor",
+            player_characters_block=(
+                "- **Aldric UniqueActor** (acting this turn) "
+                "(id: aldric_unique_actor) — scholar. "
+                "Unique player-block appearance."
+            ),
+            since_last_turn_block="",
+            world_facts_delta_block="",
+            initial_roster_block="",
+            state_changes_block="",
+            cat_ii_resolution_block="",
+            tick_fan_in_block="",
+            intention_block="## Intention\nAldric UniqueActor attempts: I wait.",
+        )
+
+        system = messages[0]["content"]
+        user = messages[1]["content"]
+
+        assert "Aldric UniqueActor" not in system
+        assert "aldric_unique_actor" not in system
+        assert "acting this turn" not in system
+        assert "Unique player-block appearance" not in system
+
+        assert "Aldric UniqueActor" in user
+        assert "aldric_unique_actor" in user
+        assert "acting this turn" in user
+        assert "Unique player-block appearance" in user
+
     def test_render_messages_rejects_missing_delimiter(self, mgr):
         # The tmp-path `greeting` fixture has no <<<USER>>> delimiter.
         with pytest.raises(ValueError, match="<<<USER>>>"):

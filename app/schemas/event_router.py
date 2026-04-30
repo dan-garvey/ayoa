@@ -19,6 +19,7 @@ EndsBeatReason = Literal[
     "cat_ii_resolution",
     "cat_ii_open",
     "ambient_pause",
+    "off_stage_tick",
     "max_events_cap",
     "cat_ii_pending",
     "cat_ii_stale",
@@ -297,9 +298,10 @@ class EventRouterOutput(BaseModel):
           INVARIANT; the schema here CLAMPS by silently dropping any
           pick not in observers and logs a warning. Clamp rather than
           raise because this is prompt drift, not a user-facing error —
-          the beat should still run. `query_response` is exempt because
-          picks there are private perception-harvest targets, not actors
-          reacting to the query event.
+          the beat should still run. `query_response` and
+          `observation_harvest` are exempt because picks there are
+          private perception-harvest targets, not actors reacting to
+          the event.
         """
         if self.requires_responders and not self.required_responders:
             raise ValueError(
@@ -312,7 +314,13 @@ class EventRouterOutput(BaseModel):
                 "required_responders contains duplicates; each responder "
                 "must appear exactly once."
             )
-        if self.agent_responder_picks and self.ends_beat_reason != "query_response":
+        if (
+            self.agent_responder_picks
+            and self.ends_beat_reason not in {
+                "query_response",
+                "observation_harvest",
+            }
+        ):
             observer_ids = {o.character_id for o in self.observers}
             dropped = [p for p in self.agent_responder_picks if p not in observer_ids]
             if dropped:

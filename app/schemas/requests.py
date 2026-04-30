@@ -10,7 +10,7 @@ class TurnRequest(BaseModel):
     # Which character is taking this turn. Empty falls back to
     # session.player_character_id so legacy single-player call sites keep
     # working without change. The orchestrator resolves this against the
-    # roster each turn to build the {acting_character_name} prompt slot.
+    # roster each turn for the router/narrator turn context.
     acting_character_id: str = ""
     stream: bool = False
     # NOTE: `debug: bool` and `debug_flags: DebugFlags` lived here through

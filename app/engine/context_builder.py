@@ -281,9 +281,10 @@ def build_player_characters_block(
 ) -> str:
     """Render a markdown list of every CURRENTLY-BOUND player character.
 
-    Appears in the frozen (cached) system prompt of the router,
-    narrator, and each agent. Marks the turn's acting character so
-    downstream prose knows whose action to center.
+    Appears in role prompts where human-bound characters must be
+    distinguished from NPCs. For the router this is intentionally
+    per-turn user-message context, not frozen system-prefix context,
+    because it marks the turn's acting character.
 
     Membership: union of `character_bindings` keys and (for legacy
     checkpoints) `session.player_character_id`. We deliberately do NOT

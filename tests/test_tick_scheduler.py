@@ -148,7 +148,7 @@ def _tick_router_output() -> EventRouterOutput:
         required_responders=[],
         agent_responder_picks=[],
         ends_beat=True,
-        ends_beat_reason="ambient_pause",
+        ends_beat_reason="off_stage_tick",
         spawn=[],
         dormant=[],
         cull=[],
