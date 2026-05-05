@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -144,6 +145,146 @@ class TestEngineBridgeQuery:
         )
         assert result.answer == "You can see Pip's red coat."
         assert result.knowledge_gated is False
+
+
+class TestQueryCommandDelivery:
+    def test_query_uses_turn_response_delivery_path(self, monkeypatch):
+        """`/query` should render like `/act`, not as a disappearing
+        ephemeral plaintext answer."""
+
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, *_args, **_kwargs):
+                return None
+
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0002",
+            turn_index=2,
+            output_text="You can see Pip's red coat.",
+            per_player_renders={"alice": "You can see Pip's red coat."},
+            beat_ended_reason="query_response",
+        )
+
+        engine = MagicMock()
+        engine.get_user_binding.return_value = "alice"
+        engine.run_turn = AsyncMock(return_value=response)
+        engine.run_query = AsyncMock()
+
+        smap = MagicMock()
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(session_id="s", story_id="story"),
+        )
+
+        captured: dict = {}
+
+        async def _fake_deliver(**kwargs):
+            captured.update(kwargs)
+
+        monkeypatch.setattr(
+            bot_commands, "_deliver_turn_response_to_povs", _fake_deliver,
+        )
+
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.response.defer = AsyncMock()
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(tree.commands["query"](inter, " what does Pip look like? "))
+
+        inter.response.defer.assert_awaited_once_with(thinking=True)
+        engine.run_turn.assert_awaited_once_with(
+            session_id="s",
+            user_input="(query: what does Pip look like?)",
+            acting_character_id="alice",
+        )
+        engine.run_query.assert_not_awaited()
+        assert captured["response"] is response
+        assert captured["actor_character_id"] == "alice"
+        assert captured["story_id"] == "story"
+        inter.followup.send.assert_not_awaited()
+
+
+class TestTurnResponseDelivery:
+    def test_actor_render_goes_through_embed_thread_delivery(self, monkeypatch):
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0003",
+            turn_index=3,
+            output_text="The answer lands as narrator prose.",
+            per_player_renders={"alice": "The answer lands as narrator prose."},
+            beat_ended_reason="query_response",
+        )
+
+        engine = MagicMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+        )
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        smap = MagicMock()
+        captured = {}
+        thread = MagicMock()
+        thread.id = 999
+        thread.mention = "<#999>"
+
+        async def _fake_post_actor_render(**kwargs):
+            captured.update(kwargs)
+            return ("thread", thread)
+
+        clear = AsyncMock()
+        public_fallback = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands, "_post_actor_render", _fake_post_actor_render,
+        )
+        monkeypatch.setattr(bot_commands, "_clear_interaction_response", clear)
+        monkeypatch.setattr(
+            bot_commands, "_send_public_turn_render", public_fallback,
+        )
+
+        asyncio.run(bot_commands._deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id="s",
+            story_id="story",
+            actor_character_id="alice",
+            actor_user=inter.user,
+            response=response,
+        ))
+
+        assert captured["character_id"] == "alice"
+        assert captured["char_name"] == "Alice"
+        assert captured["session_id"] == "s"
+        assert captured["turn_index"] == 3
+        assert captured["embeds"]
+        clear.assert_awaited_once_with(inter)
+        public_fallback.assert_not_awaited()
+        inter.followup.send.assert_not_awaited()
 
 
 class TestImportAnalysisCallback:

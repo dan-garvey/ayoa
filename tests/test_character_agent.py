@@ -784,10 +784,9 @@ class TestPerceptionMode:
          prompt's "Mode Routing" section keys off this exact token to
          flip into Perception Mode rules; if the marker drifts off
          line 1 the agent's mode signal is buried mid-message.
-      2. Perception calls do NOT append to the rolling conversation.
-         A self-presentation query is meta — folding it in would
-         pollute the agent's continuity-of-self with non-fictional
-         self-description on every future on-stage turn.
+      2. Perception calls append to the same rolling conversation.
+         A character should remember what they established about their
+         visual presentation in the scene.
       3. Cache lineage with respond/tick is preserved: the system
          prompt is byte-identical across all three modes for the
          same character + checkpoint.
@@ -840,17 +839,22 @@ class TestPerceptionMode:
         assert "with the [quality] of someone/people who" in user_content
 
     @pytest.mark.asyncio
-    async def test_perceive_does_not_append_to_rolling_history(
+    async def test_perceive_appends_to_rolling_history(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
-        # Perception is a side query, not an on-stage beat. Appending
-        # would surface "what does the world see of you?" as a
-        # cross-talk message in the agent's next on-stage turn.
-        mock_client.complete.return_value = self._llm_text_only("loadout")
+        # Perception is not an on-stage action, but the character should
+        # remember the visual loadout they authored for this scene.
+        mock_client.complete.return_value = self._llm_text_only(
+            "Polished armor, parade-rest posture."
+        )
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.perceive(guard_character, sample_checkpoint)
-        # No history key created for this character.
-        assert "guard_17" not in sample_checkpoint.character_conversations
+        convo = sample_checkpoint.character_conversations["guard_17"]
+        assert len(convo) == 2
+        assert convo[0].role == "user"
+        assert AGENT_PERCEPTION_HEADER in convo[0].content
+        assert convo[1].role == "assistant"
+        assert "Polished armor" in convo[1].content[0]["text"]
 
     @pytest.mark.asyncio
     async def test_perceive_does_not_drain_pending_observations(

@@ -42,6 +42,7 @@ from app.bot.engine_bridge import EngineBridge
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.responses import TurnResponse
 
 logger = logging.getLogger(__name__)
 
@@ -503,6 +504,187 @@ async def _send_public_turn_render(
         message=msg,
         delivery="public",
     )
+
+
+async def _deliver_turn_response_to_povs(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    engine: EngineBridge,
+    session_id: str,
+    story_id: str,
+    actor_character_id: str,
+    actor_user: discord.abc.User,
+    response: TurnResponse,
+) -> None:
+    """Deliver a TurnResponse using the standard /act POV format.
+
+    Actor render goes to the actor's POV thread first, then DM, then public
+    fallback. Other human POV renders fan out privately. This is shared by
+    `/act` and router-backed private directives such as `/query`.
+    """
+    if response.beat_ended_reason == "slot_rejected":
+        await inter.followup.send(
+            response.output_text or "Your /act could not be accepted.",
+            ephemeral=True,
+        )
+        return
+
+    # Load bindings + roster ONCE for both fan-outs (pre-turn resolutions +
+    # the actor's beat). Failure here only kills DMs, not the actor's render.
+    try:
+        ckpt_for_fanout = engine.load_latest(session_id)
+        bindings = ckpt_for_fanout.session.character_bindings or {}
+        roster = list(ckpt_for_fanout.characters or [])
+    except Exception:
+        logger.exception(
+            "per-POV fan-out: load_latest failed; skipping DMs",
+        )
+        bindings = {}
+        roster = []
+
+    async def _dm_per_pov(
+        renders: dict[str, str],
+        *,
+        skip_cid: str | None,
+        turn_index: int,
+        note_prefix: str = "",
+    ) -> list[str]:
+        """Post each (cid, prose) to that user's POV thread or DM."""
+        notified: list[str] = []
+        for cid, prose in renders.items():
+            if cid == skip_cid or not prose:
+                continue
+            uid_str = bindings.get(cid, "")
+            if not uid_str:
+                continue
+            try:
+                uid = int(uid_str)
+            except ValueError:
+                continue
+            payload = f"{note_prefix}\n\n{prose}" if note_prefix else prose
+            char = next((c for c in roster if c.character_id == cid), None)
+            char_name = char.name if char else cid
+            ok = await _post_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=uid,
+                character_id=cid,
+                char_name=char_name,
+                text=payload,
+                bot=inter.client,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+            if ok:
+                notified.append(char_name)
+        return notified
+
+    # Fan out pre-turn AFK-sweep resolutions before the actor's render so
+    # private POV order matches story time.
+    for pre_resp in (response.pre_turn_resolutions or []):
+        await _dm_per_pov(
+            pre_resp.per_player_renders or {},
+            skip_cid=None,
+            turn_index=pre_resp.turn_index,
+            note_prefix=(
+                "_(Auto-resolved while you were away — your prior "
+                "beat closed out.)_"
+            ),
+        )
+
+    actor_char = next(
+        (c for c in roster if c.character_id == actor_character_id), None,
+    )
+    actor_name = actor_char.name if actor_char else actor_character_id
+    per_player = response.per_player_renders or {}
+
+    if response.beat_ended_reason == "cat_ii_pending":
+        actor_render = per_player.get(actor_character_id) or ""
+        pause_note = (
+            "_Scene paused — waiting on another player's response. "
+            "You'll see the beat continue when they /act._"
+        )
+        if actor_render:
+            embeds = render_turn(
+                output_text=actor_render,
+                turn_index=response.turn_index,
+                story_id=story_id,
+            )
+            venue, thread = await _post_actor_render(
+                inter=inter,
+                smap=smap,
+                user=actor_user,
+                character_id=actor_character_id,
+                char_name=actor_name,
+                embeds=embeds,
+                intro_content=pause_note,
+                session_id=session_id,
+                turn_index=response.turn_index,
+            )
+            if venue == "thread" and thread is not None:
+                await _clear_interaction_response(inter)
+            elif venue == "dm":
+                await _clear_interaction_response(inter)
+            else:
+                await _send_public_turn_render(
+                    inter=inter,
+                    smap=smap,
+                    session_id=session_id,
+                    turn_index=response.turn_index,
+                    content=pause_note,
+                    embeds=embeds,
+                )
+        else:
+            await inter.followup.send(content=pause_note, ephemeral=True)
+    else:
+        actor_render = (
+            response.output_text
+            or per_player.get(actor_character_id, "")
+            or "(no response)"
+        )
+        embeds = render_turn(
+            output_text=actor_render,
+            turn_index=response.turn_index,
+            story_id=story_id,
+        )
+        venue, thread = await _post_actor_render(
+            inter=inter,
+            smap=smap,
+            user=actor_user,
+            character_id=actor_character_id,
+            char_name=actor_name,
+            embeds=embeds,
+            session_id=session_id,
+            turn_index=response.turn_index,
+        )
+        if venue == "thread" and thread is not None:
+            await _clear_interaction_response(inter)
+        elif venue == "dm":
+            await _clear_interaction_response(inter)
+        else:
+            await _send_public_turn_render(
+                inter=inter,
+                smap=smap,
+                session_id=session_id,
+                turn_index=response.turn_index,
+                embeds=embeds,
+            )
+
+    if per_player:
+        notified_names = await _dm_per_pov(
+            per_player, skip_cid=actor_character_id,
+            turn_index=response.turn_index,
+        )
+        if notified_names:
+            try:
+                notified_phrase = ", ".join(f"**{n}**" for n in notified_names)
+                await inter.followup.send(
+                    f"({notified_phrase} notified via DM.)",
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception("per-POV fan-out: ephemeral ack failed")
 
 
 async def _message_channel_for_ref(
@@ -2382,196 +2564,16 @@ def register(
         # list here and silently no-op'd because the orchestrator
         # never populated it.
 
-        # v11-r6b/r7a: branch on beat_ended_reason.
-        #   - slot_rejected: the orchestrator rejected the /act on slot
-        #     grounds; response.output_text carries the user-facing
-        #     explanation (with the attempted_text echoed for copy-
-        #     paste). Send plain ephemeral — no embed, no fan-out.
-        #   - cat_ii_pending: r6a renders a PARTIAL cliffhanger to the
-        #     initiator (if human) and pinned responders. Show the
-        #     initiator their cliffhanger if present, prefix with a
-        #     pause notice, then fan-out the pinned humans below.
-        #   - other: normal render to actor + fan-out to non-actors.
-        if response.beat_ended_reason == "slot_rejected":
-            await inter.followup.send(
-                response.output_text or "Your /act could not be accepted.",
-                ephemeral=True,
-            )
-            return
-
-        # Load bindings + roster ONCE for both fan-outs (pre-turn
-        # resolutions + the actor's beat). Failure here only kills DMs,
-        # not the actor's followup.
-        try:
-            ckpt_for_fanout = engine.load_latest(row.session_id)
-            bindings = ckpt_for_fanout.session.character_bindings or {}
-            roster = list(ckpt_for_fanout.characters or [])
-        except Exception:
-            logger.exception(
-                "per-POV fan-out: load_latest failed; skipping DMs",
-            )
-            bindings = {}
-            roster = []
-
-        async def _dm_per_pov(
-            renders: dict[str, str],
-            *,
-            skip_cid: str | None,
-            turn_index: int,
-            note_prefix: str = "",
-        ) -> list[str]:
-            """Post each (cid, prose) in `renders` to that user's POV
-            thread (DM fallback). Returns the list of character display
-            names that were successfully notified. `skip_cid` skips the
-            actor (who already saw their render in-channel)."""
-            notified: list[str] = []
-            for cid, prose in renders.items():
-                if cid == skip_cid or not prose:
-                    continue
-                uid_str = bindings.get(cid, "")
-                if not uid_str:
-                    continue
-                try:
-                    uid = int(uid_str)
-                except ValueError:
-                    continue
-                payload = (
-                    f"{note_prefix}\n\n{prose}" if note_prefix else prose
-                )
-                char = next(
-                    (c for c in roster if c.character_id == cid), None,
-                )
-                char_name = char.name if char else cid
-                ok = await _post_to_pov(
-                    inter=inter,
-                    smap=smap,
-                    user_id=uid,
-                    character_id=cid,
-                    char_name=char_name,
-                    text=payload,
-                    bot=inter.client,
-                    session_id=row.session_id,
-                    turn_index=turn_index,
-                )
-                if ok:
-                    notified.append(char_name)
-            return notified
-
-        # Step 1: fan out pre-turn AFK-sweep resolutions BEFORE the
-        # actor's /act render so the in-DM order matches story time.
-        # The acting user gets their own DM here too (they may have
-        # been the AFK pin holder).
-        for pre_resp in (response.pre_turn_resolutions or []):
-            await _dm_per_pov(
-                pre_resp.per_player_renders or {},
-                skip_cid=None,
-                turn_index=pre_resp.turn_index,
-                note_prefix=(
-                    "_(Auto-resolved while you were away — your prior "
-                    "beat closed out.)_"
-                ),
-            )
-
-        # Step 2: actor's /act result. Always routed through
-        # `_post_actor_render` so the narrative lands in the actor's
-        # private POV thread (DM fallback, public-channel fallback if
-        # both private paths fail). Public channel sees an ephemeral
-        # pointer at most.
-        actor_char = next(
-            (c for c in roster if c.character_id == binding), None,
+        await _deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id=row.session_id,
+            story_id=row.story_id,
+            actor_character_id=binding,
+            actor_user=inter.user,
+            response=response,
         )
-        actor_name = actor_char.name if actor_char else binding
-        per_player = response.per_player_renders or {}
-        if response.beat_ended_reason == "cat_ii_pending":
-            actor_render = per_player.get(binding) or ""
-            pause_note = (
-                "_Scene paused — waiting on another player's response. "
-                "You'll see the beat continue when they /act._"
-            )
-            if actor_render:
-                embeds = render_turn(
-                    output_text=actor_render,
-                    turn_index=response.turn_index,
-                    story_id=row.story_id,
-                )
-                venue, thread = await _post_actor_render(
-                    inter=inter,
-                    smap=smap,
-                    user=inter.user,
-                    character_id=binding,
-                    char_name=actor_name,
-                    embeds=embeds,
-                    intro_content=pause_note,
-                    session_id=row.session_id,
-                    turn_index=response.turn_index,
-                )
-                if venue == "thread" and thread is not None:
-                    await _clear_interaction_response(inter)
-                elif venue == "dm":
-                    await _clear_interaction_response(inter)
-                else:
-                    await _send_public_turn_render(
-                        inter=inter,
-                        smap=smap,
-                        session_id=row.session_id,
-                        turn_index=response.turn_index,
-                        content=pause_note,
-                        embeds=embeds,
-                    )
-            else:
-                await inter.followup.send(content=pause_note, ephemeral=True)
-        else:
-            embeds = render_turn(
-                output_text=response.output_text,
-                turn_index=response.turn_index,
-                story_id=row.story_id,
-            )
-            venue, thread = await _post_actor_render(
-                inter=inter,
-                smap=smap,
-                user=inter.user,
-                character_id=binding,
-                char_name=actor_name,
-                embeds=embeds,
-                session_id=row.session_id,
-                turn_index=response.turn_index,
-            )
-            if venue == "thread" and thread is not None:
-                await _clear_interaction_response(inter)
-            elif venue == "dm":
-                await _clear_interaction_response(inter)
-            else:
-                # Both private paths failed — public fallback so the
-                # actor still sees their beat.
-                await _send_public_turn_render(
-                    inter=inter,
-                    smap=smap,
-                    session_id=row.session_id,
-                    turn_index=response.turn_index,
-                    embeds=embeds,
-                )
-
-        # Step 3: DM the actor's beat to the OTHER bound humans with
-        # queued POV renders. Acting user already saw it in-channel above, so
-        # skip_cid=binding.
-        if per_player:
-            notified_names = await _dm_per_pov(
-                per_player, skip_cid=binding,
-                turn_index=response.turn_index,
-            )
-            if notified_names:
-                try:
-                    notified_phrase = ", ".join(
-                        f"**{n}**" for n in notified_names
-                    )
-                    await inter.followup.send(
-                        f"({notified_phrase} notified via DM.)",
-                        ephemeral=True,
-                    )
-                except Exception:
-                    logger.exception(
-                        "per-POV fan-out: ephemeral ack failed",
-                    )
 
     # ---- /defer -------------------------------------------------------------
 
@@ -2594,7 +2596,7 @@ def register(
         name="query",
         description=(
             "Ask an out-of-character question (what do I see, who is X, "
-            "what day is it). Ephemeral."
+            "what day is it)."
         ),
         guild=guild,
     )
@@ -2630,39 +2632,38 @@ def register(
             )
             return
 
-        await inter.response.defer(thinking=True, ephemeral=True)
+        await inter.response.defer(thinking=True)
 
         try:
-            result = await engine.run_query(
+            response = await engine.run_turn(
                 session_id=row.session_id,
-                character_id=binding,
-                question=question,
+                user_input=f"(query: {question.strip()})",
+                acting_character_id=binding,
             )
         except TransientLLMError as e:
             logger.warning(
-                "run_query hit transient LLM error after %d attempts: %s",
+                "/query run_turn hit transient LLM error after %d attempts: %s",
                 e.attempts, e.last_error,
             )
             await inter.followup.send(str(e), ephemeral=True)
             return
         except Exception as e:
-            logger.exception("run_query failed")
+            logger.exception("/query run_turn failed")
             await inter.followup.send(
                 f"`{type(e).__name__}: {e}`", ephemeral=True,
             )
             return
 
-        answer = result.answer or "(no response)"
-        # Echo the question back italicized so the player has the
-        # context inside the ephemeral (Discord ephemerals don't
-        # appear in normal scrollback, so the question text isn't
-        # visible without this).
-        body = f"_> {question.strip()}_\n\n{answer}"
-        # Discord caps message bodies at 2000 chars; keep some
-        # headroom for the italic prefix.
-        if len(body) > 1900:
-            body = body[:1900] + "\n…(truncated)"
-        await inter.followup.send(body, ephemeral=True)
+        await _deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id=row.session_id,
+            story_id=row.story_id,
+            actor_character_id=binding,
+            actor_user=inter.user,
+            response=response,
+        )
 
     # ---- /rewind ------------------------------------------------------------
     # Destructive: deletes ckpt_>target.json from disk. Owner-only by

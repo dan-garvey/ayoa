@@ -542,6 +542,24 @@ class TestBroadcastEvent:
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == []
 
+    def test_all_observers_fact_with_empty_observers_delivers_to_no_one(self):
+        ckpt = _ckpt({"alice": "1"})
+        event = self._event(
+            observer_ids=[],
+            facts=[ObservableFact.all("A bell rings across the estate.")],
+        )
+
+        visible = broadcast_event(ckpt, event, actor_id="pip")
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        bob = next(c for c in ckpt.characters if c.character_id == "bob")
+        assert visible == []
+        assert ckpt.session.render_buffers == {}
+        assert pip.pending_observations == []
+        assert alice.pending_observations == []
+        assert bob.pending_observations == []
+
     def test_npc_observer_gets_visible_facts(self):
         ckpt = _ckpt()
         event = self._event(observer_ids=["pip"])

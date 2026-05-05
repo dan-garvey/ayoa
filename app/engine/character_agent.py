@@ -157,32 +157,24 @@ class CharacterAgent:
         (`ends_beat_reason="observation_harvest"`), and reachable
         later from `/query` for "what does X look like?" questions.
 
-        Distinct from `respond` and `tick` in three load-bearing ways:
+        Distinct from `respond` and `tick` in two load-bearing ways:
 
-        1. **No history append.** The exchange is NOT persisted onto
-           `checkpoint.character_conversations[character_id]`. Perception
-           is meta — folding it in would pollute the agent's continuity-
-           of-self with non-fictional self-description ("the world asked
-           me what I look like; I told them"). The on-stage / tick path
-           reads its own past responses to maintain voice consistency;
-           perception responses being interleaved would surface as
-           confusing cross-talk on the next on-stage turn. Cache lineage
-           is preserved because the system prompt is byte-identical with
-           respond/tick — only the user message differs, and Anthropic's
-           cache hashes the prefix, so perception calls cache-hit on
-           the system prompt without ever appending to the message
-           prefix the next on-stage call sees.
-
-        2. **No parenthetical parse.** Perception mode in `agent.txt`
+        1. **No parenthetical parse.** Perception mode in `agent.txt`
            tells the model not to emit a trailing parenthetical;
            output is pure prose. Returning `response.content.strip()`
            directly skips the `_extract_parenthetical` round-trip
            (which would otherwise log a spurious "missing trailing
            parenthetical" warning on every call).
 
-        3. **Lower max_tokens.** Cap is 3 sentences (~150 tokens of
+        2. **Lower max_tokens.** Cap is 3 sentences (~150 tokens of
            prose, leave headroom for the model's own pacing). 600
            leaves slack but stays cheap.
+
+        Perception DOES append to the character's rolling conversation.
+        A character should remember how they chose to present themself in
+        the current scene, especially after repeated look/query harvests.
+        Unlike respond/tick, this still does not drain pending_observations
+        and does not produce private intent.
 
         `acting_character_id` is currently vestigial — the agent
         prompt no longer surfaces who is acting this beat (that
@@ -205,7 +197,8 @@ class CharacterAgent:
         # query shouldn't be primed by "react to these incoming events."
         # The character's freshest in-fiction interior is already in
         # their rolling history (`history` above), which is what should
-        # color their visual loadout.
+        # color their visual loadout. The resulting loadout is appended
+        # after the call so future beats remember what was established.
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
 
@@ -221,6 +214,7 @@ class CharacterAgent:
             mode_block=format_agent_perception_body(),
         )
         render_ms = (time.monotonic() - render_t0) * 1000
+        user_content = messages[-1]["content"]
 
         logger.info(
             "Agent %s (%s) perceive: history=%d msgs",
@@ -237,6 +231,11 @@ class CharacterAgent:
         )
         text = (response.content or "").strip()
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
+
+        conv = checkpoint.character_conversations.setdefault(
+            character.character_id, [],
+        )
+        append_turn_to_conversation(conv, user_content, response)
 
         logger.info(
             "Agent %s perceive: %d chars",
