@@ -11,6 +11,7 @@ class ModelConfig(BaseModel):
     narrator: str = "gpt-5.1"
     discriminator: str = "gpt-5.2"
     agent_default: str = "gpt-5.1"
+    rules_arbitrator: str = "gpt-5.2"
 
 
 class SlotEntry(BaseModel):
@@ -51,6 +52,13 @@ class OpenCatIIEvent(BaseModel):
     # leak into canonical event prose. This is cleaner than parsing a
     # magic-string marker on the intention text.
     swept_responders: list[str] = Field(default_factory=list)
+    # Opening-event context preserved for optional rules arbitrators that
+    # replace the router's final Cat II resolution. Legacy/manual Cat II
+    # events may leave these empty; resolution then falls back to the
+    # participants as observers.
+    opening_event_id: str = ""
+    opening_observer_ids: list[str] = Field(default_factory=list)
+    opening_observable_facts: list[str] = Field(default_factory=list)
     opened_at: str = ""
 
 
@@ -112,6 +120,10 @@ class SessionSettings(BaseModel):
     # is visible: the rendered outcome notes that the player did not
     # act, so everyone sees the fallback happened.
     cat_ii_human_timeout_seconds: int = 24 * 60 * 60
+    # Ruleset/rules-arbitration toggles. Defaults preserve the existing
+    # narrative router-owned Cat II behavior.
+    ruleset_id: str = "narrative"
+    cat_ii_resolution_mode: str = "router"
 
 
 class SessionConfig(BaseModel):

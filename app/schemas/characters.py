@@ -101,6 +101,12 @@ class CharacterRecord(BaseModel):
     # a single freeform field on purpose — the LLM picks whatever shape
     # best conveys what THIS character takes for granted.
     known_context: str = ""
+    # Optional rules/content adapter state. Narrative-only sessions leave
+    # this empty. D&D v1 reads a small conventional subset when present:
+    # ruleset_id, ability_scores, proficiency_bonus, skill_proficiencies,
+    # saving_throw_proficiencies, armor_class, hit_points, conditions,
+    # resources, and raw.
+    mechanics: dict[str, Any] = Field(default_factory=dict)
     # Interior continuity (Commit 3 had `last_intent` / `last_intent_turn`
     # mirror fields here; both removed). The agent's freshest interior
     # is the trailing parenthetical at the end of its most recent

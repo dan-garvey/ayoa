@@ -511,6 +511,7 @@ def open_cat_ii(
     initiator_id: str,
     initiator_intention: str,
     required_responders: list[str],
+    opening_event: EventRouterOutput | None = None,
 ) -> OpenCatIIEvent:
     """Open a Cat II event and register it on the checkpoint. Humans
     among required_responders are pinned into the beat slot."""
@@ -520,6 +521,13 @@ def open_cat_ii(
         initiator_intention=initiator_intention,
         required_responders=list(required_responders),
         collected_intentions={},
+        opening_event_id=opening_event.event_id if opening_event else "",
+        opening_observer_ids=[
+            observer.character_id for observer in opening_event.observers
+        ] if opening_event else [],
+        opening_observable_facts=[
+            fact.text for fact in opening_event.canonical_event.observable_facts
+        ] if opening_event else [],
         opened_at=_utcnow_iso(),
     )
     ckpt.session.open_cat_ii_events.append(evt)
@@ -1213,6 +1221,7 @@ async def run_beat(
                 initiator_id=result_actor_id,
                 initiator_intention=current_intention,
                 required_responders=required,
+                opening_event=result,
             )
 
             # The router's Cat II-open output is already the canonical

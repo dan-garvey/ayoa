@@ -285,9 +285,10 @@ resolution:
 2. Add dice and D&D arithmetic helpers.
 
    Implement ability modifiers, proficiency-aware bonuses, simple roll
-   execution, advantage/disadvantage, and roll ledgers. Use a small internal
-   implementation first unless a dice package is already available locally;
-   a dedicated dice library can replace it later.
+   execution, advantage/disadvantage, and roll ledgers. Dice parsing and
+   evaluation should go through Ayoa's internal wrapper around `d20` so future
+   rules code receives stable Ayoa-owned roll request/result objects instead
+   of depending directly on the third-party package API.
 
 3. Add session settings.
 
@@ -320,6 +321,13 @@ resolution:
    rules arbitrator, call the roll-planning path, execute rolls in code, call
    finalization, and compile the result back into the existing event shape.
    Otherwise keep the current router path.
+
+   Current implementation status: this branch exists behind
+   `cat_ii_resolution_mode="rules_arbitrator"`. It preserves the Cat II
+   opening context, asks a rules arbitrator for a d20 roll plan, executes
+   planned rolls through Ayoa's `d20` wrapper, asks for final adjudication, and
+   compiles the outcome back into `EventRouterOutput`. State deltas are
+   returned as notes but are not applied yet.
 
 7. Apply simple state deltas.
 

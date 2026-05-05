@@ -87,6 +87,7 @@ class TestLLMConfig:
         assert config.role_models["narrator"] == "gpt-5.1"
         assert config.role_models["agent"] == "gpt-5.1"
         assert config.role_models["character_gen"] == "gpt-5.1"
+        assert config.role_models["rules_arbitrator"] == "gpt-5.2"
         assert all(
             effort == "medium"
             for effort in config.openai_reasoning_efforts.values()

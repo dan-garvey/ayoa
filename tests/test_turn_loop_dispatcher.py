@@ -19,6 +19,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.rules_arbitrator import RollPlan, RulesAdjudication
 from app.schemas.state import (
     LocationState,
     OpenCatIIEvent,
@@ -196,6 +197,54 @@ class TestRouteIntention:
         assert "## Swept Responders (AFK)" in user_content
         assert "AFK-swept" not in user_content
         assert "attempts:" not in user_content
+
+    def test_cat_ii_rules_mode_bypasses_router_resolution(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.config.settings.cat_ii_resolution_mode = "rules_arbitrator"
+        mock_client.complete.side_effect = [
+            _llm_response(RollPlan(
+                needs_rolls=False,
+                roll_requests=[],
+                no_roll_reason="Pip yields.",
+            )),
+            _llm_response(RulesAdjudication(
+                feasible=True,
+                mechanical_summary="Pip yields before contact.",
+                visible_outcome_facts=["Pip steps aside before Alice hits him."],
+                state_deltas=[],
+                rules_notes=[],
+                fallback_reason="",
+            )),
+        ]
+        evt = OpenCatIIEvent(
+            event_id="evt_abc123",
+            initiator_id="alice",
+            initiator_intention="I shove Pip",
+            required_responders=["pip"],
+            collected_intentions={"pip": "I yield"},
+            opening_observer_ids=["alice", "pip"],
+            opening_observable_facts=["Alice drives toward Pip."],
+        )
+
+        out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I shove Pip",
+            cat_ii_event=evt,
+        ))
+
+        assert out.ends_beat_reason == "cat_ii_resolution"
+        assert out.canonical_event.observable_facts[0].text == (
+            "Pip steps aside before Alice hits him."
+        )
+        assert [
+            call.kwargs["role"] for call in mock_client.complete.await_args_list
+        ] == ["rules_arbitrator", "rules_arbitrator"]
+        assert "## Cat II Resolution" not in _last_user_content(
+            mock_client.complete.await_args_list[0].kwargs["messages"]
+        )
 
     def test_session_conversation_passed_as_history(
         self, prompt_mgr, mock_client, monkeypatch,

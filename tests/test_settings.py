@@ -119,6 +119,14 @@ class TestSettingsHelpers:
         assert new is False
         assert ckpt.session.config.settings.ticks_enabled is False
 
+    def test_set_cat_ii_resolution_mode(self):
+        ckpt = _ckpt()
+        new = set_setting(ckpt, "cat_ii_resolution_mode", "rules_arbitrator")
+        assert new == "rules_arbitrator"
+        assert ckpt.session.config.settings.cat_ii_resolution_mode == (
+            "rules_arbitrator"
+        )
+
     def test_set_setting_unknown_raises(self):
         ckpt = _ckpt()
         with pytest.raises(UnknownSettingError):

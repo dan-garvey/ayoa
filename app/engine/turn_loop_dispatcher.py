@@ -32,6 +32,10 @@ from app.engine.context_builder import (
     resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
+from app.engine.rules_arbitrator import (
+    RulesArbitrator,
+    cat_ii_rules_arbitrator_enabled,
+)
 from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
@@ -290,6 +294,7 @@ class LLMDispatcher:
         # Character agent is stateless aside from `last_usage`; reusing one
         # instance avoids per-call allocation.
         self._agent = CharacterAgent(client, prompt_mgr)
+        self._rules_arbitrator = RulesArbitrator(client, prompt_mgr)
 
     # ------------------------------------------------------------------
     # route_intention
@@ -304,6 +309,17 @@ class LLMDispatcher:
         cat_ii_event: OpenCatIIEvent | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention through event_router."""
+
+        if cat_ii_event is not None and cat_ii_rules_arbitrator_enabled(ckpt):
+            logger.info(
+                "LLMDispatcher.route_intention: actor=%s cat_ii=%s "
+                "using rules_arbitrator",
+                actor_id, cat_ii_event.event_id,
+            )
+            return await self._rules_arbitrator.resolve_cat_ii(
+                ckpt=ckpt,
+                cat_ii_event=cat_ii_event,
+            )
 
         # Snapshot context-trim session fields BEFORE
         # `_build_router_context` mutates them, so we can restore on

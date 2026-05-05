@@ -70,6 +70,24 @@ def _parse_int_positive(raw: str) -> int:
     return n
 
 
+def _parse_nonempty_str(raw: str) -> str:
+    value = raw.strip()
+    if not value:
+        raise ValueError("Value cannot be empty.")
+    return value
+
+
+def _parse_cat_ii_resolution_mode(raw: str) -> str:
+    value = raw.strip().lower()
+    valid = {"router", "rules_arbitrator"}
+    if value not in valid:
+        raise ValueError(
+            "Cat II resolution mode must be one of: "
+            + ", ".join(sorted(valid))
+        )
+    return value
+
+
 SETTINGS: list[SettingDef] = [
     SettingDef(
         key="tick_concurrency",
@@ -95,6 +113,26 @@ SETTINGS: list[SettingDef] = [
         ),
         parse=_parse_bool,
         render=_render_bool,
+    ),
+    SettingDef(
+        key="ruleset_id",
+        default="narrative",
+        description=(
+            "Rules/content mode label for the session. Default narrative "
+            "keeps Ayoa rules-neutral; dnd5e_basic enables D&D-facing "
+            "helpers for features that explicitly opt into them."
+        ),
+        parse=_parse_nonempty_str,
+    ),
+    SettingDef(
+        key="cat_ii_resolution_mode",
+        default="router",
+        description=(
+            "Who resolves final Cat II outcomes. router preserves the "
+            "existing narrative path; rules_arbitrator uses the rules "
+            "adjudication path when a Cat II is ready to close."
+        ),
+        parse=_parse_cat_ii_resolution_mode,
     ),
 ]
 

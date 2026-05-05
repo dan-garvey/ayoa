@@ -388,6 +388,9 @@ class TestCatIIBeat:
         assert "alice" in result.renders
         assert "bob" in result.renders
         assert ckpt.session.active_act_slots["bob"].reason == "cat_ii_responder"
+        open_evt = ckpt.session.open_cat_ii_events[0]
+        assert open_evt.opening_observer_ids == ["alice", "bob"]
+        assert open_evt.opening_observable_facts == ["Something happens."]
         assert fake.narrator_calls
         assert all(c.get("partial_mode_override") is True for c in fake.narrator_calls)
 
