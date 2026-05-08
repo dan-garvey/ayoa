@@ -30,9 +30,9 @@ The key architectural truth is that Ayoa is currently **router-centered**.
 The event router is the world arbiter. Character agents propose
 character-local behavior; the narrator renders human POV prose; the
 orchestrator and turn loop apply router outputs to checkpoint state. Future
-specialized roles, such as a rules arbitrator, should be understood as
-extensions that relieve a specific router responsibility, not as a replacement
-for the current router-centered runtime.
+mechanics/content extensions should be understood as narrow subflows that
+relieve a specific router responsibility, not as replacements for the current
+router-centered runtime.
 
 ## 2. Goals
 
@@ -188,9 +188,11 @@ backstops, and per-human render fan-out.
 
 Important state:
 
-* `active_act_slots`: per-beat lock state for initiators and Cat II
-  responders
+* `active_act_slots`: per-beat lock state for initiators, Cat II responders,
+  and pending D&D player rolls
 * `open_cat_ii_events`: contested events awaiting responders
+* `cat_ii_roll_transactions`: checkpoint-persistent D&D roll plans, pending
+  player rolls, completed roll results, and dice ledgers
 * `render_buffers`: per-human queues of canonical event ids waiting for
   narrator render
 * `canonical_events`: append-only log of closed canonical events
@@ -420,15 +422,21 @@ Cat II flow:
 3. Human responders are pinned in `active_act_slots`.
 4. Agent responders intend immediately.
 5. If all responders are present, the router resolves the event inline.
-6. If any human is pending, the narrator renders partial-mode prose and
-   the beat pauses.
-7. When the human responds, the router receives the initiator and
-   responder intentions and emits the resolved canonical event.
-8. After a Cat II event resolves, an NPC initiator gets the first
+6. If D&D mode is enabled, final resolution may enter a router-owned roll
+   planning/finalization subflow. NPC/agent rolls execute automatically; player
+   rolls either execute automatically or pause for Discord roll UI depending on
+   `player_roll_mode`.
+7. If any human responder or player roll is pending, the narrator renders
+   partial-mode prose where applicable and the beat pauses.
+8. When the human responds or rolls, the router receives the compact resolution
+   packet and emits the resolved canonical event.
+9. After a Cat II event resolves, an NPC initiator gets the first
    follow-up turn when applicable.
 
 Cat II final resolution is still router-owned. There is no separate rules
-arbitrator in the live runtime.
+arbitrator model role in the live runtime. Roll plans and dice ledgers persist
+in checkpoint transactions for rewind/audit but are not appended to
+`session_conversation`; future LLM context receives the canonical outcome facts.
 
 ### 6.4 Broadcast
 
@@ -818,6 +826,8 @@ Important notes:
 * `transcript` is primarily display/audit state, but takeover/personality
   synthesis flows may read recent transcript entries as authoring context.
 * `session_conversation` is the router's rolling history.
+* D&D Cat II roll transactions are checkpoint/audit state, not router rolling
+  history.
 * `narrator_conversations` are per human POV.
 * `character_conversations` are per character.
 * `world_state.locations` has no runtime topology.

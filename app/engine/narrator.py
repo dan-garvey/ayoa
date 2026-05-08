@@ -25,6 +25,24 @@ from app.schemas.state import RenderBufferEntry
 logger = logging.getLogger(__name__)
 
 
+def _strip_unmatched_trailing_closers(text: str) -> str:
+    """Remove schema/JSON closers the model sometimes leaks into prose.
+
+    Structured narrator output already parsed successfully at this point, so a
+    final unmatched `}` or `]` is not needed for JSON validity. Balanced braces
+    inside ordinary prose are preserved.
+    """
+    cleaned = (text or "").rstrip()
+    pairs = {"}": "{", "]": "["}
+    while cleaned and cleaned[-1] in pairs:
+        closer = cleaned[-1]
+        opener = pairs[closer]
+        if cleaned.count(opener) >= cleaned.count(closer):
+            break
+        cleaned = cleaned[:-1].rstrip()
+    return cleaned
+
+
 def _resolve_buffered_events(
     ckpt: CheckpointFile,
     buffered_events: list[RenderBufferEntry],
@@ -203,6 +221,16 @@ async def compose_pov_render(
         compact=True,
     )
     result: NarratorFinalOutput = response.parsed
+    if result is not None:
+        result.final_text = _strip_unmatched_trailing_closers(result.final_text)
+        response.parsed = result
+        # Persist sanitized structured text into the narrator rolling history.
+        # Leaving the raw provider block here can feed the same stray brace back
+        # to the next narrator call.
+        response.assistant_content = [{
+            "type": "text",
+            "text": result.model_dump_json(),
+        }]
 
     # Append user + assistant to the POV's rolling history. We can't
     # reuse `append_turn_to_conversation` here because the user content

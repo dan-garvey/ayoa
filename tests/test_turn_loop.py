@@ -37,7 +37,7 @@ from app.schemas.events import (
     WorldAdjudication,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.state import RenderBufferEntry, SessionState, WorldState
+from app.schemas.state import RenderBufferEntry, SessionState, SlotEntry, WorldState
 
 
 def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
@@ -198,6 +198,16 @@ class TestCheckActSlot:
         check = check_act_slot(ckpt, "bob")
         assert check.conflict == SlotConflict.CAT_II_OTHER_HELD
         assert check.holder_id == "alice"
+
+    def test_cat_ii_roll_pin_rejects_act_until_roll_ui(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="cat_ii_roll",
+            cat_ii_event_id="evt_xyz",
+        )
+        check = check_act_slot(ckpt, "alice")
+        assert check.conflict == SlotConflict.CAT_II_SELF_ROLL
+        assert check.cat_ii_event_id == "evt_xyz"
 
 
 class TestBeatCascade:

@@ -16,7 +16,7 @@ RollKind = Literal[
 
 
 class PlannedRoll(BaseModel):
-    """One rules-arbitrator roll request.
+    """One D&D Cat II roll request planned by the event-router role.
 
     All fields are required to keep structured-output schemas fixed. Empty
     strings and zeroes are used where a field is not applicable.

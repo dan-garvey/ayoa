@@ -28,6 +28,11 @@ import logging
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.dnd_cat_ii import (
+    DndCatIIRollsPending,
+    complete_pending_player_roll,
+    pending_player_rolls,
+)
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import (
@@ -156,6 +161,7 @@ class Orchestrator:
 
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
+                                  SlotConflict.CAT_II_SELF_ROLL,
                                   SlotConflict.SELF_BUSY):
                 msg = format_slot_rejection(
                     check, ckpt, attempted_text=request.user_input,
@@ -326,12 +332,31 @@ class Orchestrator:
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
 
             if cat_ii_is_ready(evt_live):
-                resolved = await dispatcher.route_intention(
-                    ckpt=ckpt,
-                    actor_id=evt_live.initiator_id,
-                    intention=evt_live.initiator_intention,
-                    cat_ii_event=evt_live,
-                )
+                try:
+                    resolved = await dispatcher.route_intention(
+                        ckpt=ckpt,
+                        actor_id=evt_live.initiator_id,
+                        intention=evt_live.initiator_intention,
+                        cat_ii_event=evt_live,
+                    )
+                except DndCatIIRollsPending:
+                    beat_result = BeatResult(
+                        renders={},
+                        events_closed=0,
+                        ended_reason="cat_ii_pending_rolls",
+                        transcript_entries={},
+                        event_actor_ids=[],
+                    )
+                    self.checkpoint_mgr.save(ckpt)
+                    renders: dict[str, str] = {}
+                    return TurnResponse(
+                        session_id=session_id,
+                        checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                        turn_index=ckpt.session.turn_index,
+                        output_text="",
+                        per_player_renders=renders,
+                        beat_ended_reason=beat_result.ended_reason,
+                    )
                 close_cat_ii(ckpt, evt_live.event_id)
                 release_beat_slots(ckpt)
                 if resolved.requires_responders:
@@ -426,6 +451,221 @@ class Orchestrator:
         renders = dict(beat_result.renders)
         actor_id = evt.initiator_id
         output_text = renders.get(actor_id, "") or (
+            next(iter(renders.values()), "") if renders else ""
+        )
+        return TurnResponse(
+            session_id=session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text=output_text,
+            per_player_renders=renders,
+            beat_ended_reason=beat_result.ended_reason,
+        )
+
+    async def submit_cat_ii_roll(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        roll_id: str,
+        actor_id: str,
+        user_id: str = "",
+    ) -> TurnResponse:
+        """Execute one pending player roll and finalize the Cat II if ready."""
+        lock = await self.session_locks.get(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
+            evt_live = next(
+                (e for e in ckpt.session.open_cat_ii_events
+                 if e.event_id == event_id),
+                None,
+            )
+            if evt_live is None:
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text="",
+                    per_player_renders={},
+                    beat_ended_reason="cat_ii_stale",
+                )
+
+            pending_for_actor = pending_player_rolls(
+                ckpt, event_id=event_id, actor_id=actor_id,
+            )
+            if roll_id not in {record.roll_id for record in pending_for_actor}:
+                raise ValueError(
+                    f"Roll {roll_id} is not pending for actor {actor_id}."
+                )
+
+            complete_pending_player_roll(
+                ckpt,
+                event_id=event_id,
+                roll_id=roll_id,
+                completed_by_user_id=user_id,
+            )
+            if pending_player_rolls(ckpt, event_id=event_id):
+                self.checkpoint_mgr.save(ckpt)
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text="",
+                    per_player_renders={},
+                    beat_ended_reason="cat_ii_pending_rolls",
+                )
+
+            return await self._resolve_ready_cat_ii_after_rolls(
+                session_id=session_id,
+                ckpt=ckpt,
+                evt_live=evt_live,
+                output_actor_id=actor_id,
+            )
+
+    async def continue_cat_ii_after_roll(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        actor_id: str,
+    ) -> TurnResponse:
+        """Finalize a Cat II whose player roll was already persisted."""
+        lock = await self.session_locks.get(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
+            evt_live = next(
+                (e for e in ckpt.session.open_cat_ii_events
+                 if e.event_id == event_id),
+                None,
+            )
+            if evt_live is None:
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text="",
+                    per_player_renders={},
+                    beat_ended_reason="cat_ii_stale",
+                )
+            if pending_player_rolls(ckpt, event_id=event_id):
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text="",
+                    per_player_renders={},
+                    beat_ended_reason="cat_ii_pending_rolls",
+                )
+            return await self._resolve_ready_cat_ii_after_rolls(
+                session_id=session_id,
+                ckpt=ckpt,
+                evt_live=evt_live,
+                output_actor_id=actor_id,
+            )
+
+    async def _resolve_ready_cat_ii_after_rolls(
+        self,
+        *,
+        session_id: str,
+        ckpt: CheckpointFile,
+        evt_live,
+        output_actor_id: str,
+    ) -> TurnResponse:
+        dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+        try:
+            resolved = await dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id=evt_live.initiator_id,
+                intention=evt_live.initiator_intention,
+                cat_ii_event=evt_live,
+            )
+        except DndCatIIRollsPending:
+            self.checkpoint_mgr.save(ckpt)
+            return TurnResponse(
+                session_id=session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text="",
+                per_player_renders={},
+                beat_ended_reason="cat_ii_pending_rolls",
+            )
+
+        close_cat_ii(ckpt, evt_live.event_id)
+        release_beat_slots(ckpt)
+        if resolved.requires_responders:
+            raise ValueError(
+                "Cat II resolution returned nested Cat II "
+                "(Part C invariant violated)."
+            )
+        broadcast_event(ckpt, resolved)
+        initiator_pick = _filter_picks_for_dispatch(
+            ckpt, [evt_live.initiator_id],
+            event=resolved,
+        )
+        followup = None
+        if initiator_pick:
+            followup = await _agent_intention_for_dispatch(
+                dispatcher, ckpt, evt_live.initiator_id,
+            )
+        if followup is not None:
+            followup_result = await run_beat(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+                actor_id=evt_live.initiator_id,
+                intention=followup,
+            )
+            beat_result = BeatResult(
+                renders=followup_result.renders,
+                events_closed=1 + followup_result.events_closed,
+                ended_reason=followup_result.ended_reason,
+                transcript_entries=followup_result.transcript_entries,
+                event_actor_ids=[
+                    evt_live.initiator_id,
+                    *followup_result.event_actor_ids,
+                ],
+            )
+        else:
+            beat_result = await _end_beat(
+                ckpt, dispatcher,
+                ended_reason="cat_ii_resolution",
+                events_closed=1,
+                event_actor_ids=[evt_live.initiator_id],
+            )
+
+        if beat_result.events_closed > 0:
+            closed_this_beat = ckpt.canonical_events[
+                -beat_result.events_closed:
+            ]
+            actors = beat_result.event_actor_ids
+            if len(actors) != beat_result.events_closed:
+                logger.warning(
+                    "Cat II roll BeatResult event_actor_ids length %d != "
+                    "events_closed %d; spawn location fallback may be empty.",
+                    len(actors), beat_result.events_closed,
+                )
+                actors = actors + [None] * (
+                    beat_result.events_closed - len(actors)
+                )
+            for ev, ev_actor in zip(closed_this_beat, actors):
+                self.char_mgr.apply_roster_updates(ckpt, ev)
+                if ev.spawn:
+                    spawn_loc = (
+                        self._resolve_location(ckpt, ev_actor)
+                        if ev_actor else ""
+                    )
+                    await self.char_mgr.spawn_characters(
+                        ckpt, ev.spawn,
+                        acting_actor_location=spawn_loc,
+                    )
+            ckpt.session.turn_index += 1
+
+        _append_transcript_entry(ckpt, beat_result, evt_live.initiator_id)
+        self.checkpoint_mgr.save(ckpt)
+
+        renders = dict(beat_result.renders)
+        output_text = renders.get(output_actor_id, "") or (
             next(iter(renders.values()), "") if renders else ""
         )
         return TurnResponse(

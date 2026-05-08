@@ -11,6 +11,7 @@ Exercises the new function against a mocked LLMClient so we can verify:
 
 from __future__ import annotations
 
+import json
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -211,6 +212,35 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert not user_msg["content"].startswith(PARTIAL_MODE_MARKER)
+
+    @pytest.mark.asyncio
+    async def test_render_strips_unmatched_trailing_brace_from_final_text(
+        self, mock_client, prompt_manager,
+    ):
+        mock_client.complete = AsyncMock(return_value=_llm_response(
+            "She says, 'entirely human?'}",
+        ))
+        ckpt = _ckpt()
+
+        result, entry = await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
+            ],
+            partial_mode=False,
+            user_input="I listen.",
+        )
+
+        assert result.final_text == "She says, 'entirely human?'"
+        assert entry.assistant == "She says, 'entirely human?'"
+        assistant = ckpt.narrator_conversations["alice"][-1]
+        assert assistant.role == "assistant"
+        assert isinstance(assistant.content, list)
+        stored = json.loads(assistant.content[0]["text"])
+        assert stored["final_text"] == "She says, 'entirely human?'"
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio

@@ -79,11 +79,25 @@ def _parse_nonempty_str(raw: str) -> str:
 
 def _parse_cat_ii_resolution_mode(raw: str) -> str:
     value = raw.strip().lower()
-    valid = {"router", "rules_arbitrator"}
+    if value == "rules_arbitrator":
+        # Back-compat for the first D&D slice; the implementation is now
+        # router-owned and uses the event_router model role.
+        value = "dnd5e_router"
+    valid = {"router", "dnd5e_router"}
     if value not in valid:
         raise ValueError(
             "Cat II resolution mode must be one of: "
             + ", ".join(sorted(valid))
+        )
+    return value
+
+
+def _parse_player_roll_mode(raw: str) -> str:
+    value = raw.strip().lower()
+    valid = {"auto", "interactive"}
+    if value not in valid:
+        raise ValueError(
+            "Player roll mode must be one of: " + ", ".join(sorted(valid))
         )
     return value
 
@@ -129,10 +143,20 @@ SETTINGS: list[SettingDef] = [
         default="router",
         description=(
             "Who resolves final Cat II outcomes. router preserves the "
-            "existing narrative path; rules_arbitrator uses the rules "
-            "adjudication path when a Cat II is ready to close."
+            "existing narrative path; dnd5e_router uses router-owned D&D "
+            "roll planning and code-owned dice when a Cat II is ready to close."
         ),
         parse=_parse_cat_ii_resolution_mode,
+    ),
+    SettingDef(
+        key="player_roll_mode",
+        default="auto",
+        description=(
+            "How D&D player-character dice are handled. auto rolls them in "
+            "code immediately; interactive pauses for Discord roll UI. "
+            "NPC/agent rolls are always automatic."
+        ),
+        parse=_parse_player_roll_mode,
     ),
 ]
 

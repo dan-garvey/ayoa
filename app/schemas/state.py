@@ -11,7 +11,6 @@ class ModelConfig(BaseModel):
     narrator: str = "gpt-5.1"
     discriminator: str = "gpt-5.2"
     agent_default: str = "gpt-5.1"
-    rules_arbitrator: str = "gpt-5.2"
 
 
 class SlotEntry(BaseModel):
@@ -20,9 +19,9 @@ class SlotEntry(BaseModel):
     entries (multi-character Cat II). The reason determines what /act
     from that user is allowed to do.
     """
-    reason: str  # "initiator" | "cat_ii_responder"
-    # When reason=="cat_ii_responder", the open-event id this slot is
-    # pinned to. None for initiator entries.
+    reason: str  # "initiator" | "cat_ii_responder" | "cat_ii_roll"
+    # When reason is tied to an open Cat II event, the open-event id this
+    # slot is pinned to. None for initiator entries.
     cat_ii_event_id: str | None = None
     # ISO-8601 timestamp of when the slot was claimed. Used for debug and
     # for a future "stale slot" cleanup pass.
@@ -52,14 +51,60 @@ class OpenCatIIEvent(BaseModel):
     # leak into canonical event prose. This is cleaner than parsing a
     # magic-string marker on the intention text.
     swept_responders: list[str] = Field(default_factory=list)
-    # Opening-event context preserved for optional rules arbitrators that
-    # replace the router's final Cat II resolution. Legacy/manual Cat II
+    # Opening-event context preserved for optional mechanics subflows that
+    # specialize the router's final Cat II resolution. Legacy/manual Cat II
     # events may leave these empty; resolution then falls back to the
     # participants as observers.
     opening_event_id: str = ""
     opening_observer_ids: list[str] = Field(default_factory=list)
     opening_observable_facts: list[str] = Field(default_factory=list)
+    # Links to the durable roll transaction when D&D Cat II resolution has
+    # planned or executed dice for this event. The transaction itself lives on
+    # SessionState so it survives after the open Cat II event closes.
+    roll_transaction_id: str = ""
     opened_at: str = ""
+
+
+class CatIIRollRecord(BaseModel):
+    """Durable audit record for one planned Cat II roll.
+
+    This is checkpoint state, not prompt history. The router may see a compact
+    projection during the immediate D&D finalize call, but normal future LLM
+    context receives only the canonical outcome facts.
+    """
+
+    roll_id: str
+    actor_id: str
+    actor_control: str = "agent"  # "agent" | "player"
+    status: str = "pending"  # "pending" | "completed"
+    request: dict[str, Any] = Field(default_factory=dict)
+    modifier: int = 0
+    label: str = ""
+    reason: str = ""
+    result: dict[str, Any] = Field(default_factory=dict)
+    completed_by_user_id: str = ""
+    completed_at: str = ""
+
+
+class CatIIRollTransaction(BaseModel):
+    """Checkpoint-persistent D&D Cat II roll transaction.
+
+    Transactions stay in the checkpoint after their open Cat II event closes so
+    rewind/debug can reconstruct the roll plan and dice ledger without putting
+    those mechanics details into router or narrator rolling conversations.
+    """
+
+    transaction_id: str
+    event_id: str
+    ruleset_id: str = ""
+    status: str = "planning"
+    plan: dict[str, Any] = Field(default_factory=dict)
+    no_roll_reason: str = ""
+    rolls: list[CatIIRollRecord] = Field(default_factory=list)
+    ledger_lines: list[str] = Field(default_factory=list)
+    final_event_id: str = ""
+    created_at: str = ""
+    updated_at: str = ""
 
 
 class RenderBufferEntry(BaseModel):
@@ -124,6 +169,10 @@ class SessionSettings(BaseModel):
     # narrative router-owned Cat II behavior.
     ruleset_id: str = "narrative"
     cat_ii_resolution_mode: str = "router"
+    # D&D player roll handling. Agent/NPC rolls are always automatic. Human
+    # player rolls are automatic by default for playtest speed, or can pause
+    # for Discord UI when set to "interactive".
+    player_roll_mode: str = "auto"
 
 
 class SessionConfig(BaseModel):
@@ -194,6 +243,9 @@ class SessionState(BaseModel):
     active_act_slots: dict[str, SlotEntry] = Field(default_factory=dict)
     # v11: in-flight Cat II events awaiting responder intentions.
     open_cat_ii_events: list[OpenCatIIEvent] = Field(default_factory=list)
+    # Durable mechanics audit for D&D Cat II resolution. These records are
+    # intentionally not included in normal LLM rolling histories.
+    cat_ii_roll_transactions: list[CatIIRollTransaction] = Field(default_factory=list)
     # v11: per-player queue of canonical events awaiting render. Keyed by
     # character_id (a human's bound character). Cleared after each render
     # fires. An agent's "render buffer" is just its observation context

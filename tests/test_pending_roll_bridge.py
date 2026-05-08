@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+import pytest
+
+from app.bot.engine_bridge import (
+    CompletedPendingRoll,
+    EngineBridge,
+)
+from app.bot.commands import _roll_result_line
+from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.checkpoint import CheckpointFile
+from app.schemas.state import (
+    CatIIRollRecord,
+    CatIIRollTransaction,
+    OpenCatIIEvent,
+    SessionState,
+    SlotEntry,
+    WorldState,
+)
+
+
+def _pending_roll_checkpoint() -> CheckpointFile:
+    ckpt = CheckpointFile(
+        session=SessionState(
+            session_id="roll_session",
+            story_id="story",
+            turn_index=4,
+        ),
+        world_state=WorldState(),
+        characters=[
+            CharacterRecord(
+                character_id="alice",
+                name="Alice",
+                public_sheet=PublicSheet(role="duelist"),
+            ),
+            CharacterRecord(
+                character_id="pip",
+                name="Pip",
+                public_sheet=PublicSheet(role="duelist"),
+            ),
+        ],
+    )
+    ckpt.session.character_bindings["alice"] = "123"
+    ckpt.session.active_act_slots["alice"] = SlotEntry(
+        reason="cat_ii_roll",
+        cat_ii_event_id="evt_open",
+    )
+    ckpt.session.open_cat_ii_events.append(
+        OpenCatIIEvent(
+            event_id="evt_open",
+            initiator_id="pip",
+            initiator_intention="Pip sweeps at Alice's feet.",
+            required_responders=["alice"],
+            collected_intentions={"alice": "Alice tumbles aside."},
+            opening_observer_ids=["alice", "pip"],
+            opening_observable_facts=[
+                "Pip hooks a practice blade toward Alice's ankles.",
+            ],
+            roll_transaction_id="rolltxn_1",
+        )
+    )
+    ckpt.session.cat_ii_roll_transactions.append(
+        CatIIRollTransaction(
+            transaction_id="rolltxn_1",
+            event_id="evt_open",
+            ruleset_id="dnd5e_basic",
+            status="awaiting_player_rolls",
+            plan={
+                "needs_rolls": True,
+                "roll_requests": [
+                    {
+                        "roll_id": "roll_alice",
+                        "actor_id": "alice",
+                        "kind": "skill_check",
+                        "ability": "dex",
+                        "skill": "acrobatics",
+                        "dc": 0,
+                        "opposed_by": "",
+                        "advantage_state": "normal",
+                        "reason": "Alice tries to stay on her feet.",
+                    },
+                ],
+                "no_roll_reason": "",
+            },
+            rolls=[
+                CatIIRollRecord(
+                    roll_id="roll_alice",
+                    actor_id="alice",
+                    actor_control="player",
+                    request={
+                        "roll_id": "roll_alice",
+                        "actor_id": "alice",
+                        "kind": "skill_check",
+                        "ability": "dex",
+                        "skill": "acrobatics",
+                        "dc": 0,
+                        "opposed_by": "",
+                        "advantage_state": "normal",
+                        "reason": "Alice tries to stay on her feet.",
+                    },
+                    modifier=3,
+                    label="Acrobatics",
+                    reason="Alice tries to stay on her feet.",
+                ),
+            ],
+            ledger_lines=[],
+        )
+    )
+    return ckpt
+
+
+@pytest.mark.asyncio
+async def test_complete_pending_roll_saves_dice_before_router_finalize(
+    tmp_path,
+    monkeypatch,
+):
+    from app.engine import dice
+
+    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    bridge.checkpoint_mgr.save(_pending_roll_checkpoint())
+    monkeypatch.setattr(dice.d20.expression.random, "randrange", lambda _: 15)
+
+    result = await bridge.complete_pending_roll(
+        session_id="roll_session",
+        event_id="evt_open",
+        roll_id="roll_alice",
+        user_id=123,
+    )
+
+    assert result.total == 19
+    assert result.detail == "1d20 (16) + 3 = `19`"
+    assert result.remaining_pending_rolls == 0
+
+    latest = bridge.checkpoint_mgr.load_latest("roll_session")
+    transaction = latest.session.cat_ii_roll_transactions[0]
+    assert latest.session.turn_index == 4
+    assert latest.canonical_events == []
+    assert latest.session.open_cat_ii_events[0].event_id == "evt_open"
+    assert latest.session.active_act_slots["alice"].reason == "cat_ii_roll"
+    assert transaction.status == "ready_to_finalize"
+    assert transaction.final_event_id == ""
+    assert transaction.rolls[0].status == "completed"
+    assert transaction.rolls[0].result["total"] == 19
+
+
+def test_roll_result_line_surfaces_total_for_discord_ui():
+    line = _roll_result_line(
+        CompletedPendingRoll(
+            session_id="s",
+            event_id="evt",
+            roll_id="roll_1",
+            actor_id="alice",
+            user_id="123",
+            label="Attack",
+            reason="",
+            expression="1d20+4",
+            total=24,
+            detail="1d20 (**20**) + 4 = `24`",
+            crit="crit",
+            remaining_pending_rolls=0,
+        )
+    )
+
+    assert line == (
+        "**Rolled Attack:** 1d20 (**20**) + 4 = `24`. Critical success."
+    )

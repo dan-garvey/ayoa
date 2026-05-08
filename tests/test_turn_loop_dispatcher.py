@@ -19,7 +19,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.rules_arbitrator import RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
     LocationState,
     OpenCatIIEvent,
@@ -198,11 +198,11 @@ class TestRouteIntention:
         assert "AFK-swept" not in user_content
         assert "attempts:" not in user_content
 
-    def test_cat_ii_rules_mode_bypasses_router_resolution(
+    def test_cat_ii_dnd_mode_uses_event_router_without_history_append(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.config.settings.cat_ii_resolution_mode = "rules_arbitrator"
+        ckpt.session.config.settings.cat_ii_resolution_mode = "dnd5e_router"
         mock_client.complete.side_effect = [
             _llm_response(RollPlan(
                 needs_rolls=False,
@@ -241,10 +241,11 @@ class TestRouteIntention:
         )
         assert [
             call.kwargs["role"] for call in mock_client.complete.await_args_list
-        ] == ["rules_arbitrator", "rules_arbitrator"]
+        ] == ["event_router", "event_router"]
         assert "## Cat II Resolution" not in _last_user_content(
             mock_client.complete.await_args_list[0].kwargs["messages"]
         )
+        assert ckpt.session_conversation == []
 
     def test_session_conversation_passed_as_history(
         self, prompt_mgr, mock_client, monkeypatch,

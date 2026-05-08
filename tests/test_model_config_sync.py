@@ -16,7 +16,6 @@ def _stale_checkpoint(story_id: str) -> CheckpointFile:
         narrator="claude-sonnet-4-6",
         discriminator="claude-sonnet-4-6",
         agent_default="claude-sonnet-4-6",
-        rules_arbitrator="claude-sonnet-4-6",
     )
     return CheckpointFile(
         session=SessionState(
@@ -38,7 +37,6 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
             "narrator": "openai:gpt-5.1",
             "agent": "claude-sonnet-4-6",
             "character_gen": "gpt-5.1",
-            "rules_arbitrator": "gpt-5.2",
         },
     )
 
@@ -50,7 +48,6 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
     assert ckpt.session.config.models == expected
     assert ckpt.config.models.event_router == "openai:gpt-5.1"
     assert ckpt.config.models.agent_default == "anthropic:claude-sonnet-4-6"
-    assert ckpt.config.models.rules_arbitrator == "openai:gpt-5.2"
 
 
 def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):

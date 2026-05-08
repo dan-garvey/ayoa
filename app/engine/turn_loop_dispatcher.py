@@ -32,9 +32,9 @@ from app.engine.context_builder import (
     resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
-from app.engine.rules_arbitrator import (
-    RulesArbitrator,
-    cat_ii_rules_arbitrator_enabled,
+from app.engine.dnd_cat_ii import (
+    DndCatIIResolver,
+    dnd_cat_ii_router_enabled,
 )
 from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
@@ -294,7 +294,7 @@ class LLMDispatcher:
         # Character agent is stateless aside from `last_usage`; reusing one
         # instance avoids per-call allocation.
         self._agent = CharacterAgent(client, prompt_mgr)
-        self._rules_arbitrator = RulesArbitrator(client, prompt_mgr)
+        self._dnd_cat_ii = DndCatIIResolver(client, prompt_mgr)
 
     # ------------------------------------------------------------------
     # route_intention
@@ -310,13 +310,13 @@ class LLMDispatcher:
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention through event_router."""
 
-        if cat_ii_event is not None and cat_ii_rules_arbitrator_enabled(ckpt):
+        if cat_ii_event is not None and dnd_cat_ii_router_enabled(ckpt):
             logger.info(
                 "LLMDispatcher.route_intention: actor=%s cat_ii=%s "
-                "using rules_arbitrator",
+                "using dnd_cat_ii_router",
                 actor_id, cat_ii_event.event_id,
             )
-            return await self._rules_arbitrator.resolve_cat_ii(
+            return await self._dnd_cat_ii.resolve_cat_ii(
                 ckpt=ckpt,
                 cat_ii_event=cat_ii_event,
             )

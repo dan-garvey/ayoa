@@ -100,6 +100,7 @@ from app.schemas.events import (
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
+from app.engine.dnd_cat_ii import DndCatIIRollsPending
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +209,9 @@ class SlotConflict(Enum):
     # /act IS accepted but interpreted as their responder intention,
     # not as a fresh initiator. (This is a marker, not an error.)
     CAT_II_SELF_RESPONDER = "cat_ii_self_responder"
+    # This user owes a player-facing dice roll for a D&D Cat II event.
+    # /act is rejected; the Discord roll UI must submit the stored roll.
+    CAT_II_SELF_ROLL = "cat_ii_self_roll"
     # This user already holds the initiator slot — their previous /act
     # is still mid-beat.
     SELF_BUSY = "self_busy"
@@ -255,6 +259,13 @@ def check_act_slot(
             cat_ii_event_id=my_entry.cat_ii_event_id,
         )
 
+    if my_entry and my_entry.reason == "cat_ii_roll":
+        return SlotCheck(
+            conflict=SlotConflict.CAT_II_SELF_ROLL,
+            holder_id=acting_character_id,
+            cat_ii_event_id=my_entry.cat_ii_event_id,
+        )
+
     # If this character holds the initiator slot, they're double-acting.
     if my_entry and my_entry.reason == "initiator":
         return SlotCheck(
@@ -266,7 +277,7 @@ def check_act_slot(
     # Prefer reporting a Cat II responder pin (more specific) over an
     # initiator pin.
     for holder_id, entry in slot.items():
-        if entry.reason == "cat_ii_responder":
+        if entry.reason in {"cat_ii_responder", "cat_ii_roll"}:
             return SlotCheck(
                 conflict=SlotConflict.CAT_II_OTHER_HELD,
                 holder_id=holder_id,
@@ -323,7 +334,10 @@ def release_beat_slots(ckpt: CheckpointFile) -> None:
     open_evt_ids = {e.event_id for e in ckpt.session.open_cat_ii_events}
     keep: dict[str, SlotEntry] = {}
     for cid, entry in slot.items():
-        if entry.reason == "cat_ii_responder" and entry.cat_ii_event_id in open_evt_ids:
+        if (
+            entry.reason in {"cat_ii_responder", "cat_ii_roll"}
+            and entry.cat_ii_event_id in open_evt_ids
+        ):
             keep[cid] = entry
     if keep:
         ckpt.session.active_act_slots = keep
@@ -1057,6 +1071,18 @@ async def run_beat(
             pending_result, actor_id, kind="continuation",
         )
 
+    async def _pause_for_pending_rolls() -> BeatResult:
+        return await _end_beat(
+            ckpt, dispatcher,
+            ended_reason="cat_ii_pending_rolls",
+            events_closed=events_closed,
+            event_actor_ids=event_actor_ids,
+            release_slots=False,
+            force_partial=True,
+            acting_player_id=actor_id,
+            acting_player_input=intention,
+        )
+
     # --- Step 1: handle entry path ------------------------------------------
 
     if cat_ii_event_id is not None:
@@ -1081,12 +1107,15 @@ async def run_beat(
                 transcript_entries={}, event_actor_ids=[],
             )
         # All responders in — adjudicate.
-        resolved = await dispatcher.route_intention(
-            ckpt=ckpt,
-            actor_id=evt.initiator_id,
-            intention=evt.initiator_intention,
-            cat_ii_event=evt,
-        )
+        try:
+            resolved = await dispatcher.route_intention(
+                ckpt=ckpt,
+                actor_id=evt.initiator_id,
+                intention=evt.initiator_intention,
+                cat_ii_event=evt,
+            )
+        except DndCatIIRollsPending:
+            return await _pause_for_pending_rolls()
         _log_router_rationale(
             resolved, evt.initiator_id, kind="cat_ii_resolve",
         )
@@ -1256,12 +1285,15 @@ async def run_beat(
 
             if cat_ii_is_ready(evt):
                 # No humans in required list — resolve immediately.
-                resolved = await dispatcher.route_intention(
-                    ckpt=ckpt,
-                    actor_id=evt.initiator_id,
-                    intention=evt.initiator_intention,
-                    cat_ii_event=evt,
-                )
+                try:
+                    resolved = await dispatcher.route_intention(
+                        ckpt=ckpt,
+                        actor_id=evt.initiator_id,
+                        intention=evt.initiator_intention,
+                        cat_ii_event=evt,
+                    )
+                except DndCatIIRollsPending:
+                    return await _pause_for_pending_rolls()
                 _log_router_rationale(
                     resolved, evt.initiator_id,
                     kind="cat_ii_resolve_inline",
@@ -1568,6 +1600,11 @@ def format_slot_rejection(
         base = (
             "Your previous /act is still processing. Give the beat a "
             "moment before submitting again."
+        )
+    elif check.conflict == SlotConflict.CAT_II_SELF_ROLL:
+        base = (
+            "The beat is waiting on your dice roll, not another /act. "
+            "Use the roll prompt for the current contested action."
         )
     elif check.conflict == SlotConflict.CAT_II_SELF_RESPONDER:
         # Not an error — this is the "your /act was accepted as your Cat II

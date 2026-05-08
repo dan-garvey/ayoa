@@ -16,8 +16,7 @@ beats. The narrator renders each human's visible slice of the world.
 Second, Ayoa should become a full AI game-master platform. "DM" should not mean
 one omniscient chatbot that grants player wishes. It should mean a coordinated
 set of roles: character agents with agency, a router/world arbiter, a rules
-arbitrator, an off-stage world scheduler, a narrator, and a content/rules
-resolver.
+subflow, an off-stage world scheduler, a narrator, and a content/rules resolver.
 
 ## Product Pillars
 
@@ -69,9 +68,10 @@ last, nor by the responder's preferred result. It should be adjudicated from
 initiator intent, responder intent, timing, position, capability, surprise,
 prior setup, environment, relevant mechanics, and established world rules.
 
-For rules-heavy modes, Cat II resolution should be replaceable by a specialized
-rules arbitrator that returns a structured adjudication for the router/narrator
-pipeline to render.
+For rules-heavy modes, Cat II resolution should have a mechanics-aware subflow
+that returns a structured adjudication for the router/narrator pipeline to
+render. The current D&D slice keeps this subflow router-owned rather than
+adding another model role.
 
 ### 6. Pluggable Rules And Content
 
@@ -113,7 +113,7 @@ The "DM" should be decomposed into roles with explicit contracts:
 
 - Character agents decide what NPCs intend from inside their own perspective.
 - The router canonicalizes intentions into observable facts and visibility.
-- The rules arbitrator resolves mechanics-heavy contested actions.
+- The router-owned rules subflow resolves mechanics-heavy contested actions.
 - The tick scheduler advances off-stage actors and clocks.
 - The content resolver supplies rules, stat blocks, spells, items, lore, and
   source metadata.
@@ -122,11 +122,11 @@ The "DM" should be decomposed into roles with explicit contracts:
 This decomposition is the main defense against sycophancy, accidental
 omniscience, and incoherent state mutation.
 
-### Rules Arbitrator Shape
+### Rules Subflow Shape
 
-The rules arbitrator should be a narrow callable, not a full replacement router.
-It should accept a contested-event packet and relevant rules/content context,
-then return a structured result:
+The rules subflow should be a narrow callable, not a full replacement router or
+another always-on agent. It should accept a contested-event packet and relevant
+rules/content context, then return a structured result:
 
 - legality and feasibility notes
 - rolls/checks/saves used, if any
@@ -136,9 +136,11 @@ then return a structured result:
 - source/rules references where available
 - uncertainty or fallback reason when it cannot adjudicate
 
-The router can still decide Cat II opens, responders, observers, and beat
-pacing. The arbitrator should own the final contested outcome when the session's
-ruleset says it should.
+The router still decides Cat II opens, responders, observers, and beat pacing.
+When the session ruleset says mechanics matter, the router-owned subflow owns
+the final contested outcome. Roll plans, pending player rolls, and dice ledgers
+are checkpoint-persistent audit data; ordinary LLM history receives only the
+canonical adjudicated result.
 
 ### Content Pack Boundary
 

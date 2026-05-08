@@ -121,11 +121,22 @@ class TestSettingsHelpers:
 
     def test_set_cat_ii_resolution_mode(self):
         ckpt = _ckpt()
-        new = set_setting(ckpt, "cat_ii_resolution_mode", "rules_arbitrator")
-        assert new == "rules_arbitrator"
+        new = set_setting(ckpt, "cat_ii_resolution_mode", "dnd5e_router")
+        assert new == "dnd5e_router"
         assert ckpt.session.config.settings.cat_ii_resolution_mode == (
-            "rules_arbitrator"
+            "dnd5e_router"
         )
+
+    def test_legacy_rules_arbitrator_mode_maps_to_dnd_router(self):
+        ckpt = _ckpt()
+        new = set_setting(ckpt, "cat_ii_resolution_mode", "rules_arbitrator")
+        assert new == "dnd5e_router"
+
+    def test_set_player_roll_mode(self):
+        ckpt = _ckpt()
+        new = set_setting(ckpt, "player_roll_mode", "interactive")
+        assert new == "interactive"
+        assert ckpt.session.config.settings.player_roll_mode == "interactive"
 
     def test_set_setting_unknown_raises(self):
         ckpt = _ckpt()
@@ -170,4 +181,10 @@ class TestEngineBridgeSettings:
 
     def test_known_setting_keys(self, bridge: EngineBridge):
         keys = bridge.known_setting_keys()
-        assert "ticks_enabled" in keys
+        assert keys == [spec.key for spec in SETTINGS]
+        assert {
+            "ticks_enabled",
+            "ruleset_id",
+            "cat_ii_resolution_mode",
+            "player_roll_mode",
+        }.issubset(keys)

@@ -12,6 +12,8 @@ Commands:
     /story delete                         — unload the story from this session
     /join                                 — pick a character via interactive menu
                                             (pre-play: enters the lobby; post-play: arrives mid-story)
+    /attach <json> [name_override]        — attach a D&D Beyond JSON sheet to your character
+    /sheet [page]                         — show your attached D&D character sheet
     /begin                                — open the story for everyone in the lobby
                                             (any bound player or admin can fire)
     /leave                                — release your character
@@ -28,19 +30,26 @@ per-session lock so concurrent /act commands on the same channel serialize.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import logging
 import os
 import re
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import discord
 from discord import app_commands
 
 from app.bot.embed import render_briefing, render_error, render_info, render_turn
-from app.bot.engine_bridge import EngineBridge
+from app.bot.engine_bridge import (
+    CompletedPendingRoll,
+    DndSheetAttachmentSummary,
+    EngineBridge,
+    PendingRollPrompt,
+)
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
+from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.responses import TurnResponse
 
@@ -49,6 +58,21 @@ logger = logging.getLogger(__name__)
 # Attachments above this are rejected in /story import to bound token cost.
 # Real master prompts are ~100KB; this leaves headroom.
 MAX_IMPORT_BYTES = 500_000
+
+# D&D Beyond browser exports are larger than story prompts because they
+# include source data for spells, actions, and inventory. The attachment
+# still stays out of prompts; it is stored in checkpoints for rewind and
+# projected down before any rules packet reaches the router.
+MAX_DND_CHARACTER_BYTES = 5_000_000
+
+DND_SHEET_PAGES = (
+    "overview",
+    "abilities",
+    "actions",
+    "spells",
+    "inventory",
+    "features",
+)
 
 
 # Cache the parsed admin set per env-value so we only log about invalid
@@ -177,6 +201,37 @@ class TurnMessageCleanup:
     hidden: int = 0
     missing: int = 0
     failed: int = 0
+
+
+def _roll_result_line(result: CompletedPendingRoll) -> str:
+    crit_note = ""
+    if result.crit == "crit":
+        crit_note = " Critical success."
+    elif result.crit == "fail":
+        crit_note = " Natural 1."
+    detail = result.detail or f"{result.expression} = `{result.total}`"
+    return f"**Rolled {result.label}:** {detail}.{crit_note}"
+
+
+def _roll_prompt_content(
+    *,
+    prompt: PendingRollPrompt,
+    char_name: str,
+    result: CompletedPendingRoll | None = None,
+    interpreting: bool = False,
+) -> str:
+    reason = f"\n{prompt.reason}" if prompt.reason else ""
+    lines = [
+        f"**{char_name}** needs to roll **{prompt.label}**.{reason}",
+    ]
+    if result is not None:
+        lines.append("")
+        lines.append(_roll_result_line(result))
+    if interpreting:
+        lines.append("")
+        lines.append("_Interpreting the outcome..._")
+        # TODO(dice-ui): replace the static edit with a short dice animation.
+    return "\n".join(lines)
 
 
 async def _record_turn_message(
@@ -506,6 +561,231 @@ async def _send_public_turn_render(
     )
 
 
+class _PendingRollView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        engine: EngineBridge,
+        smap: SessionMap,
+        prompt: PendingRollPrompt,
+        story_id: str,
+        char_name: str,
+    ):
+        super().__init__(timeout=24 * 60 * 60)
+        self.engine = engine
+        self.smap = smap
+        self.prompt = prompt
+        self.story_id = story_id
+        self.char_name = char_name
+        button = discord.ui.Button(
+            label=f"Roll {prompt.label}",
+            style=discord.ButtonStyle.primary,
+            custom_id=(
+                f"ayoa:roll:{prompt.session_id}:"
+                f"{prompt.event_id}:{prompt.roll_id}"
+            )[:100],
+        )
+        button.callback = self._roll
+        self.add_item(button)
+
+    async def _roll(self, roll_inter: discord.Interaction) -> None:
+        if str(roll_inter.user.id) != self.prompt.user_id:
+            await roll_inter.response.send_message(
+                "That roll belongs to another character.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            result = await self.engine.complete_pending_roll(
+                session_id=self.prompt.session_id,
+                event_id=self.prompt.event_id,
+                roll_id=self.prompt.roll_id,
+                user_id=roll_inter.user.id,
+            )
+        except Exception as e:
+            logger.exception("pending roll submission failed")
+            if roll_inter.response.is_done():
+                await roll_inter.followup.send(
+                    f"`{type(e).__name__}: {e}`",
+                    ephemeral=True,
+                )
+            else:
+                await roll_inter.response.send_message(
+                    f"`{type(e).__name__}: {e}`",
+                    ephemeral=True,
+                )
+            return
+
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = True
+                child.style = discord.ButtonStyle.success
+                child.label = f"Rolled {result.total}"
+        try:
+            content = _roll_prompt_content(
+                prompt=self.prompt,
+                char_name=self.char_name,
+                result=result,
+                interpreting=True,
+            )
+            await roll_inter.response.edit_message(content=content, view=self)
+        except Exception:
+            logger.debug("pending roll prompt result edit failed", exc_info=True)
+            if not roll_inter.response.is_done():
+                try:
+                    await roll_inter.response.send_message(
+                        "\n".join([
+                            _roll_result_line(result),
+                            "_Interpreting the outcome..._",
+                        ]),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    logger.debug(
+                        "pending roll result fallback response failed",
+                        exc_info=True,
+                    )
+
+        try:
+            response = await self.engine.continue_pending_roll(
+                session_id=self.prompt.session_id,
+                event_id=self.prompt.event_id,
+                actor_id=self.prompt.actor_id,
+            )
+        except Exception as e:
+            logger.exception("pending roll continuation failed")
+            await roll_inter.followup.send(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+
+        await _deliver_turn_response_to_povs(
+            inter=roll_inter,
+            smap=self.smap,
+            engine=self.engine,
+            session_id=self.prompt.session_id,
+            story_id=self.story_id,
+            actor_character_id=self.prompt.actor_id,
+            actor_user=roll_inter.user,
+            response=response,
+            clear_interaction_response=False,
+        )
+
+
+async def _post_roll_prompt_to_pov(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    engine: EngineBridge,
+    prompt: PendingRollPrompt,
+    story_id: str,
+    roster: list,
+    turn_index: int,
+) -> bool:
+    try:
+        uid = int(prompt.user_id)
+    except ValueError:
+        return False
+
+    user = inter.client.get_user(uid)
+    if user is None:
+        try:
+            user = await inter.client.fetch_user(uid)
+        except Exception:
+            logger.exception("roll prompt: fetch_user(%s) failed", uid)
+            return False
+
+    char = next((c for c in roster if c.character_id == prompt.actor_id), None)
+    char_name = char.name if char else prompt.actor_id
+    content = _roll_prompt_content(prompt=prompt, char_name=char_name)
+    view = _PendingRollView(
+        engine=engine,
+        smap=smap,
+        prompt=prompt,
+        story_id=story_id,
+        char_name=char_name,
+    )
+
+    channel = _session_text_channel(inter)
+    session_chan_id = _session_channel_id(inter)
+    thread: Optional[discord.Thread] = None
+    if channel is not None:
+        thread = await _ensure_pov_thread(
+            channel=channel,
+            user=user,
+            smap=smap,
+            character_id=prompt.actor_id,
+            char_name=char_name,
+        )
+
+    if thread is not None:
+        try:
+            msg = await thread.send(content, view=view)
+            await _record_turn_message(
+                smap=smap,
+                session_channel_id=session_chan_id,
+                session_id=prompt.session_id,
+                turn_index=turn_index,
+                message=msg,
+                delivery="thread",
+                discord_channel_id=thread.id,
+                recipient_user_id=uid,
+            )
+            return True
+        except Exception:
+            logger.exception("roll prompt: thread send failed")
+            await smap.clear_pov_thread(session_chan_id, uid)
+
+    try:
+        msg = await user.send(content, view=view)
+        await _record_turn_message(
+            smap=smap,
+            session_channel_id=session_chan_id,
+            session_id=prompt.session_id,
+            turn_index=turn_index,
+            message=msg,
+            delivery="dm",
+            recipient_user_id=uid,
+        )
+        return True
+    except Exception:
+        logger.exception("roll prompt: DM fallback failed")
+
+    if uid == inter.user.id:
+        await inter.followup.send(content, view=view, ephemeral=True)
+        return True
+    return False
+
+
+async def _deliver_pending_roll_prompts(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    engine: EngineBridge,
+    session_id: str,
+    story_id: str,
+    roster: list,
+    turn_index: int,
+) -> None:
+    try:
+        prompts = engine.pending_roll_prompts(session_id)
+    except Exception:
+        logger.exception("pending roll prompt lookup failed")
+        return
+    for prompt in prompts:
+        await _post_roll_prompt_to_pov(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            prompt=prompt,
+            story_id=story_id,
+            roster=roster,
+            turn_index=turn_index,
+        )
+
+
 async def _deliver_turn_response_to_povs(
     *,
     inter: discord.Interaction,
@@ -516,6 +796,7 @@ async def _deliver_turn_response_to_povs(
     actor_character_id: str,
     actor_user: discord.abc.User,
     response: TurnResponse,
+    clear_interaction_response: bool = True,
 ) -> None:
     """Deliver a TurnResponse using the standard /act POV format.
 
@@ -599,12 +880,19 @@ async def _deliver_turn_response_to_povs(
     actor_name = actor_char.name if actor_char else actor_character_id
     per_player = response.per_player_renders or {}
 
-    if response.beat_ended_reason == "cat_ii_pending":
+    pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
+    if response.beat_ended_reason == "cat_ii_pending" or pending_rolls:
         actor_render = per_player.get(actor_character_id) or ""
-        pause_note = (
-            "_Scene paused — waiting on another player's response. "
-            "You'll see the beat continue when they /act._"
-        )
+        if pending_rolls:
+            pause_note = (
+                "_Scene paused — waiting on D&D roll prompt(s). "
+                "The beat will continue after the required roll(s)._"
+            )
+        else:
+            pause_note = (
+                "_Scene paused — waiting on another player's response. "
+                "You'll see the beat continue when they /act._"
+            )
         if actor_render:
             embeds = render_turn(
                 output_text=actor_render,
@@ -623,9 +911,11 @@ async def _deliver_turn_response_to_povs(
                 turn_index=response.turn_index,
             )
             if venue == "thread" and thread is not None:
-                await _clear_interaction_response(inter)
+                if clear_interaction_response:
+                    await _clear_interaction_response(inter)
             elif venue == "dm":
-                await _clear_interaction_response(inter)
+                if clear_interaction_response:
+                    await _clear_interaction_response(inter)
             else:
                 await _send_public_turn_render(
                     inter=inter,
@@ -659,9 +949,11 @@ async def _deliver_turn_response_to_povs(
             turn_index=response.turn_index,
         )
         if venue == "thread" and thread is not None:
-            await _clear_interaction_response(inter)
+            if clear_interaction_response:
+                await _clear_interaction_response(inter)
         elif venue == "dm":
-            await _clear_interaction_response(inter)
+            if clear_interaction_response:
+                await _clear_interaction_response(inter)
         else:
             await _send_public_turn_render(
                 inter=inter,
@@ -685,6 +977,17 @@ async def _deliver_turn_response_to_povs(
                 )
             except Exception:
                 logger.exception("per-POV fan-out: ephemeral ack failed")
+
+    if pending_rolls:
+        await _deliver_pending_roll_prompts(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id=session_id,
+            story_id=story_id,
+            roster=roster,
+            turn_index=response.turn_index,
+        )
 
 
 async def _message_channel_for_ref(
@@ -822,6 +1125,668 @@ def _chunks(text: str, size: int) -> list[str]:
     if remaining:
         out.append(remaining)
     return out
+
+
+ABILITY_ORDER = ("str", "dex", "con", "int", "wis", "cha")
+ABILITY_LABELS = {
+    "str": "STR",
+    "dex": "DEX",
+    "con": "CON",
+    "int": "INT",
+    "wis": "WIS",
+    "cha": "CHA",
+}
+
+
+def _render_dnd_sheet_page(
+    character: CharacterRecord,
+    page: str,
+) -> discord.Embed:
+    """Render a compact Avrae-style sheet page from the imported snapshot.
+
+    This intentionally reads `mechanics.dnd5e_sheet`, not `raw_source`.
+    The raw DDB export is stored for future import fidelity and rewind,
+    but the user-facing sheet should stay structured and bounded.
+    """
+    page = (page or "overview").strip().lower()
+    page_index = _sheet_page_index(page)
+    if page_index is None:
+        raise ValueError(
+            f"Unknown sheet page '{page}'. Use one of: "
+            f"{', '.join(DND_SHEET_PAGES)}."
+        )
+    sheet = _dnd_sheet_for(character)
+    identity = sheet.get("identity") or {}
+    statblock = sheet.get("statblock") or {}
+
+    embed = render_info(
+        f"Sheet · {character.name}",
+        _sheet_identity_line(character, identity),
+    )
+    embed.set_footer(
+        text=(
+            f"{character.character_id} · {_sheet_page_label(page)} "
+            f"{page_index + 1}/{len(DND_SHEET_PAGES)}"
+        )
+    )
+
+    if page == "overview":
+        _sheet_overview(embed, sheet, statblock)
+    elif page == "abilities":
+        _sheet_abilities(embed, statblock)
+    elif page == "actions":
+        _sheet_actions(embed, statblock)
+    elif page == "spells":
+        _sheet_spells(embed, statblock)
+    elif page == "inventory":
+        _sheet_inventory(embed, statblock)
+    elif page == "features":
+        _sheet_features(embed, statblock)
+    return embed
+
+
+def _sheet_page_index(page: str) -> int | None:
+    normalized = (page or "overview").strip().lower()
+    try:
+        return DND_SHEET_PAGES.index(normalized)
+    except ValueError:
+        return None
+
+
+def _sheet_page_label(page: str) -> str:
+    return (page or "overview").replace("_", " ").title()
+
+
+def _dnd_sheet_for(character: CharacterRecord) -> dict[str, Any]:
+    mechanics = character.mechanics or {}
+    sheet = mechanics.get("dnd5e_sheet") or {}
+    if not isinstance(sheet, dict) or not sheet:
+        raise ValueError(
+            f"`{character.character_id}` does not have an attached D&D sheet. "
+            "Use `/attach` with a D&D Beyond JSON export first."
+        )
+    return sheet
+
+
+def _sheet_identity_line(
+    character: CharacterRecord,
+    identity: dict[str, Any],
+) -> str:
+    bits: list[str] = []
+    class_line = _class_line(identity)
+    if class_line:
+        bits.append(class_line)
+    species = str(identity.get("species") or "").strip()
+    background = str(identity.get("background") or "").strip()
+    if species:
+        bits.append(species)
+    if background:
+        bits.append(background)
+    imported = str(identity.get("name") or "").strip()
+    if imported and imported != character.name:
+        bits.append(f"Imported name: {imported}")
+    return " · ".join(bits) or "D&D character sheet"
+
+
+def _class_line(identity: dict[str, Any]) -> str:
+    labels = []
+    for entry in identity.get("classes") or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()
+        subclass = str(entry.get("subclass") or "").strip()
+        level = _int_or(entry.get("level"), 0)
+        label = name
+        if subclass and subclass.lower() != name.lower():
+            label = f"{subclass} {name}" if name else subclass
+        if label:
+            labels.append(f"{label} {level}".strip())
+    return ", ".join(labels)
+
+
+def _sheet_overview(
+    embed: discord.Embed,
+    sheet: dict[str, Any],
+    statblock: dict[str, Any],
+) -> None:
+    defenses = statblock.get("defenses") or {}
+    hp = defenses.get("hit_points") or {}
+    ac = defenses.get("armor_class") or {}
+    initiative = defenses.get("initiative") or {}
+    skills = statblock.get("skills") or {}
+    perception = skills.get("perception") or {}
+    combat = [
+        f"AC {_int_or(ac.get('value'), 0)}",
+        (
+            f"HP {_int_or(hp.get('current'), 0)}/"
+            f"{_int_or(hp.get('max'), 0)}"
+            + (
+                f" (+{_int_or(hp.get('temporary'), 0)} temp)"
+                if _int_or(hp.get("temporary"), 0)
+                else ""
+            )
+        ),
+        f"PB {_signed(statblock.get('proficiency_bonus') or 0)}",
+        f"Initiative {_signed(initiative.get('value') or 0)}",
+    ]
+    if perception:
+        passive_perception = perception.get("passive")
+        if passive_perception is None:
+            passive_perception = 10 + _int_or(perception.get("value"), 0)
+        combat.append(
+            f"Passive Perception {_int_or(passive_perception, 10)}"
+        )
+    movement = _movement_line(defenses.get("movement") or {})
+    if movement:
+        combat.append(f"Speed {movement}")
+    _add_sheet_field(embed, "Combat", " · ".join(combat), inline=False)
+
+    resources = _resource_lines(statblock.get("resources") or [], limit=10)
+    if resources:
+        _add_sheet_field(embed, "Resources", "\n".join(resources), inline=False)
+
+    defenses_lines = _defense_lines(defenses)
+    if defenses_lines:
+        _add_sheet_field(
+            embed,
+            "Defenses",
+            "\n".join(defenses_lines),
+            inline=False,
+        )
+
+    source = sheet.get("source") or {}
+    source_bits = [
+        str(sheet.get("ruleset_id") or ""),
+        str(source.get("type") or ""),
+    ]
+    source_line = " · ".join(bit for bit in source_bits if bit)
+    if source_line:
+        _add_sheet_field(embed, "Source", source_line, inline=False)
+
+
+def _sheet_abilities(embed: discord.Embed, statblock: dict[str, Any]) -> None:
+    scores = statblock.get("ability_scores") or {}
+    saves = statblock.get("saves") or {}
+    lines = []
+    for ability in ABILITY_ORDER:
+        score = scores.get(ability) or {}
+        save = saves.get(ability) or {}
+        prof = " prof" if (save.get("proficiency_multiplier") or 0) > 0 else ""
+        lines.append(
+            f"`{ABILITY_LABELS[ability]}` "
+            f"{_int_or(score.get('score'), 10):>2} "
+            f"({_signed(score.get('modifier') or 0)}) · "
+            f"save {_signed(save.get('value') or score.get('modifier') or 0)}"
+            f"{prof}"
+        )
+    _add_sheet_field(embed, "Abilities", "\n".join(lines), inline=False)
+
+    skill_lines = []
+    for name, skill in sorted((statblock.get("skills") or {}).items()):
+        if not isinstance(skill, dict):
+            continue
+        prof = " prof" if (skill.get("proficiency_multiplier") or 0) > 0 else ""
+        adv = _advantage_suffix(skill.get("advantage_state"))
+        skill_lines.append(
+            f"{_title_skill(name)} {_signed(skill.get('value') or 0)}"
+            f"{prof}{adv}"
+        )
+    midpoint = (len(skill_lines) + 1) // 2
+    _add_sheet_field(
+        embed,
+        "Skills",
+        "\n".join(skill_lines[:midpoint]) or "No skills imported.",
+        inline=True,
+    )
+    if skill_lines[midpoint:]:
+        _add_sheet_field(
+            embed,
+            "Skills",
+            "\n".join(skill_lines[midpoint:]),
+            inline=True,
+        )
+
+
+def _sheet_actions(embed: discord.Embed, statblock: dict[str, Any]) -> None:
+    actions = [
+        action for action in (statblock.get("actions") or [])
+        if isinstance(action, dict)
+    ]
+    if not actions:
+        _add_sheet_field(embed, "Actions", "No actions imported.", inline=False)
+        return
+    lines = [_action_line(action) for action in actions[:18]]
+    if len(actions) > 18:
+        lines.append(f"... {len(actions) - 18} more")
+    _add_sheet_field(embed, "Actions", "\n".join(lines), inline=False)
+
+
+def _sheet_spells(embed: discord.Embed, statblock: dict[str, Any]) -> None:
+    spellcasting = statblock.get("spellcasting") or {}
+    profiles = []
+    for profile in spellcasting.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        profiles.append(
+            f"{profile.get('name') or 'Spellcasting'} "
+            f"({_upper(profile.get('ability'))}) · "
+            f"ATK {_signed(profile.get('spell_attack_bonus') or 0)} · "
+            f"DC {_int_or(profile.get('spell_save_dc'), 0)}"
+        )
+    if profiles:
+        _add_sheet_field(embed, "Spellcasting", "\n".join(profiles), inline=False)
+
+    slots = _slots_line(spellcasting.get("slots") or {})
+    pact = spellcasting.get("pact_slots")
+    if isinstance(pact, dict):
+        slots = (
+            f"{slots}\nPact L{_int_or(pact.get('level'), 1)} "
+            f"{_int_or(pact.get('current'), 0)}/{_int_or(pact.get('max'), 0)}"
+            if slots else
+            f"Pact L{_int_or(pact.get('level'), 1)} "
+            f"{_int_or(pact.get('current'), 0)}/{_int_or(pact.get('max'), 0)}"
+        )
+    if slots:
+        _add_sheet_field(embed, "Slots", slots, inline=False)
+
+    spells = [
+        spell for spell in (spellcasting.get("spells") or [])
+        if isinstance(spell, dict)
+    ]
+    if not spells:
+        _add_sheet_field(embed, "Spells", "No spells imported.", inline=False)
+        return
+    grouped: dict[int, list[str]] = {}
+    for spell in spells:
+        grouped.setdefault(_int_or(spell.get("level"), 0), []).append(
+            str(spell.get("name") or "Spell")
+        )
+    lines = []
+    for level in sorted(grouped):
+        label = "Cantrips" if level == 0 else f"Level {level}"
+        names = ", ".join(sorted(grouped[level])[:18])
+        extra = len(grouped[level]) - min(len(grouped[level]), 18)
+        if extra:
+            names += f", ... {extra} more"
+        lines.append(f"**{label}:** {names}")
+    _add_sheet_field(embed, "Prepared/Known", "\n".join(lines), inline=False)
+
+
+def _sheet_inventory(embed: discord.Embed, statblock: dict[str, Any]) -> None:
+    inventory = statblock.get("inventory") or {}
+    items = [
+        item for item in (inventory.get("items") or [])
+        if isinstance(item, dict)
+    ]
+    equipped = [item for item in items if item.get("equipped")]
+    carried = [item for item in items if not item.get("equipped")]
+    currency = inventory.get("currency") or {}
+    currency_line = _currency_line(currency)
+    if currency_line:
+        _add_sheet_field(embed, "Currency", currency_line, inline=False)
+
+    if equipped:
+        _add_sheet_field(
+            embed,
+            "Equipped",
+            "\n".join(_item_line(item) for item in equipped[:15]),
+            inline=False,
+        )
+    if carried:
+        lines = [_item_line(item) for item in carried[:15]]
+        if len(carried) > 15:
+            lines.append(f"... {len(carried) - 15} more")
+        _add_sheet_field(embed, "Carried", "\n".join(lines), inline=False)
+    if not items:
+        _add_sheet_field(embed, "Inventory", "No items imported.", inline=False)
+
+
+def _sheet_features(embed: discord.Embed, statblock: dict[str, Any]) -> None:
+    features = [
+        feature for feature in (statblock.get("features") or [])
+        if isinstance(feature, dict)
+    ]
+    proficiencies = statblock.get("proficiencies") or {}
+    languages = statblock.get("languages") or []
+
+    if features:
+        lines = [_feature_line(feature) for feature in features[:20]]
+        if len(features) > 20:
+            lines.append(f"... {len(features) - 20} more")
+        _add_sheet_field(embed, "Features", "\n".join(lines), inline=False)
+    else:
+        _add_sheet_field(embed, "Features", "No features imported.", inline=False)
+
+    prof_lines = []
+    if isinstance(proficiencies, dict):
+        for key in ("armor", "weapons", "tools", "other"):
+            values = [str(v) for v in proficiencies.get(key) or [] if v]
+            if values:
+                prof_lines.append(f"**{key.title()}:** {', '.join(values[:12])}")
+    if prof_lines:
+        _add_sheet_field(embed, "Proficiencies", "\n".join(prof_lines), inline=False)
+    if languages:
+        _add_sheet_field(
+            embed,
+            "Languages",
+            ", ".join(str(lang) for lang in languages[:20]),
+            inline=False,
+        )
+
+
+def _add_sheet_field(
+    embed: discord.Embed,
+    name: str,
+    value: str,
+    *,
+    inline: bool,
+) -> None:
+    text = (value or "").strip() or "None."
+    if len(text) > 1024:
+        text = text[:1021].rstrip() + "..."
+    embed.add_field(name=name, value=text, inline=inline)
+
+
+def _movement_line(movement: dict[str, Any]) -> str:
+    bits = []
+    for key in ("walk", "fly", "swim", "climb", "burrow"):
+        item = movement.get(key)
+        if not isinstance(item, dict):
+            continue
+        value = item.get("value")
+        if value is not None:
+            bits.append(f"{key} {value} {item.get('unit') or 'ft'}")
+    return ", ".join(bits)
+
+
+def _defense_lines(defenses: dict[str, Any]) -> list[str]:
+    lines = []
+    for label, key in (
+        ("Resist", "damage_resistances"),
+        ("Immune", "damage_immunities"),
+        ("Vulnerable", "damage_vulnerabilities"),
+        ("Condition immune", "condition_immunities"),
+    ):
+        names = [
+            str(item.get("name") or item.get("id") or "")
+            for item in defenses.get(key) or []
+            if isinstance(item, dict)
+        ]
+        if names:
+            lines.append(f"**{label}:** {', '.join(names)}")
+    conditions = [
+        str(item.get("name") or item.get("id") or "")
+        for item in defenses.get("conditions") or []
+        if isinstance(item, dict)
+    ]
+    if conditions:
+        lines.append(f"**Conditions:** {', '.join(conditions)}")
+    exhaustion = _int_or(defenses.get("exhaustion_level"), 0)
+    if exhaustion:
+        lines.append(f"**Exhaustion:** {exhaustion}")
+    return lines
+
+
+def _resource_lines(resources: list[dict[str, Any]], *, limit: int) -> list[str]:
+    lines = []
+    for res in resources[:limit]:
+        if not isinstance(res, dict):
+            continue
+        name = str(res.get("name") or res.get("id") or "Resource")
+        current = res.get("current")
+        maximum = res.get("max")
+        if current is not None and maximum is not None:
+            value = f"{_int_or(current, 0)}/{_int_or(maximum, 0)}"
+        else:
+            value = str(current if current is not None else maximum or "")
+        reset = ((res.get("reset") or {}).get("type") or "").replace("_", " ")
+        suffix = f" ({reset})" if reset else ""
+        lines.append(f"- {name}: {value}{suffix}".rstrip())
+    if len(resources) > limit:
+        lines.append(f"... {len(resources) - limit} more")
+    return lines
+
+
+def _action_line(action: dict[str, Any]) -> str:
+    parts = [str(action.get("kind") or "").replace("_", " ")]
+    attack = action.get("attack") or {}
+    if isinstance(attack, dict) and attack.get("bonus") is not None:
+        parts.append(f"hit {_signed(attack.get('bonus'))}")
+    save = action.get("save") or {}
+    if isinstance(save, dict) and (save.get("dc") or save.get("ability")):
+        dc = f" DC {_int_or(save.get('dc'), 0)}" if save.get("dc") else ""
+        parts.append(f"{_upper(save.get('ability'))}{dc} save".strip())
+    damage = _damage_line(action.get("damage") or [])
+    if damage:
+        parts.append(damage)
+    text = ", ".join(part for part in parts if part)
+    return f"- **{action.get('name') or 'Action'}**" + (f" - {text}" if text else "")
+
+
+def _damage_line(items: list[dict[str, Any]]) -> str:
+    bits = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        formula = str(item.get("formula") or "").strip()
+        damage_type = str(item.get("damage_type") or "").strip()
+        if formula:
+            bits.append(f"{formula} {damage_type}".strip())
+    return ", ".join(bits)
+
+
+def _slots_line(slots: dict[str, dict[str, Any]]) -> str:
+    lines = []
+    for level in sorted(slots, key=lambda value: _int_or(value, 0)):
+        slot = slots[level]
+        if not isinstance(slot, dict):
+            continue
+        lines.append(
+            f"L{level}: {_int_or(slot.get('current'), 0)}/"
+            f"{_int_or(slot.get('max'), 0)}"
+        )
+    return " · ".join(lines)
+
+
+def _item_line(item: dict[str, Any]) -> str:
+    qty = _int_or(item.get("quantity"), 1)
+    prefix = f"{qty}x " if qty != 1 else ""
+    kind = str(item.get("kind") or "").replace("_", " ")
+    attuned = " attuned" if item.get("attuned") else ""
+    return f"- {prefix}{item.get('name') or 'Item'}" + (
+        f" ({kind}{attuned})" if kind or attuned else ""
+    )
+
+
+def _feature_line(feature: dict[str, Any]) -> str:
+    kind = str(feature.get("kind") or "").replace("_", " ")
+    level = _int_or(feature.get("level"), 0)
+    suffix_bits = [bit for bit in (kind, f"L{level}" if level else "") if bit]
+    suffix = f" ({', '.join(suffix_bits)})" if suffix_bits else ""
+    return f"- {feature.get('name') or 'Feature'}{suffix}"
+
+
+def _currency_line(currency: dict[str, Any]) -> str:
+    parts = []
+    for key in ("pp", "gp", "ep", "sp", "cp"):
+        value = _int_or(currency.get(key), 0)
+        if value:
+            parts.append(f"{value} {key}")
+    return " · ".join(parts)
+
+
+def _advantage_suffix(value: Any) -> str:
+    text = str(value or "normal")
+    if text == "normal":
+        return ""
+    return f" {text.replace('_', ' ')}"
+
+
+def _title_skill(name: str) -> str:
+    return str(name).replace("-", " ").title()
+
+
+def _upper(value: Any) -> str:
+    text = str(value or "").strip()
+    return text.upper() if text else "?"
+
+
+def _signed(value: Any) -> str:
+    number = _int_or(value, 0)
+    return f"+{number}" if number >= 0 else str(number)
+
+
+def _int_or(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _dnd_attachment_body(summary: DndSheetAttachmentSummary) -> str:
+    classes = ", ".join(summary.classes) or "unknown class"
+    name_line = (
+        f"Story name changed to **{summary.character_name}**."
+        if summary.name_overridden
+        else f"Story name preserved as **{summary.character_name}**."
+    )
+    hp = f"{summary.hit_points_current}/{summary.hit_points_max}"
+    if summary.hit_points_temporary:
+        hp += f" (+{summary.hit_points_temporary} temp)"
+    return "\n".join([
+        f"Attached **{summary.imported_name or 'D&D character'}** to "
+        f"`{summary.character_id}`.",
+        name_line,
+        "",
+        f"**Classes:** {classes}",
+        f"**Level:** {summary.total_level}",
+        f"**AC / HP:** {summary.armor_class} / {hp}",
+        (
+            f"**D&D mode:** `{summary.session_ruleset_id}` · "
+            f"`{summary.cat_ii_resolution_mode}` · player rolls "
+            f"`{summary.player_roll_mode}`"
+        ),
+        (
+            f"**Imported:** {summary.skills_count} skills, "
+            f"{summary.actions_count} actions, {summary.spells_count} spells, "
+            f"{summary.resources_count} resources"
+        ),
+        "",
+        "Use `/sheet` to view it.",
+    ])
+
+
+class _DndSheetView(discord.ui.View):
+    """Ephemeral button pager for `/sheet`.
+
+    The view stores only the session/user/character keys and reloads the
+    sheet from the checkpoint on each click. That keeps the display tied
+    to current mechanical state instead of freezing whatever HP/resources
+    were visible when `/sheet` was first submitted.
+    """
+
+    def __init__(
+        self,
+        *,
+        engine: EngineBridge,
+        session_id: str,
+        user_id: int,
+        character_id: str,
+        page: str = "overview",
+    ):
+        super().__init__(timeout=10 * 60)
+        self.engine = engine
+        self.session_id = session_id
+        self.user_id = user_id
+        self.character_id = character_id
+        self.page_index = _sheet_page_index(page) or 0
+
+        self.previous_button = discord.ui.Button(
+            label="Previous",
+            emoji="◀️",
+            style=discord.ButtonStyle.secondary,
+        )
+        self.page_button = discord.ui.Button(
+            label="",
+            style=discord.ButtonStyle.secondary,
+            disabled=True,
+        )
+        self.next_button = discord.ui.Button(
+            label="Next",
+            emoji="▶️",
+            style=discord.ButtonStyle.secondary,
+        )
+        self.previous_button.callback = self._previous
+        self.next_button.callback = self._next
+        self.add_item(self.previous_button)
+        self.add_item(self.page_button)
+        self.add_item(self.next_button)
+        self._sync_buttons()
+
+    @property
+    def page(self) -> str:
+        return DND_SHEET_PAGES[self.page_index]
+
+    def _sync_buttons(self) -> None:
+        self.page_button.label = (
+            f"{_sheet_page_label(self.page)} "
+            f"{self.page_index + 1}/{len(DND_SHEET_PAGES)}"
+        )
+
+    def _advance(self, delta: int) -> None:
+        self.page_index = (
+            self.page_index + delta
+        ) % len(DND_SHEET_PAGES)
+        self._sync_buttons()
+
+    def _render_current(self) -> discord.Embed:
+        character = self.engine.get_bound_character_record(
+            self.session_id,
+            self.user_id,
+            character_id=self.character_id,
+        )
+        return _render_dnd_sheet_page(character, self.page)
+
+    async def interaction_check(
+        self,
+        check_inter: discord.Interaction,
+    ) -> bool:
+        if check_inter.user.id != self.user_id:
+            await check_inter.response.send_message(
+                "This sheet view isn't yours.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    async def _previous(self, click_inter: discord.Interaction) -> None:
+        await self._turn_page(click_inter, -1)
+
+    async def _next(self, click_inter: discord.Interaction) -> None:
+        await self._turn_page(click_inter, 1)
+
+    async def _turn_page(
+        self,
+        click_inter: discord.Interaction,
+        delta: int,
+    ) -> None:
+        self._advance(delta)
+        try:
+            embed = self._render_current()
+        except ValueError as e:
+            await click_inter.response.edit_message(
+                embed=render_error(str(e)),
+                view=None,
+            )
+            return
+        except Exception as e:
+            logger.exception("D&D sheet pagination failed")
+            await click_inter.response.edit_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                view=None,
+            )
+            return
+        await click_inter.response.edit_message(embed=embed, view=self)
 
 
 def register(
@@ -1580,6 +2545,34 @@ def register(
                 char_name=char_name,
             )
 
+    async def _send_dnd_attach_hint(
+        inter: discord.Interaction,
+        *,
+        character_id: str,
+        char_name: str,
+    ) -> None:
+        """Private post-join hint for optional D&D sheet attachment.
+
+        Discord select menus and modals cannot accept file uploads, so
+        the actual JSON upload lives on `/attach`. Keeping the hint
+        after `/join` preserves the existing dropdown flow while giving
+        D&D players the next action at the point it becomes meaningful:
+        after a story character exists and is bound.
+        """
+        body = (
+            f"Optional: attach a D&D Beyond JSON sheet to **{char_name}** "
+            f"(`{character_id}`) with `/attach attachment:<json>`.\n\n"
+            "Leave `name_override` blank to keep the current story name. "
+            "Fill it only if the character's in-story name should change."
+        )
+        try:
+            await inter.followup.send(
+                embed=render_info("D&D sheet", body),
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception("post-join D&D attach hint failed")
+
     async def _fire_arrival_turn(
         inter: discord.Interaction,
         session_id: str,
@@ -1813,6 +2806,11 @@ def register(
                 binding_cid=self._character_id,
                 char_name=display_name,
             )
+            await _send_dnd_attach_hint(
+                modal_inter,
+                character_id=self._character_id,
+                char_name=display_name,
+            )
 
     # Sentinel value used in the /join SelectMenu for the
     # "Create your own character" row. Real character_ids are
@@ -1890,6 +2888,11 @@ def register(
                 session_id=self._session_id,
                 story_id=self._story_id,
                 binding_cid=new_char.character_id,
+                char_name=new_char.name,
+            )
+            await _send_dnd_attach_hint(
+                modal_inter,
+                character_id=new_char.character_id,
                 char_name=new_char.name,
             )
 
@@ -2068,6 +3071,193 @@ def register(
         )
         await inter.response.send_message(
             embed=render_info("Join the story", "\n\n".join(body_lines)),
+            view=view,
+            ephemeral=True,
+        )
+
+    # ---- /attach -----------------------------------------------------------
+
+    @tree.command(
+        name="attach",
+        description="Attach a D&D Beyond JSON character sheet to your current character.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        attachment="A D&D Beyond character JSON export.",
+        character_id=(
+            "Optional character_id. Defaults to your current bound character."
+        ),
+        name_override=(
+            "Optional in-story name override. Leave blank to preserve the "
+            "current story name."
+        ),
+    )
+    async def _attach(
+        inter: discord.Interaction,
+        attachment: discord.Attachment,
+        character_id: str = "",
+        name_override: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+
+        if engine.get_user_binding(row.session_id, inter.user.id) is None:
+            await inter.response.send_message(
+                "You're not bound to a character in this story. Run `/join` "
+                "first.",
+                ephemeral=True,
+            )
+            return
+
+        filename = (attachment.filename or "").lower()
+        content_type = (attachment.content_type or "").lower()
+        if not filename.endswith(".json") and "json" not in content_type:
+            await inter.response.send_message(
+                "Attach a `.json` export from D&D Beyond.",
+                ephemeral=True,
+            )
+            return
+
+        if attachment.size > MAX_DND_CHARACTER_BYTES:
+            await inter.response.send_message(
+                f"Sheet export is too large ({attachment.size} bytes). "
+                f"Limit is {MAX_DND_CHARACTER_BYTES} bytes.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True, ephemeral=True)
+
+        try:
+            raw = await attachment.read()
+        except Exception:
+            logger.exception("/attach attachment download failed")
+            await inter.followup.send(
+                embed=render_error("Could not download the attachment."),
+                ephemeral=True,
+            )
+            return
+
+        try:
+            export = json.loads(raw.decode("utf-8-sig"))
+        except UnicodeDecodeError:
+            await inter.followup.send(
+                embed=render_error("Attachment is not valid UTF-8 JSON."),
+                ephemeral=True,
+            )
+            return
+        except json.JSONDecodeError as e:
+            await inter.followup.send(
+                embed=render_error(f"Attachment is not valid JSON: {e}"),
+                ephemeral=True,
+            )
+            return
+
+        if not isinstance(export, dict):
+            await inter.followup.send(
+                embed=render_error("D&D Beyond export must be a JSON object."),
+                ephemeral=True,
+            )
+            return
+
+        try:
+            summary = await engine.attach_dndbeyond_character_export(
+                row.session_id,
+                inter.user.id,
+                export,
+                character_id=character_id or None,
+                name_override=name_override or None,
+            )
+        except ValueError as e:
+            await inter.followup.send(
+                embed=render_error(str(e)),
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("/attach failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        await inter.followup.send(
+            embed=render_info("D&D sheet attached", _dnd_attachment_body(summary)),
+            ephemeral=True,
+        )
+
+    # ---- /sheet ------------------------------------------------------------
+
+    @tree.command(
+        name="sheet",
+        description="Show your attached D&D character sheet.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        page="Which sheet page to show.",
+        character_id=(
+            "Optional character_id. Defaults to your current bound character."
+        ),
+    )
+    @app_commands.choices(
+        page=[
+            app_commands.Choice(name="Overview", value="overview"),
+            app_commands.Choice(name="Abilities", value="abilities"),
+            app_commands.Choice(name="Actions", value="actions"),
+            app_commands.Choice(name="Spells", value="spells"),
+            app_commands.Choice(name="Inventory", value="inventory"),
+            app_commands.Choice(name="Features", value="features"),
+        ]
+    )
+    async def _sheet(
+        inter: discord.Interaction,
+        page: str = "overview",
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            character = engine.get_bound_character_record(
+                row.session_id,
+                inter.user.id,
+                character_id=character_id or None,
+            )
+            embed = _render_dnd_sheet_page(character, page)
+            view = _DndSheetView(
+                engine=engine,
+                session_id=row.session_id,
+                user_id=inter.user.id,
+                character_id=character.character_id,
+                page=page,
+            )
+        except ValueError as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)),
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("/sheet failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.send_message(
+            embed=embed,
             view=view,
             ephemeral=True,
         )
@@ -2573,6 +3763,115 @@ def register(
             actor_character_id=binding,
             actor_user=inter.user,
             response=response,
+        )
+
+    # ---- /roll --------------------------------------------------------------
+
+    @tree.command(
+        name="roll",
+        description="Roll a pending D&D check for the current contested action.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        roll_id="Optional roll id if your character has multiple pending rolls.",
+    )
+    async def _roll(inter: discord.Interaction, roll_id: str = ""):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+
+        binding = engine.get_user_binding(row.session_id, inter.user.id)
+        if binding is None:
+            await inter.response.send_message(
+                "You're not bound to a character in this story. "
+                "Run `/join` to pick one.",
+                ephemeral=True,
+            )
+            return
+
+        prompts = engine.pending_roll_prompts(
+            row.session_id, user_id=inter.user.id
+        )
+        if not prompts:
+            await inter.response.send_message(
+                "You do not have a pending D&D roll right now.",
+                ephemeral=True,
+            )
+            return
+
+        chosen: PendingRollPrompt | None = None
+        requested = roll_id.strip()
+        if requested:
+            chosen = next((p for p in prompts if p.roll_id == requested), None)
+            if chosen is None:
+                await inter.response.send_message(
+                    "That roll id is not pending for your character.",
+                    ephemeral=True,
+                )
+                return
+        elif len(prompts) == 1:
+            chosen = prompts[0]
+        else:
+            lines = [
+                "Multiple rolls are pending. Run `/roll roll_id:<id>` "
+                "with one of these:"
+            ]
+            for prompt in prompts:
+                lines.append(f"- `{prompt.roll_id}`: {prompt.label}")
+            await inter.response.send_message("\n".join(lines), ephemeral=True)
+            return
+
+        try:
+            result = await engine.complete_pending_roll(
+                session_id=row.session_id,
+                event_id=chosen.event_id,
+                roll_id=chosen.roll_id,
+                user_id=inter.user.id,
+            )
+        except Exception as e:
+            logger.exception("/roll complete_pending_roll failed")
+            await inter.response.send_message(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.send_message(
+            "\n".join([
+                _roll_result_line(result),
+                "_Interpreting the outcome..._",
+            ]),
+            ephemeral=True,
+        )
+
+        try:
+            response = await engine.continue_pending_roll(
+                session_id=row.session_id,
+                event_id=chosen.event_id,
+                actor_id=chosen.actor_id,
+            )
+        except Exception as e:
+            logger.exception("/roll continue_pending_roll failed")
+            await inter.followup.send(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+
+        await _deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id=row.session_id,
+            story_id=row.story_id,
+            actor_character_id=binding,
+            actor_user=inter.user,
+            response=response,
+            clear_interaction_response=False,
         )
 
     # ---- /defer -------------------------------------------------------------

@@ -29,7 +29,6 @@ _ROLE_ENV_ALIASES = {
     "character_gen": ("CHARACTER_GEN", "AGENT"),
     "event_router": ("ROUTER",),
     "narrator": ("NARRATOR",),
-    "rules_arbitrator": ("RULES_ARBITRATOR", "RULES"),
 }
 
 
@@ -157,7 +156,6 @@ class LLMConfig(BaseModel):
         "narrator": _DEFAULT_MODEL,
         "agent": _DEFAULT_MODEL,
         "character_gen": _DEFAULT_MODEL,
-        "rules_arbitrator": _ROUTER_MODEL,
     })
 
     # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
@@ -194,7 +192,6 @@ class LLMConfig(BaseModel):
     role_thinking_budgets: dict[str, int] = Field(default_factory=lambda: {
         "agent": 2048,
         "event_router": 2048,
-        "rules_arbitrator": 2048,
     })
     # OpenAI reasoning models use effort levels rather than token budgets.
     # GPT-5.1 defaults to "none"; start at medium so the router and agents
@@ -205,7 +202,6 @@ class LLMConfig(BaseModel):
         "narrator": "medium",
         "agent": "medium",
         "character_gen": "medium",
-        "rules_arbitrator": "medium",
     })
     # Raw OpenAI reasoning tokens are not exposed by the API. This optional
     # per-role setting requests provider-authored summaries instead.

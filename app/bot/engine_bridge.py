@@ -16,12 +16,21 @@ import logging
 import re
 import shutil
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from app.engine.character_agent import _extract_parenthetical
 from app.engine.character_manager import _normalize_router_summary
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.dnd_cat_ii import (
+    complete_pending_player_roll,
+    pending_player_rolls,
+)
+from app.engine.dnd_character_import import (
+    mechanics_from_snapshot,
+    normalize_dndbeyond_export,
+)
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -41,6 +50,7 @@ from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
+from app.schemas.state import SlotEntry
 
 if TYPE_CHECKING:
     from app.schemas.query import QueryResponse
@@ -91,6 +101,56 @@ class RewindResult:
     deleted_turns: list[int]
     location: str = ""
     actor_character_id: str = ""
+
+
+@dataclass(frozen=True)
+class PendingRollPrompt:
+    session_id: str
+    event_id: str
+    roll_id: str
+    actor_id: str
+    user_id: str
+    label: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class CompletedPendingRoll:
+    session_id: str
+    event_id: str
+    roll_id: str
+    actor_id: str
+    user_id: str
+    label: str
+    reason: str
+    expression: str
+    total: int
+    detail: str
+    crit: str
+    remaining_pending_rolls: int
+
+
+@dataclass(frozen=True)
+class DndSheetAttachmentSummary:
+    character_id: str
+    character_name: str
+    imported_name: str
+    ruleset_id: str
+    session_ruleset_id: str
+    cat_ii_resolution_mode: str
+    player_roll_mode: str
+    source_type: str
+    total_level: int
+    classes: list[str]
+    armor_class: int
+    hit_points_current: int
+    hit_points_max: int
+    hit_points_temporary: int
+    skills_count: int
+    actions_count: int
+    spells_count: int
+    resources_count: int
+    name_overridden: bool
 
 
 logger = logging.getLogger(__name__)
@@ -715,6 +775,287 @@ class EngineBridge:
             if bound == uid:
                 return char_id
         return None
+
+    def get_bound_character_record(
+        self,
+        session_id: str,
+        user_id: int,
+        character_id: str | None = None,
+    ) -> CharacterRecord:
+        """Return a character this user currently controls.
+
+        `character_id` is optional because ordinary Discord users have
+        exactly one live binding. If supplied, it must still be one of
+        the invoker's bindings; D&D sheets are player-private enough that
+        the generic `/sheet` path should not become a roster browser.
+        """
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target_id = self._bound_character_id_for_user(
+            ckpt,
+            user_id=user_id,
+            character_id=character_id,
+        )
+        target = next(
+            (c for c in ckpt.characters if c.character_id == target_id), None
+        )
+        if target is None:
+            raise ValueError(f"No character '{target_id}' in this session.")
+        return target
+
+    async def attach_dndbeyond_character_export(
+        self,
+        session_id: str,
+        user_id: int,
+        export: dict[str, Any],
+        *,
+        character_id: str | None = None,
+        name_override: str | None = None,
+    ) -> DndSheetAttachmentSummary:
+        """Attach a D&D Beyond JSON export to the invoker's bound character.
+
+        This is deliberately an attachment, not a character replacement.
+        The story-facing `CharacterRecord.name`, appearance, role,
+        location, goals, secrets, and conversations stay as they are
+        unless `name_override` is explicitly provided. The imported
+        D&D identity remains visible inside `mechanics.dnd5e_sheet` for
+        sheet display and rules arbitration.
+        """
+        if not isinstance(export, dict):
+            raise ValueError("D&D Beyond export must be a JSON object.")
+
+        override = (name_override or "").strip()
+        snapshot = normalize_dndbeyond_export(
+            export,
+            include_raw_source=True,
+        )
+        mechanics = mechanics_from_snapshot(snapshot)
+
+        lock = await self._lock_for(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            target_id = self._bound_character_id_for_user(
+                ckpt,
+                user_id=user_id,
+                character_id=character_id,
+            )
+            target = next(
+                (c for c in ckpt.characters if c.character_id == target_id),
+                None,
+            )
+            if target is None:
+                raise ValueError(f"No character '{target_id}' in this session.")
+
+            target.mechanics = mechanics
+            if override:
+                target.name = override
+
+            settings = ckpt.session.config.settings
+            settings.ruleset_id = "dnd5e_basic"
+            settings.cat_ii_resolution_mode = "dnd5e_router"
+
+            summary = _dnd_attachment_summary(
+                character=target,
+                snapshot=snapshot,
+                settings=settings,
+                name_overridden=bool(override),
+            )
+            class_line = ", ".join(summary.classes) or "unknown class"
+            imported = summary.imported_name or "unnamed D&D character"
+            ckpt.session.pending_router_state_changes.append(
+                f"D&D sheet attached: {summary.character_name} "
+                f"(id: {target.character_id}) now has imported D&D mechanics "
+                f"from {imported}; {class_line}, level {summary.total_level}, "
+                f"AC {summary.armor_class}, HP "
+                f"{summary.hit_points_current}/{summary.hit_points_max}. "
+                f"D&D session settings enabled: ruleset_id="
+                f"{settings.ruleset_id}, cat_ii_resolution_mode="
+                f"{settings.cat_ii_resolution_mode}, player_roll_mode="
+                f"{settings.player_roll_mode}. "
+                "Use these mechanics for D&D adjudication; preserve the "
+                "story identity unless fiction explicitly changes it."
+            )
+            self.checkpoint_mgr.save(ckpt)
+            logger.info(
+                "Attached D&D sheet in %s for user %s: %s <- %s",
+                session_id, user_id, target.character_id, imported,
+            )
+            return summary
+
+    def _bound_character_id_for_user(
+        self,
+        ckpt: CheckpointFile,
+        *,
+        user_id: int,
+        character_id: str | None = None,
+    ) -> str:
+        uid = str(user_id)
+        bound_ids = [
+            cid for cid, bound in (ckpt.session.character_bindings or {}).items()
+            if bound == uid
+        ]
+        if not bound_ids:
+            raise ValueError("You are not bound to a character in this session.")
+
+        requested = (character_id or "").strip()
+        if requested:
+            if requested not in bound_ids:
+                raise ValueError(
+                    "You can only use this with a character you currently "
+                    "control."
+                )
+            return requested
+
+        if len(bound_ids) > 1:
+            raise ValueError(
+                "Multiple character bindings found. Provide `character_id`."
+            )
+        return bound_ids[0]
+
+    def pending_roll_prompts(
+        self,
+        session_id: str,
+        *,
+        user_id: int | None = None,
+    ) -> list[PendingRollPrompt]:
+        """Return Discord-addressable pending player rolls for a session."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        bindings = ckpt.session.character_bindings or {}
+        wanted_uid = str(user_id) if user_id is not None else ""
+        prompts: list[PendingRollPrompt] = []
+        for transaction in ckpt.session.cat_ii_roll_transactions:
+            for record in pending_player_rolls(
+                ckpt, event_id=transaction.event_id
+            ):
+                bound_uid = bindings.get(record.actor_id, "")
+                if not bound_uid:
+                    continue
+                if wanted_uid and bound_uid != wanted_uid:
+                    continue
+                prompts.append(
+                    PendingRollPrompt(
+                        session_id=session_id,
+                        event_id=transaction.event_id,
+                        roll_id=record.roll_id,
+                        actor_id=record.actor_id,
+                        user_id=bound_uid,
+                        label=record.label or "Roll",
+                        reason=record.reason,
+                    )
+                )
+        return prompts
+
+    async def submit_pending_roll(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        roll_id: str,
+        user_id: int,
+    ) -> TurnResponse:
+        """Submit one pending D&D player roll from Discord UI."""
+        actor_id = self.get_user_binding(session_id, user_id)
+        if actor_id is None:
+            raise ValueError("This Discord user is not bound to a character.")
+        prompts = self.pending_roll_prompts(session_id, user_id=user_id)
+        if roll_id not in {prompt.roll_id for prompt in prompts}:
+            raise ValueError("That roll is not pending for your character.")
+        return await self.orchestrator.submit_cat_ii_roll(
+            session_id=session_id,
+            event_id=event_id,
+            roll_id=roll_id,
+            actor_id=actor_id,
+            user_id=str(user_id),
+        )
+
+    async def complete_pending_roll(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        roll_id: str,
+        user_id: int,
+    ) -> CompletedPendingRoll:
+        """Execute one pending player roll and persist the dice result only.
+
+        This intentionally does not run the router finalize call. Discord can
+        show the mechanical result immediately, then continue the Cat II
+        resolution as a separate slower step.
+        """
+        actor_id = self.get_user_binding(session_id, user_id)
+        if actor_id is None:
+            raise ValueError("This Discord user is not bound to a character.")
+
+        lock = await self.orchestrator.session_locks.get(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
+            bindings = ckpt.session.character_bindings or {}
+            if bindings.get(actor_id, "") != str(user_id):
+                raise ValueError(
+                    "That roll is not pending for your character."
+                )
+            if not any(
+                evt.event_id == event_id
+                for evt in ckpt.session.open_cat_ii_events
+            ):
+                raise ValueError("That contested action is no longer open.")
+
+            pending_for_actor = pending_player_rolls(
+                ckpt, event_id=event_id, actor_id=actor_id,
+            )
+            record = next(
+                (r for r in pending_for_actor if r.roll_id == roll_id),
+                None,
+            )
+            if record is None:
+                raise ValueError(
+                    f"Roll {roll_id} is not pending for actor {actor_id}."
+                )
+
+            completed = complete_pending_player_roll(
+                ckpt,
+                event_id=event_id,
+                roll_id=roll_id,
+                completed_by_user_id=str(user_id),
+            )
+            remaining = pending_player_rolls(ckpt, event_id=event_id)
+            if not remaining:
+                ckpt.session.active_act_slots[actor_id] = SlotEntry(
+                    reason="cat_ii_roll",
+                    cat_ii_event_id=event_id,
+                    claimed_at=datetime.now(timezone.utc).isoformat(),
+                )
+            self.checkpoint_mgr.save(ckpt)
+
+        result = completed.result or {}
+        return CompletedPendingRoll(
+            session_id=session_id,
+            event_id=event_id,
+            roll_id=completed.roll_id,
+            actor_id=completed.actor_id,
+            user_id=str(user_id),
+            label=completed.label or "Roll",
+            reason=completed.reason,
+            expression=str(result.get("expression", "")),
+            total=int(result.get("total", 0)),
+            detail=str(result.get("detail", "")),
+            crit=str(result.get("crit", "none")),
+            remaining_pending_rolls=len(remaining),
+        )
+
+    async def continue_pending_roll(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        actor_id: str,
+    ) -> TurnResponse:
+        """Finalize a Cat II after a prior complete_pending_roll call."""
+        return await self.orchestrator.continue_cat_ii_after_roll(
+            session_id=session_id,
+            event_id=event_id,
+            actor_id=actor_id,
+        )
 
     def bind_user(
         self,
@@ -1659,6 +2000,68 @@ def _append_session_note(ckpt: CheckpointFile, note: str) -> None:
         role="assistant",
         content=f'{{"takeover_note": {json.dumps(note)}}}',
     ))
+
+
+def _dnd_attachment_summary(
+    *,
+    character: CharacterRecord,
+    snapshot: dict[str, Any],
+    settings: Any,
+    name_overridden: bool,
+) -> DndSheetAttachmentSummary:
+    identity = snapshot.get("identity") or {}
+    statblock = snapshot.get("statblock") or {}
+    defenses = statblock.get("defenses") or {}
+    hp = defenses.get("hit_points") or {}
+    ac = defenses.get("armor_class") or {}
+    source = snapshot.get("source") or {}
+
+    classes: list[str] = []
+    total_level = 0
+    for entry in identity.get("classes") or []:
+        if not isinstance(entry, dict):
+            continue
+        level = _safe_int(entry.get("level"), 0)
+        total_level += level
+        name = str(entry.get("name") or "").strip()
+        subclass = str(entry.get("subclass") or "").strip()
+        label = name
+        if subclass and subclass.lower() != name.lower():
+            label = f"{subclass} {name}" if name else subclass
+        if label:
+            classes.append(f"{label} {level}".strip())
+
+    spellcasting = statblock.get("spellcasting") or {}
+    return DndSheetAttachmentSummary(
+        character_id=character.character_id,
+        character_name=character.name,
+        imported_name=str(identity.get("name") or ""),
+        ruleset_id=str(snapshot.get("ruleset_id") or ""),
+        session_ruleset_id=str(getattr(settings, "ruleset_id", "")),
+        cat_ii_resolution_mode=str(
+            getattr(settings, "cat_ii_resolution_mode", "")
+        ),
+        player_roll_mode=str(getattr(settings, "player_roll_mode", "")),
+        source_type=str(source.get("type") or ""),
+        total_level=total_level,
+        classes=classes,
+        armor_class=_safe_int(ac.get("value"), 0),
+        hit_points_current=_safe_int(hp.get("current"), 0),
+        hit_points_max=_safe_int(hp.get("max"), 0),
+        hit_points_temporary=_safe_int(hp.get("temporary"), 0),
+        skills_count=len(statblock.get("skills") or {}),
+        actions_count=len(statblock.get("actions") or []),
+        spells_count=len(spellcasting.get("spells") or []),
+        resources_count=len(statblock.get("resources") or []),
+        name_overridden=name_overridden,
+    )
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _parse_model_json(model_cls, content: str):

@@ -133,10 +133,10 @@ class TestPromptManagerWithRealTemplates:
         assert "No magic" in result
         assert "Tall, broad-shouldered" in result
 
-    def test_rules_arbitrator_renders(self):
+    def test_dnd_cat_ii_router_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")
         result = mgr.render(
-            "rules_arbitrator",
+            "dnd_cat_ii_router",
             phase="PLAN_ROLLS",
             contested_action_packet='{"initiator_id": "alice"}',
             roll_ledger_block="No rolls have been made yet.",

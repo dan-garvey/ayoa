@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.schemas.characters import CharacterRecord
-from app.schemas.rules_arbitrator import PlannedRoll
+from app.schemas.dnd_cat_ii import PlannedRoll
 
 
 _SKILL_ABILITIES = {
@@ -36,6 +36,10 @@ def roll_modifier(character: CharacterRecord | None, request: PlannedRoll) -> in
     if character is None:
         return 0
     mechanics = character.mechanics or {}
+    detailed = _detailed_roll_modifier(mechanics, request)
+    if detailed is not None:
+        return detailed
+
     ability = request.ability
     if request.kind == "skill_check" and request.skill:
         ability = _SKILL_ABILITIES.get(request.skill, ability)
@@ -92,3 +96,83 @@ def _is_proficient(mechanics: dict[str, Any], request: PlannedRoll) -> bool:
         profs = mechanics.get("saving_throw_proficiencies") or []
         return request.ability in {str(p).strip().lower() for p in profs}
     return False
+
+
+def _detailed_roll_modifier(
+    mechanics: dict[str, Any],
+    request: PlannedRoll,
+) -> int | None:
+    sheet = mechanics.get("dnd5e_sheet") or {}
+    statblock = sheet.get("statblock") or {}
+    if not isinstance(statblock, dict):
+        return None
+
+    if request.kind == "skill_check" and request.skill:
+        skills = statblock.get("skills") or {}
+        skill = _lookup_roll_bonus(skills, request.skill)
+        if skill is not None:
+            return skill
+
+    if request.kind == "saving_throw":
+        saves = statblock.get("saves") or {}
+        save = _lookup_roll_bonus(saves, request.ability)
+        if save is not None:
+            return save
+
+    if request.kind == "attack_roll" and request.skill:
+        action_bonus = _lookup_action_attack_bonus(statblock, request.skill)
+        if action_bonus is not None:
+            return action_bonus
+
+    if request.kind == "ability_check":
+        ability_scores = statblock.get("ability_scores") or {}
+        score = ability_scores.get(request.ability) or {}
+        if isinstance(score, dict) and "modifier" in score:
+            try:
+                return int(score.get("modifier") or 0)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _lookup_roll_bonus(source: dict[str, Any], key: str) -> int | None:
+    normalized = str(key).strip().lower().replace("_", " ")
+    keys = {
+        str(key).strip().lower(),
+        normalized,
+        normalized.replace("-", " "),
+        normalized.replace(" ", "-"),
+    }
+    for candidate in keys:
+        entry = source.get(candidate)
+        if isinstance(entry, dict) and "value" in entry:
+            try:
+                return int(entry.get("value") or 0)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _lookup_action_attack_bonus(
+    statblock: dict[str, Any],
+    key: str,
+) -> int | None:
+    wanted = str(key).strip().lower()
+    for action in statblock.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        names = {
+            str(action.get("id") or "").lower(),
+            str(action.get("name") or "").lower(),
+        }
+        if wanted not in names:
+            continue
+        attack = action.get("attack") or {}
+        bonus = attack.get("bonus")
+        if bonus is None:
+            continue
+        try:
+            return int(bonus)
+        except (TypeError, ValueError):
+            return None
+    return None

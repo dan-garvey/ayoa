@@ -38,16 +38,15 @@ The useful first slice:
   simple condition bookkeeping.
 * The LLM can still reason about D&D rules and fiction, but it does not invent
   roll totals or do arithmetic.
-* Cat II final resolution can call a rules arbitrator instead of the router
-  when D&D mode is enabled.
-* The arbitrator returns structured adjudication that compiles back into the
-  existing router/narrator pipeline.
+* Cat II final resolution can use a router-owned D&D subflow when D&D mode is
+  enabled.
+* That subflow returns structured adjudication that compiles back into the
+  existing router/narrator pipeline without adding another model role.
 
 This keeps the current Ayoa architecture intact:
 
 * The router still opens Cat II, chooses required responders, determines
-  observers, and controls beat pacing.
-* The rules arbitrator owns the final mechanics-heavy contested outcome.
+  observers, controls beat pacing, and owns final D&D adjudication calls.
 * The narrator still sees only canonical observable facts.
 * NPC agents still see only their own rolling history, known context, and
   pending observations.
@@ -95,6 +94,10 @@ The first system should be good at adjudicating common contested actions:
 ## Mechanical State
 
 Add optional rules-facing state without making every Ayoa story a D&D story.
+For imported player sheets, the full D&D character snapshot should follow
+`DND_CHARACTER_IMPORT.md` and live under `mechanics.dnd5e_sheet`; the fields
+below are the compact compatibility projection used by the current D&D Cat II
+path.
 
 Recommended shape on `CharacterRecord`:
 
@@ -146,8 +149,9 @@ Core helpers:
 * execute roll requests
 * return an auditable roll ledger
 
-The roll ledger should be persisted with the adjudication result or canonical
-event metadata once that state surface exists.
+The roll ledger is persisted in checkpoint roll transactions, not in normal
+router/narrator conversation history. Future prompt context receives the
+canonical outcome facts, while rewind/debug can inspect the full dice audit.
 
 Example ledger:
 
@@ -170,13 +174,14 @@ Example ledger:
 }
 ```
 
-## Rules Arbitrator Flow
+## Router-Owned D&D Cat II Flow
 
 Use a two-step adjudication flow for D&D Cat II resolution.
 
 ### Step 1: Plan Rolls
 
-The rules arbitrator receives a contested action packet:
+The event-router role receives a contested action packet in a dedicated D&D
+Cat II prompt:
 
 * initiator id and intention
 * responder ids and intentions
@@ -218,7 +223,7 @@ It returns a `RollPlan`, not the final outcome:
 }
 ```
 
-If no roll is needed, the arbitrator can say so and explain why. For example,
+If no roll is needed, the router can say so and explain why. For example,
 an impossible action, a freely accepted action, or a purely fictional
 non-mechanical resolution can skip dice.
 
@@ -229,14 +234,17 @@ The engine resolves every roll request:
 * calculates modifiers from character mechanics
 * applies proficiency when relevant
 * handles advantage/disadvantage
-* rolls dice
+* rolls NPC/agent dice automatically
+* rolls player dice automatically by default, or pauses for Discord roll UI
+  when `player_roll_mode="interactive"`
 * returns totals and roll details
 
 The LLM never invents roll totals.
 
 ### Step 3: Finalize Outcome
 
-The arbitrator receives the original packet plus the roll ledger and returns
+The event-router role receives the original packet plus the transient roll
+ledger and returns
 `RulesAdjudication`:
 
 ```json
@@ -274,6 +282,11 @@ resolution:
 * `canonical_event.observable_facts` from `visible_outcome_facts`
 * `observers` inherited from the Cat II context or conservatively recalculated
 
+After finalization, the roll plan and ledger stay in
+`session.cat_ii_roll_transactions` for checkpoint rewind and audit. They are not
+appended to `session_conversation`; only a compact canonical result note is
+queued for the next router call.
+
 ## Basic D&D Implementation Plan
 
 1. Add optional mechanics schemas.
@@ -296,11 +309,13 @@ resolution:
 
    * `ruleset_id`
    * `cat_ii_resolution_mode`
+   * `player_roll_mode`
 
    Defaults preserve current behavior:
 
    * `ruleset_id="narrative"`
    * `cat_ii_resolution_mode="router"`
+   * `player_roll_mode="auto"`
 
 4. Preserve richer Cat II context.
 
@@ -309,25 +324,27 @@ resolution:
    participating observers, and a compact mechanics snapshot. Add this without
    changing Cat II open behavior.
 
-5. Add rules arbitrator schemas and prompt.
+5. Add D&D Cat II schemas and prompt.
 
    Add structured models for `ContestedActionPacket`, `RollPlan`,
-   `RollRequest`, `RollLedger`, and `RulesAdjudication`. Add a prompt that
-   owns only the mechanics-heavy final resolution, not router duties.
+   `RollRequest`, `RollLedger`, and `RulesAdjudication`. Add a dedicated prompt
+   used with the `event_router` role; it owns only the mechanics-heavy final
+   resolution, not fresh Cat II classification.
 
 6. Wire D&D mode into Cat II final resolution.
 
-   In Cat II final resolution only, if `cat_ii_resolution_mode` selects the
-   rules arbitrator, call the roll-planning path, execute rolls in code, call
+   In Cat II final resolution only, if `cat_ii_resolution_mode` selects
+   `dnd5e_router`, call the roll-planning path, execute rolls in code, call
    finalization, and compile the result back into the existing event shape.
    Otherwise keep the current router path.
 
    Current implementation status: this branch exists behind
-   `cat_ii_resolution_mode="rules_arbitrator"`. It preserves the Cat II
-   opening context, asks a rules arbitrator for a d20 roll plan, executes
-   planned rolls through Ayoa's `d20` wrapper, asks for final adjudication, and
-   compiles the outcome back into `EventRouterOutput`. State deltas are
-   returned as notes but are not applied yet.
+   `cat_ii_resolution_mode="dnd5e_router"`. It preserves the Cat II opening
+   context, asks the event-router role for a d20 roll plan, executes planned
+   rolls through Ayoa's `d20` wrapper, asks for final adjudication, and compiles
+   the outcome back into `EventRouterOutput`. State deltas are returned as notes
+   but are not applied yet. The legacy setting value `"rules_arbitrator"` maps
+   to `"dnd5e_router"` for old saves.
 
 7. Apply simple state deltas.
 
@@ -339,10 +356,11 @@ resolution:
    Tests should verify:
 
    * non-D&D sessions are unchanged
-   * D&D mode calls the rules arbitrator for Cat II final resolution only
+   * D&D mode uses the event-router role for Cat II final resolution only
    * dice totals are code-generated
    * modifiers come from mechanics state
    * roll ledgers are auditable
+   * roll planning/ledger details do not append to router message history
    * visible facts compile into the narrator path
    * private/mechanical notes do not leak to narrator prompts
 
