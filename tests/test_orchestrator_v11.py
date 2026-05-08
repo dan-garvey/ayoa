@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.engine.orchestrator import Orchestrator
+from app.engine.turn_loop import BeatResult
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
@@ -17,7 +18,13 @@ from app.schemas.events import (
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
-from app.schemas.state import LocationState, SessionState, WorldState
+from app.schemas.state import (
+    DndCombatantState,
+    DndCombatState,
+    LocationState,
+    SessionState,
+    WorldState,
+)
 
 
 def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
@@ -225,6 +232,150 @@ class TestSlotRejection:
         assert response.beat_ended_reason == "slot_rejected"
         assert mgr.save.call_count == 0
         assert FakeDispatcher.route_calls == []
+
+
+class TestCombatTurnGating:
+    @pytest.mark.asyncio
+    async def test_non_current_human_combatant_is_rejected_without_save(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = {
+            "status": "active",
+            "round_number": 1,
+            "turn_index": 0,
+            "combatants": [
+                {
+                    "character_id": "alice",
+                    "name": "Alice",
+                    "player_controlled": True,
+                },
+                {
+                    "character_id": "bob",
+                    "name": "Bob",
+                    "player_controlled": True,
+                },
+            ],
+        }
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I rush in anyway",
+            acting_character_id="bob",
+        ))
+
+        assert response.beat_ended_reason == "combat_turn_rejected"
+        assert "Alice" in response.output_text
+        assert "initiative turn" in response.output_text
+        assert response.per_player_renders == {}
+        assert mgr.save.call_count == 0
+        assert FakeDispatcher.route_calls == []
+
+    @pytest.mark.asyncio
+    async def test_current_combatant_runs_and_advances_past_npc_to_human(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            return BeatResult(
+                renders={"alice": "Alice acts."},
+                events_closed=0,
+                ended_reason="directed_at_player",
+                transcript_entries={},
+                event_actor_ids=["alice"],
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I strike the goblin",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "directed_at_player"
+        assert ckpt.session.active_combat.turn_index == 2
+        assert ckpt.session.active_combat.round_number == 1
+        assert any(
+            "Skipped NPC initiative turn for Pip" in line
+            for line in ckpt.session.active_combat.audit_lines
+        )
+        assert any(
+            "Initiative advanced to Bob" in line
+            for line in ckpt.session.active_combat.audit_lines
+        )
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_pending_cat_ii_render_does_not_advance_combat(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            return BeatResult(
+                renders={"alice": "The exchange hangs unresolved."},
+                events_closed=0,
+                ended_reason="cat_ii_pending",
+                transcript_entries={},
+                event_actor_ids=["alice"],
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = {
+            "status": "active",
+            "round_number": 1,
+            "turn_index": 0,
+            "combatants": [
+                {
+                    "character_id": "alice",
+                    "name": "Alice",
+                    "player_controlled": True,
+                },
+                {
+                    "character_id": "bob",
+                    "name": "Bob",
+                    "player_controlled": True,
+                },
+            ],
+        }
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I shove Bob",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "cat_ii_pending"
+        assert ckpt.session.active_combat["turn_index"] == 0
+        assert "audit_lines" not in ckpt.session.active_combat
+        assert mgr.save.call_count == 1
 
 
 class TestCatIIPending:

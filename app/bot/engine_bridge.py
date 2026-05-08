@@ -153,6 +153,30 @@ class DndSheetAttachmentSummary:
     name_overridden: bool
 
 
+@dataclass(frozen=True)
+class DndCombatParticipantView:
+    character_id: str
+    name: str
+    current: bool = False
+    initiative: int | None = None
+    hp_current: int | None = None
+    hp_max: int | None = None
+    hp_temporary: int = 0
+    armor_class: int | None = None
+    conditions: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DndCombatView:
+    session_id: str
+    active: bool
+    round_number: int = 0
+    turn_number: int = 0
+    current_participant_id: str = ""
+    participants: tuple[DndCombatParticipantView, ...] = ()
+    message: str = ""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -1622,6 +1646,466 @@ class EngineBridge:
         """Exposed so bot command autocomplete and CLI can surface the
         valid keys without each frontend importing the registry."""
         return list(SETTINGS_BY_KEY.keys())
+
+    # ---- D&D combat tracker -------------------------------------------------
+
+    def _dnd_combat_module(self) -> Any:
+        """Import the optional core combat tracker integration.
+
+        The bot layer deliberately does not define combat state itself. The
+        contract lives in app.engine.dnd_combat; until that module is present,
+        these helpers raise a clean runtime error instead of making Discord
+        command import fail.
+        """
+        try:
+            from app.engine import dnd_combat
+        except ImportError as e:
+            raise RuntimeError(
+                "D&D combat tracker core is not available "
+                "(expected app.engine.dnd_combat)."
+            ) from e
+        return dnd_combat
+
+    def _default_combat_participant_ids(self, ckpt: CheckpointFile) -> list[str]:
+        """Default roster: active bound characters plus active same-location NPCs.
+
+        There is no Discord user context on /combat begin, so "visible" is
+        interpreted conservatively as the current bound party's active
+        location(s). If no bound active character has a location, the default
+        is just the active bound characters.
+        """
+        active_by_id = {
+            c.character_id: c for c in ckpt.characters
+            if c.status.value == "active"
+        }
+        bound_ids = [
+            cid for cid in ckpt.session.character_bindings
+            if cid in active_by_id
+        ]
+        locations = {
+            active_by_id[cid].location for cid in bound_ids
+            if active_by_id[cid].location
+        }
+        selected: list[str] = []
+        for char in ckpt.characters:
+            if char.status.value != "active":
+                continue
+            is_bound = char.character_id in bound_ids
+            is_same_location_npc = (
+                bool(locations)
+                and char.character_id not in ckpt.session.character_bindings
+                and char.location in locations
+            )
+            if is_bound or is_same_location_npc:
+                selected.append(char.character_id)
+        return selected
+
+    def _combat_call(
+        self,
+        module: Any,
+        names: tuple[str, ...],
+        ckpt: CheckpointFile,
+        **kwargs: Any,
+    ) -> Any:
+        for name in names:
+            fn = getattr(module, name, None)
+            if fn is None:
+                continue
+            try:
+                return fn(ckpt, **kwargs)
+            except TypeError:
+                return fn(ckpt)
+        joined = ", ".join(names)
+        raise RuntimeError(
+            f"D&D combat tracker core does not expose any of: {joined}."
+        )
+
+    def _combat_save_and_view(
+        self,
+        ckpt: CheckpointFile,
+        result: Any,
+    ) -> DndCombatView:
+        if isinstance(result, CheckpointFile):
+            ckpt = result
+            result = None
+        elif isinstance(result, tuple):
+            for item in result:
+                if isinstance(item, CheckpointFile):
+                    ckpt = item
+                else:
+                    result = item
+                    break
+        self.checkpoint_mgr.save(ckpt)
+        return self._combat_view(ckpt, result)
+
+    def _combat_state_source(self, ckpt: CheckpointFile, result: Any = None) -> Any:
+        if result is not None:
+            return result
+        candidates = [
+            getattr(ckpt.session, "active_combat", None),
+            getattr(ckpt.session, "dnd_combat", None),
+            getattr(ckpt.session, "combat", None),
+            ckpt.world_state.global_flags.get("dnd_combat"),
+            ckpt.world_state.global_flags.get("combat"),
+        ]
+        for candidate in candidates:
+            if candidate:
+                return candidate
+        return None
+
+    def _combat_get(self, source: Any, *names: str, default: Any = None) -> Any:
+        for name in names:
+            if isinstance(source, dict) and name in source:
+                return source[name]
+            if hasattr(source, name):
+                return getattr(source, name)
+        return default
+
+    def _combat_participant_view(
+        self,
+        raw: Any,
+        characters: dict[str, CharacterRecord],
+        current_id: str,
+    ) -> DndCombatParticipantView:
+        cid = str(
+            self._combat_get(
+                raw,
+                "combatant_id",
+                "character_id",
+                "participant_id",
+                "id",
+                default="",
+            )
+        )
+        character_id = str(
+            self._combat_get(raw, "character_id", default=cid) or cid
+        )
+        char = characters.get(character_id)
+        mechanics = char.mechanics if char else {}
+        hp = mechanics.get("hit_points") if isinstance(mechanics, dict) else {}
+        if not isinstance(hp, dict):
+            hp = {}
+        raw_hp = self._combat_get(raw, "hp", "hit_points", default={})
+        if isinstance(raw_hp, dict):
+            hp = {**hp, **raw_hp}
+        raw_initiative = self._combat_get(
+            raw, "initiative", "initiative_total", default=None,
+        )
+        if isinstance(raw_initiative, dict):
+            raw_initiative = raw_initiative.get("total")
+        name = str(
+            self._combat_get(raw, "name", default="")
+            or (char.name if char else cid)
+        )
+        conditions = self._combat_get(raw, "conditions", default=None)
+        if conditions is None:
+            conditions = (
+                mechanics.get("conditions", [])
+                if isinstance(mechanics, dict) else []
+            )
+        return DndCombatParticipantView(
+            character_id=cid,
+            name=name,
+            current=bool(
+                self._combat_get(raw, "current", "is_current", default=False)
+                or (cid and cid == current_id)
+            ),
+            initiative=self._optional_int(raw_initiative),
+            hp_current=self._optional_int(
+                self._combat_get(
+                    raw, "hp_current", "current_hp", "hit_points_current",
+                    default=hp.get("current"),
+                )
+            ),
+            hp_max=self._optional_int(
+                self._combat_get(
+                    raw, "hp_max", "max_hp", "hit_points_max",
+                    default=hp.get("max"),
+                )
+            ),
+            hp_temporary=int(
+                self._combat_get(
+                    raw, "hp_temporary", "temp_hp", "hit_points_temporary",
+                    default=hp.get("temporary", 0),
+                )
+                or 0
+            ),
+            armor_class=self._optional_int(
+                self._combat_get(
+                    raw,
+                    "armor_class",
+                    "ac",
+                    default=(
+                        mechanics.get("armor_class")
+                        if isinstance(mechanics, dict) else None
+                    ),
+                )
+            ),
+            conditions=tuple(str(c) for c in (conditions or []) if str(c)),
+        )
+
+    def _optional_int(self, value: Any) -> int | None:
+        if value is None or value == "":
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _combat_view(
+        self,
+        ckpt: CheckpointFile,
+        result: Any = None,
+    ) -> DndCombatView:
+        source = self._combat_state_source(ckpt, result)
+        if source is None:
+            return DndCombatView(
+                session_id=ckpt.session.session_id,
+                active=False,
+                message="No active combat.",
+            )
+        characters = {c.character_id: c for c in ckpt.characters}
+        current_id = str(self._combat_get(
+            source, "current_participant_id", "current_character_id",
+            "active_participant_id", default="",
+        ) or "")
+        current_raw = self._combat_get(source, "current", default=None)
+        if current_raw is not None and not current_id:
+            current_id = str(self._combat_get(
+                current_raw, "combatant_id", "character_id", default="",
+            ) or "")
+        raw_participants = self._combat_get(
+            source, "participants", "turn_order", "combatants", default=[],
+        ) or []
+        turn_index = self._optional_int(
+            self._combat_get(source, "turn_index", default=0)
+        ) or 0
+        if (
+            not current_id
+            and raw_participants
+            and 0 <= turn_index < len(raw_participants)
+        ):
+            current_raw = raw_participants[turn_index]
+            current_id = str(self._combat_get(
+                current_raw, "combatant_id", "character_id", default="",
+            ) or "")
+        participants = tuple(
+            self._combat_participant_view(raw, characters, current_id)
+            for raw in raw_participants
+        )
+        if not current_id:
+            current = next((p.character_id for p in participants if p.current), "")
+            current_id = current
+        raw_turn_number = self._combat_get(source, "turn_number", default=None)
+        if raw_turn_number is None:
+            raw_turn_index = self._combat_get(source, "turn_index", default=None)
+            parsed_turn_index = self._optional_int(raw_turn_index)
+            turn_number = (
+                parsed_turn_index + 1
+                if parsed_turn_index is not None and raw_participants else 0
+            )
+        else:
+            turn_number = self._optional_int(raw_turn_number) or 0
+        active = bool(
+            self._combat_get(source, "active", "is_active", default=True)
+        )
+        return DndCombatView(
+            session_id=ckpt.session.session_id,
+            active=active,
+            round_number=(
+                self._optional_int(
+                    self._combat_get(
+                        source, "round_number", "round", default=0,
+                    )
+                )
+                or 0
+            ),
+            turn_number=turn_number,
+            current_participant_id=current_id,
+            participants=participants,
+            message=str(self._combat_get(source, "message", default="") or ""),
+        )
+
+    def begin_combat(
+        self,
+        session_id: str,
+        participant_ids: list[str] | None = None,
+    ) -> DndCombatView:
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        participants = (
+            participant_ids or self._default_combat_participant_ids(ckpt)
+        )
+        if not participants:
+            raise ValueError("No active combat participants found.")
+        if getattr(module, "begin_combat", None) is not None:
+            result = module.begin_combat(ckpt, participant_ids=participants)
+        elif getattr(module, "start_combat", None) is not None:
+            by_id = {c.character_id: c for c in ckpt.characters}
+            selected = [by_id[cid] for cid in participants if cid in by_id]
+            missing = [cid for cid in participants if cid not in by_id]
+            if missing:
+                raise ValueError(
+                    "Unknown combat participant(s): " + ", ".join(missing)
+                )
+            result = module.start_combat(ckpt.session, selected)
+        else:
+            result = self._combat_call(
+                module,
+                ("begin_combat", "start_combat"),
+                ckpt,
+                participant_ids=participants,
+            )
+        return self._combat_save_and_view(ckpt, result)
+
+    def combat_status(
+        self,
+        session_id: str,
+        private: bool = False,
+    ) -> DndCombatView:
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if getattr(ckpt.session, "active_combat", None) is None:
+            return self._combat_view(ckpt)
+        if getattr(module, "combat_status", None) is not None:
+            result = module.combat_status(ckpt, private=private)
+        elif private and getattr(module, "private_status", None) is not None:
+            result = module.private_status(ckpt.session)
+        elif getattr(module, "public_status", None) is not None:
+            result = module.public_status(ckpt.session)
+        else:
+            result = self._combat_call(
+                module,
+                ("combat_status", "get_combat_status", "status"),
+                ckpt,
+                private=private,
+            )
+        return self._combat_view(ckpt, result)
+
+    def combat_next(self, session_id: str) -> DndCombatView:
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if getattr(module, "combat_next", None) is not None:
+            result = module.combat_next(ckpt)
+        elif getattr(module, "advance_turn", None) is not None:
+            result = module.advance_turn(ckpt.session)
+        else:
+            result = self._combat_call(
+                module,
+                ("combat_next", "next_turn", "advance_combat"),
+                ckpt,
+            )
+        self.checkpoint_mgr.save(ckpt)
+        return self._combat_view(ckpt)
+
+    def combat_end(self, session_id: str) -> DndCombatView:
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if getattr(module, "combat_end", None) is not None:
+            module.combat_end(ckpt)
+        elif getattr(module, "end_combat", None) is not None:
+            module.end_combat(ckpt.session)
+        else:
+            self._combat_call(module, ("combat_end", "end_combat"), ckpt)
+        self.checkpoint_mgr.save(ckpt)
+        return DndCombatView(
+            session_id=ckpt.session.session_id,
+            active=False,
+            message="Combat ended.",
+        )
+
+    def combat_add(self, session_id: str, character_id: str) -> DndCombatView:
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        character = next(
+            (c for c in ckpt.characters if c.character_id == character_id),
+            None,
+        )
+        if character is None:
+            raise ValueError(f"Unknown combat participant: {character_id}")
+        if getattr(module, "combat_add", None) is not None:
+            module.combat_add(ckpt, character_id=character_id)
+        elif getattr(module, "add_combatant", None) is not None:
+            module.add_combatant(
+                ckpt.session,
+                character,
+                session=ckpt.session,
+            )
+        else:
+            raise RuntimeError(
+                "D&D combat tracker core does not expose add_combatant."
+            )
+        self.checkpoint_mgr.save(ckpt)
+        return self._combat_view(ckpt)
+
+    def combat_remove(
+        self,
+        session_id: str,
+        combatant_id: str,
+        hard: bool = False,
+    ) -> DndCombatView:
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if getattr(module, "combat_remove", None) is not None:
+            module.combat_remove(ckpt, combatant_id=combatant_id, hard=hard)
+        elif getattr(module, "remove_combatant", None) is not None:
+            module.remove_combatant(ckpt.session, combatant_id, hard=hard)
+        else:
+            raise RuntimeError(
+                "D&D combat tracker core does not expose remove_combatant."
+            )
+        self.checkpoint_mgr.save(ckpt)
+        return self._combat_view(ckpt)
+
+    def combat_damage(
+        self,
+        session_id: str,
+        target_id: str,
+        amount: int,
+    ) -> DndCombatView:
+        if amount <= 0:
+            raise ValueError("Damage amount must be positive.")
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if getattr(module, "combat_damage", None) is not None:
+            module.combat_damage(ckpt, target_id=target_id, amount=amount)
+        elif getattr(module, "apply_damage", None) is not None:
+            module.apply_damage(ckpt.session, target_id, amount)
+        else:
+            self._combat_call(
+                module,
+                ("combat_damage", "damage", "apply_damage"),
+                ckpt,
+                target_id=target_id,
+                amount=amount,
+            )
+        self.checkpoint_mgr.save(ckpt)
+        return self._combat_view(ckpt)
+
+    def combat_heal(
+        self,
+        session_id: str,
+        target_id: str,
+        amount: int,
+    ) -> DndCombatView:
+        if amount <= 0:
+            raise ValueError("Heal amount must be positive.")
+        module = self._dnd_combat_module()
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if getattr(module, "combat_heal", None) is not None:
+            module.combat_heal(ckpt, target_id=target_id, amount=amount)
+        elif getattr(module, "apply_healing", None) is not None:
+            module.apply_healing(ckpt.session, target_id, amount)
+        else:
+            self._combat_call(
+                module,
+                ("combat_heal", "heal", "apply_heal", "apply_healing"),
+                ckpt,
+                target_id=target_id,
+                amount=amount,
+            )
+        self.checkpoint_mgr.save(ckpt)
+        return self._combat_view(ckpt)
 
     # ---- turn execution ------------------------------------------------------
 

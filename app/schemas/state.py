@@ -107,6 +107,47 @@ class CatIIRollTransaction(BaseModel):
     updated_at: str = ""
 
 
+class DndCombatantState(BaseModel):
+    """Checkpoint-persistent snapshot of one active D&D combatant.
+
+    HP and initiative are copied from CharacterRecord mechanics when combat
+    starts so turn order and damage remain stable until explicit combat-engine
+    mutations change them.
+    """
+
+    combatant_id: str
+    character_id: str = ""
+    name: str = ""
+    player_controlled: bool = False
+    armor_class: int = 10
+    hit_points_current: int = 0
+    hit_points_max: int = 0
+    hit_points_temporary: int = 0
+    initiative_modifier: int = 0
+    initiative_advantage_state: str = "normal"
+    initiative_roll: int = 0
+    initiative_total: int = 0
+    initiative_detail: str = ""
+    initiative_order: int = 0
+    conditions: list[str] = Field(default_factory=list)
+    defeated: bool = False
+    removed: bool = False
+    notes: str = ""
+
+
+class DndCombatState(BaseModel):
+    """Active D&D combat state stored directly on SessionState."""
+
+    combat_id: str = "combat"
+    status: str = "active"
+    round_number: int = 1
+    turn_index: int = 0
+    combatants: list[DndCombatantState] = Field(default_factory=list)
+    audit_lines: list[str] = Field(default_factory=list)
+    started_at_turn_index: int = 0
+    ended_at_turn_index: int | None = None
+
+
 class RenderBufferEntry(BaseModel):
     """v11: one canonical event queued for a human's next render. Keyed
     by an event_id stored in canonical_events. The narrator reads these
@@ -246,6 +287,9 @@ class SessionState(BaseModel):
     # Durable mechanics audit for D&D Cat II resolution. These records are
     # intentionally not included in normal LLM rolling histories.
     cat_ii_roll_transactions: list[CatIIRollTransaction] = Field(default_factory=list)
+    # Checkpoint-persistent active D&D combat state. Combat command wiring is
+    # intentionally separate; engine helpers mutate this snapshot directly.
+    active_combat: DndCombatState | None = None
     # v11: per-player queue of canonical events awaiting render. Keyed by
     # character_id (a human's bound character). Cleared after each render
     # fires. An agent's "render buffer" is just its observation context

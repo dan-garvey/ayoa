@@ -43,6 +43,7 @@ from discord import app_commands
 from app.bot.embed import render_briefing, render_error, render_info, render_turn
 from app.bot.engine_bridge import (
     CompletedPendingRoll,
+    DndCombatView,
     DndSheetAttachmentSummary,
     EngineBridge,
     PendingRollPrompt,
@@ -73,6 +74,44 @@ DND_SHEET_PAGES = (
     "inventory",
     "features",
 )
+
+
+def _render_combat_status(view: DndCombatView) -> discord.Embed:
+    if not view.active:
+        return render_info("Combat", view.message or "No active combat.")
+
+    current_id = view.current_participant_id
+    lines: list[str] = []
+    if view.round_number:
+        header = f"Round {view.round_number}"
+        if view.turn_number:
+            header += f" · Turn {view.turn_number}"
+        lines.append(header)
+    if view.message:
+        lines.append(view.message)
+
+    for p in view.participants:
+        marker = ">" if p.current or p.character_id == current_id else "-"
+        hp_bits: list[str] = []
+        if p.hp_current is not None:
+            hp_text = str(p.hp_current)
+            if p.hp_max is not None:
+                hp_text += f"/{p.hp_max}"
+            if p.hp_temporary:
+                hp_text += f" (+{p.hp_temporary})"
+            hp_bits.append(f"HP {hp_text}")
+        if p.armor_class is not None:
+            hp_bits.append(f"AC {p.armor_class}")
+        if p.initiative is not None:
+            hp_bits.append(f"Init {p.initiative}")
+        if p.conditions:
+            hp_bits.append(", ".join(p.conditions))
+        suffix = f" - {'; '.join(hp_bits)}" if hp_bits else ""
+        lines.append(f"{marker} **{p.name}** (`{p.character_id}`){suffix}")
+
+    if not view.participants:
+        lines.append("(no participants)")
+    return render_info("Combat", "\n".join(lines))
 
 
 # Cache the parsed admin set per env-value so we only log about invalid
@@ -1808,6 +1847,11 @@ def register(
     session_group = app_commands.Group(
         name="session",
         description="Manage named saves (sessions) bound to this channel.",
+    )
+
+    combat_group = app_commands.Group(
+        name="combat",
+        description="Track D&D combat for this channel's session.",
     )
 
     # ---- /session start / end / resume / list -------------------------------
@@ -4257,6 +4301,197 @@ def register(
             ephemeral=True,
         )
 
+    # ---- /combat ------------------------------------------------------------
+
+    async def _combat_row(inter: discord.Interaction):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return None
+        return row
+
+    @combat_group.command(
+        name="begin",
+        description="Begin D&D combat with bound characters and nearby NPCs.",
+    )
+    @app_commands.describe(
+        participants=(
+            "Optional comma-separated character IDs. Defaults to party plus "
+            "same-location NPCs."
+        ),
+    )
+    async def _combat_begin(
+        inter: discord.Interaction,
+        participants: str = "",
+    ):
+        row = await _combat_row(inter)
+        if row is None:
+            return
+        participant_ids = [
+            part.strip() for part in participants.split(",") if part.strip()
+        ] or None
+        try:
+            view = engine.begin_combat(row.session_id, participant_ids)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("combat begin failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(embed=_render_combat_status(view))
+
+    @combat_group.command(
+        name="status",
+        description="Show the current D&D combat order and HP.",
+    )
+    async def _combat_status(inter: discord.Interaction):
+        row = await _combat_row(inter)
+        if row is None:
+            return
+        try:
+            view = engine.combat_status(row.session_id, private=True)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("combat status failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(
+            embed=_render_combat_status(view),
+            ephemeral=True,
+        )
+
+    @combat_group.command(
+        name="next",
+        description="Advance D&D combat to the next turn.",
+    )
+    async def _combat_next(inter: discord.Interaction):
+        row = await _combat_row(inter)
+        if row is None:
+            return
+        try:
+            view = engine.combat_next(row.session_id)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("combat next failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(embed=_render_combat_status(view))
+
+    @combat_group.command(
+        name="end",
+        description="End the active D&D combat.",
+    )
+    async def _combat_end(inter: discord.Interaction):
+        row = await _combat_row(inter)
+        if row is None:
+            return
+        try:
+            view = engine.combat_end(row.session_id)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("combat end failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(embed=_render_combat_status(view))
+
+    @combat_group.command(
+        name="damage",
+        description="Apply damage to a D&D combat participant.",
+    )
+    @app_commands.describe(
+        target="Character ID to damage.",
+        amount="Damage amount.",
+    )
+    async def _combat_damage(
+        inter: discord.Interaction,
+        target: str,
+        amount: app_commands.Range[int, 1, 999],
+    ):
+        row = await _combat_row(inter)
+        if row is None:
+            return
+        try:
+            view = engine.combat_damage(
+                row.session_id, target.strip(), int(amount)
+            )
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("combat damage failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(embed=_render_combat_status(view))
+
+    @combat_group.command(
+        name="heal",
+        description="Apply healing to a D&D combat participant.",
+    )
+    @app_commands.describe(
+        target="Character ID to heal.",
+        amount="Healing amount.",
+    )
+    async def _combat_heal(
+        inter: discord.Interaction,
+        target: str,
+        amount: app_commands.Range[int, 1, 999],
+    ):
+        row = await _combat_row(inter)
+        if row is None:
+            return
+        try:
+            view = engine.combat_heal(
+                row.session_id, target.strip(), int(amount)
+            )
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("combat heal failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(embed=_render_combat_status(view))
+
     # ---- /status ------------------------------------------------------------
 
     @tree.command(
@@ -4693,8 +4928,10 @@ def register(
     if guild is not None:
         tree.add_command(session_group, guild=guild)
         tree.add_command(story_group, guild=guild)
+        tree.add_command(combat_group, guild=guild)
         tree.add_command(settings_group, guild=guild)
     else:
         tree.add_command(session_group)
         tree.add_command(story_group)
+        tree.add_command(combat_group)
         tree.add_command(settings_group)

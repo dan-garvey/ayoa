@@ -24,10 +24,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine import dnd_combat
 from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     complete_pending_player_roll,
@@ -73,6 +75,13 @@ logger = logging.getLogger(__name__)
 # this. Raise only after measuring rate-limit headroom.
 TICK_CONCURRENCY_HARD_CAP = 16
 
+_COMBAT_NO_ADVANCE_REASONS = {
+    "slot_rejected",
+    "cat_ii_pending",
+    "cat_ii_pending_rolls",
+    "cat_ii_stale",
+}
+
 
 def _append_transcript_entry(
     ckpt: CheckpointFile,
@@ -111,6 +120,272 @@ def _append_transcript_entry(
         # Fallback: first available POV's entry.
         entry = next(iter(entries.values()))
     ckpt.transcript.append(entry)
+
+
+def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def _obj_set(obj: Any, name: str, value: Any) -> None:
+    if isinstance(obj, dict):
+        obj[name] = value
+    else:
+        setattr(obj, name, value)
+
+
+def _active_combat_state(ckpt: CheckpointFile) -> Any | None:
+    """Return the active D&D combat snapshot, if this checkpoint has one.
+
+    Current checkpoints store typed combat state directly on `SessionState`.
+    The fallback branch keeps older/debug dict-shaped snapshots usable in tests
+    and during local checkpoint inspection.
+    """
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return None
+    status = _obj_get(combat, "status")
+    if status is not None:
+        return combat if status == "active" else None
+    combatants = _combatants(combat)
+    if combatants and _obj_get(combat, "ended_at_turn_index") is None:
+        return combat
+    return None
+
+
+def _combatants(combat: Any) -> list[Any]:
+    return list(_obj_get(combat, "combatants", []) or [])
+
+
+def _combat_turn_index(combat: Any, combatants: list[Any]) -> int:
+    if not combatants:
+        return 0
+    raw = _obj_get(combat, "turn_index", 0) or 0
+    try:
+        return int(raw) % len(combatants)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _combatant_character_id(combatant: Any) -> str:
+    return (
+        str(_obj_get(combatant, "character_id", "") or "")
+        or str(_obj_get(combatant, "combatant_id", "") or "")
+    )
+
+
+def _combatant_name(combatant: Any) -> str:
+    return (
+        str(_obj_get(combatant, "name", "") or "")
+        or _combatant_character_id(combatant)
+    )
+
+
+def _combatant_defeated(combatant: Any) -> bool:
+    return bool(
+        _obj_get(combatant, "defeated", False)
+        or _obj_get(combatant, "removed", False)
+    )
+
+
+def _combatant_human_controlled(
+    ckpt: CheckpointFile,
+    combatant: Any,
+) -> bool:
+    from app.engine.context_builder import collect_player_ids
+
+    return (
+        _combatant_character_id(combatant) in collect_player_ids(ckpt)
+        or bool(_obj_get(combatant, "player_controlled", False))
+    )
+
+
+def _current_combatant(ckpt: CheckpointFile, combat: Any) -> Any | None:
+    combatants = _combatants(combat)
+    if not combatants:
+        return None
+
+    getter = getattr(dnd_combat, "current_combatant", None) or getattr(
+        dnd_combat, "get_current_combatant", None
+    )
+    if getter is not None:
+        for arg in (combat, ckpt.session, ckpt):
+            try:
+                return getter(arg)
+            except (AttributeError, TypeError, ValueError):
+                continue
+
+    start = _combat_turn_index(combat, combatants)
+    for offset in range(len(combatants)):
+        candidate = combatants[(start + offset) % len(combatants)]
+        if not _combatant_defeated(candidate):
+            return candidate
+    return None
+
+
+def _combat_actor_is_human_controlled(
+    ckpt: CheckpointFile,
+    actor_id: str,
+    combat: Any,
+) -> bool:
+    from app.engine.context_builder import collect_player_ids
+
+    if actor_id in collect_player_ids(ckpt):
+        return True
+    for combatant in _combatants(combat):
+        if _combatant_character_id(combatant) == actor_id:
+            return bool(_obj_get(combatant, "player_controlled", False))
+    return False
+
+
+def _combat_rejection_message(
+    *,
+    ckpt: CheckpointFile,
+    acting_id: str,
+    current: Any | None,
+    attempted_text: str,
+) -> str:
+    current_name = (
+        _combatant_name(current)
+        if current is not None
+        else "the current combatant"
+    )
+    actor_name = acting_id
+    for char in ckpt.characters:
+        if char.character_id == acting_id:
+            actor_name = char.name
+            break
+
+    message = (
+        f"It is **{current_name}**'s initiative turn. "
+        f"**{actor_name}** can't /act until their combat turn comes up."
+    )
+    if attempted_text:
+        preview = attempted_text.strip()
+        if len(preview) > 1500:
+            preview = preview[:1497] + "..."
+        message += f"\n\n> Your submitted text:\n> {preview}"
+    return message
+
+
+def _combat_turn_rejection(
+    ckpt: CheckpointFile,
+    acting_id: str,
+    attempted_text: str,
+) -> str | None:
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return None
+    if not _combat_actor_is_human_controlled(ckpt, acting_id, combat):
+        return None
+    current = _current_combatant(ckpt, combat)
+    current_id = _combatant_character_id(current) if current is not None else ""
+    if current_id == acting_id:
+        return None
+    return _combat_rejection_message(
+        ckpt=ckpt,
+        acting_id=acting_id,
+        current=current,
+        attempted_text=attempted_text,
+    )
+
+
+def _append_combat_audit_line(ckpt: CheckpointFile, line: str) -> None:
+    combat = _active_combat_state(ckpt)
+    if isinstance(combat, dict):
+        combat.setdefault("audit_lines", []).append(line)
+        return
+
+    appender = getattr(dnd_combat, "append_audit_line", None) or getattr(
+        dnd_combat, "append_combat_audit", None
+    )
+    if appender is not None:
+        try:
+            appender(ckpt.session, line)
+        except (AttributeError, TypeError, ValueError):
+            appender(combat, line)
+        return
+
+    audit_lines = getattr(combat, "audit_lines", None)
+    if isinstance(audit_lines, list):
+        audit_lines.append(line)
+        return
+
+    ckpt.session.pending_router_state_changes.append(f"Combat audit: {line}")
+
+
+def _beat_should_advance_combat(
+    ckpt: CheckpointFile,
+    acting_id: str,
+    beat_result: BeatResult,
+) -> bool:
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return False
+    if not beat_result.renders:
+        return False
+    if beat_result.ended_reason in _COMBAT_NO_ADVANCE_REASONS:
+        return False
+    current = _current_combatant(ckpt, combat)
+    return _combatant_character_id(current) == acting_id
+
+
+def _advance_combat_initiative_after_human_turn(
+    ckpt: CheckpointFile,
+) -> None:
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return
+    combatants = _combatants(combat)
+    if not combatants:
+        return
+
+    start_index = _combat_turn_index(combat, combatants)
+    next_index = start_index
+    round_number = int(_obj_get(combat, "round_number", 1) or 1)
+    round_crossed = False
+
+    for _ in range(len(combatants)):
+        next_index = (next_index + 1) % len(combatants)
+        if next_index == 0 and not round_crossed:
+            round_crossed = True
+            round_number += 1
+
+        candidate = combatants[next_index]
+        if _combatant_defeated(candidate):
+            _append_combat_audit_line(
+                ckpt,
+                f"Skipped defeated combatant {_combatant_name(candidate)}.",
+            )
+            continue
+
+        _obj_set(combat, "turn_index", next_index)
+        if round_crossed:
+            _obj_set(combat, "round_number", round_number)
+
+        if _combatant_human_controlled(ckpt, candidate):
+            _append_combat_audit_line(
+                ckpt,
+                f"Initiative advanced to {_combatant_name(candidate)}.",
+            )
+            return
+
+        if round_crossed:
+            _append_combat_audit_line(
+                ckpt,
+                "Initiative reached the end of the round; "
+                f"NPC {_combatant_name(candidate)} is next, and NPC "
+                "automation is deferred for this slice.",
+            )
+            return
+
+        _append_combat_audit_line(
+            ckpt,
+            f"Skipped NPC initiative turn for {_combatant_name(candidate)} "
+            "during turn-gating slice.",
+        )
+
 
 class Orchestrator:
     """Binds `turn_loop.run_beat` to the LLM/storage layers.
@@ -156,6 +431,19 @@ class Orchestrator:
         # from both seeing FREE on their check_act_slot.
         lock = await self.session_locks.get(request.session_id)
         async with lock:
+            combat_rejection = _combat_turn_rejection(
+                ckpt, acting_id, request.user_input,
+            )
+            if combat_rejection is not None:
+                return TurnResponse(
+                    session_id=request.session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=combat_rejection,
+                    per_player_renders={},
+                    beat_ended_reason="combat_turn_rejected",
+                )
+
             # 4. Validate against the session's active_act_slot.
             check = check_act_slot(ckpt, acting_id)
 
@@ -251,6 +539,9 @@ class Orchestrator:
                 acted_this_turn=set(beat_result.event_actor_ids),
                 acting_id=acting_id,
             )
+
+            if _beat_should_advance_combat(ckpt, acting_id, beat_result):
+                _advance_combat_initiative_after_human_turn(ckpt)
 
             # 7. Save. run_beat has already mutated active_act_slots,
             # open_cat_ii_events, render_buffers, canonical_events, and
