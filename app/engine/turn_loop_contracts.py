@@ -1,16 +1,14 @@
-"""v11-r4a: shared string constants for prompt-code contracts.
+"""Shared string constants for prompt-code contracts.
 
-The router + narrator prompts expect specific structured markers in
-their user-message input (e.g. `## Render Mode: PARTIAL`). Those
-markers must match EXACTLY. This module is the single source of truth
-for the marker strings and the helpers that build them; prompt
-templates reference these via {var} interpolation, and the context
-builders that populate the prompt's user message use the same helpers
-to emit the blocks. Any future drift trips a loud test failure instead
-of silently regressing the prompt's behavior.
+Router mode headers still use structured strings because the router must
+choose among several machine-readable turn modes. The narrator partial
+instruction is plain language because it is visible to a prose model and
+does not need an implementation label.
 """
 
-PARTIAL_MODE_MARKER = "## Render Mode: PARTIAL"
+PARTIAL_MODE_MARKER = (
+    "Stop before the attempted action resolves; the player supplies the response."
+)
 CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
 INTENTION_BLOCK_HEADER = "## Intention"

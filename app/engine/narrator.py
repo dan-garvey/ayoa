@@ -10,10 +10,14 @@ continuity hold across the session on a per-POV basis.
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from app.engine.prompt_manager import PromptManager
-from app.engine.context_builder import append_turn_to_conversation
+from app.engine.context_builder import (
+    append_turn_to_conversation,
+    build_narrator_player_characters_block,
+)
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
@@ -68,57 +72,55 @@ def _resolve_buffered_events(
     return resolved
 
 
-_OBS_LEVEL_NAMES = {
-    "d": "direct",
-    "i": "indirect",
-    "f": "inferred",
-    "direct": "direct",
-    "indirect": "indirect",
-    "inferred": "inferred",
+_OBS_LEVEL_HEADERS = {
+    "d": "Seen directly:",
+    "i": "Partly perceived:",
+    "f": "Aftermath only:",
+    "direct": "Seen directly:",
+    "indirect": "Partly perceived:",
+    "inferred": "Aftermath only:",
 }
 
+_LOADOUT_TAG_RE = re.compile(r"^\[loadout\s+[—–-]\s*[^\]]+\]\s*")
 
-def _format_canonical_events_block(
+
+def _strip_loadout_tag(text: str) -> str:
+    """Remove source tags from harvested appearance facts."""
+    return _LOADOUT_TAG_RE.sub("", text or "").strip()
+
+
+def _format_visible_events_block(
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
     pov_character_id: str = "",
 ) -> str:
-    """Serialize the resolved events into a prose block the narrator
-    can read. One section per event with its observation level tag.
-
-    The narrator's render input is the visible slice of
-    `observable_facts`: the surface-grade list — verbatim dialogue,
-    visible gestures, ambient sensory shifts — that drives the prose.
-    Audit/framing fields such as `attempted_action` and
-    `resolved_outcome` are intentionally absent from this contract; the
-    narrator gets only facts visible to this POV.
-    """
+    """Serialize only POV-visible surface facts for prose composition."""
     if not resolved:
-        return "No canonical events to render."
+        return "Nothing new reaches this viewpoint."
     sections: list[str] = []
-    for idx, (entry, ev) in enumerate(resolved, start=1):
-        obs = _OBS_LEVEL_NAMES.get(entry.observation_level, entry.observation_level)
+    for entry, ev in resolved:
+        header = _OBS_LEVEL_HEADERS.get(entry.observation_level, "Perceived:")
         ca = ev.canonical_event
-        facts = visible_fact_texts(
-            ca.observable_facts,
-            pov_character_id,
-            include_all_observers=True,
-        )
+        facts = [
+            cleaned for fact in visible_fact_texts(
+                ca.observable_facts,
+                pov_character_id,
+                include_all_observers=True,
+            )
+            if (cleaned := _strip_loadout_tag(fact))
+        ]
         if pov_character_id and not facts:
             # No fact visible to this POV means the event must not
             # surface in their render at all.
             continue
-        lines = [
-            f"## Event {idx}: {ev.event_id} [Observation: {obs}]",
-        ]
+        lines = [header]
         if facts:
-            lines.append("observable_facts:")
             for fact in facts:
                 lines.append(f"- {fact}")
         else:
-            lines.append("observable_facts: (none)")
+            lines.append("Nothing concrete is visible.")
         sections.append("\n".join(lines))
     if not sections:
-        return "No canonical events visible to this POV."
+        return "Nothing new is visible to this viewpoint."
     return "\n\n".join(sections)
 
 
@@ -149,10 +151,8 @@ async def compose_pov_render(
     always "" and the prompt asked the LLM to echo it as the transcript
     user field, which produced `"{name} — "` in /history forever.
 
-    When `partial_mode=True`, the PARTIAL_MODE_MARKER is prepended to
-    the user message so the narrator prompt's rule-15 PARTIAL mode
-    fires; the rendered passage then ends mid-attempt to prompt the
-    pinned responder's /act.
+    When `partial_mode=True`, the user message carries a natural-language
+    instruction to stop before the attempted action resolves.
 
     Returns `(NarratorFinalOutput, TranscriptEntry)`. The schema only
     carries `final_text` now; the engine constructs the transcript
@@ -162,8 +162,6 @@ async def compose_pov_render(
     `ckpt.narrator_conversations[pov_character_id]` in-place — the
     caller is responsible for saving the checkpoint.
     """
-    from app.engine.context_builder import build_player_characters_block
-
     resolved = _resolve_buffered_events(ckpt, buffered_events)
 
     # POV character identity. Fall back to the raw id if the roster
@@ -172,14 +170,21 @@ async def compose_pov_render(
         (c for c in ckpt.characters if c.character_id == pov_character_id),
         None,
     )
-    acting_name = pov_char.name if pov_char else pov_character_id
+    pov_name = pov_char.name if pov_char else pov_character_id
 
     from app.engine.context_builder import build_setting_summary
     setting_summary = build_setting_summary(ckpt)
     narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
-    player_characters_block = build_player_characters_block(ckpt, pov_character_id)
-    canonical_event_block = _format_canonical_events_block(
+    player_characters_block = build_narrator_player_characters_block(
+        ckpt, pov_character_id
+    )
+    visible_events_block = _format_visible_events_block(
         resolved, pov_character_id,
+    )
+    rendering_note = (
+        PARTIAL_MODE_MARKER
+        if partial_mode
+        else "Write through to the natural handoff point."
     )
 
     pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
@@ -190,19 +195,15 @@ async def compose_pov_render(
         history=pov_history,
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
-        canonical_event=canonical_event_block,
+        visible_events=visible_events_block,
         user_input=user_input,
-        acting_character_name=acting_name,
+        pov_character_name=pov_name,
         player_characters_block=player_characters_block,
+        rendering_note=rendering_note,
     )
     render_ms = (time.monotonic() - render_t0) * 1000
 
-    # Prepend the PARTIAL marker to the per-turn user message body so
-    # rule-15 PARTIAL mode fires in the prompt.
     user_content = messages[-1]["content"]
-    if partial_mode:
-        user_content = f"{PARTIAL_MODE_MARKER}\n\n{user_content}"
-        messages[-1] = {"role": "user", "content": user_content}
 
     logger.info(
         "compose_pov_render: pov=%s events=%d partial=%s history=%d msgs "

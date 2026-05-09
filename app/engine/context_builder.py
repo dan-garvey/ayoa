@@ -325,6 +325,39 @@ def build_player_characters_block(
     return "\n".join(lines)
 
 
+def build_narrator_player_characters_block(
+    checkpoint: CheckpointFile,
+    pov_character_id: str,
+) -> str:
+    """Render human-bound characters for the narrator without engine ids.
+
+    The router needs character ids for structural routing. The narrator only
+    needs names, roles, appearances, and which character is "you"; leaking ids
+    into prose composition spends tokens and primes the model on machinery.
+    """
+    bindings = checkpoint.session.character_bindings or {}
+    bound_ids = list(bindings.keys())
+    pcid = checkpoint.session.player_character_id
+    if pcid and pcid not in bound_ids:
+        bound_ids.append(pcid)
+
+    lines: list[str] = []
+    for char_id in bound_ids:
+        char = next(
+            (c for c in checkpoint.characters if c.character_id == char_id), None
+        )
+        if char is None:
+            continue
+        role = char.public_sheet.role or "unspecified role"
+        appearance = (char.public_sheet.appearance or "not yet described").strip()
+        marker = " (you)" if char.character_id == pov_character_id else ""
+        lines.append(f"- {char.name}{marker} - {role}. {appearance}")
+
+    if not lines:
+        return "- No human-played characters are currently listed."
+    return "\n".join(lines)
+
+
 def clear_character_inbox(character: CharacterRecord) -> None:
     """Clear a character's `pending_observations` queue after it's been
     flushed into the prompt's user message.

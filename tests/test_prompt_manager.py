@@ -263,6 +263,46 @@ class TestPromptManagerWithRealTemplates:
         assert "acting this turn" in user
         assert "Unique player-block appearance" in user
 
+    def test_narrator_keeps_pov_context_out_of_system_prefix(self):
+        """Narrator cache efficiency depends on POV-specific render inputs
+        living in the volatile user tail, not the cached system prefix."""
+        from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
+
+        mgr = PromptManager(prompts_dir="app/prompts")
+        messages = mgr.render_messages(
+            "narrator_phase2",
+            setting_summary="Genre: fantasy",
+            narrative_rules="Concise prose.",
+            pov_character_name="Aldric UniquePOV",
+            player_characters_block=(
+                "- Aldric UniquePOV (you) - scholar. "
+                "Unique player-block appearance."
+            ),
+            rendering_note=PARTIAL_MODE_MARKER,
+            visible_events=(
+                "Seen directly:\n"
+                "- Unique event fact."
+            ),
+            user_input="Unique submitted action.",
+        )
+
+        system = messages[0]["content"]
+        user = messages[1]["content"]
+
+        assert "Aldric UniquePOV" not in system
+        assert "Unique player-block appearance" not in system
+        assert "Unique event fact" not in system
+        assert "Unique submitted action" not in system
+        assert PARTIAL_MODE_MARKER not in system
+
+        assert "Genre: fantasy" in system
+        assert "Concise prose." in system
+        assert "Aldric UniquePOV" in user
+        assert "Unique player-block appearance" in user
+        assert "Unique event fact" in user
+        assert "Unique submitted action" in user
+        assert PARTIAL_MODE_MARKER in user
+
     def test_render_messages_rejects_missing_delimiter(self, mgr):
         # The tmp-path `greeting` fixture has no <<<USER>>> delimiter.
         with pytest.raises(ValueError, match="<<<USER>>>"):

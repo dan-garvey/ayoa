@@ -56,3 +56,24 @@ def test_prompt_files_do_not_leak_implementation_details():
                 failures.append(f"{path}:{line_no}: {match.group(0)!r} ({reason})")
 
     assert not failures, "Forbidden prompt internals found:\n" + "\n".join(failures)
+
+
+def test_narrator_prompt_does_not_leak_routing_structures():
+    text = (PROMPTS_DIR / "narrator_phase2.txt").read_text()
+    forbidden = [
+        "canonical_event",
+        "canonical event",
+        "observable_facts",
+        "observable facts",
+        "event_id",
+        "Render Mode",
+        "PARTIAL MODE",
+        "Cat II",
+        "v11",
+        "router",
+        "schema",
+        "acting_character_name",
+    ]
+
+    leaks = [term for term in forbidden if term.lower() in text.lower()]
+    assert not leaks, "Narrator prompt leaks routing internals: " + ", ".join(leaks)

@@ -1,10 +1,10 @@
-"""Tests for the v11 per-POV narrator entry point (`compose_pov_render`).
+"""Tests for the per-POV narrator entry point (`compose_pov_render`).
 
 Exercises the new function against a mocked LLMClient so we can verify:
 - Buffered events resolve against ckpt.canonical_events by event_id and
   the resolved prose is returned unchanged from the LLM parsed output.
 - Per-POV rolling history grows by one user + one assistant message.
-- partial_mode toggles the PARTIAL_MODE_MARKER into the user payload.
+- partial_mode puts the stop-before-resolution instruction in the user payload.
 - A stale buffer entry (event_id missing from canonical_events) is
   logged and skipped without aborting the render.
 """
@@ -178,7 +178,6 @@ class TestComposePovRender:
             user_input="I look around.",
         )
 
-        # v11-r7j: compose_pov_render returns (envelope, transcript_entry).
         # The narrator only emits final_text; the engine builds the entry
         # from the real player input (passed in) and the rendered prose.
         assert isinstance(result, NarratorFinalOutput)
@@ -191,27 +190,23 @@ class TestComposePovRender:
         assert alice_hist[0].role == "user"
         assert alice_hist[1].role == "assistant"
 
-        # Canonical event details made it into the rendered prompt.
+        # Visible details made it into the rendered prompt.
         call_kwargs = mock_client.complete.call_args.kwargs
         flat = "\n".join(
             m["content"] for m in call_kwargs["messages"]
             if isinstance(m.get("content"), str)
         )
-        assert "evt_alpha" in flat
-        assert "evt_beta" in flat
-        assert "The arch is weathered" in flat  # observable_fact for ev1
-        assert "Pip nods" in flat  # observable_fact for ev2
+        assert "evt_alpha" not in flat
+        assert "evt_beta" not in flat
+        assert "The arch is weathered" in flat
+        assert "Pip nods" in flat
         # Audit/framing fields are dropped from the narrator input.
         assert "Alice sees the arch" not in flat
         assert "Pip dips his chin" not in flat
-        # When partial_mode=False the user message should NOT start with
-        # the PARTIAL marker. (The marker string itself is documented in
-        # the prompt template, so we can't check a blanket "not in" —
-        # check the user message head specifically.)
         user_msg = call_kwargs["messages"][-1]
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
-        assert not user_msg["content"].startswith(PARTIAL_MODE_MARKER)
+        assert PARTIAL_MODE_MARKER not in user_msg["content"]
 
     @pytest.mark.asyncio
     async def test_render_strips_unmatched_trailing_brace_from_final_text(
@@ -243,8 +238,7 @@ class TestComposePovRender:
         assert stored["final_text"] == "She says, 'entirely human?'"
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
-    async def test_partial_mode_prepends_marker(
+    async def test_partial_mode_includes_stop_instruction(
         self, mock_client, prompt_manager,
     ):
         ckpt = _ckpt()
@@ -263,15 +257,15 @@ class TestComposePovRender:
 
         call_kwargs = mock_client.complete.call_args.kwargs
         messages = call_kwargs["messages"]
-        # Marker lives on the last (user) message in the sequence.
+        # The stop-before-resolution instruction lives in the volatile
+        # user message, not the cached system prefix.
         last = messages[-1]
         assert last["role"] == "user"
         assert isinstance(last["content"], str)
-        assert last["content"].startswith(PARTIAL_MODE_MARKER)
+        assert PARTIAL_MODE_MARKER in last["content"]
+        assert PARTIAL_MODE_MARKER not in messages[0]["content"]
 
-        # And the stored history captures the marker — so the next
-        # per-POV call will still see that PARTIAL was the framing for
-        # this exchange.
+        # And the stored history captures the instruction.
         alice_hist = ckpt.narrator_conversations["alice"]
         assert alice_hist[0].role == "user"
         assert PARTIAL_MODE_MARKER in alice_hist[0].content
@@ -295,19 +289,14 @@ class TestComposePovRender:
         )
 
         call_kwargs = mock_client.complete.call_args.kwargs
-        # The user message (last in the sequence) must NOT lead with the
-        # marker. We check the user message head specifically because
-        # the marker STRING appears inside the system prompt's rule-15
-        # documentation.
         user_msg = call_kwargs["messages"][-1]
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
-        assert not user_msg["content"].startswith(PARTIAL_MODE_MARKER)
-        # And the POV's stored history records a user message that also
-        # doesn't lead with the marker.
+        assert PARTIAL_MODE_MARKER not in user_msg["content"]
+        # And the POV's stored history records a user message without it.
         alice_hist = ckpt.narrator_conversations["alice"]
         assert alice_hist[0].role == "user"
-        assert not alice_hist[0].content.startswith(PARTIAL_MODE_MARKER)
+        assert PARTIAL_MODE_MARKER not in alice_hist[0].content
 
     @pytest.mark.asyncio
     async def test_missing_event_id_is_warned_and_skipped(
@@ -333,20 +322,20 @@ class TestComposePovRender:
         assert result.final_text == "RENDERED"
         # The missing id should appear in a warn log.
         assert any("evt_ghost" in rec.message for rec in caplog.records)
-        # And the real event should still have been rendered.
+        # And the real event's visible details should still have been rendered.
         call_kwargs = mock_client.complete.call_args.kwargs
         flat = "\n".join(
             m["content"] for m in call_kwargs["messages"]
             if isinstance(m.get("content"), str)
         )
-        assert "evt_alpha" in flat
+        assert "The arch is weathered" in flat
+        assert "evt_alpha" not in flat
         assert "evt_ghost" not in flat
 
 
-class TestFormatCanonicalEventsBlock:
-    """The narrator reads only visible `observable_facts` from each
-    canonical event. Audit/framing fields are not part of the render
-    input."""
+class TestFormatVisibleEventsBlock:
+    """The narrator reads only visible surface details from each event.
+    Audit/framing fields are not part of the render input."""
 
     def _resolved(
         self, *, event_id: str, outcome: str, facts: list[object],
@@ -383,7 +372,7 @@ class TestFormatCanonicalEventsBlock:
         return [(entry, ev)]
 
     def test_facts_surface_audit_fields_do_not(self):
-        from app.engine.narrator import _format_canonical_events_block
+        from app.engine.narrator import _format_visible_events_block
 
         resolved = self._resolved(
             event_id="evt_x",
@@ -397,8 +386,8 @@ class TestFormatCanonicalEventsBlock:
                 "her wings draw tight against her back",
             ],
         )
-        out = _format_canonical_events_block(resolved)
-        assert "observable_facts:" in out
+        out = _format_visible_events_block(resolved)
+        assert "Seen directly:" in out
         assert "wings draw tight" in out
         assert "The plague that fell" in out
         # Audit line must NOT appear — that's the whole point.
@@ -407,19 +396,35 @@ class TestFormatCanonicalEventsBlock:
         assert "the strain of speaking" not in out
 
     def test_empty_facts_renders_none_marker(self):
-        from app.engine.narrator import _format_canonical_events_block
+        from app.engine.narrator import _format_visible_events_block
 
         resolved = self._resolved(
             event_id="evt_y",
             outcome="(audit-only)",
             facts=[],
         )
-        out = _format_canonical_events_block(resolved)
-        assert "observable_facts: (none)" in out
+        out = _format_visible_events_block(resolved)
+        assert "Nothing concrete is visible." in out
         assert "(audit-only)" not in out
 
+    def test_loadout_tags_are_removed_before_narrator_sees_them(self):
+        from app.engine.narrator import _format_visible_events_block
+
+        resolved = self._resolved(
+            event_id="evt_loadout",
+            outcome="Dan looks over the room.",
+            facts=[
+                "[loadout — Pip] Pip wears a red coat.",
+                "[loadout - Vex] Vex keeps a hand on the doorframe.",
+            ],
+        )
+        out = _format_visible_events_block(resolved)
+        assert "Pip wears a red coat." in out
+        assert "Vex keeps a hand on the doorframe." in out
+        assert "[loadout" not in out
+
     def test_scoped_facts_filter_by_pov_before_narrator_sees_them(self):
-        from app.engine.narrator import _format_canonical_events_block
+        from app.engine.narrator import _format_visible_events_block
         resolved = self._resolved(
             event_id="evt_private",
             outcome="Dan questions Thessaly and signals Ashara.",
@@ -435,8 +440,8 @@ class TestFormatCanonicalEventsBlock:
             observers=["ashara", "aldric"],
         )
 
-        as_ashara = _format_canonical_events_block(resolved, "ashara")
-        as_aldric = _format_canonical_events_block(resolved, "aldric")
+        as_ashara = _format_visible_events_block(resolved, "ashara")
+        as_aldric = _format_visible_events_block(resolved, "aldric")
 
         assert "foot touches Ashara's boot" in as_ashara
         assert "knows curses" in as_ashara
