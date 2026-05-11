@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -90,6 +90,21 @@ class CatIIRollRecord(BaseModel):
     completed_at: str = ""
 
 
+class CatIIRollDamageRecord(BaseModel):
+    """Structured D&D damage attached to a roll transaction.
+
+    The text ledger remains useful for inspection, but HP mutation reads this
+    typed record so damage application is not coupled to ledger prose.
+    """
+
+    roll_id: str
+    target_id: str
+    amount: int = 0
+    expression: str = ""
+    detail: str = ""
+    applied: bool = False
+
+
 class CatIIRollTransaction(BaseModel):
     """Checkpoint-persistent D&D Cat II roll transaction.
 
@@ -100,12 +115,17 @@ class CatIIRollTransaction(BaseModel):
 
     transaction_id: str
     event_id: str
+    source: Literal["cat_ii", "combat"] = "cat_ii"
+    actor_id: str = ""
+    intention: str = ""
     ruleset_id: str = ""
     status: str = "planning"
     plan: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
     no_roll_reason: str = ""
     rolls: list[CatIIRollRecord] = Field(default_factory=list)
     ledger_lines: list[str] = Field(default_factory=list)
+    damage_records: list[CatIIRollDamageRecord] = Field(default_factory=list)
     final_event_id: str = ""
     created_at: str = ""
     updated_at: str = ""
@@ -215,9 +235,8 @@ class SessionSettings(BaseModel):
     # act, so everyone sees the fallback happened.
     cat_ii_human_timeout_seconds: int = 24 * 60 * 60
     # Ruleset/rules-arbitration toggles. Defaults preserve the existing
-    # narrative router-owned Cat II behavior.
+    # narrative behavior.
     ruleset_id: str = "narrative"
-    cat_ii_resolution_mode: str = "router"
     # D&D player roll handling. Agent/NPC rolls are always automatic. Human
     # player rolls are automatic by default for playtest speed, or can pause
     # for Discord UI when set to "interactive".

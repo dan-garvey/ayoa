@@ -34,7 +34,9 @@ from app.engine.context_builder import (
 from app.engine.prompt_manager import PromptManager
 from app.engine.dnd_cat_ii import (
     DndCatIIResolver,
+    DndCombatResolver,
     dnd_cat_ii_router_enabled,
+    dnd_combat_router_enabled,
 )
 from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
@@ -295,6 +297,7 @@ class LLMDispatcher:
         # instance avoids per-call allocation.
         self._agent = CharacterAgent(client, prompt_mgr)
         self._dnd_cat_ii = DndCatIIResolver(client, prompt_mgr)
+        self._dnd_combat = DndCombatResolver(client, prompt_mgr)
 
     # ------------------------------------------------------------------
     # route_intention
@@ -415,6 +418,44 @@ class LLMDispatcher:
             ckpt.session_conversation, user_content, response,
         )
         return result
+
+    async def route_combat_action(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        actor_id: str,
+        intention: str,
+    ) -> EventRouterOutput:
+        """Resolve one active D&D combat turn through the ruleset adapter."""
+        if not dnd_combat_router_enabled(ckpt):
+            raise RuntimeError("D&D combat routing requested outside active D&D combat.")
+        logger.info(
+            "LLMDispatcher.route_combat_action: actor=%s using dnd_combat_router",
+            actor_id,
+        )
+        return await self._dnd_combat.resolve_combat_action(
+            ckpt=ckpt,
+            actor_id=actor_id,
+            intention=intention,
+        )
+
+    async def continue_combat_transaction(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        event_id: str,
+    ) -> EventRouterOutput:
+        if not dnd_combat_router_enabled(ckpt):
+            raise RuntimeError(
+                "D&D combat roll continuation requested outside active D&D combat."
+            )
+        logger.info(
+            "LLMDispatcher.continue_combat_transaction: event=%s", event_id,
+        )
+        return await self._dnd_combat.continue_combat_transaction(
+            ckpt=ckpt,
+            event_id=event_id,
+        )
 
     # ------------------------------------------------------------------
     # route_continuation

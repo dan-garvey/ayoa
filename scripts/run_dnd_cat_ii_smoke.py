@@ -280,7 +280,6 @@ def _ckpt(case: SmokeCase) -> CheckpointFile:
         ],
     )
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-    ckpt.session.config.settings.cat_ii_resolution_mode = "dnd5e_router"
     ckpt.session.config.settings.ticks_enabled = False
     return ckpt
 

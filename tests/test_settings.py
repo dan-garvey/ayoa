@@ -119,19 +119,6 @@ class TestSettingsHelpers:
         assert new is False
         assert ckpt.session.config.settings.ticks_enabled is False
 
-    def test_set_cat_ii_resolution_mode(self):
-        ckpt = _ckpt()
-        new = set_setting(ckpt, "cat_ii_resolution_mode", "dnd5e_router")
-        assert new == "dnd5e_router"
-        assert ckpt.session.config.settings.cat_ii_resolution_mode == (
-            "dnd5e_router"
-        )
-
-    def test_legacy_rules_arbitrator_mode_maps_to_dnd_router(self):
-        ckpt = _ckpt()
-        new = set_setting(ckpt, "cat_ii_resolution_mode", "rules_arbitrator")
-        assert new == "dnd5e_router"
-
     def test_set_player_roll_mode(self):
         ckpt = _ckpt()
         new = set_setting(ckpt, "player_roll_mode", "interactive")
@@ -185,6 +172,5 @@ class TestEngineBridgeSettings:
         assert {
             "ticks_enabled",
             "ruleset_id",
-            "cat_ii_resolution_mode",
             "player_roll_mode",
         }.issubset(keys)

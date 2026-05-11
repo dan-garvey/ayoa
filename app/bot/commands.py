@@ -1892,8 +1892,7 @@ def _dnd_attachment_body(summary: DndSheetAttachmentSummary) -> str:
         f"**AC / HP:** {summary.armor_class} / {hp}",
         (
             f"**D&D mode:** `{summary.session_ruleset_id}` · "
-            f"`{summary.cat_ii_resolution_mode}` · player rolls "
-            f"`{summary.player_roll_mode}`"
+            f"player rolls `{summary.player_roll_mode}`"
         ),
         (
             f"**Imported:** {summary.skills_count} skills, "

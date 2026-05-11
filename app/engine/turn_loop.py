@@ -920,7 +920,8 @@ _COMBAT_REACTION_EXCLUDED_REASONS = {
     "cat_ii_pending",
     "cat_ii_pending_rolls",
     "cat_ii_stale",
-    "combat_cat_ii_suppressed",
+    "ruleset_cat_ii_suppressed",
+    "ruleset_resolution",
     "query_response",
     "observation_harvest",
     "off_stage_tick",
@@ -971,6 +972,22 @@ def _character_in_active_combat(
     combat = _active_combat(ckpt)
     return combat is not None and (
         _combatant_for_character(combat, character_id) is not None
+    )
+
+
+def _character_in_dnd_active_combat(
+    ckpt: CheckpointFile,
+    character_id: str,
+) -> bool:
+    settings = getattr(
+        getattr(ckpt.session, "config", None),
+        "settings",
+        None,
+    )
+    ruleset_id = str(getattr(settings, "ruleset_id", "") or "")
+    return (
+        ruleset_id == "dnd5e_basic"
+        and _character_in_active_combat(ckpt, character_id)
     )
 
 
@@ -1129,10 +1146,39 @@ def _combat_render_candidates(
             "combat_reaction",
         }:
             immediate.add(cid)
+    immediate.update(_high_priority_combat_buffer_ids(ckpt, candidates))
     current_id = _current_combat_character_id(combat)
     if current_id:
         immediate.add(current_id)
     return [cid for cid in candidates if cid in immediate]
+
+
+def _high_priority_combat_buffer_ids(
+    ckpt: CheckpointFile,
+    candidates: list[str],
+) -> set[str]:
+    by_event_id = {event.event_id: event for event in ckpt.canonical_events}
+    high_priority: set[str] = set()
+    for cid in candidates:
+        for entry in ckpt.session.render_buffers.get(cid, []) or []:
+            event = by_event_id.get(entry.event_id)
+            if event is None:
+                continue
+            observer = next(
+                (
+                    obs for obs in event.observers
+                    if obs.character_id == cid
+                ),
+                None,
+            )
+            if (
+                observer is not None
+                and observer.observation_level == "d"
+                and observer.response_priority >= _COMBAT_REACTION_MIN_PRIORITY
+            ):
+                high_priority.add(cid)
+                break
+    return high_priority
 
 
 def _prune_skipped_combat_buffers(
@@ -1228,6 +1274,25 @@ class Dispatcher(Protocol):
     ) -> EventRouterOutput:
         """Advance an open beat when the prior router output supplied
         no dispatchable next actor despite `ends_beat=false`."""
+        ...
+
+    async def route_combat_action(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        actor_id: str,
+        intention: str,
+    ) -> EventRouterOutput:
+        """Resolve one active D&D combat turn through a ruleset adapter."""
+        ...
+
+    async def continue_combat_transaction(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        event_id: str,
+    ) -> EventRouterOutput:
+        """Finalize an active-combat roll transaction after player dice."""
         ...
 
     async def agent_intend(
@@ -1488,10 +1553,72 @@ async def run_beat(
             trigger_event_id=combat_reaction_event_id,
             intention=intention,
         )
+        if _character_in_dnd_active_combat(ckpt, actor_id):
+            try:
+                resolved = await dispatcher.route_combat_action(
+                    ckpt=ckpt,
+                    actor_id=actor_id,
+                    intention=current_intention,
+                )
+            except DndCatIIRollsPending:
+                return await _pause_for_pending_rolls()
+            _log_router_rationale(
+                resolved, actor_id, kind="dnd_combat_reaction_resolve",
+            )
+            if resolved.requires_responders:
+                raise ValueError(
+                    "D&D combat reaction returned generic Cat II; combat "
+                    "resolver must close the reaction or pause for player "
+                    "rolls."
+                )
+            broadcast_event(ckpt, resolved, actor_id=actor_id)
+            event_actor_ids.append(actor_id)
+            events_closed += 1
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=resolved.ends_beat_reason
+                or "ruleset_resolution",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=True,
+            )
 
     # Fresh initiator path.
     if cat_ii_event_id is None and combat_reaction_event_id is None:
         claim_initiator_slot(ckpt, actor_id)
+        if _character_in_dnd_active_combat(ckpt, actor_id):
+            try:
+                resolved = await dispatcher.route_combat_action(
+                    ckpt=ckpt,
+                    actor_id=actor_id,
+                    intention=intention,
+                )
+            except DndCatIIRollsPending:
+                return await _pause_for_pending_rolls()
+            _log_router_rationale(
+                resolved, actor_id, kind="dnd_combat_resolve",
+            )
+            if resolved.requires_responders:
+                raise ValueError(
+                    "D&D combat resolution returned generic Cat II; combat "
+                    "resolver must close the turn or pause for player rolls."
+                )
+            broadcast_event(ckpt, resolved, actor_id=actor_id)
+            event_actor_ids.append(actor_id)
+            events_closed += 1
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=resolved.ends_beat_reason
+                or "ruleset_resolution",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+            )
 
     while True:
         if pending_result is None:
@@ -1526,13 +1653,13 @@ async def run_beat(
                 result.required_responders = []
                 result.agent_responder_picks = []
                 result.ends_beat = True
-                result.ends_beat_reason = "combat_cat_ii_suppressed"
+                result.ends_beat_reason = "ruleset_cat_ii_suppressed"
                 broadcast_event(ckpt, result, actor_id=suppressed_actor_id)
                 event_actor_ids.append(suppressed_actor_id)
                 events_closed += 1
                 return await _end_beat(
                     ckpt, dispatcher,
-                    ended_reason="combat_cat_ii_suppressed",
+                    ended_reason="ruleset_cat_ii_suppressed",
                     events_closed=events_closed,
                     event_actor_ids=event_actor_ids,
                     acting_player_id=actor_id,

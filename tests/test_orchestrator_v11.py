@@ -19,6 +19,7 @@ from app.schemas.events import (
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import (
+    CatIIRollTransaction,
     DndCombatantState,
     DndCombatState,
     LocationState,
@@ -147,6 +148,14 @@ class FakeDispatcher:
         type(self).route_calls.append(kw)
         return type(self)._route_responses.pop(0)
 
+    async def route_combat_action(self, **kw) -> EventRouterOutput:
+        type(self).route_calls.append(kw)
+        return type(self)._route_responses.pop(0)
+
+    async def continue_combat_transaction(self, **kw) -> EventRouterOutput:
+        type(self).route_calls.append(kw)
+        return type(self)._route_responses.pop(0)
+
     async def agent_intend(self, **kw) -> str:
         type(self).agent_calls.append(kw)
         return type(self)._agent_responses.pop(0)
@@ -235,6 +244,49 @@ class TestSlotRejection:
         assert FakeDispatcher.route_calls == []
 
 
+class TestPendingCombatRolls:
+    @pytest.mark.asyncio
+    async def test_continue_roll_without_open_cat_ii_finalizes_combat(
+        self,
+        patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.turn_index = 4
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="cat_ii_roll",
+            cat_ii_event_id="cmb_1",
+        )
+        ckpt.session.cat_ii_roll_transactions.append(
+            CatIIRollTransaction(
+                transaction_id="rolltxn_1",
+                event_id="cmb_1",
+                source="combat",
+                actor_id="alice",
+                status="ready_to_finalize",
+                plan={"needs_rolls": True, "roll_requests": []},
+                ledger_lines=["attack_alice: alice attack_roll rolled 18"],
+            )
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(
+            _router_out(ends_beat_reason="ruleset_resolution")
+        )
+
+        response = await orch.continue_cat_ii_after_roll(
+            session_id="s",
+            event_id="cmb_1",
+            actor_id="alice",
+        )
+
+        assert response.beat_ended_reason == "ruleset_resolution"
+        assert response.per_player_renders["alice"] == "POV_RENDER"
+        assert response.turn_index == 5
+        assert FakeDispatcher.route_calls[0]["event_id"] == "cmb_1"
+        assert ckpt.session.active_act_slots == {}
+        assert len(ckpt.canonical_events) == 1
+        assert mgr.save.call_count == 1
+
+
 class TestCombatTurnGating:
     @pytest.mark.asyncio
     async def test_non_current_human_combatant_is_rejected_without_save(
@@ -278,6 +330,7 @@ class TestCombatTurnGating:
         self, patched_orchestrator,
     ):
         ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         ckpt.session.active_combat = DndCombatState(
             round_number=1,
             turn_index=0,
@@ -584,6 +637,54 @@ class TestCombatTurnGating:
         assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_ruleset_resolution_advances_initiative(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            return BeatResult(
+                renders={"alice": "Alice resolves a combat action."},
+                events_closed=1,
+                ended_reason="ruleset_resolution",
+                transcript_entries={},
+                event_actor_ids=["alice"],
+                reaction_prompts={},
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I attack",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "ruleset_resolution"
+        assert ckpt.session.active_combat.turn_index == 1
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_non_current_reaction_slot_bypasses_combat_turn_rejection(
         self, patched_orchestrator,
     ):
@@ -645,7 +746,7 @@ class TestCombatTurnGating:
 
         assert response.beat_ended_reason == "directed_at_player"
         assert FakeDispatcher.route_calls[0]["actor_id"] == "bob"
-        assert FakeDispatcher.route_calls[0]["cat_ii_event"] is None
+        assert "Combat reaction" in FakeDispatcher.route_calls[0]["intention"]
         assert ckpt.session.active_act_slots == {}
         assert ckpt.session.active_combat.turn_index == 1
         assert ckpt.session.active_combat.pending_advance_actor_id == ""

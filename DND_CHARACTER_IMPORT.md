@@ -314,8 +314,7 @@ Current implementation status:
   D&D Beyond JSON export to the invoker's currently bound character. It preserves
   the AYOA story identity by default; `name_override` is the explicit opt-in to
   rename the `CharacterRecord`. A successful attach also enables D&D session
-  mode by setting `ruleset_id=dnd5e_basic` and
-  `cat_ii_resolution_mode=dnd5e_router`, while preserving the current
+  mode by setting `ruleset_id=dnd5e_basic`, while preserving the current
   `player_roll_mode`.
 * Discord `/sheet [page]` renders compact Avrae-style pages from
   `mechanics.dnd5e_sheet` without reading or displaying `raw_source`.

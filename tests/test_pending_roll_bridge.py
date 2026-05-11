@@ -109,6 +109,20 @@ def _pending_roll_checkpoint() -> CheckpointFile:
     return ckpt
 
 
+def _combat_pending_roll_checkpoint() -> CheckpointFile:
+    ckpt = _pending_roll_checkpoint()
+    ckpt.session.open_cat_ii_events = []
+    ckpt.session.active_act_slots["alice"] = SlotEntry(
+        reason="cat_ii_roll",
+        cat_ii_event_id="cmb_open",
+    )
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    transaction.event_id = "cmb_open"
+    transaction.source = "combat"
+    transaction.actor_id = "pip"
+    return ckpt
+
+
 @pytest.mark.asyncio
 async def test_complete_pending_roll_saves_dice_before_router_finalize(
     tmp_path,
@@ -141,6 +155,33 @@ async def test_complete_pending_roll_saves_dice_before_router_finalize(
     assert transaction.final_event_id == ""
     assert transaction.rolls[0].status == "completed"
     assert transaction.rolls[0].result["total"] == 19
+
+
+@pytest.mark.asyncio
+async def test_complete_pending_roll_accepts_combat_transaction_without_cat_ii(
+    tmp_path,
+    monkeypatch,
+):
+    from app.engine import dice
+
+    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    bridge.checkpoint_mgr.save(_combat_pending_roll_checkpoint())
+    monkeypatch.setattr(dice.d20.expression.random, "randrange", lambda _: 15)
+
+    result = await bridge.complete_pending_roll(
+        session_id="roll_session",
+        event_id="cmb_open",
+        roll_id="roll_alice",
+        user_id=123,
+    )
+
+    assert result.total == 19
+    latest = bridge.checkpoint_mgr.load_latest("roll_session")
+    assert latest.session.open_cat_ii_events == []
+    transaction = latest.session.cat_ii_roll_transactions[0]
+    assert transaction.source == "combat"
+    assert transaction.status == "ready_to_finalize"
+    assert transaction.rolls[0].status == "completed"
 
 
 def test_roll_result_line_surfaces_total_for_discord_ui():

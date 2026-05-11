@@ -33,6 +33,20 @@ class PlannedRoll(BaseModel):
     opposed_by: str
     advantage_state: AdvantageState
     reason: str
+    # Optional adapter metadata. Empty outside D&D combat. `action_id`
+    # names the attack/action profile to use for to-hit and damage lookup;
+    # `target_id` names the intended target for AC/damage application.
+    action_id: str
+    target_id: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_adapter_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("action_id", "")
+            data.setdefault("target_id", "")
+        return data
 
     @model_validator(mode="after")
     def _clean(self) -> "PlannedRoll":
@@ -41,6 +55,8 @@ class PlannedRoll(BaseModel):
         self.skill = self.skill.strip().lower()
         self.opposed_by = self.opposed_by.strip()
         self.reason = self.reason.strip()
+        self.action_id = self.action_id.strip().lower()
+        self.target_id = self.target_id.strip()
         if not self.roll_id:
             raise ValueError("roll_id is required")
         if not self.actor_id:
@@ -58,6 +74,34 @@ class RollPlan(BaseModel):
     no_roll_reason: str
 
 
+CombatStateDeltaKind = Literal[
+    "healing",
+    "condition_add",
+    "condition_remove",
+]
+
+
+class CombatStateDelta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: CombatStateDeltaKind
+    target_id: str
+    amount: int
+    condition: str
+    reason: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CombatStateDelta":
+        self.target_id = self.target_id.strip()
+        self.condition = self.condition.strip()
+        self.reason = self.reason.strip()
+        if not self.target_id:
+            raise ValueError("target_id is required")
+        if self.amount < 0:
+            self.amount = 0
+        return self
+
+
 class RulesAdjudication(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -65,8 +109,17 @@ class RulesAdjudication(BaseModel):
     mechanical_summary: str
     visible_outcome_facts: list[str]
     state_deltas: list[str]
+    combat_state_deltas: list[CombatStateDelta]
     rules_notes: list[str]
     fallback_reason: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_combat_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("combat_state_deltas", [])
+        return data
 
     @model_validator(mode="after")
     def _ensure_visible_fact(self) -> "RulesAdjudication":

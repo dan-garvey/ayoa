@@ -26,6 +26,7 @@ from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.dnd_cat_ii import (
     complete_pending_player_roll,
     pending_player_rolls,
+    roll_transaction_source,
 )
 from app.engine.dnd_character_import import (
     mechanics_from_snapshot,
@@ -137,7 +138,6 @@ class DndSheetAttachmentSummary:
     imported_name: str
     ruleset_id: str
     session_ruleset_id: str
-    cat_ii_resolution_mode: str
     player_roll_mode: str
     source_type: str
     total_level: int
@@ -875,7 +875,6 @@ class EngineBridge:
 
             settings = ckpt.session.config.settings
             settings.ruleset_id = "dnd5e_basic"
-            settings.cat_ii_resolution_mode = "dnd5e_router"
 
             summary = _dnd_attachment_summary(
                 character=target,
@@ -892,8 +891,7 @@ class EngineBridge:
                 f"AC {summary.armor_class}, HP "
                 f"{summary.hit_points_current}/{summary.hit_points_max}. "
                 f"D&D session settings enabled: ruleset_id="
-                f"{settings.ruleset_id}, cat_ii_resolution_mode="
-                f"{settings.cat_ii_resolution_mode}, player_roll_mode="
+                f"{settings.ruleset_id}, player_roll_mode="
                 f"{settings.player_roll_mode}. "
                 "Use these mechanics for D&D adjudication; preserve the "
                 "story identity unless fiction explicitly changes it."
@@ -1018,7 +1016,8 @@ class EngineBridge:
                 raise ValueError(
                     "That roll is not pending for your character."
                 )
-            if not any(
+            source = roll_transaction_source(ckpt, event_id)
+            if source != "combat" and not any(
                 evt.event_id == event_id
                 for evt in ckpt.session.open_cat_ii_events
             ):
@@ -2553,9 +2552,6 @@ def _dnd_attachment_summary(
         imported_name=str(identity.get("name") or ""),
         ruleset_id=str(snapshot.get("ruleset_id") or ""),
         session_ruleset_id=str(getattr(settings, "ruleset_id", "")),
-        cat_ii_resolution_mode=str(
-            getattr(settings, "cat_ii_resolution_mode", "")
-        ),
         player_roll_mode=str(getattr(settings, "player_roll_mode", "")),
         source_type=str(source.get("type") or ""),
         total_level=total_level,

@@ -202,7 +202,7 @@ class TestRouteIntention:
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.config.settings.cat_ii_resolution_mode = "dnd5e_router"
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         mock_client.complete.side_effect = [
             _llm_response(RollPlan(
                 needs_rolls=False,

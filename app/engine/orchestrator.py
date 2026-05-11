@@ -34,6 +34,7 @@ from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     complete_pending_player_roll,
     pending_player_rolls,
+    roll_transaction_source,
 )
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
@@ -970,6 +971,22 @@ class Orchestrator:
                 None,
             )
             if evt_live is None:
+                if roll_transaction_source(ckpt, event_id) == "combat":
+                    if pending_player_rolls(ckpt, event_id=event_id):
+                        return TurnResponse(
+                            session_id=session_id,
+                            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                            turn_index=ckpt.session.turn_index,
+                            output_text="",
+                            per_player_renders={},
+                            beat_ended_reason="cat_ii_pending_rolls",
+                        )
+                    return await self._resolve_ready_combat_after_rolls(
+                        session_id=session_id,
+                        ckpt=ckpt,
+                        event_id=event_id,
+                        output_actor_id=actor_id,
+                    )
                 return TurnResponse(
                     session_id=session_id,
                     checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
@@ -1148,6 +1165,41 @@ class Orchestrator:
                 None,
             )
             if evt_live is None:
+                if roll_transaction_source(ckpt, event_id) == "combat":
+                    pending_for_actor = pending_player_rolls(
+                        ckpt, event_id=event_id, actor_id=actor_id,
+                    )
+                    if roll_id not in {
+                        record.roll_id for record in pending_for_actor
+                    }:
+                        raise ValueError(
+                            f"Roll {roll_id} is not pending for actor "
+                            f"{actor_id}."
+                        )
+                    complete_pending_player_roll(
+                        ckpt,
+                        event_id=event_id,
+                        roll_id=roll_id,
+                        completed_by_user_id=user_id,
+                    )
+                    if pending_player_rolls(ckpt, event_id=event_id):
+                        self.checkpoint_mgr.save(ckpt)
+                        return TurnResponse(
+                            session_id=session_id,
+                            checkpoint_id=(
+                                f"ckpt_{ckpt.session.turn_index:04d}"
+                            ),
+                            turn_index=ckpt.session.turn_index,
+                            output_text="",
+                            per_player_renders={},
+                            beat_ended_reason="cat_ii_pending_rolls",
+                        )
+                    return await self._resolve_ready_combat_after_rolls(
+                        session_id=session_id,
+                        ckpt=ckpt,
+                        event_id=event_id,
+                        output_actor_id=actor_id,
+                    )
                 return TurnResponse(
                     session_id=session_id,
                     checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
@@ -1189,6 +1241,94 @@ class Orchestrator:
                 output_actor_id=actor_id,
             )
 
+    async def _resolve_ready_combat_after_rolls(
+        self,
+        *,
+        session_id: str,
+        ckpt: CheckpointFile,
+        event_id: str,
+        output_actor_id: str,
+    ) -> TurnResponse:
+        dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+        try:
+            resolved = await dispatcher.continue_combat_transaction(
+                ckpt=ckpt,
+                event_id=event_id,
+            )
+        except DndCatIIRollsPending:
+            self.checkpoint_mgr.save(ckpt)
+            return TurnResponse(
+                session_id=session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text="",
+                per_player_renders={},
+                beat_ended_reason="cat_ii_pending_rolls",
+            )
+
+        if resolved.requires_responders:
+            raise ValueError(
+                "D&D combat roll continuation returned generic Cat II."
+            )
+        broadcast_event(ckpt, resolved, actor_id=output_actor_id)
+        beat_result = await _end_beat(
+            ckpt,
+            dispatcher,
+            ended_reason=resolved.ends_beat_reason or "ruleset_resolution",
+            events_closed=1,
+            event_actor_ids=[output_actor_id],
+            acting_player_id=output_actor_id,
+        )
+
+        if beat_result.events_closed > 0:
+            closed_this_beat = ckpt.canonical_events[-beat_result.events_closed:]
+            actors = beat_result.event_actor_ids
+            if len(actors) != beat_result.events_closed:
+                actors = actors + [None] * (
+                    beat_result.events_closed - len(actors)
+                )
+            for ev, ev_actor in zip(closed_this_beat, actors):
+                self.char_mgr.apply_roster_updates(ckpt, ev)
+                if ev.spawn:
+                    spawn_loc = (
+                        self._resolve_location(ckpt, ev_actor)
+                        if ev_actor else ""
+                    )
+                    await self.char_mgr.spawn_characters(
+                        ckpt, ev.spawn,
+                        acting_actor_location=spawn_loc,
+                    )
+            ckpt.session.turn_index += 1
+
+        _append_transcript_entry(ckpt, beat_result, output_actor_id)
+        _handle_combat_after_beat(
+            ckpt,
+            acting_id=output_actor_id,
+            beat_result=beat_result,
+        )
+        release_character_slot(ckpt, output_actor_id)
+        self.checkpoint_mgr.save(ckpt)
+        automated_results = await self._run_automated_combat_turns_locked(
+            ckpt=ckpt,
+            dispatcher=dispatcher,
+        )
+
+        beat_results = [beat_result, *automated_results]
+        renders = _combine_beat_renders(beat_results)
+        final_result = beat_results[-1]
+        output_text = renders.get(output_actor_id, "") or (
+            next(iter(renders.values()), "") if renders else ""
+        )
+        return TurnResponse(
+            session_id=session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text=output_text,
+            per_player_renders=renders,
+            beat_ended_reason=final_result.ended_reason,
+            reaction_prompts=final_result.reaction_prompts or {},
+        )
+
     async def continue_cat_ii_after_roll(
         self,
         *,
@@ -1207,6 +1347,24 @@ class Orchestrator:
                 None,
             )
             if evt_live is None:
+                if roll_transaction_source(ckpt, event_id) == "combat":
+                    if pending_player_rolls(ckpt, event_id=event_id):
+                        return TurnResponse(
+                            session_id=session_id,
+                            checkpoint_id=(
+                                f"ckpt_{ckpt.session.turn_index:04d}"
+                            ),
+                            turn_index=ckpt.session.turn_index,
+                            output_text="",
+                            per_player_renders={},
+                            beat_ended_reason="cat_ii_pending_rolls",
+                        )
+                    return await self._resolve_ready_combat_after_rolls(
+                        session_id=session_id,
+                        ckpt=ckpt,
+                        event_id=event_id,
+                        output_actor_id=actor_id,
+                    )
                 return TurnResponse(
                     session_id=session_id,
                     checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",

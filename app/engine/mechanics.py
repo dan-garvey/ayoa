@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.schemas.characters import CharacterRecord
@@ -119,8 +120,13 @@ def _detailed_roll_modifier(
         if save is not None:
             return save
 
-    if request.kind == "attack_roll" and request.skill:
-        action_bonus = _lookup_action_attack_bonus(statblock, request.skill)
+    if request.kind == "attack_roll":
+        action_key = request.action_id or request.skill
+        action_bonus = _lookup_action_attack_bonus(
+            statblock,
+            action_key,
+            reason=request.reason,
+        )
         if action_bonus is not None:
             return action_bonus
 
@@ -156,23 +162,67 @@ def _lookup_roll_bonus(source: dict[str, Any], key: str) -> int | None:
 def _lookup_action_attack_bonus(
     statblock: dict[str, Any],
     key: str,
+    *,
+    reason: str = "",
 ) -> int | None:
-    wanted = str(key).strip().lower()
+    wanted = _normalize_action_text(key)
+    reason_text = _normalize_action_text(reason)
+    first_bonus: int | None = None
+    bonus_count = 0
+    for action in _statblock_actions(statblock):
+        bonus = _action_attack_bonus(action)
+        if bonus is None:
+            continue
+        bonus_count += 1
+        if first_bonus is None:
+            first_bonus = bonus
+        names = _action_names(action)
+        if wanted and wanted in names:
+            return bonus
+        if reason_text and any(
+            _contains_action_name(reason_text, name) for name in names
+        ):
+            return bonus
+    if not wanted and bonus_count == 1:
+        return first_bonus
+    return None
+
+
+def _statblock_actions(statblock: dict[str, Any]) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
     for action in statblock.get("actions") or []:
         if not isinstance(action, dict):
             continue
-        names = {
-            str(action.get("id") or "").lower(),
-            str(action.get("name") or "").lower(),
-        }
-        if wanted not in names:
-            continue
-        attack = action.get("attack") or {}
-        bonus = attack.get("bonus")
-        if bonus is None:
-            continue
-        try:
-            return int(bonus)
-        except (TypeError, ValueError):
-            return None
-    return None
+        actions.append(action)
+    return actions
+
+
+def _action_attack_bonus(action: dict[str, Any]) -> int | None:
+    attack = action.get("attack") or {}
+    if not isinstance(attack, dict):
+        return None
+    bonus = attack.get("bonus")
+    if bonus is None:
+        return None
+    try:
+        return int(bonus)
+    except (TypeError, ValueError):
+        return None
+
+
+def _action_names(action: dict[str, Any]) -> set[str]:
+    names = {
+        _normalize_action_text(action.get("id") or ""),
+        _normalize_action_text(action.get("name") or ""),
+    }
+    return {name for name in names if name}
+
+
+def _normalize_action_text(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
+
+
+def _contains_action_name(haystack: str, needle: str) -> bool:
+    if not haystack or not needle:
+        return False
+    return re.search(rf"(^|\s){re.escape(needle)}($|\s)", haystack) is not None

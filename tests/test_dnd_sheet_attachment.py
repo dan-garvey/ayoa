@@ -163,13 +163,11 @@ async def test_attach_preserves_story_identity_without_override(
     assert summary.hit_points_max == 22
     assert summary.hit_points_temporary == 4
     assert summary.session_ruleset_id == "dnd5e_basic"
-    assert summary.cat_ii_resolution_mode == "dnd5e_router"
     assert summary.player_roll_mode == "auto"
 
     loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
     settings = loaded.session.config.settings
     assert settings.ruleset_id == "dnd5e_basic"
-    assert settings.cat_ii_resolution_mode == "dnd5e_router"
     assert settings.player_roll_mode == "auto"
     hero = next(c for c in loaded.characters if c.character_id == "hero")
     assert hero.name == "Story Name"
@@ -197,13 +195,11 @@ async def test_attach_enables_dnd_without_overwriting_player_roll_mode(
     )
 
     assert summary.session_ruleset_id == "dnd5e_basic"
-    assert summary.cat_ii_resolution_mode == "dnd5e_router"
     assert summary.player_roll_mode == "interactive"
 
     loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
     settings = loaded.session.config.settings
     assert settings.ruleset_id == "dnd5e_basic"
-    assert settings.cat_ii_resolution_mode == "dnd5e_router"
     assert settings.player_roll_mode == "interactive"
 
 

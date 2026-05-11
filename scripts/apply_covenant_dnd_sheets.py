@@ -537,7 +537,6 @@ def apply_file(
         config = session.setdefault("config", {})
         settings = config.setdefault("settings", {})
         settings["ruleset_id"] = RULESET_ID
-        settings["cat_ii_resolution_mode"] = "dnd5e_router"
         settings.setdefault("player_roll_mode", "auto")
         settings_enabled = True
 

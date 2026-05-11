@@ -133,13 +133,18 @@ class FakeDispatcher:
         self.agent_calls: list[dict] = []
         self.narrator_calls: list[dict] = []
         self.harvest_calls: list[dict] = []
+        self.combat_calls: list[dict] = []
         self._route_responses: list[EventRouterOutput] = []
+        self._combat_responses: list[EventRouterOutput] = []
         self._agent_responses: list[str] = []
         self._harvest_responses: list[list[str]] = []
         self._narrator_response = "RENDER"
 
     def queue_route(self, response: EventRouterOutput) -> None:
         self._route_responses.append(response)
+
+    def queue_combat(self, response: EventRouterOutput) -> None:
+        self._combat_responses.append(response)
 
     def queue_agent(self, intention: str) -> None:
         self._agent_responses.append(intention)
@@ -154,6 +159,14 @@ class FakeDispatcher:
     async def route_continuation(self, **kw) -> EventRouterOutput:
         self.continuation_calls.append(kw)
         return self._route_responses.pop(0)
+
+    async def route_combat_action(self, **kw) -> EventRouterOutput:
+        self.combat_calls.append(kw)
+        return self._combat_responses.pop(0)
+
+    async def continue_combat_transaction(self, **kw) -> EventRouterOutput:
+        self.combat_calls.append(kw)
+        return self._combat_responses.pop(0)
 
     async def agent_intend(self, **kw) -> str:
         self.agent_calls.append(kw)
@@ -404,8 +417,9 @@ class TestBeatCascade:
         assert "bob" not in ckpt.session.active_act_slots
         assert ckpt.session.render_buffers.get("bob") == []
 
-    def test_combat_reaction_act_gets_trigger_context_for_router(self):
+    def test_dnd_combat_reaction_uses_combat_resolver_with_trigger_context(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         ckpt.session.active_combat = DndCombatState(
             turn_index=0,
             combatants=[
@@ -454,7 +468,9 @@ class TestBeatCascade:
             trigger_event_id="evt_trigger",
         )
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(ends_beat=True))
+        combat_out = _router_out(ends_beat=True)
+        combat_out.ends_beat_reason = "ruleset_resolution"
+        fake.queue_combat(combat_out)
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -464,10 +480,12 @@ class TestBeatCascade:
             combat_reaction_event_id="evt_trigger",
         ))
 
-        routed_intention = fake.route_calls[0]["intention"]
+        assert fake.route_calls == []
+        routed_intention = fake.combat_calls[0]["intention"]
         assert "Combat reaction to this event" in routed_intention
         assert "Alice exposes herself" in routed_intention
         assert "I make an opportunity attack" in routed_intention
+        assert result.ended_reason == "ruleset_resolution"
         assert result.reaction_prompts == {}
 
     def test_query_response_harvests_private_perception_targets(self):
@@ -679,14 +697,125 @@ class TestCatIIBeat:
             intention="I attack Bob",
         ))
 
-        assert result.ended_reason == "combat_cat_ii_suppressed"
+        assert result.ended_reason == "ruleset_cat_ii_suppressed"
         assert ckpt.session.open_cat_ii_events == []
         assert ckpt.session.active_act_slots == {}
         assert result.reaction_prompts == {}
         assert ckpt.canonical_events[0].ends_beat_reason == (
-            "combat_cat_ii_suppressed"
+            "ruleset_cat_ii_suppressed"
         )
         assert fake.agent_calls == []
+
+    def test_dnd_active_combat_uses_combat_resolver_instead_of_generic_router(
+        self,
+    ):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        combat_out = _router_out(
+            requires_responders=False,
+            facts=["Alice's strike resolves against Bob."],
+        )
+        combat_out.ends_beat_reason = "ruleset_resolution"
+        fake.queue_combat(combat_out)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I attack Bob",
+        ))
+
+        assert result.ended_reason == "ruleset_resolution"
+        assert fake.route_calls == []
+        assert fake.combat_calls[0]["actor_id"] == "alice"
+        assert ckpt.canonical_events[0].ends_beat_reason == (
+            "ruleset_resolution"
+        )
+
+    def test_high_priority_combat_observer_gets_render_on_npc_turn(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=2,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        combat_out = EventRouterOutput(
+            event_id="",
+            decision_rationale="Pip hits Bob.",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[ObservableFact.all("Pip cuts Bob.")],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+                ObserverEntry(
+                    character_id="bob",
+                    observation_level="d",
+                    response_priority=5,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="ruleset_resolution",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        )
+        fake.queue_combat(combat_out)
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="pip",
+            intention="I attack Bob",
+        ))
+
+        assert result.renders == {"bob": "RENDER"}
+        assert ckpt.session.render_buffers.get("alice") == []
 
     def test_noncombat_actor_can_open_cat_ii_while_combat_exists(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})

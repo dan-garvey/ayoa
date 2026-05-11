@@ -2,17 +2,24 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
-from app.engine import dice, mechanics
+from app.engine import dice, dnd_combat, mechanics
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
-from app.schemas.dnd_cat_ii import PlannedRoll, RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import (
+    CombatStateDelta,
+    PlannedRoll,
+    RollPlan,
+    RulesAdjudication,
+)
 from app.schemas.state import (
+    CatIIRollDamageRecord,
     CatIIRollRecord,
     CatIIRollTransaction,
     OpenCatIIEvent,
@@ -20,6 +27,7 @@ from app.schemas.state import (
 )
 
 logger = logging.getLogger(__name__)
+DND5E_BASIC_RULESET_ID = "dnd5e_basic"
 
 
 class DndCatIIRollsPending(RuntimeError):
@@ -33,12 +41,16 @@ class DndCatIIRollsPending(RuntimeError):
 
 
 def dnd_cat_ii_router_enabled(ckpt: CheckpointFile) -> bool:
-    settings = ckpt.session.config.settings
-    return settings.cat_ii_resolution_mode in {
-        "dnd5e_router",
-        # Back-compat for saves/settings created by the first D&D slice.
-        "rules_arbitrator",
-    }
+    return ckpt.session.config.settings.ruleset_id == DND5E_BASIC_RULESET_ID
+
+
+def dnd_combat_router_enabled(ckpt: CheckpointFile) -> bool:
+    combat = getattr(ckpt.session, "active_combat", None)
+    return (
+        ckpt.session.config.settings.ruleset_id == DND5E_BASIC_RULESET_ID
+        and combat is not None
+        and getattr(combat, "status", "active") == "active"
+    )
 
 
 class DndCatIIResolver:
@@ -89,7 +101,9 @@ class DndCatIIResolver:
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
         transaction.updated_at = _utcnow_iso()
-        _queue_router_state_change(ckpt, result)
+        _queue_router_state_change(
+            ckpt, result, label="D&D Cat II resolved",
+        )
         return result
 
     async def _plan_rolls(self, packet: str) -> RollPlan:
@@ -132,6 +146,127 @@ class DndCatIIResolver:
         )
         return response.parsed
 
+
+class DndCombatResolver:
+    """Router-owned D&D combat turn resolver.
+
+    Combat uses the same event-router model role as Cat II D&D resolution,
+    but the durable transaction source is `combat` and the engine applies
+    code-owned dice and HP changes before the final visible event is emitted.
+    """
+
+    def __init__(self, client: LLMClient, prompt_mgr: PromptManager):
+        self.client = client
+        self.prompt_mgr = prompt_mgr
+
+    async def resolve_combat_action(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        actor_id: str,
+        intention: str,
+    ) -> EventRouterOutput:
+        packet = _build_combat_packet(ckpt, actor_id, intention)
+        event_id = f"cmb_{uuid.uuid4().hex[:12]}"
+        plan = await self._plan_rolls(packet)
+        transaction = _create_combat_transaction(
+            ckpt=ckpt,
+            event_id=event_id,
+            actor_id=actor_id,
+            intention=intention,
+            packet=json.loads(packet),
+            plan=plan,
+        )
+        _execute_available_rolls(ckpt, transaction)
+        return await self._resolve_transaction(ckpt, transaction)
+
+    async def continue_combat_transaction(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        event_id: str,
+    ) -> EventRouterOutput:
+        transaction = _find_transaction(ckpt, event_id)
+        if transaction is None or transaction.source != "combat":
+            raise ValueError(f"No D&D combat roll transaction for {event_id}.")
+        if transaction.status == "awaiting_player_rolls":
+            if _pending_player_rolls(transaction):
+                _pin_pending_player_rolls(ckpt, transaction)
+                raise DndCatIIRollsPending(transaction)
+            transaction.status = "ready_to_finalize"
+            transaction.updated_at = _utcnow_iso()
+        elif transaction.status in {"planning", "planned"}:
+            _execute_available_rolls(ckpt, transaction)
+        return await self._resolve_transaction(ckpt, transaction)
+
+    async def _resolve_transaction(
+        self,
+        ckpt: CheckpointFile,
+        transaction: CatIIRollTransaction,
+    ) -> EventRouterOutput:
+        if _pending_player_rolls(transaction):
+            transaction.status = "awaiting_player_rolls"
+            transaction.updated_at = _utcnow_iso()
+            _pin_pending_player_rolls(ckpt, transaction)
+            raise DndCatIIRollsPending(transaction)
+
+        _execute_combat_damage_rolls(ckpt, transaction)
+        packet = json.dumps(transaction.context, indent=2, sort_keys=True)
+        adjudication = await self._finalize(packet, transaction.ledger_lines)
+        _apply_combat_damage_records(ckpt, transaction)
+        _apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
+        result = _compile_combat_router_output(
+            ckpt=ckpt,
+            transaction=transaction,
+            adjudication=adjudication,
+        )
+        transaction.status = "finalized"
+        transaction.final_event_id = result.event_id
+        transaction.updated_at = _utcnow_iso()
+        _queue_router_state_change(
+            ckpt, result, label="D&D combat resolved",
+        )
+        return result
+
+    async def _plan_rolls(self, packet: str) -> RollPlan:
+        messages = self.prompt_mgr.render_messages(
+            "dnd_combat_router",
+            phase="PLAN_ROLLS",
+            combat_action_packet=packet,
+            roll_ledger_block="No rolls have been made yet.",
+        )
+        response = await self.client.complete(
+            role="event_router",
+            messages=messages,
+            response_model=RollPlan,
+            temperature=0.2,
+            max_tokens=2500,
+            cache=True,
+            compact=False,
+        )
+        return response.parsed
+
+    async def _finalize(
+        self,
+        packet: str,
+        ledger_lines: list[str],
+    ) -> RulesAdjudication:
+        messages = self.prompt_mgr.render_messages(
+            "dnd_combat_router",
+            phase="FINALIZE_OUTCOME",
+            combat_action_packet=packet,
+            roll_ledger_block="\n".join(ledger_lines) or "No rolls were made.",
+        )
+        response = await self.client.complete(
+            role="event_router",
+            messages=messages,
+            response_model=RulesAdjudication,
+            temperature=0.2,
+            max_tokens=3000,
+            cache=True,
+            compact=False,
+        )
+        return response.parsed
 
 def complete_pending_player_roll(
     ckpt: CheckpointFile,
@@ -183,6 +318,11 @@ def pending_player_rolls(
     return out
 
 
+def roll_transaction_source(ckpt: CheckpointFile, event_id: str) -> str:
+    transaction = _find_transaction(ckpt, event_id)
+    return transaction.source if transaction is not None else ""
+
+
 def _create_transaction(
     ckpt: CheckpointFile,
     cat_ii_event: OpenCatIIEvent,
@@ -221,6 +361,54 @@ def _create_transaction(
     )
     ckpt.session.cat_ii_roll_transactions.append(transaction)
     cat_ii_event.roll_transaction_id = transaction.transaction_id
+    return transaction
+
+
+def _create_combat_transaction(
+    *,
+    ckpt: CheckpointFile,
+    event_id: str,
+    actor_id: str,
+    intention: str,
+    packet: dict,
+    plan: RollPlan,
+) -> CatIIRollTransaction:
+    bindings = ckpt.session.character_bindings or {}
+    by_id = {c.character_id: c for c in ckpt.characters}
+    now = _utcnow_iso()
+    rolls: list[CatIIRollRecord] = []
+    for request in plan.roll_requests:
+        actor_control = "player" if request.actor_id in bindings else "agent"
+        modifier = mechanics.roll_modifier(by_id.get(request.actor_id), request)
+        rolls.append(
+            CatIIRollRecord(
+                roll_id=request.roll_id,
+                actor_id=request.actor_id,
+                actor_control=actor_control,
+                request=request.model_dump(),
+                modifier=modifier,
+                label=_roll_label(request),
+                reason=request.reason,
+            )
+        )
+
+    transaction = CatIIRollTransaction(
+        transaction_id=f"rolltxn_{uuid.uuid4().hex[:12]}",
+        event_id=event_id,
+        source="combat",
+        actor_id=actor_id,
+        intention=intention,
+        ruleset_id=ckpt.session.config.settings.ruleset_id,
+        status="planned" if plan.needs_rolls else "ready_to_finalize",
+        plan=plan.model_dump(),
+        context=packet,
+        no_roll_reason=plan.no_roll_reason,
+        rolls=rolls,
+        ledger_lines=[] if plan.needs_rolls else _no_roll_ledger(plan),
+        created_at=now,
+        updated_at=now,
+    )
+    ckpt.session.cat_ii_roll_transactions.append(transaction)
     return transaction
 
 
@@ -265,6 +453,204 @@ def _execute_roll_record(
     transaction.ledger_lines.append(_format_ledger_line(request, result))
 
 
+def _execute_combat_damage_rolls(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    for record in transaction.rolls:
+        if record.status != "completed":
+            continue
+        request = PlannedRoll.model_validate(record.request)
+        if request.kind != "attack_roll" or not request.target_id:
+            continue
+        marker = f"damage_for={record.roll_id}"
+        if any(
+            damage.roll_id == record.roll_id
+            for damage in transaction.damage_records
+        ):
+            continue
+        result = record.result or {}
+        hit = _attack_hits(combat, request, result)
+        target_ac = _target_ac(combat, request.target_id)
+        transaction.ledger_lines.append(
+            f"{record.roll_id}: attack total {result.get('total', 0)} "
+            f"vs AC {target_ac} -> {'hit' if hit else 'miss'}"
+        )
+        if not hit:
+            continue
+        expression = _damage_expression_for_action(ckpt, request)
+        if not expression:
+            transaction.ledger_lines.append(
+                f"{marker}: no code-readable damage expression for "
+                f"{request.actor_id} action {request.action_id or request.skill}"
+            )
+            continue
+        if result.get("crit") == "crit":
+            expression = _crit_damage_expression(expression)
+        damage = dice.roll_expression(
+            dice.RollRequest(
+                roll_id=f"damage_{record.roll_id}",
+                expression=expression,
+                actor_id=request.actor_id,
+                reason=f"Damage for {record.reason}",
+            )
+        )
+        transaction.ledger_lines.append(
+            f"{marker}: {request.actor_id} deals {damage.detail} = "
+            f"{damage.total} damage to {request.target_id}"
+        )
+        transaction.damage_records.append(
+            CatIIRollDamageRecord(
+                roll_id=record.roll_id,
+                target_id=request.target_id,
+                amount=damage.total,
+                expression=damage.expression,
+                detail=damage.detail,
+                applied=False,
+            )
+        )
+
+
+def _apply_combat_damage_records(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+) -> None:
+    for damage in transaction.damage_records:
+        if damage.applied:
+            continue
+        if damage.amount <= 0:
+            damage.applied = True
+            continue
+        dnd_combat.apply_damage(
+            ckpt.session, damage.target_id, damage.amount
+        )
+        damage.applied = True
+
+
+def _attack_hits(
+    combat: object,
+    request: PlannedRoll,
+    result: dict[str, object],
+) -> bool:
+    crit = str(result.get("crit") or "none")
+    if crit == "crit":
+        return True
+    if crit == "fail":
+        return False
+    try:
+        total = int(result.get("total") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    dc = request.dc or _target_ac(combat, request.target_id)
+    return total >= dc
+
+
+def _target_ac(combat: object, target_id: str) -> int:
+    for combatant in list(getattr(combat, "combatants", []) or []):
+        ids = {
+            str(getattr(combatant, "combatant_id", "") or ""),
+            str(getattr(combatant, "character_id", "") or ""),
+        }
+        if target_id in ids:
+            return int(getattr(combatant, "armor_class", 10) or 10)
+    return 10
+
+
+def _damage_expression_for_action(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> str:
+    action_key = request.action_id or request.skill
+    character = next(
+        (c for c in ckpt.characters if c.character_id == request.actor_id),
+        None,
+    )
+    if character is None:
+        return ""
+    mechanics_state = character.mechanics or {}
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    action = _find_action(statblock, action_key, reason=request.reason)
+    if action is None:
+        return ""
+    return _action_damage_expression(action)
+
+
+def _find_action(
+    statblock: dict[str, object],
+    action_key: str,
+    *,
+    reason: str = "",
+) -> dict[str, object] | None:
+    wanted = _normalize_action_text(action_key)
+    reason_text = _normalize_action_text(reason)
+    first_damaging_action: dict[str, object] | None = None
+    damaging_action_count = 0
+    for action in statblock.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        if _action_damage_expression(action):
+            damaging_action_count += 1
+            if first_damaging_action is None:
+                first_damaging_action = action
+        names = _action_names(action)
+        if wanted and wanted in names:
+            return action
+        if reason_text and any(
+            _contains_action_name(reason_text, name) for name in names
+        ):
+            return action
+    if not wanted and damaging_action_count == 1:
+        return first_damaging_action
+    return None
+
+
+def _action_damage_expression(action: dict[str, object]) -> str:
+    attack = action.get("attack") or {}
+    if not isinstance(attack, dict):
+        return ""
+    raw = str(attack.get("damage") or "")
+    return _clean_damage_expression(raw)
+
+
+def _action_names(action: dict[str, object]) -> set[str]:
+    names = {
+        _normalize_action_text(action.get("id") or ""),
+        _normalize_action_text(action.get("name") or ""),
+    }
+    return {name for name in names if name}
+
+
+def _normalize_action_text(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
+
+
+def _contains_action_name(haystack: str, needle: str) -> bool:
+    if not haystack or not needle:
+        return False
+    return re.search(rf"(^|\s){re.escape(needle)}($|\s)", haystack) is not None
+
+
+def _clean_damage_expression(raw: str) -> str:
+    match = re.search(r"\d+d\d+(?:\s*[+-]\s*\d+)?", raw.strip().lower())
+    if match is None:
+        return ""
+    return re.sub(r"\s+", "", match.group(0))
+
+
+def _crit_damage_expression(expression: str) -> str:
+    # Simple D&D crit support: double the first damage dice group, keep
+    # flat modifiers unchanged. "1d8+4" -> "2d8+4".
+    def repl(match: re.Match[str]) -> str:
+        return f"{int(match.group(1)) * 2}d{match.group(2)}"
+
+    return re.sub(r"(\d+)d(\d+)", repl, expression, count=1)
+
+
 def _build_contested_packet(
     ckpt: CheckpointFile,
     cat_ii_event: OpenCatIIEvent,
@@ -299,6 +685,108 @@ def _build_contested_packet(
         "participants": participants,
     }
     return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _build_combat_packet(
+    ckpt: CheckpointFile,
+    actor_id: str,
+    intention: str,
+) -> str:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        raise ValueError("D&D combat resolver requires active combat.")
+    by_id = {c.character_id: c for c in ckpt.characters}
+    bindings = ckpt.session.character_bindings or {}
+    current = _current_combatant(combat)
+    participants = []
+    for combatant in list(getattr(combat, "combatants", []) or []):
+        cid = str(
+            getattr(combatant, "character_id", "")
+            or getattr(combatant, "combatant_id", "")
+            or ""
+        )
+        char = by_id.get(cid)
+        participants.append({
+            "combatant_id": str(getattr(combatant, "combatant_id", "") or cid),
+            "character_id": cid,
+            "name": str(getattr(combatant, "name", "") or cid),
+            "player_controlled": cid in bindings,
+            "current": combatant is current,
+            "armor_class": int(getattr(combatant, "armor_class", 10) or 10),
+            "hit_points": {
+                "current": int(
+                    getattr(combatant, "hit_points_current", 0) or 0
+                ),
+                "max": int(getattr(combatant, "hit_points_max", 0) or 0),
+                "temporary": int(
+                    getattr(combatant, "hit_points_temporary", 0) or 0
+                ),
+            },
+            "conditions": list(getattr(combatant, "conditions", []) or []),
+            "mechanics": (
+                mechanics.mechanics_summary(char) if char is not None else {}
+            ),
+            "actions": _combat_action_summaries(char),
+        })
+
+    payload = {
+        "ruleset_id": ckpt.session.config.settings.ruleset_id,
+        "player_roll_mode": ckpt.session.config.settings.player_roll_mode,
+        "round_number": int(getattr(combat, "round_number", 1) or 1),
+        "current_turn": {
+            "actor_id": actor_id,
+            "name": _character_name(ckpt, actor_id),
+        },
+        "intention": intention,
+        "house_rules": [
+            "Opportunity attacks are automatic for players and NPCs.",
+            "Player opportunity attacks do not consume optional reaction prompts.",
+            "Open optional player reaction prompts only for meaningful choices.",
+        ],
+        "combatants": participants,
+    }
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _combat_action_summaries(character: object | None) -> list[dict[str, object]]:
+    if character is None:
+        return []
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    actions: list[dict[str, object]] = []
+    for action in statblock.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        attack = action.get("attack") or {}
+        if not isinstance(attack, dict):
+            attack = {}
+        actions.append({
+            "id": str(action.get("id") or ""),
+            "name": str(action.get("name") or ""),
+            "attack_bonus": attack.get("bonus", ""),
+            "damage": str(attack.get("damage") or ""),
+        })
+    return actions
+
+
+def _current_combatant(combat: object) -> object | None:
+    combatants = list(getattr(combat, "combatants", []) or [])
+    if not combatants:
+        return None
+    try:
+        idx = int(getattr(combat, "turn_index", 0) or 0) % len(combatants)
+    except (TypeError, ValueError):
+        idx = 0
+    return combatants[idx]
+
+
+def _character_name(ckpt: CheckpointFile, character_id: str) -> str:
+    return next(
+        (c.name for c in ckpt.characters if c.character_id == character_id),
+        character_id,
+    )
 
 
 def _compile_event_router_output(
@@ -348,9 +836,134 @@ def _compile_event_router_output(
     )
 
 
+def _compile_combat_router_output(
+    *,
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> EventRouterOutput:
+    combat = getattr(ckpt.session, "active_combat", None)
+    observer_ids = []
+    if combat is not None:
+        for combatant in list(getattr(combat, "combatants", []) or []):
+            if bool(getattr(combatant, "defeated", False)) or bool(
+                getattr(combatant, "removed", False)
+            ):
+                continue
+            cid = str(
+                getattr(combatant, "character_id", "")
+                or getattr(combatant, "combatant_id", "")
+                or ""
+            )
+            if cid:
+                observer_ids.append(cid)
+    observer_ids = _dedupe(observer_ids or [transaction.actor_id])
+    affected_ids = _combat_affected_ids(transaction, adjudication)
+    notes = "; ".join(adjudication.rules_notes)
+    rationale_parts = [
+        part for part in (
+            adjudication.mechanical_summary,
+            f"Rules notes: {notes}" if notes else "",
+            f"Fallback: {adjudication.fallback_reason}"
+            if adjudication.fallback_reason else "",
+        ) if part
+    ]
+    return EventRouterOutput(
+        event_id="",
+        decision_rationale=" ".join(rationale_parts) or "D&D combat adjudication.",
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(
+                feasible=adjudication.feasible
+            ),
+            observable_facts=[
+                ObservableFact.all(fact)
+                for fact in adjudication.visible_outcome_facts
+            ],
+        ),
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
+        ends_beat=True,
+        ends_beat_reason="ruleset_resolution",
+        observers=[
+            ObserverEntry(
+                character_id=cid,
+                observation_level="d",
+                response_priority=5 if cid in affected_ids else 3,
+            )
+            for cid in observer_ids
+            if _character_exists(ckpt, cid)
+        ],
+        spawn=[],
+        dormant=[],
+        cull=[],
+    )
+
+
+def _combat_affected_ids(
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> set[str]:
+    affected = {transaction.actor_id} if transaction.actor_id else set()
+    for record in transaction.rolls:
+        if record.actor_id:
+            affected.add(record.actor_id)
+        request = PlannedRoll.model_validate(record.request)
+        if request.target_id:
+            affected.add(request.target_id)
+    for damage in transaction.damage_records:
+        if damage.target_id:
+            affected.add(damage.target_id)
+    for delta in adjudication.combat_state_deltas:
+        if delta.target_id:
+            affected.add(delta.target_id)
+    return affected
+
+
+def _apply_combat_state_deltas(
+    ckpt: CheckpointFile,
+    deltas: list[CombatStateDelta],
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    for delta in deltas:
+        if delta.kind == "healing":
+            if delta.amount:
+                dnd_combat.apply_healing(ckpt.session, delta.target_id, delta.amount)
+        elif delta.kind in {"condition_add", "condition_remove"}:
+            _apply_condition_delta(ckpt, delta)
+
+
+def _apply_condition_delta(
+    ckpt: CheckpointFile,
+    delta: CombatStateDelta,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None or not delta.condition:
+        return
+    for combatant in list(getattr(combat, "combatants", []) or []):
+        ids = {
+            str(getattr(combatant, "combatant_id", "") or ""),
+            str(getattr(combatant, "character_id", "") or ""),
+        }
+        if delta.target_id not in ids:
+            continue
+        conditions = list(getattr(combatant, "conditions", []) or [])
+        if delta.kind == "condition_add":
+            if delta.condition not in conditions:
+                conditions.append(delta.condition)
+        else:
+            conditions = [c for c in conditions if c != delta.condition]
+        setattr(combatant, "conditions", conditions)
+        return
+
+
 def _queue_router_state_change(
     ckpt: CheckpointFile,
     routed: EventRouterOutput,
+    *,
+    label: str,
 ) -> None:
     facts = [
         fact.text for fact in routed.canonical_event.observable_facts
@@ -358,7 +971,7 @@ def _queue_router_state_change(
     ]
     if facts:
         ckpt.session.pending_router_state_changes.append(
-            "D&D Cat II resolved: " + " / ".join(facts)
+            f"{label}: " + " / ".join(facts)
         )
 
 
@@ -445,6 +1058,8 @@ def _no_roll_ledger(plan: RollPlan) -> list[str]:
 
 
 def _roll_label(request: PlannedRoll) -> str:
+    if request.kind == "attack_roll" and request.action_id:
+        return f"Attack ({request.action_id.replace('_', ' ').title()})"
     if request.kind == "skill_check" and request.skill:
         return request.skill.title()
     if request.kind == "saving_throw":

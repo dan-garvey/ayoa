@@ -308,13 +308,11 @@ queued for the next router call.
    Add settings for:
 
    * `ruleset_id`
-   * `cat_ii_resolution_mode`
    * `player_roll_mode`
 
    Defaults preserve current behavior:
 
    * `ruleset_id="narrative"`
-   * `cat_ii_resolution_mode="router"`
    * `player_roll_mode="auto"`
 
 4. Preserve richer Cat II context.
@@ -333,18 +331,18 @@ queued for the next router call.
 
 6. Wire D&D mode into Cat II final resolution.
 
-   In Cat II final resolution only, if `cat_ii_resolution_mode` selects
-   `dnd5e_router`, call the roll-planning path, execute rolls in code, call
-   finalization, and compile the result back into the existing event shape.
-   Otherwise keep the current router path.
+   In Cat II final resolution only, if `ruleset_id == "dnd5e_basic"`, call the
+   roll-planning path, execute rolls in code, call finalization, and compile the
+   result back into the existing event shape. Otherwise keep the current router
+   path.
 
    Current implementation status: this branch exists behind
-   `cat_ii_resolution_mode="dnd5e_router"`. It preserves the Cat II opening
-   context, asks the event-router role for a d20 roll plan, executes planned
-   rolls through Ayoa's `d20` wrapper, asks for final adjudication, and compiles
-   the outcome back into `EventRouterOutput`. State deltas are returned as notes
-   but are not applied yet. The legacy setting value `"rules_arbitrator"` maps
-   to `"dnd5e_router"` for old saves.
+   `ruleset_id == "dnd5e_basic"`. It preserves the Cat II opening context, asks
+   the event-router role for a d20 roll plan, executes planned rolls through
+   Ayoa's `d20` wrapper, asks for final adjudication, and compiles the outcome
+   back into `EventRouterOutput`. The earlier separate
+   `cat_ii_resolution_mode` switch has been removed; D&D arbitration is part of
+   the selected ruleset.
 
 7. Apply simple state deltas.
 

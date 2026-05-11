@@ -985,6 +985,7 @@ class CLIState:
             return
 
         requested = arg.strip()
+        printed_pending_from_response = False
         if not requested:
             if len(prompts) == 1:
                 selected = [prompts[0]]
@@ -1033,12 +1034,15 @@ class CLIState:
                 print(f"error: {type(e).__name__}: {e}")
                 return
             self._print_turn_response(response, actor_id=result.actor_id)
+            if response.beat_ended_reason == "cat_ii_pending_rolls":
+                printed_pending_from_response = True
 
-        remaining = self.engine.pending_roll_prompts(
-            self.session_id,
-            user_id=uid,
-        )
-        _print_roll_prompts(remaining)
+        if not printed_pending_from_response:
+            remaining = self.engine.pending_roll_prompts(
+                self.session_id,
+                user_id=uid,
+            )
+            _print_roll_prompts(remaining)
 
     async def cmd_rewind(self, arg: str) -> None:
         """Rewind the session to an earlier checkpoint.
@@ -1307,14 +1311,7 @@ class CLIState:
             print()
 
         if response.beat_ended_reason == "cat_ii_pending_rolls":
-            uid = self.claims.get(actor_id)
-            prompts = (
-                self.engine.pending_roll_prompts(
-                    self.session_id,
-                    user_id=uid,
-                )
-                if uid is not None else []
-            )
+            prompts = self._joined_pending_roll_prompts()
             _print_roll_prompts(prompts)
 
         self._print_reaction_prompts(response)
@@ -1331,6 +1328,21 @@ class CLIState:
                 "or use /defer to pass"
             )
             print()
+
+    def _joined_pending_roll_prompts(self) -> list[PendingRollPrompt]:
+        prompts: list[PendingRollPrompt] = []
+        seen: set[tuple[str, str]] = set()
+        for uid in set(self.claims.values()):
+            for prompt in self.engine.pending_roll_prompts(
+                self.session_id,
+                user_id=uid,
+            ):
+                key = (prompt.event_id, prompt.roll_id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                prompts.append(prompt)
+        return prompts
 
     def _print_open_reaction_slots(self) -> None:
         if not self.claims:
