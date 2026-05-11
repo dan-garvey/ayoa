@@ -203,7 +203,7 @@ the engine's generic surface must survive two questions:
    in non-D&D narrative contexts?
 
 When an adapter needs a hook into the core (a settings flag, a
-checkpoint field, a prompt addon, an alternate Cat II resolution
+checkpoint field, a prompt addon, or a ruleset-specific adjudication
 path), the hook ships with a non-adapter default that keeps the
 narrative engine unchanged. Adapter-specific schema fields default
 to empty; adapter-specific prompts only render when the matching
@@ -523,10 +523,10 @@ Cat II flow:
 3. Human responders are pinned in `active_act_slots`.
 4. Agent responders intend immediately.
 5. If all responders are present, the router resolves the event inline.
-6. If D&D mode is enabled, final resolution may enter a router-owned roll
-   planning/finalization subflow. NPC/agent rolls execute automatically; player
-   rolls either execute automatically or pause for Discord roll UI depending on
-   `player_roll_mode`.
+6. If a ruleset adapter is active, final resolution may enter that
+   ruleset's router-owned roll planning/finalization subflow. NPC/agent
+   rolls execute automatically; player rolls either execute automatically
+   or pause for Discord roll UI depending on `player_roll_mode`.
 7. If any human responder or player roll is pending, the narrator renders
    partial-mode prose where applicable and the beat pauses.
 8. When the human responds or rolls, the router receives the compact resolution
@@ -965,8 +965,7 @@ Core narrative engine:
 * `character_gen.txt`
 * `takeover.txt`
 
-D&D 5e adapter (rendered only when `ruleset_id == "dnd5e_basic"` or
-`cat_ii_resolution_mode == "dnd5e_router"`; see §15):
+D&D 5e adapter (rendered only when `ruleset_id == "dnd5e_basic"`; see §15):
 
 * `agent_ruleset_dnd5e.txt` — system-prompt addon spliced into
   character-agent calls when D&D combat is active.
@@ -995,26 +994,28 @@ session settings. See §4.7 for the modularity contract.
 
 ### 15.1 Settings
 
-Three settings on `SessionSettings` (registered in
+Two settings on `SessionSettings` (registered in
 `app/engine/settings.py`) toggle adapter behavior:
 
 * `ruleset_id` — default `narrative`. Set to `dnd5e_basic` to enable
-  the D&D agent system-prompt addon and combat-mode helpers in
-  character-agent calls.
-* `cat_ii_resolution_mode` — default `router`. Set to `dnd5e_router`
-  to route final Cat II adjudication through the D&D-flavored router
-  prompt with code-owned dice rolls.
+  the D&D agent system-prompt addon, D&D combat-mode helpers, and
+  ruleset-specific roll/adjudication paths.
 * `player_roll_mode` — default `auto`. Controls whether D&D
   player-character dice resolve in code immediately (`auto`) or
   pause for Discord roll UI (`interactive`). NPC and agent rolls are
   always automatic.
 
+The earlier experimental `cat_ii_resolution_mode` setting has been
+removed. Ruleset-specific routing belongs under `ruleset_id`; there
+should not be a second independent switch for D&D Cat II or combat
+adjudication.
+
 ### 15.2 Code Surface
 
 * `app/engine/dnd_combat.py` — combat state machine: initiative
   rolling, turn order, reaction windows, combat lifecycle.
-* `app/engine/dnd_cat_ii.py` — D&D-flavored Cat II resolution path
-  used when `cat_ii_resolution_mode == "dnd5e_router"`.
+* `app/engine/dnd_cat_ii.py` — D&D-flavored roll planning/finalization
+  path used by the D&D ruleset adapter.
 * `app/engine/dnd_character_import.py` — D&D Beyond character sheet
   import. See `DND_CHARACTER_IMPORT.md` and `DND_MODULE_IMPORT.md`.
 * `app/engine/mechanics.py` — readers and helpers for the
@@ -1042,7 +1043,7 @@ Three settings on `SessionSettings` (registered in
   into character-agent calls when `ruleset_id == "dnd5e_basic"`. Adds
   combat-aware behavior on top of the rules-neutral `agent.txt`.
 * `app/prompts/dnd_cat_ii_router.txt` — separate router prompt for
-  D&D Cat II resolution.
+  D&D roll planning/finalization.
 
 ### 15.5 Orchestrator Hooks
 
@@ -1059,7 +1060,20 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
 
 All hooks are no-ops outside `dnd5e_basic`.
 
-### 15.6 Modularity Contract
+### 15.6 D&D Combat House Rules
+
+Opportunity attacks are automatic. When D&D combat movement provokes
+an opportunity attack, the router should signal the opportunity and the
+engine should resolve it with code-owned dice for both NPCs and player
+characters. Player opportunity attacks do not open a reaction prompt and
+do not consume the player's optional reaction resource in Ayoa.
+
+Only reactions that require a meaningful player choice should open
+`reaction_prompts` (for example, protective intervention, interruptive
+magic, catching someone, or choosing to dive into danger). A player can
+answer with `/act` or pass with `/defer`.
+
+### 15.7 Modularity Contract
 
 Per §4.7, the adapter must not change the narrative engine's generic
 behavior. Default settings keep the engine narrative-only; adapter

@@ -1,6 +1,7 @@
 # Ayoa Agent Instructions
 
-This repository is a prompt-heavy narrative engine. Prompt files are versioned source artifacts, not hidden implementation details. Edit by tracing behavior through logs and code first, then write tests for runtime contracts and forbidden prompt leakage rather than tests that freeze approved prompt prose.
+## ALWAYS
+Use maximum thinking/reasoning budget for responses. Always consider edge cases and the holistic flow as well as potential downstream effects of your changes.
 
 Every feature change must survive two questions before implementation:
 
@@ -11,6 +12,7 @@ D&D mechanics must remain modular adapters around the narrative engine, not assu
 
 ## Prompt Editing
 
+-This repository is a prompt-heavy narrative engine. Prompt files are versioned source artifacts, not hidden implementation details. Edit by tracing behavior through logs and code first, then write tests for runtime contracts and forbidden prompt leakage rather than tests that freeze approved prompt prose.
 - Treat `app/prompts/*.txt` as carefully reviewed source. Do not add positive tests that assert required prose snippets exist in versioned prompt files just to prevent accidental deletion; human review and git history cover that.
 - Do add tests for rendered prompt blocks, helper output, schemas, dispatch behavior, and observable runtime contracts when engine code depends on exact markers or shapes.
 - Do add negative prompt hygiene tests for text that should never appear in any prompt: provider/API implementation details, SDK names, API keys, Python class names, test harness references, internal file paths, and engine-only structures the model does not need.
