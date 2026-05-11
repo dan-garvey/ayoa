@@ -44,5 +44,6 @@ class TurnResponse(BaseModel):
     # (Discord latency log, CLI status, playtest summary) was guarded
     # by `if response.debug is not None:` and silently no-op'd. v11-r7j
     # murdered the field per the vestigial-field destruction policy
-    # in CLAUDE.md. Per-turn diagnostics live in the engine logger
-    # (`turn_loop.router[route]` lines) and per-turn checkpoint files.
+    # in DESIGN.md §19.1. Per-turn diagnostics live in the engine
+    # logger (`turn_loop.router[route]` lines) and per-turn checkpoint
+    # files.

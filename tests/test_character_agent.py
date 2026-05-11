@@ -574,8 +574,8 @@ class TestExtractParenthetical:
     encloses, and a wrong split is one of two failure shapes:
       - intent leaks into public_text → router/narrator/other agents
         see another character's interior. Information-asymmetry
-        regression (see CLAUDE.md "Per-character interior asymmetry
-        is load-bearing").
+        regression (see DESIGN.md §4.5 "Agents Author Intentions, Not
+        State" — the per-character interior asymmetry rule).
       - public prose gets eaten as intent → the cascade or narrator
         sees a silent beat from a character that actually spoke.
 

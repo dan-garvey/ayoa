@@ -1,5 +1,51 @@
 # Design Doc: Ayoa Narrative Engine
 
+## Repository And Setup
+
+### Dev Environment
+
+* Use `.venv/bin/python` and `.venv/bin/pytest` directly rather than
+  sourcing the virtualenv activate script.
+* Provider API keys belong in `.env`, never committed. The Anthropic
+  client reads `ANTHROPIC_API_KEY`; the OpenAI client reads
+  `OPENAI_API_KEY`. At least one is required at startup for whichever
+  provider the active role configuration selects (`app/bot/__main__.py`
+  fails fast on missing keys).
+* The LLM client is multi-provider (Anthropic Messages API and OpenAI
+  Responses API) with per-role provider/model dispatch. Default provider
+  is OpenAI; default models are `gpt-5.2` for `event_router` and
+  `gpt-5.1` for `narrator`, `agent`, and `character_gen`. Per-role
+  overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
+  environment variables, or via the `LLM_ROLE_PROVIDERS` /
+  `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
+  model string (for example `anthropic:claude-sonnet-4-6`) also works.
+
+### Code Layout
+
+* `app/engine/` — turn pipeline: orchestrator, event-router dispatch,
+  narrator, character agents, character manager, context builders,
+  story importer, settings, prompt manager, turn-loop contracts.
+* `app/schemas/` — Pydantic data models (checkpoint, session state,
+  characters, events, agents, requests, responses, conversation, etc.).
+* `app/llm/` — multi-provider LLM client wrapper (Anthropic + OpenAI),
+  per-role provider/model dispatch, prompt caching, conditional
+  compaction, structured output normalization.
+* `app/prompts/` — prompt templates (`event_router.txt`, `agent.txt`,
+  `narrator_phase2.txt`, `character_gen.txt`, `takeover.txt`, plus
+  ruleset addons such as `agent_ruleset_dnd5e.txt` and
+  `dnd_cat_ii_router.txt`). Prompt history lives in git, not in
+  filename suffixes; use `git log <file>` to read the version history.
+* `app/bot/` — Discord frontend: slash commands, `EngineBridge`,
+  `SessionMap`, embed rendering, `__main__` startup.
+* `app/storage/sessions/` — per-session checkpoint directories.
+* `app/storage/stories/` — story templates produced by the importer.
+  An older flat `app/storage/saves/` layout is auto-migrated on
+  `EngineBridge` construction.
+* `scripts/play.py` — interactive terminal REPL frontend, supports
+  multi-character play.
+* `scripts/import_story.py` — CLI wrapper for the importer pipeline.
+* `tests/` — pytest tests.
+
 ## 1. Status
 
 This document describes the current v11 architecture. It is no longer a
@@ -130,23 +176,64 @@ or send hidden directives. If an NPC's private plan should affect the world, it
 must surface through the agent's public action, an off-stage tick, or a later
 observable fact the router canonicalizes.
 
+This asymmetry is structural, not stylistic. Collapsing it back into a
+shared schema field — a `last_intent` mirror on `CharacterRecord`, an
+agent's parenthetical piped into the router, narrator, or another
+agent's context — recovers the worse single-LLM-pretending-to-be-many
+shape that per-actor calls were designed to avoid. Cross-actor signal
+must surface through in-fiction events the router canonicalizes (a
+courier walks in, a witness sees an action, a note is found), not
+through hidden side channels.
+
 ### 4.6 Checkpoints Are The Source Of Truth
 
 Every committed turn writes a checkpoint. The runtime can be rebuilt from
 checkpoint JSON plus the prompt/code version in git. Process memory,
 locks, and API caches are not trusted as durable state.
 
+### 4.7 Rules Adapters Are Modular
+
+Domain-specific rule systems (D&D 5e is the only one today) are
+modular adapters around the narrative engine, not assumptions baked
+into router, narrator, or character-agent behavior. Every change to
+the engine's generic surface must survive two questions:
+
+1. Does this preserve the original rules-neutral narrative engine?
+2. Does this avoid adding prompt or runtime machinery that is useless
+   in non-D&D narrative contexts?
+
+When an adapter needs a hook into the core (a settings flag, a
+checkpoint field, a prompt addon, an alternate Cat II resolution
+path), the hook ships with a non-adapter default that keeps the
+narrative engine unchanged. Adapter-specific schema fields default
+to empty; adapter-specific prompts only render when the matching
+ruleset is active; adapter-specific bot commands no-op or reject
+politely outside the matching ruleset; the core router, narrator,
+and character-agent prompts stay rules-neutral with adapter
+behavior delivered through addons rather than baked into the base
+templates. The full current adapter surface lives in §15.
+
 ## 5. Runtime Components
 
 ### 5.1 Discord Bot And EngineBridge
 
-`app/bot/commands.py` defines the slash-command surface:
+`app/bot/commands.py` defines the slash-command surface.
+
+Generic narrative engine commands:
 
 * `/session start|resume|list|end`
 * `/story list|info|start|characters|import|delete`
 * `/join`, `/begin`, `/leave`, `/character`, `/describe`
 * `/act`, `/defer`, `/query`, `/status`, `/settings list|set`
 * `/rewind`, `/clear`, `/abort_beat`
+
+D&D adapter commands (active when `ruleset_id == "dnd5e_basic"`; see §15):
+
+* `/attach` — attach a D&D Beyond character snapshot to a player character.
+* `/sheet` — display the attached D&D character sheet.
+* `/roll` — answer a pending interactive player roll.
+* `/combat begin|status|next|end|damage|heal` — combat lifecycle and HP
+  management.
 
 The bot calls the engine in process through `EngineBridge`; there is no
 FastAPI layer in the current runtime. `SessionMap` stores Discord channel
@@ -161,18 +248,30 @@ takeover, leave, settings, query, and rewind.
 
 ### 5.2 Orchestrator
 
-`Orchestrator.process_turn()` is the main turn entry point. It:
+`Orchestrator.process_turn()` is the main turn entry point. The
+narrative-engine happy path:
 
 1. loads the latest checkpoint
 2. resolves the acting character
 3. acquires a per-session lock
-4. checks active act slots
+4. checks active act slots; rejects, routes as Cat II responder, or proceeds
 5. calls `run_beat()`
 6. applies character lifecycle changes and spawns
 7. appends one transcript entry for the beat
 8. runs eligible off-stage ticks
 9. increments the turn index and saves
 10. returns a `TurnResponse`
+
+When the D&D adapter is active (`ruleset_id == "dnd5e_basic"`), several
+combat-aware branches splice into this flow: a `(defer)` from a
+combatant with an open reaction window resolves as a reaction
+acknowledgement; `_handle_combat_after_beat` advances initiative state
+after the beat closes; off-stage ticks are suppressed while
+`reaction_prompts` is non-empty so combatants must answer their
+reaction window first; and `_run_automated_combat_turns_locked` drives
+NPC combatant turns inline before the player's response returns. The
+adapter branches are no-ops outside `dnd5e_basic`. Adapter detail is
+collected in §15.
 
 `Orchestrator.resolve_cat_ii()` is the separate pre-turn closeout path for
 stale or newly-ready Cat II events. It re-enters the same router resolution
@@ -368,9 +467,11 @@ It supports:
 * provider-specific retry handling for transient failures
 
 Provider/model selection can be configured with model prefixes such as
-`openai:gpt-5.4-mini`, explicit `role_providers`, or environment
-overrides like `LLM_PROVIDER_NARRATOR=openai` and
-`LLM_MODEL_NARRATOR=gpt-5.4-mini`.
+`anthropic:claude-sonnet-4-6`, explicit `role_providers`, or
+environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
+`LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI provider
+with `gpt-5.2` for `event_router` and `gpt-5.1` for `narrator`,
+`agent`, and `character_gen`.
 
 Active live model roles are `event_router`, `narrator`, and `agent`.
 `character_gen` remains in configuration and has a prompt file, but the
@@ -612,7 +713,8 @@ Important fields:
   "pending_observations": [],
   "backstory": "",
   "personality": "",
-  "known_context": ""
+  "known_context": "",
+  "mechanics": {}
 }
 ```
 
@@ -620,6 +722,12 @@ Important fields:
 human-controlled." Human control is determined by
 `session.character_bindings` and the legacy `session.player_character_id`
 fallback.
+
+`mechanics` is the rules-adapter scratch dict. It defaults to `{}` and
+is left empty for narrative-only sessions. The D&D 5e adapter reads a
+small conventional subset (ability scores, proficiency bonus, skill and
+saving-throw proficiencies, AC, HP, conditions, resources, and the raw
+imported sheet) when present. See §15 for the adapter surface.
 
 ### 8.2 Pending Observations
 
@@ -786,7 +894,8 @@ Response:
     "dante_royale": "Dan turns toward Dante..."
   },
   "beat_ended_reason": "directed_at_player",
-  "pre_turn_resolutions": []
+  "pre_turn_resolutions": [],
+  "reaction_prompts": {}
 }
 ```
 
@@ -794,6 +903,12 @@ Response:
 `TurnResponse.debug` was removed. Per-turn diagnostics live in logs and
 checkpoint artifacts. The `stream` field remains on the request for
 compatibility but is not a live Discord streaming feature.
+
+`reaction_prompts` is the D&D adapter's combat-reaction UI signal:
+`character_id → canonical_event_id` for combatants whose reaction
+window is open. It is `{}` outside D&D combat. The Discord bot uses
+it to render an immediate reaction UI; the orchestrator uses it to
+gate off-stage ticks until reactions resolve. See §15.
 
 ## 13. Checkpoint Schema
 
@@ -842,11 +957,21 @@ Important notes:
 
 Prompt files are source. Current prompt files include:
 
+Core narrative engine:
+
 * `event_router.txt`
 * `agent.txt`
 * `narrator_phase2.txt`
 * `character_gen.txt`
 * `takeover.txt`
+
+D&D 5e adapter (rendered only when `ruleset_id == "dnd5e_basic"` or
+`cat_ii_resolution_mode == "dnd5e_router"`; see §15):
+
+* `agent_ruleset_dnd5e.txt` — system-prompt addon spliced into
+  character-agent calls when D&D combat is active.
+* `dnd_cat_ii_router.txt` — separate router prompt for D&D-flavored
+  Cat II final adjudication.
 
 Prompt rules:
 
@@ -860,7 +985,97 @@ Prompt rules:
 * keep exact mode markers in `turn_loop_contracts.py` and test rendered
   helper output rather than hand-copying marker strings through callers
 
-## 15. Error Handling
+## 15. Rules Adapters
+
+The current adapter is D&D 5e (`ruleset_id == "dnd5e_basic"`). It is
+opt-in per session and entirely off by default; the narrative engine
+runs unchanged when no adapter is active. Adapter-specific code,
+prompts, schema fields, and bot commands all gate on the active
+session settings. See §4.7 for the modularity contract.
+
+### 15.1 Settings
+
+Three settings on `SessionSettings` (registered in
+`app/engine/settings.py`) toggle adapter behavior:
+
+* `ruleset_id` — default `narrative`. Set to `dnd5e_basic` to enable
+  the D&D agent system-prompt addon and combat-mode helpers in
+  character-agent calls.
+* `cat_ii_resolution_mode` — default `router`. Set to `dnd5e_router`
+  to route final Cat II adjudication through the D&D-flavored router
+  prompt with code-owned dice rolls.
+* `player_roll_mode` — default `auto`. Controls whether D&D
+  player-character dice resolve in code immediately (`auto`) or
+  pause for Discord roll UI (`interactive`). NPC and agent rolls are
+  always automatic.
+
+### 15.2 Code Surface
+
+* `app/engine/dnd_combat.py` — combat state machine: initiative
+  rolling, turn order, reaction windows, combat lifecycle.
+* `app/engine/dnd_cat_ii.py` — D&D-flavored Cat II resolution path
+  used when `cat_ii_resolution_mode == "dnd5e_router"`.
+* `app/engine/dnd_character_import.py` — D&D Beyond character sheet
+  import. See `DND_CHARACTER_IMPORT.md` and `DND_MODULE_IMPORT.md`.
+* `app/engine/mechanics.py` — readers and helpers for the
+  `CharacterRecord.mechanics` dict (ability scores, AC, HP,
+  conditions, resources).
+* `app/schemas/dnd_cat_ii.py` and
+  `app/schemas/dnd_character_snapshot.schema.json` — adapter schemas.
+
+### 15.3 Schema Fields
+
+* `CharacterRecord.mechanics: dict[str, Any]` defaults to `{}`. The
+  D&D adapter reads ability scores, proficiencies, AC, HP,
+  conditions, resources, and the raw imported sheet when present.
+* `TurnResponse.reaction_prompts: dict[str, str]` defaults to `{}`.
+  Maps `character_id → canonical_event_id` for combatants whose
+  reaction window is open.
+* `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
+  D&D roll plans, pending player rolls, completed roll results, and
+  dice ledgers. These persist for rewind and audit and are not
+  appended to `session_conversation`.
+
+### 15.4 Prompt Files
+
+* `app/prompts/agent_ruleset_dnd5e.txt` — system-prompt addon spliced
+  into character-agent calls when `ruleset_id == "dnd5e_basic"`. Adds
+  combat-aware behavior on top of the rules-neutral `agent.txt`.
+* `app/prompts/dnd_cat_ii_router.txt` — separate router prompt for
+  D&D Cat II resolution.
+
+### 15.5 Orchestrator Hooks
+
+Hooks in `Orchestrator.process_turn` and `run_beat`:
+
+* a `(defer)` from a combatant with an open reaction window resolves
+  as a reaction acknowledgement rather than a turn skip;
+* `_handle_combat_after_beat` advances initiative state after a beat
+  closes;
+* `_run_automated_combat_turns_locked` drives NPC combatant turns
+  inline before the player's response returns;
+* off-stage ticks are suppressed while `reaction_prompts` is non-empty
+  (combatants must answer their reaction window first).
+
+All hooks are no-ops outside `dnd5e_basic`.
+
+### 15.6 Modularity Contract
+
+Per §4.7, the adapter must not change the narrative engine's generic
+behavior. Default settings keep the engine narrative-only; adapter
+prompt files only render under the matching `ruleset_id`; adapter
+schema fields default to empty; adapter bot commands no-op or return
+a clear message outside the matching ruleset; the core router,
+narrator, and character-agent prompts stay rules-neutral with
+D&D-specific behavior delivered through addons rather than baked
+into the base templates.
+
+If a feature seems to require changing the generic engine to support
+D&D, surface the design tension in review before implementation. The
+correct answer is usually a new adapter hook with a no-op narrative
+default, not a rules-flavored core.
+
+## 16. Error Handling
 
 LLM failures:
 
@@ -887,7 +1102,7 @@ Discord failures:
 * rewind cleanup falls back from delete to edit/hide when Discord delete
   fails
 
-## 16. Observability
+## 17. Observability
 
 The system exposes:
 
@@ -904,7 +1119,7 @@ The router `decision_rationale` field is temporary diagnostic overhead.
 When router behavior is stable enough, remove the schema field, prompt
 field, and log plumbing together.
 
-## 17. Current Gaps And Maintenance Notes
+## 18. Current Gaps And Maintenance Notes
 
 Known stale or transitional areas:
 
@@ -930,7 +1145,200 @@ Known stale or transitional areas:
 These are acceptable as long as the design doc names them honestly and
 tests cover the live contracts rather than preserving dead architecture.
 
-## 18. Acceptance Criteria
+The remaining subsections in this chapter are open architectural
+concerns: real, known sharp edges that are not solved. Read the
+relevant entry before redesigning the tick scheduler, the rolling
+agent conversations, or anything that times the world (turn counters,
+contextual transitions, parallel play).
+
+### 18.1 World time across asynchronous play
+
+The engine carries two distinct notions of "time":
+
+* `session.turn_index` — narrative time. Advances on every closed beat
+  (both `process_turn` and `resolve_cat_ii` increment it). Player-facing
+  transcripts and history are keyed off this counter.
+* `session.turns_since_last_tick` — world ticks. Advances only inside
+  `process_turn`'s tick scheduler block (`Orchestrator._run_ticks`),
+  never inside `resolve_cat_ii`.
+
+In single-player single-scene play these stay close enough to be
+indistinguishable. With multiple players acting in multiple scenes
+asynchronously (the design target), they drift: two players each
+running their own beats in two scenes both bump `turn_index`, but the
+tick clock fires off whichever scheduler ran last, and "world time"
+becomes whatever the engine happened to observe most recently. There
+is no shared monotonic world clock for off-stage NPCs to reason
+about.
+
+This matters because:
+
+* Off-stage NPC stagnation triggers (`tick_stagnation_max`) are
+  measured in `turns_since_last_tick`. Under multi-player load that is
+  not a faithful "the player has been camping for N turns" signal.
+* Cross-scene causality (an antagonist in scene A reacts to a player
+  victory elsewhere) needs an ordering primitive richer than a single
+  local `last_event_at`.
+* "Did this happen before or after that?" gets answered differently
+  depending on which participant's perspective you ask from.
+
+Adding a global turn-counter gate in this code path requires care:
+confirm the gate's semantics are coherent across parallel beats. If
+the answer is unclear, surface the problem on a TODO instead of adding
+a brittle global counter.
+
+### 18.2 Tick fan-out latency on the /act critical path
+
+`Orchestrator._run_ticks` runs synchronously on the critical path of
+`process_turn` — every eligible off-stage NPC's tick is awaited before
+the player gets their render back. With a roster of N
+intentions-enabled NPCs and a concurrency cap C, a tick-fire turn
+costs the player roughly `ceil(N/C) * agent_latency` extra wall time
+on top of the on-stage beat. With Sonnet/Haiku that is typically 1–4
+seconds; for larger rosters it can spike higher.
+
+The likely fix is to batch tick fan-out with the next router call
+using async synchronization primitives — fire ticks immediately after
+the on-stage beat closes but do not make the player wait for them;
+await them inside the next `process_turn`'s router prep so the next
+router call sees their outputs without the current player's render
+blocking. This needs careful design around races when two players act
+in quick succession, session-level act-slot locking, and what happens
+when a tick fan-out is still in flight at checkpoint-save time.
+
+Synchronous fan-out is acceptable today, but every change that adds
+work inside `_run_ticks` (more LLM calls, deeper context builds, extra
+serialization) is paid by the player on tick-fire turns. Measure
+before adding work.
+
+### 18.3 Cross-scene observation inbox
+
+`broadcast_event` populates `pending_observations` for every NPC
+observer the router lists (excluding the actor and human-bound
+characters, who route to render buffers instead). The inbox drains on
+the recipient's next on-stage or tick agent call.
+
+Open knob: `pending_observations` has no length cap. A cross-scene
+NPC observer who never gets called accumulates inbox entries across
+turns. If long-running sessions surface inbox bloat, a per-character
+cap on `pending_observations` length is the obvious place to add one.
+
+### 18.4 Rolling agent conversations across prompt-version boundaries
+
+`character_conversations[character_id]` is a rolling list of
+`ConversationMessage` entries that the agent's next call replays
+verbatim. Old assistant entries from pre-v11 sessions used the
+structured-output schema (JSON-shaped agent replies); v11 agents
+emit prose with a trailing parenthetical and are not instructed to
+ignore legacy JSON shapes in their own history. Resuming a session
+whose conversation was written by an older agent prompt could let
+the new agent see those legacy entries on replay and imitate them,
+silently regressing format and tone.
+
+This is not a current production problem (sessions are not yet shipped
+across prompt-version boundaries), but it becomes one the moment they
+are. Two defensive moves are cheap:
+
+* tag each appended assistant message with a prompt-version id and on
+  resume either filter or rewrite anything older than the current
+  generation; or
+* add a one-line format reminder to the system prompt so the LLM
+  ignores legacy shapes regardless.
+
+Pick one before the first patched-mid-session resume goes out.
+
+## 19. Engineering Discipline
+
+### 19.1 Vestigial-field destruction policy
+
+A field on a Pydantic schema is a contract: someone is supposed to
+write it and someone is supposed to read it. When that contract
+breaks, the field becomes a hazard — its value sits on disk in old
+saves, it shows up in serialization, it tempts readers into trusting
+it, and it accumulates documentation that explains the original
+design rather than the live system.
+
+Rules:
+
+1. When you remove the last writer of a field, in the same commit
+   remove the field from the schema. Do not leave the field behind
+   "for back-compat with old saves." Pydantic v2's default
+   `extra='ignore'` silently drops the legacy field on load — no
+   deprecation flag is needed.
+2. When you remove the last reader of a field, in the same commit
+   remove either the field or the writers. A write-only field is
+   dead freight on every checkpoint serialization.
+3. When you change a field's semantics ("this used to mean X, now it
+   means Y"), rename it. Keeping the same name and changing the
+   meaning poisons every blame, every reviewer hand-off, and every
+   future search.
+4. When in doubt, list the field as vestigial in §18 before the
+   change ships, so the next contributor knows not to trust it on
+   read.
+
+Past failures have included a global location field that was set at
+import and never updated, and a `TurnResponse.debug` field with no
+orchestrator writer at all. Both wasted reviewer time; one silently
+misled a 31-turn playtest summary.
+
+## 20. Future Directions
+
+These are long-horizon hypotheses, not scoped tickets. They describe
+questions worth keeping in mind when the relevant subsystem comes up
+for change, so opportunities to chip at them can be taken cheaply
+rather than chased for their own sake.
+
+### 20.1 Long-term narrative planning beyond the router
+
+Today the router carries the entire load of "what should happen
+next." That is fine for short-horizon adjudication (this beat, the
+next two turns) but the router has no notion of a multi-act arc, no
+concept of "introduce a new character at hour three of the show," and
+no mechanism to plant a setup in turn 5 and pay it off in turn 40.
+Long-form sessions naturally want fresh faces mid-story, periodic
+beats keyed to a story-level cadence, and off-screen plot motion that
+advances even when a player camps in one scene.
+
+Possible directions, none chosen:
+
+* a separate "showrunner" LLM that runs every N beats and emits
+  high-level intents the router threads into adjudication;
+* a persistent story-arc object on the checkpoint with explicit
+  tension/pacing/reveal targets the router consults;
+* an importer-time arc skeleton (acts, reveals, beats-to-trigger)
+  that runtime advances against;
+* a periodic "casting director" pass that proposes new spawns based
+  on roster gaps the LLM identifies.
+
+Whatever shape this takes, keep the router prompt tax-aware: the
+router already handles adjudication, perception, and roster decisions
+on every turn. Adding long-term planning to its system prompt without
+offloading would push it past its current sweet spot. A separate
+actor on a longer cadence is the most likely shape.
+
+### 20.2 Spawn discipline beyond MAX_SPAWNS_PER_TURN and prompt rules
+
+Spawn rate is currently constrained only by `MAX_SPAWNS_PER_TURN=3`
+and router prompt language preferring canonicalize-with-observer over
+spawning for one-shot utility characters. Long-form sessions can
+still let the roster bloat past the point where the router prompt
+re-summarizes it cheaply on every call.
+
+Open questions:
+
+* should spawned characters carry a TTL — auto-dormant after N beats
+  with no participation, recoverable on demand?
+* is "named, plot-relevant character" vs "ambient world fixture" a
+  distinction worth modeling in the schema, with different cost and
+  visibility profiles?
+* should the router receive a current-roster-size and recent-spawn-
+  rate signal so it self-throttles, instead of relying purely on
+  prompt language?
+
+Don't solve preemptively — wait for a session where the roster
+genuinely bloats and let that shape the answer.
+
+## 21. Acceptance Criteria
 
 The current engine is healthy when:
 

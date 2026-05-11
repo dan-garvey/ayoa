@@ -18,6 +18,7 @@ class TurnRequest(BaseModel):
     # `TurnResponse.debug` payload — and since nothing in the
     # orchestrator ever populated that payload, neither flag had any
     # observable effect on the turn pipeline. Both gone in v11-r7j per
-    # the vestigial-field destruction policy in CLAUDE.md. Old turn
-    # requests on the wire that still set `debug=true` load cleanly:
-    # Pydantic's default `extra='ignore'` silently drops unknown keys.
+    # the vestigial-field destruction policy in DESIGN.md §19.1. Old
+    # turn requests on the wire that still set `debug=true` load
+    # cleanly: Pydantic's default `extra='ignore'` silently drops
+    # unknown keys.
