@@ -1014,13 +1014,29 @@ adjudication.
 
 * `app/engine/dnd_combat.py` — combat state machine: initiative
   rolling, turn order, reaction windows, combat lifecycle.
-* `app/engine/dnd_cat_ii.py` — D&D-flavored roll planning/finalization
-  path used by the D&D ruleset adapter.
+* `app/engine/dnd_cat_ii.py` — two router-owned resolvers that share
+  the D&D roll-planning/finalization machinery and the
+  `CatIIRollTransaction` checkpoint shape:
+  * `DndCatIIResolver.resolve_cat_ii` is the adapter-flavored Cat II
+    final-resolution path. Invoked from
+    `LLMDispatcher.route_intention` when a Cat II event is being
+    closed and `dnd_cat_ii_router_enabled` is true.
+  * `DndCombatResolver.resolve_combat_action` is the per-turn combat
+    resolver. Invoked from `run_beat` (and the post-roll continuation
+    paths in `Orchestrator`) when the actor is in active D&D combat
+    via `LLMDispatcher.route_combat_action`. Combat actions skip the
+    generic `route_intention` entirely; the resolver runs PLAN_ROLLS,
+    executes/blocks on player rolls, rolls weapon damage from the
+    sheet for hits, calls FINALIZE_OUTCOME, applies HP changes from
+    structured `damage_records`, and synthesizes an
+    `EventRouterOutput` with `ends_beat_reason="ruleset_resolution"`.
+    Neither phase is appended to `session_conversation`.
 * `app/engine/dnd_character_import.py` — D&D Beyond character sheet
   import. See `DND_CHARACTER_IMPORT.md` and `DND_MODULE_IMPORT.md`.
 * `app/engine/mechanics.py` — readers and helpers for the
   `CharacterRecord.mechanics` dict (ability scores, AC, HP,
-  conditions, resources).
+  conditions, resources, and per-action attack lookups for the
+  combat resolver).
 * `app/schemas/dnd_cat_ii.py` and
   `app/schemas/dnd_character_snapshot.schema.json` — adapter schemas.
 
@@ -1034,27 +1050,64 @@ adjudication.
   reaction window is open.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
-  dice ledgers. These persist for rewind and audit and are not
-  appended to `session_conversation`.
+  dice ledgers. Each transaction is tagged
+  `source: Literal["cat_ii", "combat"]` so the same checkpoint shape
+  serves Cat II adjudication and combat turns. Combat transactions
+  also carry `actor_id`, `intention`, `context` (the LLM packet),
+  and `damage_records: list[CatIIRollDamageRecord]` for code-applied
+  HP changes. None of this is appended to `session_conversation`.
 
 ### 15.4 Prompt Files
 
 * `app/prompts/agent_ruleset_dnd5e.txt` — system-prompt addon spliced
   into character-agent calls when `ruleset_id == "dnd5e_basic"`. Adds
   combat-aware behavior on top of the rules-neutral `agent.txt`.
-* `app/prompts/dnd_cat_ii_router.txt` — separate router prompt for
-  D&D roll planning/finalization.
+* `app/prompts/dnd_cat_ii_router.txt` — Cat II-flavored router prompt
+  used by `DndCatIIResolver`. Two phases: PLAN_ROLLS emits a
+  `RollPlan`; FINALIZE_OUTCOME emits a `RulesAdjudication`.
+* `app/prompts/dnd_combat_router.txt` — per-turn combat router prompt
+  used by `DndCombatResolver`. Same two-phase shape and shared
+  `RollPlan` / `RulesAdjudication` schemas as the Cat II prompt, but
+  the user packet is the combat-state snapshot (round, current
+  combatant, all combatants with AC/HP/conditions, the actor's
+  available actions with `id`/`name`/`attack_bonus`/`damage`, and
+  the house rules) rather than a Cat II opening context.
 
 ### 15.5 Orchestrator Hooks
 
 Hooks in `Orchestrator.process_turn` and `run_beat`:
 
+* fresh `/act` from a combatant in active D&D combat routes via
+  `LLMDispatcher.route_combat_action` instead of the generic
+  `route_intention`. The check is
+  `_character_in_dnd_active_combat(ckpt, actor_id)` —
+  `ruleset_id == "dnd5e_basic"` AND the actor is listed in
+  `session.active_combat.combatants`. Combat-reaction `/act`s gated
+  by a `combat_reaction` slot follow the same fork after the slot
+  cleanup, so reactions get the same house rules and structured roll
+  planning as turns;
+* if the generic router emits Cat II for an actor in active combat
+  (prompt-drift safety net), the engine clamps it down to a single
+  Cat I-shaped beat with `ends_beat_reason="ruleset_cat_ii_suppressed"`
+  rather than opening a parallel responder flow against the
+  initiative ladder;
+* a high-priority direct observer of a closed combat beat
+  (`observation_level="d"`, `response_priority >= 5`) renders in the
+  same beat as the actor instead of waiting for their own turn, so
+  the target of an attack sees what just hit them;
 * a `(defer)` from a combatant with an open reaction window resolves
   as a reaction acknowledgement rather than a turn skip;
 * `_handle_combat_after_beat` advances initiative state after a beat
   closes;
 * `_run_automated_combat_turns_locked` drives NPC combatant turns
   inline before the player's response returns;
+* `Orchestrator.submit_cat_ii_roll` and
+  `Orchestrator.continue_cat_ii_after_roll` branch on
+  `roll_transaction_source(ckpt, event_id) == "combat"` to finalize
+  a combat transaction whose triggering event never lived in
+  `open_cat_ii_events`. The combat-resolution branch calls
+  `_resolve_ready_combat_after_rolls`, which routes through
+  `LLMDispatcher.continue_combat_transaction`;
 * off-stage ticks are suppressed while `reaction_prompts` is non-empty
   (combatants must answer their reaction window first).
 
