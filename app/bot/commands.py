@@ -411,6 +411,7 @@ async def _post_actor_render(
     intro_content: Optional[str] = None,
     session_id: str = "",
     turn_index: Optional[int] = None,
+    view: Optional[discord.ui.View] = None,
 ) -> tuple[str, Optional[discord.Thread]]:
     """Post the ACTOR's own beat privately: POV thread first, DM fallback,
     `("none", None)` if both fail (caller should then post publicly to
@@ -445,7 +446,11 @@ async def _post_actor_render(
 
     if thread is not None:
         try:
-            msg = await thread.send(content=intro_content, embeds=embeds)
+            msg = await thread.send(
+                content=intro_content,
+                embeds=embeds,
+                view=view,
+            )
             await _record_turn_message(
                 smap=smap,
                 session_channel_id=_session_channel_id(inter),
@@ -467,7 +472,11 @@ async def _post_actor_render(
             )
 
     try:
-        msg = await user.send(content=intro_content, embeds=embeds)
+        msg = await user.send(
+            content=intro_content,
+            embeds=embeds,
+            view=view,
+        )
         await _record_turn_message(
             smap=smap,
             session_channel_id=_session_channel_id(inter),
@@ -497,6 +506,7 @@ async def _post_to_pov(
     bot: "discord.Client",
     session_id: str = "",
     turn_index: Optional[int] = None,
+    view: Optional[discord.ui.View] = None,
 ) -> bool:
     """Post `text` to the user's POV thread in the channel where this
     interaction lives. Falls back to DM on any thread-related failure.
@@ -532,8 +542,11 @@ async def _post_to_pov(
 
     if thread is not None:
         try:
-            for chunk in chunks:
-                msg = await thread.send(chunk)
+            for idx, chunk in enumerate(chunks):
+                msg = await thread.send(
+                    chunk,
+                    view=view if idx == len(chunks) - 1 else None,
+                )
                 await _record_turn_message(
                     smap=smap,
                     session_channel_id=session_chan_id,
@@ -553,8 +566,11 @@ async def _post_to_pov(
             await smap.clear_pov_thread(session_chan_id, user_id)
 
     try:
-        for chunk in chunks:
-            msg = await user.send(chunk)
+        for idx, chunk in enumerate(chunks):
+            msg = await user.send(
+                chunk,
+                view=view if idx == len(chunks) - 1 else None,
+            )
             await _record_turn_message(
                 smap=smap,
                 session_channel_id=session_chan_id,
@@ -580,14 +596,16 @@ async def _send_public_turn_render(
     turn_index: int,
     content: Optional[str] = None,
     embeds: Optional[list[discord.Embed]] = None,
+    view: Optional[discord.ui.View] = None,
 ) -> None:
     channel = _session_text_channel(inter)
     if channel is not None:
-        msg = await channel.send(content=content, embeds=embeds)
+        msg = await channel.send(content=content, embeds=embeds, view=view)
     else:
         msg = await inter.followup.send(
             content=content,
             embeds=embeds,
+            view=view,
             wait=True,
         )
     await _record_turn_message(
@@ -711,6 +729,95 @@ class _PendingRollView(discord.ui.View):
             response=response,
             clear_interaction_response=False,
         )
+
+
+class _CombatReactionView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        engine: EngineBridge,
+        smap: SessionMap,
+        session_id: str,
+        character_id: str,
+        event_id: str,
+        user_id: int,
+        turn_index: int,
+    ):
+        super().__init__(timeout=24 * 60 * 60)
+        self.engine = engine
+        self.smap = smap
+        self.session_id = session_id
+        self.character_id = character_id
+        self.event_id = event_id
+        self.user_id = user_id
+        self.turn_index = turn_index
+        button = discord.ui.Button(
+            label="No reaction",
+            style=discord.ButtonStyle.secondary,
+            custom_id=(
+                f"ayoa:reaction:no:{session_id}:{character_id}:{event_id}"
+            )[:100],
+        )
+        button.callback = self._defer
+        self.add_item(button)
+
+    async def _defer(self, inter: discord.Interaction) -> None:
+        if inter.user.id != self.user_id:
+            await inter.response.send_message(
+                "That reaction belongs to another character.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            response = await self.engine.defer_combat_reaction(
+                session_id=self.session_id,
+                character_id=self.character_id,
+                event_id=self.event_id,
+                user_id=inter.user.id,
+            )
+        except Exception as e:
+            logger.exception("combat reaction defer failed")
+            await inter.response.send_message(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+
+        is_stale = response.beat_ended_reason == "combat_reaction_stale"
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = True
+                child.label = (
+                    "Reaction closed" if is_stale else "No reaction selected"
+                )
+        try:
+            await inter.response.edit_message(view=self)
+        except Exception:
+            logger.debug("combat reaction button edit failed", exc_info=True)
+            if not inter.response.is_done():
+                await inter.response.send_message(
+                    response.output_text or "No reaction recorded.",
+                    ephemeral=True,
+                )
+                return
+        if response.output_text and "Initiative advances" in response.output_text:
+            try:
+                await _send_public_turn_render(
+                    inter=inter,
+                    smap=self.smap,
+                    session_id=self.session_id,
+                    turn_index=response.turn_index or self.turn_index,
+                    content=response.output_text,
+                )
+                return
+            except Exception:
+                logger.debug(
+                    "combat reaction public handoff failed",
+                    exc_info=True,
+                )
+        if response.output_text:
+            await inter.followup.send(response.output_text, ephemeral=True)
 
 
 async def _post_roll_prompt_to_pov(
@@ -869,9 +976,11 @@ async def _deliver_turn_response_to_povs(
         skip_cid: str | None,
         turn_index: int,
         note_prefix: str = "",
+        reaction_prompts: dict[str, str] | None = None,
     ) -> list[str]:
         """Post each (cid, prose) to that user's POV thread or DM."""
         notified: list[str] = []
+        reaction_prompts = reaction_prompts or {}
         for cid, prose in renders.items():
             if cid == skip_cid or not prose:
                 continue
@@ -882,9 +991,28 @@ async def _deliver_turn_response_to_povs(
                 uid = int(uid_str)
             except ValueError:
                 continue
-            payload = f"{note_prefix}\n\n{prose}" if note_prefix else prose
+            event_id = reaction_prompts.get(cid, "")
+            reaction_note = (
+                "_You may use `/act` to spend your reaction now, or press "
+                "**No reaction** to pass._"
+                if event_id else ""
+            )
+            prefixes = [p for p in (note_prefix, reaction_note) if p]
+            payload = "\n\n".join([*prefixes, prose]) if prefixes else prose
             char = next((c for c in roster if c.character_id == cid), None)
             char_name = char.name if char else cid
+            view = (
+                _CombatReactionView(
+                    engine=engine,
+                    smap=smap,
+                    session_id=session_id,
+                    character_id=cid,
+                    event_id=event_id,
+                    user_id=uid,
+                    turn_index=turn_index,
+                )
+                if event_id else None
+            )
             ok = await _post_to_pov(
                 inter=inter,
                 smap=smap,
@@ -895,6 +1023,7 @@ async def _deliver_turn_response_to_povs(
                 bot=inter.client,
                 session_id=session_id,
                 turn_index=turn_index,
+                view=view,
             )
             if ok:
                 notified.append(char_name)
@@ -918,14 +1047,26 @@ async def _deliver_turn_response_to_povs(
     )
     actor_name = actor_char.name if actor_char else actor_character_id
     per_player = response.per_player_renders or {}
+    reaction_prompts = response.reaction_prompts or {}
 
     pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
-    if response.beat_ended_reason == "cat_ii_pending" or pending_rolls:
+    reaction_pending = response.beat_ended_reason == "combat_reaction_pending"
+    if (
+        response.beat_ended_reason == "cat_ii_pending"
+        or pending_rolls
+        or reaction_pending
+    ):
         actor_render = per_player.get(actor_character_id) or ""
         if pending_rolls:
             pause_note = (
                 "_Scene paused — waiting on D&D roll prompt(s). "
                 "The beat will continue after the required roll(s)._"
+            )
+        elif reaction_pending:
+            pause_note = (
+                "_Scene paused — waiting on possible reaction(s). "
+                "Prompted players can `/act` to react or press "
+                "**No reaction**._"
             )
         else:
             pause_note = (
@@ -948,6 +1089,18 @@ async def _deliver_turn_response_to_povs(
                 intro_content=pause_note,
                 session_id=session_id,
                 turn_index=response.turn_index,
+                view=(
+                    _CombatReactionView(
+                        engine=engine,
+                        smap=smap,
+                        session_id=session_id,
+                        character_id=actor_character_id,
+                        event_id=reaction_prompts[actor_character_id],
+                        user_id=actor_user.id,
+                        turn_index=response.turn_index,
+                    )
+                    if actor_character_id in reaction_prompts else None
+                ),
             )
             if venue == "thread" and thread is not None:
                 if clear_interaction_response:
@@ -963,6 +1116,18 @@ async def _deliver_turn_response_to_povs(
                     turn_index=response.turn_index,
                     content=pause_note,
                     embeds=embeds,
+                    view=(
+                        _CombatReactionView(
+                            engine=engine,
+                            smap=smap,
+                            session_id=session_id,
+                            character_id=actor_character_id,
+                            event_id=reaction_prompts[actor_character_id],
+                            user_id=actor_user.id,
+                            turn_index=response.turn_index,
+                        )
+                        if actor_character_id in reaction_prompts else None
+                    ),
                 )
         else:
             await inter.followup.send(content=pause_note, ephemeral=True)
@@ -986,6 +1151,18 @@ async def _deliver_turn_response_to_povs(
             embeds=embeds,
             session_id=session_id,
             turn_index=response.turn_index,
+            view=(
+                _CombatReactionView(
+                    engine=engine,
+                    smap=smap,
+                    session_id=session_id,
+                    character_id=actor_character_id,
+                    event_id=reaction_prompts[actor_character_id],
+                    user_id=actor_user.id,
+                    turn_index=response.turn_index,
+                )
+                if actor_character_id in reaction_prompts else None
+            ),
         )
         if venue == "thread" and thread is not None:
             if clear_interaction_response:
@@ -1000,12 +1177,25 @@ async def _deliver_turn_response_to_povs(
                 session_id=session_id,
                 turn_index=response.turn_index,
                 embeds=embeds,
+                view=(
+                    _CombatReactionView(
+                        engine=engine,
+                        smap=smap,
+                        session_id=session_id,
+                        character_id=actor_character_id,
+                        event_id=reaction_prompts[actor_character_id],
+                        user_id=actor_user.id,
+                        turn_index=response.turn_index,
+                    )
+                    if actor_character_id in reaction_prompts else None
+                ),
             )
 
     if per_player:
         notified_names = await _dm_per_pov(
             per_player, skip_cid=actor_character_id,
             turn_index=response.turn_index,
+            reaction_prompts=reaction_prompts,
         )
         if notified_names:
             try:
@@ -3926,8 +4116,58 @@ def register(
         guild=guild,
     )
     async def _defer(inter: discord.Interaction):
-        # Reuse /act so null turns get identical binding, locking, render,
-        # and fan-out behavior.
+        row = await smap.get(_session_channel_id(inter))
+        if row is not None:
+            binding = engine.get_user_binding(row.session_id, inter.user.id)
+            if binding is not None:
+                try:
+                    event_id = engine.combat_reaction_prompt_event(
+                        row.session_id, binding,
+                    )
+                except Exception:
+                    logger.exception("/defer reaction lookup failed")
+                    event_id = ""
+                if event_id:
+                    await inter.response.defer(thinking=True, ephemeral=True)
+                    try:
+                        response = await engine.defer_combat_reaction(
+                            session_id=row.session_id,
+                            character_id=binding,
+                            event_id=event_id,
+                            user_id=inter.user.id,
+                        )
+                    except Exception as e:
+                        logger.exception("/defer combat reaction failed")
+                        await inter.followup.send(
+                            embed=render_error(f"`{type(e).__name__}: {e}`"),
+                            ephemeral=True,
+                        )
+                        return
+                    if (
+                        response.output_text
+                        and "Initiative advances" in response.output_text
+                    ):
+                        try:
+                            await _send_public_turn_render(
+                                inter=inter,
+                                smap=smap,
+                                session_id=row.session_id,
+                                turn_index=response.turn_index,
+                                content=response.output_text,
+                            )
+                            return
+                        except Exception:
+                            logger.debug(
+                                "/defer public combat handoff failed",
+                                exc_info=True,
+                            )
+                    await inter.followup.send(
+                        response.output_text or "No reaction recorded.",
+                        ephemeral=True,
+                    )
+                    return
+        # Reuse /act for ordinary null turns so they get identical binding,
+        # locking, render, and fan-out behavior.
         await _act.callback(inter, "(defer)")
 
     # ---- /query -------------------------------------------------------------

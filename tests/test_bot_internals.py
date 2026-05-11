@@ -286,6 +286,62 @@ class TestTurnResponseDelivery:
         public_fallback.assert_not_awaited()
         inter.followup.send.assert_not_awaited()
 
+    def test_reaction_prompt_attaches_no_reaction_view(self, monkeypatch):
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0004",
+            turn_index=4,
+            output_text="Bob can react.",
+            per_player_renders={"bob": "Bob can react."},
+            beat_ended_reason="combat_reaction_pending",
+            reaction_prompts={"bob": "evt_react"},
+        )
+
+        engine = MagicMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"bob": "42"}),
+            characters=[SimpleNamespace(character_id="bob", name="Bob")],
+        )
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        smap = MagicMock()
+        captured = {}
+        thread = MagicMock()
+        thread.id = 999
+
+        async def _fake_post_actor_render(**kwargs):
+            captured.update(kwargs)
+            return ("thread", thread)
+
+        monkeypatch.setattr(
+            bot_commands, "_post_actor_render", _fake_post_actor_render,
+        )
+        monkeypatch.setattr(
+            bot_commands, "_clear_interaction_response", AsyncMock(),
+        )
+
+        asyncio.run(bot_commands._deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id="s",
+            story_id="story",
+            actor_character_id="bob",
+            actor_user=inter.user,
+            response=response,
+        ))
+
+        assert isinstance(captured["view"], bot_commands._CombatReactionView)
+        assert captured["view"].character_id == "bob"
+        assert captured["view"].event_id == "evt_react"
+
 
 class TestImportAnalysisCallback:
     """EngineBridge.import_story fires on_analysis_complete with

@@ -14,7 +14,7 @@ from app.engine.dnd_combat import (
     start_combat,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
-from app.schemas.state import SessionState
+from app.schemas.state import SessionState, SlotEntry
 
 
 def _character(
@@ -102,10 +102,13 @@ def test_turn_advancement_skips_defeated_and_removed_and_wraps_round(monkeypatch
     )
     assert [c.combatant_id for c in combat.combatants] == ["alice", "bob", "pip"]
 
+    combat.combatants[0].reaction_available = False
     apply_damage(session, "bob", 99)
     remove_combatant(session, "pip")
 
-    assert advance_turn(session).combatant_id == "alice"
+    advanced = advance_turn(session)
+    assert advanced.combatant_id == "alice"
+    assert advanced.reaction_available is True
     assert combat.round_number == 2
 
 
@@ -240,10 +243,17 @@ def test_lifecycle_and_roster_validation(monkeypatch):
     combat = start_combat(session, [_character("alice", "Alice")])
     with pytest.raises(ValueError, match="already active"):
         start_combat(session, [_character("bob", "Bob")])
+    combat.pending_advance_actor_id = "alice"
+    session.active_act_slots["alice"] = SlotEntry(
+        reason="combat_reaction",
+        trigger_event_id="evt_react",
+    )
 
     ended = end_combat(session)
     assert ended is combat
     assert ended.status == "ended"
+    assert ended.pending_advance_actor_id == ""
     assert session.active_combat is None
+    assert session.active_act_slots == {}
     with pytest.raises(ValueError, match="not active"):
         current_combatant(session)

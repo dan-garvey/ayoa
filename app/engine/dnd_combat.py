@@ -45,6 +45,11 @@ def end_combat(session: SessionState) -> DndCombatState:
     combat = _require_combat(session)
     combat.status = "ended"
     combat.ended_at_turn_index = session.turn_index
+    combat.pending_advance_actor_id = ""
+    session.active_act_slots = {
+        cid: slot for cid, slot in session.active_act_slots.items()
+        if slot.reason != "combat_reaction"
+    }
     session.active_combat = None
     return combat
 
@@ -316,8 +321,13 @@ def _move_to_next_available(
             combat.round_number += 1
         if _available(combat.combatants[index]):
             combat.turn_index = index
+            _begin_turn(combat.combatants[index])
             return
     combat.turn_index = _clamp_turn_index(combat, combat.turn_index)
+
+
+def _begin_turn(combatant: DndCombatantState) -> None:
+    combatant.reaction_available = True
 
 
 def _has_available_combatants(combat: DndCombatState) -> bool:
@@ -382,6 +392,7 @@ def _private_combatant(combatant: DndCombatantState) -> dict[str, Any]:
             "order": combatant.initiative_order,
         },
         "conditions": list(combatant.conditions),
+        "reaction_available": combatant.reaction_available,
         "notes": combatant.notes,
     })
     return data

@@ -19,10 +19,14 @@ class SlotEntry(BaseModel):
     entries (multi-character Cat II). The reason determines what /act
     from that user is allowed to do.
     """
-    reason: str  # "initiator" | "cat_ii_responder" | "cat_ii_roll"
+    reason: str  # "initiator" | "cat_ii_responder" | "cat_ii_roll" | "combat_reaction"
     # When reason is tied to an open Cat II event, the open-event id this
     # slot is pinned to. None for initiator entries.
     cat_ii_event_id: str | None = None
+    # Neutral trigger link for slots that are tied to a closed canonical
+    # event rather than an open Cat II event. Currently used by D&D combat
+    # reaction prompts.
+    trigger_event_id: str | None = None
     # ISO-8601 timestamp of when the slot was claimed. Used for debug and
     # for a future "stale slot" cleanup pass.
     claimed_at: str = ""
@@ -129,6 +133,7 @@ class DndCombatantState(BaseModel):
     initiative_total: int = 0
     initiative_detail: str = ""
     initiative_order: int = 0
+    reaction_available: bool = True
     conditions: list[str] = Field(default_factory=list)
     defeated: bool = False
     removed: bool = False
@@ -146,6 +151,9 @@ class DndCombatState(BaseModel):
     audit_lines: list[str] = Field(default_factory=list)
     started_at_turn_index: int = 0
     ended_at_turn_index: int | None = None
+    # When a combatant's completed turn opens reaction prompts, initiative
+    # advancement is delayed until those runtime slots clear.
+    pending_advance_actor_id: str = ""
 
 
 class RenderBufferEntry(BaseModel):

@@ -31,6 +31,8 @@ Commands inside the REPL:
     /as <character_id>          Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
     /defer                      Submit no action and let the scene continue
+    /roll [roll_id|all]         Roll pending D&D player check(s)
+    /combat status              Show active D&D combat order and HP
     /query <question>           Ask an out-of-character question (POV-bounded)
     /rewind [<N>]               List or rewind to a turn checkpoint
     /settings                   Show / update experimental settings
@@ -56,7 +58,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
-from app.bot.engine_bridge import EngineBridge
+from app.bot.engine_bridge import (
+    CompletedPendingRoll,
+    DndCombatView,
+    EngineBridge,
+    PendingRollPrompt,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -79,6 +86,15 @@ Commands:
   /as <character_id>                Switch which claimed character acts next
   /describe                         Set name + appearance of the current actor
   /defer                            Submit no action and let the scene continue
+  /roll [roll_id|all]               Roll pending D&D player check(s)
+  /combat begin [id,id...]          Begin D&D combat
+  /combat status                    Show active D&D combat order and HP
+  /combat next                      Advance D&D combat to the next turn
+  /combat end                       End active D&D combat
+  /combat damage <id> <amount>      Apply damage to a combat participant
+  /combat heal <id> <amount>        Apply healing to a combat participant
+  /combat add <id>                  Add a character to active combat
+  /combat remove <id> [hard]        Remove a combat participant
   /query <question>                 Ask an out-of-character question (POV-bounded)
   /rewind                           List available turn checkpoints
   /rewind <N>                       Rewind to ckpt_N (deletes ckpt_>N — no undo)
@@ -92,6 +108,88 @@ Commands:
 Plain text is an in-character action for the current actor. Use "(begin)"
 to open the story — the router composes the opening from world_state +
 the initial roster on the fly."""
+
+
+def _roll_result_line(result: CompletedPendingRoll) -> str:
+    crit_note = ""
+    if result.crit == "crit":
+        crit_note = " Critical success."
+    elif result.crit == "fail":
+        crit_note = " Natural 1."
+    detail = result.detail or f"{result.expression} = `{result.total}`"
+    return f"Rolled {result.label}: {detail}.{crit_note}"
+
+
+def _print_roll_prompts(prompts: list[PendingRollPrompt]) -> None:
+    if not prompts:
+        return
+    print()
+    print("--- Pending D&D Rolls ---")
+    for prompt in prompts:
+        reason = f" — {prompt.reason}" if prompt.reason else ""
+        print(f"  {prompt.roll_id}: {prompt.label}{reason}")
+    if len(prompts) == 1:
+        print("Use /roll to roll it, or /roll <roll_id>.")
+    else:
+        print("Use /roll <roll_id> for one roll, or /roll all.")
+    print()
+
+
+def _print_combat_status(view: DndCombatView) -> None:
+    print()
+    print("--- Combat ---")
+    if not view.active:
+        print(view.message or "No active combat.")
+        print()
+        return
+
+    if view.round_number:
+        header = f"Round {view.round_number}"
+        if view.turn_number:
+            header += f" · Turn {view.turn_number}"
+        print(header)
+    if view.message:
+        print(view.message)
+
+    current_id = view.current_participant_id
+    if not view.participants:
+        print("(no participants)")
+        print()
+        return
+
+    for participant in view.participants:
+        marker = ">" if (
+            participant.current or participant.character_id == current_id
+        ) else "-"
+        bits: list[str] = []
+        if participant.hp_current is not None:
+            hp_text = str(participant.hp_current)
+            if participant.hp_max is not None:
+                hp_text += f"/{participant.hp_max}"
+            if participant.hp_temporary:
+                hp_text += f" (+{participant.hp_temporary})"
+            bits.append(f"HP {hp_text}")
+        if participant.armor_class is not None:
+            bits.append(f"AC {participant.armor_class}")
+        if participant.initiative is not None:
+            bits.append(f"Init {participant.initiative}")
+        if participant.conditions:
+            bits.append(", ".join(participant.conditions))
+        suffix = f" - {'; '.join(bits)}" if bits else ""
+        print(
+            f"{marker} {participant.name} "
+            f"({participant.character_id}){suffix}"
+        )
+    print()
+
+
+def _split_combat_ids(arg: str) -> list[str]:
+    return [
+        part.strip()
+        for chunk in arg.split()
+        for part in chunk.split(",")
+        if part.strip()
+    ]
 
 
 class CLIState:
@@ -407,6 +505,7 @@ class CLIState:
         for char_id, uid in self.claims.items():
             marker = "  ← acting" if char_id == self.current_actor else ""
             print(f"  - {char_id} (uid {uid}){marker}")
+        self._print_open_reaction_slots()
 
     def cmd_join(self, arg: str) -> None:
         if not self._require_story():
@@ -719,6 +818,227 @@ class CLIState:
         print(result.answer or "(no answer)")
         print()
 
+    def cmd_combat(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        parts = arg.split(maxsplit=1) if arg.strip() else []
+        if not parts:
+            print(
+                "usage: /combat "
+                "[begin|status|next|end|damage|heal|add|remove] ..."
+            )
+            return
+        sub = parts[0].lower()
+        rest = parts[1] if len(parts) > 1 else ""
+        handler = getattr(self, f"cmd_combat_{sub}", None)
+        if handler is None:
+            print(f"unknown combat subcommand: {sub}")
+            return
+        handler(rest)
+
+    def cmd_combat_begin(self, arg: str) -> None:
+        participant_ids = _split_combat_ids(arg) or None
+        try:
+            view = self.engine.begin_combat(self.session_id, participant_ids)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat begin failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_status(self, arg: str) -> None:
+        try:
+            view = self.engine.combat_status(self.session_id, private=True)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat status failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_next(self, arg: str) -> None:
+        try:
+            view = self.engine.combat_next(self.session_id)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat next failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_end(self, arg: str) -> None:
+        try:
+            view = self.engine.combat_end(self.session_id)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat end failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_damage(self, arg: str) -> None:
+        parts = arg.split()
+        if len(parts) != 2:
+            print("usage: /combat damage <combatant_id> <amount>")
+            return
+        try:
+            amount = int(parts[1])
+            view = self.engine.combat_damage(self.session_id, parts[0], amount)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat damage failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_heal(self, arg: str) -> None:
+        parts = arg.split()
+        if len(parts) != 2:
+            print("usage: /combat heal <combatant_id> <amount>")
+            return
+        try:
+            amount = int(parts[1])
+            view = self.engine.combat_heal(self.session_id, parts[0], amount)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat heal failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_add(self, arg: str) -> None:
+        character_id = arg.strip()
+        if not character_id:
+            print("usage: /combat add <character_id>")
+            return
+        try:
+            view = self.engine.combat_add(self.session_id, character_id)
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat add failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    def cmd_combat_remove(self, arg: str) -> None:
+        parts = arg.split()
+        if not parts:
+            print("usage: /combat remove <combatant_id> [hard]")
+            return
+        hard = len(parts) > 1 and parts[1].lower() == "hard"
+        try:
+            view = self.engine.combat_remove(
+                self.session_id,
+                parts[0],
+                hard=hard,
+            )
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("combat remove failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_combat_status(view)
+        self._sync_current_actor_to_combat_view(view)
+
+    async def cmd_roll(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(self.current_actor)
+        if uid is None:
+            print(f"not claimed: {self.current_actor}")
+            return
+
+        prompts = self.engine.pending_roll_prompts(
+            self.session_id,
+            user_id=uid,
+        )
+        if not prompts:
+            print("no pending D&D roll for the current actor")
+            return
+
+        requested = arg.strip()
+        if not requested:
+            if len(prompts) == 1:
+                selected = [prompts[0]]
+            else:
+                _print_roll_prompts(prompts)
+                return
+        elif requested.lower() == "all":
+            selected = prompts
+        else:
+            chosen = next((p for p in prompts if p.roll_id == requested), None)
+            if chosen is None:
+                print(f"no pending roll id for {self.current_actor}: {requested}")
+                _print_roll_prompts(prompts)
+                return
+            selected = [chosen]
+
+        continued_events: set[str] = set()
+        for prompt in selected:
+            try:
+                result = await self.engine.complete_pending_roll(
+                    session_id=self.session_id,
+                    event_id=prompt.event_id,
+                    roll_id=prompt.roll_id,
+                    user_id=uid,
+                )
+            except Exception as e:
+                logger.exception("pending roll failed")
+                print(f"error: {type(e).__name__}: {e}")
+                return
+            print(_roll_result_line(result))
+
+            if result.remaining_pending_rolls > 0:
+                continue
+            if result.event_id in continued_events:
+                continue
+            continued_events.add(result.event_id)
+            print("Interpreting the outcome...")
+            try:
+                response = await self.engine.continue_pending_roll(
+                    session_id=self.session_id,
+                    event_id=result.event_id,
+                    actor_id=result.actor_id,
+                )
+            except Exception as e:
+                logger.exception("pending roll continuation failed")
+                print(f"error: {type(e).__name__}: {e}")
+                return
+            self._print_turn_response(response, actor_id=result.actor_id)
+
+        remaining = self.engine.pending_roll_prompts(
+            self.session_id,
+            user_id=uid,
+        )
+        _print_roll_prompts(remaining)
+
     async def cmd_rewind(self, arg: str) -> None:
         """Rewind the session to an earlier checkpoint.
 
@@ -880,6 +1200,33 @@ class CLIState:
     # ---- action pipeline -----------------------------------------------------
 
     async def cmd_defer(self, arg: str) -> None:
+        if self.story_id and self.current_actor is not None:
+            event_id = ""
+            try:
+                event_id = self.engine.combat_reaction_prompt_event(
+                    self.session_id,
+                    self.current_actor,
+                )
+            except Exception:
+                logger.exception("combat reaction lookup failed")
+            if event_id:
+                uid = self.claims.get(self.current_actor)
+                try:
+                    response = await self.engine.defer_combat_reaction(
+                        session_id=self.session_id,
+                        character_id=self.current_actor,
+                        event_id=event_id,
+                        user_id=uid,
+                    )
+                except Exception as e:
+                    logger.exception("combat reaction defer failed")
+                    print(f"error: {type(e).__name__}: {e}")
+                    return
+                self._print_turn_response(
+                    response,
+                    actor_id=self.current_actor,
+                )
+                return
         await self._act("(defer)")
 
     async def _act(self, text: str) -> None:
@@ -899,12 +1246,21 @@ class CLIState:
             print(f"error: {type(e).__name__}: {e}")
             return
 
+        self._print_turn_response(response, actor_id=self.current_actor)
+
+    def _print_turn_response(
+        self,
+        response,
+        *,
+        actor_id: str,
+    ) -> None:
         # v11-r6b/r7a: mirror the Discord bot's /act branching so the
         # CLI playtest path surfaces paused beats and slot rejections
         # with targeted messages, AND prints the PARTIAL cliffhanger
         # render when one is available (cat_ii_pending).
         if response.beat_ended_reason == "slot_rejected":
             print(response.output_text)
+            self._sync_current_actor_to_active_combat()
             return
 
         # Print pre-turn AFK-sweep resolutions first so in-CLI ordering
@@ -920,7 +1276,7 @@ class CLIState:
         per_player = response.per_player_renders or {}
 
         if response.beat_ended_reason == "cat_ii_pending":
-            actor_render = per_player.get(self.current_actor) or ""
+            actor_render = per_player.get(actor_id) or ""
             print()
             print(
                 "(beat paused — another player is resolving a contested "
@@ -929,12 +1285,12 @@ class CLIState:
             if actor_render:
                 print()
                 print(f"--- Turn {response.turn_index} · "
-                      f"{self.current_actor} (partial) ---")
+                      f"{actor_id} (partial) ---")
                 print(actor_render)
             print()
         else:
             print()
-            print(f"--- Turn {response.turn_index} · {self.current_actor} ---")
+            print(f"--- Turn {response.turn_index} · {actor_id} ---")
             print(response.output_text)
             print()
 
@@ -943,11 +1299,77 @@ class CLIState:
         # without spinning up Discord.
         joined = set(self.claims or {})
         for cid, prose in per_player.items():
-            if cid == self.current_actor or not prose or cid not in joined:
+            if cid == actor_id or not prose or cid not in joined:
                 continue
             print(f"--- POV · {cid} ---")
             print(prose)
             print()
+
+        if response.beat_ended_reason == "cat_ii_pending_rolls":
+            uid = self.claims.get(actor_id)
+            prompts = (
+                self.engine.pending_roll_prompts(
+                    self.session_id,
+                    user_id=uid,
+                )
+                if uid is not None else []
+            )
+            _print_roll_prompts(prompts)
+
+        self._print_reaction_prompts(response)
+        self._sync_current_actor_to_active_combat()
+
+    def _print_reaction_prompts(self, response) -> None:
+        prompts = getattr(response, "reaction_prompts", None) or {}
+        for cid, event_id in prompts.items():
+            if cid not in self.claims:
+                continue
+            print(f"--- Reaction Available · {cid} ---")
+            print(
+                f"event {event_id}; /as {cid}, then type a reaction "
+                "or use /defer to pass"
+            )
+            print()
+
+    def _print_open_reaction_slots(self) -> None:
+        if not self.claims:
+            return
+        ckpt = self.engine.load_latest(self.session_id)
+        open_slots: list[tuple[str, str]] = []
+        for cid in self.claims:
+            slot = ckpt.session.active_act_slots.get(cid)
+            if slot is None or slot.reason != "combat_reaction":
+                continue
+            open_slots.append(
+                (cid, slot.trigger_event_id or slot.cat_ii_event_id)
+            )
+        if not open_slots:
+            return
+        print("reactions:")
+        for cid, event_id in open_slots:
+            marker = "  ← acting" if cid == self.current_actor else ""
+            print(f"  - {cid}: {event_id or '(event unknown)'}{marker}")
+
+    def _sync_current_actor_to_active_combat(self) -> None:
+        if not self.story_id or not self.claims:
+            return
+        try:
+            view = self.engine.combat_status(self.session_id, private=True)
+        except Exception:
+            logger.debug("combat current actor sync failed", exc_info=True)
+            return
+        self._sync_current_actor_to_combat_view(view)
+
+    def _sync_current_actor_to_combat_view(self, view: DndCombatView) -> None:
+        if not view.active:
+            return
+        current_id = view.current_participant_id
+        if not current_id or current_id not in self.claims:
+            return
+        if current_id == self.current_actor:
+            return
+        self.current_actor = current_id
+        print(f"now acting as {current_id} (current initiative)")
 
 
 # ---- bootstrap --------------------------------------------------------------

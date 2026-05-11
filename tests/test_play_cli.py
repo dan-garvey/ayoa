@@ -14,8 +14,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from scripts.play import CLIState
-from app.bot.engine_bridge import CharacterSummary
+from app.bot.engine_bridge import (
+    CharacterSummary,
+    CompletedPendingRoll,
+    DndCombatParticipantView,
+    DndCombatView,
+    PendingRollPrompt,
+)
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.state import SessionState, WorldState
 
 
@@ -33,6 +40,27 @@ def _empty_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
         world_state=WorldState(),
         characters=[],
     )
+
+
+def _narrated_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
+    ckpt = _empty_ckpt(bindings)
+    ckpt.narrator_conversations["aldric"] = [
+        ConversationMessage(role="assistant", content="Previously...")
+    ]
+    return ckpt
+
+
+def _turn_response(**overrides):
+    base = {
+        "beat_ended_reason": "cascade_exhausted",
+        "turn_index": 2,
+        "output_text": "narration",
+        "pre_turn_resolutions": [],
+        "per_player_renders": {},
+        "reaction_prompts": {},
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
 
 
 def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
@@ -57,6 +85,50 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
     engine.set_character_identity = MagicMock(return_value=_empty_ckpt(bindings))
     engine.run_turn = AsyncMock()
+    engine.combat_reaction_prompt_event = MagicMock(return_value="")
+    engine.pending_roll_prompts = MagicMock(return_value=[])
+    engine.complete_pending_roll = AsyncMock()
+    engine.continue_pending_roll = AsyncMock()
+    engine.begin_combat = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_status = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_next = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_end = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_damage = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_heal = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_add = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
+    engine.combat_remove = MagicMock(return_value=DndCombatView(
+        session_id=SESSION_ID,
+        active=False,
+        message="No active combat.",
+    ))
     return engine
 
 
@@ -152,12 +224,10 @@ class TestAs:
 class TestDeferCommand:
     def test_defer_submits_null_turn_for_current_actor(self, run):
         engine = _mock_engine()
-        engine.run_turn = AsyncMock(return_value=SimpleNamespace(
+        engine.run_turn = AsyncMock(return_value=_turn_response(
             beat_ended_reason="state_change",
             turn_index=3,
             output_text="",
-            pre_turn_resolutions=[],
-            per_player_renders={},
         ))
 
         state = CLIState(engine, SESSION_ID, STORY_ID)
@@ -170,15 +240,214 @@ class TestDeferCommand:
             acting_character_id="aldric",
         )
 
+    def test_defer_uses_reaction_endpoint_when_actor_has_reaction(self, run):
+        engine = _mock_engine()
+        engine.combat_reaction_prompt_event.return_value = "evt_react"
+        engine.defer_combat_reaction = AsyncMock(return_value=_turn_response(
+            output_text="Seren passes on the reaction.",
+        ))
 
-@pytest.mark.skip(reason="v11: legacy v8 pipeline path; re-port against run_beat.")
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/defer"))
+
+        engine.defer_combat_reaction.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            character_id="aldric",
+            event_id="evt_react",
+            user_id=1,
+        )
+        engine.run_turn.assert_not_awaited()
+
+
+class TestCombatCommand:
+    def test_combat_status_renders_order(self, run, capsys):
+        engine = _mock_engine()
+        engine.combat_status.return_value = DndCombatView(
+            session_id=SESSION_ID,
+            active=True,
+            round_number=2,
+            turn_number=3,
+            current_participant_id="sera",
+            participants=(
+                DndCombatParticipantView(
+                    character_id="aldric",
+                    name="Aldric",
+                    initiative=15,
+                    hp_current=12,
+                    hp_max=20,
+                    armor_class=14,
+                ),
+                DndCombatParticipantView(
+                    character_id="sera",
+                    name="Sera",
+                    current=True,
+                    initiative=18,
+                    hp_current=7,
+                    hp_max=9,
+                    hp_temporary=2,
+                    armor_class=16,
+                ),
+            ),
+        )
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/combat status"))
+
+        engine.combat_status.assert_called_once_with(SESSION_ID, private=True)
+        out = capsys.readouterr().out
+        assert "Round 2 · Turn 3" in out
+        assert "> Sera (sera) - HP 7/9 (+2); AC 16; Init 18" in out
+
+    def test_combat_damage_parses_amount(self, run):
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/combat damage sera 5"))
+
+        engine.combat_damage.assert_called_once_with(SESSION_ID, "sera", 5)
+
+    def test_turn_result_syncs_prompt_to_claimed_current_initiative(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            output_text="Aldric acts.",
+        ))
+        engine.combat_status.return_value = DndCombatView(
+            session_id=SESSION_ID,
+            active=True,
+            round_number=1,
+            turn_number=2,
+            current_participant_id="sera",
+            participants=(
+                DndCombatParticipantView(
+                    character_id="aldric",
+                    name="Aldric",
+                ),
+                DndCombatParticipantView(
+                    character_id="sera",
+                    name="Sera",
+                    current=True,
+                ),
+            ),
+        )
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/join sera"))
+        run(state.handle_line("I attack."))
+
+        assert state.current_actor == "sera"
+        assert "now acting as sera (current initiative)" in capsys.readouterr().out
+
+
+class TestRollCommand:
+    def test_act_surfaces_pending_rolls(self, run, capsys):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="cat_ii_pending_rolls",
+            output_text="Ash's blade flashes toward the captain.",
+        ))
+        engine.pending_roll_prompts.return_value = [
+            PendingRollPrompt(
+                session_id=SESSION_ID,
+                event_id="evt_1",
+                roll_id="roll_attack",
+                actor_id="aldric",
+                user_id="1",
+                label="Attack",
+                reason="A blade strike.",
+            ),
+        ]
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("I attack."))
+
+        out = capsys.readouterr().out
+        assert "--- Pending D&D Rolls ---" in out
+        assert "roll_attack: Attack" in out
+        assert "Use /roll" in out
+
+    def test_roll_all_completes_rolls_then_continues(self, run, capsys):
+        engine = _mock_engine()
+        prompts = [
+            PendingRollPrompt(
+                session_id=SESSION_ID,
+                event_id="evt_1",
+                roll_id="roll_attack",
+                actor_id="aldric",
+                user_id="1",
+                label="Attack",
+                reason="A blade strike.",
+            ),
+            PendingRollPrompt(
+                session_id=SESSION_ID,
+                event_id="evt_1",
+                roll_id="roll_acrobatics",
+                actor_id="aldric",
+                user_id="1",
+                label="Acrobatics",
+                reason="Keep footing.",
+            ),
+        ]
+        engine.pending_roll_prompts.side_effect = [prompts, []]
+        engine.complete_pending_roll.side_effect = [
+            CompletedPendingRoll(
+                session_id=SESSION_ID,
+                event_id="evt_1",
+                roll_id="roll_attack",
+                actor_id="aldric",
+                user_id="1",
+                label="Attack",
+                reason="A blade strike.",
+                expression="1d20+5",
+                total=12,
+                detail="1d20 (7) + 5 = `12`",
+                crit="none",
+                remaining_pending_rolls=1,
+            ),
+            CompletedPendingRoll(
+                session_id=SESSION_ID,
+                event_id="evt_1",
+                roll_id="roll_acrobatics",
+                actor_id="aldric",
+                user_id="1",
+                label="Acrobatics",
+                reason="Keep footing.",
+                expression="1d20+7",
+                total=23,
+                detail="1d20 (16) + 7 = `23`",
+                crit="none",
+                remaining_pending_rolls=0,
+            ),
+        ]
+        engine.continue_pending_roll.return_value = _turn_response(
+            turn_index=4,
+            output_text="Ash keeps his footing.",
+        )
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/roll all"))
+
+        assert engine.complete_pending_roll.await_count == 2
+        engine.continue_pending_roll.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            event_id="evt_1",
+            actor_id="aldric",
+        )
+        out = capsys.readouterr().out
+        assert "Rolled Attack:" in out
+        assert "Rolled Acrobatics:" in out
+        assert "Ash keeps his footing." in out
+
+
 class TestActingDescribe:
     def test_plain_text_acts_as_current(self, run):
         engine = _mock_engine()
-        response = MagicMock()
-        response.turn_index = 2
-        response.output_text = "narration"
-        engine.run_turn = AsyncMock(return_value=response)
+        engine.run_turn = AsyncMock(return_value=_turn_response())
 
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join aldric"))
@@ -200,6 +469,9 @@ class TestActingDescribe:
         run(state.handle_line("/join aldric"))
         # /describe is now interactive (two prompts). Stub the input
         # path so the test doesn't hang on stdin.
+        engine.set_character_identity.return_value = _narrated_ckpt(
+            {"aldric": "1"}
+        )
         inputs = iter(["Aldric", "tall and weary"])
         monkeypatch.setattr(
             "builtins.input", lambda prompt="": next(inputs),
@@ -211,10 +483,10 @@ class TestActingDescribe:
 
     def test_describe_preplay_auto_begins(self, run, monkeypatch):
         engine = _mock_engine()
-        response = MagicMock()
-        response.turn_index = 1
-        response.output_text = "opening narration"
-        engine.run_turn = AsyncMock(return_value=response)
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            turn_index=1,
+            output_text="opening narration",
+        ))
 
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join aldric"))

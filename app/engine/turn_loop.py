@@ -59,7 +59,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Protocol
 
 
 def _utcnow_iso() -> str:
@@ -212,6 +212,11 @@ class SlotConflict(Enum):
     # This user owes a player-facing dice roll for a D&D Cat II event.
     # /act is rejected; the Discord roll UI must submit the stored roll.
     CAT_II_SELF_ROLL = "cat_ii_self_roll"
+    # This user is holding an out-of-turn combat reaction window. Their
+    # next /act is accepted as that reaction.
+    COMBAT_REACTION_SELF = "combat_reaction_self"
+    # A combat reaction prompt is pending on another player.
+    COMBAT_REACTION_OTHER_HELD = "combat_reaction_other_held"
     # This user already holds the initiator slot — their previous /act
     # is still mid-beat.
     SELF_BUSY = "self_busy"
@@ -234,6 +239,9 @@ class SlotCheck:
     holder_id: str = ""
     # For CAT_II_SELF_RESPONDER, the open event id this /act fills.
     cat_ii_event_id: str | None = None
+    # For COMBAT_REACTION_SELF, the closed canonical event id this /act
+    # reacts to.
+    trigger_event_id: str | None = None
 
 
 def check_act_slot(
@@ -245,6 +253,15 @@ def check_act_slot(
     Returns a SlotCheck indicating whether to accept, reject, or
     interpret-as-Cat-II-response.
     """
+    if _active_combat(ckpt) is None and any(
+        entry.reason == "combat_reaction"
+        for entry in ckpt.session.active_act_slots.values()
+    ):
+        ckpt.session.active_act_slots = {
+            cid: entry
+            for cid, entry in ckpt.session.active_act_slots.items()
+            if entry.reason != "combat_reaction"
+        }
     slot = ckpt.session.active_act_slots
     if not slot:
         return SlotCheck(conflict=SlotConflict.FREE)
@@ -266,6 +283,14 @@ def check_act_slot(
             cat_ii_event_id=my_entry.cat_ii_event_id,
         )
 
+    if my_entry and my_entry.reason == "combat_reaction":
+        return SlotCheck(
+            conflict=SlotConflict.COMBAT_REACTION_SELF,
+            holder_id=acting_character_id,
+            trigger_event_id=my_entry.trigger_event_id
+                or my_entry.cat_ii_event_id,
+        )
+
     # If this character holds the initiator slot, they're double-acting.
     if my_entry and my_entry.reason == "initiator":
         return SlotCheck(
@@ -281,6 +306,14 @@ def check_act_slot(
             return SlotCheck(
                 conflict=SlotConflict.CAT_II_OTHER_HELD,
                 holder_id=holder_id,
+            )
+    for holder_id, entry in slot.items():
+        if entry.reason == "combat_reaction":
+            return SlotCheck(
+                conflict=SlotConflict.COMBAT_REACTION_OTHER_HELD,
+                holder_id=holder_id,
+                trigger_event_id=entry.trigger_event_id
+                    or entry.cat_ii_event_id,
             )
     for holder_id, entry in slot.items():
         if entry.reason == "initiator":
@@ -319,6 +352,27 @@ def pin_cat_ii_responder(
     )
 
 
+def pin_combat_reaction(
+    ckpt: CheckpointFile,
+    character_id: str,
+    trigger_event_id: str,
+) -> bool:
+    """Pin a human for a possible D&D combat reaction.
+
+    Returns False if the character already has a live slot. Cat II and roll
+    pins are higher priority than optional reactions, so reaction prompting
+    never overwrites them.
+    """
+    if character_id in ckpt.session.active_act_slots:
+        return False
+    ckpt.session.active_act_slots[character_id] = SlotEntry(
+        reason="combat_reaction",
+        trigger_event_id=trigger_event_id,
+        claimed_at=_utcnow_iso(),
+    )
+    return True
+
+
 def release_beat_slots(ckpt: CheckpointFile) -> None:
     """Release slot entries at beat end.
 
@@ -338,6 +392,8 @@ def release_beat_slots(ckpt: CheckpointFile) -> None:
             entry.reason in {"cat_ii_responder", "cat_ii_roll"}
             and entry.cat_ii_event_id in open_evt_ids
         ):
+            keep[cid] = entry
+        elif entry.reason == "combat_reaction":
             keep[cid] = entry
     if keep:
         ckpt.session.active_act_slots = keep
@@ -494,6 +550,12 @@ def abort_beat(ckpt: CheckpointFile) -> int:
         ckpt.session.render_buffers[h] = []
 
     ckpt.session.active_act_slots = {}
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is not None:
+        if isinstance(combat, dict):
+            combat["pending_advance_actor_id"] = ""
+        else:
+            setattr(combat, "pending_advance_actor_id", "")
     before = len(ckpt.session.open_cat_ii_events)
     ckpt.session.open_cat_ii_events = []
     dropped = before - len(ckpt.session.open_cat_ii_events)
@@ -851,6 +913,238 @@ def broadcast_event(
     return visible_humans
 
 
+_COMBAT_REACTION_MIN_PRIORITY = 5
+_COMBAT_REACTION_EXCLUDED_REASONS = {
+    "cat_ii_open",
+    "cat_ii_resolution",
+    "cat_ii_pending",
+    "cat_ii_pending_rolls",
+    "cat_ii_stale",
+    "query_response",
+    "observation_harvest",
+    "off_stage_tick",
+}
+_REACTION_BLOCKING_CONDITIONS = {
+    "incapacitated",
+    "paralyzed",
+    "stunned",
+    "unconscious",
+}
+
+
+def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def _active_combat(ckpt: CheckpointFile) -> Any | None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return None
+    status = _obj_get(combat, "status")
+    if status is not None and status != "active":
+        return None
+    combatants = list(_obj_get(combat, "combatants", []) or [])
+    return combat if combatants else None
+
+
+def _combatant_character_id(combatant: Any) -> str:
+    return (
+        str(_obj_get(combatant, "character_id", "") or "")
+        or str(_obj_get(combatant, "combatant_id", "") or "")
+    )
+
+
+def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
+    for combatant in list(_obj_get(combat, "combatants", []) or []):
+        if _combatant_character_id(combatant) == character_id:
+            return combatant
+    return None
+
+
+def _combatant_can_react(combatant: Any) -> bool:
+    if bool(_obj_get(combatant, "defeated", False)):
+        return False
+    if bool(_obj_get(combatant, "removed", False)):
+        return False
+    if not bool(_obj_get(combatant, "reaction_available", True)):
+        return False
+    conditions = {
+        str(condition).strip().lower()
+        for condition in (_obj_get(combatant, "conditions", []) or [])
+    }
+    return not (conditions & _REACTION_BLOCKING_CONDITIONS)
+
+
+def _mark_combat_reaction_spent(
+    ckpt: CheckpointFile,
+    character_id: str,
+) -> None:
+    combat = _active_combat(ckpt)
+    if combat is None:
+        return
+    combatant = _combatant_for_character(combat, character_id)
+    if combatant is None:
+        return
+    if isinstance(combatant, dict):
+        combatant["reaction_available"] = False
+    else:
+        setattr(combatant, "reaction_available", False)
+
+
+def _combat_reaction_intention(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    trigger_event_id: str,
+    intention: str,
+) -> str:
+    trigger = next(
+        (
+            event for event in ckpt.canonical_events
+            if event.event_id == trigger_event_id
+        ),
+        None,
+    )
+    if trigger is None:
+        return f"Combat reaction: {intention.strip()}"
+
+    facts = visible_fact_texts(
+        trigger.canonical_event.observable_facts,
+        actor_id,
+        include_all_observers=True,
+    )
+    summary = " ".join(facts[:3]).strip()
+    if len(summary) > 700:
+        summary = summary[:697].rstrip() + "..."
+    if not summary:
+        return f"Combat reaction: {intention.strip()}"
+    return (
+        f"Combat reaction to this event: {summary}\n"
+        f"Reaction intention: {intention.strip()}"
+    )
+
+
+def _current_combat_character_id(combat: Any) -> str:
+    combatants = list(_obj_get(combat, "combatants", []) or [])
+    if not combatants:
+        return ""
+    try:
+        idx = int(_obj_get(combat, "turn_index", 0) or 0) % len(combatants)
+    except (TypeError, ValueError):
+        idx = 0
+    for offset in range(len(combatants)):
+        candidate = combatants[(idx + offset) % len(combatants)]
+        if (
+            not bool(_obj_get(candidate, "defeated", False))
+            and not bool(_obj_get(candidate, "removed", False))
+        ):
+            return _combatant_character_id(candidate)
+    return ""
+
+
+def _eligible_combat_reaction_prompts(
+    ckpt: CheckpointFile,
+    *,
+    events_closed: int,
+    event_actor_ids: list[str],
+    suppress_reaction_prompts: bool,
+) -> dict[str, str]:
+    """Return character_id -> triggering event id for combat reaction UI.
+
+    The router's response_priority is treated as a conservative UX signal,
+    not as mechanical proof that a D&D reaction is legal.
+    """
+    if suppress_reaction_prompts or events_closed <= 0:
+        return {}
+    combat = _active_combat(ckpt)
+    if combat is None:
+        return {}
+
+    from app.engine.context_builder import collect_player_ids
+
+    player_ids = collect_player_ids(ckpt)
+    if not player_ids:
+        return {}
+
+    closed_events = ckpt.canonical_events[-events_closed:]
+    actors = event_actor_ids
+    if len(actors) != len(closed_events):
+        actors = actors + [""] * (len(closed_events) - len(actors))
+
+    prompts: dict[str, str] = {}
+    # Latest eligible trigger wins for each character, keeping one slot per
+    # character and avoiding multiple prompts from a single dense beat.
+    for event, actor_id in reversed(list(zip(closed_events, actors))):
+        if event.ends_beat_reason in _COMBAT_REACTION_EXCLUDED_REASONS:
+            continue
+        for observer in event.observers:
+            cid = observer.character_id
+            if cid in prompts or cid == actor_id or cid not in player_ids:
+                continue
+            if observer.observation_level != "d":
+                continue
+            if observer.response_priority < _COMBAT_REACTION_MIN_PRIORITY:
+                continue
+            if cid in ckpt.session.active_act_slots:
+                continue
+            combatant = _combatant_for_character(combat, cid)
+            if combatant is None or not _combatant_can_react(combatant):
+                continue
+            if not pin_combat_reaction(ckpt, cid, event.event_id):
+                continue
+            prompts[cid] = event.event_id
+    return prompts
+
+
+def _combat_render_candidates(
+    ckpt: CheckpointFile,
+    candidates: list[str],
+    *,
+    acting_player_id: str | None,
+    reaction_prompts: dict[str, str],
+) -> list[str]:
+    combat = _active_combat(ckpt)
+    if combat is None:
+        return candidates
+    immediate: set[str] = set(reaction_prompts)
+    if acting_player_id:
+        immediate.add(acting_player_id)
+    for cid, entry in ckpt.session.active_act_slots.items():
+        if entry.reason in {
+            "cat_ii_responder",
+            "cat_ii_roll",
+            "combat_reaction",
+        }:
+            immediate.add(cid)
+    current_id = _current_combat_character_id(combat)
+    if current_id:
+        immediate.add(current_id)
+    return [cid for cid in candidates if cid in immediate]
+
+
+def _prune_skipped_combat_buffers(
+    ckpt: CheckpointFile,
+    *,
+    rendered_ids: set[str],
+    events_closed: int,
+) -> None:
+    if events_closed <= 0 or _active_combat(ckpt) is None:
+        return
+    closed_ids = {
+        event.event_id for event in ckpt.canonical_events[-events_closed:]
+    }
+    if not closed_ids:
+        return
+    for cid, buf in list(ckpt.session.render_buffers.items()):
+        if cid in rendered_ids or not buf:
+            continue
+        ckpt.session.render_buffers[cid] = [
+            entry for entry in buf if entry.event_id not in closed_ids
+        ]
+
+
 def _beat_cap_overrun_cause(
     ckpt: CheckpointFile,
     events_closed: int,
@@ -1011,12 +1305,16 @@ class BeatResult:
     `event_actor_ids[i]` is the character_id whose intention produced
     `canonical_events[-events_closed + i]`. Empty when
     `events_closed == 0`.
+
+    `reaction_prompts` is runtime UI state: character_id -> closed canonical
+    event id for combat reaction windows created by this beat.
     """
     renders: dict[str, str]
     events_closed: int
     ended_reason: str  # "ends_beat" | "max_events_cap" | "cat_ii_pending" | ...
     transcript_entries: dict[str, TranscriptEntry]
     event_actor_ids: list[str]
+    reaction_prompts: dict[str, str] | None = None
 
 
 async def run_beat(
@@ -1025,6 +1323,7 @@ async def run_beat(
     actor_id: str,
     intention: str,
     cat_ii_event_id: str | None = None,
+    combat_reaction_event_id: str | None = None,
 ) -> BeatResult:
     """Run one beat to completion.
 
@@ -1036,6 +1335,9 @@ async def run_beat(
        adjudicate the Cat II (calling dispatcher.route_intention with
        the full open_event); else return immediately with ended_reason
        "cat_ii_pending" (nothing to render yet).
+    3. Combat reaction intention — `combat_reaction_event_id` set. The
+       actor's live reaction slot is cleared, their reaction is marked spent,
+       and the intention is routed as an out-of-turn response.
 
     Termination:
     - Router's ends_beat=true → render fan-out, slot release.
@@ -1050,6 +1352,7 @@ async def run_beat(
     current_actor = actor_id
     continuation_rescue_used = False
     pending_result: EventRouterOutput | None = None
+    suppress_reaction_prompts = combat_reaction_event_id is not None
 
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
@@ -1081,6 +1384,7 @@ async def run_beat(
             force_partial=True,
             acting_player_id=actor_id,
             acting_player_input=intention,
+            suppress_reaction_prompts=suppress_reaction_prompts,
         )
 
     # --- Step 1: handle entry path ------------------------------------------
@@ -1095,6 +1399,7 @@ async def run_beat(
             return BeatResult(
                 renders={}, events_closed=0, ended_reason="cat_ii_stale",
                 transcript_entries={}, event_actor_ids=[],
+                reaction_prompts={},
             )
         # Free this specific character's slot — others may still be pinned.
         release_character_slot(ckpt, actor_id)
@@ -1105,6 +1410,7 @@ async def run_beat(
                 events_closed=0,
                 ended_reason="cat_ii_pending",
                 transcript_entries={}, event_actor_ids=[],
+                reaction_prompts={},
             )
         # All responders in — adjudicate.
         try:
@@ -1153,6 +1459,7 @@ async def run_beat(
                 event_actor_ids=event_actor_ids,
                 acting_player_id=actor_id,
                 acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
         # The Cat II initiator gets first follow-up after the adjudication.
@@ -1161,8 +1468,18 @@ async def run_beat(
         current_actor = evt.initiator_id
         current_intention = followup
 
+    if combat_reaction_event_id is not None:
+        release_character_slot(ckpt, actor_id)
+        _mark_combat_reaction_spent(ckpt, actor_id)
+        current_intention = _combat_reaction_intention(
+            ckpt,
+            actor_id=actor_id,
+            trigger_event_id=combat_reaction_event_id,
+            intention=intention,
+        )
+
     # Fresh initiator path.
-    if cat_ii_event_id is None:
+    if cat_ii_event_id is None and combat_reaction_event_id is None:
         claim_initiator_slot(ckpt, actor_id)
 
     while True:
@@ -1214,6 +1531,7 @@ async def run_beat(
                         event_actor_ids=event_actor_ids,
                         acting_player_id=actor_id,
                         acting_player_input=intention,
+                        suppress_reaction_prompts=suppress_reaction_prompts,
                     )
                 # Fall through to the standard Cat I ends_beat check.
                 if result.ends_beat:
@@ -1225,6 +1543,7 @@ async def run_beat(
                         event_actor_ids=event_actor_ids,
                         acting_player_id=actor_id,
                         acting_player_input=intention,
+                        suppress_reaction_prompts=suppress_reaction_prompts,
                     )
                 # Keep cascading via picks — reuse the normal path by
                 # letting the loop iterate. Break out of the inner if
@@ -1329,6 +1648,7 @@ async def run_beat(
                     event_actor_ids=event_actor_ids,
                     acting_player_id=actor_id,
                     acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
                 )
             # Humans are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
@@ -1347,6 +1667,7 @@ async def run_beat(
                 force_partial=True,
                 acting_player_id=actor_id,
                 acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
         # Cat I path — canonical event closes immediately.
@@ -1406,6 +1727,7 @@ async def run_beat(
                 event_actor_ids=event_actor_ids,
                 acting_player_id=actor_id,
                 acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
         # Pick the next actor for the cascade. Agents only — humans
@@ -1456,6 +1778,7 @@ async def _end_beat(
     render_only: set[str] | None = None,
     acting_player_id: str | None = None,
     acting_player_input: str = "",
+    suppress_reaction_prompts: bool = False,
 ) -> BeatResult:
     """Compose per-human renders, flush buffers, and optionally release
     beat slots.
@@ -1485,12 +1808,30 @@ async def _end_beat(
     transcript_entries: dict[str, TranscriptEntry] = {}
     from app.engine.context_builder import collect_player_ids
     player_ids = collect_player_ids(ckpt)
+    reaction_prompts = _eligible_combat_reaction_prompts(
+        ckpt,
+        events_closed=events_closed,
+        event_actor_ids=event_actor_ids,
+        suppress_reaction_prompts=suppress_reaction_prompts,
+    )
     candidates = [
         h for h, buf in ckpt.session.render_buffers.items()
         if h in player_ids and buf
     ]
+    candidates = _combat_render_candidates(
+        ckpt,
+        candidates,
+        acting_player_id=acting_player_id,
+        reaction_prompts=reaction_prompts,
+    )
     if render_only is not None:
         candidates = [h for h in candidates if h in render_only]
+    elif _active_combat(ckpt) is not None:
+        _prune_skipped_combat_buffers(
+            ckpt,
+            rendered_ids=set(candidates),
+            events_closed=events_closed,
+        )
     partial_override: bool | None = True if force_partial else None
 
     # v11-r6c: fan out narrator calls in parallel. Independent POVs; no
@@ -1548,16 +1889,20 @@ async def _end_beat(
             cat_ii_resolution,
             cat_ii_followup,
         )
+    final_reason = (
+        "combat_reaction_pending" if reaction_prompts else ended_reason
+    )
     logger.info(
         "Beat closed: events=%d reason=%s renders=%d "
-        "release_slots=%s force_partial=%s",
-        events_closed, ended_reason, len(renders),
-        release_slots, force_partial,
+        "release_slots=%s force_partial=%s reaction_prompts=%d",
+        events_closed, final_reason, len(renders),
+        release_slots, force_partial, len(reaction_prompts),
     )
     return BeatResult(
-        renders=renders, events_closed=events_closed, ended_reason=ended_reason,
+        renders=renders, events_closed=events_closed, ended_reason=final_reason,
         transcript_entries=transcript_entries,
         event_actor_ids=event_actor_ids,
+        reaction_prompts=reaction_prompts,
     )
 
 
@@ -1596,6 +1941,12 @@ def format_slot_rejection(
             f"is waiting on their response. Your /act didn't go through. "
             f"You'll see a new render when the beat closes."
         )
+    elif check.conflict == SlotConflict.COMBAT_REACTION_OTHER_HELD:
+        base = (
+            f"The beat is paused on **{holder_name}**'s possible reaction. "
+            f"Your /act didn't go through. They'll use /act to react or "
+            f"press **No reaction** to pass."
+        )
     elif check.conflict == SlotConflict.SELF_BUSY:
         base = (
             "Your previous /act is still processing. Give the beat a "
@@ -1613,6 +1964,11 @@ def format_slot_rejection(
         base = (
             "Your /act was accepted as your response to the current contested "
             "action. The beat will resolve once all responders have moved."
+        )
+    elif check.conflict == SlotConflict.COMBAT_REACTION_SELF:
+        base = (
+            "Your /act was accepted as your combat reaction. The beat will "
+            "continue after the reaction resolves."
         )
     else:
         base = "Your /act could not be accepted right now."

@@ -26,6 +26,12 @@ class TurnResponse(BaseModel):
     # Cat II pending state with `not per_player_renders` +
     # `beat_ended_reason == "cat_ii_pending"`.
     beat_ended_reason: str = ""
+    # Runtime-only UI affordances keyed by character_id. A value is the
+    # canonical event id that opened that character's possible combat reaction
+    # window. The event itself stays in checkpoint state; this map tells
+    # frontends which rendered POVs should receive a no-LLM "No reaction"
+    # button.
+    reaction_prompts: dict[str, str] = Field(default_factory=dict)
     # v11-r7a: pre-turn AFK-sweep resolutions. When the per-session lock
     # holder runs `sweep_stale_pins`, each event the sweep fills is
     # closed by `Orchestrator.resolve_cat_ii`, producing a TurnResponse

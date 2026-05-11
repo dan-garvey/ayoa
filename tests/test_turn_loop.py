@@ -23,6 +23,7 @@ from app.engine.turn_loop import (
     format_slot_rejection,
     open_cat_ii,
     pin_cat_ii_responder,
+    pin_combat_reaction,
     purge_character_state,
     release_beat_slots,
     run_beat,
@@ -37,7 +38,14 @@ from app.schemas.events import (
     WorldAdjudication,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.state import RenderBufferEntry, SessionState, SlotEntry, WorldState
+from app.schemas.state import (
+    DndCombatantState,
+    DndCombatState,
+    RenderBufferEntry,
+    SessionState,
+    SlotEntry,
+    WorldState,
+)
 
 
 def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
@@ -209,6 +217,50 @@ class TestCheckActSlot:
         assert check.conflict == SlotConflict.CAT_II_SELF_ROLL
         assert check.cat_ii_event_id == "evt_xyz"
 
+    def test_combat_reaction_slot_accepts_holder_act(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.active_combat = DndCombatState(
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                )
+            ]
+        )
+        assert pin_combat_reaction(ckpt, "alice", "evt_react") is True
+
+        check = check_act_slot(ckpt, "alice")
+
+        assert check.conflict == SlotConflict.COMBAT_REACTION_SELF
+        assert check.trigger_event_id == "evt_react"
+
+    def test_combat_reaction_slot_blocks_bystander(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.active_combat = DndCombatState(
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ]
+        )
+        pin_combat_reaction(ckpt, "alice", "evt_react")
+
+        check = check_act_slot(ckpt, "bob")
+
+        assert check.conflict == SlotConflict.COMBAT_REACTION_OTHER_HELD
+        assert check.holder_id == "alice"
+
 
 class TestBeatCascade:
     def test_single_cat_i_ends_beat_and_renders(self):
@@ -227,6 +279,196 @@ class TestBeatCascade:
         assert result.ended_reason == "directed_at_player"
         assert "alice" in result.renders
         assert ckpt.session.active_act_slots == {}
+
+    def test_combat_high_priority_observer_gets_reaction_prompt(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(EventRouterOutput(
+            event_id="",
+            decision_rationale="reaction prompt",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[ObservableFact.all("Alice rushes past Bob.")],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+                ObserverEntry(
+                    character_id="bob",
+                    observation_level="d",
+                    response_priority=5,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I rush past Bob",
+        ))
+
+        event_id = ckpt.canonical_events[0].event_id
+        assert result.ended_reason == "combat_reaction_pending"
+        assert result.reaction_prompts == {"bob": event_id}
+        assert ckpt.session.active_act_slots["bob"].reason == "combat_reaction"
+        assert ckpt.session.active_act_slots["bob"].trigger_event_id == event_id
+        assert "bob" in result.renders
+
+    def test_combat_low_priority_observer_does_not_get_reaction_prompt(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(EventRouterOutput(
+            event_id="",
+            decision_rationale="no reaction prompt",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[ObservableFact.all("Alice shifts her stance.")],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+                ObserverEntry(
+                    character_id="bob",
+                    observation_level="d",
+                    response_priority=4,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I shift my stance",
+        ))
+
+        assert result.ended_reason == "directed_at_player"
+        assert result.reaction_prompts == {}
+        assert "bob" not in ckpt.session.active_act_slots
+        assert ckpt.session.render_buffers.get("bob") == []
+
+    def test_combat_reaction_act_gets_trigger_context_for_router(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        trigger = EventRouterOutput(
+            event_id="evt_trigger",
+            decision_rationale="trigger",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.all("Alice exposes herself as she moves.")
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="bob",
+                    observation_level="d",
+                    response_priority=5,
+                )
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        )
+        ckpt.canonical_events.append(trigger)
+        ckpt.session.active_act_slots["bob"] = SlotEntry(
+            reason="combat_reaction",
+            trigger_event_id="evt_trigger",
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="bob",
+            intention="I make an opportunity attack",
+            combat_reaction_event_id="evt_trigger",
+        ))
+
+        routed_intention = fake.route_calls[0]["intention"]
+        assert "Combat reaction to this event" in routed_intention
+        assert "Alice exposes herself" in routed_intention
+        assert "I make an opportunity attack" in routed_intention
+        assert result.reaction_prompts == {}
 
     def test_query_response_harvests_private_perception_targets(self):
         ckpt = _ckpt({"alice": "1"})

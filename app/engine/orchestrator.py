@@ -46,6 +46,7 @@ from app.engine.turn_loop import (
     check_act_slot,
     close_cat_ii,
     format_slot_rejection,
+    release_character_slot,
     release_beat_slots,
     run_beat,
     _agent_intention_for_dispatch,
@@ -80,6 +81,7 @@ _COMBAT_NO_ADVANCE_REASONS = {
     "cat_ii_pending",
     "cat_ii_pending_rolls",
     "cat_ii_stale",
+    "combat_reaction_pending",
 }
 
 
@@ -291,6 +293,52 @@ def _combat_turn_rejection(
     )
 
 
+def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
+    for combatant in _combatants(combat):
+        if _combatant_character_id(combatant) == character_id:
+            return combatant
+    return None
+
+
+def _begin_combat_turn(combatant: Any) -> None:
+    _obj_set(combatant, "reaction_available", True)
+
+
+def _set_pending_combat_advance(
+    ckpt: CheckpointFile,
+    actor_id: str,
+) -> None:
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return
+    _obj_set(combat, "pending_advance_actor_id", actor_id)
+
+
+def _pending_combat_advance_actor_id(ckpt: CheckpointFile) -> str:
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return ""
+    return str(_obj_get(combat, "pending_advance_actor_id", "") or "")
+
+
+def _clear_pending_combat_advance(ckpt: CheckpointFile) -> None:
+    combat = _active_combat_state(ckpt)
+    if combat is not None:
+        _obj_set(combat, "pending_advance_actor_id", "")
+
+
+def _blocking_slots_open(ckpt: CheckpointFile) -> bool:
+    return any(
+        entry.reason in {
+            "initiator",
+            "cat_ii_responder",
+            "cat_ii_roll",
+            "combat_reaction",
+        }
+        for entry in ckpt.session.active_act_slots.values()
+    )
+
+
 def _append_combat_audit_line(ckpt: CheckpointFile, line: str) -> None:
     combat = _active_combat_state(ckpt)
     if isinstance(combat, dict):
@@ -331,6 +379,18 @@ def _beat_should_advance_combat(
     return _combatant_character_id(current) == acting_id
 
 
+def _beat_can_delay_combat_advance(
+    ckpt: CheckpointFile,
+    acting_id: str,
+    beat_result: BeatResult,
+) -> bool:
+    combat = _active_combat_state(ckpt)
+    if combat is None or not beat_result.renders:
+        return False
+    current = _current_combatant(ckpt, combat)
+    return _combatant_character_id(current) == acting_id
+
+
 def _advance_combat_initiative_after_human_turn(
     ckpt: CheckpointFile,
 ) -> None:
@@ -361,6 +421,8 @@ def _advance_combat_initiative_after_human_turn(
             continue
 
         _obj_set(combat, "turn_index", next_index)
+        _begin_combat_turn(candidate)
+        _clear_pending_combat_advance(ckpt)
         if round_crossed:
             _obj_set(combat, "round_number", round_number)
 
@@ -385,6 +447,41 @@ def _advance_combat_initiative_after_human_turn(
             f"Skipped NPC initiative turn for {_combatant_name(candidate)} "
             "during turn-gating slice.",
         )
+
+
+def _advance_pending_combat_if_unblocked(ckpt: CheckpointFile) -> bool:
+    pending_actor = _pending_combat_advance_actor_id(ckpt)
+    if not pending_actor or _blocking_slots_open(ckpt):
+        return False
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        _clear_pending_combat_advance(ckpt)
+        return False
+    current = _current_combatant(ckpt, combat)
+    if _combatant_character_id(current) != pending_actor:
+        _clear_pending_combat_advance(ckpt)
+        return False
+    _advance_combat_initiative_after_human_turn(ckpt)
+    return True
+
+
+def _handle_combat_after_beat(
+    ckpt: CheckpointFile,
+    *,
+    acting_id: str,
+    beat_result: BeatResult,
+    allow_new_pending: bool = True,
+) -> None:
+    reaction_prompts = beat_result.reaction_prompts or {}
+    if reaction_prompts and allow_new_pending and _beat_can_delay_combat_advance(
+        ckpt, acting_id, beat_result
+    ):
+        _set_pending_combat_advance(ckpt, acting_id)
+        return
+    if _beat_should_advance_combat(ckpt, acting_id, beat_result):
+        _advance_combat_initiative_after_human_turn(ckpt)
+        return
+    _advance_pending_combat_if_unblocked(ckpt)
 
 
 class Orchestrator:
@@ -431,24 +528,12 @@ class Orchestrator:
         # from both seeing FREE on their check_act_slot.
         lock = await self.session_locks.get(request.session_id)
         async with lock:
-            combat_rejection = _combat_turn_rejection(
-                ckpt, acting_id, request.user_input,
-            )
-            if combat_rejection is not None:
-                return TurnResponse(
-                    session_id=request.session_id,
-                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
-                    turn_index=ckpt.session.turn_index,
-                    output_text=combat_rejection,
-                    per_player_renders={},
-                    beat_ended_reason="combat_turn_rejected",
-                )
-
             # 4. Validate against the session's active_act_slot.
             check = check_act_slot(ckpt, acting_id)
 
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
+                                  SlotConflict.COMBAT_REACTION_OTHER_HELD,
                                   SlotConflict.CAT_II_SELF_ROLL,
                                   SlotConflict.SELF_BUSY):
                 msg = format_slot_rejection(
@@ -464,6 +549,41 @@ class Orchestrator:
                     beat_ended_reason="slot_rejected",
                 )
 
+            combat_reaction_event_id = (
+                check.trigger_event_id
+                if check.conflict == SlotConflict.COMBAT_REACTION_SELF
+                else None
+            )
+
+            if combat_reaction_event_id and (
+                request.user_input.strip().lower() == "(defer)"
+            ):
+                response = self._defer_combat_reaction_locked(
+                    ckpt=ckpt,
+                    session_id=request.session_id,
+                    character_id=acting_id,
+                    event_id=combat_reaction_event_id,
+                )
+                self.checkpoint_mgr.save(ckpt)
+                return response
+
+            if check.conflict not in (
+                SlotConflict.CAT_II_SELF_RESPONDER,
+                SlotConflict.COMBAT_REACTION_SELF,
+            ):
+                combat_rejection = _combat_turn_rejection(
+                    ckpt, acting_id, request.user_input,
+                )
+                if combat_rejection is not None:
+                    return TurnResponse(
+                        session_id=request.session_id,
+                        checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                        turn_index=ckpt.session.turn_index,
+                        output_text=combat_rejection,
+                        per_player_renders={},
+                        beat_ended_reason="combat_turn_rejected",
+                    )
+
             cat_ii_event_id = (
                 check.cat_ii_event_id
                 if check.conflict == SlotConflict.CAT_II_SELF_RESPONDER
@@ -478,6 +598,7 @@ class Orchestrator:
                 actor_id=acting_id,
                 intention=request.user_input,
                 cat_ii_event_id=cat_ii_event_id,
+                combat_reaction_event_id=combat_reaction_event_id,
             )
 
             # 6. Apply roster side-effects of every event that closed
@@ -534,14 +655,20 @@ class Orchestrator:
             # Per-tick errors and the fan-in router error are both
             # logged-and-swallowed so a single LLM hiccup doesn't
             # drop the rest of the turn.
-            await self._run_ticks(
-                ckpt,
-                acted_this_turn=set(beat_result.event_actor_ids),
-                acting_id=acting_id,
-            )
+            reaction_prompts = beat_result.reaction_prompts or {}
+            if not reaction_prompts:
+                await self._run_ticks(
+                    ckpt,
+                    acted_this_turn=set(beat_result.event_actor_ids),
+                    acting_id=acting_id,
+                )
 
-            if _beat_should_advance_combat(ckpt, acting_id, beat_result):
-                _advance_combat_initiative_after_human_turn(ckpt)
+            _handle_combat_after_beat(
+                ckpt,
+                acting_id=acting_id,
+                beat_result=beat_result,
+                allow_new_pending=combat_reaction_event_id is None,
+            )
 
             # 7. Save. run_beat has already mutated active_act_slots,
             # open_cat_ii_events, render_buffers, canonical_events, and
@@ -561,7 +688,88 @@ class Orchestrator:
             output_text=output_text,
             per_player_renders=per_player,
             beat_ended_reason=beat_result.ended_reason,
+            reaction_prompts=beat_result.reaction_prompts or {},
         )
+
+    def _defer_combat_reaction_locked(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        session_id: str,
+        character_id: str,
+        event_id: str = "",
+    ) -> TurnResponse:
+        slot = ckpt.session.active_act_slots.get(character_id)
+        trigger_id = ""
+        if slot is not None:
+            trigger_id = slot.trigger_event_id or slot.cat_ii_event_id or ""
+        if (
+            slot is None
+            or slot.reason != "combat_reaction"
+            or (event_id and trigger_id != event_id)
+        ):
+            return TurnResponse(
+                session_id=session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text="That reaction window is already closed.",
+                per_player_renders={},
+                beat_ended_reason="combat_reaction_stale",
+            )
+
+        release_character_slot(ckpt, character_id)
+        advanced = _advance_pending_combat_if_unblocked(ckpt)
+        if advanced:
+            combat = _active_combat_state(ckpt)
+            current = _current_combatant(ckpt, combat) if combat is not None else None
+            current_name = (
+                _combatant_name(current)
+                if current is not None else "the next combatant"
+            )
+            message = (
+                "No reaction recorded. "
+                f"Initiative advances to **{current_name}**."
+            )
+        elif any(
+            entry.reason == "combat_reaction"
+            for entry in ckpt.session.active_act_slots.values()
+        ):
+            message = (
+                "No reaction recorded. Waiting on another possible reaction."
+            )
+        else:
+            message = "No reaction recorded."
+
+        ckpt.session.turn_index += 1
+        return TurnResponse(
+            session_id=session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text=message,
+            per_player_renders={},
+            beat_ended_reason="combat_reaction_deferred",
+        )
+
+    async def defer_combat_reaction(
+        self,
+        *,
+        session_id: str,
+        character_id: str,
+        event_id: str = "",
+    ) -> TurnResponse:
+        lock = await self.session_locks.get(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
+            response = self._defer_combat_reaction_locked(
+                ckpt=ckpt,
+                session_id=session_id,
+                character_id=character_id,
+                event_id=event_id,
+            )
+            if response.beat_ended_reason != "combat_reaction_stale":
+                self.checkpoint_mgr.save(ckpt)
+            return response
 
     async def resolve_cat_ii(
         self, session_id: str, event_id: str,
@@ -637,6 +845,7 @@ class Orchestrator:
                         ended_reason="cat_ii_pending_rolls",
                         transcript_entries={},
                         event_actor_ids=[],
+                        reaction_prompts={},
                     )
                     self.checkpoint_mgr.save(ckpt)
                     renders: dict[str, str] = {}
@@ -647,6 +856,7 @@ class Orchestrator:
                         output_text="",
                         per_player_renders=renders,
                         beat_ended_reason=beat_result.ended_reason,
+                        reaction_prompts=beat_result.reaction_prompts or {},
                     )
                 close_cat_ii(ckpt, evt_live.event_id)
                 release_beat_slots(ckpt)
@@ -685,6 +895,7 @@ class Orchestrator:
                             evt_live.initiator_id,
                             *followup_result.event_actor_ids,
                         ],
+                        reaction_prompts=followup_result.reaction_prompts or {},
                     )
                 else:
                     beat_result = await _end_beat(
@@ -700,6 +911,7 @@ class Orchestrator:
                     ended_reason="cat_ii_pending",
                     transcript_entries={},
                     event_actor_ids=[],
+                    reaction_prompts={},
                 )
 
             # Apply side-effects for each newly closed event.
@@ -736,6 +948,11 @@ class Orchestrator:
             # too — initiator's POV is the canonical speaker for the
             # adjudicated event.
             _append_transcript_entry(ckpt, beat_result, evt.initiator_id)
+            _handle_combat_after_beat(
+                ckpt,
+                acting_id=evt.initiator_id,
+                beat_result=beat_result,
+            )
 
             self.checkpoint_mgr.save(ckpt)
 
@@ -751,6 +968,7 @@ class Orchestrator:
             output_text=output_text,
             per_player_renders=renders,
             beat_ended_reason=beat_result.ended_reason,
+            reaction_prompts=beat_result.reaction_prompts or {},
         )
 
     async def submit_cat_ii_roll(
@@ -916,6 +1134,7 @@ class Orchestrator:
                     evt_live.initiator_id,
                     *followup_result.event_actor_ids,
                 ],
+                reaction_prompts=followup_result.reaction_prompts or {},
             )
         else:
             beat_result = await _end_beat(
@@ -953,6 +1172,11 @@ class Orchestrator:
             ckpt.session.turn_index += 1
 
         _append_transcript_entry(ckpt, beat_result, evt_live.initiator_id)
+        _handle_combat_after_beat(
+            ckpt,
+            acting_id=evt_live.initiator_id,
+            beat_result=beat_result,
+        )
         self.checkpoint_mgr.save(ckpt)
 
         renders = dict(beat_result.renders)
@@ -966,6 +1190,7 @@ class Orchestrator:
             output_text=output_text,
             per_player_renders=renders,
             beat_ended_reason=beat_result.ended_reason,
+            reaction_prompts=beat_result.reaction_prompts or {},
         )
 
     # ------------------------------------------------------------------ helpers

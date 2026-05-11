@@ -23,6 +23,7 @@ from app.schemas.state import (
     DndCombatState,
     LocationState,
     SessionState,
+    SlotEntry,
     WorldState,
 )
 
@@ -375,6 +376,244 @@ class TestCombatTurnGating:
         assert response.beat_ended_reason == "cat_ii_pending"
         assert ckpt.session.active_combat["turn_index"] == 0
         assert "audit_lines" not in ckpt.session.active_combat
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_reaction_prompt_delays_initiative_advance(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            return BeatResult(
+                renders={"alice": "Alice moves.", "bob": "Bob can react."},
+                events_closed=1,
+                ended_reason="combat_reaction_pending",
+                transcript_entries={},
+                event_actor_ids=["alice"],
+                reaction_prompts={"bob": "evt_react"},
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I move away",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_reaction_pending"
+        assert response.reaction_prompts == {"bob": "evt_react"}
+        assert ckpt.session.active_combat.turn_index == 0
+        assert ckpt.session.active_combat.pending_advance_actor_id == "alice"
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_non_current_reaction_slot_bypasses_combat_turn_rejection(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                    reaction_available=True,
+                ),
+            ],
+            pending_advance_actor_id="alice",
+        )
+        ckpt.session.active_act_slots["bob"] = SlotEntry(
+            reason="combat_reaction",
+            trigger_event_id="evt_react",
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(EventRouterOutput(
+            event_id="",
+            decision_rationale="reaction act",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[ObservableFact.all("Bob reacts.")],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="bob",
+                    observation_level="d",
+                    response_priority=3,
+                )
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="directed_at_player",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I make an opportunity attack",
+            acting_character_id="bob",
+        ))
+
+        assert response.beat_ended_reason == "directed_at_player"
+        assert FakeDispatcher.route_calls[0]["actor_id"] == "bob"
+        assert FakeDispatcher.route_calls[0]["cat_ii_event"] is None
+        assert ckpt.session.active_act_slots == {}
+        assert ckpt.session.active_combat.turn_index == 1
+        assert ckpt.session.active_combat.pending_advance_actor_id == ""
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_defer_combat_reaction_clears_slot_without_llm_and_advances(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                    reaction_available=False,
+                ),
+            ],
+            pending_advance_actor_id="alice",
+        )
+        ckpt.session.active_act_slots["bob"] = SlotEntry(
+            reason="combat_reaction",
+            trigger_event_id="evt_react",
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.defer_combat_reaction(
+            session_id="s",
+            character_id="bob",
+            event_id="evt_react",
+        )
+
+        assert response.beat_ended_reason == "combat_reaction_deferred"
+        assert "Initiative advances to **Bob**" in response.output_text
+        assert ckpt.session.active_act_slots == {}
+        assert ckpt.session.active_combat.turn_index == 1
+        assert ckpt.session.active_combat.combatants[1].reaction_available is True
+        assert FakeDispatcher.route_calls == []
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_cat_ii_resolution_resumes_pending_combat_advance(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                    reaction_available=False,
+                ),
+            ],
+            pending_advance_actor_id="alice",
+        )
+        from app.engine.turn_loop import open_cat_ii, pin_cat_ii_responder
+
+        opened = open_cat_ii(
+            ckpt,
+            initiator_id="alice",
+            initiator_intention="Alice's interrupted action",
+            required_responders=["bob"],
+        )
+        pin_cat_ii_responder(ckpt, "bob", opened.event_id)
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(EventRouterOutput(
+            event_id="",
+            decision_rationale="cat ii closes after reaction",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[ObservableFact.all("The exchange resolves.")],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+                ObserverEntry(
+                    character_id="bob",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="cat_ii_resolution",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I block",
+            acting_character_id="bob",
+        ))
+
+        assert response.beat_ended_reason == "cat_ii_resolution"
+        assert ckpt.session.active_act_slots == {}
+        assert ckpt.session.active_combat.turn_index == 1
+        assert ckpt.session.active_combat.pending_advance_actor_id == ""
+        assert ckpt.session.active_combat.combatants[1].reaction_available is True
         assert mgr.save.call_count == 1
 
 

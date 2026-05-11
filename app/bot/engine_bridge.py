@@ -2107,6 +2107,37 @@ class EngineBridge:
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
+    def combat_reaction_prompt_event(
+        self,
+        session_id: str,
+        character_id: str,
+    ) -> str:
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        slot = ckpt.session.active_act_slots.get(character_id)
+        if slot is None or slot.reason != "combat_reaction":
+            return ""
+        return slot.trigger_event_id or slot.cat_ii_event_id or ""
+
+    async def defer_combat_reaction(
+        self,
+        *,
+        session_id: str,
+        character_id: str,
+        event_id: str = "",
+        user_id: int | None = None,
+    ) -> TurnResponse:
+        if user_id is not None:
+            bound = self.get_user_binding(session_id, user_id)
+            if bound != character_id:
+                raise ValueError("That reaction belongs to another character.")
+        lock = await self._lock_for(session_id)
+        async with lock:
+            return await self.orchestrator.defer_combat_reaction(
+                session_id=session_id,
+                character_id=character_id,
+                event_id=event_id,
+            )
+
     # ---- turn execution ------------------------------------------------------
 
     async def _lock_for(self, session_id: str) -> asyncio.Lock:
