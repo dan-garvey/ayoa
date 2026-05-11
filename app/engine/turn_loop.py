@@ -920,6 +920,7 @@ _COMBAT_REACTION_EXCLUDED_REASONS = {
     "cat_ii_pending",
     "cat_ii_pending_rolls",
     "cat_ii_stale",
+    "combat_cat_ii_suppressed",
     "query_response",
     "observation_harvest",
     "off_stage_tick",
@@ -961,6 +962,16 @@ def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
         if _combatant_character_id(combatant) == character_id:
             return combatant
     return None
+
+
+def _character_in_active_combat(
+    ckpt: CheckpointFile,
+    character_id: str,
+) -> bool:
+    combat = _active_combat(ckpt)
+    return combat is not None and (
+        _combatant_for_character(combat, character_id) is not None
+    )
 
 
 def _combatant_can_react(combatant: Any) -> bool:
@@ -1503,6 +1514,31 @@ async def run_beat(
             result_is_continuation = True
 
         if result.requires_responders:
+            suppressed_actor_id = result_actor_id or current_actor or actor_id
+            if _character_in_active_combat(ckpt, suppressed_actor_id):
+                logger.warning(
+                    "Router emitted generic Cat II during active combat; "
+                    "suppressing responder flow for actor=%s required=%s",
+                    suppressed_actor_id,
+                    result.required_responders,
+                )
+                result.requires_responders = False
+                result.required_responders = []
+                result.agent_responder_picks = []
+                result.ends_beat = True
+                result.ends_beat_reason = "combat_cat_ii_suppressed"
+                broadcast_event(ckpt, result, actor_id=suppressed_actor_id)
+                event_actor_ids.append(suppressed_actor_id)
+                events_closed += 1
+                return await _end_beat(
+                    ckpt, dispatcher,
+                    ended_reason="combat_cat_ii_suppressed",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=True,
+                )
             if result_is_continuation:
                 raise RuntimeError(
                     "Router continuation opened Cat II; continuation mode "

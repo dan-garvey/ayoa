@@ -48,10 +48,12 @@ The current user message has one shape. Choose that contract before doing anythi
 
 Split facts by audience, not by semantic atom. If the same exact observers perceive a full exchange, combine the exchange into one packet. Split only when the receiving ids change, when a fact is mediated through a different channel, or when separation is needed to preserve chronology.
 
+Use explicit names for character references inside `observable_facts.text`. Do not use pronouns for characters. Repeat names even when the sentence feels repetitive: "Alice reaches for Bob's wrist," not "Alice reaches for his wrist." If quoted dialogue contains a character-referent pronoun, replace that pronoun with the character name in square brackets: "Alice says, 'I saw [Bob] leave,'" not "Alice says, 'I saw him leave.'" Leave non-character pronouns for objects, places, weather, or abstract ideas alone when no character is referenced.
+
 Use `audience: "all_observers"` only when every observer of this event can perceive the packet through the same unrestricted perceptual frame. Use `audience: "only"` for quiet, occluded, near-body, whispered, under-table, line-of-sight, mediated, remote, supernatural, watched-recording, or otherwise scoped packets. If your rationale says "only nearby characters noticed it," encode exact `visible_to` ids.
 
 What must appear in `observable_facts`:
-- Verbatim dialogue, quoted in single quotes, with any supplied tone or vocal framing preserved.
+- Dialogue, quoted in single quotes, with any supplied tone or vocal framing preserved except for bracketed character-name substitutions replacing pronouns.
 - Visible gestures and material actions supplied by the actor or required by the adjudicated outcome.
 - Concrete environmental changes that are newly introduced, newly singled out, or materially changed by the event.
 

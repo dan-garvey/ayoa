@@ -274,19 +274,57 @@ class TestCombatTurnGating:
         assert FakeDispatcher.route_calls == []
 
     @pytest.mark.asyncio
-    async def test_current_combatant_runs_and_advances_past_npc_to_human(
+    async def test_bound_human_outside_combat_can_act_while_combat_exists(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I search the library",
+            acting_character_id="bob",
+        ))
+
+        assert response.beat_ended_reason == "directed_at_player"
+        assert FakeDispatcher.route_calls[0]["actor_id"] == "bob"
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_npc_initiative_turn_runs_agent_then_advances_to_human(
         self, patched_orchestrator, monkeypatch,
     ):
         async def fake_run_beat(**kw):
+            actor_id = kw["actor_id"]
             return BeatResult(
-                renders={"alice": "Alice acts."},
+                renders={"alice": f"{actor_id} acts."},
                 events_closed=0,
                 ended_reason="directed_at_player",
                 transcript_entries={},
-                event_actor_ids=["alice"],
+                event_actor_ids=[actor_id],
             )
 
         monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        FakeDispatcher.queue_agent("Pip attacks.")
         ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
         ckpt.session.active_combat = DndCombatState(
             round_number=1,
@@ -323,15 +361,134 @@ class TestCombatTurnGating:
         assert response.beat_ended_reason == "directed_at_player"
         assert ckpt.session.active_combat.turn_index == 2
         assert ckpt.session.active_combat.round_number == 1
+        assert response.output_text == "alice acts.\n\npip acts."
+        assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
         assert any(
-            "Skipped NPC initiative turn for Pip" in line
+            "Initiative advanced to Pip" in line
             for line in ckpt.session.active_combat.audit_lines
         )
         assert any(
             "Initiative advanced to Bob" in line
             for line in ckpt.session.active_combat.audit_lines
         )
-        assert mgr.save.call_count == 1
+        assert mgr.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_npc_automation_agent_failure_skips_to_next_turn(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            return BeatResult(
+                renders={"alice": "Alice acts."},
+                events_closed=0,
+                ended_reason="directed_at_player",
+                transcript_entries={},
+                event_actor_ids=[kw["actor_id"]],
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I strike",
+            acting_character_id="alice",
+        ))
+
+        assert response.output_text == "Alice acts."
+        assert ckpt.session.active_combat.turn_index == 2
+        assert any(
+            "failed before an intention was produced" in line
+            for line in ckpt.session.active_combat.audit_lines
+        )
+        assert mgr.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_npc_automation_run_beat_failure_aborts_and_advances(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            if kw["actor_id"] == "pip":
+                from app.engine.turn_loop import claim_initiator_slot
+
+                claim_initiator_slot(kw["ckpt"], "pip")
+                raise RuntimeError("simulated route outage")
+            return BeatResult(
+                renders={"alice": "Alice acts."},
+                events_closed=0,
+                ended_reason="directed_at_player",
+                transcript_entries={},
+                event_actor_ids=[kw["actor_id"]],
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        FakeDispatcher.queue_agent("Pip attacks.")
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I strike",
+            acting_character_id="alice",
+        ))
+
+        assert response.output_text == "Alice acts."
+        assert ckpt.session.active_combat.turn_index == 2
+        assert ckpt.session.active_act_slots == {}
+        assert any(
+            "failed during resolution" in line
+            for line in ckpt.session.active_combat.audit_lines
+        )
+        assert mgr.save.call_count == 2
 
     @pytest.mark.asyncio
     async def test_pending_cat_ii_render_does_not_advance_combat(

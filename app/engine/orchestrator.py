@@ -233,12 +233,12 @@ def _combat_actor_is_human_controlled(
 ) -> bool:
     from app.engine.context_builder import collect_player_ids
 
+    combatant = _combatant_for_character(combat, actor_id)
+    if combatant is None:
+        return False
     if actor_id in collect_player_ids(ckpt):
         return True
-    for combatant in _combatants(combat):
-        if _combatant_character_id(combatant) == actor_id:
-            return bool(_obj_get(combatant, "player_controlled", False))
-    return False
+    return bool(_obj_get(combatant, "player_controlled", False))
 
 
 def _combat_rejection_message(
@@ -371,8 +371,6 @@ def _beat_should_advance_combat(
     combat = _active_combat_state(ckpt)
     if combat is None:
         return False
-    if not beat_result.renders:
-        return False
     if beat_result.ended_reason in _COMBAT_NO_ADVANCE_REASONS:
         return False
     current = _current_combatant(ckpt, combat)
@@ -391,7 +389,7 @@ def _beat_can_delay_combat_advance(
     return _combatant_character_id(current) == acting_id
 
 
-def _advance_combat_initiative_after_human_turn(
+def _advance_combat_initiative_after_turn(
     ckpt: CheckpointFile,
 ) -> None:
     combat = _active_combat_state(ckpt)
@@ -426,27 +424,11 @@ def _advance_combat_initiative_after_human_turn(
         if round_crossed:
             _obj_set(combat, "round_number", round_number)
 
-        if _combatant_human_controlled(ckpt, candidate):
-            _append_combat_audit_line(
-                ckpt,
-                f"Initiative advanced to {_combatant_name(candidate)}.",
-            )
-            return
-
-        if round_crossed:
-            _append_combat_audit_line(
-                ckpt,
-                "Initiative reached the end of the round; "
-                f"NPC {_combatant_name(candidate)} is next, and NPC "
-                "automation is deferred for this slice.",
-            )
-            return
-
         _append_combat_audit_line(
             ckpt,
-            f"Skipped NPC initiative turn for {_combatant_name(candidate)} "
-            "during turn-gating slice.",
+            f"Initiative advanced to {_combatant_name(candidate)}.",
         )
+        return
 
 
 def _advance_pending_combat_if_unblocked(ckpt: CheckpointFile) -> bool:
@@ -461,7 +443,7 @@ def _advance_pending_combat_if_unblocked(ckpt: CheckpointFile) -> bool:
     if _combatant_character_id(current) != pending_actor:
         _clear_pending_combat_advance(ckpt)
         return False
-    _advance_combat_initiative_after_human_turn(ckpt)
+    _advance_combat_initiative_after_turn(ckpt)
     return True
 
 
@@ -479,9 +461,41 @@ def _handle_combat_after_beat(
         _set_pending_combat_advance(ckpt, acting_id)
         return
     if _beat_should_advance_combat(ckpt, acting_id, beat_result):
-        _advance_combat_initiative_after_human_turn(ckpt)
+        _advance_combat_initiative_after_turn(ckpt)
         return
     _advance_pending_combat_if_unblocked(ckpt)
+
+
+def _merge_render_maps(
+    target: dict[str, str],
+    source: dict[str, str],
+) -> None:
+    for cid, text in source.items():
+        if not text:
+            continue
+        existing = target.get(cid, "")
+        target[cid] = f"{existing}\n\n{text}" if existing else text
+
+
+def _combine_beat_renders(results: list[BeatResult]) -> dict[str, str]:
+    combined: dict[str, str] = {}
+    for result in results:
+        _merge_render_maps(combined, dict(result.renders or {}))
+    return combined
+
+
+def _active_combat_character_ids(ckpt: CheckpointFile) -> set[str]:
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return set()
+    return {
+        cid
+        for cid in (
+            _combatant_character_id(combatant)
+            for combatant in _combatants(combat)
+        )
+        if cid
+    }
 
 
 class Orchestrator:
@@ -505,6 +519,161 @@ class Orchestrator:
         # One manager per Orchestrator. /acts in the same session
         # serialize here; perception fan-out is observer-driven.
         self.session_locks = SessionLockManager()
+
+    async def _apply_beat_roster_side_effects(
+        self,
+        ckpt: CheckpointFile,
+        beat_result: BeatResult,
+        *,
+        log_label: str,
+    ) -> None:
+        if beat_result.events_closed <= 0:
+            return
+        closed_this_beat = ckpt.canonical_events[-beat_result.events_closed:]
+        actors = beat_result.event_actor_ids
+        if len(actors) != beat_result.events_closed:
+            logger.warning(
+                "%s BeatResult event_actor_ids length %d != events_closed %d; "
+                "spawn location fallback may be empty.",
+                log_label, len(actors), beat_result.events_closed,
+            )
+            actors = actors + [None] * (beat_result.events_closed - len(actors))
+        for evt, evt_actor in zip(closed_this_beat, actors):
+            self.char_mgr.apply_roster_updates(ckpt, evt)
+            if evt.spawn:
+                spawn_loc = (
+                    self._resolve_location(ckpt, evt_actor)
+                    if evt_actor else ""
+                )
+                await self.char_mgr.spawn_characters(
+                    ckpt, evt.spawn,
+                    acting_actor_location=spawn_loc,
+                )
+
+    async def _run_automated_combat_turns_locked(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        dispatcher: LLMDispatcher,
+    ) -> list[BeatResult]:
+        results: list[BeatResult] = []
+        combat = _active_combat_state(ckpt)
+        if combat is None:
+            return results
+        max_auto_turns = max(1, len(_combatants(combat)))
+        turns_taken = 0
+
+        while turns_taken < max_auto_turns:
+            if _blocking_slots_open(ckpt):
+                break
+            combat = _active_combat_state(ckpt)
+            if combat is None:
+                break
+            current = _current_combatant(ckpt, combat)
+            if current is None:
+                break
+            actor_id = _combatant_character_id(current)
+            if not actor_id or _combatant_human_controlled(ckpt, current):
+                break
+
+            try:
+                intention = await _agent_intention_for_dispatch(
+                    dispatcher, ckpt, actor_id,
+                )
+            except Exception:
+                logger.exception(
+                    "Automated combat agent intention failed for %s (%s); "
+                    "skipping turn so initiative cannot wedge.",
+                    _combatant_name(current), actor_id,
+                )
+                _append_combat_audit_line(
+                    ckpt,
+                    f"Automated combat turn for {_combatant_name(current)} "
+                    "failed before an intention was produced; initiative "
+                    "advances.",
+                )
+                _advance_combat_initiative_after_turn(ckpt)
+                ckpt.session.turn_index += 1
+                self.checkpoint_mgr.save(ckpt)
+                turns_taken += 1
+                continue
+            if intention is None:
+                _append_combat_audit_line(
+                    ckpt,
+                    f"No actionable combat intention from "
+                    f"{_combatant_name(current)}; initiative advances.",
+                )
+                _advance_combat_initiative_after_turn(ckpt)
+                ckpt.session.turn_index += 1
+                self.checkpoint_mgr.save(ckpt)
+                turns_taken += 1
+                continue
+
+            try:
+                beat_result = await run_beat(
+                    ckpt=ckpt,
+                    dispatcher=dispatcher,
+                    actor_id=actor_id,
+                    intention=intention,
+                )
+            except Exception:
+                logger.exception(
+                    "Automated combat beat failed for %s (%s); aborting "
+                    "partial NPC beat and advancing initiative.",
+                    _combatant_name(current), actor_id,
+                )
+                from app.engine.turn_loop import abort_beat
+
+                abort_beat(ckpt)
+                _append_combat_audit_line(
+                    ckpt,
+                    f"Automated combat turn for {_combatant_name(current)} "
+                    "failed during resolution; partial NPC beat was "
+                    "aborted and initiative advances.",
+                )
+                _advance_combat_initiative_after_turn(ckpt)
+                ckpt.session.turn_index += 1
+                self.checkpoint_mgr.save(ckpt)
+                turns_taken += 1
+                continue
+            await self._apply_beat_roster_side_effects(
+                ckpt, beat_result, log_label="Combat automation",
+            )
+            _append_transcript_entry(ckpt, beat_result, actor_id)
+            _handle_combat_after_beat(
+                ckpt,
+                acting_id=actor_id,
+                beat_result=beat_result,
+            )
+            ckpt.session.turn_index += 1
+            self.checkpoint_mgr.save(ckpt)
+            results.append(beat_result)
+            turns_taken += 1
+
+            if (
+                _blocking_slots_open(ckpt)
+                or beat_result.reaction_prompts
+                or beat_result.ended_reason in _COMBAT_NO_ADVANCE_REASONS
+            ):
+                break
+
+        if turns_taken >= max_auto_turns:
+            combat = _active_combat_state(ckpt)
+            current = (
+                _current_combatant(ckpt, combat)
+                if combat is not None else None
+            )
+            if (
+                current is not None
+                and not _combatant_human_controlled(ckpt, current)
+            ):
+                _append_combat_audit_line(
+                    ckpt,
+                    "Stopped automated NPC combat turn chain at safety cap.",
+                )
+                self.checkpoint_mgr.save(ckpt)
+
+        return results
 
     async def process_turn(self, request: TurnRequest) -> TurnResponse:
         """Process a single turn end-to-end, v11-style.
@@ -604,33 +773,9 @@ class Orchestrator:
             # 6. Apply roster side-effects of every event that closed
             # this beat. `run_beat` broadcasts + renders but leaves
             # spawn / dormant / cull for the orchestrator to apply.
-            closed = beat_result.events_closed
-            if closed > 0:
-                closed_this_beat = ckpt.canonical_events[-closed:]
-                actors = beat_result.event_actor_ids
-                # Defensive: invariant says lengths match; if they don't
-                # (e.g. a future refactor forgot to track an actor), pad
-                # with None so spawn fallback logic stays conservative.
-                if len(actors) != closed:
-                    logger.warning(
-                        "BeatResult event_actor_ids length %d != events_closed %d "
-                        "; spawn location fallback may be empty.",
-                        len(actors), closed,
-                    )
-                    actors = actors + [None] * (closed - len(actors))
-                for evt, evt_actor in zip(closed_this_beat, actors):
-                    self.char_mgr.apply_roster_updates(ckpt, evt)
-                    # Spawns remain async LLM calls; if none declared,
-                    # the helper is a no-op.
-                    if evt.spawn:
-                        spawn_loc = (
-                            self._resolve_location(ckpt, evt_actor)
-                            if evt_actor else ""
-                        )
-                        await self.char_mgr.spawn_characters(
-                            ckpt, evt.spawn,
-                            acting_actor_location=spawn_loc,
-                        )
+            await self._apply_beat_roster_side_effects(
+                ckpt, beat_result, log_label="BeatResult",
+            )
 
             # v11-r7f: persist the acting POV's transcript entry so
             # /history and the resume-display path see played turns.
@@ -677,18 +822,24 @@ class Orchestrator:
             # writes; one save covers both.
             ckpt.session.turn_index += 1
             self.checkpoint_mgr.save(ckpt)
+            automated_results = await self._run_automated_combat_turns_locked(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+            )
 
         # 8. Build the response.
-        per_player = dict(beat_result.renders)
+        beat_results = [beat_result, *automated_results]
+        per_player = _combine_beat_renders(beat_results)
         output_text = per_player.get(acting_id, "")
+        final_result = beat_results[-1]
         return TurnResponse(
             session_id=request.session_id,
             checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=per_player,
-            beat_ended_reason=beat_result.ended_reason,
-            reaction_prompts=beat_result.reaction_prompts or {},
+            beat_ended_reason=final_result.ended_reason,
+            reaction_prompts=final_result.reaction_prompts or {},
         )
 
     def _defer_combat_reaction_locked(
@@ -955,8 +1106,14 @@ class Orchestrator:
             )
 
             self.checkpoint_mgr.save(ckpt)
+            automated_results = await self._run_automated_combat_turns_locked(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+            )
 
-        renders = dict(beat_result.renders)
+        beat_results = [beat_result, *automated_results]
+        renders = _combine_beat_renders(beat_results)
+        final_result = beat_results[-1]
         actor_id = evt.initiator_id
         output_text = renders.get(actor_id, "") or (
             next(iter(renders.values()), "") if renders else ""
@@ -967,8 +1124,8 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=renders,
-            beat_ended_reason=beat_result.ended_reason,
-            reaction_prompts=beat_result.reaction_prompts or {},
+            beat_ended_reason=final_result.ended_reason,
+            reaction_prompts=final_result.reaction_prompts or {},
         )
 
     async def submit_cat_ii_roll(
@@ -1178,8 +1335,14 @@ class Orchestrator:
             beat_result=beat_result,
         )
         self.checkpoint_mgr.save(ckpt)
+        automated_results = await self._run_automated_combat_turns_locked(
+            ckpt=ckpt,
+            dispatcher=dispatcher,
+        )
 
-        renders = dict(beat_result.renders)
+        beat_results = [beat_result, *automated_results]
+        renders = _combine_beat_renders(beat_results)
+        final_result = beat_results[-1]
         output_text = renders.get(output_actor_id, "") or (
             next(iter(renders.values()), "") if renders else ""
         )
@@ -1189,8 +1352,8 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=renders,
-            beat_ended_reason=beat_result.ended_reason,
-            reaction_prompts=beat_result.reaction_prompts or {},
+            beat_ended_reason=final_result.ended_reason,
+            reaction_prompts=final_result.reaction_prompts or {},
         )
 
     # ------------------------------------------------------------------ helpers
@@ -1244,6 +1407,8 @@ class Orchestrator:
             `session.player_character_id`) — humans don't get auto-ticked
           - NOT in `acted_this_turn` (the on-stage actor + any picked
             responders this beat) — they already had their say
+          - NOT in active combat — combatants advance through initiative,
+            not background ticks
           - NOT in `_pinned_character_ids(ckpt)` — pinned NPCs are
             mid-Cat-II, ticking races their pending resolution
 
@@ -1254,6 +1419,7 @@ class Orchestrator:
 
         pinned_ids = _pinned_character_ids(ckpt)
         player_ids = collect_player_ids(ckpt)
+        combat_ids = _active_combat_character_ids(ckpt)
 
         eligible: list[CharacterRecord] = []
         for char in ckpt.characters:
@@ -1264,6 +1430,8 @@ class Orchestrator:
             if char.character_id in player_ids:
                 continue
             if char.character_id in acted_this_turn:
+                continue
+            if char.character_id in combat_ids:
                 continue
             if char.character_id in pinned_ids:
                 continue

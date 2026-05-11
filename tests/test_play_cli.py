@@ -160,6 +160,26 @@ class TestInitialization:
         state = CLIState(engine, SESSION_ID, STORY_ID)
         assert state.claims == {}
 
+    def test_resume_prefers_claimed_current_combatant(self):
+        engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
+        engine.combat_status.return_value = DndCombatView(
+            session_id=SESSION_ID,
+            active=True,
+            current_participant_id="sera",
+            participants=(
+                DndCombatParticipantView(character_id="aldric", name="Aldric"),
+                DndCombatParticipantView(
+                    character_id="sera",
+                    name="Sera",
+                    current=True,
+                ),
+            ),
+        )
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        assert state.current_actor == "sera"
+
 
 class TestJoinLeave:
     def test_join_binds_and_sets_current(self, run):

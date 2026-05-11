@@ -646,6 +646,87 @@ class TestCatIIBeat:
         assert fake.narrator_calls
         assert all(c.get("partial_mode_override") is True for c in fake.narrator_calls)
 
+    def test_active_combat_suppresses_generic_cat_ii_open(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["bob"],
+            ends_beat=False,
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I attack Bob",
+        ))
+
+        assert result.ended_reason == "combat_cat_ii_suppressed"
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.session.active_act_slots == {}
+        assert result.reaction_prompts == {}
+        assert ckpt.canonical_events[0].ends_beat_reason == (
+            "combat_cat_ii_suppressed"
+        )
+        assert fake.agent_calls == []
+
+    def test_noncombat_actor_can_open_cat_ii_while_combat_exists(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["alice"],
+            ends_beat=False,
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="pip",
+            intention="I shove Alice",
+        ))
+
+        assert result.ended_reason == "cat_ii_pending"
+        assert len(ckpt.session.open_cat_ii_events) == 1
+        assert ckpt.session.active_act_slots["alice"].reason == (
+            "cat_ii_responder"
+        )
+
     def test_cat_ii_responder_intention_closes_event(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         evt = open_cat_ii(

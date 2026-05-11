@@ -23,6 +23,10 @@ EndsBeatReason = Literal[
     "max_events_cap",
     "cat_ii_pending",
     "cat_ii_stale",
+    # Engine-authored guard: when active combat is running, the generic
+    # Cat II responder flow is suppressed in favor of combat-native
+    # turn/reaction handling.
+    "combat_cat_ii_suppressed",
     # query_response: a private /query result. The router emits a
     # canonical observable fact scoped to the querying player. If the
     # answer needs current visual self-presentation from NPCs, picks

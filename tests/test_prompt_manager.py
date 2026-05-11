@@ -171,6 +171,7 @@ class TestPromptManagerWithRealTemplates:
         )
         result = mgr.render(
             "agent",
+            agent_ruleset_system_addon="",
             character_name="Captain Vero",
             character_role="guard captain",
             character_appearance="Tall, scarred",

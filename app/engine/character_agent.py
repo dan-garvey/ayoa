@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 from app.engine.context_builder import (
     append_turn_to_conversation,
@@ -46,6 +47,89 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 
 logger = logging.getLogger(__name__)
+
+
+DND5E_BASIC_RULESET_ID = "dnd5e_basic"
+
+
+def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
+    settings = getattr(
+        getattr(checkpoint.session, "config", None),
+        "settings",
+        None,
+    )
+    return str(getattr(settings, "ruleset_id", "") or "")
+
+
+def _active_combat(checkpoint: CheckpointFile) -> Any | None:
+    combat = getattr(checkpoint.session, "active_combat", None)
+    if combat is None:
+        return None
+    status = _obj_get(combat, "status", "active")
+    if status != "active":
+        return None
+    if not list(_obj_get(combat, "combatants", []) or []):
+        return None
+    return combat
+
+
+def _combatant_character_id(combatant: Any) -> str:
+    return (
+        str(_obj_get(combatant, "character_id", "") or "")
+        or str(_obj_get(combatant, "combatant_id", "") or "")
+    )
+
+
+def _combatant_name(combatant: Any) -> str:
+    return str(
+        _obj_get(combatant, "name", "")
+        or _combatant_character_id(combatant)
+    )
+
+
+def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
+    for combatant in list(_obj_get(combat, "combatants", []) or []):
+        if _combatant_character_id(combatant) == character_id:
+            return combatant
+    return None
+
+
+def _current_combatant(combat: Any) -> Any | None:
+    combatants = list(_obj_get(combat, "combatants", []) or [])
+    if not combatants:
+        return None
+    try:
+        idx = int(_obj_get(combat, "turn_index", 0) or 0) % len(combatants)
+    except (TypeError, ValueError):
+        idx = 0
+    return combatants[idx]
+
+
+def _combat_state_line(combatant: Any) -> str:
+    ac = _obj_get(combatant, "armor_class", 10)
+    hp_current = _obj_get(combatant, "hit_points_current", 0)
+    hp_max = _obj_get(combatant, "hit_points_max", 0)
+    hp_temp = _obj_get(combatant, "hit_points_temporary", 0)
+    conditions = [
+        str(condition)
+        for condition in (_obj_get(combatant, "conditions", []) or [])
+        if str(condition).strip()
+    ]
+    hp = f"{hp_current}/{hp_max}"
+    if hp_temp:
+        hp = f"{hp} (+{hp_temp} temp)"
+    condition_text = ", ".join(conditions) if conditions else "none"
+    return f"Your combat state: AC {ac}; HP {hp}; conditions: {condition_text}."
+
+
+def _join_mode_blocks(*blocks: str) -> str:
+    return "\n\n".join(block.strip() for block in blocks if block.strip())
 
 
 def _extract_parenthetical(text: str) -> tuple[str, str]:
@@ -138,10 +222,49 @@ class CharacterAgent:
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
             mode_header=AGENT_ON_STAGE_HEADER,
-            mode_block=format_agent_on_stage_body(),
+            mode_block=_join_mode_blocks(
+                format_agent_on_stage_body(),
+                self._dnd_combat_mode_block(character, checkpoint),
+            ),
             log_label="respond",
             log_extra="on-stage",
         )
+
+    def _agent_ruleset_system_addon(self, checkpoint: CheckpointFile) -> str:
+        if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
+            return ""
+        return self.prompt_manager.render("agent_ruleset_dnd5e").strip()
+
+    def _dnd_combat_mode_block(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+    ) -> str:
+        if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
+            return ""
+        combat = _active_combat(checkpoint)
+        if combat is None:
+            return ""
+        current = _current_combatant(combat)
+        current_id = _combatant_character_id(current) if current else ""
+        current_name = _combatant_name(current) if current else "(unknown)"
+        own = _combatant_for_character(combat, character.character_id)
+
+        lines = [
+            "## D&D Combat",
+            "Active D&D 5e initiative is running.",
+            f"Round: {_obj_get(combat, 'round_number', 1)}.",
+            f"Current turn: {current_name} ({current_id}).",
+        ]
+        if own is None:
+            lines.append("You are not listed as a combatant.")
+        else:
+            if _combatant_character_id(own) == current_id:
+                lines.append("It is your initiative turn.")
+            else:
+                lines.append("It is not your initiative turn.")
+            lines.append(_combat_state_line(own))
+        return "\n".join(lines)
 
     async def perceive(
         self,
@@ -206,6 +329,9 @@ class CharacterAgent:
         messages = self.prompt_manager.render_conversation(
             "agent",
             history=history,
+            agent_ruleset_system_addon=self._agent_ruleset_system_addon(
+                checkpoint
+            ),
             **char_identity,
             **char_state,
             world_context=build_world_context(character, checkpoint),
@@ -317,6 +443,9 @@ class CharacterAgent:
         messages = self.prompt_manager.render_conversation(
             "agent",
             history=history,
+            agent_ruleset_system_addon=self._agent_ruleset_system_addon(
+                checkpoint
+            ),
             **char_identity,
             **char_state,
             world_context=build_world_context(character, checkpoint),

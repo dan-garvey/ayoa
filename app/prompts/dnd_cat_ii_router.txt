@@ -21,6 +21,7 @@ For phase PLAN_ROLLS, emit RollPlan:
 For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Use the roll ledger totals exactly as supplied.
 - visible_outcome_facts are public, concrete facts of the resolved contest.
+- Use explicit names for character references in visible_outcome_facts. Do not use pronouns for characters. Repeat names even when repetitive. If quoted dialogue contains a character-referent pronoun, replace that pronoun with the character name in square brackets.
 - state_deltas are plain text notes for future mechanics work; they are not
   applied automatically here.
 - Do not reveal private intent, hidden reasoning, roll formulas, roll totals,

@@ -23,6 +23,8 @@ from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.state import (
+    DndCombatantState,
+    DndCombatState,
     LocationState,
     SessionState,
     StorySetting,
@@ -393,6 +395,66 @@ class TestCharacterAgent:
         assert "hidden passage" in prompt
         assert "twenty years" in prompt
         assert "right hand twitches" in prompt
+
+    @pytest.mark.asyncio
+    async def test_dnd_ruleset_addon_is_cached_system_prefix(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = messages[0]["content"]
+        user_text = messages[-1]["content"]
+        assert "<ruleset_addon>" in system_text
+        assert system_text.index("<ruleset_addon>") < system_text.index("<role>")
+        assert "Captain Vero" in system_text
+        assert "Active D&D 5e initiative is running" not in system_text
+        assert "Active D&D 5e initiative is running" not in user_text
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_marker_is_live_user_context(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
+        sample_checkpoint.session.active_combat = DndCombatState(
+            round_number=2,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="guard_17",
+                    character_id="guard_17",
+                    name="Captain Vero",
+                    armor_class=16,
+                    hit_points_current=22,
+                    hit_points_max=31,
+                    conditions=["grappled"],
+                ),
+                DndCombatantState(
+                    combatant_id="raider",
+                    character_id="raider",
+                    name="Raider",
+                ),
+            ],
+        )
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = messages[0]["content"]
+        user_text = messages[-1]["content"]
+        assert "## D&D Combat" not in system_text
+        assert "## D&D Combat" in user_text
+        assert "Round: 2." in user_text
+        assert "It is your initiative turn." in user_text
+        assert "AC 16; HP 22/31; conditions: grappled" in user_text
 
     @pytest.mark.asyncio
     async def test_pending_observations_carry_in_scene_perception(

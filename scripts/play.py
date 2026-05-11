@@ -216,6 +216,7 @@ class CLIState:
 
         if self.story_id:
             self._load_existing_claims()
+            self._sync_current_actor_to_active_combat(announce=False)
 
     def _load_existing_claims(self) -> None:
         """Adopt any bindings already on disk as CLI claims so /as works on
@@ -1350,7 +1351,11 @@ class CLIState:
             marker = "  ← acting" if cid == self.current_actor else ""
             print(f"  - {cid}: {event_id or '(event unknown)'}{marker}")
 
-    def _sync_current_actor_to_active_combat(self) -> None:
+    def _sync_current_actor_to_active_combat(
+        self,
+        *,
+        announce: bool = True,
+    ) -> None:
         if not self.story_id or not self.claims:
             return
         try:
@@ -1358,9 +1363,14 @@ class CLIState:
         except Exception:
             logger.debug("combat current actor sync failed", exc_info=True)
             return
-        self._sync_current_actor_to_combat_view(view)
+        self._sync_current_actor_to_combat_view(view, announce=announce)
 
-    def _sync_current_actor_to_combat_view(self, view: DndCombatView) -> None:
+    def _sync_current_actor_to_combat_view(
+        self,
+        view: DndCombatView,
+        *,
+        announce: bool = True,
+    ) -> None:
         if not view.active:
             return
         current_id = view.current_participant_id
@@ -1369,7 +1379,8 @@ class CLIState:
         if current_id == self.current_actor:
             return
         self.current_actor = current_id
-        print(f"now acting as {current_id} (current initiative)")
+        if announce:
+            print(f"now acting as {current_id} (current initiative)")
 
 
 # ---- bootstrap --------------------------------------------------------------

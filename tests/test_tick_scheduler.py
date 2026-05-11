@@ -24,6 +24,8 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.state import (
+    DndCombatantState,
+    DndCombatState,
     LocationState,
     OpenCatIIEvent,
     SessionState,
@@ -224,6 +226,33 @@ class TestEligibility:
         ))
         eligible = _orchestrator()._eligible_for_tick(ckpt, acted_this_turn=set())
         assert [c.character_id for c in eligible] == ["eligible"]
+
+    def test_active_combatants_excluded_from_offstage_ticks(self):
+        ckpt = _ckpt(characters=[
+            _npc("alice", is_playable=True),
+            _npc("regent"),
+            _npc("scribe"),
+        ])
+        ckpt.session.active_combat = DndCombatState(
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="regent",
+                    character_id="regent",
+                    name="Regent",
+                    player_controlled=False,
+                ),
+            ]
+        )
+
+        eligible = _orchestrator()._eligible_for_tick(ckpt, acted_this_turn=set())
+
+        assert [c.character_id for c in eligible] == ["scribe"]
 
 
 class TestTriggerLogic:
