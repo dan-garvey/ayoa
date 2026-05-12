@@ -100,6 +100,7 @@ from app.schemas.events import (
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
+from app.engine import dnd_combat
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 
 logger = logging.getLogger(__name__)
@@ -958,6 +959,15 @@ def _combatant_character_id(combatant: Any) -> str:
     )
 
 
+def _combatant_defeat_state(combatant: Any) -> str:
+    state = str(_obj_get(combatant, "defeat_state", "") or "")
+    if bool(_obj_get(combatant, "defeated", False)) and state in {"", "active"}:
+        return "defeated"
+    if state:
+        return state
+    return "defeated" if bool(_obj_get(combatant, "defeated", False)) else "active"
+
+
 def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
     for combatant in list(_obj_get(combat, "combatants", []) or []):
         if _combatant_character_id(combatant) == character_id:
@@ -991,7 +1001,132 @@ def _character_in_dnd_active_combat(
     )
 
 
+def _dnd_ruleset_enabled(ckpt: CheckpointFile) -> bool:
+    settings = getattr(ckpt.session.config, "settings", None)
+    ruleset_id = str(getattr(settings, "ruleset_id", "") or "")
+    return ruleset_id == "dnd5e_basic"
+
+
+def _character_status_value(character: Any) -> str:
+    status = getattr(character, "status", "")
+    return str(getattr(status, "value", status) or "")
+
+
+def _dnd_interaction_mode(result: EventRouterOutput) -> str:
+    return str(getattr(result, "interaction_mode", "") or "")
+
+
+def _dnd_combat_start_participants(
+    ckpt: CheckpointFile,
+    actor_id: str,
+    combatant_ids: list[str],
+) -> list[Any]:
+    seed_ids = list(dict.fromkeys([
+        *([actor_id] if actor_id else []),
+        *[cid for cid in combatant_ids if cid],
+    ]))
+    by_id = {
+        char.character_id: char
+        for char in ckpt.characters
+        if _character_status_value(char) == "active"
+    }
+    selected: list[Any] = []
+    seen: set[str] = set()
+    for cid in seed_ids:
+        char = by_id.get(cid)
+        if char is None or cid in seen:
+            continue
+        selected.append(char)
+        seen.add(cid)
+    return selected
+
+
+def _start_dnd_combat_from_router_signal(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+) -> bool:
+    if not _dnd_ruleset_enabled(ckpt) or _active_combat(ckpt) is not None:
+        return False
+    combatant_ids = list(getattr(result, "combatant_ids", []) or [])
+    participants = _dnd_combat_start_participants(
+        ckpt, actor_id, combatant_ids,
+    )
+    if len(participants) < 2:
+        raise ValueError(
+            "D&D combat start signal requires at least two active, valid "
+            "combatant ids."
+        )
+
+    combat_id = f"combat_{result.event_id or uuid.uuid4().hex[:8]}"
+    combat = dnd_combat.start_combat(
+        ckpt.session,
+        participants,
+        combat_id=combat_id,
+    )
+    current = dnd_combat.current_combatant(combat)
+    order = ", ".join(
+        f"{c.name or c.character_id} {c.initiative_total}"
+        for c in combat.combatants
+    )
+    actor_name = next(
+        (
+            char.name or char.character_id
+            for char in participants
+            if char.character_id == actor_id
+        ),
+        actor_id,
+    )
+    result.requires_responders = False
+    result.required_responders = []
+    result.agent_responder_picks = []
+    result.ends_beat = True
+    result.ends_beat_reason = "state_change"
+    result.canonical_event.observable_facts.append(ObservableFact.all(
+        "D&D combat begins. "
+        f"{actor_name}'s declared action does not resolve before initiative. "
+        "No attack roll, hit, or damage occurs "
+        f"until {actor_name}'s initiative turn unless another combat rule "
+        "resolves first. "
+        f"Initiative order: {order}. "
+        f"{current.name or current.character_id} has the first turn."
+    ))
+    dnd_combat.append_audit_line(
+        combat,
+        "Combat started from router D&D interaction signal: "
+        f"{actor_id}; combatants={', '.join(c.character_id for c in participants)}. "
+        f"Initiative order: {order}.",
+    )
+    return True
+
+
+def _end_dnd_combat_from_router_signal(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> bool:
+    combat = _active_combat(ckpt)
+    if not _dnd_ruleset_enabled(ckpt) or combat is None:
+        return False
+    dnd_combat.append_audit_line(
+        combat,
+        f"Combat ended from router D&D interaction signal: {result.event_id}.",
+    )
+    dnd_combat.end_combat(ckpt.session)
+    result.requires_responders = False
+    result.required_responders = []
+    result.agent_responder_picks = []
+    result.ends_beat = True
+    result.ends_beat_reason = "state_change"
+    result.canonical_event.observable_facts.append(ObservableFact.all(
+        "D&D combat ends; the scene is no longer in initiative order."
+    ))
+    return True
+
+
 def _combatant_can_react(combatant: Any) -> bool:
+    if _combatant_defeat_state(combatant) != "active":
+        return False
     if bool(_obj_get(combatant, "defeated", False)):
         return False
     if bool(_obj_get(combatant, "removed", False)):
@@ -1065,7 +1200,8 @@ def _current_combat_character_id(combat: Any) -> str:
     for offset in range(len(combatants)):
         candidate = combatants[(idx + offset) % len(combatants)]
         if (
-            not bool(_obj_get(candidate, "defeated", False))
+            _combatant_defeat_state(candidate) == "active"
+            and not bool(_obj_get(candidate, "defeated", False))
             and not bool(_obj_get(candidate, "removed", False))
         ):
             return _combatant_character_id(candidate)
@@ -1124,82 +1260,6 @@ def _eligible_combat_reaction_prompts(
                 continue
             prompts[cid] = event.event_id
     return prompts
-
-
-def _combat_render_candidates(
-    ckpt: CheckpointFile,
-    candidates: list[str],
-    *,
-    acting_player_id: str | None,
-    reaction_prompts: dict[str, str],
-) -> list[str]:
-    combat = _active_combat(ckpt)
-    if combat is None:
-        return candidates
-    immediate: set[str] = set(reaction_prompts)
-    if acting_player_id:
-        immediate.add(acting_player_id)
-    for cid, entry in ckpt.session.active_act_slots.items():
-        if entry.reason in {
-            "cat_ii_responder",
-            "cat_ii_roll",
-            "combat_reaction",
-        }:
-            immediate.add(cid)
-    immediate.update(_high_priority_combat_buffer_ids(ckpt, candidates))
-    current_id = _current_combat_character_id(combat)
-    if current_id:
-        immediate.add(current_id)
-    return [cid for cid in candidates if cid in immediate]
-
-
-def _high_priority_combat_buffer_ids(
-    ckpt: CheckpointFile,
-    candidates: list[str],
-) -> set[str]:
-    by_event_id = {event.event_id: event for event in ckpt.canonical_events}
-    high_priority: set[str] = set()
-    for cid in candidates:
-        for entry in ckpt.session.render_buffers.get(cid, []) or []:
-            event = by_event_id.get(entry.event_id)
-            if event is None:
-                continue
-            observer = next(
-                (
-                    obs for obs in event.observers
-                    if obs.character_id == cid
-                ),
-                None,
-            )
-            if (
-                observer is not None
-                and observer.observation_level == "d"
-                and observer.response_priority >= _COMBAT_REACTION_MIN_PRIORITY
-            ):
-                high_priority.add(cid)
-                break
-    return high_priority
-
-
-def _prune_skipped_combat_buffers(
-    ckpt: CheckpointFile,
-    *,
-    rendered_ids: set[str],
-    events_closed: int,
-) -> None:
-    if events_closed <= 0 or _active_combat(ckpt) is None:
-        return
-    closed_ids = {
-        event.event_id for event in ckpt.canonical_events[-events_closed:]
-    }
-    if not closed_ids:
-        return
-    for cid, buf in list(ckpt.session.render_buffers.items()):
-        if cid in rendered_ids or not buf:
-            continue
-        ckpt.session.render_buffers[cid] = [
-            entry for entry in buf if entry.event_id not in closed_ids
-        ]
 
 
 def _beat_cap_overrun_cause(
@@ -1640,8 +1700,59 @@ async def run_beat(
             result_actor_id = ""
             result_is_continuation = True
 
+        interaction_mode = _dnd_interaction_mode(result)
+        if interaction_mode == "dnd_combat_start":
+            if result_is_continuation:
+                raise RuntimeError(
+                    "Router continuation tried to start D&D combat; only a "
+                    "fresh intention can start initiative."
+                )
+            signal_actor_id = result_actor_id or current_actor or actor_id
+            if not _start_dnd_combat_from_router_signal(
+                ckpt,
+                result,
+                actor_id=signal_actor_id,
+            ):
+                raise ValueError(
+                    "D&D combat start signal was emitted when combat could "
+                    "not be started."
+                )
+            broadcast_event(ckpt, result, actor_id=signal_actor_id)
+            event_actor_ids.append(signal_actor_id)
+            events_closed += 1
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason="combat_started",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=True,
+            )
+
+        if interaction_mode == "dnd_combat_end":
+            signal_actor_id = result_actor_id or current_actor or actor_id
+            _end_dnd_combat_from_router_signal(ckpt, result)
+            broadcast_event(ckpt, result, actor_id=signal_actor_id)
+            event_actor_ids.append(signal_actor_id)
+            events_closed += 1
+            return await _end_beat(
+                ckpt,
+                dispatcher,
+                ended_reason=result.ends_beat_reason or "state_change",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=True,
+            )
+
         if result.requires_responders:
             suppressed_actor_id = result_actor_id or current_actor or actor_id
+            required = [
+                r for r in result.required_responders if r != result_actor_id
+            ]
             if _character_in_active_combat(ckpt, suppressed_actor_id):
                 logger.warning(
                     "Router emitted generic Cat II during active combat; "
@@ -1676,9 +1787,6 @@ async def run_beat(
             # Filter: the initiator can never be their own responder,
             # even if the router hallucinates it — would either double-
             # pin them or overwrite the initiator slot.
-            required = [
-                r for r in result.required_responders if r != result_actor_id
-            ]
             if not required:
                 # The only "responder" was the initiator themselves; treat
                 # this as Cat I — there's nothing to contest. Broadcast the
@@ -1981,20 +2089,8 @@ async def _end_beat(
         h for h, buf in ckpt.session.render_buffers.items()
         if h in player_ids and buf
     ]
-    candidates = _combat_render_candidates(
-        ckpt,
-        candidates,
-        acting_player_id=acting_player_id,
-        reaction_prompts=reaction_prompts,
-    )
     if render_only is not None:
         candidates = [h for h in candidates if h in render_only]
-    elif _active_combat(ckpt) is not None:
-        _prune_skipped_combat_buffers(
-            ckpt,
-            rendered_ids=set(candidates),
-            events_closed=events_closed,
-        )
     partial_override: bool | None = True if force_partial else None
 
     # v11-r6c: fan out narrator calls in parallel. Independent POVs; no

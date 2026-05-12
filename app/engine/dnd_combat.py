@@ -95,8 +95,13 @@ def build_combatant(
             mechanics_state
         ),
         conditions=_conditions(mechanics_state),
+        death_save_successes=_death_save_count(mechanics_state, "successes"),
+        death_save_failures=_death_save_count(mechanics_state, "failures"),
     )
-    combatant.defeated = _is_defeated(combatant)
+    _sync_defeat_state(
+        combatant,
+        uses_death_saves=_uses_death_saves(session, combatant),
+    )
     return combatant
 
 
@@ -156,7 +161,7 @@ def advance_turn(combat: DndCombatState | SessionState) -> DndCombatantState:
     active = combat.active_combat if isinstance(combat, SessionState) else combat
     if active is None or not active.combatants:
         raise ValueError("Combat is not active.")
-    if not _has_available_combatants(active):
+    if not _has_turn_candidates(active):
         raise ValueError("Combat has no available combatants.")
 
     start = _clamp_turn_index(active, active.turn_index) + 1
@@ -229,13 +234,37 @@ def apply_damage(
 ) -> DndCombatantState:
     if amount < 0:
         raise ValueError("Damage amount must be non-negative.")
-    combatant = _find_combatant(_active_from(combat), combatant_id)
+    active = _active_from(combat)
+    combatant = _find_combatant(active, combatant_id)
+    uses_death_saves = _uses_death_saves(combat, combatant)
+    if amount == 0:
+        return combatant
+
+    if combatant.hit_points_current <= 0 and uses_death_saves:
+        if _defeat_state(combatant) in {"down", "stable"}:
+            if combatant.hit_points_max > 0 and amount >= combatant.hit_points_max:
+                _set_dead(combatant)
+            else:
+                _add_death_save_failures(combatant, 1)
+        return combatant
+
+    previous_hp = combatant.hit_points_current
     remaining = amount
     temp_loss = min(combatant.hit_points_temporary, remaining)
     combatant.hit_points_temporary -= temp_loss
     remaining -= temp_loss
     combatant.hit_points_current = max(0, combatant.hit_points_current - remaining)
-    combatant.defeated = _is_defeated(combatant)
+    if combatant.hit_points_current <= 0:
+        overkill = max(0, remaining - max(previous_hp, 0))
+        if uses_death_saves:
+            if combatant.hit_points_max > 0 and overkill >= combatant.hit_points_max:
+                _set_dead(combatant)
+            else:
+                _set_down(combatant, reset_saves=True)
+        else:
+            _set_defeated(combatant)
+    else:
+        _set_active(combatant)
     return combatant
 
 
@@ -252,8 +281,81 @@ def apply_healing(
         cap = combatant.hit_points_current + amount
     combatant.hit_points_current = min(cap, combatant.hit_points_current + amount)
     if combatant.hit_points_current > 0:
-        combatant.defeated = False
+        _set_active(combatant)
     return combatant
+
+
+def roll_death_save(
+    combat: DndCombatState | SessionState,
+    combatant_id: str,
+) -> dice.RollResult:
+    active = _active_from(combat)
+    combatant = _find_combatant(active, combatant_id)
+    if _defeat_state(combatant) != "down":
+        raise ValueError(f"Combatant {combatant_id!r} is not down.")
+
+    result = dice.roll_d20_check(
+        roll_id=f"death_save_{combatant.combatant_id}",
+        modifier=0,
+        actor_id=combatant.character_id or combatant.combatant_id,
+        reason="death save",
+        advantage_state="normal",
+    )
+    natural = _kept_d20_value(result)
+    if natural == 20:
+        combatant.hit_points_current = 1
+        _set_active(combatant)
+        append_audit_line(
+            active,
+            f"Death save for {combatant.name or combatant.combatant_id}: "
+            "natural 20; they regain 1 HP.",
+        )
+    elif natural == 1:
+        _add_death_save_failures(combatant, 2)
+        if _defeat_state(combatant) == "dead":
+            append_audit_line(
+                active,
+                f"Death save for {combatant.name or combatant.combatant_id}: "
+                f"{result.detail}; natural 1; they die.",
+            )
+        else:
+            append_audit_line(
+                active,
+                f"Death save for {combatant.name or combatant.combatant_id}: "
+                f"{result.detail}; two failures "
+                f"({combatant.death_save_failures}/3).",
+            )
+    elif result.total >= 10:
+        _add_death_save_success(combatant)
+        if _defeat_state(combatant) == "stable":
+            append_audit_line(
+                active,
+                f"Death save for {combatant.name or combatant.combatant_id}: "
+                f"{result.detail}; third success; they are stable.",
+            )
+        else:
+            append_audit_line(
+                active,
+                f"Death save for {combatant.name or combatant.combatant_id}: "
+                f"{result.detail}; success "
+                f"({combatant.death_save_successes}/3).",
+            )
+    else:
+        _add_death_save_failures(combatant, 1)
+        if _defeat_state(combatant) == "dead":
+            append_audit_line(
+                active,
+                f"Death save for {combatant.name or combatant.combatant_id}: "
+                f"{result.detail}; third failure; they die.",
+            )
+        else:
+            append_audit_line(
+                active,
+                f"Death save for {combatant.name or combatant.combatant_id}: "
+                f"{result.detail}; failure "
+                f"({combatant.death_save_failures}/3).",
+            )
+    return result
 
 
 def public_status(combat: DndCombatState | SessionState) -> dict[str, Any]:
@@ -319,9 +421,12 @@ def _move_to_next_available(
         index = raw_index % total
         if count_round_wrap and raw_index >= total and index == 0:
             combat.round_number += 1
-        if _available(combat.combatants[index]):
+        candidate = combat.combatants[index]
+        if _defeat_state(candidate) == "down":
+            roll_death_save(combat, candidate.combatant_id)
+        if _available(candidate):
             combat.turn_index = index
-            _begin_turn(combat.combatants[index])
+            _begin_turn(candidate)
             return
     combat.turn_index = _clamp_turn_index(combat, combat.turn_index)
 
@@ -334,8 +439,20 @@ def _has_available_combatants(combat: DndCombatState) -> bool:
     return any(_available(combatant) for combatant in combat.combatants)
 
 
+def _has_turn_candidates(combat: DndCombatState) -> bool:
+    return any(
+        not combatant.removed
+        and _defeat_state(combatant) in {"active", "down"}
+        for combatant in combat.combatants
+    )
+
+
 def _available(combatant: DndCombatantState) -> bool:
-    return not combatant.defeated and not combatant.removed
+    return (
+        _defeat_state(combatant) == "active"
+        and not combatant.defeated
+        and not combatant.removed
+    )
 
 
 def _find_combatant(
@@ -373,6 +490,11 @@ def _public_combatant(combatant: DndCombatantState) -> dict[str, Any]:
             "current": combatant.hit_points_current,
             "max": combatant.hit_points_max,
             "temporary": combatant.hit_points_temporary,
+        },
+        "defeat_state": _defeat_state(combatant),
+        "death_saves": {
+            "successes": combatant.death_save_successes,
+            "failures": combatant.death_save_failures,
         },
         "defeated": combatant.defeated,
         "removed": combatant.removed,
@@ -445,6 +567,26 @@ def _conditions(mechanics_state: dict[str, Any]) -> list[str]:
     return out
 
 
+def _death_save_count(mechanics_state: dict[str, Any], key: str) -> int:
+    direct = mechanics_state.get("death_saves")
+    if not isinstance(direct, dict):
+        direct = (
+            ((mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {})
+            .get("defenses", {})
+            .get("death_saves")
+        )
+    if not isinstance(direct, dict):
+        return 0
+    aliases = {
+        "successes": ("successes", "success_count", "successCount"),
+        "failures": ("failures", "fail_count", "failCount"),
+    }
+    for name in aliases.get(key, (key,)):
+        if name in direct:
+            return max(0, min(3, _safe_int(direct.get(name), 0)))
+    return 0
+
+
 def _initiative_modifier(mechanics_state: dict[str, Any]) -> int:
     initiative = (
         ((mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {})
@@ -496,8 +638,143 @@ def _kept_d20_value(result: dice.RollResult) -> int:
     return result.total
 
 
-def _is_defeated(combatant: DndCombatantState) -> bool:
-    return combatant.hit_points_max > 0 and combatant.hit_points_current <= 0
+def _uses_death_saves(
+    combat: DndCombatState | SessionState | None,
+    combatant: DndCombatantState,
+) -> bool:
+    if combatant.player_controlled:
+        return True
+    if isinstance(combat, SessionState):
+        ids = {combatant.character_id, combatant.combatant_id}
+        return bool(ids & set(combat.character_bindings or {}))
+    return False
+
+
+def _defeat_state(combatant: DndCombatantState) -> str:
+    state = str(getattr(combatant, "defeat_state", "") or "")
+    if combatant.defeated and state in {"", "active"}:
+        return "defeated"
+    if state:
+        return state
+    return "defeated" if combatant.defeated else "active"
+
+
+def _sync_defeat_state(
+    combatant: DndCombatantState,
+    *,
+    uses_death_saves: bool,
+) -> None:
+    if combatant.removed:
+        return
+    if combatant.hit_points_max <= 0 or combatant.hit_points_current > 0:
+        _set_active(combatant)
+        return
+    if not uses_death_saves:
+        _set_defeated(combatant)
+        return
+    _clamp_death_saves(combatant)
+    if combatant.death_save_failures >= 3:
+        _set_dead(combatant)
+    elif combatant.death_save_successes >= 3:
+        _set_stable(combatant)
+    else:
+        _set_down(combatant, reset_saves=False)
+
+
+def _set_active(combatant: DndCombatantState) -> None:
+    combatant.defeat_state = "active"
+    combatant.defeated = False
+    combatant.death_save_successes = 0
+    combatant.death_save_failures = 0
+    _remove_condition(combatant, "unconscious")
+
+
+def _set_down(
+    combatant: DndCombatantState,
+    *,
+    reset_saves: bool,
+) -> None:
+    combatant.hit_points_current = 0
+    combatant.defeat_state = "down"
+    combatant.defeated = True
+    if reset_saves:
+        combatant.death_save_successes = 0
+        combatant.death_save_failures = 0
+    _add_condition(combatant, "unconscious")
+
+
+def _set_stable(combatant: DndCombatantState) -> None:
+    combatant.hit_points_current = 0
+    combatant.defeat_state = "stable"
+    combatant.defeated = True
+    combatant.death_save_successes = 0
+    combatant.death_save_failures = 0
+    _add_condition(combatant, "unconscious")
+
+
+def _set_dead(combatant: DndCombatantState) -> None:
+    combatant.hit_points_current = 0
+    combatant.defeat_state = "dead"
+    combatant.defeated = True
+    combatant.death_save_failures = 3
+    _remove_condition(combatant, "unconscious")
+
+
+def _set_defeated(combatant: DndCombatantState) -> None:
+    combatant.hit_points_current = max(0, combatant.hit_points_current)
+    combatant.defeat_state = "defeated"
+    combatant.defeated = True
+    combatant.death_save_successes = 0
+    combatant.death_save_failures = 0
+
+
+def _add_death_save_success(combatant: DndCombatantState) -> None:
+    combatant.death_save_successes = min(3, combatant.death_save_successes + 1)
+    combatant.death_save_failures = min(2, combatant.death_save_failures)
+    if combatant.death_save_successes >= 3:
+        _set_stable(combatant)
+
+
+def _add_death_save_failures(
+    combatant: DndCombatantState,
+    count: int,
+) -> None:
+    combatant.hit_points_current = 0
+    if _defeat_state(combatant) == "stable":
+        combatant.death_save_successes = 0
+        combatant.death_save_failures = 0
+    combatant.death_save_failures = min(
+        3, combatant.death_save_failures + max(0, count)
+    )
+    if combatant.death_save_failures >= 3:
+        _set_dead(combatant)
+    else:
+        combatant.defeat_state = "down"
+        combatant.defeated = True
+        _add_condition(combatant, "unconscious")
+
+
+def _clamp_death_saves(combatant: DndCombatantState) -> None:
+    combatant.death_save_successes = max(
+        0, min(3, int(combatant.death_save_successes or 0))
+    )
+    combatant.death_save_failures = max(
+        0, min(3, int(combatant.death_save_failures or 0))
+    )
+
+
+def _add_condition(combatant: DndCombatantState, condition: str) -> None:
+    names = {existing.strip().lower() for existing in combatant.conditions}
+    if condition.strip().lower() not in names:
+        combatant.conditions.append(condition)
+
+
+def _remove_condition(combatant: DndCombatantState, condition: str) -> None:
+    target = condition.strip().lower()
+    combatant.conditions = [
+        existing for existing in combatant.conditions
+        if existing.strip().lower() != target
+    ]
 
 
 def _safe_int(value: Any, default: int) -> int:

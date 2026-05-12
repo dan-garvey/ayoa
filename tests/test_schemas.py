@@ -16,7 +16,12 @@ from app.schemas.events import (
     WorldAdjudication,
     visible_fact_texts,
 )
-from app.schemas.event_router import EventRouterOutput, ObserverEntry, SpawnRequest
+from app.schemas.event_router import (
+    DndEventRouterOutput,
+    EventRouterOutput,
+    ObserverEntry,
+    SpawnRequest,
+)
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -342,6 +347,54 @@ class TestEventRouterOutput:
         }
         r = EventRouterOutput(**data)
         assert r.spawn[0].character_id == "stablehand_03"
+
+
+class TestDndEventRouterOutput:
+    def test_json_schema_is_openai_strict_object_compatible(self):
+        schema = DndEventRouterOutput.model_json_schema()
+        missing = []
+
+        def walk(node, path=()):
+            if isinstance(node, dict):
+                if (
+                    node.get("type") == "object"
+                    and node.get("additionalProperties") is not False
+                ):
+                    missing.append(path)
+                for key, value in node.items():
+                    walk(value, path + (key,))
+            elif isinstance(node, list):
+                for i, value in enumerate(node):
+                    walk(value, path + (str(i),))
+
+        walk(schema)
+        assert missing == []
+
+    def test_combat_start_clamps_cat_ii_fields(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "dnd_combat_start",
+            "combatant_ids": ["alice", "pip"],
+            "requires_responders": True,
+            "required_responders": ["pip"],
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.requires_responders is False
+        assert out.required_responders == []
+        assert out.combatant_ids == ["alice", "pip"]
+
+    def test_cat_ii_requires_responders(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "cat_ii",
+            "combatant_ids": [],
+            "required_responders": [],
+        }
+
+        with pytest.raises(ValidationError):
+            DndEventRouterOutput(**data)
 
 
 class TestCharacterAgentOutput:

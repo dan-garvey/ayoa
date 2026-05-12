@@ -23,7 +23,7 @@ from app.bot.engine_bridge import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
-from app.schemas.state import SessionState, WorldState
+from app.schemas.state import SessionState, SlotEntry, WorldState
 
 
 SESSION_ID = "cli_test"
@@ -360,6 +360,75 @@ class TestCombatCommand:
 
         assert state.current_actor == "sera"
         assert "now acting as sera (current initiative)" in capsys.readouterr().out
+
+    def test_combat_started_result_explains_initiative_handoff(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="combat_started",
+            turn_index=5,
+            output_text="Seren reaches for steel.",
+        ))
+        engine.combat_status.return_value = DndCombatView(
+            session_id=SESSION_ID,
+            active=True,
+            round_number=1,
+            turn_number=1,
+            current_participant_id="sera",
+            participants=(
+                DndCombatParticipantView(
+                    character_id="sera",
+                    name="Sera",
+                    current=True,
+                    initiative=18,
+                ),
+                DndCombatParticipantView(
+                    character_id="aldric",
+                    name="Aldric",
+                    initiative=13,
+                ),
+            ),
+        )
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/join sera"))
+        run(state.handle_line("I attack."))
+
+        out = capsys.readouterr().out
+        assert "Combat started." in out
+        assert "Initiative: Sera (sera) 18, Aldric (aldric) 13." in out
+        assert "Current turn: Sera (sera)." in out
+        assert "initiating action has not resolved before initiative" in out
+
+    def test_cat_ii_pending_switches_to_claimed_responder(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        ckpt = _empty_ckpt({"aldric": "1", "sera": "2"})
+        ckpt.session.active_act_slots["sera"] = SlotEntry(
+            reason="cat_ii_responder",
+            cat_ii_event_id="evt_cat",
+        )
+        engine.load_latest.return_value = ckpt
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="cat_ii_pending",
+            turn_index=6,
+            output_text="",
+            per_player_renders={"aldric": "Aldric waits for Sera's answer."},
+        ))
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("I reach for Sera's hand."))
+
+        out = capsys.readouterr().out
+        assert state.current_actor == "sera"
+        assert "beat paused" in out
+        assert "waiting on sera" in out
+        assert "Switched to sera" in out
+        assert "type their response to continue" in out
+        assert "Aldric waits for Sera's answer." in out
 
 
 class TestRollCommand:

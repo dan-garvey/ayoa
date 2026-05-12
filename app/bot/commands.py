@@ -104,6 +104,11 @@ def _render_combat_status(view: DndCombatView) -> discord.Embed:
             hp_bits.append(f"AC {p.armor_class}")
         if p.initiative is not None:
             hp_bits.append(f"Init {p.initiative}")
+        if p.defeat_state != "active":
+            state = p.defeat_state
+            if state == "down":
+                state += f" ({p.death_save_successes}S/{p.death_save_failures}F)"
+            hp_bits.append(state)
         if p.conditions:
             hp_bits.append(", ".join(p.conditions))
         suffix = f" - {'; '.join(hp_bits)}" if hp_bits else ""

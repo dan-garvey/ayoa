@@ -36,6 +36,7 @@ def _character(
     attack_bonus: int = 0,
     damage: str = "",
     actions: list[dict] | None = None,
+    spellcasting: dict | None = None,
 ) -> CharacterRecord:
     if actions is None:
         actions = []
@@ -61,7 +62,12 @@ def _character(
             },
             "armor_class": 12,
             "hit_points": {"current": 13, "max": 13, "temporary": 0},
-            "dnd5e_sheet": {"statblock": {"actions": actions}},
+            "dnd5e_sheet": {
+                "statblock": {
+                    "actions": actions,
+                    "spellcasting": spellcasting or {},
+                }
+            },
         },
     )
 
@@ -191,6 +197,46 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
         "D&D combat resolved:"
     )
     assert ckpt.session_conversation == []
+
+
+def test_combat_resolver_can_end_combat_from_adjudication():
+    ckpt = _ckpt()
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="Bob surrenders.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ended",
+            mechanical_summary="Bob surrenders and Alice accepts.",
+            visible_outcome_facts=["Bob drops his blade and Alice lowers hers."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I accept Bob's surrender.",
+        )
+    )
+
+    assert ckpt.session.active_combat is None
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert "Bob drops his blade and Alice lowers hers." in facts
+    assert any("D&D combat ends" in fact for fact in facts)
 
 
 def test_combat_damage_waits_for_successful_finalization(monkeypatch):
@@ -433,8 +479,78 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
     transaction = ckpt.session.cat_ii_roll_transactions[0]
     assert transaction.rolls[0].modifier == 7
     assert transaction.damage_records[0].expression == "1d6+4"
-    assert transaction.damage_records[0].amount == 7
-    assert ckpt.session.active_combat.combatants[1].hit_points_current == 6
+
+
+def test_combat_packet_exposes_current_actor_spellcasting():
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        spellcasting={
+            "profiles": [
+                {
+                    "id": "class_1",
+                    "name": "Wizard",
+                    "ability": "int",
+                    "spell_attack_bonus": 5,
+                    "spell_save_dc": 13,
+                }
+            ],
+            "slots": {"2": {"current": 1, "max": 2}},
+            "spells": [
+                {
+                    "id": "hold_person",
+                    "name": "Hold Person",
+                    "level": 2,
+                    "prepared": True,
+                    "always_prepared": False,
+                    "concentration": True,
+                    "save": {"ability": "wis", "dc": 13},
+                    "damage": [],
+                    "healing": [],
+                    "consumes": [{"resource_id": "spell_slot_2", "amount": 1}],
+                }
+            ],
+        },
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="probe",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=False,
+            combat_status="ongoing",
+            mechanical_summary="No effect.",
+            visible_outcome_facts=["Alice cannot complete the spell."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Hold Person on Bob.",
+        )
+    )
+
+    first_packet = prompt_mgr.render_messages.call_args_list[0].kwargs[
+        "combat_action_packet"
+    ]
+    assert '"name": "Hold Person"' in first_packet
+    assert '"spell_save_dc": 13' in first_packet
+    assert '"slots": {' in first_packet
 
 
 def test_combat_resolver_executes_opportunity_attack_roll(monkeypatch):

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 AbilityId = Literal["str", "dex", "con", "int", "wis", "cha"]
 AdvantageState = Literal["normal", "advantage", "disadvantage"]
+CombatStatus = Literal["ongoing", "ended"]
 RollKind = Literal[
     "ability_check",
     "skill_check",
@@ -106,6 +107,7 @@ class RulesAdjudication(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     feasible: bool
+    combat_status: CombatStatus
     mechanical_summary: str
     visible_outcome_facts: list[str]
     state_deltas: list[str]
@@ -118,6 +120,7 @@ class RulesAdjudication(BaseModel):
     def _coerce_missing_combat_fields(cls, data):
         if isinstance(data, dict):
             data = dict(data)
+            data.setdefault("combat_status", "ongoing")
             data.setdefault("combat_state_deltas", [])
         return data
 

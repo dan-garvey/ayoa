@@ -53,6 +53,13 @@ EndsBeatReason = Literal[
     "observation_harvest",
 ]
 
+DndInteractionMode = Literal[
+    "cat_i",
+    "cat_ii",
+    "dnd_combat_start",
+    "dnd_combat_end",
+]
+
 
 def _new_event_id() -> str:
     """Stable event identifier for the canonical event log + render
@@ -371,4 +378,59 @@ class EventRouterOutput(BaseModel):
                     "Coercing ends_beat=true.",
                 )
                 self.ends_beat = True
+        return self
+
+
+class DndEventRouterOutput(EventRouterOutput):
+    """D&D ruleset extension for fresh event-router intentions.
+
+    The generic router's Cat I/Cat II fields stay rules-neutral. In D&D mode,
+    fresh intentions add an explicit interaction mode so "contested" and
+    "initiative-governed combat" cannot be conflated.
+    """
+
+    interaction_mode: DndInteractionMode
+    combatant_ids: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_interaction_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        mode = data.get("interaction_mode")
+        if mode in {"cat_i", "dnd_combat_start", "dnd_combat_end"}:
+            data = dict(data)
+            data["requires_responders"] = False
+            data["required_responders"] = []
+        elif mode == "cat_ii":
+            data = dict(data)
+            data["requires_responders"] = True
+            data["combatant_ids"] = []
+        return data
+
+    @model_validator(mode="after")
+    def _validate_interaction_mode(self) -> "DndEventRouterOutput":
+        if self.interaction_mode == "cat_ii":
+            if not self.required_responders:
+                raise ValueError(
+                    "interaction_mode='cat_ii' requires required_responders."
+                )
+            self.requires_responders = True
+            self.combatant_ids = []
+            return self
+
+        self.requires_responders = False
+        self.required_responders = []
+
+        if self.interaction_mode == "dnd_combat_start":
+            unique = list(dict.fromkeys(cid.strip() for cid in self.combatant_ids))
+            self.combatant_ids = [cid for cid in unique if cid]
+            if len(self.combatant_ids) < 2:
+                raise ValueError(
+                    "interaction_mode='dnd_combat_start' requires at least "
+                    "two combatant_ids."
+                )
+        elif self.interaction_mode in {"cat_i", "dnd_combat_end"}:
+            self.combatant_ids = []
+
         return self

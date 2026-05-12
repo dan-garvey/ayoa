@@ -11,6 +11,7 @@ from app.engine.dnd_combat import (
     private_status,
     public_status,
     remove_combatant,
+    roll_death_save,
     start_combat,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
@@ -138,10 +139,136 @@ def test_damage_and_healing_use_hp_snapshot_without_touching_character_mechanics
     apply_damage(session, "hero", 99)
     assert damaged.hit_points_current == 0
     assert damaged.defeated is True
+    assert damaged.defeat_state == "defeated"
 
     healed = apply_healing(session, "hero", 4)
     assert healed.hit_points_current == 4
     assert healed.defeated is False
+    assert healed.defeat_state == "active"
+
+
+def test_player_controlled_combatant_goes_down_and_healing_recovers(
+    monkeypatch,
+):
+    values = iter([4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    hero = _character("hero", "Hero", hp=10)
+    session = SessionState(
+        session_id="s",
+        character_bindings={"hero": "discord_1"},
+    )
+    start_combat(session, [hero])
+
+    damaged = apply_damage(session, "hero", 10)
+
+    assert damaged.hit_points_current == 0
+    assert damaged.defeated is True
+    assert damaged.defeat_state == "down"
+    assert damaged.death_save_successes == 0
+    assert damaged.death_save_failures == 0
+    assert "unconscious" in damaged.conditions
+
+    apply_damage(session, "hero", 1)
+    assert damaged.defeat_state == "down"
+    assert damaged.death_save_failures == 1
+
+    healed = apply_healing(session, "hero", 4)
+    assert healed.hit_points_current == 4
+    assert healed.defeated is False
+    assert healed.defeat_state == "active"
+    assert healed.death_save_successes == 0
+    assert healed.death_save_failures == 0
+    assert "unconscious" not in healed.conditions
+
+
+def test_death_saves_stabilize_or_kill_player_controlled_combatant(
+    monkeypatch,
+):
+    values = iter([4, 9, 9, 9, 0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    hero = _character("hero", "Hero", hp=10)
+    session = SessionState(
+        session_id="s",
+        character_bindings={"hero": "discord_1"},
+    )
+    start_combat(session, [hero])
+    apply_damage(session, "hero", 10)
+
+    roll_death_save(session, "hero")
+    roll_death_save(session, "hero")
+    roll_death_save(session, "hero")
+
+    combatant = session.active_combat.combatants[0]
+    assert combatant.defeat_state == "stable"
+    assert combatant.death_save_successes == 0
+    assert combatant.death_save_failures == 0
+    assert "third success; they are stable" in session.active_combat.audit_lines[-1]
+
+    apply_damage(session, "hero", 1)
+    assert combatant.defeat_state == "down"
+    assert combatant.death_save_successes == 0
+    assert combatant.death_save_failures == 1
+
+    roll_death_save(session, "hero")
+    assert combatant.defeat_state == "dead"
+    assert combatant.death_save_failures == 3
+
+
+def test_advance_turn_rolls_death_save_for_down_combatant(monkeypatch):
+    values = iter([14, 9, 19])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    hero = _character("hero", "Hero", hp=10)
+    goblin = _character("goblin", "Goblin", hp=7)
+    session = SessionState(
+        session_id="s",
+        character_bindings={"hero": "discord_1"},
+    )
+    combat = start_combat(session, [hero, goblin])
+    assert [c.combatant_id for c in combat.combatants] == ["hero", "goblin"]
+    combat.turn_index = 1
+    apply_damage(session, "hero", 10)
+
+    advanced = advance_turn(session)
+
+    assert advanced.combatant_id == "hero"
+    assert advanced.defeat_state == "active"
+    assert advanced.hit_points_current == 1
+    assert "natural 20; they regain 1 HP" in combat.audit_lines[-1]
+
+
+def test_advance_turn_persists_death_save_when_everyone_is_down(monkeypatch):
+    values = iter([4, 4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    hero = _character("hero", "Hero", hp=10)
+    session = SessionState(
+        session_id="s",
+        character_bindings={"hero": "discord_1"},
+    )
+    combat = start_combat(session, [hero])
+    apply_damage(session, "hero", 10)
+
+    advanced = advance_turn(session)
+
+    assert advanced.combatant_id == "hero"
+    assert advanced.defeat_state == "down"
+    assert advanced.death_save_failures == 1
+    assert "failure (1/3)" in combat.audit_lines[-1]
 
 
 def test_add_and_remove_combatants_preserve_current_turn(monkeypatch):
@@ -205,6 +332,8 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
             "character_id": "alice",
             "name": "Alice",
             "hp": {"current": 12, "max": 12, "temporary": 0},
+            "defeat_state": "active",
+            "death_saves": {"successes": 0, "failures": 0},
             "defeated": False,
             "removed": False,
         },
@@ -214,6 +343,8 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
                 "character_id": "alice",
                 "name": "Alice",
                 "hp": {"current": 12, "max": 12, "temporary": 0},
+                "defeat_state": "active",
+                "death_saves": {"successes": 0, "failures": 0},
                 "defeated": False,
                 "removed": False,
             }

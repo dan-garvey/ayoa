@@ -116,6 +116,11 @@ def _combat_state_line(combatant: Any) -> str:
     hp_current = _obj_get(combatant, "hit_points_current", 0)
     hp_max = _obj_get(combatant, "hit_points_max", 0)
     hp_temp = _obj_get(combatant, "hit_points_temporary", 0)
+    defeat_state = str(_obj_get(combatant, "defeat_state", "") or "active")
+    if bool(_obj_get(combatant, "defeated", False)) and defeat_state == "active":
+        defeat_state = "defeated"
+    death_successes = int(_obj_get(combatant, "death_save_successes", 0) or 0)
+    death_failures = int(_obj_get(combatant, "death_save_failures", 0) or 0)
     conditions = [
         str(condition)
         for condition in (_obj_get(combatant, "conditions", []) or [])
@@ -125,7 +130,16 @@ def _combat_state_line(combatant: Any) -> str:
     if hp_temp:
         hp = f"{hp} (+{hp_temp} temp)"
     condition_text = ", ".join(conditions) if conditions else "none"
-    return f"Your combat state: AC {ac}; HP {hp}; conditions: {condition_text}."
+    parts = [f"AC {ac}", f"HP {hp}"]
+    if defeat_state != "active":
+        parts.append(f"state {defeat_state}")
+        if defeat_state == "down":
+            parts.append(
+                f"death saves {death_successes} successes/"
+                f"{death_failures} failures"
+            )
+    parts.append(f"conditions: {condition_text}")
+    return f"Your combat state: {'; '.join(parts)}."
 
 
 def _join_mode_blocks(*blocks: str) -> str:

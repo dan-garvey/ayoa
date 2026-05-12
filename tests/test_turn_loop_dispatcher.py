@@ -16,7 +16,7 @@ from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
@@ -74,6 +74,13 @@ def _router_output() -> EventRouterOutput:
         dormant=[],
         cull=[],
     )
+
+
+def _dnd_router_output() -> DndEventRouterOutput:
+    data = _router_output().model_dump()
+    data["interaction_mode"] = "cat_i"
+    data["combatant_ids"] = []
+    return DndEventRouterOutput(**data)
 
 
 def _llm_response(parsed) -> LLMResponse:
@@ -163,6 +170,43 @@ class TestRouteIntention:
         )
         assert "Pip intends: polishes the bell" in user_content
         assert "Pip attempts:" not in user_content
+
+    def test_dnd_fresh_intention_uses_dnd_router_contract(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        mock_client.complete.return_value = _llm_response(_dnd_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="draw steel",
+        ))
+
+        call = mock_client.complete.await_args.kwargs
+        assert call["response_model"] is DndEventRouterOutput
+        system_content = call["messages"][0]["content"]
+        assert "D&D Interaction Mode" in system_content
+        assert '"interaction_mode"' in system_content
+
+    def test_narrative_fresh_intention_keeps_generic_router_contract(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="draw steel",
+        ))
+
+        call = mock_client.complete.await_args.kwargs
+        assert call["response_model"] is EventRouterOutput
+        system_content = call["messages"][0]["content"]
+        assert "D&D Interaction Mode" not in system_content
+        assert '"interaction_mode"' not in system_content
 
     def test_cat_ii_resolution_formats_collected_intentions(
         self, prompt_mgr, mock_client,

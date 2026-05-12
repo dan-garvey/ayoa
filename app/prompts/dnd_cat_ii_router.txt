@@ -22,6 +22,8 @@ For phase PLAN_ROLLS, emit RollPlan:
 
 For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Use the roll ledger totals exactly as supplied.
+- Set combat_status="ongoing"; ordinary Cat II resolution does not start or
+  end initiative.
 - visible_outcome_facts are public, concrete facts of the resolved contest.
 - Use explicit names for non-self-referential character references in visible_outcome_facts. If the sentence names the acting character as the subject, normal self-reference is allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a pronoun would refer to a different character, use that character's name instead. If quoted dialogue contains a pronoun for someone other than the speaker, replace that pronoun with the character name in square brackets. Leave self-reference in dialogue alone.
 - state_deltas are plain text notes for future mechanics work; they are not

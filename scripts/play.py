@@ -60,6 +60,7 @@ from dotenv import load_dotenv
 
 from app.bot.engine_bridge import (
     CompletedPendingRoll,
+    DndCombatParticipantView,
     DndCombatView,
     EngineBridge,
     PendingRollPrompt,
@@ -173,6 +174,14 @@ def _print_combat_status(view: DndCombatView) -> None:
             bits.append(f"AC {participant.armor_class}")
         if participant.initiative is not None:
             bits.append(f"Init {participant.initiative}")
+        if participant.defeat_state != "active":
+            state = participant.defeat_state
+            if state == "down":
+                state += (
+                    f" ({participant.death_save_successes}S/"
+                    f"{participant.death_save_failures}F)"
+                )
+            bits.append(state)
         if participant.conditions:
             bits.append(", ".join(participant.conditions))
         suffix = f" - {'; '.join(bits)}" if bits else ""
@@ -181,6 +190,22 @@ def _print_combat_status(view: DndCombatView) -> None:
             f"({participant.character_id}){suffix}"
         )
     print()
+
+
+def _combat_participant_label(participant: DndCombatParticipantView) -> str:
+    if participant.name and participant.name != participant.character_id:
+        return f"{participant.name} ({participant.character_id})"
+    return participant.character_id
+
+
+def _combat_initiative_line(view: DndCombatView) -> str:
+    parts: list[str] = []
+    for participant in view.participants:
+        label = _combat_participant_label(participant)
+        if participant.initiative is not None:
+            label = f"{label} {participant.initiative}"
+        parts.append(label)
+    return ", ".join(parts)
 
 
 def _split_combat_ids(arg: str) -> list[str]:
@@ -1283,10 +1308,7 @@ class CLIState:
         if response.beat_ended_reason == "cat_ii_pending":
             actor_render = per_player.get(actor_id) or ""
             print()
-            print(
-                "(beat paused — another player is resolving a contested "
-                "action; /act again later to continue)"
-            )
+            self._print_cat_ii_pending_notice()
             if actor_render:
                 print()
                 print(f"--- Turn {response.turn_index} · "
@@ -1298,6 +1320,8 @@ class CLIState:
             print(f"--- Turn {response.turn_index} · {actor_id} ---")
             print(response.output_text)
             print()
+
+        self._print_combat_started_notice(response)
 
         # Print POVs for any other characters this CLI session has
         # /join'd locally so the playtester sees the multi-POV output
@@ -1316,6 +1340,95 @@ class CLIState:
 
         self._print_reaction_prompts(response)
         self._sync_current_actor_to_active_combat()
+
+    def _print_cat_ii_pending_notice(self) -> None:
+        try:
+            ckpt = self.engine.load_latest(self.session_id)
+        except Exception:
+            logger.debug("cat ii pending slot lookup failed", exc_info=True)
+            print(
+                "(beat paused — waiting on another character to resolve "
+                "a contested action.)"
+            )
+            return
+
+        pending: list[str] = []
+        for cid in self.claims:
+            slot = ckpt.session.active_act_slots.get(cid)
+            if slot is None or slot.reason != "cat_ii_responder":
+                continue
+            pending.append(cid)
+
+        if not pending:
+            print(
+                "(beat paused — waiting on another character to resolve "
+                "a contested action.)"
+            )
+            return
+
+        if len(pending) == 1:
+            cid = pending[0]
+            label = self._character_label(ckpt, cid)
+            if cid != self.current_actor:
+                self.current_actor = cid
+                print(
+                    f"(beat paused — waiting on {label}. Switched to "
+                    f"{cid}; type their response to continue.)"
+                )
+                return
+            print(
+                f"(beat paused — waiting on {label}. Type their response "
+                "to continue.)"
+            )
+            return
+
+        labels = ", ".join(self._character_label(ckpt, cid) for cid in pending)
+        print(
+            f"(beat paused — waiting on: {labels}. Use /as <character_id>, "
+            "then type a response.)"
+        )
+
+    def _print_combat_started_notice(self, response) -> None:
+        if response.beat_ended_reason != "combat_started":
+            return
+        try:
+            view = self.engine.combat_status(self.session_id, private=True)
+        except Exception:
+            logger.debug("combat-start status lookup failed", exc_info=True)
+            print(
+                "Combat started. The initiating action has not resolved "
+                "before initiative."
+            )
+            return
+
+        if not view.active:
+            print(
+                "Combat started. The initiating action has not resolved "
+                "before initiative."
+            )
+            return
+
+        parts = ["Combat started."]
+        initiative = _combat_initiative_line(view)
+        if initiative:
+            parts.append(f"Initiative: {initiative}.")
+        current = next(
+            (
+                participant for participant in view.participants
+                if (
+                    participant.current
+                    or participant.character_id == view.current_participant_id
+                )
+            ),
+            None,
+        )
+        if current is not None:
+            parts.append(f"Current turn: {_combat_participant_label(current)}.")
+        elif view.current_participant_id:
+            parts.append(f"Current turn: {view.current_participant_id}.")
+        parts.append("The initiating action has not resolved before initiative.")
+        print(" ".join(parts))
+        print()
 
     def _print_reaction_prompts(self, response) -> None:
         prompts = getattr(response, "reaction_prompts", None) or {}
@@ -1362,6 +1475,16 @@ class CLIState:
         for cid, event_id in open_slots:
             marker = "  ← acting" if cid == self.current_actor else ""
             print(f"  - {cid}: {event_id or '(event unknown)'}{marker}")
+
+    def _character_label(self, ckpt, character_id: str) -> str:
+        for character in getattr(ckpt, "characters", []) or []:
+            if character.character_id != character_id:
+                continue
+            name = character.name or character_id
+            if name == character_id:
+                return character_id
+            return f"{name} ({character_id})"
+        return character_id
 
     def _sync_current_actor_to_active_combat(
         self,

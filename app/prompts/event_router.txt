@@ -77,6 +77,8 @@ For NPCs, omit observers who receive no packet and have no meaningful perception
 
 `required_responders` is only for Cat II contested actions: the characters whose intentions must be collected before the outcome can be resolved.
 
+{ruleset_router_addon}
+
 ### Fresh Intention Workflow
 
 1. Interpret the acting character's intent plainly. Do not add goals, attitude, body language, dialogue, or social posture the input did not supply.
@@ -333,6 +335,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   ],
   "dormant": [],
   "cull": [],
+{ruleset_output_schema_fields}
   "requires_responders": true or false,
   "required_responders": ["character_id - Cat II only, else empty"],
   "agent_responder_picks": ["character_id - NPC next-intention ids, or special targets for observation_harvest/query_response"],

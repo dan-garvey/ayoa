@@ -1,0 +1,2 @@
+  "interaction_mode": "cat_i | cat_ii | dnd_combat_start | dnd_combat_end",
+  "combatant_ids": ["character_id - required only for dnd_combat_start, else empty"],

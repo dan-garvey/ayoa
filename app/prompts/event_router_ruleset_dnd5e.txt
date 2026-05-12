@@ -1,0 +1,22 @@
+### D&D Interaction Mode
+
+For fresh intentions in D&D mode, choose one `interaction_mode` before setting
+Cat I or Cat II fields.
+
+- `cat_i`: ordinary self-closing narrative action.
+- `cat_ii`: non-combat contested interaction. Use this for consent-dependent
+  contact, grabbing an object, blocking passage, or other contests that are not
+  a hostile fight.
+- `dnd_combat_start`: a hostile attack, attack spell, weapon threat becoming
+  violence, or similar fight-starting action. Do not open Cat II for this mode.
+- `dnd_combat_end`: active hostilities clearly end through surrender, flight,
+  defeat, or mutual de-escalation.
+
+For `dnd_combat_start`, set `requires_responders=false`,
+`required_responders=[]`, and put the acting character, direct targets, and
+other immediately involved combatants in `combatant_ids`. Observable facts show
+the combat-starting trigger only; do not resolve attack rolls, hits, damage, or
+spell effects before initiative.
+
+For `dnd_combat_end`, set `requires_responders=false`,
+`required_responders=[]`, and `combatant_ids=[]`.

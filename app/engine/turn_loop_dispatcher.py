@@ -33,6 +33,7 @@ from app.engine.context_builder import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.dnd_cat_ii import (
+    DND5E_BASIC_RULESET_ID,
     DndCatIIResolver,
     DndCombatResolver,
     dnd_cat_ii_router_enabled,
@@ -47,11 +48,45 @@ from app.engine.turn_loop_contracts import (
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
 logger = logging.getLogger(__name__)
+
+
+def _session_ruleset_id(ckpt: CheckpointFile) -> str:
+    return str(getattr(ckpt.session.config.settings, "ruleset_id", "") or "")
+
+
+def _dnd_fresh_router_enabled(
+    ckpt: CheckpointFile,
+    cat_ii_event: OpenCatIIEvent | None,
+) -> bool:
+    return (
+        cat_ii_event is None
+        and _session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID
+    )
+
+
+def _router_ruleset_template_vars(
+    prompt_mgr: PromptManager,
+    *,
+    dnd_fresh: bool,
+) -> dict[str, str]:
+    if dnd_fresh:
+        return {
+            "ruleset_router_addon": prompt_mgr.render(
+                "event_router_ruleset_dnd5e",
+            ).strip(),
+            "ruleset_output_schema_fields": prompt_mgr.render(
+                "event_router_ruleset_dnd5e_output_fields",
+            ),
+        }
+    return {
+        "ruleset_router_addon": "",
+        "ruleset_output_schema_fields": "",
+    }
 
 
 # v11-r7j note: a mirror copy of the legacy `EventRouter` engine
@@ -337,6 +372,7 @@ class LLMDispatcher:
         )
         try:
             ctx = _build_router_context(ckpt, actor_id)
+            dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
             # Resolve the actor's display name for the intention framing.
             actor_char = next(
@@ -373,6 +409,10 @@ class LLMDispatcher:
 
             template_vars = {
                 **ctx,
+                **_router_ruleset_template_vars(
+                    self.prompt_mgr,
+                    dnd_fresh=dnd_fresh,
+                ),
                 "intention_block": intention_block,
                 "cat_ii_resolution_block": cat_ii_resolution_block,
                 "tick_fan_in_block": "",
@@ -400,7 +440,9 @@ class LLMDispatcher:
             response = await self.client.complete(
                 role="event_router",
                 messages=messages,
-                response_model=EventRouterOutput,
+                response_model=(
+                    DndEventRouterOutput if dnd_fresh else EventRouterOutput
+                ),
                 temperature=0.35,
                 max_tokens=5000,
                 cache=True,
@@ -482,6 +524,10 @@ class LLMDispatcher:
 
             template_vars = {
                 **ctx,
+                **_router_ruleset_template_vars(
+                    self.prompt_mgr,
+                    dnd_fresh=False,
+                ),
                 "intention_block": continuation_block,
                 "cat_ii_resolution_block": "",
                 "tick_fan_in_block": "",
@@ -570,6 +616,10 @@ class LLMDispatcher:
 
             template_vars = {
                 **ctx,
+                **_router_ruleset_template_vars(
+                    self.prompt_mgr,
+                    dnd_fresh=False,
+                ),
                 # Tick mode owns ONE of the three input-block slots; the
                 # other two stay empty. Same exclusivity contract as
                 # intention vs cat_ii_resolution on the on-stage path.

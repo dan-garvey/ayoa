@@ -131,6 +131,9 @@ class CatIIRollTransaction(BaseModel):
     updated_at: str = ""
 
 
+DefeatState = Literal["active", "down", "stable", "dead", "defeated"]
+
+
 class DndCombatantState(BaseModel):
     """Checkpoint-persistent snapshot of one active D&D combatant.
 
@@ -155,6 +158,9 @@ class DndCombatantState(BaseModel):
     initiative_order: int = 0
     reaction_available: bool = True
     conditions: list[str] = Field(default_factory=list)
+    defeat_state: DefeatState = "active"
+    death_save_successes: int = 0
+    death_save_failures: int = 0
     defeated: bool = False
     removed: bool = False
     notes: str = ""

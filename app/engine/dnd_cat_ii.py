@@ -53,6 +53,15 @@ def dnd_combat_router_enabled(ckpt: CheckpointFile) -> bool:
     )
 
 
+def _combatant_defeat_state(combatant: object) -> str:
+    state = str(getattr(combatant, "defeat_state", "") or "")
+    if bool(getattr(combatant, "defeated", False)) and state in {"", "active"}:
+        return "defeated"
+    if state:
+        return state
+    return "defeated" if bool(getattr(combatant, "defeated", False)) else "active"
+
+
 class DndCatIIResolver:
     """Router-owned D&D Cat II resolver.
 
@@ -220,6 +229,8 @@ class DndCombatResolver:
             transaction=transaction,
             adjudication=adjudication,
         )
+        if adjudication.combat_status == "ended":
+            _end_combat_after_adjudication(ckpt, result)
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
         transaction.updated_at = _utcnow_iso()
@@ -267,6 +278,24 @@ class DndCombatResolver:
             compact=False,
         )
         return response.parsed
+
+
+def _end_combat_after_adjudication(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    dnd_combat.append_audit_line(
+        combat,
+        f"Combat ended from D&D combat adjudication: {result.event_id}.",
+    )
+    dnd_combat.end_combat(ckpt.session)
+    result.canonical_event.observable_facts.append(ObservableFact.all(
+        "D&D combat ends; the scene is no longer in initiative order."
+    ))
+
 
 def complete_pending_player_roll(
     ckpt: CheckpointFile,
@@ -723,10 +752,23 @@ def _build_combat_packet(
                 ),
             },
             "conditions": list(getattr(combatant, "conditions", []) or []),
+            "defeat_state": _combatant_defeat_state(combatant),
+            "death_saves": {
+                "successes": int(
+                    getattr(combatant, "death_save_successes", 0) or 0
+                ),
+                "failures": int(
+                    getattr(combatant, "death_save_failures", 0) or 0
+                ),
+            },
             "mechanics": (
                 mechanics.mechanics_summary(char) if char is not None else {}
             ),
             "actions": _combat_action_summaries(char),
+            "spellcasting": (
+                _combat_spellcasting_summary(char) if cid == actor_id else {}
+            ),
+            "spells": _combat_spell_summaries(char) if cid == actor_id else [],
         })
 
     payload = {
@@ -769,6 +811,107 @@ def _combat_action_summaries(character: object | None) -> list[dict[str, object]
             "damage": str(attack.get("damage") or ""),
         })
     return actions
+
+
+def _combat_spellcasting_summary(character: object | None) -> dict[str, object]:
+    if character is None:
+        return {}
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    spellcasting = statblock.get("spellcasting") or {}
+    if not isinstance(spellcasting, dict):
+        return {}
+    profiles: list[dict[str, object]] = []
+    for profile in spellcasting.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        profiles.append({
+            "id": str(profile.get("id") or ""),
+            "name": str(profile.get("name") or ""),
+            "ability": str(profile.get("ability") or ""),
+            "spell_attack_bonus": profile.get("spell_attack_bonus", ""),
+            "spell_save_dc": profile.get("spell_save_dc", ""),
+        })
+    return {
+        "profiles": profiles,
+        "slots": spellcasting.get("slots") or {},
+        "pact_slots": spellcasting.get("pact_slots") or {},
+    }
+
+
+def _combat_spell_summaries(character: object | None) -> list[dict[str, object]]:
+    if character is None:
+        return []
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    spellcasting = statblock.get("spellcasting") or {}
+    if not isinstance(spellcasting, dict):
+        return []
+
+    spells: list[dict[str, object]] = []
+    for spell in spellcasting.get("spells") or []:
+        if not isinstance(spell, dict):
+            continue
+        attack = spell.get("attack") or {}
+        if not isinstance(attack, dict):
+            attack = {}
+        save = spell.get("save") or {}
+        if not isinstance(save, dict):
+            save = {}
+        spells.append({
+            "id": str(spell.get("id") or ""),
+            "name": str(spell.get("name") or ""),
+            "level": spell.get("level", 0),
+            "prepared": bool(spell.get("prepared")),
+            "always_prepared": bool(spell.get("always_prepared")),
+            "concentration": bool(spell.get("concentration")),
+            "attack": {
+                "ability": str(attack.get("ability") or ""),
+                "bonus": attack.get("bonus", ""),
+            },
+            "save": {
+                "ability": str(save.get("ability") or ""),
+                "dc": save.get("dc", ""),
+            },
+            "damage": _formula_summaries(spell.get("damage")),
+            "healing": _formula_summaries(spell.get("healing")),
+            "consumes": _resource_summaries(spell.get("consumes")),
+        })
+    return spells
+
+
+def _formula_summaries(value: object) -> list[str]:
+    out: list[str] = []
+    if not isinstance(value, list):
+        return out
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        formula = str(item.get("formula") or "").strip()
+        if formula:
+            out.append(formula)
+    return out
+
+
+def _resource_summaries(value: object) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    if not isinstance(value, list):
+        return out
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        resource_id = str(item.get("resource_id") or "").strip()
+        if not resource_id:
+            continue
+        out.append({
+            "resource_id": resource_id,
+            "amount": item.get("amount", 1),
+        })
+    return out
 
 
 def _current_combatant(combat: object) -> object | None:
@@ -846,8 +989,9 @@ def _compile_combat_router_output(
     observer_ids = []
     if combat is not None:
         for combatant in list(getattr(combat, "combatants", []) or []):
-            if bool(getattr(combatant, "defeated", False)) or bool(
-                getattr(combatant, "removed", False)
+            if (
+                _combatant_defeat_state(combatant) != "active"
+                or bool(getattr(combatant, "removed", False))
             ):
                 continue
             cid = str(

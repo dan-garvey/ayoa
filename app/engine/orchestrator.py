@@ -82,6 +82,7 @@ _COMBAT_NO_ADVANCE_REASONS = {
     "cat_ii_pending",
     "cat_ii_pending_rolls",
     "cat_ii_stale",
+    "combat_started",
     "combat_reaction_pending",
 }
 
@@ -186,8 +187,10 @@ def _combatant_name(combatant: Any) -> str:
 
 
 def _combatant_defeated(combatant: Any) -> bool:
+    defeat_state = str(_obj_get(combatant, "defeat_state", "") or "")
     return bool(
-        _obj_get(combatant, "defeated", False)
+        defeat_state in {"down", "stable", "dead", "defeated"}
+        or _obj_get(combatant, "defeated", False)
         or _obj_get(combatant, "removed", False)
     )
 
@@ -396,40 +399,17 @@ def _advance_combat_initiative_after_turn(
     combat = _active_combat_state(ckpt)
     if combat is None:
         return
-    combatants = _combatants(combat)
-    if not combatants:
+    try:
+        current = dnd_combat.advance_turn(ckpt.session)
+    except ValueError:
         return
-
-    start_index = _combat_turn_index(combat, combatants)
-    next_index = start_index
-    round_number = int(_obj_get(combat, "round_number", 1) or 1)
-    round_crossed = False
-
-    for _ in range(len(combatants)):
-        next_index = (next_index + 1) % len(combatants)
-        if next_index == 0 and not round_crossed:
-            round_crossed = True
-            round_number += 1
-
-        candidate = combatants[next_index]
-        if _combatant_defeated(candidate):
-            _append_combat_audit_line(
-                ckpt,
-                f"Skipped defeated combatant {_combatant_name(candidate)}.",
-            )
-            continue
-
-        _obj_set(combat, "turn_index", next_index)
-        _begin_combat_turn(candidate)
-        _clear_pending_combat_advance(ckpt)
-        if round_crossed:
-            _obj_set(combat, "round_number", round_number)
-
+    _clear_pending_combat_advance(ckpt)
+    current = _current_combatant(ckpt, combat) or current
+    if current is not None:
         _append_combat_audit_line(
             ckpt,
-            f"Initiative advanced to {_combatant_name(candidate)}.",
+            f"Initiative advanced to {_combatant_name(current)}.",
         )
-        return
 
 
 def _advance_pending_combat_if_unblocked(ckpt: CheckpointFile) -> bool:

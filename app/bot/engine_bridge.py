@@ -164,6 +164,9 @@ class DndCombatParticipantView:
     hp_temporary: int = 0
     armor_class: int | None = None
     conditions: tuple[str, ...] = ()
+    defeat_state: str = "active"
+    death_save_successes: int = 0
+    death_save_failures: int = 0
 
 
 @dataclass(frozen=True)
@@ -1802,6 +1805,16 @@ class EngineBridge:
                 mechanics.get("conditions", [])
                 if isinstance(mechanics, dict) else []
             )
+        raw_death_saves = self._combat_get(raw, "death_saves", default={})
+        if not isinstance(raw_death_saves, dict):
+            raw_death_saves = {}
+        defeat_state = str(
+            self._combat_get(raw, "defeat_state", default="active") or "active"
+        )
+        if bool(self._combat_get(raw, "defeated", default=False)) and (
+            defeat_state == "active"
+        ):
+            defeat_state = "defeated"
         return DndCombatParticipantView(
             character_id=cid,
             name=name,
@@ -1841,6 +1854,23 @@ class EngineBridge:
                 )
             ),
             conditions=tuple(str(c) for c in (conditions or []) if str(c)),
+            defeat_state=defeat_state,
+            death_save_successes=self._optional_int(
+                self._combat_get(
+                    raw,
+                    "death_save_successes",
+                    default=raw_death_saves.get("successes", 0),
+                )
+            )
+            or 0,
+            death_save_failures=self._optional_int(
+                self._combat_get(
+                    raw,
+                    "death_save_failures",
+                    default=raw_death_saves.get("failures", 0),
+                )
+            )
+            or 0,
         )
 
     def _optional_int(self, value: Any) -> int | None:

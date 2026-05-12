@@ -6,11 +6,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.engine import dice
+from app.engine.dnd_combat import current_combatant
 from app.engine.orchestrator import Orchestrator
 from app.engine.turn_loop import BeatResult
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.event_router import (
+    DndEventRouterOutput,
+    EventRouterOutput,
+    ObserverEntry,
+)
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
@@ -110,6 +116,18 @@ def _router_out(
         dormant=[],
         cull=[],
     )
+
+
+def _dnd_router_out(
+    *,
+    interaction_mode: str,
+    combatant_ids: list[str] | None = None,
+    **kwargs,
+) -> DndEventRouterOutput:
+    data = _router_out(**kwargs).model_dump()
+    data["interaction_mode"] = interaction_mode
+    data["combatant_ids"] = combatant_ids or []
+    return DndEventRouterOutput(**data)
 
 
 class FakeDispatcher:
@@ -288,6 +306,38 @@ class TestPendingCombatRolls:
 
 
 class TestCombatTurnGating:
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_signal_starts_initiative_without_advancing(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 0])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice", "bob"],
+            facts=["Alice commits to an attack against Bob."],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I attack Bob",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        assert ckpt.session.active_combat is not None
+        assert current_combatant(ckpt.session).character_id == "alice"
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.session.active_act_slots == {}
+        assert mgr.save.call_count == 1
+
     @pytest.mark.asyncio
     async def test_non_current_human_combatant_is_rejected_without_save(
         self, patched_orchestrator,

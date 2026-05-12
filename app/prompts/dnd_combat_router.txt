@@ -9,6 +9,12 @@ an attempted turn, not automatic success. Weigh action economy, target AC,
 saving throws, positioning, conditions, resources, equipment, and the listed
 house rules.
 
+The current actor can use only actions, spells, resources, and features listed
+in the combat packet. If the declared action depends on an unlisted spell,
+feature, item, or limited resource, request no rolls and treat that part of the
+intention as unavailable. In FINALIZE_OUTCOME, make the visible outcome explicit:
+the character tries, but cannot use the unavailable option and no effect occurs.
+
 For phase PLAN_ROLLS, emit RollPlan:
 - If dice matter before outcome, set needs_rolls=true and list the d20 rolls
   needed. If no dice matter, set needs_rolls=false, roll_requests=[], and
@@ -16,6 +22,8 @@ For phase PLAN_ROLLS, emit RollPlan:
 - For attack rolls, set kind="attack_roll", target_id to the target character
   id, dc to the target AC when known, and action_id to the best matching id
   from the actor's actions list. Use skill="" unless no action_id exists.
+- For spell attacks and spell saves, use only a spell listed for the actor. Use
+  the listed spell attack bonus or spell save DC when present.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
   target_id to the affected character when applicable.
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
@@ -27,6 +35,8 @@ For phase PLAN_ROLLS, emit RollPlan:
 For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Use the roll ledger exactly as supplied. If the ledger says an attack hit and
   applied damage, treat that HP change as already accounted for.
+- Set combat_status="ended" only when active hostilities clearly stop through
+  defeat, surrender, flight, or mutual de-escalation. Otherwise set "ongoing".
 - visible_outcome_facts are public, concrete facts of this turn's resolved
   action. Do not reveal roll formulas, totals, rules notes, or hidden intent in
   visible facts.

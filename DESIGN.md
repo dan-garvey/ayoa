@@ -1013,7 +1013,8 @@ adjudication.
 ### 15.2 Code Surface
 
 * `app/engine/dnd_combat.py` — combat state machine: initiative
-  rolling, turn order, reaction windows, combat lifecycle.
+  rolling, turn order, reaction windows, 0 HP/down/death-save state,
+  and combat lifecycle.
 * `app/engine/dnd_cat_ii.py` — two router-owned resolvers that share
   the D&D roll-planning/finalization machinery and the
   `CatIIRollTransaction` checkpoint shape:
@@ -1048,6 +1049,12 @@ adjudication.
 * `TurnResponse.reaction_prompts: dict[str, str]` defaults to `{}`.
   Maps `character_id → canonical_event_id` for combatants whose
   reaction window is open.
+* `DndCombatantState.defeat_state` distinguishes `active`, `down`,
+  `stable`, `dead`, and ordinary defeated NPCs. The legacy
+  `defeated` boolean remains a compatibility flag. Player-controlled
+  combatants use death saves at 0 HP; unbound NPCs normally become
+  `defeated` at 0 HP. Death-save rolls and counters are checkpoint
+  state, not router or narrator history.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
   dice ledgers. Each transaction is tagged
@@ -1069,9 +1076,10 @@ adjudication.
   used by `DndCombatResolver`. Same two-phase shape and shared
   `RollPlan` / `RulesAdjudication` schemas as the Cat II prompt, but
   the user packet is the combat-state snapshot (round, current
-  combatant, all combatants with AC/HP/conditions, the actor's
-  available actions with `id`/`name`/`attack_bonus`/`damage`, and
-  the house rules) rather than a Cat II opening context.
+  combatant, all combatants with AC/HP/conditions/defeat state/death
+  saves, the actor's available actions with
+  `id`/`name`/`attack_bonus`/`damage`, and the house rules) rather
+  than a Cat II opening context.
 
 ### 15.5 Orchestrator Hooks
 
