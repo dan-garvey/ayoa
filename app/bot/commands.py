@@ -4602,23 +4602,24 @@ def register(
         participant_ids = [
             part.strip() for part in participants.split(",") if part.strip()
         ] or None
+        await inter.response.defer(thinking=True)
         try:
             view = await engine.begin_combat_locked(
                 row.session_id, participant_ids
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(str(e)), ephemeral=True,
             )
             return
         except Exception as e:
             logger.exception("combat begin failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-        await inter.response.send_message(embed=_render_combat_status(view))
+        await inter.followup.send(embed=_render_combat_status(view))
 
     @combat_group.command(
         name="status",
@@ -4655,21 +4656,22 @@ def register(
         row = await _combat_row(inter)
         if row is None:
             return
+        await inter.response.defer(thinking=True)
         try:
             view = await engine.combat_next_locked(row.session_id)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(str(e)), ephemeral=True,
             )
             return
         except Exception as e:
             logger.exception("combat next failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-        await inter.response.send_message(embed=_render_combat_status(view))
+        await inter.followup.send(embed=_render_combat_status(view))
 
     @combat_group.command(
         name="end",
@@ -4679,21 +4681,22 @@ def register(
         row = await _combat_row(inter)
         if row is None:
             return
+        await inter.response.defer(thinking=True)
         try:
             view = await engine.combat_end_locked(row.session_id)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(str(e)), ephemeral=True,
             )
             return
         except Exception as e:
             logger.exception("combat end failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-        await inter.response.send_message(embed=_render_combat_status(view))
+        await inter.followup.send(embed=_render_combat_status(view))
 
     @combat_group.command(
         name="damage",
@@ -4711,23 +4714,24 @@ def register(
         row = await _combat_row(inter)
         if row is None:
             return
+        await inter.response.defer(thinking=True)
         try:
             view = await engine.combat_damage_locked(
                 row.session_id, target.strip(), int(amount)
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(str(e)), ephemeral=True,
             )
             return
         except Exception as e:
             logger.exception("combat damage failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-        await inter.response.send_message(embed=_render_combat_status(view))
+        await inter.followup.send(embed=_render_combat_status(view))
 
     @combat_group.command(
         name="heal",
@@ -4745,23 +4749,24 @@ def register(
         row = await _combat_row(inter)
         if row is None:
             return
+        await inter.response.defer(thinking=True)
         try:
             view = await engine.combat_heal_locked(
                 row.session_id, target.strip(), int(amount)
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(str(e)), ephemeral=True,
             )
             return
         except Exception as e:
             logger.exception("combat heal failed")
-            await inter.response.send_message(
+            await inter.followup.send(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-        await inter.response.send_message(embed=_render_combat_status(view))
+        await inter.followup.send(embed=_render_combat_status(view))
 
     # ---- /status ------------------------------------------------------------
 

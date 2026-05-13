@@ -23,6 +23,7 @@ DamageAdjustmentKind = Literal[
     "halve",
     "double",
 ]
+DamageAdjustmentScope = Literal["component", "attack_total"]
 
 
 class PlannedDamageAdjustment(BaseModel):
@@ -38,6 +39,7 @@ class PlannedDamageAdjustment(BaseModel):
     kind: DamageAdjustmentKind
     damage_type: str
     reason: str
+    scope: DamageAdjustmentScope = "component"
 
     @model_validator(mode="before")
     @classmethod
@@ -46,6 +48,7 @@ class PlannedDamageAdjustment(BaseModel):
             data = dict(data)
             data.setdefault("damage_type", "")
             data.setdefault("reason", "")
+            data.setdefault("scope", "component")
         return data
 
     @model_validator(mode="after")
@@ -53,6 +56,7 @@ class PlannedDamageAdjustment(BaseModel):
         self.kind = self.kind.strip().lower()
         self.damage_type = self.damage_type.strip().lower()
         self.reason = self.reason.strip()
+        self.scope = self.scope.strip().lower()  # type: ignore[assignment]
         return self
 
 
@@ -183,6 +187,7 @@ class EffectDelta(BaseModel):
     duration_amount: int = 0
     remaining_rounds: int = 0
     duration_text: str = ""
+    break_triggers: list[str] = Field(default_factory=list)
     recurring_save: DndEffectRecurringSave | None = None
     reason: str = ""
 
@@ -203,6 +208,7 @@ class EffectDelta(BaseModel):
             data.setdefault("duration_amount", 0)
             data.setdefault("remaining_rounds", 0)
             data.setdefault("duration_text", "")
+            data.setdefault("break_triggers", [])
             data.setdefault("recurring_save", None)
             data.setdefault("reason", "")
         return data
@@ -220,6 +226,11 @@ class EffectDelta(BaseModel):
             condition.strip()
             for condition in self.conditions
             if condition.strip()
+        ]
+        self.break_triggers = [
+            trigger.strip().lower()
+            for trigger in self.break_triggers
+            if trigger.strip()
         ]
         if self.duration_amount < 0:
             self.duration_amount = 0

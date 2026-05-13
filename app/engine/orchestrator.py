@@ -1313,6 +1313,7 @@ class Orchestrator:
         if (
             transaction is None
             or transaction.status == "cancelled"
+            or transaction.status == "finalized"
             or _active_combat_state(ckpt) is None
         ):
             return self._stale_combat_roll_response(

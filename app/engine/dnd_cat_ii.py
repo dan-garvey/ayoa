@@ -77,6 +77,7 @@ class _DamageAdjustmentCandidate:
     kind: str
     damage_type: str
     reason: str
+    scope: str = "component"
 
 
 class DndCatIIRollsPending(RuntimeError):
@@ -245,6 +246,8 @@ class DndCombatResolver:
         transaction = _find_transaction(ckpt, event_id)
         if transaction is None or transaction.source != "combat":
             raise ValueError(f"No D&D combat roll transaction for {event_id}.")
+        if transaction.status == "finalized":
+            raise ValueError(f"D&D combat roll transaction {event_id} is finalized.")
         if transaction.status == "awaiting_player_rolls":
             if _pending_player_rolls(transaction):
                 _pin_pending_player_rolls(ckpt, transaction)
@@ -585,12 +588,18 @@ def _execute_combat_damage_rolls(
             crit=result.get("crit") == "crit",
         )
         raw_amount = sum(component.raw_amount for component in components)
-        final_amount = sum(component.amount for component in components)
-        adjustments = [
+        component_total = sum(component.amount for component in components)
+        component_adjustments = [
             adjustment
             for component in components
             for adjustment in component.adjustments
         ]
+        final_amount, attack_adjustments = _adjust_attack_total_amount(
+            request,
+            raw_amount=component_total,
+            components=components,
+        )
+        adjustments = [*component_adjustments, *attack_adjustments]
         _append_ledger_line_once(
             transaction,
             _damage_ledger_line(
@@ -598,6 +607,9 @@ def _execute_combat_damage_rolls(
                 actor_id=request.actor_id,
                 target_id=request.target_id,
                 components=components,
+                raw_total=raw_amount,
+                final_total=final_amount,
+                attack_adjustments=attack_adjustments,
             ),
         )
         transaction.damage_records.append(
@@ -673,6 +685,9 @@ def _damage_ledger_line(
     actor_id: str,
     target_id: str,
     components: list[CatIIRollDamageComponentRecord],
+    raw_total: int,
+    final_total: int,
+    attack_adjustments: list[CatIIRollDamageAdjustmentRecord],
 ) -> str:
     parts = []
     for component in components:
@@ -681,10 +696,9 @@ def _damage_ledger_line(
             f"{component.detail} = {component.raw_amount}{type_text}"
             f"{_damage_adjustment_ledger_text(component.adjustments)}"
         )
-    raw_total = sum(component.raw_amount for component in components)
-    final_total = sum(component.amount for component in components)
+    attack_adjustment_text = _damage_adjustment_ledger_text(attack_adjustments)
     total_text = (
-        f"; total {raw_total}->{final_total}"
+        f"; total {raw_total}->{final_total}{attack_adjustment_text}"
         if raw_total != final_total else f"; total {final_total}"
     )
     return (
@@ -885,7 +899,7 @@ def _damage_component_profile(value: object) -> _DamageProfile:
         components.append(
             _DamageComponent(expression=expression, damage_type=damage_type)
         )
-    return _DamageProfile(components=tuple(components))
+    return _DamageProfile(components=tuple(_merge_damage_components(components)))
 
 
 def _action_names(action: dict[str, object]) -> set[str]:
@@ -911,29 +925,77 @@ def _contains_action_name(haystack: str, needle: str) -> bool:
 
 
 def _clean_damage_expression(raw: str) -> str:
-    match = re.search(r"\d+d\d+(?:\s*[+-]\s*\d+)?", raw.strip().lower())
-    if match is None:
+    terms = re.findall(
+        r"[+-]?\s*(?:\d+d\d+|\d+)",
+        raw.strip().lower(),
+    )
+    if not any("d" in term for term in terms):
         return ""
-    return re.sub(r"\s+", "", match.group(0))
+    expression = "".join(re.sub(r"\s+", "", term) for term in terms)
+    return expression.lstrip("+")
 
 
 def _damage_components_from_text(raw: object) -> list[_DamageComponent]:
-    text = str(raw or "").strip()
+    text = _primary_damage_text(raw)
     if not text:
         return []
-    matches = list(
-        re.finditer(r"\d+d\d+(?:\s*[+-]\s*\d+)?", text, flags=re.IGNORECASE)
-    )
+    matches = list(_damage_type_spans(text))
     components: list[_DamageComponent] = []
-    for index, match in enumerate(matches):
-        expression = re.sub(r"\s+", "", match.group(0).lower())
-        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        label = text[match.end():next_start]
-        damage_type = _extract_damage_type(label)
+    previous_type_end = 0
+    for damage_type, start, end in matches:
+        expression = _clean_damage_expression(text[previous_type_end:start])
+        previous_type_end = end
+        if not expression:
+            continue
         components.append(
             _DamageComponent(expression=expression, damage_type=damage_type)
         )
-    return components
+    if components:
+        return _merge_damage_components(components)
+    expression = _clean_damage_expression(text)
+    if not expression:
+        return []
+    return [_DamageComponent(expression=expression, damage_type="")]
+
+
+def _primary_damage_text(raw: object) -> str:
+    text = str(raw or "").strip().lower()
+    if not text:
+        return ""
+    text = re.sub(r"\bplus\b", "+", text)
+    return re.split(r"\bor\b", text, maxsplit=1)[0]
+
+
+def _damage_type_spans(text: str):
+    pattern = "|".join(re.escape(damage_type) for damage_type in sorted(_DAMAGE_TYPES))
+    for match in re.finditer(
+        rf"(?<![a-z0-9])({pattern})(?![a-z0-9])",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        yield match.group(1).lower(), match.start(), match.end()
+
+
+def _merge_damage_components(
+    components: list[_DamageComponent],
+) -> list[_DamageComponent]:
+    merged: list[_DamageComponent] = []
+    index_by_type: dict[str, int] = {}
+    for component in components:
+        if not component.expression:
+            continue
+        key = component.damage_type
+        if key not in index_by_type:
+            index_by_type[key] = len(merged)
+            merged.append(component)
+            continue
+        idx = index_by_type[key]
+        existing = merged[idx]
+        merged[idx] = _DamageComponent(
+            expression=f"{existing.expression}+{component.expression}",
+            damage_type=existing.damage_type,
+        )
+    return merged
 
 
 def _damage_profile_summary(profile: _DamageProfile) -> str:
@@ -967,7 +1029,63 @@ def _adjust_damage_amount(
     damage_type = _extract_damage_type(damage_type) or _normalize_damage_text(
         damage_type
     )
-    candidates = _damage_adjustment_candidates(ckpt, request, damage_type)
+    candidates = _damage_adjustment_candidates(
+        ckpt,
+        request,
+        damage_type,
+        scope="component",
+    )
+    return _apply_damage_adjustments(amount, candidates, damage_type=damage_type)
+
+
+def _adjust_attack_total_amount(
+    request: PlannedRoll,
+    *,
+    raw_amount: int,
+    components: list[CatIIRollDamageComponentRecord],
+) -> tuple[int, list[CatIIRollDamageAdjustmentRecord]]:
+    amount = max(0, int(raw_amount or 0))
+    candidates: list[_DamageAdjustmentCandidate] = []
+    component_types = {
+        component.damage_type
+        for component in components
+        if component.damage_type
+    }
+    for adjustment in request.damage_adjustments:
+        if adjustment.scope != "attack_total":
+            continue
+        item_type = _normalize_damage_text(adjustment.damage_type)
+        if not _attack_total_adjustment_matches(item_type, component_types):
+            continue
+        candidates.append(_DamageAdjustmentCandidate(
+            source="router",
+            kind=adjustment.kind,
+            damage_type=item_type,
+            reason=adjustment.reason or "router-authored adjustment",
+            scope="attack_total",
+        ))
+    damage_type = _join_damage_types(
+        component.damage_type for component in components
+    ) or "damage"
+    return _apply_damage_adjustments(amount, candidates, damage_type=damage_type)
+
+
+def _attack_total_adjustment_matches(
+    candidate_type: str,
+    component_types: set[str],
+) -> bool:
+    candidate_type = _normalize_damage_text(candidate_type)
+    if candidate_type in {"all", "any", "damage"}:
+        return True
+    return bool(candidate_type and component_types == {candidate_type})
+
+
+def _apply_damage_adjustments(
+    amount: int,
+    candidates: list[_DamageAdjustmentCandidate],
+    *,
+    damage_type: str,
+) -> tuple[int, list[CatIIRollDamageAdjustmentRecord]]:
     adjustments: list[CatIIRollDamageAdjustmentRecord] = []
 
     immunity = [c for c in candidates if c.kind == "immunity"]
@@ -1040,6 +1158,8 @@ def _damage_adjustment_candidates(
     ckpt: CheckpointFile,
     request: PlannedRoll,
     damage_type: str,
+    *,
+    scope: str,
 ) -> list[_DamageAdjustmentCandidate]:
     candidates: list[_DamageAdjustmentCandidate] = []
     for kind, key in (
@@ -1059,9 +1179,12 @@ def _damage_adjustment_candidates(
                 kind=kind,
                 damage_type=item_type,
                 reason=reason,
+                scope="component",
             ))
 
     for adjustment in request.damage_adjustments:
+        if adjustment.scope != scope:
+            continue
         item_type = _normalize_damage_text(adjustment.damage_type)
         if not _damage_type_matches(item_type, damage_type, source="router"):
             continue
@@ -1070,6 +1193,7 @@ def _damage_adjustment_candidates(
             kind=adjustment.kind,
             damage_type=item_type or damage_type,
             reason=adjustment.reason or "router-authored adjustment",
+            scope=adjustment.scope,
         ))
     return candidates
 
@@ -1352,6 +1476,7 @@ def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
             "concentration": bool(getattr(effect, "concentration", False)),
             "remaining_rounds": int(getattr(effect, "remaining_rounds", 0) or 0),
             "duration_text": str(getattr(effect, "duration_text", "") or ""),
+            "break_triggers": list(getattr(effect, "break_triggers", []) or []),
             "recurring_save": (
                 {
                     "ability": str(getattr(save, "ability", "") or ""),
@@ -1728,6 +1853,8 @@ def _apply_combat_effect_deltas(
                 remaining_rounds=delta.remaining_rounds
                 if delta.remaining_rounds else None,
                 duration_text=delta.duration_text or None,
+                break_triggers=list(delta.break_triggers)
+                if delta.break_triggers else None,
                 recurring_save=delta.recurring_save,
                 reason=delta.reason,
             )
@@ -1792,6 +1919,7 @@ def _runtime_effect_from_delta(
         duration_amount=delta.duration_amount,
         remaining_rounds=delta.remaining_rounds,
         duration_text=delta.duration_text,
+        break_triggers=list(delta.break_triggers),
         recurring_save=delta.recurring_save,
         metadata={"reason": delta.reason} if delta.reason else {},
     )

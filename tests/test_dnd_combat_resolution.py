@@ -532,6 +532,127 @@ def test_combat_damage_rolls_and_adjusts_multiple_damage_types(monkeypatch):
     assert bob.hit_points_current == 0
 
 
+def test_combat_damage_groups_same_type_before_resistance(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[
+            {
+                "id": "fangs",
+                "name": "Fangs",
+                "attack": {"bonus": 5, "damage": "1d4 piercing + 1d4 piercing"},
+            },
+        ],
+    )
+    ckpt.characters[1] = _character(
+        "bob",
+        "Bob",
+        defenses={"damage_resistances": ["piercing"]},
+    )
+    values = iter([9, 0, 0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack(
+        action_id="fangs",
+        reason="Alice bites Bob.",
+    ))
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I bite Bob.",
+        )
+    )
+
+    damage = ckpt.session.cat_ii_roll_transactions[0].damage_records[0]
+    bob = ckpt.session.active_combat.combatants[1]
+    assert damage.raw_amount == 2
+    assert damage.amount == 1
+    assert damage.components[0].expression == "1d4+1d4"
+    assert damage.components[0].raw_amount == 2
+    assert damage.components[0].amount == 1
+    assert bob.hit_points_current == 12
+
+
+def test_combat_damage_parses_trailing_same_type_and_ignores_alternative(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[
+            {
+                "id": "blade",
+                "name": "Blade",
+                "attack": {"bonus": 5, "damage": "1d8 + 1d6 + 3 slashing"},
+            },
+        ],
+    )
+    values = iter([9, 3, 2])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack())
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+
+    damage = ckpt.session.cat_ii_roll_transactions[0].damage_records[0]
+    assert damage.expression == "1d8+1d6+3"
+    assert damage.raw_amount == 10
+    assert damage.damage_type == "slashing"
+
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[
+            {
+                "id": "blade",
+                "name": "Blade",
+                "attack": {
+                    "bonus": 5,
+                    "damage": (
+                        "1d8 slashing or 1d10 slashing if used with two hands"
+                    ),
+                },
+            },
+        ],
+    )
+    values = iter([9, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack())
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+
+    damage = ckpt.session.cat_ii_roll_transactions[0].damage_records[0]
+    assert damage.expression == "1d8"
+    assert damage.raw_amount == 4
+
+
 def test_combat_crit_doubles_every_damage_component(monkeypatch):
     ckpt = _ckpt()
     ckpt.characters[0] = _character(
@@ -571,6 +692,56 @@ def test_combat_crit_doubles_every_damage_component(monkeypatch):
         "2d8",
         "2d6",
     ]
+
+
+def test_combat_attack_total_adjustment_applies_after_components(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[
+            {
+                "id": "flame_blade",
+                "name": "Flame Blade",
+                "attack": {"bonus": 5, "damage": "1d8 slashing + 1d6 fire"},
+            },
+        ],
+    )
+    values = iter([9, 0, 0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack(
+        action_id="flame_blade",
+        damage_adjustments=[
+            {
+                "kind": "halve",
+                "damage_type": "all",
+                "reason": "Uncanny Dodge.",
+                "scope": "attack_total",
+            }
+        ],
+    ))
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I strike Bob with the flame blade.",
+        )
+    )
+
+    damage = ckpt.session.cat_ii_roll_transactions[0].damage_records[0]
+    assert [component.raw_amount for component in damage.components] == [1, 1]
+    assert [component.amount for component in damage.components] == [1, 1]
+    assert damage.raw_amount == 2
+    assert damage.amount == 1
+    assert damage.adjustments[0].source == "router"
+    assert damage.adjustments[0].kind == "halve"
+    assert damage.adjustments[0].amount_before == 2
+    assert damage.adjustments[0].amount_after == 1
 
 
 def test_combat_damage_ignores_empty_router_adjustment_type(monkeypatch):
@@ -1018,6 +1189,65 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
     assert transaction.damage_records[0].expression == "1d6+4"
 
 
+def test_combat_packet_exposes_defenses_and_effect_break_triggers():
+    ckpt = _ckpt()
+    ckpt.characters[1] = _character(
+        "bob",
+        "Bob",
+        defenses={"damage_resistances": ["nonmagical slashing"]},
+    )
+    alice = ckpt.session.active_combat.combatants[0]
+    alice.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_invisible",
+        name="Invisibility",
+        slug="invisibility",
+        target_id="alice",
+        originator_id="alice",
+        conditions=["invisible"],
+        break_triggers=["attack", "cast_spell"],
+    ))
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="probe",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="No effect.",
+            visible_outcome_facts=["Alice waits."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I wait.",
+        )
+    )
+
+    packet = prompt_mgr.render_messages.call_args_list[0].kwargs[
+        "combat_action_packet"
+    ]
+    assert '"damage_resistances": [' in packet
+    assert '"nonmagical slashing"' in packet
+    assert '"break_triggers": [' in packet
+    assert '"attack"' in packet
+    assert '"cast_spell"' in packet
+
+
 def test_invalid_action_id_does_not_fall_back_to_reason_weapon(monkeypatch):
     ckpt = _ckpt()
     ckpt.characters[0] = _character(
@@ -1333,6 +1563,37 @@ def test_combat_resolver_notes_skipped_effect_delta_for_missing_target():
     assert all(not combatant.active_effects for combatant in combatants)
     assert "Effect start skipped for Hold Person" in routed.decision_rationale
     assert "target_id='bobb'" in routed.decision_rationale
+
+
+def test_finalized_combat_transaction_cannot_be_continued(monkeypatch):
+    ckpt = _ckpt()
+    values = iter([9, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack())
+    resolver = DndCombatResolver(client, prompt_mgr)
+
+    asyncio.run(
+        resolver.resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.status == "finalized"
+
+    with pytest.raises(ValueError, match="finalized"):
+        asyncio.run(
+            resolver.continue_combat_transaction(
+                ckpt=ckpt,
+                event_id=transaction.event_id,
+            )
+        )
+    assert client.complete.await_count == 2
 
 
 def test_combat_resolver_explicit_effect_delta_breaks_existing_effect(monkeypatch):

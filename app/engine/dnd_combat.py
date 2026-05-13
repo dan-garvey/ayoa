@@ -376,6 +376,7 @@ def update_effect(
     duration_amount: int | None = None,
     remaining_rounds: int | None = None,
     duration_text: str | None = None,
+    break_triggers: Iterable[str] | None = None,
     recurring_save: Any | None = None,
     reason: str = "",
 ) -> DndRuntimeEffect | None:
@@ -439,6 +440,12 @@ def update_effect(
             effect.remaining_rounds = max(0, int(remaining_rounds))
         if duration_text is not None:
             effect.duration_text = duration_text.strip()
+        if break_triggers is not None:
+            effect.break_triggers = [
+                str(trigger).strip().lower()
+                for trigger in break_triggers
+                if str(trigger).strip()
+            ]
         if recurring_save is not None:
             effect.recurring_save = recurring_save
         if not effect.slug:

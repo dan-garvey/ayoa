@@ -30,8 +30,10 @@ For phase PLAN_ROLLS, emit RollPlan:
   that is visible in this packet and not already part of durable character
   mechanics, add damage_adjustments with kind, a non-empty damage_type, and
   reason. Use halve or double for effects that change damage without being
-  damage-type resistance or vulnerability. Do not put ordinary attack damage
-  in combat_state_deltas.
+  damage-type resistance or vulnerability. Use scope="attack_total" only when
+  the adjustment changes the whole attack after all damage components are
+  totaled; otherwise use scope="component". Do not put ordinary attack damage in
+  combat_state_deltas.
 - For spell attacks and spell saves, use only a spell listed for the actor. Use
   the listed spell attack bonus or spell save DC when present.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
@@ -63,7 +65,9 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   save-ends effects, and conditions that belong to a named spell or feature.
   Emit an explicit effect_delta for each effect start, end, or update. Decide
   when a spell/ability creates the effect and supply the spell-specific fields:
-  duration, concentration, and recurring saves.
+  duration, concentration, break_triggers, and recurring saves. break_triggers
+  are reminders for future turns; if the current action matches one, emit an
+  explicit end effect_delta.
 - If the current action breaks an existing effect, emit an explicit end
   effect_delta for that effect. Do not imply effect endings through any
   separate action-label field.
