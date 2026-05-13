@@ -175,13 +175,6 @@ def drain_pending_visible_facts(
     return facts
 
 
-def blocked_combat_actor_ids(session: SessionState) -> list[str]:
-    return [
-        cid for cid, slot in session.active_act_slots.items()
-        if slot.reason == "combat_blocked"
-    ]
-
-
 def _cancel_combat_roll_transactions(session: SessionState) -> set[str]:
     event_ids: set[str] = set()
     for transaction in session.cat_ii_roll_transactions:

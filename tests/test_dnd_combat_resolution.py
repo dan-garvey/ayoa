@@ -13,6 +13,7 @@ from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
     SessionState,
+    SlotEntry,
     WorldState,
 )
 
@@ -242,6 +243,11 @@ def test_combat_resolver_can_end_combat_from_adjudication():
 def test_combat_end_includes_queued_death_fact(monkeypatch):
     ckpt = _ckpt()
     ckpt.session.character_bindings["bob"] = "2"
+    ckpt.characters.append(_character("charlie", "Charlie"))
+    ckpt.session.active_act_slots["charlie"] = SlotEntry(
+        reason="combat_blocked",
+        trigger_event_id="evt_blocked",
+    )
     bob = ckpt.session.active_combat.combatants[1]
     bob.hit_points_current = 1
     bob.hit_points_max = 1
@@ -302,7 +308,9 @@ def test_combat_end_includes_queued_death_fact(monkeypatch):
     assert "Alice's blade drops Bob." in facts
     assert "Bob dies." in facts
     assert "D&D combat ends." in facts
+    assert "charlie" not in {observer.character_id for observer in routed.observers}
     assert ckpt.session.active_combat is None
+    assert ckpt.session.active_act_slots == {}
 
 
 def test_combat_damage_waits_for_successful_finalization(monkeypatch):

@@ -28,6 +28,7 @@ from app.engine.turn_loop import (
     release_beat_slots,
     run_beat,
     sweep_stale_cat_ii_pins,
+    _end_dnd_combat_from_router_signal,
 )
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
@@ -853,11 +854,59 @@ class TestCatIIBeat:
             fact.text
             for fact in ckpt.canonical_events[0].canonical_event.observable_facts
         ]
-        assert any("already in initiative" in fact for fact in facts)
         assert any("raises a blade" in fact for fact in facts)
+        assert any("no attack, spell, or injury takes effect" in fact for fact in facts)
+        assert all("already in initiative" not in fact for fact in facts)
         assert {observer.character_id for observer in ckpt.canonical_events[0].observers} >= {
             "alice",
         }
+
+    def test_dnd_combat_end_does_not_broadcast_to_blocked_outsider(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="combat_blocked",
+            trigger_event_id="evt_blocked",
+        )
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+            ],
+        )
+        out = _dnd_router_out(
+            interaction_mode="dnd_combat_end",
+            facts=["Bob and Pip lower their weapons."],
+        )
+        out.observers = [
+            ObserverEntry(character_id="bob", observation_level="d", response_priority=3),
+            ObserverEntry(character_id="pip", observation_level="d", response_priority=3),
+        ]
+
+        ended = _end_dnd_combat_from_router_signal(
+            ckpt,
+            out,
+            actor_id="bob",
+        )
+
+        assert ended is True
+        assert ckpt.session.active_combat is None
+        assert ckpt.session.active_act_slots == {}
+        event = out
+        assert "alice" not in {observer.character_id for observer in event.observers}
+        facts = [fact.text for fact in event.canonical_event.observable_facts]
+        assert all("You may act again" not in fact for fact in facts)
 
     def test_dnd_combat_end_signal_from_outsider_does_not_clear_active_combat(self):
         ckpt = _ckpt({"alice": "1"})

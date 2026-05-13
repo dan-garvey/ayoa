@@ -2059,23 +2059,10 @@ class EngineBridge:
             ))
             seen.add(cid)
         pending_facts = []
-        blocked_ids: list[str] = []
         if combat is not None:
             drain_facts = getattr(module, "drain_pending_visible_facts", None)
             if callable(drain_facts):
                 pending_facts = list(drain_facts(combat))
-            blocked_lookup = getattr(module, "blocked_combat_actor_ids", None)
-            if callable(blocked_lookup):
-                blocked_ids = list(blocked_lookup(ckpt.session))
-            for blocked_id in blocked_ids:
-                if blocked_id in seen:
-                    continue
-                observers.append(ObserverEntry(
-                    character_id=blocked_id,
-                    observation_level="d",
-                    response_priority=3,
-                ))
-                seen.add(blocked_id)
         if getattr(module, "combat_end", None) is not None:
             module.combat_end(ckpt)
         elif getattr(module, "end_combat", None) is not None:
@@ -2089,11 +2076,6 @@ class EngineBridge:
                 if str(fact).strip()
             ]
             observable_facts.append(ObservableFact.all("D&D combat ends."))
-            if blocked_ids:
-                observable_facts.append(ObservableFact.only(
-                    "The other D&D combat has ended. You may act again.",
-                    blocked_ids,
-                ))
             broadcast_event(ckpt, EventRouterOutput(
                 event_id="",
                 decision_rationale="manual combat end",

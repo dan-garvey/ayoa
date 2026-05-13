@@ -722,7 +722,6 @@ class Orchestrator:
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
                                   SlotConflict.COMBAT_REACTION_OTHER_HELD,
-                                  SlotConflict.COMBAT_START_BLOCKED,
                                   SlotConflict.CAT_II_SELF_ROLL,
                                   SlotConflict.SELF_BUSY):
                 msg = format_slot_rejection(
@@ -778,6 +777,9 @@ class Orchestrator:
                 if check.conflict == SlotConflict.CAT_II_SELF_RESPONDER
                 else None
             )
+
+            if was_combat_blocked and check.conflict == SlotConflict.FREE:
+                release_character_slot(ckpt, acting_id)
 
             # 5. Run the beat.
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
@@ -1251,8 +1253,15 @@ class Orchestrator:
                 ckpt, event_id=event_id, actor_id=actor_id,
             )
             if roll_id not in {record.roll_id for record in pending_for_actor}:
-                raise ValueError(
-                    f"Roll {roll_id} is not pending for actor {actor_id}."
+                return TurnResponse(
+                    session_id=session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=(
+                        "That roll is no longer pending for your character."
+                    ),
+                    per_player_renders={},
+                    beat_ended_reason="cat_ii_stale",
                 )
 
             complete_pending_player_roll(

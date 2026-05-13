@@ -29,6 +29,7 @@ from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
     LocationState,
+    OpenCatIIEvent,
     SessionState,
     SlotEntry,
     WorldState,
@@ -388,6 +389,38 @@ class TestPendingCombatRolls:
         assert ckpt.session.active_act_slots == {}
         assert FakeDispatcher.route_calls == []
         assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_submit_non_pending_cat_ii_roll_returns_friendly_stale(
+        self,
+        patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.open_cat_ii_events.append(OpenCatIIEvent(
+            event_id="evt_open",
+            initiator_id="bob",
+            initiator_intention="Bob trips Alice.",
+            required_responders=["alice"],
+            collected_intentions={"alice": "Alice keeps her feet."},
+        ))
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.submit_cat_ii_roll(
+            session_id="s",
+            event_id="evt_open",
+            roll_id="roll_alice",
+            actor_id="alice",
+            user_id="u1",
+        )
+
+        assert response.beat_ended_reason == "cat_ii_stale"
+        assert response.output_text == (
+            "That roll is no longer pending for your character."
+        )
+        assert "alice" not in response.output_text
+        assert "roll_alice" not in response.output_text
+        assert FakeDispatcher.route_calls == []
+        assert mgr.save.call_count == 0
 
 
 class TestCombatTurnGating:
@@ -926,6 +959,50 @@ class TestCombatTurnGating:
         assert "dropped" in response.output_text
         assert ckpt.session.active_act_slots == {}
         assert FakeDispatcher.route_calls == []
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_normal_act_abandons_blocked_combat_start(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+            ],
+        )
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="combat_blocked",
+            trigger_event_id="evt_blocked",
+        )
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            facts=[ObservableFact.only("Alice steps back.", ["alice"])],
+        ))
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I step back and watch.",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "directed_at_player"
+        assert ckpt.session.active_act_slots == {}
+        assert FakeDispatcher.route_calls[0]["actor_id"] == "alice"
         assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio

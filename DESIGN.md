@@ -1078,10 +1078,10 @@ adjudication.
   their `cat_ii_roll` slots.
 * `active_act_slots` may contain `combat_blocked` entries. These lock a
   character whose fresh action would start a second D&D combat while the
-  session already has active initiative. The entry preserves that blocked
-  hostile action until active combat ends, but it is not a general actor
-  lock: the same player can act normally afterward, and `/defer` drops the
-  blocked action immediately.
+  session already has active initiative. The entry is not a general actor
+  lock: the same player can revise and act normally afterward, which
+  abandons the blocked hostile action. `/defer` drops the blocked action
+  explicitly.
 
 ### 15.4 Prompt Files
 
@@ -1121,12 +1121,12 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   totals and true statblock names stay in combat audit/status surfaces, not
   in narrator or agent facts;
 * if `dnd_combat_start` appears while another combat is already active, the
-  engine does not open Cat II and does not start a parallel combat. It emits a
-  private visible fact to the would-be initiator, pins that character with a
+  engine does not open Cat II and does not start a parallel combat. It appends
+  a fiction-facing no-effect fact for observers, pins that character with a
   `combat_blocked` act slot for the blocked hostile action, and lets later
   benign or revised `/act`s proceed normally. `/defer` clears the blocked
-  action immediately; ending the active combat also clears it and emits a
-  private notice to the blocked actor;
+  action immediately. Engine explanations for the blocked action are frontend
+  notices, not observable facts for the narrator or character agents;
 * `interaction_mode="dnd_combat_end"` from the generic addon router is
   accepted only from an actor listed in the active combat. Outsider actions in
   other scenes cannot end combat by assertion;

@@ -1294,6 +1294,10 @@ class CLIState:
             print(response.output_text)
             self._sync_current_actor_to_active_combat()
             return
+        if response.beat_ended_reason == "combat_start_blocked_deferred":
+            print(response.output_text)
+            self._sync_current_actor_to_active_combat()
+            return
 
         # Print pre-turn AFK-sweep resolutions first so in-CLI ordering
         # matches story time.
@@ -1316,6 +1320,17 @@ class CLIState:
                 print(f"--- Turn {response.turn_index} · "
                       f"{actor_id} (partial) ---")
                 print(actor_render)
+            print()
+        elif response.beat_ended_reason == "combat_start_blocked":
+            print()
+            print(
+                "(that hostile action could not start a second D&D combat "
+                "while another combat is already in initiative; revise and "
+                "act normally.)"
+            )
+            print()
+            print(f"--- Turn {response.turn_index} · {actor_id} ---")
+            print(response.output_text)
             print()
         else:
             print()

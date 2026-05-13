@@ -962,7 +962,10 @@ async def _deliver_turn_response_to_povs(
     fallback. Other human POV renders fan out privately. This is shared by
     `/act` and router-backed private directives such as `/query`.
     """
-    if response.beat_ended_reason == "slot_rejected":
+    if response.beat_ended_reason in {
+        "slot_rejected",
+        "combat_start_blocked_deferred",
+    }:
         await inter.followup.send(
             response.output_text or "Your /act could not be accepted.",
             ephemeral=True,
@@ -1061,18 +1064,26 @@ async def _deliver_turn_response_to_povs(
     per_player = response.per_player_renders or {}
     reaction_prompts = response.reaction_prompts or {}
 
+    combat_start_blocked = response.beat_ended_reason == "combat_start_blocked"
     pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
     reaction_pending = response.beat_ended_reason == "combat_reaction_pending"
     if (
         response.beat_ended_reason == "cat_ii_pending"
         or pending_rolls
         or reaction_pending
+        or combat_start_blocked
     ):
         actor_render = per_player.get(actor_character_id) or ""
         if pending_rolls:
             pause_note = (
                 "_Scene paused — waiting on D&D roll prompt(s). "
                 "The beat will continue after the required roll(s)._"
+            )
+        elif combat_start_blocked:
+            pause_note = (
+                "_That hostile action could not start a second D&D combat "
+                "while another combat is already in initiative. You can "
+                "revise and act normally._"
             )
         elif reaction_pending:
             pause_note = (

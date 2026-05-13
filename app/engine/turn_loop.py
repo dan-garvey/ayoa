@@ -219,9 +219,6 @@ class SlotConflict(Enum):
     COMBAT_REACTION_SELF = "combat_reaction_self"
     # A combat reaction prompt is pending on another player.
     COMBAT_REACTION_OTHER_HELD = "combat_reaction_other_held"
-    # This character tried to start a second D&D combat while another
-    # initiative tracker is already active.
-    COMBAT_START_BLOCKED = "combat_start_blocked"
     # This user already holds the initiator slot — their previous /act
     # is still mid-beat.
     SELF_BUSY = "self_busy"
@@ -1229,10 +1226,9 @@ def _block_dnd_combat_start_from_router_signal(
                 observation_level="d",
                 response_priority=3,
             ))
-        result.canonical_event.observable_facts.append(ObservableFact.only(
-            "Another D&D combat is already in initiative; this hostile action "
-            "cannot start another initiative tracker right now.",
-            [actor_id],
+        result.canonical_event.observable_facts.append(ObservableFact.all(
+            "The hostile action stops short; no attack, spell, or injury "
+            "takes effect."
         ))
         pin_combat_start_blocked(ckpt, actor_id, result.event_id)
 
@@ -1259,24 +1255,6 @@ def _end_dnd_combat_from_router_signal(
     )
     for fact in dnd_combat.drain_pending_visible_facts(combat):
         result.canonical_event.observable_facts.append(ObservableFact.all(fact))
-    blocked_ids = dnd_combat.blocked_combat_actor_ids(ckpt.session)
-    if blocked_ids:
-        existing_observers = {
-            observer.character_id for observer in result.observers
-        }
-        for blocked_id in blocked_ids:
-            if blocked_id in existing_observers:
-                continue
-            result.observers.append(ObserverEntry(
-                character_id=blocked_id,
-                observation_level="d",
-                response_priority=3,
-            ))
-            existing_observers.add(blocked_id)
-        result.canonical_event.observable_facts.append(ObservableFact.only(
-            "The other D&D combat has ended. You may act again.",
-            blocked_ids,
-        ))
     dnd_combat.end_combat(ckpt.session)
     result.requires_responders = False
     result.required_responders = []
@@ -2395,11 +2373,6 @@ def format_slot_rejection(
             f"The beat is paused on **{holder_name}**'s possible reaction. "
             f"Your /act didn't go through. They'll use /act to react or "
             f"press **No reaction** to pass."
-        )
-    elif check.conflict == SlotConflict.COMBAT_START_BLOCKED:
-        base = (
-            "Another D&D combat is already in initiative. This character's "
-            "combat-starting action is waiting until that combat ends."
         )
     elif check.conflict == SlotConflict.SELF_BUSY:
         base = (
