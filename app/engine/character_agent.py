@@ -117,10 +117,6 @@ def _combat_state_line(combatant: Any) -> str:
     hp_max = _obj_get(combatant, "hit_points_max", 0)
     hp_temp = _obj_get(combatant, "hit_points_temporary", 0)
     defeat_state = str(_obj_get(combatant, "defeat_state", "") or "active")
-    if bool(_obj_get(combatant, "defeated", False)) and defeat_state == "active":
-        defeat_state = "defeated"
-    death_successes = int(_obj_get(combatant, "death_save_successes", 0) or 0)
-    death_failures = int(_obj_get(combatant, "death_save_failures", 0) or 0)
     conditions = [
         str(condition)
         for condition in (_obj_get(combatant, "conditions", []) or [])
@@ -133,11 +129,6 @@ def _combat_state_line(combatant: Any) -> str:
     parts = [f"AC {ac}", f"HP {hp}"]
     if defeat_state != "active":
         parts.append(f"state {defeat_state}")
-        if defeat_state == "down":
-            parts.append(
-                f"death saves {death_successes} successes/"
-                f"{death_failures} failures"
-            )
     parts.append(f"conditions: {condition_text}")
     return f"Your combat state: {'; '.join(parts)}."
 
@@ -278,6 +269,14 @@ class CharacterAgent:
             else:
                 lines.append("It is not your initiative turn.")
             lines.append(_combat_state_line(own))
+            pending_action = str(
+                _obj_get(own, "pending_initiating_action", "") or ""
+            ).strip()
+            if pending_action and _combatant_character_id(own) == current_id:
+                lines.append(
+                    "Before initiative, you declared this pending intent: "
+                    f"{pending_action}"
+                )
         return "\n".join(lines)
 
     async def perceive(

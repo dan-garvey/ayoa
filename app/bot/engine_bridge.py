@@ -45,10 +45,13 @@ from app.engine.story_importer import (
     run_import_two_call,
     run_preservation_analysis_continuation,
 )
+from app.engine.turn_loop import flush_combat_visible_facts
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
+from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import SlotEntry
@@ -167,6 +170,7 @@ class DndCombatParticipantView:
     defeat_state: str = "active"
     death_save_successes: int = 0
     death_save_failures: int = 0
+    pending_initiating_action: str = ""
 
 
 @dataclass(frozen=True)
@@ -1811,10 +1815,6 @@ class EngineBridge:
         defeat_state = str(
             self._combat_get(raw, "defeat_state", default="active") or "active"
         )
-        if bool(self._combat_get(raw, "defeated", default=False)) and (
-            defeat_state == "active"
-        ):
-            defeat_state = "defeated"
         return DndCombatParticipantView(
             character_id=cid,
             name=name,
@@ -1871,6 +1871,10 @@ class EngineBridge:
                 )
             )
             or 0,
+            pending_initiating_action=str(
+                self._combat_get(raw, "pending_initiating_action", default="")
+                or ""
+            ),
         )
 
     def _optional_int(self, value: Any) -> int | None:
@@ -2024,18 +2028,55 @@ class EngineBridge:
                 ("combat_next", "next_turn", "advance_combat"),
                 ckpt,
             )
+        flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
     def combat_end(self, session_id: str) -> DndCombatView:
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
+        combat = getattr(ckpt.session, "active_combat", None)
+        combatants = list(getattr(combat, "combatants", []) or []) if combat else []
+        observers = []
+        seen: set[str] = set()
+        for combatant in combatants:
+            cid = str(
+                getattr(combatant, "character_id", "")
+                or getattr(combatant, "combatant_id", "")
+                or ""
+            )
+            if not cid or cid in seen:
+                continue
+            observers.append(ObserverEntry(
+                character_id=cid,
+                observation_level="d",
+                response_priority=3,
+            ))
+            seen.add(cid)
         if getattr(module, "combat_end", None) is not None:
             module.combat_end(ckpt)
         elif getattr(module, "end_combat", None) is not None:
             module.end_combat(ckpt.session)
         else:
             self._combat_call(module, ("combat_end", "end_combat"), ckpt)
+        if observers:
+            ckpt.canonical_events.append(EventRouterOutput(
+                event_id="",
+                decision_rationale="manual combat end",
+                canonical_event=CanonicalEvent(
+                    world_adjudication=WorldAdjudication(feasible=True),
+                    observable_facts=[ObservableFact.all("D&D combat ends.")],
+                ),
+                requires_responders=False,
+                required_responders=[],
+                agent_responder_picks=[],
+                ends_beat=True,
+                ends_beat_reason="state_change",
+                observers=observers,
+                spawn=[],
+                dormant=[],
+                cull=[],
+            ))
         self.checkpoint_mgr.save(ckpt)
         return DndCombatView(
             session_id=ckpt.session.session_id,
@@ -2108,6 +2149,7 @@ class EngineBridge:
                 target_id=target_id,
                 amount=amount,
             )
+        flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
@@ -2133,6 +2175,7 @@ class EngineBridge:
                 target_id=target_id,
                 amount=amount,
             )
+        flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 

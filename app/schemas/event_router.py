@@ -425,11 +425,6 @@ class DndEventRouterOutput(EventRouterOutput):
         if self.interaction_mode == "dnd_combat_start":
             unique = list(dict.fromkeys(cid.strip() for cid in self.combatant_ids))
             self.combatant_ids = [cid for cid in unique if cid]
-            if len(self.combatant_ids) < 2:
-                raise ValueError(
-                    "interaction_mode='dnd_combat_start' requires at least "
-                    "two combatant_ids."
-                )
         elif self.interaction_mode in {"cat_i", "dnd_combat_end"}:
             self.combatant_ids = []
 

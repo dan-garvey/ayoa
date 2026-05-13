@@ -123,7 +123,7 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
             armor_class=12,
             hit_points_current=0,
             hit_points_max=13,
-            defeated=True,
+            defeat_state="defeated",
         )
     )
     values = iter([9, 3])

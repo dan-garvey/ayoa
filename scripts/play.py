@@ -184,6 +184,8 @@ def _print_combat_status(view: DndCombatView) -> None:
             bits.append(state)
         if participant.conditions:
             bits.append(", ".join(participant.conditions))
+        if participant.current and participant.pending_initiating_action:
+            bits.append(f"Declared: {participant.pending_initiating_action}")
         suffix = f" - {'; '.join(bits)}" if bits else ""
         print(
             f"{marker} {participant.name} "
@@ -1408,7 +1410,7 @@ class CLIState:
             )
             return
 
-        parts = ["Combat started."]
+        parts = ["=== COMBAT BEGINS ==="]
         initiative = _combat_initiative_line(view)
         if initiative:
             parts.append(f"Initiative: {initiative}.")

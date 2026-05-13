@@ -51,7 +51,9 @@ from app.engine.turn_loop import (
     release_beat_slots,
     run_beat,
     _agent_intention_for_dispatch,
+    _clear_pending_initiating_action,
     _end_beat,
+    flush_combat_visible_facts,
     _filter_picks_for_dispatch,
 )
 from app.llm.client import LLMClient
@@ -190,7 +192,6 @@ def _combatant_defeated(combatant: Any) -> bool:
     defeat_state = str(_obj_get(combatant, "defeat_state", "") or "")
     return bool(
         defeat_state in {"down", "stable", "dead", "defeated"}
-        or _obj_get(combatant, "defeated", False)
         or _obj_get(combatant, "removed", False)
     )
 
@@ -465,6 +466,12 @@ def _combine_beat_renders(results: list[BeatResult]) -> dict[str, str]:
     return combined
 
 
+def _combined_beat_reason(results: list[BeatResult]) -> str:
+    if any(result.ended_reason == "combat_started" for result in results):
+        return "combat_started"
+    return results[-1].ended_reason if results else ""
+
+
 def _active_combat_character_ids(ckpt: CheckpointFile) -> set[str]:
     combat = _active_combat_state(ckpt)
     if combat is None:
@@ -626,6 +633,7 @@ class Orchestrator:
                 acting_id=actor_id,
                 beat_result=beat_result,
             )
+            flush_combat_visible_facts(ckpt)
             ckpt.session.turn_index += 1
             self.checkpoint_mgr.save(ckpt)
             results.append(beat_result)
@@ -684,6 +692,7 @@ class Orchestrator:
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
                                   SlotConflict.COMBAT_REACTION_OTHER_HELD,
+                                  SlotConflict.COMBAT_START_BLOCKED,
                                   SlotConflict.CAT_II_SELF_ROLL,
                                   SlotConflict.SELF_BUSY):
                 msg = format_slot_rejection(
@@ -795,6 +804,7 @@ class Orchestrator:
                 beat_result=beat_result,
                 allow_new_pending=combat_reaction_event_id is None,
             )
+            flush_combat_visible_facts(ckpt)
 
             # 7. Save. run_beat has already mutated active_act_slots,
             # open_cat_ii_events, render_buffers, canonical_events, and
@@ -819,7 +829,7 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=per_player,
-            beat_ended_reason=final_result.ended_reason,
+            beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
         )
 
@@ -1121,7 +1131,7 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=renders,
-            beat_ended_reason=final_result.ended_reason,
+            beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
         )
 
@@ -1229,6 +1239,28 @@ class Orchestrator:
         event_id: str,
         output_actor_id: str,
     ) -> TurnResponse:
+        transaction = next(
+            (
+                txn for txn in ckpt.session.cat_ii_roll_transactions
+                if txn.event_id == event_id
+            ),
+            None,
+        )
+        if (
+            transaction is None
+            or transaction.status == "cancelled"
+            or _active_combat_state(ckpt) is None
+        ):
+            release_character_slot(ckpt, output_actor_id)
+            self.checkpoint_mgr.save(ckpt)
+            return TurnResponse(
+                session_id=session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text="That combat roll is no longer active.",
+                per_player_renders={},
+                beat_ended_reason="cat_ii_stale",
+            )
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
         try:
             resolved = await dispatcher.continue_combat_transaction(
@@ -1250,6 +1282,7 @@ class Orchestrator:
             raise ValueError(
                 "D&D combat roll continuation returned generic Cat II."
             )
+        _clear_pending_initiating_action(ckpt, output_actor_id)
         broadcast_event(ckpt, resolved, actor_id=output_actor_id)
         beat_result = await _end_beat(
             ckpt,
@@ -1286,6 +1319,8 @@ class Orchestrator:
             acting_id=output_actor_id,
             beat_result=beat_result,
         )
+        if flush_combat_visible_facts(ckpt):
+            self.checkpoint_mgr.save(ckpt)
         release_character_slot(ckpt, output_actor_id)
         self.checkpoint_mgr.save(ckpt)
         automated_results = await self._run_automated_combat_turns_locked(
@@ -1305,7 +1340,7 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=renders,
-            beat_ended_reason=final_result.ended_reason,
+            beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
         )
 
@@ -1490,7 +1525,7 @@ class Orchestrator:
             turn_index=ckpt.session.turn_index,
             output_text=output_text,
             per_player_renders=renders,
-            beat_ended_reason=final_result.ended_reason,
+            beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
         )
 

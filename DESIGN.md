@@ -288,7 +288,8 @@ backstops, and per-human render fan-out.
 Important state:
 
 * `active_act_slots`: per-beat lock state for initiators, Cat II responders,
-  and pending D&D player rolls
+  pending D&D player rolls, combat reactions, and D&D combat-start attempts
+  blocked behind an already-active initiative ladder
 * `open_cat_ii_events`: contested events awaiting responders
 * `cat_ii_roll_transactions`: checkpoint-persistent D&D roll plans, pending
   player rolls, completed roll results, and dice ledgers
@@ -941,8 +942,8 @@ Important notes:
 * `transcript` is primarily display/audit state, but takeover/personality
   synthesis flows may read recent transcript entries as authoring context.
 * `session_conversation` is the router's rolling history.
-* D&D Cat II roll transactions are checkpoint/audit state, not router rolling
-  history.
+* D&D roll transactions are checkpoint/audit state, not router, narrator, or
+  character-agent rolling history.
 * `narrator_conversations` are per human POV.
 * `character_conversations` are per character.
 * `world_state.locations` has no runtime topology.
@@ -971,6 +972,7 @@ D&D 5e adapter (rendered only when `ruleset_id == "dnd5e_basic"`; see §15):
   character-agent calls when D&D combat is active.
 * `dnd_cat_ii_router.txt` — separate router prompt for D&D-flavored
   Cat II final adjudication.
+* `dnd_combat_router.txt` — per-turn D&D combat resolver prompt.
 
 Prompt rules:
 
@@ -1050,11 +1052,19 @@ adjudication.
   Maps `character_id → canonical_event_id` for combatants whose
   reaction window is open.
 * `DndCombatantState.defeat_state` distinguishes `active`, `down`,
-  `stable`, `dead`, and ordinary defeated NPCs. The legacy
-  `defeated` boolean remains a compatibility flag. Player-controlled
+  `stable`, `dead`, and ordinary defeated NPCs. Player-controlled
   combatants use death saves at 0 HP; unbound NPCs normally become
-  `defeated` at 0 HP. Death-save rolls and counters are checkpoint
-  state, not router or narrator history.
+  `defeated` at 0 HP. Death-save rolls and counters are checkpoint/UI
+  state, not router, narrator, or character-agent history.
+* `DndCombatantState.pending_initiating_action` and
+  `pending_initiating_event_id` preserve the hostile action that caused
+  initiative to begin. The initiating action does not auto-resolve; the
+  field reminds the actor, the CLI/Discord combat status, and the
+  character-agent prompt on that actor's first initiative turn.
+* `DndCombatState.pending_visible_facts` is a short queue of code-owned
+  combat lifecycle facts, currently used for death-save outcomes such as
+  regaining consciousness, stabilizing, or dying. The orchestrator flushes
+  these as ordinary observable facts after combat advancement.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
   dice ledgers. Each transaction is tagged
@@ -1063,6 +1073,12 @@ adjudication.
   also carry `actor_id`, `intention`, `context` (the LLM packet),
   and `damage_records: list[CatIIRollDamageRecord]` for code-applied
   HP changes. None of this is appended to `session_conversation`.
+  Ending combat cancels non-finalized combat transactions and clears
+  their `cat_ii_roll` slots.
+* `active_act_slots` may contain `combat_blocked` entries. These lock a
+  character whose fresh action would start a second D&D combat while the
+  session already has active initiative. The lock clears when the active
+  combat ends.
 
 ### 15.4 Prompt Files
 
@@ -1094,6 +1110,21 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   by a `combat_reaction` slot follow the same fork after the slot
   cleanup, so reactions get the same house rules and structured roll
   planning as turns;
+* when the D&D addon router emits `interaction_mode="dnd_combat_start"` from
+  a fresh non-combat action, the engine validates participants, rolls
+  initiative, creates `session.active_combat`, syncs all combatants into the
+  observer list, stores the actor's `pending_initiating_action`, and appends
+  only player-safe visible facts such as "D&D combat begins." Initiative
+  totals and true statblock names stay in combat audit/status surfaces, not
+  in narrator or agent facts;
+* if `dnd_combat_start` appears while another combat is already active, the
+  engine does not open Cat II and does not start a parallel combat. It emits a
+  private visible fact to the would-be initiator, pins that character with a
+  `combat_blocked` act slot, and rejects further `/act`s from that character
+  until the current combat ends;
+* `interaction_mode="dnd_combat_end"` from the generic addon router is
+  accepted only from an actor listed in the active combat. Outsider actions in
+  other scenes cannot end combat by assertion;
 * if the generic router emits Cat II for an actor in active combat
   (prompt-drift safety net), the engine clamps it down to a single
   Cat I-shaped beat with `ends_beat_reason="ruleset_cat_ii_suppressed"`
@@ -1115,7 +1146,9 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   a combat transaction whose triggering event never lived in
   `open_cat_ii_events`. The combat-resolution branch calls
   `_resolve_ready_combat_after_rolls`, which routes through
-  `LLMDispatcher.continue_combat_transaction`;
+  `LLMDispatcher.continue_combat_transaction`. If combat has ended or the
+  transaction was cancelled before the player submits the roll, the slot is
+  cleared and the response is a stale-roll notice rather than a 500;
 * off-stage ticks are suppressed while `reaction_prompts` is non-empty
   (combatants must answer their reaction window first).
 
@@ -1133,6 +1166,14 @@ Only reactions that require a meaningful player choice should open
 `reaction_prompts` (for example, protective intervention, interruptive
 magic, catching someone, or choosing to dive into danger). A player can
 answer with `/act` or pass with `/defer`.
+
+Character agents do not need dice results to do their job. The combat
+agent addon gives them initiative context, action-economy expectations,
+visible facts, and their own combat state; it does not provide initiative
+rolls, attack rolls, damage rolls, roll formulas, roll ledgers, or
+death-save counters. Dice are exposed to players in UI/status surfaces
+because tabletop players expect to see them, and are retained in checkpoint
+audit state for rewind/debugging.
 
 ### 15.7 Modularity Contract
 

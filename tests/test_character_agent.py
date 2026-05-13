@@ -433,6 +433,12 @@ class TestCharacterAgent:
                     armor_class=16,
                     hit_points_current=22,
                     hit_points_max=31,
+                    initiative_roll=17,
+                    initiative_total=99,
+                    initiative_detail="d20(17) + 82 = 99",
+                    death_save_successes=2,
+                    death_save_failures=1,
+                    pending_initiating_action="I cut down the raider.",
                     conditions=["grappled"],
                 ),
                 DndCombatantState(
@@ -455,6 +461,12 @@ class TestCharacterAgent:
         assert "Round: 2." in user_text
         assert "It is your initiative turn." in user_text
         assert "AC 16; HP 22/31; conditions: grappled" in user_text
+        assert "Before initiative, you declared this pending intent: I cut down the raider." in user_text
+        assert "d20" not in user_text
+        assert "99" not in user_text
+        assert "death save" not in user_text.lower()
+        assert "successes" not in user_text
+        assert "failures" not in user_text
 
     @pytest.mark.asyncio
     async def test_pending_observations_carry_in_scene_perception(

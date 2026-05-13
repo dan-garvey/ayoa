@@ -397,7 +397,7 @@ class TestCombatCommand:
         run(state.handle_line("I attack."))
 
         out = capsys.readouterr().out
-        assert "Combat started." in out
+        assert "=== COMBAT BEGINS ===" in out
         assert "Initiative: Sera (sera) 18, Aldric (aldric) 13." in out
         assert "Current turn: Sera (sera)." in out
         assert "initiating action has not resolved before initiative" in out

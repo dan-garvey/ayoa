@@ -753,7 +753,37 @@ class TestCatIIBeat:
             for fact in ckpt.canonical_events[0].canonical_event.observable_facts
         ]
         assert any("D&D combat begins" in fact for fact in facts)
-        assert any("does not resolve before initiative" in fact for fact in facts)
+        assert all("does not resolve before initiative" not in fact for fact in facts)
+        assert all("Initiative order" not in fact for fact in facts)
+        assert {observer.character_id for observer in ckpt.canonical_events[0].observers} >= {
+            "alice", "bob",
+        }
+        alice = next(
+            c for c in ckpt.session.active_combat.combatants
+            if c.character_id == "alice"
+        )
+        assert alice.pending_initiating_action == "I attack Bob"
+
+    def test_underpopulated_dnd_combat_start_signal_closes_without_crashing(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        fake = FakeDispatcher()
+        fake.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice"],
+            facts=["Alice raises a blade with no clear opponent."],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I attack.",
+        ))
+
+        assert result.ended_reason == "state_change"
+        assert ckpt.session.active_combat is None
+        assert ckpt.session.active_act_slots == {}
 
     def test_dnd_social_cat_ii_does_not_start_combat(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
@@ -781,7 +811,57 @@ class TestCatIIBeat:
         assert ckpt.session.open_cat_ii_events[0].required_responders == ["bob"]
         assert ckpt.session.active_act_slots["bob"].reason == "cat_ii_responder"
 
-    def test_dnd_combat_end_signal_clears_active_combat(self):
+    def test_second_dnd_combat_start_locks_actor_until_active_combat_ends(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+            ],
+        )
+        fake = FakeDispatcher()
+        fake.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice", "pip"],
+            facts=["Alice raises a blade in another room."],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I attack Pip.",
+        ))
+
+        assert result.ended_reason == "combat_start_blocked"
+        assert ckpt.session.active_combat is not None
+        assert ckpt.session.active_act_slots["alice"].reason == "combat_blocked"
+        assert check_act_slot(ckpt, "alice").conflict == (
+            SlotConflict.COMBAT_START_BLOCKED
+        )
+        facts = [
+            fact.text
+            for fact in ckpt.canonical_events[0].canonical_event.observable_facts
+        ]
+        assert any("already in initiative" in fact for fact in facts)
+        assert all("raises a blade" not in fact for fact in facts)
+        assert {observer.character_id for observer in ckpt.canonical_events[0].observers} == {
+            "alice",
+        }
+
+    def test_dnd_combat_end_signal_from_outsider_does_not_clear_active_combat(self):
         ckpt = _ckpt({"alice": "1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         ckpt.session.active_combat = DndCombatState(
@@ -815,13 +895,13 @@ class TestCatIIBeat:
         ))
 
         assert result.ended_reason == "state_change"
-        assert ckpt.session.active_combat is None
+        assert ckpt.session.active_combat is not None
         assert ckpt.canonical_events[0].requires_responders is False
         facts = [
             fact.text
             for fact in ckpt.canonical_events[0].canonical_event.observable_facts
         ]
-        assert any("D&D combat ends" in fact for fact in facts)
+        assert not any("D&D combat ends" in fact for fact in facts)
 
     def test_dnd_active_combat_uses_combat_resolver_instead_of_generic_router(
         self,

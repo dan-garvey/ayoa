@@ -385,6 +385,17 @@ class TestDndEventRouterOutput:
         assert out.required_responders == []
         assert out.combatant_ids == ["alice", "pip"]
 
+    def test_combat_start_allows_engine_to_validate_participant_count(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "dnd_combat_start",
+            "combatant_ids": ["alice", "alice", ""],
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.combatant_ids == ["alice"]
+
     def test_cat_ii_requires_responders(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,

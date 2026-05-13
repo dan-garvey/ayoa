@@ -55,11 +55,9 @@ def dnd_combat_router_enabled(ckpt: CheckpointFile) -> bool:
 
 def _combatant_defeat_state(combatant: object) -> str:
     state = str(getattr(combatant, "defeat_state", "") or "")
-    if bool(getattr(combatant, "defeated", False)) and state in {"", "active"}:
-        return "defeated"
     if state:
         return state
-    return "defeated" if bool(getattr(combatant, "defeated", False)) else "active"
+    return "active"
 
 
 class DndCatIIResolver:
@@ -339,6 +337,8 @@ def pending_player_rolls(
     out: list[CatIIRollRecord] = []
     for transaction in ckpt.session.cat_ii_roll_transactions:
         if event_id and transaction.event_id != event_id:
+            continue
+        if transaction.status == "cancelled":
             continue
         for record in _pending_player_rolls(transaction):
             if actor_id and record.actor_id != actor_id:
@@ -769,6 +769,10 @@ def _build_combat_packet(
                 _combat_spellcasting_summary(char) if cid == actor_id else {}
             ),
             "spells": _combat_spell_summaries(char) if cid == actor_id else [],
+            "pending_initiating_action": (
+                str(getattr(combatant, "pending_initiating_action", "") or "")
+                if cid == actor_id else ""
+            ),
         })
 
     payload = {

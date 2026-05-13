@@ -92,10 +92,11 @@ def _is_agent_refusal(text: str) -> bool:
     return not (text or "").strip()
 
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
+    WorldAdjudication,
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -218,6 +219,9 @@ class SlotConflict(Enum):
     COMBAT_REACTION_SELF = "combat_reaction_self"
     # A combat reaction prompt is pending on another player.
     COMBAT_REACTION_OTHER_HELD = "combat_reaction_other_held"
+    # This character tried to start a second D&D combat while another
+    # initiative tracker is already active.
+    COMBAT_START_BLOCKED = "combat_start_blocked"
     # This user already holds the initiator slot — their previous /act
     # is still mid-beat.
     SELF_BUSY = "self_busy"
@@ -255,13 +259,13 @@ def check_act_slot(
     interpret-as-Cat-II-response.
     """
     if _active_combat(ckpt) is None and any(
-        entry.reason == "combat_reaction"
+        entry.reason in {"combat_reaction", "combat_blocked"}
         for entry in ckpt.session.active_act_slots.values()
     ):
         ckpt.session.active_act_slots = {
             cid: entry
             for cid, entry in ckpt.session.active_act_slots.items()
-            if entry.reason != "combat_reaction"
+            if entry.reason not in {"combat_reaction", "combat_blocked"}
         }
     slot = ckpt.session.active_act_slots
     if not slot:
@@ -290,6 +294,13 @@ def check_act_slot(
             holder_id=acting_character_id,
             trigger_event_id=my_entry.trigger_event_id
                 or my_entry.cat_ii_event_id,
+        )
+
+    if my_entry and my_entry.reason == "combat_blocked":
+        return SlotCheck(
+            conflict=SlotConflict.COMBAT_START_BLOCKED,
+            holder_id=acting_character_id,
+            trigger_event_id=my_entry.trigger_event_id,
         )
 
     # If this character holds the initiator slot, they're double-acting.
@@ -374,6 +385,22 @@ def pin_combat_reaction(
     return True
 
 
+def pin_combat_start_blocked(
+    ckpt: CheckpointFile,
+    character_id: str,
+    trigger_event_id: str,
+) -> bool:
+    existing = ckpt.session.active_act_slots.get(character_id)
+    if existing is not None and existing.reason != "initiator":
+        return False
+    ckpt.session.active_act_slots[character_id] = SlotEntry(
+        reason="combat_blocked",
+        trigger_event_id=trigger_event_id,
+        claimed_at=_utcnow_iso(),
+    )
+    return True
+
+
 def release_beat_slots(ckpt: CheckpointFile) -> None:
     """Release slot entries at beat end.
 
@@ -395,6 +422,8 @@ def release_beat_slots(ckpt: CheckpointFile) -> None:
         ):
             keep[cid] = entry
         elif entry.reason == "combat_reaction":
+            keep[cid] = entry
+        elif entry.reason == "combat_blocked" and _active_combat(ckpt) is not None:
             keep[cid] = entry
     if keep:
         ckpt.session.active_act_slots = keep
@@ -941,6 +970,13 @@ def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
     return getattr(obj, name, default)
 
 
+def _obj_set(obj: Any, name: str, value: Any) -> None:
+    if isinstance(obj, dict):
+        obj[name] = value
+    else:
+        setattr(obj, name, value)
+
+
 def _active_combat(ckpt: CheckpointFile) -> Any | None:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
@@ -961,11 +997,9 @@ def _combatant_character_id(combatant: Any) -> str:
 
 def _combatant_defeat_state(combatant: Any) -> str:
     state = str(_obj_get(combatant, "defeat_state", "") or "")
-    if bool(_obj_get(combatant, "defeated", False)) and state in {"", "active"}:
-        return "defeated"
     if state:
         return state
-    return "defeated" if bool(_obj_get(combatant, "defeated", False)) else "active"
+    return "active"
 
 
 def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
@@ -1041,11 +1075,99 @@ def _dnd_combat_start_participants(
     return selected
 
 
+def _ensure_combatant_observers(
+    result: EventRouterOutput,
+    participants: list[Any],
+) -> None:
+    existing = {observer.character_id for observer in result.observers}
+    for character in participants:
+        cid = str(getattr(character, "character_id", "") or "")
+        if not cid or cid in existing:
+            continue
+        result.observers.append(ObserverEntry(
+            character_id=cid,
+            observation_level="d",
+            response_priority=3,
+        ))
+        existing.add(cid)
+
+
+def _set_pending_initiating_action(
+    combat: Any,
+    *,
+    actor_id: str,
+    event_id: str,
+    intention: str,
+) -> None:
+    for combatant in list(_obj_get(combat, "combatants", []) or []):
+        if _combatant_character_id(combatant) != actor_id:
+            continue
+        _obj_set(combatant, "pending_initiating_action", intention.strip())
+        _obj_set(combatant, "pending_initiating_event_id", event_id)
+        return
+
+
+def _clear_pending_initiating_action(ckpt: CheckpointFile, actor_id: str) -> None:
+    combat = _active_combat(ckpt)
+    if combat is None:
+        return
+    combatant = _combatant_for_character(combat, actor_id)
+    if combatant is None:
+        return
+    _obj_set(combatant, "pending_initiating_action", "")
+    _obj_set(combatant, "pending_initiating_event_id", "")
+
+
+def flush_combat_visible_facts(ckpt: CheckpointFile) -> int:
+    combat = _active_combat(ckpt)
+    if combat is None:
+        return 0
+    facts = list(_obj_get(combat, "pending_visible_facts", []) or [])
+    facts = [fact.strip() for fact in facts if str(fact).strip()]
+    if not facts:
+        return 0
+    _obj_set(combat, "pending_visible_facts", [])
+    observers: list[ObserverEntry] = []
+    seen: set[str] = set()
+    for combatant in list(_obj_get(combat, "combatants", []) or []):
+        cid = _combatant_character_id(combatant)
+        if not cid or cid in seen:
+            continue
+        observers.append(ObserverEntry(
+            character_id=cid,
+            observation_level="d",
+            response_priority=3,
+        ))
+        seen.add(cid)
+    if not observers:
+        return 0
+    event = EventRouterOutput(
+        event_id="",
+        decision_rationale="code-owned combat state change",
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(feasible=True),
+            observable_facts=[ObservableFact.all(fact) for fact in facts],
+        ),
+        requires_responders=False,
+        required_responders=[],
+        agent_responder_picks=[],
+        ends_beat=True,
+        ends_beat_reason="state_change",
+        observers=observers,
+        spawn=[],
+        dormant=[],
+        cull=[],
+    )
+    broadcast_event(ckpt, event)
+    return 1
+
+
 def _start_dnd_combat_from_router_signal(
     ckpt: CheckpointFile,
     result: EventRouterOutput,
     *,
     actor_id: str,
+    intention: str,
 ) -> bool:
     if not _dnd_ruleset_enabled(ckpt) or _active_combat(ckpt) is not None:
         return False
@@ -1054,10 +1176,12 @@ def _start_dnd_combat_from_router_signal(
         ckpt, actor_id, combatant_ids,
     )
     if len(participants) < 2:
-        raise ValueError(
-            "D&D combat start signal requires at least two active, valid "
-            "combatant ids."
-        )
+        result.requires_responders = False
+        result.required_responders = []
+        result.agent_responder_picks = []
+        result.ends_beat = True
+        result.ends_beat_reason = "state_change"
+        return False
 
     combat_id = f"combat_{result.event_id or uuid.uuid4().hex[:8]}"
     combat = dnd_combat.start_combat(
@@ -1065,32 +1189,24 @@ def _start_dnd_combat_from_router_signal(
         participants,
         combat_id=combat_id,
     )
-    current = dnd_combat.current_combatant(combat)
     order = ", ".join(
         f"{c.name or c.character_id} {c.initiative_total}"
         for c in combat.combatants
-    )
-    actor_name = next(
-        (
-            char.name or char.character_id
-            for char in participants
-            if char.character_id == actor_id
-        ),
-        actor_id,
     )
     result.requires_responders = False
     result.required_responders = []
     result.agent_responder_picks = []
     result.ends_beat = True
     result.ends_beat_reason = "state_change"
+    _ensure_combatant_observers(result, participants)
+    _set_pending_initiating_action(
+        combat,
+        actor_id=actor_id,
+        event_id=result.event_id,
+        intention=intention,
+    )
     result.canonical_event.observable_facts.append(ObservableFact.all(
-        "D&D combat begins. "
-        f"{actor_name}'s declared action does not resolve before initiative. "
-        "No attack roll, hit, or damage occurs "
-        f"until {actor_name}'s initiative turn unless another combat rule "
-        "resolves first. "
-        f"Initiative order: {order}. "
-        f"{current.name or current.character_id} has the first turn."
+        "D&D combat begins."
     ))
     dnd_combat.append_audit_line(
         combat,
@@ -1101,12 +1217,47 @@ def _start_dnd_combat_from_router_signal(
     return True
 
 
+def _block_dnd_combat_start_from_router_signal(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+) -> None:
+    result.requires_responders = False
+    result.required_responders = []
+    result.agent_responder_picks = []
+    result.ends_beat = True
+    result.ends_beat_reason = "state_change"
+    result.observers = []
+    if actor_id:
+        result.observers.append(ObserverEntry(
+            character_id=actor_id,
+            observation_level="d",
+            response_priority=3,
+        ))
+        result.canonical_event.observable_facts = [ObservableFact.only(
+            "Another D&D combat is already in initiative; this hostile action "
+            "waits until that combat ends.",
+            [actor_id],
+        )]
+        pin_combat_start_blocked(ckpt, actor_id, result.event_id)
+
+
 def _end_dnd_combat_from_router_signal(
     ckpt: CheckpointFile,
     result: EventRouterOutput,
+    *,
+    actor_id: str,
 ) -> bool:
     combat = _active_combat(ckpt)
     if not _dnd_ruleset_enabled(ckpt) or combat is None:
+        return False
+    if _combatant_for_character(combat, actor_id) is None:
+        result.requires_responders = False
+        result.required_responders = []
+        result.agent_responder_picks = []
+        result.ends_beat = True
+        result.ends_beat_reason = "state_change"
         return False
     dnd_combat.append_audit_line(
         combat,
@@ -1126,8 +1277,6 @@ def _end_dnd_combat_from_router_signal(
 
 def _combatant_can_react(combatant: Any) -> bool:
     if _combatant_defeat_state(combatant) != "active":
-        return False
-    if bool(_obj_get(combatant, "defeated", False)):
         return False
     if bool(_obj_get(combatant, "removed", False)):
         return False
@@ -1201,7 +1350,6 @@ def _current_combat_character_id(combat: Any) -> str:
         candidate = combatants[(idx + offset) % len(combatants)]
         if (
             _combatant_defeat_state(candidate) == "active"
-            and not bool(_obj_get(candidate, "defeated", False))
             and not bool(_obj_get(candidate, "removed", False))
         ):
             return _combatant_character_id(candidate)
@@ -1666,6 +1814,7 @@ async def run_beat(
                     "D&D combat resolution returned generic Cat II; combat "
                     "resolver must close the turn or pause for player rolls."
                 )
+            _clear_pending_initiating_action(ckpt, actor_id)
             broadcast_event(ckpt, resolved, actor_id=actor_id)
             event_actor_ids.append(actor_id)
             events_closed += 1
@@ -1708,18 +1857,43 @@ async def run_beat(
                     "fresh intention can start initiative."
                 )
             signal_actor_id = result_actor_id or current_actor or actor_id
-            if not _start_dnd_combat_from_router_signal(
+            if _active_combat(ckpt) is not None:
+                _block_dnd_combat_start_from_router_signal(
+                    ckpt, result, actor_id=signal_actor_id,
+                )
+                broadcast_event(ckpt, result, actor_id=signal_actor_id)
+                event_actor_ids.append(signal_actor_id)
+                events_closed += 1
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="combat_start_blocked",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=True,
+                )
+            started = _start_dnd_combat_from_router_signal(
                 ckpt,
                 result,
                 actor_id=signal_actor_id,
-            ):
-                raise ValueError(
-                    "D&D combat start signal was emitted when combat could "
-                    "not be started."
-                )
+                intention=current_intention,
+            )
             broadcast_event(ckpt, result, actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
             events_closed += 1
+            if not started:
+                return await _end_beat(
+                    ckpt,
+                    dispatcher,
+                    ended_reason="state_change",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=True,
+                )
             return await _end_beat(
                 ckpt,
                 dispatcher,
@@ -1733,7 +1907,9 @@ async def run_beat(
 
         if interaction_mode == "dnd_combat_end":
             signal_actor_id = result_actor_id or current_actor or actor_id
-            _end_dnd_combat_from_router_signal(ckpt, result)
+            _end_dnd_combat_from_router_signal(
+                ckpt, result, actor_id=signal_actor_id,
+            )
             broadcast_event(ckpt, result, actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
             events_closed += 1
@@ -2205,6 +2381,11 @@ def format_slot_rejection(
             f"The beat is paused on **{holder_name}**'s possible reaction. "
             f"Your /act didn't go through. They'll use /act to react or "
             f"press **No reaction** to pass."
+        )
+    elif check.conflict == SlotConflict.COMBAT_START_BLOCKED:
+        base = (
+            "Another D&D combat is already in initiative. This character's "
+            "combat-starting action is waiting until that combat ends."
         )
     elif check.conflict == SlotConflict.SELF_BUSY:
         base = (

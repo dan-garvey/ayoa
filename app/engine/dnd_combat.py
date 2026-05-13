@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from app.engine import dice, mechanics
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.state import DndCombatantState, DndCombatState, SessionState
+
+
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def start_combat(
@@ -46,10 +51,8 @@ def end_combat(session: SessionState) -> DndCombatState:
     combat.status = "ended"
     combat.ended_at_turn_index = session.turn_index
     combat.pending_advance_actor_id = ""
-    session.active_act_slots = {
-        cid: slot for cid, slot in session.active_act_slots.items()
-        if slot.reason != "combat_reaction"
-    }
+    _cancel_combat_roll_transactions(session)
+    _clear_combat_slots(session)
     session.active_combat = None
     return combat
 
@@ -137,6 +140,46 @@ def append_audit_line(combat: DndCombatState | SessionState, line: str) -> None:
     if not text:
         return
     _active_from(combat).audit_lines.append(text)
+
+
+def _append_pending_visible_fact(combat: DndCombatState, fact: str) -> None:
+    text = fact.strip()
+    if text:
+        combat.pending_visible_facts.append(text)
+
+
+def _cancel_combat_roll_transactions(session: SessionState) -> set[str]:
+    event_ids: set[str] = set()
+    for transaction in session.cat_ii_roll_transactions:
+        if transaction.source != "combat":
+            continue
+        if transaction.status in {"finalized", "cancelled"}:
+            continue
+        transaction.status = "cancelled"
+        transaction.updated_at = _utcnow_iso()
+        event_ids.add(transaction.event_id)
+        for record in transaction.rolls:
+            if record.status == "pending":
+                record.status = "cancelled"
+    return event_ids
+
+
+def _clear_combat_slots(session: SessionState) -> None:
+    cancelled_event_ids = {
+        transaction.event_id
+        for transaction in session.cat_ii_roll_transactions
+        if transaction.source == "combat" and transaction.status == "cancelled"
+    }
+    session.active_act_slots = {
+        cid: slot for cid, slot in session.active_act_slots.items()
+        if not (
+            slot.reason in {"combat_reaction", "combat_blocked"}
+            or (
+                slot.reason == "cat_ii_roll"
+                and (slot.cat_ii_event_id or "") in cancelled_event_ids
+            )
+        )
+    }
 
 
 def sort_turn_order(combat: DndCombatState) -> DndCombatState:
@@ -244,6 +287,10 @@ def apply_damage(
         if _defeat_state(combatant) in {"down", "stable"}:
             if combatant.hit_points_max > 0 and amount >= combatant.hit_points_max:
                 _set_dead(combatant)
+                _append_pending_visible_fact(
+                    active,
+                    f"{combatant.name or combatant.combatant_id} dies.",
+                )
             else:
                 _add_death_save_failures(combatant, 1)
         return combatant
@@ -259,6 +306,10 @@ def apply_damage(
         if uses_death_saves:
             if combatant.hit_points_max > 0 and overkill >= combatant.hit_points_max:
                 _set_dead(combatant)
+                _append_pending_visible_fact(
+                    active,
+                    f"{combatant.name or combatant.combatant_id} dies.",
+                )
             else:
                 _set_down(combatant, reset_saves=True)
         else:
@@ -305,6 +356,10 @@ def roll_death_save(
     if natural == 20:
         combatant.hit_points_current = 1
         _set_active(combatant)
+        _append_pending_visible_fact(
+            active,
+            f"{combatant.name or combatant.combatant_id} regains consciousness.",
+        )
         append_audit_line(
             active,
             f"Death save for {combatant.name or combatant.combatant_id}: "
@@ -313,6 +368,10 @@ def roll_death_save(
     elif natural == 1:
         _add_death_save_failures(combatant, 2)
         if _defeat_state(combatant) == "dead":
+            _append_pending_visible_fact(
+                active,
+                f"{combatant.name or combatant.combatant_id} dies.",
+            )
             append_audit_line(
                 active,
                 f"Death save for {combatant.name or combatant.combatant_id}: "
@@ -328,6 +387,10 @@ def roll_death_save(
     elif result.total >= 10:
         _add_death_save_success(combatant)
         if _defeat_state(combatant) == "stable":
+            _append_pending_visible_fact(
+                active,
+                f"{combatant.name or combatant.combatant_id} stabilizes.",
+            )
             append_audit_line(
                 active,
                 f"Death save for {combatant.name or combatant.combatant_id}: "
@@ -343,6 +406,10 @@ def roll_death_save(
     else:
         _add_death_save_failures(combatant, 1)
         if _defeat_state(combatant) == "dead":
+            _append_pending_visible_fact(
+                active,
+                f"{combatant.name or combatant.combatant_id} dies.",
+            )
             append_audit_line(
                 active,
                 f"Death save for {combatant.name or combatant.combatant_id}: "
@@ -450,7 +517,6 @@ def _has_turn_candidates(combat: DndCombatState) -> bool:
 def _available(combatant: DndCombatantState) -> bool:
     return (
         _defeat_state(combatant) == "active"
-        and not combatant.defeated
         and not combatant.removed
     )
 
@@ -496,8 +562,9 @@ def _public_combatant(combatant: DndCombatantState) -> dict[str, Any]:
             "successes": combatant.death_save_successes,
             "failures": combatant.death_save_failures,
         },
-        "defeated": combatant.defeated,
         "removed": combatant.removed,
+        "pending_initiating_action": combatant.pending_initiating_action,
+        "pending_initiating_event_id": combatant.pending_initiating_event_id,
     }
 
 
@@ -652,11 +719,9 @@ def _uses_death_saves(
 
 def _defeat_state(combatant: DndCombatantState) -> str:
     state = str(getattr(combatant, "defeat_state", "") or "")
-    if combatant.defeated and state in {"", "active"}:
-        return "defeated"
     if state:
         return state
-    return "defeated" if combatant.defeated else "active"
+    return "active"
 
 
 def _sync_defeat_state(
@@ -683,7 +748,6 @@ def _sync_defeat_state(
 
 def _set_active(combatant: DndCombatantState) -> None:
     combatant.defeat_state = "active"
-    combatant.defeated = False
     combatant.death_save_successes = 0
     combatant.death_save_failures = 0
     _remove_condition(combatant, "unconscious")
@@ -696,7 +760,6 @@ def _set_down(
 ) -> None:
     combatant.hit_points_current = 0
     combatant.defeat_state = "down"
-    combatant.defeated = True
     if reset_saves:
         combatant.death_save_successes = 0
         combatant.death_save_failures = 0
@@ -706,7 +769,6 @@ def _set_down(
 def _set_stable(combatant: DndCombatantState) -> None:
     combatant.hit_points_current = 0
     combatant.defeat_state = "stable"
-    combatant.defeated = True
     combatant.death_save_successes = 0
     combatant.death_save_failures = 0
     _add_condition(combatant, "unconscious")
@@ -715,7 +777,6 @@ def _set_stable(combatant: DndCombatantState) -> None:
 def _set_dead(combatant: DndCombatantState) -> None:
     combatant.hit_points_current = 0
     combatant.defeat_state = "dead"
-    combatant.defeated = True
     combatant.death_save_failures = 3
     _remove_condition(combatant, "unconscious")
 
@@ -723,7 +784,6 @@ def _set_dead(combatant: DndCombatantState) -> None:
 def _set_defeated(combatant: DndCombatantState) -> None:
     combatant.hit_points_current = max(0, combatant.hit_points_current)
     combatant.defeat_state = "defeated"
-    combatant.defeated = True
     combatant.death_save_successes = 0
     combatant.death_save_failures = 0
 
@@ -750,7 +810,6 @@ def _add_death_save_failures(
         _set_dead(combatant)
     else:
         combatant.defeat_state = "down"
-        combatant.defeated = True
         _add_condition(combatant, "unconscious")
 
 

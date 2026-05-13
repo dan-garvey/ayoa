@@ -15,7 +15,7 @@ from app.engine.dnd_combat import (
     start_combat,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
-from app.schemas.state import SessionState, SlotEntry
+from app.schemas.state import CatIIRollTransaction, SessionState, SlotEntry
 
 
 def _character(
@@ -138,12 +138,10 @@ def test_damage_and_healing_use_hp_snapshot_without_touching_character_mechanics
 
     apply_damage(session, "hero", 99)
     assert damaged.hit_points_current == 0
-    assert damaged.defeated is True
     assert damaged.defeat_state == "defeated"
 
     healed = apply_healing(session, "hero", 4)
     assert healed.hit_points_current == 4
-    assert healed.defeated is False
     assert healed.defeat_state == "active"
 
 
@@ -166,7 +164,6 @@ def test_player_controlled_combatant_goes_down_and_healing_recovers(
     damaged = apply_damage(session, "hero", 10)
 
     assert damaged.hit_points_current == 0
-    assert damaged.defeated is True
     assert damaged.defeat_state == "down"
     assert damaged.death_save_successes == 0
     assert damaged.death_save_failures == 0
@@ -178,7 +175,6 @@ def test_player_controlled_combatant_goes_down_and_healing_recovers(
 
     healed = apply_healing(session, "hero", 4)
     assert healed.hit_points_current == 4
-    assert healed.defeated is False
     assert healed.defeat_state == "active"
     assert healed.death_save_successes == 0
     assert healed.death_save_failures == 0
@@ -211,6 +207,7 @@ def test_death_saves_stabilize_or_kill_player_controlled_combatant(
     assert combatant.death_save_successes == 0
     assert combatant.death_save_failures == 0
     assert "third success; they are stable" in session.active_combat.audit_lines[-1]
+    assert "Hero stabilizes." in session.active_combat.pending_visible_facts
 
     apply_damage(session, "hero", 1)
     assert combatant.defeat_state == "down"
@@ -220,6 +217,7 @@ def test_death_saves_stabilize_or_kill_player_controlled_combatant(
     roll_death_save(session, "hero")
     assert combatant.defeat_state == "dead"
     assert combatant.death_save_failures == 3
+    assert "Hero dies." in session.active_combat.pending_visible_facts
 
 
 def test_advance_turn_rolls_death_save_for_down_combatant(monkeypatch):
@@ -246,6 +244,7 @@ def test_advance_turn_rolls_death_save_for_down_combatant(monkeypatch):
     assert advanced.defeat_state == "active"
     assert advanced.hit_points_current == 1
     assert "natural 20; they regain 1 HP" in combat.audit_lines[-1]
+    assert combat.pending_visible_facts == ["Hero regains consciousness."]
 
 
 def test_advance_turn_persists_death_save_when_everyone_is_down(monkeypatch):
@@ -334,8 +333,9 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
             "hp": {"current": 12, "max": 12, "temporary": 0},
             "defeat_state": "active",
             "death_saves": {"successes": 0, "failures": 0},
-            "defeated": False,
             "removed": False,
+            "pending_initiating_action": "",
+            "pending_initiating_event_id": "",
         },
         "turn_order": [
             {
@@ -345,8 +345,9 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
                 "hp": {"current": 12, "max": 12, "temporary": 0},
                 "defeat_state": "active",
                 "death_saves": {"successes": 0, "failures": 0},
-                "defeated": False,
                 "removed": False,
+                "pending_initiating_action": "",
+                "pending_initiating_event_id": "",
             }
         ],
     }
@@ -379,6 +380,21 @@ def test_lifecycle_and_roster_validation(monkeypatch):
         reason="combat_reaction",
         trigger_event_id="evt_react",
     )
+    session.active_act_slots["bob"] = SlotEntry(
+        reason="combat_blocked",
+        trigger_event_id="evt_blocked",
+    )
+    session.active_act_slots["pip"] = SlotEntry(
+        reason="cat_ii_roll",
+        cat_ii_event_id="cmb_1",
+    )
+    session.cat_ii_roll_transactions.append(CatIIRollTransaction(
+        transaction_id="rolltxn_1",
+        event_id="cmb_1",
+        source="combat",
+        actor_id="pip",
+        status="awaiting_player_rolls",
+    ))
 
     ended = end_combat(session)
     assert ended is combat
@@ -386,5 +402,6 @@ def test_lifecycle_and_roster_validation(monkeypatch):
     assert ended.pending_advance_actor_id == ""
     assert session.active_combat is None
     assert session.active_act_slots == {}
+    assert session.cat_ii_roll_transactions[0].status == "cancelled"
     with pytest.raises(ValueError, match="not active"):
         current_combatant(session)
