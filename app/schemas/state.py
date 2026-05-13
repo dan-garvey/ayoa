@@ -132,6 +132,87 @@ class CatIIRollTransaction(BaseModel):
 
 
 DefeatState = Literal["active", "down", "stable", "dead", "defeated"]
+DndEffectDurationKind = Literal[
+    "rounds",
+    "minutes",
+    "hours",
+    "days",
+    "special",
+    "until_removed",
+]
+DndEffectSaveTiming = Literal["start_of_turn", "end_of_turn"]
+
+
+class DndEffectRecurringSave(BaseModel):
+    """A router-authored recurring save attached to a D&D runtime effect.
+
+    The router decides that an effect has a recurring save and supplies the
+    spell-specific timing/DC. The combat engine owns the durable countdown and
+    executes the save when that timing arrives.
+    """
+
+    ability: str = ""
+    dc: int = 0
+    timing: DndEffectSaveTiming = "end_of_turn"
+    ends_on: str = "success"
+    repeat: bool = True
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndEffectRecurringSave":
+        self.ability = self.ability.strip().lower()
+        if self.ability not in {"str", "dex", "con", "int", "wis", "cha"}:
+            self.ability = ""
+        if self.dc < 0:
+            self.dc = 0
+        self.ends_on = self.ends_on.strip().lower() or "success"
+        return self
+
+
+class DndRuntimeEffect(BaseModel):
+    """D&D-adapter runtime state for a timed or sustained effect."""
+
+    effect_id: str = ""
+    name: str = ""
+    slug: str = ""
+    source_type: str = "custom"
+    source_id: str = ""
+    originator_id: str = ""
+    target_id: str = ""
+    conditions: list[str] = Field(default_factory=list)
+    concentration: bool = False
+    duration_kind: DndEffectDurationKind = "until_removed"
+    duration_amount: int = 0
+    remaining_rounds: int = 0
+    duration_text: str = ""
+    break_triggers: list[str] = Field(default_factory=list)
+    recurring_save: DndEffectRecurringSave | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndRuntimeEffect":
+        self.effect_id = self.effect_id.strip()
+        self.name = self.name.strip()
+        self.slug = self.slug.strip().lower()
+        self.source_type = self.source_type.strip().lower() or "custom"
+        self.source_id = self.source_id.strip()
+        self.originator_id = self.originator_id.strip()
+        self.target_id = self.target_id.strip()
+        self.conditions = [
+            condition.strip()
+            for condition in self.conditions
+            if condition.strip()
+        ]
+        self.break_triggers = [
+            trigger.strip().lower()
+            for trigger in self.break_triggers
+            if trigger.strip()
+        ]
+        if self.duration_amount < 0:
+            self.duration_amount = 0
+        if self.remaining_rounds < 0:
+            self.remaining_rounds = 0
+        self.duration_text = self.duration_text.strip()
+        return self
 
 
 class DndCombatantState(BaseModel):
@@ -158,6 +239,7 @@ class DndCombatantState(BaseModel):
     initiative_order: int = 0
     reaction_available: bool = True
     conditions: list[str] = Field(default_factory=list)
+    active_effects: list[DndRuntimeEffect] = Field(default_factory=list)
     defeat_state: DefeatState = "active"
     death_save_successes: int = 0
     death_save_failures: int = 0

@@ -401,9 +401,16 @@ def _advance_combat_initiative_after_turn(
     if combat is None:
         return
     try:
-        current = dnd_combat.advance_turn(ckpt.session)
+        current = dnd_combat.advance_turn_with_effects(
+            ckpt.session,
+            characters=ckpt.characters,
+        )
     except ValueError:
         return
+    dnd_combat.sync_combat_effects_to_characters(
+        ckpt.session.active_combat,
+        ckpt.characters,
+    )
     _clear_pending_combat_advance(ckpt)
     current = _current_combatant(ckpt, combat) or current
     if current is not None:

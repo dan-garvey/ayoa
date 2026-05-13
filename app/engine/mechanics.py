@@ -66,6 +66,11 @@ def mechanics_summary(character: CharacterRecord) -> dict[str, Any]:
         "armor_class": mechanics.get("armor_class", 0),
         "hit_points": mechanics.get("hit_points", {}),
         "conditions": mechanics.get("conditions", []),
+        "active_effects": (
+            (mechanics.get("dnd5e_runtime") or {}).get("active_effects", [])
+            if isinstance(mechanics.get("dnd5e_runtime"), dict)
+            else []
+        ),
         "resources": mechanics.get("resources", {}),
         "raw": mechanics.get("raw", {}),
     }

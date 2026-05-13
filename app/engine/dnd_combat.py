@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from app.engine import dice, mechanics
 from app.schemas.characters import CharacterRecord, CharacterStatus
-from app.schemas.state import DndCombatantState, DndCombatState, SessionState
+from app.schemas.state import (
+    DndCombatantState,
+    DndCombatState,
+    DndRuntimeEffect,
+    SessionState,
+)
+
+
+DND_RUNTIME_KEY = "dnd5e_runtime"
+DND_ACTIVE_EFFECTS_KEY = "active_effects"
 
 
 def _utcnow_iso() -> str:
@@ -45,9 +55,15 @@ def start_combat(
     return combat
 
 
-def end_combat(session: SessionState) -> DndCombatState:
+def end_combat(
+    session: SessionState,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
+) -> DndCombatState:
     """Clear active combat and return the ended snapshot."""
     combat = _require_combat(session)
+    if characters is not None:
+        sync_combat_effects_to_characters(combat, characters)
     combat.status = "ended"
     combat.ended_at_turn_index = session.turn_index
     combat.pending_advance_actor_id = ""
@@ -81,6 +97,7 @@ def build_combatant(
     hp_current = _safe_int(hp.get("current"), 0)
     hp_max = _safe_int(hp.get("max"), hp_current)
     hp_temp = _safe_int(hp.get("temporary"), 0)
+    active_effects = runtime_effects_for_character(character)
     combatant = DndCombatantState(
         combatant_id=combatant_id or character.character_id,
         character_id=character.character_id,
@@ -97,7 +114,11 @@ def build_combatant(
         initiative_advantage_state=_initiative_advantage_state_from_mechanics(
             mechanics_state
         ),
-        conditions=_conditions(mechanics_state),
+        conditions=_merge_conditions(
+            _conditions(mechanics_state),
+            _effect_conditions(active_effects),
+        ),
+        active_effects=active_effects,
         death_save_successes=_death_save_count(mechanics_state, "successes"),
         death_save_failures=_death_save_count(mechanics_state, "failures"),
     )
@@ -175,6 +196,240 @@ def drain_pending_visible_facts(
     return facts
 
 
+def runtime_effects_for_character(
+    character: CharacterRecord | None,
+) -> list[DndRuntimeEffect]:
+    """Read D&D runtime effects from the adapter-owned mechanics bag."""
+    if character is None:
+        return []
+    runtime = (character.mechanics or {}).get(DND_RUNTIME_KEY) or {}
+    raw_effects = runtime.get(DND_ACTIVE_EFFECTS_KEY) or []
+    if not isinstance(raw_effects, list):
+        return []
+    out: list[DndRuntimeEffect] = []
+    for raw in raw_effects:
+        try:
+            effect = DndRuntimeEffect.model_validate(raw)
+        except Exception:
+            continue
+        if not effect.target_id:
+            effect.target_id = character.character_id
+        if not effect.effect_id:
+            effect.effect_id = _new_effect_id()
+        out.append(effect)
+    return out
+
+
+def set_runtime_effects_for_character(
+    character: CharacterRecord,
+    effects: Iterable[DndRuntimeEffect],
+) -> None:
+    mechanics_state = dict(character.mechanics or {})
+    runtime = dict(mechanics_state.get(DND_RUNTIME_KEY) or {})
+    runtime[DND_ACTIVE_EFFECTS_KEY] = [
+        effect.model_dump()
+        for effect in effects
+        if effect.target_id in {"", character.character_id}
+    ]
+    mechanics_state[DND_RUNTIME_KEY] = runtime
+    character.mechanics = mechanics_state
+
+
+def sync_combat_effects_to_characters(
+    combat: DndCombatState | SessionState | None,
+    characters: Iterable[CharacterRecord],
+) -> None:
+    active = combat.active_combat if isinstance(combat, SessionState) else combat
+    if active is None:
+        return
+    by_id = {character.character_id: character for character in characters}
+    for combatant in active.combatants:
+        cid = combatant.character_id or combatant.combatant_id
+        character = by_id.get(cid)
+        if character is None:
+            continue
+        effects = [
+            effect for effect in combatant.active_effects
+            if effect.target_id in {"", cid, combatant.combatant_id}
+        ]
+        set_runtime_effects_for_character(character, effects)
+
+
+def start_effect(
+    combat: DndCombatState | SessionState,
+    effect: DndRuntimeEffect,
+) -> DndRuntimeEffect:
+    active = _active_from(combat)
+    target = _find_combatant(active, effect.target_id)
+    if not effect.effect_id:
+        effect.effect_id = _new_effect_id()
+    if not effect.target_id:
+        effect.target_id = target.character_id or target.combatant_id
+    if not effect.slug:
+        effect.slug = _slug(effect.name or effect.effect_id)
+    if effect.duration_kind == "minutes" and not effect.remaining_rounds:
+        effect.remaining_rounds = max(0, effect.duration_amount * 10)
+    elif effect.duration_kind == "rounds" and not effect.remaining_rounds:
+        effect.remaining_rounds = max(0, effect.duration_amount)
+    if effect.concentration and effect.originator_id:
+        end_concentration_effects(
+            active,
+            effect.originator_id,
+            except_effect_id=effect.effect_id,
+            reason="new concentration",
+        )
+    target.active_effects = [
+        existing for existing in target.active_effects
+        if existing.effect_id != effect.effect_id
+    ]
+    target.active_effects.append(effect)
+    target.conditions = _merge_conditions(target.conditions, effect.conditions)
+    _append_pending_visible_fact(
+        active,
+        f"{_combatant_label(target)} is affected by {effect.name or effect.slug}.",
+    )
+    append_audit_line(
+        active,
+        f"Effect started on {_combatant_label(target)}: "
+        f"{effect.name or effect.slug} ({effect.effect_id}).",
+    )
+    return effect
+
+
+def end_effect(
+    combat: DndCombatState | SessionState,
+    *,
+    effect_id: str = "",
+    target_id: str = "",
+    slug: str = "",
+    reason: str = "",
+) -> list[DndRuntimeEffect]:
+    active = _active_from(combat)
+    ended: list[DndRuntimeEffect] = []
+    slug = slug.strip().lower()
+    for combatant in active.combatants:
+        if target_id:
+            ids = {combatant.combatant_id, combatant.character_id}
+            if target_id not in ids:
+                continue
+        remaining: list[DndRuntimeEffect] = []
+        ended_here: list[DndRuntimeEffect] = []
+        for effect in combatant.active_effects:
+            matches = (
+                (effect_id and effect.effect_id == effect_id)
+                or (slug and effect.slug == slug)
+                or (not effect_id and not slug and target_id)
+            )
+            if matches:
+                ended.append(effect)
+                ended_here.append(effect)
+            else:
+                remaining.append(effect)
+        if len(remaining) != len(combatant.active_effects):
+            ended_conditions = [
+                condition for effect in ended_here for condition in effect.conditions
+            ]
+            combatant.active_effects = remaining
+            _reconcile_effect_conditions(
+                combatant, ended_conditions=ended_conditions,
+            )
+    for effect in ended:
+        target = _find_combatant(active, effect.target_id)
+        _append_pending_visible_fact(
+            active,
+            f"{effect.name or effect.slug} ends on {_combatant_label(target)}.",
+        )
+        note = f"Effect ended: {effect.name or effect.slug} ({effect.effect_id})"
+        if reason:
+            note += f"; reason={reason}"
+        append_audit_line(active, note + ".")
+    return ended
+
+
+def end_concentration_effects(
+    combat: DndCombatState | SessionState,
+    originator_id: str,
+    *,
+    except_effect_id: str = "",
+    reason: str = "",
+) -> list[DndRuntimeEffect]:
+    active = _active_from(combat)
+    ended: list[DndRuntimeEffect] = []
+    for combatant in active.combatants:
+        remaining: list[DndRuntimeEffect] = []
+        ended_here: list[DndRuntimeEffect] = []
+        for effect in combatant.active_effects:
+            if (
+                effect.concentration
+                and effect.originator_id == originator_id
+                and effect.effect_id != except_effect_id
+            ):
+                ended.append(effect)
+                ended_here.append(effect)
+            else:
+                remaining.append(effect)
+        if len(remaining) != len(combatant.active_effects):
+            ended_conditions = [
+                condition for effect in ended_here for condition in effect.conditions
+            ]
+            combatant.active_effects = remaining
+            _reconcile_effect_conditions(
+                combatant, ended_conditions=ended_conditions,
+            )
+    for effect in ended:
+        target = _find_combatant(active, effect.target_id)
+        _append_pending_visible_fact(
+            active,
+            f"{effect.name or effect.slug} ends on {_combatant_label(target)}.",
+        )
+        append_audit_line(
+            active,
+            f"Concentration effect ended for {originator_id}: "
+            f"{effect.name or effect.slug} ({effect.effect_id}); {reason}.",
+        )
+    return ended
+
+
+def apply_action_tags(
+    combat: DndCombatState | SessionState,
+    actor_id: str,
+    tags: Iterable[str],
+) -> list[DndRuntimeEffect]:
+    active = _active_from(combat)
+    normalized = {str(tag).strip().lower() for tag in tags if str(tag).strip()}
+    if not normalized:
+        return []
+    combatant = _find_combatant(active, actor_id)
+    remaining: list[DndRuntimeEffect] = []
+    ended: list[DndRuntimeEffect] = []
+    for effect in combatant.active_effects:
+        triggers = set(effect.break_triggers or [])
+        if triggers & normalized:
+            ended.append(effect)
+        else:
+            remaining.append(effect)
+    if not ended:
+        return []
+    combatant.active_effects = remaining
+    _reconcile_effect_conditions(
+        combatant,
+        ended_conditions=[
+            condition for effect in ended for condition in effect.conditions
+        ],
+    )
+    for effect in ended:
+        _append_pending_visible_fact(
+            active,
+            f"{effect.name or effect.slug} ends on {_combatant_label(combatant)}.",
+        )
+        append_audit_line(
+            active,
+            f"Effect ended by action tag {sorted(normalized)}: "
+            f"{effect.name or effect.slug} ({effect.effect_id}).",
+        )
+    return ended
+
+
 def _cancel_combat_roll_transactions(session: SessionState) -> set[str]:
     event_ids: set[str] = set()
     for transaction in session.cat_ii_roll_transactions:
@@ -228,14 +483,30 @@ def current_combatant(combat: DndCombatState | SessionState) -> DndCombatantStat
 
 
 def advance_turn(combat: DndCombatState | SessionState) -> DndCombatantState:
+    return advance_turn_with_effects(combat)
+
+
+def advance_turn_with_effects(
+    combat: DndCombatState | SessionState,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
+) -> DndCombatantState:
     active = combat.active_combat if isinstance(combat, SessionState) else combat
     if active is None or not active.combatants:
         raise ValueError("Combat is not active.")
     if not _has_turn_candidates(active):
         raise ValueError("Combat has no available combatants.")
 
-    start = _clamp_turn_index(active, active.turn_index) + 1
-    _move_to_next_available(active, starting_at=start, count_round_wrap=True)
+    active.turn_index = _clamp_turn_index(active, active.turn_index)
+    current = active.combatants[active.turn_index]
+    _end_turn(active, current, characters=characters)
+    start = active.turn_index + 1
+    _move_to_next_available(
+        active,
+        starting_at=start,
+        count_round_wrap=True,
+        characters=characters,
+    )
     return current_combatant(active)
 
 
@@ -301,6 +572,8 @@ def apply_damage(
     combat: DndCombatState | SessionState,
     combatant_id: str,
     amount: int,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
 ) -> DndCombatantState:
     if amount < 0:
         raise ValueError("Damage amount must be non-negative.")
@@ -320,6 +593,9 @@ def apply_damage(
                 )
             else:
                 _add_death_save_failures(combatant, 1)
+        _process_concentration_damage(
+            active, combatant, amount, characters=characters,
+        )
         return combatant
 
     previous_hp = combatant.hit_points_current
@@ -343,6 +619,9 @@ def apply_damage(
             _set_defeated(combatant)
     else:
         _set_active(combatant)
+    _process_concentration_damage(
+        active, combatant, amount, characters=characters,
+    )
     return combatant
 
 
@@ -505,6 +784,7 @@ def _move_to_next_available(
     *,
     starting_at: int,
     count_round_wrap: bool,
+    characters: Iterable[CharacterRecord] | None = None,
 ) -> None:
     total = len(combat.combatants)
     if total == 0:
@@ -520,13 +800,140 @@ def _move_to_next_available(
             roll_death_save(combat, candidate.combatant_id)
         if _available(candidate):
             combat.turn_index = index
-            _begin_turn(candidate)
+            _begin_turn(combat, candidate, characters=characters)
             return
     combat.turn_index = _clamp_turn_index(combat, combat.turn_index)
 
 
-def _begin_turn(combatant: DndCombatantState) -> None:
+def _begin_turn(
+    combat: DndCombatState,
+    combatant: DndCombatantState,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
+) -> None:
     combatant.reaction_available = True
+    _process_recurring_saves(
+        combat,
+        combatant,
+        characters=characters,
+        timing="start_of_turn",
+    )
+
+
+def _end_turn(
+    combat: DndCombatState,
+    combatant: DndCombatantState,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
+) -> None:
+    _process_recurring_saves(
+        combat,
+        combatant,
+        characters=characters,
+        timing="end_of_turn",
+    )
+    _tick_effect_durations(combat, combatant)
+
+
+def _process_recurring_saves(
+    combat: DndCombatState,
+    combatant: DndCombatantState,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
+    timing: str,
+) -> None:
+    if _defeat_state(combatant) not in {"active", "down"}:
+        return
+    remaining: list[DndRuntimeEffect] = []
+    ended: list[DndRuntimeEffect] = []
+    by_id = _characters_by_id(characters)
+    character = by_id.get(combatant.character_id)
+    for effect in combatant.active_effects:
+        save = effect.recurring_save
+        if save is None or not save.repeat or save.timing != timing:
+            remaining.append(effect)
+            continue
+        if not save.ability or save.dc <= 0:
+            remaining.append(effect)
+            continue
+        modifier = _saving_throw_modifier(character, save.ability)
+        result = dice.roll_d20_check(
+            roll_id=f"effect_save_{effect.effect_id}",
+            modifier=modifier,
+            actor_id=combatant.character_id or combatant.combatant_id,
+            reason=f"Recurring save for {effect.name or effect.slug}",
+            advantage_state="normal",
+        )
+        success = result.total >= save.dc
+        should_end = (
+            (save.ends_on == "success" and success)
+            or (save.ends_on == "failure" and not success)
+        )
+        append_audit_line(
+            combat,
+            f"Recurring save for {_combatant_label(combatant)} "
+            f"against {effect.name or effect.slug}: {result.detail} "
+            f"vs DC {save.dc}; {'ends' if should_end else 'continues'}.",
+        )
+        if should_end:
+            ended.append(effect)
+        else:
+            remaining.append(effect)
+            _append_pending_visible_fact(
+                combat,
+                f"{effect.name or effect.slug} remains on "
+                f"{_combatant_label(combatant)}.",
+            )
+    if ended:
+        combatant.active_effects = remaining
+        _reconcile_effect_conditions(
+            combatant,
+            ended_conditions=[
+                condition for effect in ended for condition in effect.conditions
+            ],
+        )
+        for effect in ended:
+            _append_pending_visible_fact(
+                combat,
+                f"{effect.name or effect.slug} ends on "
+                f"{_combatant_label(combatant)}.",
+            )
+
+
+def _tick_effect_durations(
+    combat: DndCombatState,
+    combatant: DndCombatantState,
+) -> None:
+    remaining: list[DndRuntimeEffect] = []
+    expired: list[DndRuntimeEffect] = []
+    for effect in combatant.active_effects:
+        if effect.remaining_rounds <= 0:
+            remaining.append(effect)
+            continue
+        effect.remaining_rounds -= 1
+        if effect.remaining_rounds <= 0:
+            expired.append(effect)
+        else:
+            remaining.append(effect)
+    if not expired:
+        return
+    combatant.active_effects = remaining
+    _reconcile_effect_conditions(
+        combatant,
+        ended_conditions=[
+            condition for effect in expired for condition in effect.conditions
+        ],
+    )
+    for effect in expired:
+        _append_pending_visible_fact(
+            combat,
+            f"{effect.name or effect.slug} ends on {_combatant_label(combatant)}.",
+        )
+        append_audit_line(
+            combat,
+            f"Effect expired on {_combatant_label(combatant)}: "
+            f"{effect.name or effect.slug} ({effect.effect_id}).",
+        )
 
 
 def _has_available_combatants(combat: DndCombatState) -> bool:
@@ -589,6 +996,7 @@ def _public_combatant(combatant: DndCombatantState) -> dict[str, Any]:
             "successes": combatant.death_save_successes,
             "failures": combatant.death_save_failures,
         },
+        "active_effects": [_effect_public_summary(e) for e in combatant.active_effects],
         "removed": combatant.removed,
         "pending_initiating_action": combatant.pending_initiating_action,
         "pending_initiating_event_id": combatant.pending_initiating_event_id,
@@ -612,6 +1020,19 @@ def _private_combatant(combatant: DndCombatantState) -> dict[str, Any]:
         "notes": combatant.notes,
     })
     return data
+
+
+def _effect_public_summary(effect: DndRuntimeEffect) -> dict[str, Any]:
+    return {
+        "effect_id": effect.effect_id,
+        "name": effect.name,
+        "slug": effect.slug,
+        "conditions": list(effect.conditions),
+        "concentration": effect.concentration,
+        "remaining_rounds": effect.remaining_rounds,
+        "duration_text": effect.duration_text,
+        "recurring_save": bool(effect.recurring_save),
+    }
 
 
 def _hit_points(mechanics_state: dict[str, Any]) -> dict[str, Any]:
@@ -659,6 +1080,164 @@ def _conditions(mechanics_state: dict[str, Any]) -> list[str]:
         if name:
             out.append(name)
     return out
+
+
+def _effect_conditions(effects: Iterable[DndRuntimeEffect]) -> list[str]:
+    out: list[str] = []
+    for effect in effects:
+        out.extend(effect.conditions)
+    return out
+
+
+def _merge_conditions(
+    existing: Iterable[str],
+    added: Iterable[str],
+) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for condition in [*existing, *added]:
+        text = str(condition).strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+    return out
+
+
+def _reconcile_effect_conditions(
+    combatant: DndCombatantState,
+    ended_conditions: Iterable[str] = (),
+) -> None:
+    effect_conditions = {
+        condition.strip().lower()
+        for effect in combatant.active_effects
+        for condition in effect.conditions
+        if condition.strip()
+    }
+    removed_effect_conditions = {
+        condition.strip().lower() for condition in ended_conditions
+        if condition.strip()
+    }
+    # The flat conditions list has no provenance, so effect removal owns the
+    # condition names attached to the ended effect unless another active effect
+    # still grants the same condition.
+    current = _merge_conditions(combatant.conditions, [])
+    if removed_effect_conditions:
+        combatant.conditions = [
+            condition for condition in current
+            if (
+                condition.strip().lower() not in removed_effect_conditions
+                or condition.strip().lower() in effect_conditions
+            )
+        ]
+    else:
+        combatant.conditions = current
+    combatant.conditions = _merge_conditions(
+        combatant.conditions, _effect_conditions(combatant.active_effects),
+    )
+
+
+def _characters_by_id(
+    characters: Iterable[CharacterRecord] | None,
+) -> dict[str, CharacterRecord]:
+    if characters is None:
+        return {}
+    return {character.character_id: character for character in characters}
+
+
+def _saving_throw_modifier(
+    character: CharacterRecord | None,
+    ability: str,
+) -> int:
+    if character is None:
+        return 0
+    try:
+        from app.schemas.dnd_cat_ii import PlannedRoll
+
+        request = PlannedRoll(
+            roll_id="effect_save",
+            actor_id=character.character_id,
+            kind="saving_throw",
+            ability=ability,  # type: ignore[arg-type]
+            skill="",
+            dc=0,
+            opposed_by="",
+            advantage_state="normal",
+            reason="effect save",
+            action_id="",
+            target_id="",
+            effect_id="",
+        )
+        return mechanics.roll_modifier(character, request)
+    except Exception:
+        return 0
+
+
+def _process_concentration_damage(
+    combat: DndCombatState,
+    combatant: DndCombatantState,
+    amount: int,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
+) -> None:
+    if amount <= 0:
+        return
+    owner_id = combatant.character_id or combatant.combatant_id
+    if not _has_concentration_effect(combat, owner_id):
+        return
+    dc = max(10, amount // 2)
+    modifier = _saving_throw_modifier(_characters_by_id(characters).get(owner_id), "con")
+    result = dice.roll_d20_check(
+        roll_id=f"concentration_{owner_id}",
+        modifier=modifier,
+        actor_id=owner_id,
+        reason="concentration check",
+        advantage_state="normal",
+    )
+    append_audit_line(
+        combat,
+        f"Concentration check for {_combatant_label(combatant)}: "
+        f"{result.detail} vs DC {dc}.",
+    )
+    if result.total < dc:
+        end_concentration_effects(
+            combat,
+            owner_id,
+            reason="failed concentration save",
+        )
+
+
+def _has_concentration_effect(combat: DndCombatState, owner_id: str) -> bool:
+    for combatant in combat.combatants:
+        for effect in combatant.active_effects:
+            if effect.concentration and effect.originator_id == owner_id:
+                return True
+    return False
+
+
+def _new_effect_id() -> str:
+    return f"eff_{uuid.uuid4().hex[:12]}"
+
+
+def _slug(value: object) -> str:
+    text = str(value or "").strip().lower()
+    out = []
+    prev_dash = False
+    for char in text:
+        if char.isalnum():
+            out.append(char)
+            prev_dash = False
+        elif not prev_dash:
+            out.append("_")
+            prev_dash = True
+    return "".join(out).strip("_")
+
+
+def _combatant_label(combatant: DndCombatantState) -> str:
+    return combatant.name or combatant.character_id or combatant.combatant_id
 
 
 def _death_save_count(mechanics_state: dict[str, Any], key: str) -> int:

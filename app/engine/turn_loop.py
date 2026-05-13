@@ -1255,7 +1255,7 @@ def _end_dnd_combat_from_router_signal(
     )
     for fact in dnd_combat.drain_pending_visible_facts(combat):
         result.canonical_event.observable_facts.append(ObservableFact.all(fact))
-    dnd_combat.end_combat(ckpt.session)
+    dnd_combat.end_combat(ckpt.session, characters=ckpt.characters)
     result.requires_responders = False
     result.required_responders = []
     result.agent_responder_picks = []

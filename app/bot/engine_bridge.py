@@ -2026,12 +2026,21 @@ class EngineBridge:
         if getattr(module, "combat_next", None) is not None:
             result = module.combat_next(ckpt)
         elif getattr(module, "advance_turn", None) is not None:
-            result = module.advance_turn(ckpt.session)
+            advance = getattr(module, "advance_turn_with_effects", None)
+            if advance is not None:
+                result = advance(ckpt.session, characters=ckpt.characters)
+            else:
+                result = module.advance_turn(ckpt.session)
         else:
             result = self._combat_call(
                 module,
                 ("combat_next", "next_turn", "advance_combat"),
                 ckpt,
+            )
+        if getattr(module, "sync_combat_effects_to_characters", None) is not None:
+            module.sync_combat_effects_to_characters(
+                ckpt.session.active_combat,
+                ckpt.characters,
             )
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
@@ -2066,7 +2075,7 @@ class EngineBridge:
         if getattr(module, "combat_end", None) is not None:
             module.combat_end(ckpt)
         elif getattr(module, "end_combat", None) is not None:
-            module.end_combat(ckpt.session)
+            module.end_combat(ckpt.session, characters=ckpt.characters)
         else:
             self._combat_call(module, ("combat_end", "end_combat"), ckpt)
         if observers:

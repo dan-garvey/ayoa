@@ -1061,6 +1061,13 @@ adjudication.
   initiative to begin. The initiating action does not auto-resolve; the
   field reminds the actor, the CLI/Discord combat status, and the
   character-agent prompt on that actor's first initiative turn.
+* `DndCombatantState.active_effects` mirrors adapter-owned runtime
+  effects for combatants: concentration spells, timed effects,
+  save-ends effects, and effect-backed conditions. The persistent
+  character-wide copy lives under
+  `CharacterRecord.mechanics["dnd5e_runtime"]["active_effects"]` so
+  sustained D&D effects can survive combat boundaries without adding
+  generic narrative-engine fields.
 * `DndCombatState.pending_visible_facts` is a short queue of code-owned
   combat lifecycle facts, currently used for death-save outcomes such as
   regaining consciousness, stabilizing, or dying. The orchestrator flushes
@@ -1096,7 +1103,7 @@ adjudication.
   `RollPlan` / `RulesAdjudication` schemas as the Cat II prompt, but
   the user packet is the combat-state snapshot (round, current
   combatant, all combatants with AC/HP/conditions/defeat state/death
-  saves, the actor's available actions with
+  saves/active effects, the actor's available actions with
   `id`/`name`/`attack_bonus`/`damage`, and the house rules) rather
   than a Cat II opening context.
 
@@ -1142,7 +1149,9 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
 * a `(defer)` from a combatant with an open reaction window resolves
   as a reaction acknowledgement rather than a turn skip;
 * `_handle_combat_after_beat` advances initiative state after a beat
-  closes;
+  closes. Turn advancement also processes engine-owned D&D effect
+  lifecycle work such as recurring save checks, duration countdowns,
+  and concentration-loss cleanup;
 * `_run_automated_combat_turns_locked` drives NPC combatant turns
   inline before the player's response returns;
 * `Orchestrator.submit_cat_ii_roll` and
@@ -1179,6 +1188,15 @@ rolls, attack rolls, damage rolls, roll formulas, roll ledgers, or
 death-save counters. Dice are exposed to players in UI/status surfaces
 because tabletop players expect to see them, and are retained in checkpoint
 audit state for rewind/debugging.
+
+Sustained effects are hybrid: the router decides that a D&D spell,
+feature, or item creates an effect and supplies spell-specific metadata
+such as conditions, concentration, duration, break triggers, and
+recurring-save timing. The engine stores and advances that effect after
+the initial adjudication: it ends prior concentration when a new
+concentration effect starts, checks concentration after damage, ticks
+round durations, rolls recurring saves at the declared timing, and keeps
+effect-backed conditions synchronized.
 
 ### 15.7 Modularity Contract
 
@@ -1458,6 +1476,31 @@ Open questions:
 
 Don't solve preemptively — wait for a session where the roster
 genuinely bloats and let that shape the answer.
+
+### 20.3 D&D spatial/grid modeling
+
+D&D combat eventually needs a real spatial layer for range, cover,
+line of sight, movement, reach, forced movement, and area templates.
+The current adapter uses opaque location labels and router judgment.
+That is enough for theater-of-the-mind playtests, but not for spells
+and abilities whose legality depends on exact distances or affected
+squares.
+
+### 20.4 D&D inventory and economy
+
+Imported character sheets already contain item data, but runtime play
+does not yet model carrying, dropping, drawing, buying, selling,
+attuning, consuming, or transferring items and currency. A future
+inventory layer should stay adapter-owned and should distinguish
+equipment that affects mechanics from ordinary narrative possessions.
+
+### 20.5 D&D action economy decomposition
+
+Combat currently treats one player `/act` as one adjudicated turn.
+Fuller 5e support needs explicit action, bonus action, movement,
+reaction, free interaction, and limited-resource consumption tracking.
+Do not add this piecemeal to the generic turn schema; model it as a
+D&D combat adapter concern when playtests need finer-grained legality.
 
 ## 21. Acceptance Criteria
 

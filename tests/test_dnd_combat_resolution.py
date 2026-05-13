@@ -12,6 +12,7 @@ from app.schemas.dnd_cat_ii import PlannedRoll, RollPlan, RulesAdjudication
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
+    DndRuntimeEffect,
     SessionState,
     SlotEntry,
     WorldState,
@@ -579,6 +580,11 @@ def test_combat_packet_exposes_current_actor_spellcasting():
                     "prepared": True,
                     "always_prepared": False,
                     "concentration": True,
+                    "duration": {
+                        "kind": "minutes",
+                        "amount": 1,
+                        "text": "Concentration, up to 1 minute",
+                    },
                     "save": {"ability": "wis", "dc": 13},
                     "damage": [],
                     "healing": [],
@@ -624,7 +630,178 @@ def test_combat_packet_exposes_current_actor_spellcasting():
     ]
     assert '"name": "Hold Person"' in first_packet
     assert '"spell_save_dc": 13' in first_packet
+    assert '"duration": {' in first_packet
     assert '"slots": {' in first_packet
+
+
+def test_combat_resolver_starts_sustained_effect_from_adjudication(monkeypatch):
+    ckpt = _ckpt()
+    values = iter([4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="save_bob_hold",
+                    actor_id="bob",
+                    kind="saving_throw",
+                    ability="wis",
+                    skill="",
+                    dc=13,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Bob resists Hold Person.",
+                    action_id="",
+                    target_id="bob",
+                    effect_id="",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Bob fails the initial save.",
+            visible_outcome_facts=["Bob locks in place under Alice's spell."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[
+                {
+                    "operation": "start",
+                    "target_id": "bob",
+                    "effect_id": "eff_hold",
+                    "name": "Hold Person",
+                    "slug": "hold_person",
+                    "source_type": "spell",
+                    "source_id": "hold_person",
+                    "originator_id": "alice",
+                    "conditions": ["paralyzed"],
+                    "concentration": True,
+                    "duration_kind": "minutes",
+                    "duration_amount": 1,
+                    "remaining_rounds": 10,
+                    "duration_text": "Concentration, up to 1 minute",
+                    "break_triggers": [],
+                    "recurring_save": {
+                        "ability": "wis",
+                        "dc": 13,
+                        "timing": "end_of_turn",
+                        "ends_on": "success",
+                        "repeat": True,
+                    },
+                    "reason": "failed initial save",
+                }
+            ],
+            action_tags=["cast_spell"],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Hold Person on Bob.",
+        )
+    )
+
+    bob = ckpt.session.active_combat.combatants[1]
+    assert bob.active_effects[0].effect_id == "eff_hold"
+    assert bob.active_effects[0].recurring_save.dc == 13
+    assert "paralyzed" in bob.conditions
+    stored = ckpt.characters[1].mechanics["dnd5e_runtime"]["active_effects"]
+    assert stored[0]["effect_id"] == "eff_hold"
+
+
+def test_combat_resolver_action_tag_breaks_existing_effect(monkeypatch):
+    ckpt = _ckpt()
+    alice = ckpt.session.active_combat.combatants[0]
+    alice.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_invisible",
+        name="Invisibility",
+        slug="invisibility",
+        target_id="alice",
+        originator_id="alice",
+        conditions=["invisible"],
+        concentration=True,
+        duration_kind="minutes",
+        duration_amount=1,
+        remaining_rounds=10,
+        break_triggers=["attack", "cast_spell"],
+    ))
+    alice.conditions.append("invisible")
+    values = iter([9, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="attack_alice",
+                    actor_id="alice",
+                    kind="attack_roll",
+                    ability="str",
+                    skill="",
+                    dc=12,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Alice attacks Bob with a blade.",
+                    action_id="blade",
+                    target_id="bob",
+                    effect_id="",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice attacks from invisibility.",
+            visible_outcome_facts=["Alice's blade catches Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            action_tags=["attack"],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I attack Bob.",
+        )
+    )
+
+    assert alice.active_effects == []
+    assert "invisible" not in alice.conditions
+    assert "Invisibility ends on Alice." in (
+        ckpt.session.active_combat.pending_visible_facts
+    )
 
 
 def test_combat_resolver_executes_opportunity_attack_roll(monkeypatch):

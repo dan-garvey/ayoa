@@ -41,6 +41,7 @@ from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
     WorldAdjudication,
+    visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
@@ -1331,6 +1332,38 @@ class TestBroadcastEvent:
         assert aldric.pending_observations == [
             "Dan asks Thessaly whether she knows curses."
         ]
+
+    def test_private_channel_fact_reaches_bound_pov_without_npc_leak(self):
+        ckpt = _ckpt({"alice": "1"})
+        event = self._event(
+            observer_ids=["alice", "bob"],
+            facts=[
+                ObservableFact.only(
+                    "A Message spell whispers only to Alice.",
+                    ["alice"],
+                ),
+                ObservableFact.all("Bob keeps watch at the arch."),
+            ],
+        )
+
+        broadcast_event(ckpt, event, actor_id="pip")
+
+        bob = next(c for c in ckpt.characters if c.character_id == "bob")
+        assert bob.pending_observations == ["Bob keeps watch at the arch."]
+        assert ckpt.session.render_buffers["alice"][0].event_id == event.event_id
+        assert visible_fact_texts(
+            event.canonical_event.observable_facts,
+            "alice",
+            include_all_observers=True,
+        ) == [
+            "A Message spell whispers only to Alice.",
+            "Bob keeps watch at the arch.",
+        ]
+        assert visible_fact_texts(
+            event.canonical_event.observable_facts,
+            "bob",
+            include_all_observers=True,
+        ) == ["Bob keeps watch at the arch."]
 
     def test_empty_observable_facts_means_no_push(self):
         ckpt = _ckpt()

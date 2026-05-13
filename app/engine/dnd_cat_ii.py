@@ -14,6 +14,7 @@ from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.dnd_cat_ii import (
     CombatStateDelta,
+    EffectDelta,
     PlannedRoll,
     RollPlan,
     RulesAdjudication,
@@ -22,6 +23,7 @@ from app.schemas.state import (
     CatIIRollDamageRecord,
     CatIIRollRecord,
     CatIIRollTransaction,
+    DndRuntimeEffect,
     OpenCatIIEvent,
     SlotEntry,
 )
@@ -222,6 +224,17 @@ class DndCombatResolver:
         adjudication = await self._finalize(packet, transaction.ledger_lines)
         _apply_combat_damage_records(ckpt, transaction)
         _apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
+        _apply_combat_action_tags(
+            ckpt,
+            transaction=transaction,
+            action_tags=adjudication.action_tags,
+        )
+        _apply_combat_effect_deltas(
+            ckpt,
+            adjudication.effect_deltas,
+            default_originator_id=transaction.actor_id,
+        )
+        _sync_combat_effects(ckpt)
         result = _compile_combat_router_output(
             ckpt=ckpt,
             transaction=transaction,
@@ -291,7 +304,7 @@ def _end_combat_after_adjudication(
         combat,
         f"Combat ended from D&D combat adjudication: {result.event_id}.",
     )
-    dnd_combat.end_combat(ckpt.session)
+    dnd_combat.end_combat(ckpt.session, characters=ckpt.characters)
     result.canonical_event.observable_facts.append(ObservableFact.all(
         "D&D combat ends."
     ))
@@ -556,7 +569,10 @@ def _apply_combat_damage_records(
             damage.applied = True
             continue
         dnd_combat.apply_damage(
-            ckpt.session, damage.target_id, damage.amount
+            ckpt.session,
+            damage.target_id,
+            damage.amount,
+            characters=ckpt.characters,
         )
         damage.applied = True
 
@@ -660,6 +676,10 @@ def _normalize_action_text(value: object) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
 
 
+def _slug(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+
 def _contains_action_name(haystack: str, needle: str) -> bool:
     if not haystack or not needle:
         return False
@@ -754,6 +774,7 @@ def _build_combat_packet(
                 ),
             },
             "conditions": list(getattr(combatant, "conditions", []) or []),
+            "active_effects": _combat_effect_summaries(combatant),
             "defeat_state": _combatant_defeat_state(combatant),
             "death_saves": {
                 "successes": int(
@@ -790,10 +811,39 @@ def _build_combat_packet(
             "Opportunity attacks are automatic for players and NPCs.",
             "Player opportunity attacks do not consume optional reaction prompts.",
             "Open optional player reaction prompts only for meaningful choices.",
+            "Agents do not need roll details; expose dice only through player UI.",
         ],
         "combatants": participants,
     }
     return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
+    effects: list[dict[str, object]] = []
+    for effect in list(getattr(combatant, "active_effects", []) or []):
+        save = getattr(effect, "recurring_save", None)
+        effects.append({
+            "effect_id": str(getattr(effect, "effect_id", "") or ""),
+            "name": str(getattr(effect, "name", "") or ""),
+            "slug": str(getattr(effect, "slug", "") or ""),
+            "originator_id": str(getattr(effect, "originator_id", "") or ""),
+            "target_id": str(getattr(effect, "target_id", "") or ""),
+            "conditions": list(getattr(effect, "conditions", []) or []),
+            "concentration": bool(getattr(effect, "concentration", False)),
+            "remaining_rounds": int(getattr(effect, "remaining_rounds", 0) or 0),
+            "duration_text": str(getattr(effect, "duration_text", "") or ""),
+            "break_triggers": list(getattr(effect, "break_triggers", []) or []),
+            "recurring_save": (
+                {
+                    "ability": str(getattr(save, "ability", "") or ""),
+                    "dc": int(getattr(save, "dc", 0) or 0),
+                    "timing": str(getattr(save, "timing", "") or ""),
+                    "ends_on": str(getattr(save, "ends_on", "") or ""),
+                }
+                if save is not None else None
+            ),
+        })
+    return effects
 
 
 def _combat_action_summaries(character: object | None) -> list[dict[str, object]]:
@@ -875,6 +925,10 @@ def _combat_spell_summaries(character: object | None) -> list[dict[str, object]]
             "prepared": bool(spell.get("prepared")),
             "always_prepared": bool(spell.get("always_prepared")),
             "concentration": bool(spell.get("concentration")),
+            "duration": spell.get("duration") or {},
+            "range": spell.get("range") or {},
+            "target": spell.get("target") or {},
+            "components": spell.get("components") or {},
             "attack": {
                 "ability": str(attack.get("ability") or ""),
                 "bonus": attack.get("bonus", ""),
@@ -1067,6 +1121,9 @@ def _combat_affected_ids(
     for delta in adjudication.combat_state_deltas:
         if delta.target_id:
             affected.add(delta.target_id)
+    for delta in adjudication.effect_deltas:
+        if delta.target_id:
+            affected.add(delta.target_id)
     return affected
 
 
@@ -1083,6 +1140,122 @@ def _apply_combat_state_deltas(
                 dnd_combat.apply_healing(ckpt.session, delta.target_id, delta.amount)
         elif delta.kind in {"condition_add", "condition_remove"}:
             _apply_condition_delta(ckpt, delta)
+
+
+def _apply_combat_effect_deltas(
+    ckpt: CheckpointFile,
+    deltas: list[EffectDelta],
+    *,
+    default_originator_id: str,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    for delta in deltas:
+        if delta.operation == "start":
+            effect = _runtime_effect_from_delta(
+                delta,
+                default_originator_id=default_originator_id,
+            )
+            dnd_combat.start_effect(ckpt.session, effect)
+        elif delta.operation == "end":
+            dnd_combat.end_effect(
+                ckpt.session,
+                effect_id=delta.effect_id,
+                target_id=delta.target_id,
+                slug=delta.slug,
+                reason=delta.reason,
+            )
+        elif delta.operation == "update":
+            _update_runtime_effect(ckpt, delta)
+
+
+def _runtime_effect_from_delta(
+    delta: EffectDelta,
+    *,
+    default_originator_id: str,
+) -> DndRuntimeEffect:
+    return DndRuntimeEffect(
+        effect_id=delta.effect_id,
+        name=delta.name or delta.slug,
+        slug=delta.slug or _slug(delta.name),
+        source_type=delta.source_type,
+        source_id=delta.source_id,
+        originator_id=delta.originator_id or default_originator_id,
+        target_id=delta.target_id,
+        conditions=list(delta.conditions),
+        concentration=delta.concentration,
+        duration_kind=delta.duration_kind,
+        duration_amount=delta.duration_amount,
+        remaining_rounds=delta.remaining_rounds,
+        duration_text=delta.duration_text,
+        break_triggers=list(delta.break_triggers),
+        recurring_save=delta.recurring_save,
+        metadata={"reason": delta.reason} if delta.reason else {},
+    )
+
+
+def _update_runtime_effect(ckpt: CheckpointFile, delta: EffectDelta) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    for combatant in list(getattr(combat, "combatants", []) or []):
+        ids = {
+            str(getattr(combatant, "combatant_id", "") or ""),
+            str(getattr(combatant, "character_id", "") or ""),
+        }
+        if delta.target_id not in ids:
+            continue
+        for effect in list(getattr(combatant, "active_effects", []) or []):
+            if delta.effect_id and effect.effect_id != delta.effect_id:
+                continue
+            if delta.slug and effect.slug != delta.slug:
+                continue
+            if delta.name:
+                effect.name = delta.name
+            if delta.conditions:
+                effect.conditions = list(delta.conditions)
+            if delta.duration_kind:
+                effect.duration_kind = delta.duration_kind
+            if delta.duration_amount:
+                effect.duration_amount = delta.duration_amount
+            if delta.remaining_rounds:
+                effect.remaining_rounds = delta.remaining_rounds
+            if delta.duration_text:
+                effect.duration_text = delta.duration_text
+            if delta.break_triggers:
+                effect.break_triggers = list(delta.break_triggers)
+            if delta.recurring_save is not None:
+                effect.recurring_save = delta.recurring_save
+            return
+
+
+def _apply_combat_action_tags(
+    ckpt: CheckpointFile,
+    *,
+    transaction: CatIIRollTransaction,
+    action_tags: list[str],
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    tags = set(action_tags)
+    if any(
+        PlannedRoll.model_validate(record.request).kind == "attack_roll"
+        and record.actor_id == transaction.actor_id
+        for record in transaction.rolls
+    ):
+        tags.add("attack")
+    if not tags:
+        return
+    dnd_combat.apply_action_tags(ckpt.session, transaction.actor_id, tags)
+
+
+def _sync_combat_effects(ckpt: CheckpointFile) -> None:
+    dnd_combat.sync_combat_effects_to_characters(
+        getattr(ckpt.session, "active_combat", None),
+        ckpt.characters,
+    )
 
 
 def _apply_condition_delta(

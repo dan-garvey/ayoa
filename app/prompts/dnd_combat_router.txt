@@ -37,6 +37,9 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   applied damage, treat that HP change as already accounted for.
 - Set combat_status="ended" only when active hostilities clearly stop through
   defeat, surrender, flight, or mutual de-escalation. Otherwise set "ongoing".
+- Set action_tags to compact labels for what the actor did this turn, such as
+  attack or cast_spell. These tags let sustained effects end when their normal
+  trigger happens.
 - visible_outcome_facts are public, concrete facts of this turn's resolved
   action. Do not reveal roll formulas, totals, rules notes, or hidden intent in
   visible facts.
@@ -47,6 +50,14 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - combat_state_deltas are only for non-damage state changes not already
   accounted for in the ledger: healing, condition add/remove, or special
   effects. Do not duplicate direct attack damage from the ledger.
+- effect_deltas are for sustained D&D effects: concentration, timed effects,
+  save-ends effects, and conditions that belong to a named spell or feature.
+  The router decides when a spell/ability creates the effect and supplies the
+  spell-specific fields. Duration, concentration, break triggers, and
+  recurring saves continue from those fields after this turn.
+- For a save-ends spell such as Hold Person, put the initial saving throw in
+  PLAN_ROLLS. If the spell takes hold, emit an effect_delta with the condition,
+  concentration=true when applicable, and recurring_save timing/DC.
 - state_deltas are plain text notes for future mechanics work.
 
 <<<USER>>>

@@ -25,6 +25,7 @@ from app.schemas.conversation import ConversationMessage
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
+    DndRuntimeEffect,
     LocationState,
     SessionState,
     StorySetting,
@@ -440,6 +441,16 @@ class TestCharacterAgent:
                     death_save_failures=1,
                     pending_initiating_action="I cut down the raider.",
                     conditions=["grappled"],
+                    active_effects=[
+                        DndRuntimeEffect(
+                            effect_id="eff_bless",
+                            name="Bless",
+                            slug="bless",
+                            target_id="guard_17",
+                            conditions=["blessed"],
+                            remaining_rounds=4,
+                        )
+                    ],
                 ),
                 DndCombatantState(
                     combatant_id="raider",
@@ -460,10 +471,14 @@ class TestCharacterAgent:
         assert "## D&D Combat" in user_text
         assert "Round: 2." in user_text
         assert "It is your initiative turn." in user_text
-        assert "AC 16; HP 22/31; conditions: grappled" in user_text
+        assert (
+            "AC 16; HP 22/31; conditions: grappled; effects: Bless"
+            in user_text
+        )
         assert "Before initiative, you declared this pending intent: I cut down the raider." in user_text
         assert "d20" not in user_text
         assert "99" not in user_text
+        assert "remaining_rounds" not in user_text
         assert "death save" not in user_text.lower()
         assert "successes" not in user_text
         assert "failures" not in user_text

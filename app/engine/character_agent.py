@@ -126,10 +126,20 @@ def _combat_state_line(combatant: Any) -> str:
     if hp_temp:
         hp = f"{hp} (+{hp_temp} temp)"
     condition_text = ", ".join(conditions) if conditions else "none"
+    effect_names = []
+    for effect in _obj_get(combatant, "active_effects", []) or []:
+        name = str(
+            _obj_get(effect, "name", "")
+            or _obj_get(effect, "slug", "")
+        ).strip()
+        if name:
+            effect_names.append(name)
+    effects_text = ", ".join(effect_names) if effect_names else "none"
     parts = [f"AC {ac}", f"HP {hp}"]
     if defeat_state != "active":
         parts.append(f"state {defeat_state}")
     parts.append(f"conditions: {condition_text}")
+    parts.append(f"effects: {effects_text}")
     return f"Your combat state: {'; '.join(parts)}."
 
 

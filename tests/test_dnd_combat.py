@@ -18,6 +18,8 @@ from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.state import (
     CatIIRollTransaction,
     DndCombatantState,
+    DndEffectRecurringSave,
+    DndRuntimeEffect,
     SessionState,
     SlotEntry,
 )
@@ -350,6 +352,7 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
             "hp": {"current": 12, "max": 12, "temporary": 0},
             "defeat_state": "active",
             "death_saves": {"successes": 0, "failures": 0},
+            "active_effects": [],
             "removed": False,
             "pending_initiating_action": "",
             "pending_initiating_event_id": "",
@@ -362,6 +365,7 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
                 "hp": {"current": 12, "max": 12, "temporary": 0},
                 "defeat_state": "active",
                 "death_saves": {"successes": 0, "failures": 0},
+                "active_effects": [],
                 "removed": False,
                 "pending_initiating_action": "",
                 "pending_initiating_event_id": "",
@@ -372,6 +376,119 @@ def test_public_and_private_statuses_are_concise_and_private_has_roll_details(
     assert private["current"]["initiative"]["roll"] == 10
     assert private["current"]["initiative"]["modifier"] == 2
     assert private["current"]["initiative"]["total"] == 12
+
+
+def test_runtime_effects_seed_combat_and_sync_back(monkeypatch):
+    values = iter([9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    alice.mechanics["dnd5e_runtime"] = {
+        "active_effects": [
+            {
+                "effect_id": "eff_bless",
+                "name": "Bless",
+                "slug": "bless",
+                "target_id": "alice",
+                "originator_id": "cleric",
+                "conditions": ["blessed"],
+                "concentration": True,
+                "duration_kind": "minutes",
+                "duration_amount": 1,
+                "remaining_rounds": 10,
+            }
+        ]
+    }
+    session = SessionState(session_id="s")
+
+    combat = start_combat(session, [alice])
+
+    combatant = combat.combatants[0]
+    assert combatant.active_effects[0].name == "Bless"
+    assert "blessed" in combatant.conditions
+
+    combatant.active_effects[0].remaining_rounds = 8
+    end_combat(session, characters=[alice])
+
+    stored = alice.mechanics["dnd5e_runtime"]["active_effects"]
+    assert stored[0]["effect_id"] == "eff_bless"
+    assert stored[0]["remaining_rounds"] == 8
+
+
+def test_advance_turn_runs_recurring_save_and_ends_effect(monkeypatch):
+    values = iter([9, 9, 14])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    bob_state.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="alice",
+        conditions=["paralyzed"],
+        concentration=True,
+        duration_kind="minutes",
+        duration_amount=1,
+        remaining_rounds=10,
+        recurring_save=DndEffectRecurringSave(
+            ability="wis",
+            dc=10,
+            timing="end_of_turn",
+            ends_on="success",
+        ),
+    ))
+    bob_state.conditions.append("paralyzed")
+    combat.turn_index = combat.combatants.index(bob_state)
+
+    advance_turn(session)
+
+    assert bob_state.active_effects == []
+    assert "paralyzed" not in bob_state.conditions
+    assert "Hold Person ends on Bob." in combat.pending_visible_facts
+
+
+def test_damage_can_break_concentration(monkeypatch):
+    values = iter([9, 9, 4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    bob_state.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="bob",
+        conditions=["paralyzed"],
+        concentration=True,
+        duration_kind="minutes",
+        duration_amount=1,
+        remaining_rounds=10,
+    ))
+    bob_state.conditions.append("paralyzed")
+
+    apply_damage(session, "bob", 3, characters=[alice, bob])
+
+    assert bob_state.active_effects == []
+    assert "paralyzed" not in bob_state.conditions
+    assert "Hold Person ends on Bob." in combat.pending_visible_facts
 
 
 def test_lifecycle_and_roster_validation(monkeypatch):
