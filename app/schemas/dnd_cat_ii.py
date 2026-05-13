@@ -16,6 +16,44 @@ RollKind = Literal[
     "saving_throw",
     "attack_roll",
 ]
+DamageAdjustmentKind = Literal[
+    "resistance",
+    "immunity",
+    "vulnerability",
+    "halve",
+    "double",
+]
+
+
+class PlannedDamageAdjustment(BaseModel):
+    """Router-authored D&D damage adjustment for a planned attack roll.
+
+    Sheet-derived adjustments are calculated from durable character data in the
+    adapter. This field is for situational facts the router can see in the
+    current action context, such as a temporary resistance or vulnerability.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: DamageAdjustmentKind
+    damage_type: str
+    reason: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_damage_adjustment_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("damage_type", "")
+            data.setdefault("reason", "")
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "PlannedDamageAdjustment":
+        self.kind = self.kind.strip().lower()
+        self.damage_type = self.damage_type.strip().lower()
+        self.reason = self.reason.strip()
+        return self
 
 
 class PlannedRoll(BaseModel):
@@ -43,6 +81,7 @@ class PlannedRoll(BaseModel):
     action_id: str
     target_id: str
     effect_id: str = ""
+    damage_adjustments: list[PlannedDamageAdjustment]
 
     @model_validator(mode="before")
     @classmethod
@@ -52,6 +91,7 @@ class PlannedRoll(BaseModel):
             data.setdefault("action_id", "")
             data.setdefault("target_id", "")
             data.setdefault("effect_id", "")
+            data.setdefault("damage_adjustments", [])
         return data
 
     @model_validator(mode="after")
@@ -209,7 +249,6 @@ class RulesAdjudication(BaseModel):
     state_deltas: list[str]
     combat_state_deltas: list[CombatStateDelta] = Field(default_factory=list)
     effect_deltas: list[EffectDelta] = Field(default_factory=list)
-    action_tags: list[str] = Field(default_factory=list)
     rules_notes: list[str]
     fallback_reason: str
 
@@ -221,7 +260,6 @@ class RulesAdjudication(BaseModel):
             data.setdefault("combat_status", "ongoing")
             data.setdefault("combat_state_deltas", [])
             data.setdefault("effect_deltas", [])
-            data.setdefault("action_tags", [])
         return data
 
     @model_validator(mode="after")
@@ -235,9 +273,4 @@ class RulesAdjudication(BaseModel):
                 self.visible_outcome_facts = [text]
         if not self.visible_outcome_facts:
             raise ValueError("Rules adjudication requires a visible outcome fact")
-        self.action_tags = [
-            tag.strip().lower()
-            for tag in self.action_tags
-            if tag.strip()
-        ]
         return self

@@ -994,6 +994,21 @@ runs unchanged when no adapter is active. Adapter-specific code,
 prompts, schema fields, and bot commands all gate on the active
 session settings. See §4.7 for the modularity contract.
 
+The adapter follows a thin-kernel split:
+
+* LLM router prompts own D&D judgment: action legality, target choice,
+  roll planning, situational advantage/disadvantage, special damage
+  adjustments visible in the supplied context, combat status, and
+  explicit sustained-effect deltas.
+* Code owns dice, arithmetic, durable state mutation, and the ledger:
+  initiative and roll execution, hit/miss math, damage and healing
+  totals, resistance/immunity/vulnerability adjustment arithmetic,
+  HP/death-save/effect lifecycle persistence, checkpoint transactions,
+  and audit lines.
+* The narrator owns POV prose from canonical facts. It should render
+  what became visible, not recompute D&D mechanics or invent hidden
+  dice outcomes.
+
 ### 15.1 Settings
 
 Two settings on `SessionSettings` (registered in
@@ -1030,8 +1045,10 @@ adjudication.
     via `LLMDispatcher.route_combat_action`. Combat actions skip the
     generic `route_intention` entirely; the resolver runs PLAN_ROLLS,
     executes/blocks on player rolls, rolls weapon damage from the
-    sheet for hits, calls FINALIZE_OUTCOME, applies HP changes from
-    structured `damage_records`, and synthesizes an
+    sheet for hits, applies code-owned damage adjustments from sheet
+    traits and router-authored situational adjustments, calls
+    FINALIZE_OUTCOME, applies HP changes from structured
+    `damage_records`, and synthesizes an
     `EventRouterOutput` with `ends_beat_reason="ruleset_resolution"`.
     Neither phase is appended to `session_conversation`.
 * `app/engine/dnd_character_import.py` — D&D Beyond character sheet
@@ -1186,15 +1203,18 @@ agent addon gives them initiative context, action-economy expectations,
 visible facts, and their own combat state; it does not provide initiative
 rolls, attack rolls, damage rolls, roll formulas, roll ledgers, or
 death-save counters. Dice are exposed to players in UI/status surfaces
-because tabletop players expect to see them, and are retained in checkpoint
-audit state for rewind/debugging.
+because tabletop players expect to see them, and active effect labels are
+shown in combat status views for the same reason. These details are retained
+in checkpoint audit state for rewind/debugging, but character agents receive
+only the combat state they need to choose plausible actions.
 
 Sustained effects are hybrid: the router decides that a D&D spell,
-feature, or item creates an effect and supplies spell-specific metadata
-such as conditions, concentration, duration, break triggers, and
-recurring-save timing. The engine stores and advances that effect after
-the initial adjudication: it ends prior concentration when a new
-concentration effect starts, checks concentration after damage, ticks
+feature, or item starts, ends, or updates an effect and supplies
+spell-specific metadata such as conditions, concentration, duration, and
+recurring-save timing. If the current action breaks an existing effect,
+the router emits an explicit end-effect delta. The engine stores and
+advances effects after adjudication: it ends prior concentration when a
+new concentration effect starts, checks concentration after damage, ticks
 round durations, rolls recurring saves at the declared timing, and keeps
 effect-backed conditions synchronized.
 

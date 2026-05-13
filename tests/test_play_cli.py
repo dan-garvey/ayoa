@@ -307,6 +307,7 @@ class TestCombatCommand:
                     hp_max=9,
                     hp_temporary=2,
                     armor_class=16,
+                    active_effects=("Bless (concentration; 8 rounds)",),
                 ),
             ),
         )
@@ -317,7 +318,10 @@ class TestCombatCommand:
         engine.combat_status.assert_called_once_with(SESSION_ID, private=True)
         out = capsys.readouterr().out
         assert "Round 2 · Turn 3" in out
-        assert "> Sera (sera) - HP 7/9 (+2); AC 16; Init 18" in out
+        assert (
+            "> Sera (sera) - HP 7/9 (+2); AC 16; Init 18; "
+            "Effects: Bless (concentration; 8 rounds)"
+        ) in out
 
     def test_combat_damage_parses_amount(self, run):
         engine = _mock_engine()

@@ -165,7 +165,7 @@ def append_audit_line(combat: DndCombatState | SessionState, line: str) -> None:
 
 def _append_pending_visible_fact(combat: DndCombatState, fact: str) -> None:
     text = fact.strip()
-    if text:
+    if text and text not in combat.pending_visible_facts:
         combat.pending_visible_facts.append(text)
 
 
@@ -260,17 +260,18 @@ def start_effect(
     effect: DndRuntimeEffect,
 ) -> DndRuntimeEffect:
     active = _active_from(combat)
-    target = _find_combatant(active, effect.target_id)
-    if not effect.effect_id:
-        effect.effect_id = _new_effect_id()
+    _prepare_runtime_effect(effect)
+    target = _effect_start_target(active, effect)
+    if target is None:
+        append_audit_line(
+            active,
+            "Effect start skipped; target not found: "
+            f"{_effect_display_name(effect)} ({effect.effect_id}) "
+            f"target={effect.target_id!r}.",
+        )
+        return effect
     if not effect.target_id:
         effect.target_id = target.character_id or target.combatant_id
-    if not effect.slug:
-        effect.slug = _slug(effect.name or effect.effect_id)
-    if effect.duration_kind == "minutes" and not effect.remaining_rounds:
-        effect.remaining_rounds = max(0, effect.duration_amount * 10)
-    elif effect.duration_kind == "rounds" and not effect.remaining_rounds:
-        effect.remaining_rounds = max(0, effect.duration_amount)
     if effect.concentration and effect.originator_id:
         end_concentration_effects(
             active,
@@ -278,20 +279,38 @@ def start_effect(
             except_effect_id=effect.effect_id,
             reason="new concentration",
         )
-    target.active_effects = [
-        existing for existing in target.active_effects
-        if existing.effect_id != effect.effect_id
-    ]
+    replaced_on_target: list[DndRuntimeEffect] = []
+    for combatant in active.combatants:
+        remaining: list[DndRuntimeEffect] = []
+        replaced_here: list[DndRuntimeEffect] = []
+        for existing in combatant.active_effects:
+            if existing.effect_id == effect.effect_id:
+                replaced_here.append(existing)
+            else:
+                remaining.append(existing)
+        if not replaced_here:
+            continue
+        combatant.active_effects = remaining
+        if combatant is target:
+            replaced_on_target.extend(replaced_here)
+        else:
+            _reconcile_effect_conditions(
+                combatant,
+                ended_conditions=_effect_conditions(replaced_here),
+            )
     target.active_effects.append(effect)
-    target.conditions = _merge_conditions(target.conditions, effect.conditions)
+    _reconcile_effect_conditions(
+        target,
+        ended_conditions=_effect_conditions(replaced_on_target),
+    )
     _append_pending_visible_fact(
         active,
-        f"{_combatant_label(target)} is affected by {effect.name or effect.slug}.",
+        _effect_started_fact(effect, target),
     )
     append_audit_line(
         active,
         f"Effect started on {_combatant_label(target)}: "
-        f"{effect.name or effect.slug} ({effect.effect_id}).",
+        f"{_effect_display_name(effect)} ({effect.effect_id}).",
     )
     return effect
 
@@ -302,48 +321,137 @@ def end_effect(
     effect_id: str = "",
     target_id: str = "",
     slug: str = "",
+    originator_id: str = "",
     reason: str = "",
 ) -> list[DndRuntimeEffect]:
     active = _active_from(combat)
-    ended: list[DndRuntimeEffect] = []
-    slug = slug.strip().lower()
-    for combatant in active.combatants:
-        if target_id:
-            ids = {combatant.combatant_id, combatant.character_id}
-            if target_id not in ids:
-                continue
-        remaining: list[DndRuntimeEffect] = []
-        ended_here: list[DndRuntimeEffect] = []
-        for effect in combatant.active_effects:
-            matches = (
-                (effect_id and effect.effect_id == effect_id)
-                or (slug and effect.slug == slug)
-                or (not effect_id and not slug and target_id)
-            )
-            if matches:
-                ended.append(effect)
-                ended_here.append(effect)
-            else:
-                remaining.append(effect)
-        if len(remaining) != len(combatant.active_effects):
-            ended_conditions = [
-                condition for effect in ended_here for condition in effect.conditions
-            ]
-            combatant.active_effects = remaining
-            _reconcile_effect_conditions(
-                combatant, ended_conditions=ended_conditions,
-            )
-    for effect in ended:
-        target = _find_combatant(active, effect.target_id)
-        _append_pending_visible_fact(
+    effect_id = effect_id.strip()
+    target_id = target_id.strip()
+    slug = _normalized_slug(slug)
+    originator_id = originator_id.strip()
+    target = _find_combatant_optional(active, target_id) if target_id else None
+    if target_id and target is None and not (effect_id or originator_id):
+        append_audit_line(
             active,
-            f"{effect.name or effect.slug} ends on {_combatant_label(target)}.",
+            "Effect end skipped; target not found: "
+            f"target={target_id!r} slug={slug!r}.",
         )
-        note = f"Effect ended: {effect.name or effect.slug} ({effect.effect_id})"
-        if reason:
-            note += f"; reason={reason}"
-        append_audit_line(active, note + ".")
-    return ended
+        return []
+    records: list[tuple[DndCombatantState, DndRuntimeEffect]] = []
+    for combatant in active.combatants:
+        if target is not None and combatant is not target:
+            continue
+        for effect in combatant.active_effects:
+            if not _effect_matches(
+                effect,
+                effect_id=effect_id,
+                slug=slug,
+                originator_id=originator_id,
+                allow_target_only=bool(target_id and target is not None),
+            ):
+                continue
+            records.append((combatant, effect))
+    records = _resolve_slug_only_end_records(
+        active,
+        records,
+        slug=slug,
+        effect_id=effect_id,
+        target_id=target_id,
+        originator_id=originator_id,
+    )
+    return _end_effect_records(active, records, reason=reason)
+
+
+def update_effect(
+    combat: DndCombatState | SessionState,
+    *,
+    effect_id: str = "",
+    target_id: str = "",
+    slug: str = "",
+    originator_id: str = "",
+    name: str | None = None,
+    conditions: Iterable[str] | None = None,
+    concentration: bool | None = None,
+    duration_kind: str | None = None,
+    duration_amount: int | None = None,
+    remaining_rounds: int | None = None,
+    duration_text: str | None = None,
+    break_triggers: Iterable[str] | None = None,
+    recurring_save: Any | None = None,
+    reason: str = "",
+) -> DndRuntimeEffect | None:
+    active = _active_from(combat)
+    effect_id = effect_id.strip()
+    target_id = target_id.strip()
+    slug = _normalized_slug(slug)
+    originator_id = originator_id.strip()
+    target = _find_combatant_optional(active, target_id) if target_id else None
+    if target_id and target is None and not (effect_id or originator_id):
+        append_audit_line(
+            active,
+            "Effect update skipped; target not found: "
+            f"target={target_id!r} slug={slug!r}.",
+        )
+        return None
+    for combatant in active.combatants:
+        if target is not None and combatant is not target:
+            continue
+        for effect in combatant.active_effects:
+            if not _effect_matches(
+                effect,
+                effect_id=effect_id,
+                slug=slug,
+                originator_id=originator_id,
+                allow_target_only=False,
+            ):
+                continue
+            previous_conditions = list(effect.conditions)
+            if name is not None and name.strip():
+                effect.name = name.strip()
+            if conditions is not None:
+                effect.conditions = _merge_conditions([], conditions)
+            if concentration is not None:
+                effect.concentration = concentration
+            if duration_kind is not None and duration_kind.strip():
+                effect.duration_kind = duration_kind.strip()  # type: ignore[assignment]
+            if duration_amount is not None:
+                effect.duration_amount = max(0, int(duration_amount))
+            if remaining_rounds is not None:
+                effect.remaining_rounds = max(0, int(remaining_rounds))
+            if duration_text is not None:
+                effect.duration_text = duration_text.strip()
+            if break_triggers is not None:
+                effect.break_triggers = [
+                    str(trigger).strip().lower()
+                    for trigger in break_triggers
+                    if str(trigger).strip()
+                ]
+            if recurring_save is not None:
+                effect.recurring_save = recurring_save
+            if not effect.slug:
+                effect.slug = _slug(effect.name or effect.effect_id)
+            _reconcile_effect_conditions(
+                combatant,
+                ended_conditions=previous_conditions,
+            )
+            _append_pending_visible_fact(
+                active,
+                _effect_updated_fact(effect, combatant, reason),
+            )
+            note = (
+                f"Effect updated on {_combatant_label(combatant)}: "
+                f"{_effect_display_name(effect)} ({effect.effect_id})"
+            )
+            if reason:
+                note += f"; reason={_plain_effect_reason(reason)}"
+            append_audit_line(active, note + ".")
+            return effect
+    append_audit_line(
+        active,
+        "Effect update skipped; no matching effect: "
+        f"effect_id={effect_id!r} target={target_id!r} slug={slug!r}.",
+    )
+    return None
 
 
 def end_concentration_effects(
@@ -354,80 +462,19 @@ def end_concentration_effects(
     reason: str = "",
 ) -> list[DndRuntimeEffect]:
     active = _active_from(combat)
-    ended: list[DndRuntimeEffect] = []
+    originator_id = originator_id.strip()
+    if not originator_id:
+        return []
+    records: list[tuple[DndCombatantState, DndRuntimeEffect]] = []
     for combatant in active.combatants:
-        remaining: list[DndRuntimeEffect] = []
-        ended_here: list[DndRuntimeEffect] = []
         for effect in combatant.active_effects:
             if (
                 effect.concentration
                 and effect.originator_id == originator_id
                 and effect.effect_id != except_effect_id
             ):
-                ended.append(effect)
-                ended_here.append(effect)
-            else:
-                remaining.append(effect)
-        if len(remaining) != len(combatant.active_effects):
-            ended_conditions = [
-                condition for effect in ended_here for condition in effect.conditions
-            ]
-            combatant.active_effects = remaining
-            _reconcile_effect_conditions(
-                combatant, ended_conditions=ended_conditions,
-            )
-    for effect in ended:
-        target = _find_combatant(active, effect.target_id)
-        _append_pending_visible_fact(
-            active,
-            f"{effect.name or effect.slug} ends on {_combatant_label(target)}.",
-        )
-        append_audit_line(
-            active,
-            f"Concentration effect ended for {originator_id}: "
-            f"{effect.name or effect.slug} ({effect.effect_id}); {reason}.",
-        )
-    return ended
-
-
-def apply_action_tags(
-    combat: DndCombatState | SessionState,
-    actor_id: str,
-    tags: Iterable[str],
-) -> list[DndRuntimeEffect]:
-    active = _active_from(combat)
-    normalized = {str(tag).strip().lower() for tag in tags if str(tag).strip()}
-    if not normalized:
-        return []
-    combatant = _find_combatant(active, actor_id)
-    remaining: list[DndRuntimeEffect] = []
-    ended: list[DndRuntimeEffect] = []
-    for effect in combatant.active_effects:
-        triggers = set(effect.break_triggers or [])
-        if triggers & normalized:
-            ended.append(effect)
-        else:
-            remaining.append(effect)
-    if not ended:
-        return []
-    combatant.active_effects = remaining
-    _reconcile_effect_conditions(
-        combatant,
-        ended_conditions=[
-            condition for effect in ended for condition in effect.conditions
-        ],
-    )
-    for effect in ended:
-        _append_pending_visible_fact(
-            active,
-            f"{effect.name or effect.slug} ends on {_combatant_label(combatant)}.",
-        )
-        append_audit_line(
-            active,
-            f"Effect ended by action tag {sorted(normalized)}: "
-            f"{effect.name or effect.slug} ({effect.effect_id}).",
-        )
-    return ended
+                records.append((combatant, effect))
+    return _end_effect_records(active, records, reason=reason)
 
 
 def _cancel_combat_roll_transactions(session: SessionState) -> set[str]:
@@ -845,7 +892,7 @@ def _process_recurring_saves(
     if _defeat_state(combatant) not in {"active", "down"}:
         return
     remaining: list[DndRuntimeEffect] = []
-    ended: list[DndRuntimeEffect] = []
+    ended: list[tuple[DndRuntimeEffect, str]] = []
     by_id = _characters_by_id(characters)
     character = by_id.get(combatant.character_id)
     for effect in combatant.active_effects:
@@ -876,27 +923,23 @@ def _process_recurring_saves(
             f"vs DC {save.dc}; {'ends' if should_end else 'continues'}.",
         )
         if should_end:
-            ended.append(effect)
+            ended.append((effect, _recurring_save_end_reason(save.ability, success)))
         else:
             remaining.append(effect)
-            _append_pending_visible_fact(
-                combat,
-                f"{effect.name or effect.slug} remains on "
-                f"{_combatant_label(combatant)}.",
-            )
     if ended:
         combatant.active_effects = remaining
         _reconcile_effect_conditions(
             combatant,
             ended_conditions=[
-                condition for effect in ended for condition in effect.conditions
+                condition
+                for effect, _reason in ended
+                for condition in effect.conditions
             ],
         )
-        for effect in ended:
+        for effect, reason in ended:
             _append_pending_visible_fact(
                 combat,
-                f"{effect.name or effect.slug} ends on "
-                f"{_combatant_label(combatant)}.",
+                _effect_ended_fact(effect, combatant, reason),
             )
 
 
@@ -927,12 +970,12 @@ def _tick_effect_durations(
     for effect in expired:
         _append_pending_visible_fact(
             combat,
-            f"{effect.name or effect.slug} ends on {_combatant_label(combatant)}.",
+            _effect_ended_fact(effect, combatant, "duration expired"),
         )
         append_audit_line(
             combat,
             f"Effect expired on {_combatant_label(combatant)}: "
-            f"{effect.name or effect.slug} ({effect.effect_id}).",
+            f"{_effect_display_name(effect)} ({effect.effect_id}).",
         )
 
 
@@ -966,6 +1009,22 @@ def _find_combatant(
         ):
             return combatant
     raise ValueError(f"No combatant {combatant_id!r} in combat.")
+
+
+def _find_combatant_optional(
+    combat: DndCombatState,
+    combatant_id: str,
+) -> DndCombatantState | None:
+    target = combatant_id.strip()
+    if not target:
+        return None
+    for combatant in combat.combatants:
+        if (
+            combatant.combatant_id == target
+            or combatant.character_id == target
+        ):
+            return combatant
+    return None
 
 
 def _set_turn_to_combatant(combat: DndCombatState, combatant_id: str) -> None:
@@ -1035,6 +1094,230 @@ def _effect_public_summary(effect: DndRuntimeEffect) -> dict[str, Any]:
     }
 
 
+def _prepare_runtime_effect(effect: DndRuntimeEffect) -> None:
+    if not effect.effect_id:
+        effect.effect_id = _new_effect_id()
+    if not effect.slug:
+        effect.slug = _slug(effect.name or effect.effect_id)
+    else:
+        effect.slug = _normalized_slug(effect.slug)
+    if effect.duration_kind == "minutes" and not effect.remaining_rounds:
+        effect.remaining_rounds = max(0, effect.duration_amount * 10)
+    elif effect.duration_kind == "rounds" and not effect.remaining_rounds:
+        effect.remaining_rounds = max(0, effect.duration_amount)
+
+
+def _effect_start_target(
+    combat: DndCombatState,
+    effect: DndRuntimeEffect,
+) -> DndCombatantState | None:
+    if effect.target_id:
+        return _find_combatant_optional(combat, effect.target_id)
+    if effect.originator_id:
+        return _find_combatant_optional(combat, effect.originator_id)
+    return None
+
+
+def _effect_matches(
+    effect: DndRuntimeEffect,
+    *,
+    effect_id: str,
+    slug: str,
+    originator_id: str,
+    allow_target_only: bool,
+) -> bool:
+    has_selector = bool(effect_id or slug or originator_id)
+    if not has_selector:
+        return allow_target_only
+    if effect_id and effect.effect_id != effect_id:
+        return False
+    if slug and _normalized_slug(effect.slug) != slug:
+        return False
+    if originator_id and effect.originator_id != originator_id:
+        return False
+    return True
+
+
+def _resolve_slug_only_end_records(
+    combat: DndCombatState,
+    records: list[tuple[DndCombatantState, DndRuntimeEffect]],
+    *,
+    slug: str,
+    effect_id: str,
+    target_id: str,
+    originator_id: str,
+) -> list[tuple[DndCombatantState, DndRuntimeEffect]]:
+    if not slug or effect_id or target_id or originator_id or len(records) <= 1:
+        return records
+    originators = {
+        effect.originator_id.strip()
+        for _combatant, effect in records
+    }
+    if len(originators) == 1 and "" not in originators:
+        return records
+    append_audit_line(
+        combat,
+        "Effect end skipped; slug-only selector is ambiguous: "
+        f"slug={slug!r} matches={len(records)}.",
+    )
+    return []
+
+
+def _end_effect_records(
+    combat: DndCombatState,
+    records: list[tuple[DndCombatantState, DndRuntimeEffect]],
+    *,
+    reason: str = "",
+) -> list[DndRuntimeEffect]:
+    if not records:
+        return []
+    record_ids = {(id(combatant), id(effect)) for combatant, effect in records}
+    ended_records: list[tuple[DndCombatantState, DndRuntimeEffect]] = []
+    for combatant in combat.combatants:
+        remaining: list[DndRuntimeEffect] = []
+        ended_here: list[DndRuntimeEffect] = []
+        for effect in combatant.active_effects:
+            if (id(combatant), id(effect)) in record_ids:
+                ended_records.append((combatant, effect))
+                ended_here.append(effect)
+            else:
+                remaining.append(effect)
+        if not ended_here:
+            continue
+        combatant.active_effects = remaining
+        _reconcile_effect_conditions(
+            combatant,
+            ended_conditions=_effect_conditions(ended_here),
+        )
+    for combatant, effect in ended_records:
+        _append_pending_visible_fact(
+            combat,
+            _effect_ended_fact(effect, combatant, reason),
+        )
+        note = (
+            f"Effect ended on {_combatant_label(combatant)}: "
+            f"{_effect_display_name(effect)} ({effect.effect_id})"
+        )
+        if reason:
+            note += f"; reason={_plain_effect_reason(reason)}"
+        append_audit_line(combat, note + ".")
+    return [effect for _combatant, effect in ended_records]
+
+
+def _effect_started_fact(
+    effect: DndRuntimeEffect,
+    combatant: DndCombatantState,
+) -> str:
+    reason = ""
+    if isinstance(effect.metadata, dict):
+        reason = str(effect.metadata.get("reason") or "")
+    phrase = _effect_reason_phrase(reason, combatant)
+    text = (
+        f"{_effect_display_name(effect)} takes hold on "
+        f"{_combatant_label(combatant)}"
+    )
+    if phrase:
+        text += f" {phrase}"
+    return text + "."
+
+
+def _effect_ended_fact(
+    effect: DndRuntimeEffect,
+    combatant: DndCombatantState,
+    reason: str = "",
+) -> str:
+    phrase = _effect_reason_phrase(reason, combatant)
+    text = (
+        f"{_effect_display_name(effect)} ends on "
+        f"{_combatant_label(combatant)}"
+    )
+    if phrase:
+        text += f" {phrase}"
+    return text + "."
+
+
+def _effect_updated_fact(
+    effect: DndRuntimeEffect,
+    combatant: DndCombatantState,
+    reason: str = "",
+) -> str:
+    phrase = _effect_reason_phrase(reason, combatant)
+    text = (
+        f"{_effect_display_name(effect)} changes on "
+        f"{_combatant_label(combatant)}"
+    )
+    if phrase:
+        text += f" {phrase}"
+    return text + "."
+
+
+def _effect_reason_phrase(
+    reason: str,
+    combatant: DndCombatantState,
+) -> str:
+    text = _plain_effect_reason(reason)
+    if not text:
+        return ""
+    lower = text.lower()
+    if lower.startswith(("after ", "as ", "because ", "when ")):
+        return text
+    if lower == "failed initial save":
+        return "after the initial save fails"
+    if lower == "successful initial save":
+        return "after the initial save succeeds"
+    if lower == "new concentration":
+        return "as concentration shifts to a new effect"
+    if lower == "failed concentration save":
+        return "because concentration breaks"
+    if lower == "duration expired":
+        return "as its duration runs out"
+    if lower == "concentration ended":
+        return "because concentration ends"
+    return f"because {text}"
+
+
+def _plain_effect_reason(reason: str) -> str:
+    text = str(reason or "").replace("_", " ").strip()
+    return " ".join(text.split())
+
+
+def _recurring_save_end_reason(ability: str, success: bool) -> str:
+    outcome = "successful" if success else "failed"
+    ability_name = _ability_label(ability)
+    if ability_name:
+        return f"after a {outcome} {ability_name} saving throw"
+    return f"after a {outcome} saving throw"
+
+
+def _ability_label(ability: str) -> str:
+    labels = {
+        "str": "Strength",
+        "dex": "Dexterity",
+        "con": "Constitution",
+        "int": "Intelligence",
+        "wis": "Wisdom",
+        "cha": "Charisma",
+    }
+    return labels.get(str(ability or "").strip().lower(), "")
+
+
+def _normalized_slug(value: object) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    return _slug(text)
+
+
+def _effect_display_name(effect: DndRuntimeEffect) -> str:
+    if effect.name.strip():
+        return effect.name.strip()
+    if effect.slug.strip():
+        return effect.slug.replace("_", " ").strip().title()
+    if effect.effect_id.strip():
+        return f"Effect {effect.effect_id.strip()}"
+    return "An effect"
+
+
 def _hit_points(mechanics_state: dict[str, Any]) -> dict[str, Any]:
     hp = mechanics_state.get("hit_points")
     if isinstance(hp, dict):
@@ -1085,7 +1368,10 @@ def _conditions(mechanics_state: dict[str, Any]) -> list[str]:
 def _effect_conditions(effects: Iterable[DndRuntimeEffect]) -> list[str]:
     out: list[str] = []
     for effect in effects:
-        out.extend(effect.conditions)
+        out.extend(
+            text for text in (_condition_text(c) for c in effect.conditions)
+            if text
+        )
     return out
 
 
@@ -1096,10 +1382,10 @@ def _merge_conditions(
     out: list[str] = []
     seen: set[str] = set()
     for condition in [*existing, *added]:
-        text = str(condition).strip()
+        text = _condition_text(condition)
         if not text:
             continue
-        key = text.lower()
+        key = _condition_key(text)
         if key in seen:
             continue
         seen.add(key)
@@ -1107,19 +1393,27 @@ def _merge_conditions(
     return out
 
 
+def _condition_text(condition: object) -> str:
+    return str(condition or "").strip()
+
+
+def _condition_key(condition: object) -> str:
+    return _condition_text(condition).lower()
+
+
 def _reconcile_effect_conditions(
     combatant: DndCombatantState,
     ended_conditions: Iterable[str] = (),
 ) -> None:
     effect_conditions = {
-        condition.strip().lower()
+        _condition_key(condition)
         for effect in combatant.active_effects
         for condition in effect.conditions
-        if condition.strip()
+        if _condition_text(condition)
     }
     removed_effect_conditions = {
-        condition.strip().lower() for condition in ended_conditions
-        if condition.strip()
+        _condition_key(condition) for condition in ended_conditions
+        if _condition_text(condition)
     }
     # The flat conditions list has no provenance, so effect removal owns the
     # condition names attached to the ended effect unless another active effect
@@ -1129,8 +1423,8 @@ def _reconcile_effect_conditions(
         combatant.conditions = [
             condition for condition in current
             if (
-                condition.strip().lower() not in removed_effect_conditions
-                or condition.strip().lower() in effect_conditions
+                _condition_key(condition) not in removed_effect_conditions
+                or _condition_key(condition) in effect_conditions
             )
         ]
     else:
@@ -1429,16 +1723,19 @@ def _clamp_death_saves(combatant: DndCombatantState) -> None:
 
 
 def _add_condition(combatant: DndCombatantState, condition: str) -> None:
-    names = {existing.strip().lower() for existing in combatant.conditions}
-    if condition.strip().lower() not in names:
-        combatant.conditions.append(condition)
+    text = _condition_text(condition)
+    if not text:
+        return
+    names = {_condition_key(existing) for existing in combatant.conditions}
+    if _condition_key(text) not in names:
+        combatant.conditions.append(text)
 
 
 def _remove_condition(combatant: DndCombatantState, condition: str) -> None:
-    target = condition.strip().lower()
+    target = _condition_key(condition)
     combatant.conditions = [
         existing for existing in combatant.conditions
-        if existing.strip().lower() != target
+        if _condition_key(existing) != target
     ]
 
 

@@ -13,6 +13,8 @@ Every feature change must survive two questions before implementation:
 
 D&D mechanics must remain modular adapters around the narrative engine, not assumptions baked into generic router, narrator, or character-agent behavior.
 
+Player UX review should assume pseudo-live table norms unless the user says otherwise. Do not treat AFK-player handling as a primary UX requirement; the expected mitigation is social pressure from making the table wait, not engine machinery that keeps play moving around an absent player.
+
 ## Prompt Editing
 
 - Treat `app/prompts/*.txt` as carefully reviewed source. Do not add positive tests that assert required prose snippets exist in versioned prompt files just to prevent accidental deletion; human review and git history cover that.

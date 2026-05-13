@@ -167,6 +167,7 @@ class DndCombatParticipantView:
     hp_temporary: int = 0
     armor_class: int | None = None
     conditions: tuple[str, ...] = ()
+    active_effects: tuple[str, ...] = ()
     defeat_state: str = "active"
     death_save_successes: int = 0
     death_save_failures: int = 0
@@ -1772,6 +1773,48 @@ class EngineBridge:
                 return getattr(source, name)
         return default
 
+    def _combat_effect_labels(self, effects: Any) -> tuple[str, ...]:
+        labels: list[str] = []
+        for effect in effects or []:
+            if isinstance(effect, str):
+                name = effect.strip()
+                detail_parts: list[str] = []
+            else:
+                name = str(
+                    self._combat_get(
+                        effect,
+                        "name",
+                        "slug",
+                        "source_id",
+                        default="",
+                    )
+                    or ""
+                ).strip()
+                if "_" in name or "-" in name:
+                    name = name.replace("_", " ").replace("-", " ").title()
+                detail_parts = []
+                if bool(self._combat_get(effect, "concentration", default=False)):
+                    detail_parts.append("concentration")
+                remaining = self._optional_int(
+                    self._combat_get(effect, "remaining_rounds", default=None)
+                )
+                if remaining:
+                    noun = "round" if remaining == 1 else "rounds"
+                    detail_parts.append(f"{remaining} {noun}")
+                elif self._combat_get(effect, "duration_text", default=""):
+                    detail_parts.append(
+                        str(
+                            self._combat_get(
+                                effect, "duration_text", default="",
+                            )
+                        ).strip()
+                    )
+            if not name:
+                continue
+            detail = "; ".join(part for part in detail_parts if part)
+            labels.append(f"{name} ({detail})" if detail else name)
+        return tuple(labels)
+
     def _combat_participant_view(
         self,
         raw: Any,
@@ -1814,6 +1857,11 @@ class EngineBridge:
                 mechanics.get("conditions", [])
                 if isinstance(mechanics, dict) else []
             )
+        active_effects = self._combat_get(raw, "active_effects", default=None)
+        if active_effects is None and isinstance(mechanics, dict):
+            runtime = mechanics.get("dnd5e_runtime")
+            if isinstance(runtime, dict):
+                active_effects = runtime.get("active_effects", [])
         raw_death_saves = self._combat_get(raw, "death_saves", default={})
         if not isinstance(raw_death_saves, dict):
             raw_death_saves = {}
@@ -1859,6 +1907,7 @@ class EngineBridge:
                 )
             ),
             conditions=tuple(str(c) for c in (conditions or []) if str(c)),
+            active_effects=self._combat_effect_labels(active_effects),
             defeat_state=defeat_state,
             death_save_successes=self._optional_int(
                 self._combat_get(

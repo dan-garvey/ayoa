@@ -111,6 +111,8 @@ def _render_combat_status(view: DndCombatView) -> discord.Embed:
             hp_bits.append(state)
         if p.conditions:
             hp_bits.append(", ".join(p.conditions))
+        if p.active_effects:
+            hp_bits.append(f"Effects: {', '.join(p.active_effects)}")
         if p.current and p.pending_initiating_action:
             hp_bits.append(f"Declared: {p.pending_initiating_action}")
         suffix = f" - {'; '.join(hp_bits)}" if hp_bits else ""

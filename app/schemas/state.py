@@ -90,6 +90,29 @@ class CatIIRollRecord(BaseModel):
     completed_at: str = ""
 
 
+class CatIIRollDamageAdjustmentRecord(BaseModel):
+    """One deterministic damage adjustment applied to a raw damage roll."""
+
+    source: str = ""
+    kind: str = ""
+    damage_type: str = ""
+    amount_before: int = 0
+    amount_after: int = 0
+    reason: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CatIIRollDamageAdjustmentRecord":
+        self.source = self.source.strip().lower()
+        self.kind = self.kind.strip().lower()
+        self.damage_type = self.damage_type.strip().lower()
+        self.reason = self.reason.strip()
+        if self.amount_before < 0:
+            self.amount_before = 0
+        if self.amount_after < 0:
+            self.amount_after = 0
+        return self
+
+
 class CatIIRollDamageRecord(BaseModel):
     """Structured D&D damage attached to a roll transaction.
 
@@ -99,10 +122,23 @@ class CatIIRollDamageRecord(BaseModel):
 
     roll_id: str
     target_id: str
+    raw_amount: int = 0
     amount: int = 0
+    damage_type: str = ""
+    adjustments: list[CatIIRollDamageAdjustmentRecord] = Field(
+        default_factory=list
+    )
     expression: str = ""
     detail: str = ""
     applied: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_raw_amount(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "raw_amount" not in data:
+            data = dict(data)
+            data["raw_amount"] = data.get("amount", 0)
+        return data
 
 
 class CatIIRollTransaction(BaseModel):

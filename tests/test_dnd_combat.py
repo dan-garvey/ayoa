@@ -7,12 +7,15 @@ from app.engine.dnd_combat import (
     apply_damage,
     apply_healing,
     current_combatant,
+    end_effect,
     end_combat,
     private_status,
     public_status,
     remove_combatant,
     roll_death_save,
+    start_effect,
     start_combat,
+    update_effect,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.state import (
@@ -418,6 +421,253 @@ def test_runtime_effects_seed_combat_and_sync_back(monkeypatch):
     assert stored[0]["remaining_rounds"] == 8
 
 
+def test_start_effect_skips_invalid_target_and_humanizes_reason(monkeypatch):
+    values = iter([9, 9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+
+    skipped = start_effect(session, DndRuntimeEffect(
+        effect_id="eff_missing",
+        name="Bless",
+        slug="bless",
+        target_id="missing",
+        originator_id="alice",
+        conditions=["blessed"],
+        metadata={"reason": "failed initial save"},
+    ))
+    assert skipped.effect_id == "eff_missing"
+    assert all(c.active_effects == [] for c in combat.combatants)
+    assert combat.pending_visible_facts == []
+    assert "Effect start skipped" in combat.audit_lines[-1]
+
+    bob_effect = start_effect(session, DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="alice",
+        conditions=["paralyzed"],
+        metadata={"reason": "failed initial save"},
+    ))
+
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    assert bob_effect in bob_state.active_effects
+    assert "paralyzed" in bob_state.conditions
+    assert (
+        "Hold Person takes hold on Bob after the initial save fails."
+        in combat.pending_visible_facts
+    )
+
+
+def test_start_effect_replacement_reconciles_old_conditions(monkeypatch):
+    values = iter([9, 9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+
+    start_effect(session, DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="alice",
+        conditions=["paralyzed"],
+    ))
+    start_effect(session, DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="alice",
+        conditions=["restrained"],
+    ))
+
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    assert [effect.effect_id for effect in bob_state.active_effects] == ["eff_hold"]
+    assert "restrained" in bob_state.conditions
+    assert "paralyzed" not in bob_state.conditions
+
+    alice_state = next(c for c in combat.combatants if c.character_id == "alice")
+    start_effect(session, DndRuntimeEffect(
+        effect_id="eff_shift",
+        name="Shifting Curse",
+        slug="shifting_curse",
+        target_id="alice",
+        originator_id="bob",
+        conditions=["frightened"],
+    ))
+    assert "frightened" in alice_state.conditions
+
+    start_effect(session, DndRuntimeEffect(
+        effect_id="eff_shift",
+        name="Shifting Curse",
+        slug="shifting_curse",
+        target_id="bob",
+        originator_id="bob",
+        conditions=["grappled"],
+    ))
+
+    assert all(effect.effect_id != "eff_shift" for effect in alice_state.active_effects)
+    assert "frightened" not in alice_state.conditions
+    assert any(effect.effect_id == "eff_shift" for effect in bob_state.active_effects)
+    assert "grappled" in bob_state.conditions
+
+
+def test_end_effect_uses_owning_combatant_and_preserves_overlapping_conditions(
+    monkeypatch,
+):
+    values = iter([9, 9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    bob_state.active_effects.extend([
+        DndRuntimeEffect(
+            effect_id="eff_bad_target",
+            name="Hold Person",
+            slug="hold_person",
+            target_id="missing",
+            originator_id="alice",
+            conditions=["paralyzed"],
+        ),
+        DndRuntimeEffect(
+            effect_id="eff_other_hold",
+            name="Hold Person",
+            slug="hold_person",
+            target_id="bob",
+            originator_id="cleric",
+            conditions=["paralyzed"],
+        ),
+    ])
+    bob_state.conditions.append("paralyzed")
+
+    ended = end_effect(
+        session,
+        effect_id="eff_bad_target",
+        reason="duration expired",
+    )
+
+    assert [effect.effect_id for effect in ended] == ["eff_bad_target"]
+    assert [effect.effect_id for effect in bob_state.active_effects] == [
+        "eff_other_hold"
+    ]
+    assert "paralyzed" in bob_state.conditions
+    assert (
+        "Hold Person ends on Bob as its duration runs out."
+        in combat.pending_visible_facts
+    )
+
+    end_effect(session, effect_id="eff_other_hold")
+    assert bob_state.active_effects == []
+    assert "paralyzed" not in bob_state.conditions
+
+
+def test_slug_only_end_skips_multiple_originators(monkeypatch):
+    values = iter([9, 9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    alice_state = next(c for c in combat.combatants if c.character_id == "alice")
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    alice_state.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_bless_a",
+        name="Bless",
+        slug="bless",
+        target_id="alice",
+        originator_id="cleric_a",
+        conditions=["blessed"],
+    ))
+    bob_state.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_bless_b",
+        name="Bless",
+        slug="bless",
+        target_id="bob",
+        originator_id="cleric_b",
+        conditions=["blessed"],
+    ))
+    alice_state.conditions.append("blessed")
+    bob_state.conditions.append("blessed")
+
+    ended = end_effect(session, slug="bless")
+
+    assert ended == []
+    assert [effect.effect_id for effect in alice_state.active_effects] == [
+        "eff_bless_a"
+    ]
+    assert [effect.effect_id for effect in bob_state.active_effects] == [
+        "eff_bless_b"
+    ]
+    assert combat.pending_visible_facts == []
+    assert "slug-only selector is ambiguous" in combat.audit_lines[-1]
+
+
+def test_update_effect_reconciles_conditions_and_ignores_bad_target_when_exact(
+    monkeypatch,
+):
+    values = iter([9, 9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    bob_state.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="alice",
+        conditions=["paralyzed"],
+    ))
+    bob_state.conditions.append("paralyzed")
+
+    updated = update_effect(
+        session,
+        effect_id="eff_hold",
+        target_id="missing",
+        conditions=["restrained"],
+        reason="the spell shifts",
+    )
+
+    assert updated is bob_state.active_effects[0]
+    assert bob_state.active_effects[0].conditions == ["restrained"]
+    assert "restrained" in bob_state.conditions
+    assert "paralyzed" not in bob_state.conditions
+    assert (
+        "Hold Person changes on Bob because the spell shifts."
+        in combat.pending_visible_facts
+    )
+
+
 def test_advance_turn_runs_recurring_save_and_ends_effect(monkeypatch):
     values = iter([9, 9, 14])
     monkeypatch.setattr(
@@ -455,7 +705,53 @@ def test_advance_turn_runs_recurring_save_and_ends_effect(monkeypatch):
 
     assert bob_state.active_effects == []
     assert "paralyzed" not in bob_state.conditions
-    assert "Hold Person ends on Bob." in combat.pending_visible_facts
+    assert (
+        "Hold Person ends on Bob after a successful Wisdom saving throw."
+        in combat.pending_visible_facts
+    )
+
+
+def test_advance_turn_failed_recurring_save_does_not_emit_remains_fact(
+    monkeypatch,
+):
+    values = iter([9, 9, 4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    bob_state.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_hold",
+        name="Hold Person",
+        slug="hold_person",
+        target_id="bob",
+        originator_id="alice",
+        conditions=["paralyzed"],
+        concentration=True,
+        duration_kind="minutes",
+        duration_amount=1,
+        remaining_rounds=10,
+        recurring_save=DndEffectRecurringSave(
+            ability="wis",
+            dc=15,
+            timing="end_of_turn",
+            ends_on="success",
+        ),
+    ))
+    bob_state.conditions.append("paralyzed")
+    combat.turn_index = combat.combatants.index(bob_state)
+
+    advance_turn(session)
+
+    assert [effect.effect_id for effect in bob_state.active_effects] == ["eff_hold"]
+    assert "paralyzed" in bob_state.conditions
+    assert combat.pending_visible_facts == []
+    assert "continues" in combat.audit_lines[-1]
 
 
 def test_damage_can_break_concentration(monkeypatch):
@@ -488,7 +784,10 @@ def test_damage_can_break_concentration(monkeypatch):
 
     assert bob_state.active_effects == []
     assert "paralyzed" not in bob_state.conditions
-    assert "Hold Person ends on Bob." in combat.pending_visible_facts
+    assert (
+        "Hold Person ends on Bob because concentration breaks."
+        in combat.pending_visible_facts
+    )
 
 
 def test_lifecycle_and_roster_validation(monkeypatch):

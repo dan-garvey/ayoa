@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.engine import dice, dnd_combat, mechanics
@@ -20,6 +21,7 @@ from app.schemas.dnd_cat_ii import (
     RulesAdjudication,
 )
 from app.schemas.state import (
+    CatIIRollDamageAdjustmentRecord,
     CatIIRollDamageRecord,
     CatIIRollRecord,
     CatIIRollTransaction,
@@ -30,6 +32,35 @@ from app.schemas.state import (
 
 logger = logging.getLogger(__name__)
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
+_DAMAGE_TYPES = {
+    "acid",
+    "bludgeoning",
+    "cold",
+    "fire",
+    "force",
+    "lightning",
+    "necrotic",
+    "piercing",
+    "poison",
+    "psychic",
+    "radiant",
+    "slashing",
+    "thunder",
+}
+
+
+@dataclass(frozen=True)
+class _DamageProfile:
+    expression: str = ""
+    damage_type: str = ""
+
+
+@dataclass(frozen=True)
+class _DamageAdjustmentCandidate:
+    source: str
+    kind: str
+    damage_type: str
+    reason: str
 
 
 class DndCatIIRollsPending(RuntimeError):
@@ -224,11 +255,6 @@ class DndCombatResolver:
         adjudication = await self._finalize(packet, transaction.ledger_lines)
         _apply_combat_damage_records(ckpt, transaction)
         _apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
-        _apply_combat_action_tags(
-            ckpt,
-            transaction=transaction,
-            action_tags=adjudication.action_tags,
-        )
         _apply_combat_effect_deltas(
             ckpt,
             adjudication.effect_deltas,
@@ -378,7 +404,7 @@ def _create_transaction(
     rolls: list[CatIIRollRecord] = []
     for request in plan.roll_requests:
         actor_control = "player" if request.actor_id in bindings else "agent"
-        modifier = mechanics.roll_modifier(by_id.get(request.actor_id), request)
+        modifier = _roll_modifier_for_request(by_id.get(request.actor_id), request)
         rolls.append(
             CatIIRollRecord(
                 roll_id=request.roll_id,
@@ -423,7 +449,7 @@ def _create_combat_transaction(
     rolls: list[CatIIRollRecord] = []
     for request in plan.roll_requests:
         actor_control = "player" if request.actor_id in bindings else "agent"
-        modifier = mechanics.roll_modifier(by_id.get(request.actor_id), request)
+        modifier = _roll_modifier_for_request(by_id.get(request.actor_id), request)
         rolls.append(
             CatIIRollRecord(
                 roll_id=request.roll_id,
@@ -525,13 +551,14 @@ def _execute_combat_damage_rolls(
         )
         if not hit:
             continue
-        expression = _damage_expression_for_action(ckpt, request)
-        if not expression:
+        damage_profile = _damage_profile_for_action(ckpt, request)
+        if not damage_profile.expression:
             transaction.ledger_lines.append(
                 f"{marker}: no code-readable damage expression for "
                 f"{request.actor_id} action {request.action_id or request.skill}"
             )
             continue
+        expression = damage_profile.expression
         if result.get("crit") == "crit":
             expression = _crit_damage_expression(expression)
         damage = dice.roll_expression(
@@ -542,15 +569,29 @@ def _execute_combat_damage_rolls(
                 reason=f"Damage for {record.reason}",
             )
         )
+        final_amount, adjustments = _adjust_damage_amount(
+            ckpt,
+            request,
+            raw_amount=damage.total,
+            damage_type=damage_profile.damage_type,
+        )
+        damage_type_text = (
+            f" {damage_profile.damage_type}" if damage_profile.damage_type else ""
+        )
+        adjustment_text = _damage_adjustment_ledger_text(adjustments)
         transaction.ledger_lines.append(
             f"{marker}: {request.actor_id} deals {damage.detail} = "
-            f"{damage.total} damage to {request.target_id}"
+            f"{damage.total}{damage_type_text} damage to {request.target_id}"
+            f"{adjustment_text}"
         )
         transaction.damage_records.append(
             CatIIRollDamageRecord(
                 roll_id=record.roll_id,
                 target_id=request.target_id,
-                amount=damage.total,
+                raw_amount=damage.total,
+                amount=final_amount,
+                damage_type=damage_profile.damage_type,
+                adjustments=adjustments,
                 expression=damage.expression,
                 detail=damage.detail,
                 applied=False,
@@ -606,25 +647,52 @@ def _target_ac(combat: object, target_id: str) -> int:
     return 10
 
 
-def _damage_expression_for_action(
+def _roll_modifier_for_request(
+    character: object | None,
+    request: PlannedRoll,
+) -> int:
+    if request.kind == "attack_roll" and character is not None:
+        mechanics_state = getattr(character, "mechanics", None) or {}
+        statblock = (
+            (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+        )
+        if isinstance(statblock, dict):
+            action = _find_action(
+                statblock,
+                request.action_id or request.skill,
+                reason=request.reason,
+            )
+            if action is not None:
+                bonus = _action_attack_bonus(action)
+                if bonus is not None:
+                    return bonus
+            if request.action_id or _attack_action_count(statblock) > 1:
+                strict_request = request.model_copy(
+                    update={"reason": "", "skill": ""}
+                )
+                return mechanics.roll_modifier(character, strict_request)
+    return mechanics.roll_modifier(character, request)
+
+
+def _damage_profile_for_action(
     ckpt: CheckpointFile,
     request: PlannedRoll,
-) -> str:
+) -> _DamageProfile:
     action_key = request.action_id or request.skill
     character = next(
         (c for c in ckpt.characters if c.character_id == request.actor_id),
         None,
     )
     if character is None:
-        return ""
+        return _DamageProfile()
     mechanics_state = character.mechanics or {}
     statblock = (
         (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
     )
     action = _find_action(statblock, action_key, reason=request.reason)
     if action is None:
-        return ""
-    return _action_damage_expression(action)
+        return _DamageProfile()
+    return _action_damage_profile(action)
 
 
 def _find_action(
@@ -637,10 +705,11 @@ def _find_action(
     reason_text = _normalize_action_text(reason)
     first_damaging_action: dict[str, object] | None = None
     damaging_action_count = 0
+    reason_matches: list[dict[str, object]] = []
     for action in statblock.get("actions") or []:
         if not isinstance(action, dict):
             continue
-        if _action_damage_expression(action):
+        if _action_damage_profile(action).expression:
             damaging_action_count += 1
             if first_damaging_action is None:
                 first_damaging_action = action
@@ -650,18 +719,82 @@ def _find_action(
         if reason_text and any(
             _contains_action_name(reason_text, name) for name in names
         ):
-            return action
+            reason_matches.append(action)
+    if wanted:
+        return None
+    if len(reason_matches) == 1:
+        return reason_matches[0]
     if not wanted and damaging_action_count == 1:
         return first_damaging_action
     return None
 
 
-def _action_damage_expression(action: dict[str, object]) -> str:
+def _action_damage_profile(action: dict[str, object]) -> _DamageProfile:
     attack = action.get("attack") or {}
     if not isinstance(attack, dict):
-        return ""
+        attack = {}
     raw = str(attack.get("damage") or "")
-    return _clean_damage_expression(raw)
+    expression = _clean_damage_expression(raw)
+    damage_type = _extract_damage_type(raw)
+    component_profile = _damage_component_profile(action.get("damage"))
+    if expression:
+        return _DamageProfile(
+            expression=expression,
+            damage_type=damage_type or component_profile.damage_type,
+        )
+    return component_profile
+
+
+def _action_attack_bonus(action: dict[str, object]) -> int | None:
+    attack = action.get("attack") or {}
+    if not isinstance(attack, dict):
+        return None
+    bonus = attack.get("bonus")
+    if bonus is None:
+        return None
+    try:
+        return int(bonus)
+    except (TypeError, ValueError):
+        return None
+
+
+def _attack_action_count(statblock: dict[str, object]) -> int:
+    count = 0
+    for action in statblock.get("actions") or []:
+        if isinstance(action, dict) and _action_attack_bonus(action) is not None:
+            count += 1
+    return count
+
+
+def _action_damage_summary(action: dict[str, object]) -> str:
+    attack = action.get("attack") or {}
+    if isinstance(attack, dict):
+        raw = str(attack.get("damage") or "").strip()
+        if raw:
+            return raw
+    profile = _damage_component_profile(action.get("damage"))
+    if not profile.expression:
+        return ""
+    if profile.damage_type:
+        return f"{profile.expression} {profile.damage_type}"
+    return profile.expression
+
+
+def _damage_component_profile(value: object) -> _DamageProfile:
+    if not isinstance(value, list):
+        return _DamageProfile()
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        formula = str(item.get("formula") or "").strip()
+        expression = _clean_damage_expression(formula)
+        if not expression:
+            continue
+        damage_type = _extract_damage_type(
+            item.get("damage_type") or item.get("type") or formula
+        )
+        return _DamageProfile(expression=expression, damage_type=damage_type)
+    return _DamageProfile()
 
 
 def _action_names(action: dict[str, object]) -> set[str]:
@@ -691,6 +824,254 @@ def _clean_damage_expression(raw: str) -> str:
     if match is None:
         return ""
     return re.sub(r"\s+", "", match.group(0))
+
+
+def _extract_damage_type(raw: object) -> str:
+    text = _normalize_damage_text(raw)
+    for damage_type in sorted(_DAMAGE_TYPES):
+        if _contains_action_name(text, damage_type):
+            return damage_type
+    return ""
+
+
+def _normalize_damage_text(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
+
+
+def _adjust_damage_amount(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+    *,
+    raw_amount: int,
+    damage_type: str,
+) -> tuple[int, list[CatIIRollDamageAdjustmentRecord]]:
+    amount = max(0, int(raw_amount or 0))
+    damage_type = _extract_damage_type(damage_type) or _normalize_damage_text(
+        damage_type
+    )
+    candidates = _damage_adjustment_candidates(ckpt, request, damage_type)
+    adjustments: list[CatIIRollDamageAdjustmentRecord] = []
+
+    immunity = [c for c in candidates if c.kind == "immunity"]
+    if immunity:
+        return (
+            0,
+            [
+                _damage_adjustment_record(
+                    immunity,
+                    kind="immunity",
+                    damage_type=damage_type,
+                    before=amount,
+                    after=0,
+                )
+            ],
+        )
+
+    resistance = [c for c in candidates if c.kind == "resistance"]
+    if resistance:
+        before = amount
+        amount //= 2
+        adjustments.append(_damage_adjustment_record(
+            resistance,
+            kind="resistance",
+            damage_type=damage_type,
+            before=before,
+            after=amount,
+        ))
+
+    halve = [c for c in candidates if c.kind == "halve"]
+    if halve:
+        before = amount
+        amount //= 2
+        adjustments.append(_damage_adjustment_record(
+            halve,
+            kind="halve",
+            damage_type=damage_type,
+            before=before,
+            after=amount,
+        ))
+
+    vulnerability = [c for c in candidates if c.kind == "vulnerability"]
+    if vulnerability:
+        before = amount
+        amount *= 2
+        adjustments.append(_damage_adjustment_record(
+            vulnerability,
+            kind="vulnerability",
+            damage_type=damage_type,
+            before=before,
+            after=amount,
+        ))
+
+    double = [c for c in candidates if c.kind == "double"]
+    if double:
+        before = amount
+        amount *= 2
+        adjustments.append(_damage_adjustment_record(
+            double,
+            kind="double",
+            damage_type=damage_type,
+            before=before,
+            after=amount,
+        ))
+
+    return amount, adjustments
+
+
+def _damage_adjustment_candidates(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+    damage_type: str,
+) -> list[_DamageAdjustmentCandidate]:
+    candidates: list[_DamageAdjustmentCandidate] = []
+    for kind, key in (
+        ("resistance", "damage_resistances"),
+        ("immunity", "damage_immunities"),
+        ("vulnerability", "damage_vulnerabilities"),
+    ):
+        for item in _target_damage_defense_entries(ckpt, request.target_id, key):
+            item_type = _damage_defense_type(item)
+            if not _damage_type_matches(item_type, damage_type, source="sheet"):
+                continue
+            name = str(item.get("name") or item.get("id") or item_type).strip()
+            condition = str(item.get("condition") or "").strip()
+            reason = f"{name} ({condition})" if condition else name
+            candidates.append(_DamageAdjustmentCandidate(
+                source="sheet",
+                kind=kind,
+                damage_type=item_type,
+                reason=reason,
+            ))
+
+    for adjustment in request.damage_adjustments:
+        item_type = _normalize_damage_text(adjustment.damage_type)
+        if not _damage_type_matches(item_type, damage_type, source="router"):
+            continue
+        candidates.append(_DamageAdjustmentCandidate(
+            source="router",
+            kind=adjustment.kind,
+            damage_type=item_type or damage_type,
+            reason=adjustment.reason or "router-authored adjustment",
+        ))
+    return candidates
+
+
+def _target_damage_defense_entries(
+    ckpt: CheckpointFile,
+    target_id: str,
+    key: str,
+) -> list[dict[str, object]]:
+    character = _character_for_combat_target(ckpt, target_id)
+    if character is None:
+        return []
+    mechanics_state = character.mechanics or {}
+    defenses = mechanics_state.get("defenses")
+    if not isinstance(defenses, dict):
+        defenses = (
+            (mechanics_state.get("dnd5e_sheet") or {})
+            .get("statblock", {})
+            .get("defenses", {})
+        )
+    if not isinstance(defenses, dict):
+        return []
+    entries = defenses.get(key) or []
+    if not isinstance(entries, list):
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _character_for_combat_target(
+    ckpt: CheckpointFile,
+    target_id: str,
+) -> object | None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    character_id = target_id
+    if combat is not None:
+        for combatant in list(getattr(combat, "combatants", []) or []):
+            ids = {
+                str(getattr(combatant, "combatant_id", "") or ""),
+                str(getattr(combatant, "character_id", "") or ""),
+            }
+            if target_id not in ids:
+                continue
+            character_id = (
+                str(getattr(combatant, "character_id", "") or "")
+                or str(getattr(combatant, "combatant_id", "") or "")
+            )
+            break
+    return next(
+        (c for c in ckpt.characters if c.character_id == character_id),
+        None,
+    )
+
+
+def _damage_defense_type(item: dict[str, object]) -> str:
+    return _normalize_damage_text(item.get("id") or item.get("name") or "")
+
+
+def _damage_type_matches(
+    candidate_type: str,
+    damage_type: str,
+    *,
+    source: str,
+) -> bool:
+    candidate_type = _normalize_damage_text(candidate_type)
+    damage_type = _normalize_damage_text(damage_type)
+    if source == "router" and not candidate_type:
+        return True
+    if candidate_type in {"all", "any", "damage"}:
+        return True
+    if not candidate_type or not damage_type:
+        return False
+    if candidate_type == damage_type:
+        return True
+    return _contains_action_name(candidate_type, damage_type)
+
+
+def _damage_adjustment_record(
+    candidates: list[_DamageAdjustmentCandidate],
+    *,
+    kind: str,
+    damage_type: str,
+    before: int,
+    after: int,
+) -> CatIIRollDamageAdjustmentRecord:
+    return CatIIRollDamageAdjustmentRecord(
+        source=", ".join(_unique_text(c.source for c in candidates)),
+        kind=kind,
+        damage_type=damage_type,
+        amount_before=before,
+        amount_after=after,
+        reason="; ".join(_unique_text(c.reason for c in candidates)),
+    )
+
+
+def _damage_adjustment_ledger_text(
+    adjustments: list[CatIIRollDamageAdjustmentRecord],
+) -> str:
+    if not adjustments:
+        return ""
+    parts = [
+        (
+            f"{adjustment.kind} {adjustment.amount_before}"
+            f"->{adjustment.amount_after}"
+            f" ({adjustment.source}: {adjustment.reason})"
+        )
+        for adjustment in adjustments
+    ]
+    return "; adjusted by " + "; ".join(parts)
+
+
+def _unique_text(values) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
 
 
 def _crit_damage_expression(expression: str) -> str:
@@ -860,11 +1241,13 @@ def _combat_action_summaries(character: object | None) -> list[dict[str, object]
         attack = action.get("attack") or {}
         if not isinstance(attack, dict):
             attack = {}
+        damage_profile = _action_damage_profile(action)
         actions.append({
             "id": str(action.get("id") or ""),
             "name": str(action.get("name") or ""),
             "attack_bonus": attack.get("bonus", ""),
-            "damage": str(attack.get("damage") or ""),
+            "damage": _action_damage_summary(action),
+            "damage_type": damage_profile.damage_type,
         })
     return actions
 
@@ -1046,23 +1429,31 @@ def _compile_combat_router_output(
     adjudication: RulesAdjudication,
 ) -> EventRouterOutput:
     combat = getattr(ckpt.session, "active_combat", None)
+    affected_ids = _combat_affected_ids(transaction, adjudication)
     observer_ids = []
     if combat is not None:
         for combatant in list(getattr(combat, "combatants", []) or []):
-            if (
-                _combatant_defeat_state(combatant) != "active"
-                or bool(getattr(combatant, "removed", False))
-            ):
+            if bool(getattr(combatant, "removed", False)):
                 continue
             cid = str(
                 getattr(combatant, "character_id", "")
                 or getattr(combatant, "combatant_id", "")
                 or ""
             )
-            if cid:
+            combatant_id = str(getattr(combatant, "combatant_id", "") or "")
+            if not cid:
+                continue
+            if (
+                _combatant_defeat_state(combatant) == "active"
+                or cid in affected_ids
+                or combatant_id in affected_ids
+            ):
                 observer_ids.append(cid)
     observer_ids = _dedupe(observer_ids or [transaction.actor_id])
-    affected_ids = _combat_affected_ids(transaction, adjudication)
+    visible_facts = [
+        *adjudication.visible_outcome_facts,
+        *dnd_combat.drain_pending_visible_facts(combat),
+    ]
     notes = "; ".join(adjudication.rules_notes)
     rationale_parts = [
         part for part in (
@@ -1081,7 +1472,7 @@ def _compile_combat_router_output(
             ),
             observable_facts=[
                 ObservableFact.all(fact)
-                for fact in adjudication.visible_outcome_facts
+                for fact in visible_facts
             ],
         ),
         requires_responders=False,
@@ -1164,10 +1555,33 @@ def _apply_combat_effect_deltas(
                 effect_id=delta.effect_id,
                 target_id=delta.target_id,
                 slug=delta.slug,
+                originator_id=delta.originator_id,
                 reason=delta.reason,
             )
         elif delta.operation == "update":
-            _update_runtime_effect(ckpt, delta)
+            dnd_combat.update_effect(
+                ckpt.session,
+                effect_id=delta.effect_id,
+                target_id=delta.target_id,
+                slug=delta.slug,
+                originator_id=delta.originator_id,
+                name=delta.name or None,
+                conditions=list(delta.conditions) if delta.conditions else None,
+                concentration=delta.concentration if delta.concentration else None,
+                duration_kind=(
+                    delta.duration_kind
+                    if delta.duration_kind != "until_removed" else None
+                ),
+                duration_amount=delta.duration_amount
+                if delta.duration_amount else None,
+                remaining_rounds=delta.remaining_rounds
+                if delta.remaining_rounds else None,
+                duration_text=delta.duration_text or None,
+                break_triggers=list(delta.break_triggers)
+                if delta.break_triggers else None,
+                recurring_save=delta.recurring_save,
+                reason=delta.reason,
+            )
 
 
 def _runtime_effect_from_delta(
@@ -1193,62 +1607,6 @@ def _runtime_effect_from_delta(
         recurring_save=delta.recurring_save,
         metadata={"reason": delta.reason} if delta.reason else {},
     )
-
-
-def _update_runtime_effect(ckpt: CheckpointFile, delta: EffectDelta) -> None:
-    combat = getattr(ckpt.session, "active_combat", None)
-    if combat is None:
-        return
-    for combatant in list(getattr(combat, "combatants", []) or []):
-        ids = {
-            str(getattr(combatant, "combatant_id", "") or ""),
-            str(getattr(combatant, "character_id", "") or ""),
-        }
-        if delta.target_id not in ids:
-            continue
-        for effect in list(getattr(combatant, "active_effects", []) or []):
-            if delta.effect_id and effect.effect_id != delta.effect_id:
-                continue
-            if delta.slug and effect.slug != delta.slug:
-                continue
-            if delta.name:
-                effect.name = delta.name
-            if delta.conditions:
-                effect.conditions = list(delta.conditions)
-            if delta.duration_kind:
-                effect.duration_kind = delta.duration_kind
-            if delta.duration_amount:
-                effect.duration_amount = delta.duration_amount
-            if delta.remaining_rounds:
-                effect.remaining_rounds = delta.remaining_rounds
-            if delta.duration_text:
-                effect.duration_text = delta.duration_text
-            if delta.break_triggers:
-                effect.break_triggers = list(delta.break_triggers)
-            if delta.recurring_save is not None:
-                effect.recurring_save = delta.recurring_save
-            return
-
-
-def _apply_combat_action_tags(
-    ckpt: CheckpointFile,
-    *,
-    transaction: CatIIRollTransaction,
-    action_tags: list[str],
-) -> None:
-    combat = getattr(ckpt.session, "active_combat", None)
-    if combat is None:
-        return
-    tags = set(action_tags)
-    if any(
-        PlannedRoll.model_validate(record.request).kind == "attack_roll"
-        and record.actor_id == transaction.actor_id
-        for record in transaction.rolls
-    ):
-        tags.add("attack")
-    if not tags:
-        return
-    dnd_combat.apply_action_tags(ckpt.session, transaction.actor_id, tags)
 
 
 def _sync_combat_effects(ckpt: CheckpointFile) -> None:

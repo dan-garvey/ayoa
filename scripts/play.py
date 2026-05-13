@@ -184,6 +184,8 @@ def _print_combat_status(view: DndCombatView) -> None:
             bits.append(state)
         if participant.conditions:
             bits.append(", ".join(participant.conditions))
+        if participant.active_effects:
+            bits.append(f"Effects: {', '.join(participant.active_effects)}")
         if participant.current and participant.pending_initiating_action:
             bits.append(f"Declared: {participant.pending_initiating_action}")
         suffix = f" - {'; '.join(bits)}" if bits else ""
