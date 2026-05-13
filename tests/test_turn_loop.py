@@ -811,7 +811,7 @@ class TestCatIIBeat:
         assert ckpt.session.open_cat_ii_events[0].required_responders == ["bob"]
         assert ckpt.session.active_act_slots["bob"].reason == "cat_ii_responder"
 
-    def test_second_dnd_combat_start_locks_actor_until_active_combat_ends(self):
+    def test_second_dnd_combat_start_pins_only_the_blocked_action(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         ckpt.session.active_combat = DndCombatState(
@@ -848,16 +848,14 @@ class TestCatIIBeat:
         assert result.ended_reason == "combat_start_blocked"
         assert ckpt.session.active_combat is not None
         assert ckpt.session.active_act_slots["alice"].reason == "combat_blocked"
-        assert check_act_slot(ckpt, "alice").conflict == (
-            SlotConflict.COMBAT_START_BLOCKED
-        )
+        assert check_act_slot(ckpt, "alice").conflict == SlotConflict.FREE
         facts = [
             fact.text
             for fact in ckpt.canonical_events[0].canonical_event.observable_facts
         ]
         assert any("already in initiative" in fact for fact in facts)
-        assert all("raises a blade" not in fact for fact in facts)
-        assert {observer.character_id for observer in ckpt.canonical_events[0].observers} == {
+        assert any("raises a blade" in fact for fact in facts)
+        assert {observer.character_id for observer in ckpt.canonical_events[0].observers} >= {
             "alice",
         }
 

@@ -669,14 +669,19 @@ class _PendingRollView(discord.ui.View):
             )
         except Exception as e:
             logger.exception("pending roll submission failed")
+            message = (
+                str(e)
+                if isinstance(e, ValueError)
+                else f"`{type(e).__name__}: {e}`"
+            )
             if roll_inter.response.is_done():
                 await roll_inter.followup.send(
-                    f"`{type(e).__name__}: {e}`",
+                    message,
                     ephemeral=True,
                 )
             else:
                 await roll_inter.response.send_message(
-                    f"`{type(e).__name__}: {e}`",
+                    message,
                     ephemeral=True,
                 )
             return
@@ -4074,8 +4079,13 @@ def register(
             )
         except Exception as e:
             logger.exception("/roll complete_pending_roll failed")
+            message = (
+                str(e)
+                if isinstance(e, ValueError)
+                else f"`{type(e).__name__}: {e}`"
+            )
             await inter.response.send_message(
-                f"`{type(e).__name__}: {e}`",
+                message,
                 ephemeral=True,
             )
             return

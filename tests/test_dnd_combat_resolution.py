@@ -239,6 +239,72 @@ def test_combat_resolver_can_end_combat_from_adjudication():
     assert any("D&D combat ends" in fact for fact in facts)
 
 
+def test_combat_end_includes_queued_death_fact(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.session.character_bindings["bob"] = "2"
+    bob = ckpt.session.active_combat.combatants[1]
+    bob.hit_points_current = 1
+    bob.hit_points_max = 1
+    values = iter([9, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="attack_alice",
+                    actor_id="alice",
+                    kind="attack_roll",
+                    ability="str",
+                    skill="",
+                    dc=12,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Alice attacks Bob with a blade.",
+                    action_id="blade",
+                    target_id="bob",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ended",
+            mechanical_summary="Alice's attack ends the fight.",
+            visible_outcome_facts=["Alice's blade drops Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert "Alice's blade drops Bob." in facts
+    assert "Bob dies." in facts
+    assert "D&D combat ends." in facts
+    assert ckpt.session.active_combat is None
+
+
 def test_combat_damage_waits_for_successful_finalization(monkeypatch):
     ckpt = _ckpt()
     values = iter([9, 3])

@@ -354,6 +354,41 @@ class TestPendingCombatRolls:
         assert FakeDispatcher.route_calls == []
         assert mgr.save.call_count == 1
 
+    @pytest.mark.asyncio
+    async def test_submit_cancelled_combat_roll_returns_stale_without_dispatch(
+        self,
+        patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="cat_ii_roll",
+            cat_ii_event_id="cmb_cancelled",
+        )
+        ckpt.session.cat_ii_roll_transactions.append(
+            CatIIRollTransaction(
+                transaction_id="rolltxn_cancelled",
+                event_id="cmb_cancelled",
+                source="combat",
+                actor_id="alice",
+                status="cancelled",
+            )
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.submit_cat_ii_roll(
+            session_id="s",
+            event_id="cmb_cancelled",
+            roll_id="attack_alice",
+            actor_id="alice",
+            user_id="u1",
+        )
+
+        assert response.beat_ended_reason == "cat_ii_stale"
+        assert response.output_text == "That combat roll is no longer active."
+        assert ckpt.session.active_act_slots == {}
+        assert FakeDispatcher.route_calls == []
+        assert mgr.save.call_count == 1
+
 
 class TestCombatTurnGating:
     @pytest.mark.asyncio
@@ -850,6 +885,47 @@ class TestCombatTurnGating:
         assert ckpt.session.active_act_slots == {}
         assert ckpt.session.active_combat.turn_index == 1
         assert ckpt.session.active_combat.pending_advance_actor_id == ""
+        assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_defer_clears_blocked_combat_start_without_llm(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=1,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                    player_controlled=False,
+                ),
+            ],
+        )
+        ckpt.session.active_act_slots["alice"] = SlotEntry(
+            reason="combat_blocked",
+            trigger_event_id="evt_blocked",
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="(defer)",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_start_blocked_deferred"
+        assert "dropped" in response.output_text
+        assert ckpt.session.active_act_slots == {}
+        assert FakeDispatcher.route_calls == []
         assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio

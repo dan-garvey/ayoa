@@ -296,13 +296,6 @@ def check_act_slot(
                 or my_entry.cat_ii_event_id,
         )
 
-    if my_entry and my_entry.reason == "combat_blocked":
-        return SlotCheck(
-            conflict=SlotConflict.COMBAT_START_BLOCKED,
-            holder_id=acting_character_id,
-            trigger_event_id=my_entry.trigger_event_id,
-        )
-
     # If this character holds the initiator slot, they're double-acting.
     if my_entry and my_entry.reason == "initiator":
         return SlotCheck(
@@ -1122,11 +1115,9 @@ def flush_combat_visible_facts(ckpt: CheckpointFile) -> int:
     combat = _active_combat(ckpt)
     if combat is None:
         return 0
-    facts = list(_obj_get(combat, "pending_visible_facts", []) or [])
-    facts = [fact.strip() for fact in facts if str(fact).strip()]
+    facts = dnd_combat.drain_pending_visible_facts(combat)
     if not facts:
         return 0
-    _obj_set(combat, "pending_visible_facts", [])
     observers: list[ObserverEntry] = []
     seen: set[str] = set()
     for combatant in list(_obj_get(combat, "combatants", []) or []):
@@ -1228,18 +1219,21 @@ def _block_dnd_combat_start_from_router_signal(
     result.agent_responder_picks = []
     result.ends_beat = True
     result.ends_beat_reason = "state_change"
-    result.observers = []
     if actor_id:
-        result.observers.append(ObserverEntry(
-            character_id=actor_id,
-            observation_level="d",
-            response_priority=3,
-        ))
-        result.canonical_event.observable_facts = [ObservableFact.only(
+        existing_observers = {
+            observer.character_id for observer in result.observers
+        }
+        if actor_id not in existing_observers:
+            result.observers.append(ObserverEntry(
+                character_id=actor_id,
+                observation_level="d",
+                response_priority=3,
+            ))
+        result.canonical_event.observable_facts.append(ObservableFact.only(
             "Another D&D combat is already in initiative; this hostile action "
-            "waits until that combat ends.",
+            "cannot start another initiative tracker right now.",
             [actor_id],
-        )]
+        ))
         pin_combat_start_blocked(ckpt, actor_id, result.event_id)
 
 
@@ -1263,6 +1257,26 @@ def _end_dnd_combat_from_router_signal(
         combat,
         f"Combat ended from router D&D interaction signal: {result.event_id}.",
     )
+    for fact in dnd_combat.drain_pending_visible_facts(combat):
+        result.canonical_event.observable_facts.append(ObservableFact.all(fact))
+    blocked_ids = dnd_combat.blocked_combat_actor_ids(ckpt.session)
+    if blocked_ids:
+        existing_observers = {
+            observer.character_id for observer in result.observers
+        }
+        for blocked_id in blocked_ids:
+            if blocked_id in existing_observers:
+                continue
+            result.observers.append(ObserverEntry(
+                character_id=blocked_id,
+                observation_level="d",
+                response_priority=3,
+            ))
+            existing_observers.add(blocked_id)
+        result.canonical_event.observable_facts.append(ObservableFact.only(
+            "The other D&D combat has ended. You may act again.",
+            blocked_ids,
+        ))
     dnd_combat.end_combat(ckpt.session)
     result.requires_responders = False
     result.required_responders = []
@@ -1270,7 +1284,7 @@ def _end_dnd_combat_from_router_signal(
     result.ends_beat = True
     result.ends_beat_reason = "state_change"
     result.canonical_event.observable_facts.append(ObservableFact.all(
-        "D&D combat ends; the scene is no longer in initiative order."
+        "D&D combat ends."
     ))
     return True
 

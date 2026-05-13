@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ModelConfig(BaseModel):
@@ -165,6 +165,19 @@ class DndCombatantState(BaseModel):
     pending_initiating_action: str = ""
     pending_initiating_event_id: str = ""
     notes: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_defeated(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if not data.get("defeated"):
+            return data
+        state = str(data.get("defeat_state") or "")
+        if state in {"", "active"}:
+            data = dict(data)
+            data["defeat_state"] = "defeated"
+        return data
 
 
 class DndCombatState(BaseModel):

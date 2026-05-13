@@ -45,7 +45,7 @@ from app.engine.story_importer import (
     run_import_two_call,
     run_preservation_analysis_continuation,
 )
-from app.engine.turn_loop import flush_combat_visible_facts
+from app.engine.turn_loop import broadcast_event, flush_combat_visible_facts
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
@@ -1024,6 +1024,11 @@ class EngineBridge:
                     "That roll is not pending for your character."
                 )
             source = roll_transaction_source(ckpt, event_id)
+            if (
+                source == "combat"
+                and getattr(ckpt.session, "active_combat", None) is None
+            ):
+                raise ValueError("That combat roll is no longer active.")
             if source != "combat" and not any(
                 evt.event_id == event_id
                 for evt in ckpt.session.open_cat_ii_events
@@ -1038,9 +1043,9 @@ class EngineBridge:
                 None,
             )
             if record is None:
-                raise ValueError(
-                    f"Roll {roll_id} is not pending for actor {actor_id}."
-                )
+                if source == "combat":
+                    raise ValueError("That combat roll is no longer active.")
+                raise ValueError("That roll is not pending for your character.")
 
             completed = complete_pending_player_roll(
                 ckpt,
@@ -2053,6 +2058,24 @@ class EngineBridge:
                 response_priority=3,
             ))
             seen.add(cid)
+        pending_facts = []
+        blocked_ids: list[str] = []
+        if combat is not None:
+            drain_facts = getattr(module, "drain_pending_visible_facts", None)
+            if callable(drain_facts):
+                pending_facts = list(drain_facts(combat))
+            blocked_lookup = getattr(module, "blocked_combat_actor_ids", None)
+            if callable(blocked_lookup):
+                blocked_ids = list(blocked_lookup(ckpt.session))
+            for blocked_id in blocked_ids:
+                if blocked_id in seen:
+                    continue
+                observers.append(ObserverEntry(
+                    character_id=blocked_id,
+                    observation_level="d",
+                    response_priority=3,
+                ))
+                seen.add(blocked_id)
         if getattr(module, "combat_end", None) is not None:
             module.combat_end(ckpt)
         elif getattr(module, "end_combat", None) is not None:
@@ -2060,12 +2083,23 @@ class EngineBridge:
         else:
             self._combat_call(module, ("combat_end", "end_combat"), ckpt)
         if observers:
-            ckpt.canonical_events.append(EventRouterOutput(
+            observable_facts = [
+                ObservableFact.all(fact)
+                for fact in pending_facts
+                if str(fact).strip()
+            ]
+            observable_facts.append(ObservableFact.all("D&D combat ends."))
+            if blocked_ids:
+                observable_facts.append(ObservableFact.only(
+                    "The other D&D combat has ended. You may act again.",
+                    blocked_ids,
+                ))
+            broadcast_event(ckpt, EventRouterOutput(
                 event_id="",
                 decision_rationale="manual combat end",
                 canonical_event=CanonicalEvent(
                     world_adjudication=WorldAdjudication(feasible=True),
-                    observable_facts=[ObservableFact.all("D&D combat ends.")],
+                    observable_facts=observable_facts,
                 ),
                 requires_responders=False,
                 required_responders=[],

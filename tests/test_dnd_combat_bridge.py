@@ -141,6 +141,26 @@ def test_combat_status_and_mutations_delegate_and_persist(
     assert ended.message == "Combat ended."
 
 
+def test_manual_combat_end_broadcasts_observable_event(bridge: EngineBridge):
+    _seed(bridge)
+    bridge.begin_combat(SESSION_ID, ["alice", "guard"])
+
+    ended = bridge.combat_end(SESSION_ID)
+
+    assert ended.active is False
+    reloaded = bridge.load_latest(SESSION_ID)
+    assert reloaded.session.active_combat is None
+    assert reloaded.canonical_events
+    facts = [
+        fact.text
+        for fact in reloaded.canonical_events[-1].canonical_event.observable_facts
+    ]
+    assert "D&D combat ends." in facts
+    assert reloaded.session.render_buffers["alice"]
+    guard = next(c for c in reloaded.characters if c.character_id == "guard")
+    assert "D&D combat ends." in guard.pending_observations
+
+
 def test_combat_bridge_reports_missing_core(bridge: EngineBridge, monkeypatch):
     _seed(bridge)
 

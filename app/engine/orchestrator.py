@@ -472,6 +472,13 @@ def _combined_beat_reason(results: list[BeatResult]) -> str:
     return results[-1].ended_reason if results else ""
 
 
+def _combat_roll_transaction(ckpt: CheckpointFile, event_id: str) -> Any | None:
+    for txn in ckpt.session.cat_ii_roll_transactions:
+        if txn.event_id == event_id and txn.source == "combat":
+            return txn
+    return None
+
+
 def _active_combat_character_ids(ckpt: CheckpointFile) -> set[str]:
     combat = _active_combat_state(ckpt)
     if combat is None:
@@ -687,7 +694,30 @@ class Orchestrator:
         lock = await self.session_locks.get(request.session_id)
         async with lock:
             # 4. Validate against the session's active_act_slot.
+            blocked_entry = ckpt.session.active_act_slots.get(acting_id)
+            was_combat_blocked = (
+                blocked_entry is not None
+                and blocked_entry.reason == "combat_blocked"
+            )
             check = check_act_slot(ckpt, acting_id)
+
+            if (
+                was_combat_blocked
+                and request.user_input.strip().lower() == "(defer)"
+            ):
+                release_character_slot(ckpt, acting_id)
+                self.checkpoint_mgr.save(ckpt)
+                return TurnResponse(
+                    session_id=request.session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=(
+                        "The blocked combat-starting action was dropped. "
+                        "You may act normally."
+                    ),
+                    per_player_renders={},
+                    beat_ended_reason="combat_start_blocked_deferred",
+                )
 
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
@@ -975,7 +1005,13 @@ class Orchestrator:
                         session_id=session_id,
                         ckpt=ckpt,
                         event_id=event_id,
-                        output_actor_id=actor_id,
+                        output_actor_id=(
+                            getattr(
+                                _combat_roll_transaction(ckpt, event_id),
+                                "actor_id",
+                                "",
+                            ) or ""
+                        ),
                     )
                 return TurnResponse(
                     session_id=session_id,
@@ -1156,15 +1192,27 @@ class Orchestrator:
             )
             if evt_live is None:
                 if roll_transaction_source(ckpt, event_id) == "combat":
+                    transaction = _combat_roll_transaction(ckpt, event_id)
+                    if (
+                        transaction is None
+                        or transaction.status == "cancelled"
+                        or _active_combat_state(ckpt) is None
+                    ):
+                        return self._stale_combat_roll_response(
+                            ckpt=ckpt,
+                            session_id=session_id,
+                            output_actor_id=actor_id,
+                        )
                     pending_for_actor = pending_player_rolls(
                         ckpt, event_id=event_id, actor_id=actor_id,
                     )
                     if roll_id not in {
                         record.roll_id for record in pending_for_actor
                     }:
-                        raise ValueError(
-                            f"Roll {roll_id} is not pending for actor "
-                            f"{actor_id}."
+                        return self._stale_combat_roll_response(
+                            ckpt=ckpt,
+                            session_id=session_id,
+                            output_actor_id=actor_id,
                         )
                     complete_pending_player_roll(
                         ckpt,
@@ -1251,15 +1299,10 @@ class Orchestrator:
             or transaction.status == "cancelled"
             or _active_combat_state(ckpt) is None
         ):
-            release_character_slot(ckpt, output_actor_id)
-            self.checkpoint_mgr.save(ckpt)
-            return TurnResponse(
+            return self._stale_combat_roll_response(
+                ckpt=ckpt,
                 session_id=session_id,
-                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
-                turn_index=ckpt.session.turn_index,
-                output_text="That combat roll is no longer active.",
-                per_player_renders={},
-                beat_ended_reason="cat_ii_stale",
+                output_actor_id=output_actor_id,
             )
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
         try:
@@ -1342,6 +1385,25 @@ class Orchestrator:
             per_player_renders=renders,
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
+        )
+
+    def _stale_combat_roll_response(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        session_id: str,
+        output_actor_id: str,
+    ) -> TurnResponse:
+        if output_actor_id:
+            release_character_slot(ckpt, output_actor_id)
+        self.checkpoint_mgr.save(ckpt)
+        return TurnResponse(
+            session_id=session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text="That combat roll is no longer active.",
+            per_player_renders={},
+            beat_ended_reason="cat_ii_stale",
         )
 
     async def continue_cat_ii_after_roll(

@@ -1064,7 +1064,8 @@ adjudication.
 * `DndCombatState.pending_visible_facts` is a short queue of code-owned
   combat lifecycle facts, currently used for death-save outcomes such as
   regaining consciousness, stabilizing, or dying. The orchestrator flushes
-  these as ordinary observable facts after combat advancement.
+  these as ordinary observable facts after combat advancement, and combat-end
+  paths drain the queue into the same visible event before clearing combat.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
   dice ledgers. Each transaction is tagged
@@ -1077,8 +1078,10 @@ adjudication.
   their `cat_ii_roll` slots.
 * `active_act_slots` may contain `combat_blocked` entries. These lock a
   character whose fresh action would start a second D&D combat while the
-  session already has active initiative. The lock clears when the active
-  combat ends.
+  session already has active initiative. The entry preserves that blocked
+  hostile action until active combat ends, but it is not a general actor
+  lock: the same player can act normally afterward, and `/defer` drops the
+  blocked action immediately.
 
 ### 15.4 Prompt Files
 
@@ -1120,8 +1123,10 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
 * if `dnd_combat_start` appears while another combat is already active, the
   engine does not open Cat II and does not start a parallel combat. It emits a
   private visible fact to the would-be initiator, pins that character with a
-  `combat_blocked` act slot, and rejects further `/act`s from that character
-  until the current combat ends;
+  `combat_blocked` act slot for the blocked hostile action, and lets later
+  benign or revised `/act`s proceed normally. `/defer` clears the blocked
+  action immediately; ending the active combat also clears it and emits a
+  private notice to the blocked actor;
 * `interaction_mode="dnd_combat_end"` from the generic addon router is
   accepted only from an actor listed in the active combat. Outsider actions in
   other scenes cannot end combat by assertion;

@@ -12,6 +12,8 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.state import (
     CatIIRollRecord,
     CatIIRollTransaction,
+    DndCombatantState,
+    DndCombatState,
     OpenCatIIEvent,
     SessionState,
     SlotEntry,
@@ -120,6 +122,22 @@ def _combat_pending_roll_checkpoint() -> CheckpointFile:
     transaction.event_id = "cmb_open"
     transaction.source = "combat"
     transaction.actor_id = "pip"
+    ckpt.session.active_combat = DndCombatState(
+        turn_index=1,
+        combatants=[
+            DndCombatantState(
+                combatant_id="pip",
+                character_id="pip",
+                name="Pip",
+            ),
+            DndCombatantState(
+                combatant_id="alice",
+                character_id="alice",
+                name="Alice",
+                player_controlled=True,
+            ),
+        ],
+    )
     return ckpt
 
 
@@ -182,6 +200,22 @@ async def test_complete_pending_roll_accepts_combat_transaction_without_cat_ii(
     assert transaction.source == "combat"
     assert transaction.status == "ready_to_finalize"
     assert transaction.rolls[0].status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_complete_pending_roll_rejects_stale_combat_transaction(tmp_path):
+    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    ckpt = _combat_pending_roll_checkpoint()
+    ckpt.session.active_combat = None
+    bridge.checkpoint_mgr.save(ckpt)
+
+    with pytest.raises(ValueError, match="combat roll is no longer active"):
+        await bridge.complete_pending_roll(
+            session_id="roll_session",
+            event_id="cmb_open",
+            roll_id="roll_alice",
+            user_id=123,
+        )
 
 
 def test_roll_result_line_surfaces_total_for_discord_ui():

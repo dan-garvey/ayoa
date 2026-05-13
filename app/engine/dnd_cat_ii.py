@@ -285,13 +285,22 @@ def _end_combat_after_adjudication(
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
         return
+    for fact in dnd_combat.drain_pending_visible_facts(combat):
+        result.canonical_event.observable_facts.append(ObservableFact.all(fact))
+    blocked_ids = dnd_combat.blocked_combat_actor_ids(ckpt.session)
+    if blocked_ids:
+        _ensure_observers(ckpt, result, blocked_ids, response_priority=3)
+        result.canonical_event.observable_facts.append(ObservableFact.only(
+            "The other D&D combat has ended. You may act again.",
+            blocked_ids,
+        ))
     dnd_combat.append_audit_line(
         combat,
         f"Combat ended from D&D combat adjudication: {result.event_id}.",
     )
     dnd_combat.end_combat(ckpt.session)
     result.canonical_event.observable_facts.append(ObservableFact.all(
-        "D&D combat ends; the scene is no longer in initiative order."
+        "D&D combat ends."
     ))
 
 
@@ -1046,6 +1055,25 @@ def _compile_combat_router_output(
         dormant=[],
         cull=[],
     )
+
+
+def _ensure_observers(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    character_ids: list[str],
+    *,
+    response_priority: int,
+) -> None:
+    existing = {observer.character_id for observer in result.observers}
+    for cid in character_ids:
+        if not cid or cid in existing or not _character_exists(ckpt, cid):
+            continue
+        result.observers.append(ObserverEntry(
+            character_id=cid,
+            observation_level="d",
+            response_priority=response_priority,
+        ))
+        existing.add(cid)
 
 
 def _combat_affected_ids(

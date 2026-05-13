@@ -15,7 +15,12 @@ from app.engine.dnd_combat import (
     start_combat,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
-from app.schemas.state import CatIIRollTransaction, SessionState, SlotEntry
+from app.schemas.state import (
+    CatIIRollTransaction,
+    DndCombatantState,
+    SessionState,
+    SlotEntry,
+)
 
 
 def _character(
@@ -143,6 +148,18 @@ def test_damage_and_healing_use_hp_snapshot_without_touching_character_mechanics
     healed = apply_healing(session, "hero", 4)
     assert healed.hit_points_current == 4
     assert healed.defeat_state == "active"
+
+
+def test_legacy_defeated_field_migrates_to_defeat_state():
+    combatant = DndCombatantState.model_validate({
+        "combatant_id": "goblin",
+        "character_id": "goblin",
+        "hit_points_current": 0,
+        "hit_points_max": 7,
+        "defeated": True,
+    })
+
+    assert combatant.defeat_state == "defeated"
 
 
 def test_player_controlled_combatant_goes_down_and_healing_recovers(

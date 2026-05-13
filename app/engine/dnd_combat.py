@@ -148,6 +148,40 @@ def _append_pending_visible_fact(combat: DndCombatState, fact: str) -> None:
         combat.pending_visible_facts.append(text)
 
 
+def drain_pending_visible_facts(
+    combat: DndCombatState | SessionState | None,
+) -> list[str]:
+    if isinstance(combat, SessionState):
+        active = combat.active_combat
+    else:
+        active = combat
+    if active is None:
+        return []
+    if isinstance(active, dict):
+        pending = active.get("pending_visible_facts") or []
+        facts = [
+            str(fact).strip()
+            for fact in pending
+            if str(fact).strip()
+        ]
+        active["pending_visible_facts"] = []
+        return facts
+    facts = [
+        str(fact).strip()
+        for fact in active.pending_visible_facts
+        if str(fact).strip()
+    ]
+    active.pending_visible_facts = []
+    return facts
+
+
+def blocked_combat_actor_ids(session: SessionState) -> list[str]:
+    return [
+        cid for cid, slot in session.active_act_slots.items()
+        if slot.reason == "combat_blocked"
+    ]
+
+
 def _cancel_combat_roll_transactions(session: SessionState) -> set[str]:
     event_ids: set[str] = set()
     for transaction in session.cat_ii_roll_transactions:

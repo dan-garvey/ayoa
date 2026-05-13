@@ -463,12 +463,12 @@ def _case_checks(
         ),
         _check(
             "continuity_fact_recorded",
-            any("does not resolve before initiative" in fact for fact in facts),
+            any("D&D combat begins" in fact for fact in facts),
             facts,
         ),
         _check(
             "cli_showed_combat_start",
-            "combat started" in latest_cli.lower()
+            "combat begins" in latest_cli.lower()
             and "initiating action has not resolved" in latest_cli.lower(),
             latest_cli,
         ),
