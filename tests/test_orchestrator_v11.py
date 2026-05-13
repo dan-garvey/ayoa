@@ -238,6 +238,55 @@ class TestHappyPath:
         assert len(saved.transcript) == 1
         assert saved.transcript[0].assistant == "POV_RENDER"
 
+    @pytest.mark.asyncio
+    async def test_dnd_loot_offer_becomes_turn_prompt(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        orch, mgr = patched_orchestrator(ckpt)
+        data = _dnd_router_out(interaction_mode="cat_i").model_dump()
+        data["loot_offer"] = {
+            "present": True,
+            "source_kind": "container",
+            "source_label": "iron chest",
+            "visibility": "table",
+            "eligible_character_ids": ["alice"],
+            "items": [
+                {
+                    "item_id": "healing_potion",
+                    "name": "Potion of Healing",
+                    "kind": "consumable",
+                    "quantity": 1,
+                    "identified": True,
+                    "requires_identification": False,
+                    "requires_attunement": False,
+                    "consumable": True,
+                    "value_gp": 50,
+                    "weight": 0.5,
+                    "notes": "",
+                }
+            ],
+            "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 12, "pp": 0},
+            "notes": "",
+        }
+        FakeDispatcher.queue_route(DndEventRouterOutput(**data))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I open the chest",
+            acting_character_id="alice",
+        ))
+
+        offer_id = response.loot_prompts["alice"][0]
+        assert offer_id.startswith("loot_evt_")
+        saved = mgr.save.call_args[0][0]
+        assert len(saved.session.dnd_inventory_offers) == 1
+        offer = saved.session.dnd_inventory_offers[0]
+        assert offer.offer_id == offer_id
+        assert offer.source_label == "iron chest"
+        assert offer.items[0].name == "Potion of Healing"
+
 
 class TestSlotRejection:
     @pytest.mark.asyncio

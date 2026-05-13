@@ -32,6 +32,7 @@ from app.engine.dnd_character_import import (
     mechanics_from_snapshot,
     normalize_dndbeyond_export,
 )
+from app.engine import dnd_inventory
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -50,6 +51,7 @@ from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
+from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.requests import TurnRequest
@@ -157,6 +159,25 @@ class DndSheetAttachmentSummary:
 
 
 @dataclass(frozen=True)
+class DndInventoryView:
+    character_id: str
+    character_name: str
+    items: list[dict[str, Any]]
+    currency: dict[str, int]
+
+
+@dataclass(frozen=True)
+class DndLootClaimResult:
+    offer_id: str
+    character_id: str
+    claimed_items: list[dict[str, Any]]
+    claimed_currency: dict[str, int]
+    shares: dict[str, dict[str, int]]
+    offer_closed: bool
+    message: str
+
+
+@dataclass(frozen=True)
 class DndCombatParticipantView:
     character_id: str
     name: str
@@ -183,6 +204,48 @@ class DndCombatView:
     current_participant_id: str = ""
     participants: tuple[DndCombatParticipantView, ...] = ()
     message: str = ""
+
+
+def _loot_claim_message(result: dict[str, Any]) -> str:
+    parts: list[str] = []
+    item_names = [
+        str(item.get("name") or "Item")
+        for item in result.get("claimed_items") or []
+        if isinstance(item, dict)
+    ]
+    if item_names:
+        parts.append("Claimed " + ", ".join(item_names) + ".")
+    currency = _coin_text(result.get("claimed_currency") or {})
+    if currency:
+        parts.append(f"Claimed {currency}.")
+    if result.get("offer_closed"):
+        parts.append("The loot offer is now closed.")
+    return " ".join(parts) or "Nothing was claimed."
+
+
+def _loot_split_message(result: dict[str, Any]) -> str:
+    shares = result.get("shares") or {}
+    lines = []
+    for cid, currency in shares.items():
+        text = _coin_text(currency)
+        if text:
+            lines.append(f"{cid}: {text}")
+    if not lines:
+        return "No currency was split."
+    suffix = " The loot offer is now closed." if result.get("offer_closed") else ""
+    return "Split currency: " + "; ".join(lines) + "." + suffix
+
+
+def _coin_text(currency: dict[str, Any]) -> str:
+    parts = []
+    for key in ("pp", "gp", "ep", "sp", "cp"):
+        try:
+            value = int(currency.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value:
+            parts.append(f"{value} {key}")
+    return ", ".join(parts)
 
 
 logger = logging.getLogger(__name__)
@@ -833,6 +896,164 @@ class EngineBridge:
         if target is None:
             raise ValueError(f"No character '{target_id}' in this session.")
         return target
+
+    def list_inventory(
+        self,
+        session_id: str,
+        user_id: int,
+        character_id: str | None = None,
+    ) -> DndInventoryView:
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target_id = self._bound_character_id_for_user(
+            ckpt,
+            user_id=user_id,
+            character_id=character_id,
+        )
+        target = next(
+            (c for c in ckpt.characters if c.character_id == target_id), None
+        )
+        if target is None:
+            raise ValueError(f"No character '{target_id}' in this session.")
+        inventory = dnd_inventory.inventory_view(target)
+        return DndInventoryView(
+            character_id=target.character_id,
+            character_name=target.name,
+            items=[
+                item for item in (inventory.get("items") or [])
+                if isinstance(item, dict)
+            ],
+            currency=inventory.get("currency") or {},
+        )
+
+    def list_loot_offers(
+        self,
+        session_id: str,
+        user_id: int,
+        character_id: str | None = None,
+    ) -> list[DndLootOffer]:
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target_id = self._bound_character_id_for_user(
+            ckpt,
+            user_id=user_id,
+            character_id=character_id,
+        )
+        return dnd_inventory.open_loot_offers_for_character(ckpt, target_id)
+
+    async def claim_loot(
+        self,
+        *,
+        session_id: str,
+        user_id: int,
+        character_id: str | None,
+        offer_id: str,
+        item_ids: list[str],
+        take_currency: bool = False,
+    ) -> DndLootClaimResult:
+        lock = await self._lock_for(session_id)
+        async with lock:
+            orchestrator_lock = await self.orchestrator.session_locks.get(
+                session_id
+            )
+            async with orchestrator_lock:
+                ckpt = self.checkpoint_mgr.load_latest(session_id)
+                target_id = self._bound_character_id_for_user(
+                    ckpt,
+                    user_id=user_id,
+                    character_id=character_id,
+                )
+                result = dnd_inventory.claim_loot(
+                    ckpt,
+                    character_id=target_id,
+                    offer_id=offer_id,
+                    item_ids=item_ids,
+                    take_currency=take_currency,
+                )
+                self.checkpoint_mgr.save(ckpt)
+        return DndLootClaimResult(
+            offer_id=offer_id,
+            character_id=result["character_id"],
+            claimed_items=result["claimed_items"],
+            claimed_currency=result["claimed_currency"],
+            shares={},
+            offer_closed=bool(result["offer_closed"]),
+            message=_loot_claim_message(result),
+        )
+
+    async def split_loot_currency(
+        self,
+        *,
+        session_id: str,
+        user_id: int,
+        offer_id: str,
+        character_id: str | None = None,
+    ) -> DndLootClaimResult:
+        lock = await self._lock_for(session_id)
+        async with lock:
+            orchestrator_lock = await self.orchestrator.session_locks.get(
+                session_id
+            )
+            async with orchestrator_lock:
+                ckpt = self.checkpoint_mgr.load_latest(session_id)
+                target_id = self._bound_character_id_for_user(
+                    ckpt,
+                    user_id=user_id,
+                    character_id=character_id,
+                )
+                result = dnd_inventory.split_loot_currency(
+                    ckpt,
+                    offer_id=offer_id,
+                    actor_id=target_id,
+                )
+                self.checkpoint_mgr.save(ckpt)
+        return DndLootClaimResult(
+            offer_id=offer_id,
+            character_id=target_id,
+            claimed_items=[],
+            claimed_currency={},
+            shares=result["shares"],
+            offer_closed=bool(result["offer_closed"]),
+            message=_loot_split_message(result),
+        )
+
+    async def decline_loot(
+        self,
+        *,
+        session_id: str,
+        user_id: int,
+        offer_id: str,
+        character_id: str | None = None,
+    ) -> DndLootClaimResult:
+        lock = await self._lock_for(session_id)
+        async with lock:
+            orchestrator_lock = await self.orchestrator.session_locks.get(
+                session_id
+            )
+            async with orchestrator_lock:
+                ckpt = self.checkpoint_mgr.load_latest(session_id)
+                target_id = self._bound_character_id_for_user(
+                    ckpt,
+                    user_id=user_id,
+                    character_id=character_id,
+                )
+                result = dnd_inventory.decline_loot(
+                    ckpt,
+                    character_id=target_id,
+                    offer_id=offer_id,
+                )
+                self.checkpoint_mgr.save(ckpt)
+        return DndLootClaimResult(
+            offer_id=offer_id,
+            character_id=target_id,
+            claimed_items=[],
+            claimed_currency={},
+            shares={},
+            offer_closed=bool(result["offer_closed"]),
+            message=(
+                "Declined the loot offer."
+                if not result["offer_closed"]
+                else "Declined the loot offer; it is now closed."
+            ),
+        )
 
     async def attach_dndbeyond_character_export(
         self,

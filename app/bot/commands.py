@@ -14,6 +14,8 @@ Commands:
                                             (pre-play: enters the lobby; post-play: arrives mid-story)
     /attach <json> [name_override]        — attach a D&D Beyond JSON sheet to your character
     /sheet [page]                         — show your attached D&D character sheet
+    /inventory                            — show your current D&D inventory
+    /loot list/take/take_all/split/decline — inspect and claim D&D loot offers
     /begin                                — open the story for everyone in the lobby
                                             (any bound player or admin can fire)
     /leave                                — release your character
@@ -44,10 +46,14 @@ from app.bot.embed import render_briefing, render_error, render_info, render_tur
 from app.bot.engine_bridge import (
     CompletedPendingRoll,
     DndCombatView,
+    DndInventoryView,
+    DndLootClaimResult,
     DndSheetAttachmentSummary,
     EngineBridge,
     PendingRollPrompt,
 )
+from app.engine import dnd_inventory
+from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.characters import CharacterRecord
@@ -834,6 +840,203 @@ class _CombatReactionView(discord.ui.View):
             await inter.followup.send(response.output_text, ephemeral=True)
 
 
+class _LootOfferView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        engine: EngineBridge,
+        session_id: str,
+        user_id: int,
+        character_id: str,
+        offer: DndLootOffer,
+    ):
+        super().__init__(timeout=24 * 60 * 60)
+        self.engine = engine
+        self.session_id = session_id
+        self.user_id = user_id
+        self.character_id = character_id
+        self.offer_id = offer.offer_id
+        self.selected_item_ids: list[str] = []
+
+        available_ids = set(dnd_inventory.available_item_ids(offer))
+        available = [item for item in offer.items if item.item_id in available_ids]
+        if available and len(available) <= 25 and all(
+            len(item.item_id) <= 100 for item in available
+        ):
+            select = discord.ui.Select(
+                placeholder="Choose item(s)",
+                min_values=0,
+                max_values=len(available),
+                options=[
+                    discord.SelectOption(
+                        label=_loot_item_option_label(item),
+                        value=item.item_id,
+                    )
+                    for item in available
+                ],
+            )
+            select.callback = self._select_items
+            self.add_item(select)
+
+        take_selected = discord.ui.Button(
+            label="Take selected",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"ayoa:loot:take:{session_id}:{offer.offer_id}"[:100],
+        )
+        take_selected.callback = self._take_selected
+        self.add_item(take_selected)
+
+        take_all = discord.ui.Button(
+            label="Take all",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"ayoa:loot:all:{session_id}:{offer.offer_id}"[:100],
+        )
+        take_all.callback = self._take_all
+        self.add_item(take_all)
+
+        split = discord.ui.Button(
+            label="Split coins",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"ayoa:loot:split:{session_id}:{offer.offer_id}"[:100],
+            disabled=not offer.has_available_currency(),
+        )
+        split.callback = self._split
+        self.add_item(split)
+
+        decline = discord.ui.Button(
+            label="Decline",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"ayoa:loot:decline:{session_id}:{offer.offer_id}"[:100],
+        )
+        decline.callback = self._decline
+        self.add_item(decline)
+
+    async def interaction_check(self, inter: discord.Interaction) -> bool:
+        if inter.user.id != self.user_id:
+            await inter.response.send_message(
+                "That loot offer belongs to another character.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    async def _select_items(self, inter: discord.Interaction) -> None:
+        values = []
+        data = getattr(inter, "data", {}) or {}
+        if isinstance(data, dict):
+            values = [str(value) for value in (data.get("values") or [])]
+        self.selected_item_ids = values
+        await inter.response.defer()
+
+    async def _take_selected(self, inter: discord.Interaction) -> None:
+        if not self.selected_item_ids:
+            await inter.response.send_message(
+                "Select at least one item, or use Take all.",
+                ephemeral=True,
+            )
+            return
+        await self._claim(
+            inter,
+            item_ids=list(self.selected_item_ids),
+            take_currency=False,
+        )
+
+    async def _take_all(self, inter: discord.Interaction) -> None:
+        try:
+            offers = self.engine.list_loot_offers(
+                self.session_id,
+                self.user_id,
+                character_id=self.character_id,
+            )
+            offer = next((o for o in offers if o.offer_id == self.offer_id), None)
+            if offer is None:
+                raise ValueError("That loot offer is already closed.")
+            await self._claim(
+                inter,
+                item_ids=dnd_inventory.available_item_ids(offer),
+                take_currency=offer.has_available_currency(),
+            )
+        except Exception as e:
+            logger.exception("loot take-all failed")
+            await inter.response.send_message(
+                str(e) if isinstance(e, ValueError)
+                else f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+
+    async def _claim(
+        self,
+        inter: discord.Interaction,
+        *,
+        item_ids: list[str],
+        take_currency: bool,
+    ) -> None:
+        try:
+            result = await self.engine.claim_loot(
+                session_id=self.session_id,
+                user_id=self.user_id,
+                character_id=self.character_id,
+                offer_id=self.offer_id,
+                item_ids=item_ids,
+                take_currency=take_currency,
+            )
+        except Exception as e:
+            logger.exception("loot claim failed")
+            await inter.response.send_message(
+                str(e) if isinstance(e, ValueError)
+                else f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await self._finish(inter, result)
+
+    async def _split(self, inter: discord.Interaction) -> None:
+        try:
+            result = await self.engine.split_loot_currency(
+                session_id=self.session_id,
+                user_id=self.user_id,
+                offer_id=self.offer_id,
+                character_id=self.character_id,
+            )
+        except Exception as e:
+            logger.exception("loot split failed")
+            await inter.response.send_message(
+                str(e) if isinstance(e, ValueError)
+                else f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await self._finish(inter, result)
+
+    async def _decline(self, inter: discord.Interaction) -> None:
+        try:
+            result = await self.engine.decline_loot(
+                session_id=self.session_id,
+                user_id=self.user_id,
+                offer_id=self.offer_id,
+                character_id=self.character_id,
+            )
+        except Exception as e:
+            logger.exception("loot decline failed")
+            await inter.response.send_message(
+                str(e) if isinstance(e, ValueError)
+                else f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await self._finish(inter, result)
+
+    async def _finish(
+        self,
+        inter: discord.Interaction,
+        result: DndLootClaimResult,
+    ) -> None:
+        if result.offer_closed:
+            for child in self.children:
+                child.disabled = True
+        await inter.response.edit_message(content=result.message, view=self)
+
+
 async def _post_roll_prompt_to_pov(
     *,
     inter: discord.Interaction,
@@ -944,6 +1147,68 @@ async def _deliver_pending_roll_prompts(
             roster=roster,
             turn_index=turn_index,
         )
+
+
+async def _deliver_loot_prompts(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    engine: EngineBridge,
+    session_id: str,
+    response: TurnResponse,
+) -> None:
+    prompts = response.loot_prompts or {}
+    if not prompts:
+        return
+    try:
+        ckpt_for_fanout = engine.load_latest(session_id)
+        bindings = ckpt_for_fanout.session.character_bindings or {}
+        roster = list(ckpt_for_fanout.characters or [])
+    except Exception:
+        logger.exception("loot prompt fan-out: load_latest failed")
+        return
+
+    for cid, offer_ids in prompts.items():
+        uid_raw = bindings.get(cid, "")
+        if not uid_raw:
+            continue
+        try:
+            uid = int(uid_raw)
+        except ValueError:
+            continue
+        try:
+            offers = engine.list_loot_offers(
+                session_id,
+                uid,
+                character_id=cid,
+            )
+        except Exception:
+            logger.exception("loot prompt lookup failed for %s", cid)
+            continue
+        wanted = set(offer_ids)
+        char = next((c for c in roster if c.character_id == cid), None)
+        char_name = char.name if char else cid
+        for offer in offers:
+            if offer.offer_id not in wanted:
+                continue
+            await _post_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=uid,
+                character_id=cid,
+                char_name=char_name,
+                text=_loot_offer_content(offer),
+                bot=inter.client,
+                session_id=session_id,
+                turn_index=response.turn_index,
+                view=_LootOfferView(
+                    engine=engine,
+                    session_id=session_id,
+                    user_id=uid,
+                    character_id=cid,
+                    offer=offer,
+                ),
+            )
 
 
 async def _deliver_turn_response_to_povs(
@@ -1057,6 +1322,13 @@ async def _deliver_turn_response_to_povs(
                 "_(Auto-resolved while you were away — your prior "
                 "beat closed out.)_"
             ),
+        )
+        await _deliver_loot_prompts(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id=session_id,
+            response=pre_resp,
         )
 
     actor_char = next(
@@ -1242,6 +1514,14 @@ async def _deliver_turn_response_to_povs(
             roster=roster,
             turn_index=response.turn_index,
         )
+
+    await _deliver_loot_prompts(
+        inter=inter,
+        smap=smap,
+        engine=engine,
+        session_id=session_id,
+        response=response,
+    )
 
 
 async def _message_channel_for_ref(
@@ -1433,7 +1713,7 @@ def _render_dnd_sheet_page(
     elif page == "spells":
         _sheet_spells(embed, statblock)
     elif page == "inventory":
-        _sheet_inventory(embed, statblock)
+        _sheet_inventory(embed, dnd_inventory.inventory_view(character))
     elif page == "features":
         _sheet_features(embed, statblock)
     return embed
@@ -1666,8 +1946,7 @@ def _sheet_spells(embed: discord.Embed, statblock: dict[str, Any]) -> None:
     _add_sheet_field(embed, "Prepared/Known", "\n".join(lines), inline=False)
 
 
-def _sheet_inventory(embed: discord.Embed, statblock: dict[str, Any]) -> None:
-    inventory = statblock.get("inventory") or {}
+def _sheet_inventory(embed: discord.Embed, inventory: dict[str, Any]) -> None:
     items = [
         item for item in (inventory.get("items") or [])
         if isinstance(item, dict)
@@ -1693,6 +1972,90 @@ def _sheet_inventory(embed: discord.Embed, statblock: dict[str, Any]) -> None:
         _add_sheet_field(embed, "Carried", "\n".join(lines), inline=False)
     if not items:
         _add_sheet_field(embed, "Inventory", "No items imported.", inline=False)
+
+
+def _render_inventory_view(view: DndInventoryView) -> discord.Embed:
+    embed = render_info(
+        f"Inventory · {view.character_name}",
+        f"`{view.character_id}`",
+    )
+    currency_line = _currency_line(view.currency)
+    if currency_line:
+        _add_sheet_field(embed, "Currency", currency_line, inline=False)
+    equipped = [item for item in view.items if item.get("equipped")]
+    carried = [item for item in view.items if not item.get("equipped")]
+    if equipped:
+        _add_sheet_field(
+            embed,
+            "Equipped",
+            "\n".join(_item_line(item) for item in equipped[:15]),
+            inline=False,
+        )
+    if carried:
+        lines = [_item_line(item) for item in carried[:20]]
+        if len(carried) > 20:
+            lines.append(f"... {len(carried) - 20} more")
+        _add_sheet_field(embed, "Carried", "\n".join(lines), inline=False)
+    if not view.items and not currency_line:
+        _add_sheet_field(embed, "Inventory", "No items or coins.", inline=False)
+    return embed
+
+
+def _render_loot_list(offers: list[DndLootOffer]) -> discord.Embed:
+    if not offers:
+        return render_info("Loot", "No open loot offers for this character.")
+    lines = [_loot_offer_summary(offer) for offer in offers[:12]]
+    if len(offers) > 12:
+        lines.append(f"... {len(offers) - 12} more")
+    return render_info("Loot", "\n\n".join(lines))
+
+
+def _loot_offer_content(offer: DndLootOffer) -> str:
+    return "\n".join([
+        "--- Loot Offer ---",
+        _loot_offer_summary(offer),
+        "",
+        (
+            "Use the buttons below, `/loot take_all`, `/loot split_coins`, "
+            "or `/loot decline`."
+        ),
+    ]).strip()
+
+
+def _loot_offer_summary(offer: DndLootOffer) -> str:
+    label = offer.source_label or offer.source_kind
+    lines = [f"**{label}** (`{offer.offer_id}`)"]
+    available = [
+        item for item in offer.items
+        if item.item_id in set(dnd_inventory.available_item_ids(offer))
+    ]
+    for item in available[:10]:
+        item_line = _loot_item_line(item)
+        lines.append(f"- `{item.item_id}` {item_line}")
+    if len(available) > 10:
+        lines.append(f"- ... {len(available) - 10} more item(s)")
+    currency = _currency_line(dnd_inventory.available_currency_dict(offer))
+    if currency:
+        lines.append(f"- coins: {currency}")
+    if offer.notes:
+        lines.append(offer.notes)
+    return "\n".join(lines)
+
+
+def _loot_item_line(item: Any) -> str:
+    qty = _int_or(getattr(item, "quantity", 1), 1)
+    prefix = f"{qty}x " if qty != 1 else ""
+    kind = str(getattr(item, "kind", "") or "").replace("_", " ")
+    notes = str(getattr(item, "notes", "") or "").strip()
+    suffix = f" ({kind})" if kind else ""
+    if notes:
+        suffix += f" - {notes}"
+    return f"{prefix}{getattr(item, 'name', 'Item')}{suffix}"
+
+
+def _loot_item_option_label(item: Any) -> str:
+    label = _loot_item_line(item)
+    return label[:100]
 
 
 def _sheet_features(embed: discord.Embed, statblock: dict[str, Any]) -> None:
@@ -2066,6 +2429,11 @@ def register(
     combat_group = app_commands.Group(
         name="combat",
         description="Track D&D combat for this channel's session.",
+    )
+
+    loot_group = app_commands.Group(
+        name="loot",
+        description="Inspect and claim D&D loot offers.",
     )
 
     # ---- /session start / end / resume / list -------------------------------
@@ -3519,6 +3887,251 @@ def register(
             view=view,
             ephemeral=True,
         )
+
+    # ---- /inventory --------------------------------------------------------
+
+    @tree.command(
+        name="inventory",
+        description="Show your current D&D inventory.",
+        guild=guild,
+    )
+    @app_commands.describe(
+        character_id=(
+            "Optional character_id. Defaults to your current bound character."
+        ),
+    )
+    async def _inventory(
+        inter: discord.Interaction,
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+        try:
+            view = engine.list_inventory(
+                row.session_id,
+                inter.user.id,
+                character_id=character_id or None,
+            )
+        except ValueError as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)),
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("/inventory failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(
+            embed=_render_inventory_view(view),
+            ephemeral=True,
+        )
+
+    # ---- /loot -------------------------------------------------------------
+
+    @loot_group.command(
+        name="list",
+        description="List open loot offers for your character.",
+    )
+    @app_commands.describe(character_id="Optional character_id.")
+    async def _loot_list(
+        inter: discord.Interaction,
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        try:
+            offers = engine.list_loot_offers(
+                row.session_id,
+                inter.user.id,
+                character_id=character_id or None,
+            )
+        except ValueError as e:
+            await inter.response.send_message(
+                embed=render_error(str(e)),
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("/loot list failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(
+            embed=_render_loot_list(offers),
+            ephemeral=True,
+        )
+
+    @loot_group.command(
+        name="take",
+        description="Take selected item ids from a loot offer.",
+    )
+    @app_commands.describe(
+        offer_id="Loot offer id.",
+        item_ids="Comma-separated item ids from /loot list.",
+        character_id="Optional character_id.",
+    )
+    async def _loot_take(
+        inter: discord.Interaction,
+        offer_id: str,
+        item_ids: str,
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        selected = [part.strip() for part in item_ids.split(",") if part.strip()]
+        try:
+            result = await engine.claim_loot(
+                session_id=row.session_id,
+                user_id=inter.user.id,
+                character_id=character_id or None,
+                offer_id=offer_id,
+                item_ids=selected,
+                take_currency=False,
+            )
+        except ValueError as e:
+            await inter.response.send_message(str(e), ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("/loot take failed")
+            await inter.response.send_message(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(result.message, ephemeral=True)
+
+    @loot_group.command(
+        name="take_all",
+        description="Take every remaining item and coin from a loot offer.",
+    )
+    @app_commands.describe(
+        offer_id="Loot offer id.",
+        character_id="Optional character_id.",
+    )
+    async def _loot_take_all(
+        inter: discord.Interaction,
+        offer_id: str,
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        try:
+            offers = engine.list_loot_offers(
+                row.session_id,
+                inter.user.id,
+                character_id=character_id or None,
+            )
+            offer = next((o for o in offers if o.offer_id == offer_id), None)
+            if offer is None:
+                raise ValueError("That loot offer is already closed.")
+            result = await engine.claim_loot(
+                session_id=row.session_id,
+                user_id=inter.user.id,
+                character_id=character_id or None,
+                offer_id=offer_id,
+                item_ids=dnd_inventory.available_item_ids(offer),
+                take_currency=offer.has_available_currency(),
+            )
+        except ValueError as e:
+            await inter.response.send_message(str(e), ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("/loot take_all failed")
+            await inter.response.send_message(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(result.message, ephemeral=True)
+
+    @loot_group.command(
+        name="split_coins",
+        description="Split remaining coins in a loot offer among eligible players.",
+    )
+    @app_commands.describe(
+        offer_id="Loot offer id.",
+        character_id="Optional character_id.",
+    )
+    async def _loot_split_coins(
+        inter: discord.Interaction,
+        offer_id: str,
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        try:
+            result = await engine.split_loot_currency(
+                session_id=row.session_id,
+                user_id=inter.user.id,
+                offer_id=offer_id,
+                character_id=character_id or None,
+            )
+        except ValueError as e:
+            await inter.response.send_message(str(e), ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("/loot split_coins failed")
+            await inter.response.send_message(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(result.message, ephemeral=True)
+
+    @loot_group.command(
+        name="decline",
+        description="Decline an open loot offer for your character.",
+    )
+    @app_commands.describe(
+        offer_id="Loot offer id.",
+        character_id="Optional character_id.",
+    )
+    async def _loot_decline(
+        inter: discord.Interaction,
+        offer_id: str,
+        character_id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        try:
+            result = await engine.decline_loot(
+                session_id=row.session_id,
+                user_id=inter.user.id,
+                offer_id=offer_id,
+                character_id=character_id or None,
+            )
+        except ValueError as e:
+            await inter.response.send_message(str(e), ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("/loot decline failed")
+            await inter.response.send_message(
+                f"`{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
+            return
+        await inter.response.send_message(result.message, ephemeral=True)
 
     # ---- /begin -------------------------------------------------------------
     #
@@ -5205,9 +5818,11 @@ def register(
         tree.add_command(session_group, guild=guild)
         tree.add_command(story_group, guild=guild)
         tree.add_command(combat_group, guild=guild)
+        tree.add_command(loot_group, guild=guild)
         tree.add_command(settings_group, guild=guild)
     else:
         tree.add_command(session_group)
         tree.add_command(story_group)
         tree.add_command(combat_group)
+        tree.add_command(loot_group)
         tree.add_command(settings_group)

@@ -31,6 +31,8 @@ Commands inside the REPL:
     /as <character_id>          Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
     /defer                      Submit no action and let the scene continue
+    /inventory [character_id]   Show current D&D inventory
+    /loot                       List open D&D loot offers
     /roll [roll_id|all]         Roll pending D&D player check(s)
     /combat status              Show active D&D combat order and HP
     /query <question>           Ask an out-of-character question (POV-bounded)
@@ -62,9 +64,11 @@ from app.bot.engine_bridge import (
     CompletedPendingRoll,
     DndCombatParticipantView,
     DndCombatView,
+    DndInventoryView,
     EngineBridge,
     PendingRollPrompt,
 )
+from app.engine import dnd_inventory
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -87,6 +91,11 @@ Commands:
   /as <character_id>                Switch which claimed character acts next
   /describe                         Set name + appearance of the current actor
   /defer                            Submit no action and let the scene continue
+  /inventory [character_id]         Show current D&D inventory
+  /loot                             List open D&D loot offers
+  /loot take <offer> <all|ids>      Claim all or comma-separated item ids
+  /loot split-coins <offer>         Split offer coins among eligible players
+  /loot decline <offer>             Decline a loot offer
   /roll [roll_id|all]               Roll pending D&D player check(s)
   /combat begin [id,id...]          Begin D&D combat
   /combat status                    Show active D&D combat order and HP
@@ -194,6 +203,99 @@ def _print_combat_status(view: DndCombatView) -> None:
             f"({participant.character_id}){suffix}"
         )
     print()
+
+
+def _print_inventory(view: DndInventoryView) -> None:
+    print()
+    print(f"--- Inventory · {view.character_name} ({view.character_id}) ---")
+    coin_line = _coin_line(view.currency)
+    if coin_line:
+        print(f"Coins: {coin_line}")
+    items = view.items or []
+    if not items:
+        if not coin_line:
+            print("(empty)")
+        print()
+        return
+    equipped = [item for item in items if item.get("equipped")]
+    carried = [item for item in items if not item.get("equipped")]
+    if equipped:
+        print("Equipped:")
+        for item in equipped:
+            print(f"  - {_inventory_item_line(item)}")
+    if carried:
+        print("Carried:")
+        for item in carried:
+            print(f"  - {_inventory_item_line(item)}")
+    print()
+
+
+def _print_loot_offers(offers) -> None:
+    print()
+    print("--- Loot Offers ---")
+    if not offers:
+        print("(none)")
+        print()
+        return
+    for offer in offers:
+        print(_loot_offer_text(offer))
+        print()
+    print("Use /loot take <offer_id> <all|item_id[,item_id...]>.")
+    print("Use /loot split-coins <offer_id> or /loot decline <offer_id>.")
+    print()
+
+
+def _loot_offer_text(offer) -> str:
+    label = offer.source_label or offer.source_kind
+    lines = [f"{label} [{offer.offer_id}]"]
+    available_ids = set(dnd_inventory.available_item_ids(offer))
+    for item in offer.items:
+        if item.item_id not in available_ids:
+            continue
+        lines.append(f"  {item.item_id}: {_loot_item_line(item)}")
+    coin_line = _coin_line(dnd_inventory.available_currency_dict(offer))
+    if coin_line:
+        lines.append(f"  coins: {coin_line}")
+    if offer.notes:
+        lines.append(f"  note: {offer.notes}")
+    return "\n".join(lines)
+
+
+def _inventory_item_line(item: dict) -> str:
+    qty = _safe_int(item.get("quantity"), 1)
+    prefix = f"{qty}x " if qty != 1 else ""
+    kind = str(item.get("kind") or "").replace("_", " ")
+    item_id = str(item.get("id") or item.get("item_id") or "")
+    suffix_bits = [kind, item_id]
+    suffix = " (" + ", ".join(bit for bit in suffix_bits if bit) + ")"
+    return f"{prefix}{item.get('name') or 'Item'}{suffix if suffix != ' ()' else ''}"
+
+
+def _loot_item_line(item) -> str:
+    qty = _safe_int(getattr(item, "quantity", 1), 1)
+    prefix = f"{qty}x " if qty != 1 else ""
+    kind = str(getattr(item, "kind", "") or "").replace("_", " ")
+    suffix = f" ({kind})" if kind else ""
+    notes = str(getattr(item, "notes", "") or "").strip()
+    if notes:
+        suffix += f" - {notes}"
+    return f"{prefix}{getattr(item, 'name', 'Item')}{suffix}"
+
+
+def _coin_line(currency: dict) -> str:
+    parts = []
+    for key in ("pp", "gp", "ep", "sp", "cp"):
+        value = _safe_int(currency.get(key), 0)
+        if value:
+            parts.append(f"{value} {key}")
+    return ", ".join(parts)
+
+
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _combat_participant_label(participant: DndCombatParticipantView) -> str:
@@ -536,6 +638,156 @@ class CLIState:
             marker = "  ← acting" if char_id == self.current_actor else ""
             print(f"  - {char_id} (uid {uid}){marker}")
         self._print_open_reaction_slots()
+
+    def cmd_inventory(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        target = arg.strip() or self.current_actor
+        if target is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(target)
+        if uid is None:
+            print(f"not claimed: {target}")
+            return
+        try:
+            view = self.engine.list_inventory(
+                self.session_id,
+                uid,
+                character_id=target,
+            )
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_inventory(view)
+
+    async def cmd_loot(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        parts = arg.split(maxsplit=1) if arg.strip() else []
+        if not parts:
+            self._print_loot_for_current()
+            return
+        sub = parts[0].lower().replace("-", "_")
+        rest = parts[1] if len(parts) > 1 else ""
+        handler = getattr(self, f"cmd_loot_{sub}", None)
+        if handler is None:
+            print(f"unknown loot subcommand: {parts[0]}")
+            return
+        result = handler(rest)
+        if asyncio.iscoroutine(result):
+            await result
+
+    def _print_loot_for_current(self) -> None:
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(self.current_actor)
+        if uid is None:
+            print(f"not claimed: {self.current_actor}")
+            return
+        try:
+            offers = self.engine.list_loot_offers(
+                self.session_id,
+                uid,
+                character_id=self.current_actor,
+            )
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_loot_offers(offers)
+
+    async def cmd_loot_take(self, arg: str) -> None:
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        parts = arg.split(maxsplit=1)
+        if len(parts) != 2:
+            print("usage: /loot take <offer_id> <all|item_id[,item_id...]>")
+            return
+        offer_id, item_spec = parts[0], parts[1].strip()
+        uid = self.claims.get(self.current_actor)
+        if uid is None:
+            print(f"not claimed: {self.current_actor}")
+            return
+        try:
+            take_currency = False
+            if item_spec.lower() == "all":
+                offers = self.engine.list_loot_offers(
+                    self.session_id,
+                    uid,
+                    character_id=self.current_actor,
+                )
+                offer = next((o for o in offers if o.offer_id == offer_id), None)
+                if offer is None:
+                    raise ValueError("That loot offer is already closed.")
+                item_ids = dnd_inventory.available_item_ids(offer)
+                take_currency = offer.has_available_currency()
+            else:
+                item_ids = [
+                    part.strip() for part in item_spec.split(",")
+                    if part.strip()
+                ]
+            result = await self.engine.claim_loot(
+                session_id=self.session_id,
+                user_id=uid,
+                character_id=self.current_actor,
+                offer_id=offer_id,
+                item_ids=item_ids,
+                take_currency=take_currency,
+            )
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        print(result.message)
+
+    async def cmd_loot_split_coins(self, arg: str) -> None:
+        offer_id = arg.strip()
+        if not offer_id:
+            print("usage: /loot split-coins <offer_id>")
+            return
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(self.current_actor)
+        if uid is None:
+            print(f"not claimed: {self.current_actor}")
+            return
+        try:
+            result = await self.engine.split_loot_currency(
+                session_id=self.session_id,
+                user_id=uid,
+                offer_id=offer_id,
+                character_id=self.current_actor,
+            )
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        print(result.message)
+
+    async def cmd_loot_decline(self, arg: str) -> None:
+        offer_id = arg.strip()
+        if not offer_id:
+            print("usage: /loot decline <offer_id>")
+            return
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(self.current_actor)
+        if uid is None:
+            print(f"not claimed: {self.current_actor}")
+            return
+        try:
+            result = await self.engine.decline_loot(
+                session_id=self.session_id,
+                user_id=uid,
+                offer_id=offer_id,
+                character_id=self.current_actor,
+            )
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        print(result.message)
 
     def cmd_join(self, arg: str) -> None:
         if not self._require_story():
@@ -1310,6 +1562,7 @@ class CLIState:
                 print(f"--- AFK auto-resolution · POV {cid} ---")
                 print(prose)
                 print()
+            self._print_loot_prompts(pre_resp)
 
         per_player = response.per_player_renders or {}
 
@@ -1358,6 +1611,7 @@ class CLIState:
             _print_roll_prompts(prompts)
 
         self._print_reaction_prompts(response)
+        self._print_loot_prompts(response)
         self._sync_current_actor_to_active_combat()
 
     def _print_cat_ii_pending_notice(self) -> None:
@@ -1459,6 +1713,17 @@ class CLIState:
                 f"event {event_id}; /as {cid}, then type a reaction "
                 "or use /defer to pass"
             )
+            print()
+
+    def _print_loot_prompts(self, response) -> None:
+        prompts = getattr(response, "loot_prompts", None) or {}
+        for cid, offer_ids in prompts.items():
+            if cid not in self.claims:
+                continue
+            print(f"--- Loot Available · {cid} ---")
+            for offer_id in offer_ids:
+                print(f"offer {offer_id}")
+            print("Use /loot to inspect, /loot take <offer_id> all to claim.")
             print()
 
     def _joined_pending_roll_prompts(self) -> list[PendingRollPrompt]:

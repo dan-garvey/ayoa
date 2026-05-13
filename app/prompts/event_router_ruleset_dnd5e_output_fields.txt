@@ -1,2 +1,26 @@
   "interaction_mode": "cat_i | cat_ii | dnd_combat_start | dnd_combat_end",
   "combatant_ids": ["character_id - required only for dnd_combat_start, else empty"],
+  "loot_offer": {{
+    "present": true or false,
+    "source_kind": "body | container | reward | handoff | vendor | other",
+    "source_label": "string - body, chest, giver, reward, or other visible source label",
+    "visibility": "table | private",
+    "eligible_character_ids": ["character_id - player characters who may claim, else empty"],
+    "items": [
+      {{
+        "item_id": "string - stable snake_case id unique within this offer",
+        "name": "string - visible item name",
+        "kind": "weapon | armor | shield | consumable | tool | wondrous_item | gear | other",
+        "quantity": 1,
+        "identified": true or false,
+        "requires_identification": true or false,
+        "requires_attunement": true or false,
+        "consumable": true or false,
+        "value_gp": 0,
+        "weight": 0,
+        "notes": "string - visible or already-known caveats only"
+      }}
+    ],
+    "currency": {{"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0}},
+    "notes": "string - visible offer-level caveats only"
+  }},

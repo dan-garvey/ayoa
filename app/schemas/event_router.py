@@ -6,6 +6,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.schemas.events import CanonicalEvent
+from app.schemas.dnd_inventory import (
+    DndLootOfferSignal,
+    empty_loot_offer_signal,
+)
 
 
 # Typed enum for `ends_beat_reason`. Keeps the model grammar-constrained
@@ -391,12 +395,16 @@ class DndEventRouterOutput(EventRouterOutput):
 
     interaction_mode: DndInteractionMode
     combatant_ids: list[str]
+    loot_offer: DndLootOfferSignal
 
     @model_validator(mode="before")
     @classmethod
     def _coerce_interaction_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
+        if "loot_offer" not in data:
+            data = dict(data)
+            data["loot_offer"] = empty_loot_offer_signal()
         mode = data.get("interaction_mode")
         if mode in {"cat_i", "dnd_combat_start", "dnd_combat_end"}:
             data = dict(data)

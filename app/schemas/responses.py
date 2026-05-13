@@ -32,6 +32,9 @@ class TurnResponse(BaseModel):
     # frontends which rendered POVs should receive a no-LLM "No reaction"
     # button.
     reaction_prompts: dict[str, str] = Field(default_factory=dict)
+    # Runtime-only D&D inventory affordances keyed by character_id. Values are
+    # pending loot offer ids this character can inspect and claim.
+    loot_prompts: dict[str, list[str]] = Field(default_factory=dict)
     # v11-r7a: pre-turn AFK-sweep resolutions. When the per-session lock
     # holder runs `sweep_stale_pins`, each event the sweep fills is
     # closed by `Orchestrator.resolve_cat_ii`, producing a TurnResponse

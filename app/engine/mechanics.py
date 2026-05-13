@@ -5,6 +5,7 @@ from typing import Any
 
 from app.schemas.characters import CharacterRecord
 from app.schemas.dnd_cat_ii import PlannedRoll
+from app.engine import dnd_inventory
 
 
 _SKILL_ABILITIES = {
@@ -57,6 +58,7 @@ def mechanics_summary(character: CharacterRecord) -> dict[str, Any]:
     mechanics = character.mechanics or {}
     statblock = (mechanics.get("dnd5e_sheet") or {}).get("statblock") or {}
     defenses = statblock.get("defenses", {}) if isinstance(statblock, dict) else {}
+    inventory = dnd_inventory.inventory_view(character)
     return {
         "ruleset_id": str(mechanics.get("ruleset_id", "")),
         "ability_scores": mechanics.get("ability_scores", {}),
@@ -75,7 +77,30 @@ def mechanics_summary(character: CharacterRecord) -> dict[str, Any]:
         ),
         "defenses": defenses if isinstance(defenses, dict) else {},
         "resources": mechanics.get("resources", {}),
+        "inventory": _inventory_summary(inventory),
         "raw": mechanics.get("raw", {}),
+    }
+
+
+def _inventory_summary(inventory: dict[str, Any]) -> dict[str, Any]:
+    items = [
+        item for item in (inventory.get("items") or [])
+        if isinstance(item, dict)
+    ]
+    return {
+        "currency": inventory.get("currency") or {},
+        "items": [
+            {
+                "id": str(item.get("id") or item.get("item_id") or ""),
+                "name": str(item.get("name") or "Item"),
+                "kind": str(item.get("kind") or "gear"),
+                "quantity": item.get("quantity") or 1,
+                "equipped": bool(item.get("equipped")),
+                "attuned": bool(item.get("attuned")),
+                "identified": bool(item.get("identified", True)),
+            }
+            for item in items[:40]
+        ],
     }
 
 

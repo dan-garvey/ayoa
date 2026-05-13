@@ -384,6 +384,44 @@ class TestDndEventRouterOutput:
         assert out.requires_responders is False
         assert out.required_responders == []
         assert out.combatant_ids == ["alice", "pip"]
+        assert out.loot_offer.present is False
+
+    def test_dnd_loot_offer_contract(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "cat_i",
+            "combatant_ids": [],
+            "loot_offer": {
+                "present": True,
+                "source_kind": "container",
+                "source_label": "iron chest",
+                "visibility": "table",
+                "eligible_character_ids": ["alice"],
+                "items": [
+                    {
+                        "item_id": "healing_potion",
+                        "name": "Potion of Healing",
+                        "kind": "consumable",
+                        "quantity": 1,
+                        "identified": True,
+                        "requires_identification": False,
+                        "requires_attunement": False,
+                        "consumable": True,
+                        "value_gp": 50,
+                        "weight": 0.5,
+                        "notes": "",
+                    }
+                ],
+                "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 5, "pp": 0},
+                "notes": "",
+            },
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.loot_offer.present is True
+        assert out.loot_offer.items[0].item_id == "healing_potion"
+        assert out.loot_offer.currency.gp == 5
 
     def test_combat_start_allows_engine_to_validate_participant_count(self):
         data = {
@@ -504,6 +542,7 @@ class TestTurnResponse:
         assert tr.output_text == "You look around."
         assert tr.per_player_renders == {}
         assert tr.beat_ended_reason == ""
+        assert tr.loot_prompts == {}
 
     def test_legacy_debug_payload_silently_dropped(self):
         tr = TurnResponse(

@@ -5,6 +5,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.dnd_inventory import DndLootOffer
+
 
 class ModelConfig(BaseModel):
     event_router: str = "gpt-5.2"
@@ -483,6 +485,9 @@ class SessionState(BaseModel):
     # Checkpoint-persistent active D&D combat state. Combat command wiring is
     # intentionally separate; engine helpers mutate this snapshot directly.
     active_combat: DndCombatState | None = None
+    # D&D-adapter pending loot/reward choices. Generic narrative sessions leave
+    # this empty; item/currency claims mutate character mechanics overlays.
+    dnd_inventory_offers: list[DndLootOffer] = Field(default_factory=list)
     # v11: per-player queue of canonical events awaiting render. Keyed by
     # character_id (a human's bound character). Cleared after each render
     # fires. An agent's "render buffer" is just its observation context

@@ -29,7 +29,7 @@ from typing import Any
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
-from app.engine import dnd_combat
+from app.engine import dnd_combat, dnd_inventory
 from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     complete_pending_player_roll,
@@ -473,6 +473,19 @@ def _combine_beat_renders(results: list[BeatResult]) -> dict[str, str]:
     return combined
 
 
+def _combine_loot_prompts(results: list[BeatResult]) -> dict[str, list[str]]:
+    combined: dict[str, list[str]] = {}
+    for result in results:
+        for cid, offer_ids in (result.loot_prompts or {}).items():
+            if not offer_ids:
+                continue
+            bucket = combined.setdefault(cid, [])
+            for offer_id in offer_ids:
+                if offer_id not in bucket:
+                    bucket.append(offer_id)
+    return combined
+
+
 def _combined_beat_reason(results: list[BeatResult]) -> str:
     if any(result.ended_reason == "combat_started" for result in results):
         return "combat_started"
@@ -528,9 +541,10 @@ class Orchestrator:
         beat_result: BeatResult,
         *,
         log_label: str,
-    ) -> None:
+    ) -> dict[str, list[str]]:
         if beat_result.events_closed <= 0:
-            return
+            beat_result.loot_prompts = {}
+            return {}
         closed_this_beat = ckpt.canonical_events[-beat_result.events_closed:]
         actors = beat_result.event_actor_ids
         if len(actors) != beat_result.events_closed:
@@ -551,6 +565,12 @@ class Orchestrator:
                     ckpt, evt.spawn,
                     acting_actor_location=spawn_loc,
                 )
+        loot_prompts = dnd_inventory.apply_loot_offers_from_events(
+            ckpt,
+            closed_this_beat,
+        )
+        beat_result.loot_prompts = loot_prompts
+        return loot_prompts
 
     async def _run_automated_combat_turns_locked(
         self,
@@ -870,6 +890,7 @@ class Orchestrator:
             per_player_renders=per_player,
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
+            loot_prompts=_combine_loot_prompts(beat_results),
         )
 
     def _defer_combat_reaction_locked(
@@ -1117,32 +1138,11 @@ class Orchestrator:
                     reaction_prompts={},
                 )
 
-            # Apply side-effects for each newly closed event.
-            if beat_result.events_closed > 0:
-                closed_this_beat = ckpt.canonical_events[
-                    -beat_result.events_closed:
-                ]
-                actors = beat_result.event_actor_ids
-                if len(actors) != beat_result.events_closed:
-                    logger.warning(
-                        "Cat II BeatResult event_actor_ids length %d != "
-                        "events_closed %d; spawn location fallback may be empty.",
-                        len(actors), beat_result.events_closed,
-                    )
-                    actors = actors + [None] * (
-                        beat_result.events_closed - len(actors)
-                    )
-                for ev, ev_actor in zip(closed_this_beat, actors):
-                    self.char_mgr.apply_roster_updates(ckpt, ev)
-                    if ev.spawn:
-                        spawn_loc = (
-                            self._resolve_location(ckpt, ev_actor)
-                            if ev_actor else ""
-                        )
-                        await self.char_mgr.spawn_characters(
-                            ckpt, ev.spawn,
-                            acting_actor_location=spawn_loc,
-                        )
+            await self._apply_beat_roster_side_effects(
+                ckpt,
+                beat_result,
+                log_label="Cat II BeatResult",
+            )
 
             if beat_result.events_closed > 0:
                 ckpt.session.turn_index += 1
@@ -1178,6 +1178,7 @@ class Orchestrator:
             per_player_renders=renders,
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
+            loot_prompts=_combine_loot_prompts(beat_results),
         )
 
     async def submit_cat_ii_roll(
@@ -1353,24 +1354,12 @@ class Orchestrator:
             acting_player_id=output_actor_id,
         )
 
+        await self._apply_beat_roster_side_effects(
+            ckpt,
+            beat_result,
+            log_label="Combat roll BeatResult",
+        )
         if beat_result.events_closed > 0:
-            closed_this_beat = ckpt.canonical_events[-beat_result.events_closed:]
-            actors = beat_result.event_actor_ids
-            if len(actors) != beat_result.events_closed:
-                actors = actors + [None] * (
-                    beat_result.events_closed - len(actors)
-                )
-            for ev, ev_actor in zip(closed_this_beat, actors):
-                self.char_mgr.apply_roster_updates(ckpt, ev)
-                if ev.spawn:
-                    spawn_loc = (
-                        self._resolve_location(ckpt, ev_actor)
-                        if ev_actor else ""
-                    )
-                    await self.char_mgr.spawn_characters(
-                        ckpt, ev.spawn,
-                        acting_actor_location=spawn_loc,
-                    )
             ckpt.session.turn_index += 1
 
         _append_transcript_entry(ckpt, beat_result, output_actor_id)
@@ -1402,6 +1391,7 @@ class Orchestrator:
             per_player_renders=renders,
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
+            loot_prompts=_combine_loot_prompts(beat_results),
         )
 
     def _stale_combat_roll_response(
@@ -1553,31 +1543,12 @@ class Orchestrator:
                 event_actor_ids=[evt_live.initiator_id],
             )
 
+        await self._apply_beat_roster_side_effects(
+            ckpt,
+            beat_result,
+            log_label="Cat II roll BeatResult",
+        )
         if beat_result.events_closed > 0:
-            closed_this_beat = ckpt.canonical_events[
-                -beat_result.events_closed:
-            ]
-            actors = beat_result.event_actor_ids
-            if len(actors) != beat_result.events_closed:
-                logger.warning(
-                    "Cat II roll BeatResult event_actor_ids length %d != "
-                    "events_closed %d; spawn location fallback may be empty.",
-                    len(actors), beat_result.events_closed,
-                )
-                actors = actors + [None] * (
-                    beat_result.events_closed - len(actors)
-                )
-            for ev, ev_actor in zip(closed_this_beat, actors):
-                self.char_mgr.apply_roster_updates(ckpt, ev)
-                if ev.spawn:
-                    spawn_loc = (
-                        self._resolve_location(ckpt, ev_actor)
-                        if ev_actor else ""
-                    )
-                    await self.char_mgr.spawn_characters(
-                        ckpt, ev.spawn,
-                        acting_actor_location=spawn_loc,
-                    )
             ckpt.session.turn_index += 1
 
         _append_transcript_entry(ckpt, beat_result, evt_live.initiator_id)
@@ -1606,6 +1577,7 @@ class Orchestrator:
             per_player_renders=renders,
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
+            loot_prompts=_combine_loot_prompts(beat_results),
         )
 
     # ------------------------------------------------------------------ helpers

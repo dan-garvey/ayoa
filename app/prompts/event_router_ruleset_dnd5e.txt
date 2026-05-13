@@ -20,3 +20,26 @@ spell effects before initiative.
 
 For `dnd_combat_end`, set `requires_responders=false`,
 `required_responders=[]`, and `combatant_ids=[]`.
+
+### D&D Loot Offers
+
+`loot_offer` represents visible items or coins a player character may choose to
+add to inventory after the event. It is a choice surface, not a resolved
+inventory mutation.
+
+Set `loot_offer.present=true` only when the current event makes takeable
+contents visible or explicitly offered: searching a body, opening a container,
+receiving a quest reward, accepting an unopposed handoff, or completing a clear
+reward transfer. Do not use it for hidden contents, possible traps, curses,
+unidentified magical properties, or ordinary shop stock that still requires an
+unresolved purchase.
+
+When the offer is private to one character, set `visibility="private"` and put
+only that character in `eligible_character_ids`. When the table can see and
+reasonably claim it, set `visibility="table"` and list the player character ids
+who can choose from it. If the item is not identified, use its visible surface
+name, set `identified=false`, and put unknown details in `notes` only if the
+character can perceive them.
+
+When no loot is available, emit the full `loot_offer` object with
+`present=false`, `source_kind="other"`, empty strings/lists, and zero currency.

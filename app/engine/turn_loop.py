@@ -1584,6 +1584,9 @@ class BeatResult:
 
     `reaction_prompts` is runtime UI state: character_id -> closed canonical
     event id for combat reaction windows created by this beat.
+
+    `loot_prompts` is D&D-adapter UI state filled by the orchestrator after
+    closed events are inspected for loot offers.
     """
     renders: dict[str, str]
     events_closed: int
@@ -1591,6 +1594,7 @@ class BeatResult:
     transcript_entries: dict[str, TranscriptEntry]
     event_actor_ids: list[str]
     reaction_prompts: dict[str, str] | None = None
+    loot_prompts: dict[str, list[str]] | None = None
 
 
 async def run_beat(
