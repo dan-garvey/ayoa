@@ -16,6 +16,7 @@ from app.schemas.event_router import EventRouterOutput
 
 
 _COIN_KEYS = ("cp", "sp", "ep", "gp", "pp")
+_CLOSED_OFFER_RETAIN = 25
 
 
 def inventory_view(character: CharacterRecord) -> dict[str, Any]:
@@ -41,6 +42,7 @@ def apply_loot_offers_from_events(
     Re-running with the same source event is idempotent.
     """
 
+    prune_inventory_offers(ckpt)
     prompts: dict[str, list[str]] = {}
     existing_event_ids = {
         offer.source_event_id
@@ -61,6 +63,8 @@ def apply_loot_offers_from_events(
             continue
 
         eligible = _eligible_ids_for_signal(ckpt, event, signal)
+        if not eligible:
+            continue
         offer = DndLootOffer(
             offer_id=_offer_id(event.event_id),
             source_event_id=event.event_id,
@@ -85,6 +89,7 @@ def open_loot_offers_for_character(
     ckpt: CheckpointFile,
     character_id: str,
 ) -> list[DndLootOffer]:
+    prune_inventory_offers(ckpt)
     return [
         offer
         for offer in ckpt.session.dnd_inventory_offers
@@ -99,24 +104,44 @@ def claim_loot(
     offer_id: str,
     item_ids: Iterable[str],
     take_currency: bool = False,
+    take_all_available: bool = False,
 ) -> dict[str, Any]:
+    prune_inventory_offers(ckpt)
     offer = _find_open_offer(ckpt, offer_id)
     if not _character_is_eligible(ckpt, offer, character_id):
         raise ValueError("That loot offer is not available to this character.")
 
-    selected = [iid.strip() for iid in item_ids if iid.strip()]
-    selected_set = set(selected)
     available_items = {
         item.item_id: item
         for item in offer.items
         if item.item_id not in set(offer.claimed_item_ids)
     }
+    selected = (
+        list(available_items)
+        if take_all_available
+        else [iid.strip() for iid in item_ids if iid.strip()]
+    )
+    selected_set = set(selected)
     if selected_set - set(available_items):
         missing = ", ".join(sorted(selected_set - set(available_items)))
-        raise ValueError(f"Item(s) no longer available in that offer: {missing}")
+        raise ValueError(
+            "Item(s) already claimed or no longer available: "
+            f"{missing}. Use /loot list to see what remains."
+        )
     if take_currency and not offer.has_available_currency():
-        raise ValueError("Currency is no longer available in that offer.")
-    if not selected and not take_currency:
+        if take_all_available:
+            take_currency = False
+        else:
+            raise ValueError(
+                "Currency is no longer available in that offer. "
+                "Use /loot list to see what remains."
+            )
+    if not selected and not (take_currency and offer.has_available_currency()):
+        if take_all_available:
+            raise ValueError(
+                "That loot offer has nothing left to claim. "
+                "Use /loot list to see open offers."
+            )
         raise ValueError("Choose at least one item or currency to claim.")
 
     character = _character_by_id(ckpt, character_id)
@@ -147,6 +172,7 @@ def claim_loot(
         offer.currency_claimed = True
 
     _close_offer_if_empty_or_declined(ckpt, offer)
+    prune_inventory_offers(ckpt)
     return {
         "offer_id": offer.offer_id,
         "character_id": character_id,
@@ -162,6 +188,7 @@ def split_loot_currency(
     offer_id: str,
     actor_id: str,
 ) -> dict[str, Any]:
+    prune_inventory_offers(ckpt)
     offer = _find_open_offer(ckpt, offer_id)
     if not _character_is_eligible(ckpt, offer, actor_id):
         raise ValueError("That loot offer is not available to this character.")
@@ -195,6 +222,7 @@ def split_loot_currency(
 
     offer.currency_claimed = True
     _close_offer_if_empty_or_declined(ckpt, offer)
+    prune_inventory_offers(ckpt)
     return {
         "offer_id": offer.offer_id,
         "shares": shares,
@@ -208,13 +236,73 @@ def decline_loot(
     character_id: str,
     offer_id: str,
 ) -> dict[str, Any]:
+    prune_inventory_offers(ckpt)
     offer = _find_open_offer(ckpt, offer_id)
     if not _character_is_eligible(ckpt, offer, character_id):
         raise ValueError("That loot offer is not available to this character.")
     if character_id not in offer.declined_by_character_ids:
         offer.declined_by_character_ids.append(character_id)
     _close_offer_if_empty_or_declined(ckpt, offer)
+    prune_inventory_offers(ckpt)
     return {"offer_id": offer.offer_id, "offer_closed": offer.status == "closed"}
+
+
+def remove_character_from_loot_offers(
+    ckpt: CheckpointFile,
+    character_id: str,
+) -> int:
+    """Remove a departed player character from pending offer eligibility."""
+
+    changed = 0
+    for offer in ckpt.session.dnd_inventory_offers:
+        before = list(offer.eligible_character_ids)
+        offer.eligible_character_ids = [
+            cid for cid in offer.eligible_character_ids if cid != character_id
+        ]
+        if before != offer.eligible_character_ids:
+            changed += 1
+        _close_offer_if_empty_or_declined(ckpt, offer)
+    changed += prune_inventory_offers(ckpt)
+    return changed
+
+
+def prune_inventory_offers(
+    ckpt: CheckpointFile,
+    *,
+    max_closed: int = _CLOSED_OFFER_RETAIN,
+) -> int:
+    """Close orphaned offers and retain only a bounded closed-offer tail."""
+
+    offers = list(getattr(ckpt.session, "dnd_inventory_offers", []) or [])
+    changed = 0
+    for offer in offers:
+        before = (
+            offer.status,
+            tuple(offer.eligible_character_ids),
+            tuple(offer.declined_by_character_ids),
+        )
+        _close_offer_if_empty_or_declined(ckpt, offer)
+        after = (
+            offer.status,
+            tuple(offer.eligible_character_ids),
+            tuple(offer.declined_by_character_ids),
+        )
+        if after != before:
+            changed += 1
+
+    closed = [offer for offer in offers if offer.status == "closed"]
+    if max_closed < 0 or len(closed) <= max_closed:
+        return changed
+
+    keep_closed = {id(offer) for offer in closed[-max_closed:]}
+    kept = [
+        offer
+        for offer in offers
+        if offer.status != "closed" or id(offer) in keep_closed
+    ]
+    removed = len(offers) - len(kept)
+    ckpt.session.dnd_inventory_offers = kept
+    return changed + removed
 
 
 def available_item_ids(offer: DndLootOffer) -> list[str]:
@@ -285,11 +373,15 @@ def _eligible_ids_for_signal(
     signal: DndLootOfferSignal,
 ) -> list[str]:
     active_ids = {char.character_id for char in ckpt.characters}
-    eligible = [cid for cid in signal.eligible_character_ids if cid in active_ids]
+    bound = ckpt.session.character_bindings or {}
+    eligible = [
+        cid
+        for cid in signal.eligible_character_ids
+        if cid in active_ids and cid in bound
+    ]
     if eligible:
         return list(dict.fromkeys(eligible))
     observer_ids = [obs.character_id for obs in event.observers]
-    bound = ckpt.session.character_bindings or {}
     return [
         cid
         for cid in dict.fromkeys(observer_ids)
@@ -336,9 +428,11 @@ def _character_is_eligible(
 ) -> bool:
     if not character_id:
         return False
-    eligible = offer.eligible_character_ids
+    if character_id not in (ckpt.session.character_bindings or {}):
+        return False
+    eligible = _effective_eligible_ids(ckpt, offer)
     if not eligible:
-        return character_id in (ckpt.session.character_bindings or {})
+        return False
     return character_id in eligible
 
 
@@ -409,11 +503,7 @@ def _currency_split_recipients(
     offer: DndLootOffer,
     actor_id: str,
 ) -> list[str]:
-    bindings = ckpt.session.character_bindings or {}
-    if offer.eligible_character_ids:
-        eligible = [cid for cid in offer.eligible_character_ids if cid in bindings]
-    else:
-        eligible = list(bindings)
+    eligible = _effective_eligible_ids(ckpt, offer)
     if actor_id not in eligible and _character_is_eligible(ckpt, offer, actor_id):
         eligible.insert(0, actor_id)
     return list(dict.fromkeys(eligible))
@@ -426,9 +516,30 @@ def _close_offer_if_empty_or_declined(
     if not offer.available_item_ids() and not offer.has_available_currency():
         offer.status = "closed"
         return
-    eligible = offer.eligible_character_ids or list(ckpt.session.character_bindings)
+    eligible = _effective_eligible_ids(ckpt, offer)
+    offer.eligible_character_ids = eligible
+    offer.declined_by_character_ids = [
+        cid for cid in offer.declined_by_character_ids if cid in set(eligible)
+    ]
+    if not eligible:
+        offer.status = "closed"
+        return
     if eligible and set(eligible).issubset(set(offer.declined_by_character_ids)):
         offer.status = "closed"
+
+
+def _effective_eligible_ids(
+    ckpt: CheckpointFile,
+    offer: DndLootOffer,
+) -> list[str]:
+    bindings = ckpt.session.character_bindings or {}
+    active_ids = {char.character_id for char in ckpt.characters}
+    seed = offer.eligible_character_ids
+    return [
+        cid
+        for cid in dict.fromkeys(seed)
+        if cid in bindings and cid in active_ids
+    ]
 
 
 def _offer_id(event_id: str) -> str:

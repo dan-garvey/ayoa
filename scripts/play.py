@@ -242,6 +242,7 @@ def _print_loot_offers(offers) -> None:
         print()
     print("Use /loot take <offer_id> <all|item_id[,item_id...]>.")
     print("Use /loot split-coins <offer_id> or /loot decline <offer_id>.")
+    print("Decline is final for your character while the offer remains open.")
     print()
 
 
@@ -713,21 +714,15 @@ class CLIState:
         try:
             take_currency = False
             if item_spec.lower() == "all":
-                offers = self.engine.list_loot_offers(
-                    self.session_id,
-                    uid,
-                    character_id=self.current_actor,
-                )
-                offer = next((o for o in offers if o.offer_id == offer_id), None)
-                if offer is None:
-                    raise ValueError("That loot offer is already closed.")
-                item_ids = dnd_inventory.available_item_ids(offer)
-                take_currency = offer.has_available_currency()
+                item_ids = []
+                take_currency = True
+                take_all_available = True
             else:
                 item_ids = [
                     part.strip() for part in item_spec.split(",")
                     if part.strip()
                 ]
+                take_all_available = False
             result = await self.engine.claim_loot(
                 session_id=self.session_id,
                 user_id=uid,
@@ -735,6 +730,7 @@ class CLIState:
                 offer_id=offer_id,
                 item_ids=item_ids,
                 take_currency=take_currency,
+                take_all_available=take_all_available,
             )
         except Exception as e:
             print(f"error: {type(e).__name__}: {e}")

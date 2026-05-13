@@ -932,6 +932,8 @@ class EngineBridge:
         character_id: str | None = None,
     ) -> list[DndLootOffer]:
         ckpt = self.checkpoint_mgr.load_latest(session_id)
+        if dnd_inventory.prune_inventory_offers(ckpt):
+            self.checkpoint_mgr.save(ckpt)
         target_id = self._bound_character_id_for_user(
             ckpt,
             user_id=user_id,
@@ -948,6 +950,7 @@ class EngineBridge:
         offer_id: str,
         item_ids: list[str],
         take_currency: bool = False,
+        take_all_available: bool = False,
     ) -> DndLootClaimResult:
         lock = await self._lock_for(session_id)
         async with lock:
@@ -967,6 +970,7 @@ class EngineBridge:
                     offer_id=offer_id,
                     item_ids=item_ids,
                     take_currency=take_currency,
+                    take_all_available=take_all_available,
                 )
                 self.checkpoint_mgr.save(ckpt)
         return DndLootClaimResult(
@@ -1394,6 +1398,7 @@ class EngineBridge:
             # atomically on the same checkpoint write.
             purge_character_state(ckpt, freed)
             del ckpt.session.character_bindings[freed]
+            dnd_inventory.remove_character_from_loot_offers(ckpt, freed)
             freed_name = next(
                 (c.name for c in ckpt.characters if c.character_id == freed),
                 freed,

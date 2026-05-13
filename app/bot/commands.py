@@ -942,27 +942,12 @@ class _LootOfferView(discord.ui.View):
         )
 
     async def _take_all(self, inter: discord.Interaction) -> None:
-        try:
-            offers = self.engine.list_loot_offers(
-                self.session_id,
-                self.user_id,
-                character_id=self.character_id,
-            )
-            offer = next((o for o in offers if o.offer_id == self.offer_id), None)
-            if offer is None:
-                raise ValueError("That loot offer is already closed.")
-            await self._claim(
-                inter,
-                item_ids=dnd_inventory.available_item_ids(offer),
-                take_currency=offer.has_available_currency(),
-            )
-        except Exception as e:
-            logger.exception("loot take-all failed")
-            await inter.response.send_message(
-                str(e) if isinstance(e, ValueError)
-                else f"`{type(e).__name__}: {e}`",
-                ephemeral=True,
-            )
+        await self._claim(
+            inter,
+            item_ids=[],
+            take_currency=True,
+            take_all_available=True,
+        )
 
     async def _claim(
         self,
@@ -970,6 +955,7 @@ class _LootOfferView(discord.ui.View):
         *,
         item_ids: list[str],
         take_currency: bool,
+        take_all_available: bool = False,
     ) -> None:
         try:
             result = await self.engine.claim_loot(
@@ -979,12 +965,18 @@ class _LootOfferView(discord.ui.View):
                 offer_id=self.offer_id,
                 item_ids=item_ids,
                 take_currency=take_currency,
+                take_all_available=take_all_available,
             )
+        except ValueError as e:
+            await inter.response.send_message(
+                _loot_player_error(e),
+                ephemeral=True,
+            )
+            return
         except Exception as e:
             logger.exception("loot claim failed")
             await inter.response.send_message(
-                str(e) if isinstance(e, ValueError)
-                else f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return
@@ -998,11 +990,16 @@ class _LootOfferView(discord.ui.View):
                 offer_id=self.offer_id,
                 character_id=self.character_id,
             )
+        except ValueError as e:
+            await inter.response.send_message(
+                _loot_player_error(e),
+                ephemeral=True,
+            )
+            return
         except Exception as e:
             logger.exception("loot split failed")
             await inter.response.send_message(
-                str(e) if isinstance(e, ValueError)
-                else f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return
@@ -1016,11 +1013,16 @@ class _LootOfferView(discord.ui.View):
                 offer_id=self.offer_id,
                 character_id=self.character_id,
             )
+        except ValueError as e:
+            await inter.response.send_message(
+                _loot_player_error(e),
+                ephemeral=True,
+            )
+            return
         except Exception as e:
             logger.exception("loot decline failed")
             await inter.response.send_message(
-                str(e) if isinstance(e, ValueError)
-                else f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return
@@ -2019,6 +2021,7 @@ def _loot_offer_content(offer: DndLootOffer) -> str:
             "Use the buttons below, `/loot take_all`, `/loot split_coins`, "
             "or `/loot decline`."
         ),
+        "Decline is final for your character while this offer remains open.",
     ]).strip()
 
 
@@ -2056,6 +2059,12 @@ def _loot_item_line(item: Any) -> str:
 def _loot_item_option_label(item: Any) -> str:
     label = _loot_item_line(item)
     return label[:100]
+
+
+def _loot_player_error(exc: Exception) -> str:
+    if isinstance(exc, ValueError):
+        return str(exc)
+    return "Loot action failed. Use `/loot list` to refresh open offers."
 
 
 def _sheet_features(embed: discord.Embed, statblock: dict[str, Any]) -> None:
@@ -4004,12 +4013,12 @@ def register(
                 take_currency=False,
             )
         except ValueError as e:
-            await inter.response.send_message(str(e), ephemeral=True)
+            await inter.response.send_message(_loot_player_error(e), ephemeral=True)
             return
         except Exception as e:
             logger.exception("/loot take failed")
             await inter.response.send_message(
-                f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return
@@ -4033,29 +4042,22 @@ def register(
             await inter.response.send_message("No session here.", ephemeral=True)
             return
         try:
-            offers = engine.list_loot_offers(
-                row.session_id,
-                inter.user.id,
-                character_id=character_id or None,
-            )
-            offer = next((o for o in offers if o.offer_id == offer_id), None)
-            if offer is None:
-                raise ValueError("That loot offer is already closed.")
             result = await engine.claim_loot(
                 session_id=row.session_id,
                 user_id=inter.user.id,
                 character_id=character_id or None,
                 offer_id=offer_id,
-                item_ids=dnd_inventory.available_item_ids(offer),
-                take_currency=offer.has_available_currency(),
+                item_ids=[],
+                take_currency=True,
+                take_all_available=True,
             )
         except ValueError as e:
-            await inter.response.send_message(str(e), ephemeral=True)
+            await inter.response.send_message(_loot_player_error(e), ephemeral=True)
             return
         except Exception as e:
             logger.exception("/loot take_all failed")
             await inter.response.send_message(
-                f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return
@@ -4086,12 +4088,12 @@ def register(
                 character_id=character_id or None,
             )
         except ValueError as e:
-            await inter.response.send_message(str(e), ephemeral=True)
+            await inter.response.send_message(_loot_player_error(e), ephemeral=True)
             return
         except Exception as e:
             logger.exception("/loot split_coins failed")
             await inter.response.send_message(
-                f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return
@@ -4122,12 +4124,12 @@ def register(
                 character_id=character_id or None,
             )
         except ValueError as e:
-            await inter.response.send_message(str(e), ephemeral=True)
+            await inter.response.send_message(_loot_player_error(e), ephemeral=True)
             return
         except Exception as e:
             logger.exception("/loot decline failed")
             await inter.response.send_message(
-                f"`{type(e).__name__}: {e}`",
+                _loot_player_error(e),
                 ephemeral=True,
             )
             return

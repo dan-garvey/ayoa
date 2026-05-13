@@ -7,6 +7,8 @@ import pytest
 from app.engine.checkpoint_manager import CheckpointManager
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.characters import CharacterRecord
+from app.schemas.dnd_inventory import DndLootOffer
+from app.schemas.event_router import DndEventRouterOutput
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import SessionState, WorldState
 
@@ -51,6 +53,70 @@ class TestCheckpointSaveLoad:
         assert loaded.world_state.facts == ["The courtyard is wet."]
         assert len(loaded.transcript) == 1
         assert loaded.transcript[0].user == "I look around."
+
+    def test_dnd_router_event_and_loot_offer_round_trip(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        ckpt = _make_checkpoint(turn_index=1)
+        ckpt.session.character_bindings = {"guard_17": "42"}
+        ckpt.canonical_events.append(DndEventRouterOutput(
+            event_id="evt_loot",
+            decision_rationale="test",
+            canonical_event={
+                "world_adjudication": {"feasible": True},
+                "observable_facts": [
+                    {
+                        "text": "Captain Vero opens the chest.",
+                        "audience": "all_observers",
+                        "visible_to": [],
+                    }
+                ],
+            },
+            observers=[
+                {
+                    "character_id": "guard_17",
+                    "observation_level": "d",
+                    "response_priority": 1,
+                }
+            ],
+            spawn=[],
+            dormant=[],
+            cull=[],
+            interaction_mode="cat_i",
+            combatant_ids=[],
+            loot_offer={
+                "present": True,
+                "source_kind": "container",
+                "source_label": "iron chest",
+                "visibility": "table",
+                "eligible_character_ids": ["guard_17"],
+                "items": [],
+                "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 5, "pp": 0},
+                "notes": "",
+            },
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="state_change",
+        ))
+        ckpt.session.dnd_inventory_offers.append(DndLootOffer(
+            offer_id="loot_evt_loot",
+            source_event_id="evt_loot",
+            source_kind="container",
+            source_label="iron chest",
+            eligible_character_ids=["guard_17"],
+            currency={"gp": 5},
+        ))
+
+        mgr.save(ckpt)
+        loaded = mgr.load("test-session", "ckpt_0001")
+
+        assert len(loaded.canonical_events) == 1
+        assert loaded.canonical_events[0].event_id == "evt_loot"
+        assert len(loaded.session.dnd_inventory_offers) == 1
+        offer = loaded.session.dnd_inventory_offers[0]
+        assert offer.offer_id == "loot_evt_loot"
+        assert offer.currency.gp == 5
 
     def test_save_creates_session_directory(self, tmp_path):
         mgr = CheckpointManager(save_dir=str(tmp_path))

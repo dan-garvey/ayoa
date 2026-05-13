@@ -39,6 +39,7 @@ def _ckpt() -> CheckpointFile:
                 },
             ),
             CharacterRecord(character_id="bob", name="Bob"),
+            CharacterRecord(character_id="pip", name="Pip"),
         ],
     )
 
@@ -157,7 +158,7 @@ def test_stale_claim_fails_cleanly():
         take_currency=False,
     )
 
-    with pytest.raises(ValueError, match="no longer available"):
+    with pytest.raises(ValueError, match="Use /loot list"):
         dnd_inventory.claim_loot(
             ckpt,
             character_id="bob",
@@ -185,3 +186,99 @@ def test_split_currency_divides_by_bound_eligible_characters():
     assert ckpt.characters[1].mechanics["dnd5e_runtime"]["inventory"][
         "currency"
     ]["gp"] == 6
+
+
+def test_take_all_computes_remaining_items_at_claim_time():
+    ckpt = _ckpt()
+    event = _loot_event()
+    data = event.model_dump()
+    data["loot_offer"]["items"].append({
+        "item_id": "silver_ring",
+        "name": "Silver Ring",
+        "kind": "gear",
+        "quantity": 1,
+        "identified": True,
+        "requires_identification": False,
+        "requires_attunement": False,
+        "consumable": False,
+        "value_gp": 5,
+        "weight": 0,
+        "notes": "",
+    })
+    dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+    dnd_inventory.claim_loot(
+        ckpt,
+        character_id="bob",
+        offer_id="loot_evt_loot",
+        item_ids=["healing_potion"],
+        take_currency=False,
+    )
+
+    result = dnd_inventory.claim_loot(
+        ckpt,
+        character_id="alice",
+        offer_id="loot_evt_loot",
+        item_ids=[],
+        take_currency=True,
+        take_all_available=True,
+    )
+
+    assert [item["name"] for item in result["claimed_items"]] == ["Silver Ring"]
+    assert result["claimed_currency"]["gp"] == 12
+
+
+def test_offer_eligibility_filters_to_bound_player_characters():
+    ckpt = _ckpt()
+    event = _loot_event()
+    data = event.model_dump()
+    data["loot_offer"]["eligible_character_ids"] = ["alice", "pip"]
+
+    prompts = dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+
+    offer = ckpt.session.dnd_inventory_offers[0]
+    assert offer.eligible_character_ids == ["alice"]
+    assert prompts == {"alice": ["loot_evt_loot"]}
+
+
+def test_departed_character_closes_orphaned_offer():
+    ckpt = _ckpt()
+    event = _loot_event()
+    data = event.model_dump()
+    data["loot_offer"]["eligible_character_ids"] = ["alice"]
+    dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+
+    del ckpt.session.character_bindings["alice"]
+    changed = dnd_inventory.remove_character_from_loot_offers(ckpt, "alice")
+
+    assert changed >= 1
+    assert ckpt.session.dnd_inventory_offers[0].status == "closed"
+
+
+def test_prune_inventory_offers_keeps_bounded_closed_tail():
+    ckpt = _ckpt()
+    for idx in range(5):
+        offer = _loot_event()
+        data = offer.model_dump()
+        data["event_id"] = f"evt_loot_{idx}"
+        dnd_inventory.apply_loot_offers_from_events(
+            ckpt,
+            [DndEventRouterOutput(**data)],
+        )
+        ckpt.session.dnd_inventory_offers[-1].status = "closed"
+
+    removed = dnd_inventory.prune_inventory_offers(ckpt, max_closed=2)
+
+    assert removed == 3
+    assert [offer.offer_id for offer in ckpt.session.dnd_inventory_offers] == [
+        "loot_evt_loot_3",
+        "loot_evt_loot_4",
+    ]

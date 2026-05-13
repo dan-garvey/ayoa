@@ -423,6 +423,29 @@ class TestDndEventRouterOutput:
         assert out.loot_offer.items[0].item_id == "healing_potion"
         assert out.loot_offer.currency.gp == 5
 
+    def test_dnd_loot_offer_clamps_unknown_literals(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "cat_i",
+            "combatant_ids": [],
+            "loot_offer": {
+                "present": True,
+                "source_kind": "dragon_lair",
+                "source_label": "strange cache",
+                "visibility": "everyone_everywhere",
+                "eligible_character_ids": ["alice"],
+                "items": [],
+                "currency": {"gp": 1},
+                "notes": "",
+            },
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.loot_offer.source_kind == "other"
+        assert out.loot_offer.visibility == "table"
+        assert out.loot_offer.currency.gp == 1
+
     def test_combat_start_allows_engine_to_validate_participant_count(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,

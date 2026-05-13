@@ -15,6 +15,8 @@ DndLootSourceKind = Literal[
 ]
 DndLootVisibility = Literal["table", "private"]
 DndLootOfferStatus = Literal["open", "closed"]
+_VALID_SOURCE_KINDS = {"body", "container", "reward", "handoff", "vendor", "other"}
+_VALID_VISIBILITIES = {"table", "private"}
 
 
 class DndCurrency(BaseModel):
@@ -101,6 +103,18 @@ class DndLootOfferSignal(BaseModel):
     currency: DndCurrency
     notes: str
 
+    @model_validator(mode="before")
+    @classmethod
+    def _clamp_literals(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if data.get("source_kind") not in _VALID_SOURCE_KINDS:
+            data["source_kind"] = "other"
+        if data.get("visibility") not in _VALID_VISIBILITIES:
+            data["visibility"] = "table"
+        return data
+
     @model_validator(mode="after")
     def _clean(self) -> "DndLootOfferSignal":
         self.source_label = self.source_label.strip()
@@ -142,6 +156,20 @@ class DndLootOffer(BaseModel):
     declined_by_character_ids: list[str] = Field(default_factory=list)
     status: DndLootOfferStatus = "open"
     created_turn_index: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _clamp_literals(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if data.get("source_kind") not in _VALID_SOURCE_KINDS:
+            data["source_kind"] = "other"
+        if data.get("visibility") not in _VALID_VISIBILITIES:
+            data["visibility"] = "table"
+        if data.get("status") not in {"open", "closed", None}:
+            data["status"] = "open"
+        return data
 
     @model_validator(mode="after")
     def _clean(self) -> "DndLootOffer":
