@@ -4603,7 +4603,9 @@ def register(
             part.strip() for part in participants.split(",") if part.strip()
         ] or None
         try:
-            view = engine.begin_combat(row.session_id, participant_ids)
+            view = await engine.begin_combat_locked(
+                row.session_id, participant_ids
+            )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.response.send_message(
                 embed=render_error(str(e)), ephemeral=True,
@@ -4654,7 +4656,7 @@ def register(
         if row is None:
             return
         try:
-            view = engine.combat_next(row.session_id)
+            view = await engine.combat_next_locked(row.session_id)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.response.send_message(
                 embed=render_error(str(e)), ephemeral=True,
@@ -4678,7 +4680,7 @@ def register(
         if row is None:
             return
         try:
-            view = engine.combat_end(row.session_id)
+            view = await engine.combat_end_locked(row.session_id)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             await inter.response.send_message(
                 embed=render_error(str(e)), ephemeral=True,
@@ -4695,7 +4697,7 @@ def register(
 
     @combat_group.command(
         name="damage",
-        description="Apply damage to a D&D combat participant.",
+        description="Apply raw override damage to a D&D combat participant.",
     )
     @app_commands.describe(
         target="Character ID to damage.",
@@ -4710,7 +4712,7 @@ def register(
         if row is None:
             return
         try:
-            view = engine.combat_damage(
+            view = await engine.combat_damage_locked(
                 row.session_id, target.strip(), int(amount)
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:
@@ -4744,7 +4746,7 @@ def register(
         if row is None:
             return
         try:
-            view = engine.combat_heal(
+            view = await engine.combat_heal_locked(
                 row.session_id, target.strip(), int(amount)
             )
         except (RuntimeError, ValueError, FileNotFoundError) as e:

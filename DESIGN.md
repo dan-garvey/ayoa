@@ -1002,9 +1002,9 @@ The adapter follows a thin-kernel split:
   explicit sustained-effect deltas.
 * Code owns dice, arithmetic, durable state mutation, and the ledger:
   initiative and roll execution, hit/miss math, damage and healing
-  totals, resistance/immunity/vulnerability adjustment arithmetic,
-  HP/death-save/effect lifecycle persistence, checkpoint transactions,
-  and audit lines.
+  totals, per-component damage arithmetic, resistance/immunity/
+  vulnerability adjustment arithmetic, HP/death-save/effect lifecycle
+  persistence, checkpoint transactions, and audit lines.
 * The narrator owns POV prose from canonical facts. It should render
   what became visible, not recompute D&D mechanics or invent hidden
   dice outcomes.
@@ -1087,9 +1087,10 @@ adjudication.
   generic narrative-engine fields.
 * `DndCombatState.pending_visible_facts` is a short queue of code-owned
   combat lifecycle facts, currently used for death-save outcomes such as
-  regaining consciousness, stabilizing, or dying. The orchestrator flushes
-  these as ordinary observable facts after combat advancement, and combat-end
-  paths drain the queue into the same visible event before clearing combat.
+  regaining consciousness, stabilizing, or dying, and D&D effect lifecycle
+  facts such as starts, ends, and updates. The orchestrator flushes these as
+  ordinary observable facts after combat advancement, and combat-end paths
+  drain the queue into the same visible event before clearing combat.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
   dice ledgers. Each transaction is tagged
@@ -1217,6 +1218,20 @@ advances effects after adjudication: it ends prior concentration when a
 new concentration effect starts, checks concentration after damage, ticks
 round durations, rolls recurring saves at the declared timing, and keeps
 effect-backed conditions synchronized.
+
+Deferred D&D adapter cleanup:
+
+* unify `dnd_combat_router` and `dnd_cat_ii_router` into one mode-driven
+  D&D router prompt once the combat/Cat II boundaries settle
+* trim vestigial or diagnostic-only structured fields such as
+  `state_deltas`, `PlannedRoll.effect_id`, and effect `source_type`/
+  `source_id` fields in a dedicated schema-compatibility pass
+* design visibility rules for hidden/private active effects before
+  exposing hidden curses, marks, or similar DM-only effects in shared
+  tactical surfaces
+* decide whether manual `/combat damage` should stay a raw operator
+  override or grow typed damage inputs that run through the normal
+  resistance/immunity/vulnerability pipeline
 
 ### 15.7 Modularity Contract
 

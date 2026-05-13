@@ -113,6 +113,30 @@ class CatIIRollDamageAdjustmentRecord(BaseModel):
         return self
 
 
+class CatIIRollDamageComponentRecord(BaseModel):
+    """One typed damage component from a D&D attack damage roll."""
+
+    expression: str = ""
+    detail: str = ""
+    damage_type: str = ""
+    raw_amount: int = 0
+    amount: int = 0
+    adjustments: list[CatIIRollDamageAdjustmentRecord] = Field(
+        default_factory=list
+    )
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CatIIRollDamageComponentRecord":
+        self.expression = self.expression.strip()
+        self.detail = self.detail.strip()
+        self.damage_type = self.damage_type.strip().lower()
+        if self.raw_amount < 0:
+            self.raw_amount = 0
+        if self.amount < 0:
+            self.amount = 0
+        return self
+
+
 class CatIIRollDamageRecord(BaseModel):
     """Structured D&D damage attached to a roll transaction.
 
@@ -126,6 +150,9 @@ class CatIIRollDamageRecord(BaseModel):
     amount: int = 0
     damage_type: str = ""
     adjustments: list[CatIIRollDamageAdjustmentRecord] = Field(
+        default_factory=list
+    )
+    components: list[CatIIRollDamageComponentRecord] = Field(
         default_factory=list
     )
     expression: str = ""

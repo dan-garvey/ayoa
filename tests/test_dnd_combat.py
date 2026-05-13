@@ -668,6 +668,68 @@ def test_update_effect_reconciles_conditions_and_ignores_bad_target_when_exact(
     )
 
 
+def test_update_effect_skips_ambiguous_and_target_only_selectors(monkeypatch):
+    values = iter([9, 9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    alice = _character("alice", "Alice")
+    bob = _character("bob", "Bob")
+    session = SessionState(session_id="s")
+    combat = start_combat(session, [alice, bob])
+    bob_state = next(c for c in combat.combatants if c.character_id == "bob")
+    bob_state.active_effects.extend([
+        DndRuntimeEffect(
+            effect_id="eff_bless_a",
+            name="Bless",
+            slug="bless",
+            target_id="bob",
+            originator_id="cleric_a",
+            conditions=["blessed"],
+            remaining_rounds=8,
+        ),
+        DndRuntimeEffect(
+            effect_id="eff_bless_b",
+            name="Bless",
+            slug="bless",
+            target_id="bob",
+            originator_id="cleric_b",
+            conditions=["blessed"],
+            remaining_rounds=9,
+        ),
+    ])
+    bob_state.conditions.append("blessed")
+
+    updated = update_effect(
+        session,
+        target_id="bob",
+        slug="bless",
+        remaining_rounds=3,
+    )
+
+    assert updated is None
+    assert [effect.remaining_rounds for effect in bob_state.active_effects] == [
+        8,
+        9,
+    ]
+    assert "selector is ambiguous" in combat.audit_lines[-1]
+
+    updated = update_effect(
+        session,
+        target_id="bob",
+        remaining_rounds=1,
+    )
+
+    assert updated is None
+    assert [effect.remaining_rounds for effect in bob_state.active_effects] == [
+        8,
+        9,
+    ]
+    assert "selector is ambiguous" in combat.audit_lines[-1]
+
+
 def test_advance_turn_runs_recurring_save_and_ends_effect(monkeypatch):
     values = iter([9, 9, 14])
     monkeypatch.setattr(

@@ -22,6 +22,7 @@ from app.schemas.dnd_cat_ii import (
 )
 from app.schemas.state import (
     CatIIRollDamageAdjustmentRecord,
+    CatIIRollDamageComponentRecord,
     CatIIRollDamageRecord,
     CatIIRollRecord,
     CatIIRollTransaction,
@@ -50,9 +51,24 @@ _DAMAGE_TYPES = {
 
 
 @dataclass(frozen=True)
-class _DamageProfile:
+class _DamageComponent:
     expression: str = ""
     damage_type: str = ""
+
+
+@dataclass(frozen=True)
+class _DamageProfile:
+    components: tuple[_DamageComponent, ...] = ()
+
+    @property
+    def expression(self) -> str:
+        return " + ".join(component.expression for component in self.components)
+
+    @property
+    def damage_type(self) -> str:
+        return _join_damage_types(
+            component.damage_type for component in self.components
+        )
 
 
 @dataclass(frozen=True)
@@ -255,11 +271,12 @@ class DndCombatResolver:
         adjudication = await self._finalize(packet, transaction.ledger_lines)
         _apply_combat_damage_records(ckpt, transaction)
         _apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
-        _apply_combat_effect_deltas(
+        effect_notes = _apply_combat_effect_deltas(
             ckpt,
             adjudication.effect_deltas,
             default_originator_id=transaction.actor_id,
         )
+        adjudication.rules_notes.extend(effect_notes)
         _sync_combat_effects(ckpt)
         result = _compile_combat_router_output(
             ckpt=ckpt,
@@ -545,25 +562,87 @@ def _execute_combat_damage_rolls(
         result = record.result or {}
         hit = _attack_hits(combat, request, result)
         target_ac = _target_ac(combat, request.target_id)
-        transaction.ledger_lines.append(
+        _append_ledger_line_once(
+            transaction,
             f"{record.roll_id}: attack total {result.get('total', 0)} "
-            f"vs AC {target_ac} -> {'hit' if hit else 'miss'}"
+            f"vs AC {target_ac} -> {'hit' if hit else 'miss'}",
         )
         if not hit:
             continue
         damage_profile = _damage_profile_for_action(ckpt, request)
-        if not damage_profile.expression:
-            transaction.ledger_lines.append(
+        if not damage_profile.components:
+            _append_ledger_line_once(
+                transaction,
                 f"{marker}: no code-readable damage expression for "
-                f"{request.actor_id} action {request.action_id or request.skill}"
+                f"{request.actor_id} action {request.action_id or request.skill}",
             )
             continue
-        expression = damage_profile.expression
-        if result.get("crit") == "crit":
-            expression = _crit_damage_expression(expression)
+        components = _roll_damage_components(
+            ckpt,
+            request,
+            record=record,
+            damage_profile=damage_profile,
+            crit=result.get("crit") == "crit",
+        )
+        raw_amount = sum(component.raw_amount for component in components)
+        final_amount = sum(component.amount for component in components)
+        adjustments = [
+            adjustment
+            for component in components
+            for adjustment in component.adjustments
+        ]
+        _append_ledger_line_once(
+            transaction,
+            _damage_ledger_line(
+                marker,
+                actor_id=request.actor_id,
+                target_id=request.target_id,
+                components=components,
+            ),
+        )
+        transaction.damage_records.append(
+            CatIIRollDamageRecord(
+                roll_id=record.roll_id,
+                target_id=request.target_id,
+                raw_amount=raw_amount,
+                amount=final_amount,
+                damage_type=damage_profile.damage_type,
+                adjustments=adjustments,
+                components=components,
+                expression=" + ".join(
+                    component.expression for component in components
+                ),
+                detail="; ".join(component.detail for component in components),
+                applied=False,
+            )
+        )
+
+
+def _append_ledger_line_once(
+    transaction: CatIIRollTransaction,
+    line: str,
+) -> None:
+    if line not in transaction.ledger_lines:
+        transaction.ledger_lines.append(line)
+
+
+def _roll_damage_components(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+    *,
+    record: CatIIRollRecord,
+    damage_profile: _DamageProfile,
+    crit: bool,
+) -> list[CatIIRollDamageComponentRecord]:
+    components: list[CatIIRollDamageComponentRecord] = []
+    for index, component in enumerate(damage_profile.components, start=1):
+        expression = (
+            _crit_damage_expression(component.expression)
+            if crit else component.expression
+        )
         damage = dice.roll_expression(
             dice.RollRequest(
-                roll_id=f"damage_{record.roll_id}",
+                roll_id=f"damage_{record.roll_id}_{index}",
                 expression=expression,
                 actor_id=request.actor_id,
                 reason=f"Damage for {record.reason}",
@@ -573,30 +652,45 @@ def _execute_combat_damage_rolls(
             ckpt,
             request,
             raw_amount=damage.total,
-            damage_type=damage_profile.damage_type,
+            damage_type=component.damage_type,
         )
-        damage_type_text = (
-            f" {damage_profile.damage_type}" if damage_profile.damage_type else ""
-        )
-        adjustment_text = _damage_adjustment_ledger_text(adjustments)
-        transaction.ledger_lines.append(
-            f"{marker}: {request.actor_id} deals {damage.detail} = "
-            f"{damage.total}{damage_type_text} damage to {request.target_id}"
-            f"{adjustment_text}"
-        )
-        transaction.damage_records.append(
-            CatIIRollDamageRecord(
-                roll_id=record.roll_id,
-                target_id=request.target_id,
-                raw_amount=damage.total,
-                amount=final_amount,
-                damage_type=damage_profile.damage_type,
-                adjustments=adjustments,
+        components.append(
+            CatIIRollDamageComponentRecord(
                 expression=damage.expression,
                 detail=damage.detail,
-                applied=False,
+                damage_type=component.damage_type,
+                raw_amount=damage.total,
+                amount=final_amount,
+                adjustments=adjustments,
             )
         )
+    return components
+
+
+def _damage_ledger_line(
+    marker: str,
+    *,
+    actor_id: str,
+    target_id: str,
+    components: list[CatIIRollDamageComponentRecord],
+) -> str:
+    parts = []
+    for component in components:
+        type_text = f" {component.damage_type}" if component.damage_type else ""
+        parts.append(
+            f"{component.detail} = {component.raw_amount}{type_text}"
+            f"{_damage_adjustment_ledger_text(component.adjustments)}"
+        )
+    raw_total = sum(component.raw_amount for component in components)
+    final_total = sum(component.amount for component in components)
+    total_text = (
+        f"; total {raw_total}->{final_total}"
+        if raw_total != final_total else f"; total {final_total}"
+    )
+    return (
+        f"{marker}: {actor_id} deals "
+        f"{'; '.join(parts)} damage to {target_id}{total_text}"
+    )
 
 
 def _apply_combat_damage_records(
@@ -734,14 +828,10 @@ def _action_damage_profile(action: dict[str, object]) -> _DamageProfile:
     if not isinstance(attack, dict):
         attack = {}
     raw = str(attack.get("damage") or "")
-    expression = _clean_damage_expression(raw)
-    damage_type = _extract_damage_type(raw)
+    components = _damage_components_from_text(raw)
     component_profile = _damage_component_profile(action.get("damage"))
-    if expression:
-        return _DamageProfile(
-            expression=expression,
-            damage_type=damage_type or component_profile.damage_type,
-        )
+    if components:
+        return _DamageProfile(components=tuple(components))
     return component_profile
 
 
@@ -775,14 +865,13 @@ def _action_damage_summary(action: dict[str, object]) -> str:
     profile = _damage_component_profile(action.get("damage"))
     if not profile.expression:
         return ""
-    if profile.damage_type:
-        return f"{profile.expression} {profile.damage_type}"
-    return profile.expression
+    return _damage_profile_summary(profile)
 
 
 def _damage_component_profile(value: object) -> _DamageProfile:
     if not isinstance(value, list):
         return _DamageProfile()
+    components: list[_DamageComponent] = []
     for item in value:
         if not isinstance(item, dict):
             continue
@@ -793,8 +882,10 @@ def _damage_component_profile(value: object) -> _DamageProfile:
         damage_type = _extract_damage_type(
             item.get("damage_type") or item.get("type") or formula
         )
-        return _DamageProfile(expression=expression, damage_type=damage_type)
-    return _DamageProfile()
+        components.append(
+            _DamageComponent(expression=expression, damage_type=damage_type)
+        )
+    return _DamageProfile(components=tuple(components))
 
 
 def _action_names(action: dict[str, object]) -> set[str]:
@@ -824,6 +915,33 @@ def _clean_damage_expression(raw: str) -> str:
     if match is None:
         return ""
     return re.sub(r"\s+", "", match.group(0))
+
+
+def _damage_components_from_text(raw: object) -> list[_DamageComponent]:
+    text = str(raw or "").strip()
+    if not text:
+        return []
+    matches = list(
+        re.finditer(r"\d+d\d+(?:\s*[+-]\s*\d+)?", text, flags=re.IGNORECASE)
+    )
+    components: list[_DamageComponent] = []
+    for index, match in enumerate(matches):
+        expression = re.sub(r"\s+", "", match.group(0).lower())
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        label = text[match.end():next_start]
+        damage_type = _extract_damage_type(label)
+        components.append(
+            _DamageComponent(expression=expression, damage_type=damage_type)
+        )
+    return components
+
+
+def _damage_profile_summary(profile: _DamageProfile) -> str:
+    parts = []
+    for component in profile.components:
+        type_text = f" {component.damage_type}" if component.damage_type else ""
+        parts.append(f"{component.expression}{type_text}")
+    return " + ".join(parts)
 
 
 def _extract_damage_type(raw: object) -> str:
@@ -867,13 +985,13 @@ def _adjust_damage_amount(
             ],
         )
 
-    resistance = [c for c in candidates if c.kind == "resistance"]
-    if resistance:
+    double = [c for c in candidates if c.kind == "double"]
+    if double:
         before = amount
-        amount //= 2
+        amount *= 2
         adjustments.append(_damage_adjustment_record(
-            resistance,
-            kind="resistance",
+            double,
+            kind="double",
             damage_type=damage_type,
             before=before,
             after=amount,
@@ -891,6 +1009,18 @@ def _adjust_damage_amount(
             after=amount,
         ))
 
+    resistance = [c for c in candidates if c.kind == "resistance"]
+    if resistance:
+        before = amount
+        amount //= 2
+        adjustments.append(_damage_adjustment_record(
+            resistance,
+            kind="resistance",
+            damage_type=damage_type,
+            before=before,
+            after=amount,
+        ))
+
     vulnerability = [c for c in candidates if c.kind == "vulnerability"]
     if vulnerability:
         before = amount
@@ -898,18 +1028,6 @@ def _adjust_damage_amount(
         adjustments.append(_damage_adjustment_record(
             vulnerability,
             kind="vulnerability",
-            damage_type=damage_type,
-            before=before,
-            after=amount,
-        ))
-
-    double = [c for c in candidates if c.kind == "double"]
-    if double:
-        before = amount
-        amount *= 2
-        adjustments.append(_damage_adjustment_record(
-            double,
-            kind="double",
             damage_type=damage_type,
             before=before,
             after=amount,
@@ -977,7 +1095,13 @@ def _target_damage_defense_entries(
     entries = defenses.get(key) or []
     if not isinstance(entries, list):
         return []
-    return [entry for entry in entries if isinstance(entry, dict)]
+    normalized = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            normalized.append(entry)
+        elif isinstance(entry, str) and entry.strip():
+            normalized.append({"id": entry.strip(), "name": entry.strip()})
+    return normalized
 
 
 def _character_for_combat_target(
@@ -1006,7 +1130,20 @@ def _character_for_combat_target(
 
 
 def _damage_defense_type(item: dict[str, object]) -> str:
-    return _normalize_damage_text(item.get("id") or item.get("name") or "")
+    condition = _normalize_damage_text(item.get("condition") or "")
+    if condition:
+        return ""
+    text = _normalize_damage_text(item.get("id") or item.get("name") or "")
+    if text in {"all", "any", "damage"} or text in _DAMAGE_TYPES:
+        return text
+    for damage_type in sorted(_DAMAGE_TYPES):
+        if not _contains_action_name(text, damage_type):
+            continue
+        extra_tokens = set(text.split()) - {damage_type, "damage"}
+        if extra_tokens:
+            return ""
+        return damage_type
+    return text
 
 
 def _damage_type_matches(
@@ -1017,8 +1154,6 @@ def _damage_type_matches(
 ) -> bool:
     candidate_type = _normalize_damage_text(candidate_type)
     damage_type = _normalize_damage_text(damage_type)
-    if source == "router" and not candidate_type:
-        return True
     if candidate_type in {"all", "any", "damage"}:
         return True
     if not candidate_type or not damage_type:
@@ -1074,13 +1209,17 @@ def _unique_text(values) -> list[str]:
     return out
 
 
+def _join_damage_types(values) -> str:
+    return ", ".join(_unique_text(values))
+
+
 def _crit_damage_expression(expression: str) -> str:
-    # Simple D&D crit support: double the first damage dice group, keep
-    # flat modifiers unchanged. "1d8+4" -> "2d8+4".
+    # D&D crit support: double each damage dice group, keep flat modifiers
+    # unchanged. "1d8+4" -> "2d8+4"; "1d8+1d6" -> "2d8+2d6".
     def repl(match: re.Match[str]) -> str:
         return f"{int(match.group(1)) * 2}d{match.group(2)}"
 
-    return re.sub(r"(\d+)d(\d+)", repl, expression, count=1)
+    return re.sub(r"(\d+)d(\d+)", repl, expression)
 
 
 def _build_contested_packet(
@@ -1213,7 +1352,6 @@ def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
             "concentration": bool(getattr(effect, "concentration", False)),
             "remaining_rounds": int(getattr(effect, "remaining_rounds", 0) or 0),
             "duration_text": str(getattr(effect, "duration_text", "") or ""),
-            "break_triggers": list(getattr(effect, "break_triggers", []) or []),
             "recurring_save": (
                 {
                     "ability": str(getattr(save, "ability", "") or ""),
@@ -1538,10 +1676,11 @@ def _apply_combat_effect_deltas(
     deltas: list[EffectDelta],
     *,
     default_originator_id: str,
-) -> None:
+) -> list[str]:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
-        return
+        return []
+    notes: list[str] = []
     for delta in deltas:
         if delta.operation == "start":
             effect = _runtime_effect_from_delta(
@@ -1549,8 +1688,14 @@ def _apply_combat_effect_deltas(
                 default_originator_id=default_originator_id,
             )
             dnd_combat.start_effect(ckpt.session, effect)
+            if not _combat_effect_instance_exists(combat, effect):
+                notes.append(
+                    "Effect start skipped for "
+                    f"{_effect_delta_display_name(delta)}: "
+                    f"{_effect_delta_selector(delta)}."
+                )
         elif delta.operation == "end":
-            dnd_combat.end_effect(
+            ended = dnd_combat.end_effect(
                 ckpt.session,
                 effect_id=delta.effect_id,
                 target_id=delta.target_id,
@@ -1558,8 +1703,14 @@ def _apply_combat_effect_deltas(
                 originator_id=delta.originator_id,
                 reason=delta.reason,
             )
+            if not ended:
+                notes.append(
+                    "Effect end skipped for "
+                    f"{_effect_delta_display_name(delta)}: "
+                    f"{_effect_delta_selector(delta)}."
+                )
         elif delta.operation == "update":
-            dnd_combat.update_effect(
+            updated = dnd_combat.update_effect(
                 ckpt.session,
                 effect_id=delta.effect_id,
                 target_id=delta.target_id,
@@ -1577,11 +1728,49 @@ def _apply_combat_effect_deltas(
                 remaining_rounds=delta.remaining_rounds
                 if delta.remaining_rounds else None,
                 duration_text=delta.duration_text or None,
-                break_triggers=list(delta.break_triggers)
-                if delta.break_triggers else None,
                 recurring_save=delta.recurring_save,
                 reason=delta.reason,
             )
+            if updated is None:
+                notes.append(
+                    "Effect update skipped for "
+                    f"{_effect_delta_display_name(delta)}: "
+                    f"{_effect_delta_selector(delta)}."
+                )
+    return notes
+
+
+def _combat_effect_instance_exists(
+    combat: object,
+    effect: DndRuntimeEffect,
+) -> bool:
+    for combatant in list(getattr(combat, "combatants", []) or []):
+        if any(existing is effect for existing in combatant.active_effects):
+            return True
+    return False
+
+
+def _effect_delta_display_name(delta: EffectDelta) -> str:
+    return (
+        delta.name.strip()
+        or delta.slug.strip()
+        or delta.effect_id.strip()
+        or "effect"
+    )
+
+
+def _effect_delta_selector(delta: EffectDelta) -> str:
+    parts = []
+    for label, value in (
+        ("effect_id", delta.effect_id),
+        ("target_id", delta.target_id),
+        ("slug", delta.slug),
+        ("originator_id", delta.originator_id),
+    ):
+        text = str(value or "").strip()
+        if text:
+            parts.append(f"{label}={text!r}")
+    return ", ".join(parts) if parts else "no selector"
 
 
 def _runtime_effect_from_delta(
@@ -1603,7 +1792,6 @@ def _runtime_effect_from_delta(
         duration_amount=delta.duration_amount,
         remaining_rounds=delta.remaining_rounds,
         duration_text=delta.duration_text,
-        break_triggers=list(delta.break_triggers),
         recurring_save=delta.recurring_save,
         metadata={"reason": delta.reason} if delta.reason else {},
     )

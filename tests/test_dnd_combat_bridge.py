@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.bot.engine_bridge import EngineBridge
@@ -170,6 +172,46 @@ def test_manual_combat_end_broadcasts_observable_event(bridge: EngineBridge):
     assert "distant" not in reloaded.session.render_buffers
     guard = next(c for c in reloaded.characters if c.character_id == "guard")
     assert "D&D combat ends." in guard.pending_observations
+
+
+@pytest.mark.asyncio
+async def test_locked_combat_damage_waits_for_session_lock(bridge: EngineBridge):
+    _seed(bridge)
+    bridge.begin_combat(SESSION_ID, ["alice", "guard"])
+    lock = await bridge._lock_for(SESSION_ID)
+    await lock.acquire()
+    task = asyncio.create_task(
+        bridge.combat_damage_locked(SESSION_ID, "guard", 3)
+    )
+    try:
+        await asyncio.sleep(0)
+        assert not task.done()
+    finally:
+        lock.release()
+    damaged = await task
+    guard = next(p for p in damaged.participants if p.character_id == "guard")
+    assert guard.hp_current == 4
+
+
+@pytest.mark.asyncio
+async def test_locked_combat_damage_waits_for_orchestrator_lock(
+    bridge: EngineBridge,
+):
+    _seed(bridge)
+    bridge.begin_combat(SESSION_ID, ["alice", "guard"])
+    lock = await bridge.orchestrator.session_locks.get(SESSION_ID)
+    await lock.acquire()
+    task = asyncio.create_task(
+        bridge.combat_damage_locked(SESSION_ID, "guard", 3)
+    )
+    try:
+        await asyncio.sleep(0)
+        assert not task.done()
+    finally:
+        lock.release()
+    damaged = await task
+    guard = next(p for p in damaged.participants if p.character_id == "guard")
+    assert guard.hp_current == 4
 
 
 def test_combat_bridge_reports_missing_core(bridge: EngineBridge, monkeypatch):

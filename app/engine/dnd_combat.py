@@ -376,7 +376,6 @@ def update_effect(
     duration_amount: int | None = None,
     remaining_rounds: int | None = None,
     duration_text: str | None = None,
-    break_triggers: Iterable[str] | None = None,
     recurring_save: Any | None = None,
     reason: str = "",
 ) -> DndRuntimeEffect | None:
@@ -393,6 +392,14 @@ def update_effect(
             f"target={target_id!r} slug={slug!r}.",
         )
         return None
+    if not (effect_id or slug or originator_id):
+        append_audit_line(
+            active,
+            "Effect update skipped; selector is ambiguous: "
+            f"target={target_id!r}.",
+        )
+        return None
+    records: list[tuple[DndCombatantState, DndRuntimeEffect]] = []
     for combatant in active.combatants:
         if target is not None and combatant is not target:
             continue
@@ -405,47 +412,53 @@ def update_effect(
                 allow_target_only=False,
             ):
                 continue
-            previous_conditions = list(effect.conditions)
-            if name is not None and name.strip():
-                effect.name = name.strip()
-            if conditions is not None:
-                effect.conditions = _merge_conditions([], conditions)
-            if concentration is not None:
-                effect.concentration = concentration
-            if duration_kind is not None and duration_kind.strip():
-                effect.duration_kind = duration_kind.strip()  # type: ignore[assignment]
-            if duration_amount is not None:
-                effect.duration_amount = max(0, int(duration_amount))
-            if remaining_rounds is not None:
-                effect.remaining_rounds = max(0, int(remaining_rounds))
-            if duration_text is not None:
-                effect.duration_text = duration_text.strip()
-            if break_triggers is not None:
-                effect.break_triggers = [
-                    str(trigger).strip().lower()
-                    for trigger in break_triggers
-                    if str(trigger).strip()
-                ]
-            if recurring_save is not None:
-                effect.recurring_save = recurring_save
-            if not effect.slug:
-                effect.slug = _slug(effect.name or effect.effect_id)
-            _reconcile_effect_conditions(
-                combatant,
-                ended_conditions=previous_conditions,
-            )
-            _append_pending_visible_fact(
-                active,
-                _effect_updated_fact(effect, combatant, reason),
-            )
-            note = (
-                f"Effect updated on {_combatant_label(combatant)}: "
-                f"{_effect_display_name(effect)} ({effect.effect_id})"
-            )
-            if reason:
-                note += f"; reason={_plain_effect_reason(reason)}"
-            append_audit_line(active, note + ".")
-            return effect
+            records.append((combatant, effect))
+    if len(records) > 1:
+        append_audit_line(
+            active,
+            "Effect update skipped; selector is ambiguous: "
+            f"effect_id={effect_id!r} target={target_id!r} "
+            f"slug={slug!r} originator={originator_id!r} "
+            f"matches={len(records)}.",
+        )
+        return None
+    if len(records) == 1:
+        combatant, effect = records[0]
+        previous_conditions = list(effect.conditions)
+        if name is not None and name.strip():
+            effect.name = name.strip()
+        if conditions is not None:
+            effect.conditions = _merge_conditions([], conditions)
+        if concentration is not None:
+            effect.concentration = concentration
+        if duration_kind is not None and duration_kind.strip():
+            effect.duration_kind = duration_kind.strip()  # type: ignore[assignment]
+        if duration_amount is not None:
+            effect.duration_amount = max(0, int(duration_amount))
+        if remaining_rounds is not None:
+            effect.remaining_rounds = max(0, int(remaining_rounds))
+        if duration_text is not None:
+            effect.duration_text = duration_text.strip()
+        if recurring_save is not None:
+            effect.recurring_save = recurring_save
+        if not effect.slug:
+            effect.slug = _slug(effect.name or effect.effect_id)
+        _reconcile_effect_conditions(
+            combatant,
+            ended_conditions=previous_conditions,
+        )
+        _append_pending_visible_fact(
+            active,
+            _effect_updated_fact(effect, combatant, reason),
+        )
+        note = (
+            f"Effect updated on {_combatant_label(combatant)}: "
+            f"{_effect_display_name(effect)} ({effect.effect_id})"
+        )
+        if reason:
+            note += f"; reason={_plain_effect_reason(reason)}"
+        append_audit_line(active, note + ".")
+        return effect
     append_audit_line(
         active,
         "Effect update skipped; no matching effect: "

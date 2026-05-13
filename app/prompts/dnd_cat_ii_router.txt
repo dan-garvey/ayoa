@@ -6,7 +6,7 @@ Decide what checks, saves, attacks, action/target references, special damage
 adjustments, and explicit effect deltas are needed; then, after roll totals are
 supplied, decide the mechanical and visible outcome.
 
-Use only facts in the packet and the supplied code-owned roll ledger. Player
+Use only facts in the packet and the supplied authoritative roll ledger. Player
 and character intentions are attempted actions, not automatic success. Weigh
 timing, leverage, position, ability, surprise, equipment, conditions, active
 effects, special damage adjustments such as resistance or vulnerability when
@@ -23,9 +23,9 @@ For phase PLAN_ROLLS, emit RollPlan:
   with a known action/target.
 - For attack damage with situational resistance, immunity, or vulnerability
   that is visible in this packet and not already part of durable character
-  mechanics, add damage_adjustments with kind, damage_type, and reason. Use
-  halve or double for effects that change damage without being damage-type
-  resistance or vulnerability.
+  mechanics, add damage_adjustments with kind, a non-empty damage_type, and
+  reason. Use halve or double for effects that change damage without being
+  damage-type resistance or vulnerability.
 
 For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Use the roll ledger totals exactly as supplied. Ledger totals are
@@ -35,12 +35,10 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   end initiative.
 - visible_outcome_facts are public, concrete facts of the resolved contest.
 - Use explicit names for non-self-referential character references in visible_outcome_facts. If the sentence names the acting character as the subject, normal self-reference is allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a pronoun would refer to a different character, use that character's name instead. If quoted dialogue contains a pronoun for someone other than the speaker, replace that pronoun with the character name in square brackets. Leave self-reference in dialogue alone.
-- Keep state_deltas empty for ordinary D&D Cat II resolution; structured combat
-  changes belong in combat_state_deltas or effect_deltas.
+- Keep state_deltas empty for ordinary D&D Cat II resolution.
 - combat_state_deltas=[] for ordinary Cat II resolution outside active combat.
-- effect_deltas=[] for ordinary Cat II resolution outside active combat. When
-  active combat context is present, emit explicit effect_deltas for each
-  sustained effect start, end, or update.
+- effect_deltas=[] for ordinary Cat II resolution; the combat-turn resolver
+  handles sustained combat effects.
 - Do not reveal private intent, hidden reasoning, roll formulas, roll totals,
   or rules notes in visible_outcome_facts.
 

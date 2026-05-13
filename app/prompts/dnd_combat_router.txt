@@ -5,7 +5,7 @@ combat state. Do not write point-of-view prose. Decide legality, needed
 actions, targets, rolls, special damage adjustments, explicit effect deltas,
 and the concrete public outcome.
 
-Use only facts in the packet and the supplied code-owned roll ledger. The
+Use only facts in the packet and the supplied authoritative roll ledger. The
 actor's intention is an attempted turn, not automatic success. Weigh action
 economy, target AC, saving throws, positioning, conditions, active effects,
 resources, equipment, special damage adjustments such as resistance or
@@ -28,10 +28,10 @@ For phase PLAN_ROLLS, emit RollPlan:
   resolution, so choose them deliberately.
 - For attack damage with situational resistance, immunity, or vulnerability
   that is visible in this packet and not already part of durable character
-  mechanics, add damage_adjustments with kind, damage_type, and reason. Use
-  halve or double for effects that change damage without being damage-type
-  resistance or vulnerability. Do not put ordinary attack damage in
-  combat_state_deltas.
+  mechanics, add damage_adjustments with kind, a non-empty damage_type, and
+  reason. Use halve or double for effects that change damage without being
+  damage-type resistance or vulnerability. Do not put ordinary attack damage
+  in combat_state_deltas.
 - For spell attacks and spell saves, use only a spell listed for the actor. Use
   the listed spell attack bonus or spell save DC when present.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
@@ -63,7 +63,7 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   save-ends effects, and conditions that belong to a named spell or feature.
   Emit an explicit effect_delta for each effect start, end, or update. Decide
   when a spell/ability creates the effect and supply the spell-specific fields:
-  duration, concentration, break triggers, and recurring saves.
+  duration, concentration, and recurring saves.
 - If the current action breaks an existing effect, emit an explicit end
   effect_delta for that effect. Do not imply effect endings through any
   separate action-label field.

@@ -2253,6 +2253,85 @@ class EngineBridge:
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
+    async def begin_combat_locked(
+        self,
+        session_id: str,
+        participant_ids: list[str] | None = None,
+    ) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.begin_combat(session_id, participant_ids),
+        )
+
+    async def combat_next_locked(self, session_id: str) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.combat_next(session_id),
+        )
+
+    async def combat_add_locked(
+        self,
+        session_id: str,
+        character_id: str,
+    ) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.combat_add(session_id, character_id),
+        )
+
+    async def combat_remove_locked(
+        self,
+        session_id: str,
+        combatant_id: str,
+        *,
+        hard: bool = False,
+    ) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.combat_remove(session_id, combatant_id, hard=hard),
+        )
+
+    async def combat_end_locked(self, session_id: str) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.combat_end(session_id),
+        )
+
+    async def combat_damage_locked(
+        self,
+        session_id: str,
+        target_id: str,
+        amount: int,
+    ) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.combat_damage(session_id, target_id, amount),
+        )
+
+    async def combat_heal_locked(
+        self,
+        session_id: str,
+        target_id: str,
+        amount: int,
+    ) -> DndCombatView:
+        return await self._run_combat_mutation_locked(
+            session_id,
+            lambda: self.combat_heal(session_id, target_id, amount),
+        )
+
+    async def _run_combat_mutation_locked(
+        self,
+        session_id: str,
+        mutate: Callable[[], DndCombatView],
+    ) -> DndCombatView:
+        bridge_lock = await self._lock_for(session_id)
+        async with bridge_lock:
+            orchestrator_lock = await self.orchestrator.session_locks.get(
+                session_id
+            )
+            async with orchestrator_lock:
+                return mutate()
+
     def combat_reaction_prompt_event(
         self,
         session_id: str,

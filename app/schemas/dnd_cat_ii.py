@@ -183,7 +183,6 @@ class EffectDelta(BaseModel):
     duration_amount: int = 0
     remaining_rounds: int = 0
     duration_text: str = ""
-    break_triggers: list[str] = Field(default_factory=list)
     recurring_save: DndEffectRecurringSave | None = None
     reason: str = ""
 
@@ -204,7 +203,6 @@ class EffectDelta(BaseModel):
             data.setdefault("duration_amount", 0)
             data.setdefault("remaining_rounds", 0)
             data.setdefault("duration_text", "")
-            data.setdefault("break_triggers", [])
             data.setdefault("recurring_save", None)
             data.setdefault("reason", "")
         return data
@@ -222,11 +220,6 @@ class EffectDelta(BaseModel):
             condition.strip()
             for condition in self.conditions
             if condition.strip()
-        ]
-        self.break_triggers = [
-            trigger.strip().lower()
-            for trigger in self.break_triggers
-            if trigger.strip()
         ]
         if self.duration_amount < 0:
             self.duration_amount = 0
