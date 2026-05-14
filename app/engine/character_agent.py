@@ -24,6 +24,7 @@ import logging
 import time
 from typing import Any
 
+from app.engine import dnd_spatial
 from app.engine.context_builder import (
     append_turn_to_conversation,
     build_character_packet,
@@ -279,6 +280,13 @@ class CharacterAgent:
                     "Before initiative, you declared this pending intent: "
                     f"{pending_action}"
                 )
+        map_lines = dnd_spatial.render_battle_map_summary(
+            combat,
+            actor_id=character.character_id,
+        )
+        if map_lines:
+            lines.append("## Tactical Map")
+            lines.extend(map_lines)
         return "\n".join(lines)
 
     async def perceive(

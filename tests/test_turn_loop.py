@@ -141,11 +141,14 @@ def _dnd_router_out(
     *,
     interaction_mode: str,
     combatant_ids: list[str] | None = None,
+    battle_map_seed: dict | None = None,
     **kwargs,
 ) -> DndEventRouterOutput:
     data = _router_out(**kwargs).model_dump()
     data["interaction_mode"] = interaction_mode
     data["combatant_ids"] = combatant_ids or []
+    if battle_map_seed is not None:
+        data["battle_map_seed"] = battle_map_seed
     return DndEventRouterOutput(**data)
 
 
@@ -745,6 +748,47 @@ class TestCatIIBeat:
         fake.queue_route(_dnd_router_out(
             interaction_mode="dnd_combat_start",
             combatant_ids=["alice", "bob"],
+            battle_map_seed={
+                "present": True,
+                "map_name": "Gatehouse",
+                "width": 8,
+                "height": 6,
+                "square_size_ft": 5,
+                "tokens": [
+                    {
+                        "token_id": "alice",
+                        "character_id": "alice",
+                        "label": "Alice",
+                        "x": 1,
+                        "y": 2,
+                        "size_squares": 1,
+                    },
+                    {
+                        "token_id": "stray",
+                        "character_id": "stray",
+                        "label": "Stray",
+                        "x": 7,
+                        "y": 5,
+                        "size_squares": 1,
+                    },
+                ],
+                "terrain": [
+                    {
+                        "zone_id": "crate",
+                        "label": "Crate",
+                        "x": 3,
+                        "y": 2,
+                        "width": 1,
+                        "height": 1,
+                        "blocks_movement": True,
+                        "blocks_line_of_sight": False,
+                        "cover": "half",
+                        "notes": "",
+                    }
+                ],
+                "areas": [],
+                "notes": "",
+            },
             facts=["Alice commits to an attack against Bob."],
         ))
 
@@ -763,6 +807,17 @@ class TestCatIIBeat:
         assert {c.character_id for c in ckpt.session.active_combat.combatants} == {
             "alice", "bob",
         }
+        battle_map = ckpt.session.active_combat.battle_map
+        assert battle_map is not None
+        assert battle_map.map_name == "Gatehouse"
+        assert battle_map.width == 8
+        assert {token.character_id for token in battle_map.tokens} == {
+            "alice", "bob",
+        }
+        assert next(
+            token for token in battle_map.tokens if token.character_id == "alice"
+        ).x == 1
+        assert battle_map.terrain[0].cover == "half"
         assert ckpt.canonical_events[0].requires_responders is False
         facts = [
             fact.text

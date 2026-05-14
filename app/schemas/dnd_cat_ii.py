@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.dnd_spatial import DndSpatialDelta
 from app.schemas.state import DndEffectRecurringSave
 
 
@@ -253,6 +254,7 @@ class RulesAdjudication(BaseModel):
     state_deltas: list[str]
     combat_state_deltas: list[CombatStateDelta] = Field(default_factory=list)
     effect_deltas: list[EffectDelta] = Field(default_factory=list)
+    spatial_deltas: list[DndSpatialDelta] = Field(default_factory=list)
     rules_notes: list[str]
     fallback_reason: str
 
@@ -264,6 +266,7 @@ class RulesAdjudication(BaseModel):
             data.setdefault("combat_status", "ongoing")
             data.setdefault("combat_state_deltas", [])
             data.setdefault("effect_deltas", [])
+            data.setdefault("spatial_deltas", [])
         return data
 
     @model_validator(mode="after")

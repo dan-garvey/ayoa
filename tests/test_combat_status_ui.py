@@ -98,3 +98,18 @@ def test_discord_combat_status_renders_active_effects():
     )
 
     assert "Effects: Bless (concentration; 8 rounds)" in (embed.description or "")
+
+
+def test_discord_combat_status_renders_battle_map_lines():
+    embed = _render_combat_status(
+        DndCombatView(
+            session_id="s",
+            active=True,
+            participants=(
+                DndCombatParticipantView(character_id="alice", name="Alice"),
+            ),
+            map_lines=("Battle map: Bridge (8x5, 5 ft squares).",),
+        )
+    )
+
+    assert "Battle map: Bridge" in (embed.description or "")

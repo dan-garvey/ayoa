@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from app.engine import dice, mechanics
+from app.engine import dice, dnd_spatial, mechanics
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.state import (
     DndCombatantState,
@@ -801,24 +801,34 @@ def roll_death_save(
 def public_status(combat: DndCombatState | SessionState) -> dict[str, Any]:
     active = _active_from(combat)
     current = current_combatant(active)
-    return {
+    status = {
         "combat_id": active.combat_id,
         "round": active.round_number,
         "current": _public_combatant(current),
         "turn_order": [_public_combatant(c) for c in active.combatants],
     }
+    battle_map = dnd_spatial.battle_map_status(active)
+    if battle_map:
+        status["battle_map"] = battle_map
+        status["battle_map_summary"] = dnd_spatial.render_battle_map_summary(active)
+    return status
 
 
 def private_status(combat: DndCombatState | SessionState) -> dict[str, Any]:
     active = _active_from(combat)
     current = current_combatant(active)
-    return {
+    status = {
         "combat_id": active.combat_id,
         "round": active.round_number,
         "turn_index": active.turn_index,
         "current": _private_combatant(current),
         "turn_order": [_private_combatant(c) for c in active.combatants],
     }
+    battle_map = dnd_spatial.battle_map_status(active)
+    if battle_map:
+        status["battle_map"] = battle_map
+        status["battle_map_summary"] = dnd_spatial.render_battle_map_summary(active)
+    return status
 
 
 def _roll_single_initiative(combatant: DndCombatantState) -> None:

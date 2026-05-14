@@ -40,6 +40,7 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Keep state_deltas empty for ordinary D&D Cat II resolution.
 - combat_state_deltas=[] for ordinary Cat II resolution outside active combat.
 - effect_deltas=[] for ordinary Cat II resolution.
+- spatial_deltas=[] for ordinary Cat II resolution outside active combat.
 - Do not reveal private intent, hidden reasoning, roll formulas, roll totals,
   or rules notes in visible_outcome_facts.
 

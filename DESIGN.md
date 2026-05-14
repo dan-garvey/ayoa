@@ -1032,6 +1032,9 @@ adjudication.
 * `app/engine/dnd_combat.py` — combat state machine: initiative
   rolling, turn order, reaction windows, 0 HP/down/death-save state,
   and combat lifecycle.
+* `app/engine/dnd_spatial.py` — D&D combat tactical-map helpers:
+  router-seed normalization, token placement, advisory distance/line-
+  of-sight/cover context, spatial deltas, and compact status text.
 * `app/engine/dnd_cat_ii.py` — two router-owned resolvers that share
   the D&D roll-planning/finalization machinery and the
   `CatIIRollTransaction` checkpoint shape:
@@ -1091,6 +1094,11 @@ adjudication.
   facts such as starts, ends, and updates. The orchestrator flushes these as
   ordinary observable facts after combat advancement, and combat-end paths
   drain the queue into the same visible event before clearing combat.
+* `DndCombatState.battle_map` is an optional adapter-owned tactical grid
+  for active D&D combat. It stores token coordinates, visible terrain,
+  and visible area templates. It is advisory context for D&D combat routing
+  and status surfaces; it does not change generic `world_state.locations`
+  or `CharacterRecord.location`.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
   dice ledgers. Each transaction is tagged
@@ -1121,7 +1129,8 @@ adjudication.
   `RollPlan` / `RulesAdjudication` schemas as the Cat II prompt, but
   the user packet is the combat-state snapshot (round, current
   combatant, all combatants with AC/HP/conditions/defeat state/death
-  saves/active effects, the actor's available actions with
+  saves/active effects, optional battle-map/spatial advisories, the
+  actor's available actions with
   `id`/`name`/`attack_bonus`/`damage`, and the house rules) rather
   than a Cat II opening context.
 
@@ -1141,10 +1150,11 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
 * when the D&D addon router emits `interaction_mode="dnd_combat_start"` from
   a fresh non-combat action, the engine validates participants, rolls
   initiative, creates `session.active_combat`, syncs all combatants into the
-  observer list, stores the actor's `pending_initiating_action`, and appends
-  only player-safe visible facts such as "D&D combat begins." Initiative
-  totals and true statblock names stay in combat audit/status surfaces, not
-  in narrator or agent facts;
+  observer list, attaches a validated router-seeded battle map when supplied,
+  stores the actor's `pending_initiating_action`, and appends only
+  player-safe visible facts such as "D&D combat begins." Initiative totals
+  and true statblock names stay in combat audit/status surfaces, not in
+  narrator or agent facts;
 * if `dnd_combat_start` appears while another combat is already active, the
   engine does not open Cat II and does not start a parallel combat. It appends
   a fiction-facing no-effect fact for observers, pins that character with a
@@ -1514,12 +1524,14 @@ genuinely bloats and let that shape the answer.
 
 ### 20.3 D&D spatial/grid modeling
 
-D&D combat eventually needs a real spatial layer for range, cover,
-line of sight, movement, reach, forced movement, and area templates.
-The current adapter uses opaque location labels and router judgment.
-That is enough for theater-of-the-mind playtests, but not for spells
-and abilities whose legality depends on exact distances or affected
-squares.
+D&D combat now has a v1 adapter-owned tactical grid for active combat:
+router-seeded map state, participant tokens, visible terrain/areas,
+advisory distances, line-of-sight, cover context, and router-authored
+spatial deltas. It is intentionally advisory; code persists and
+summarizes map state, while the D&D combat router still decides action
+legality and outcome. Future work may add manual map authoring, image
+rendering, strict movement/path validation, elevation, hidden tokens,
+lighting, and richer area-template geometry.
 
 ### 20.4 D&D inventory and economy
 

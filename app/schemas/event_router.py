@@ -10,6 +10,10 @@ from app.schemas.dnd_inventory import (
     DndLootOfferSignal,
     empty_loot_offer_signal,
 )
+from app.schemas.dnd_spatial import (
+    DndBattleMapState,
+    empty_battle_map_state,
+)
 
 
 # Typed enum for `ends_beat_reason`. Keeps the model grammar-constrained
@@ -539,6 +543,7 @@ class DndEventRouterOutput(EventRouterOutput):
     interaction_mode: DndInteractionMode
     combatant_ids: list[str]
     loot_offer: DndLootOfferSignal
+    battle_map_seed: DndBattleMapState
 
     @model_validator(mode="before")
     @classmethod
@@ -548,6 +553,9 @@ class DndEventRouterOutput(EventRouterOutput):
         if "loot_offer" not in data:
             data = dict(data)
             data["loot_offer"] = empty_loot_offer_signal()
+        if "battle_map_seed" not in data:
+            data = dict(data)
+            data["battle_map_seed"] = empty_battle_map_state()
         mode = data.get("interaction_mode")
         if mode in {"cat_i", "dnd_combat_start", "dnd_combat_end"}:
             data = dict(data)

@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.dnd_inventory import DndLootOffer
+from app.schemas.dnd_spatial import DndBattleMapState
 
 
 class ModelConfig(BaseModel):
@@ -399,6 +400,9 @@ class DndCombatState(BaseModel):
     # advancement is delayed until those runtime slots clear.
     pending_advance_actor_id: str = ""
     pending_visible_facts: list[str] = Field(default_factory=list)
+    # Adapter-owned tactical map for active D&D combat. Generic narrative
+    # location state remains an opaque label and has no topology.
+    battle_map: DndBattleMapState | None = None
 
 
 class RenderBufferEntry(BaseModel):

@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from app.engine import dice, dnd_combat, mechanics
+from app.engine import dice, dnd_combat, dnd_spatial, mechanics
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
@@ -279,7 +279,12 @@ class DndCombatResolver:
             adjudication.effect_deltas,
             default_originator_id=transaction.actor_id,
         )
+        spatial_notes = _apply_combat_spatial_deltas(
+            ckpt,
+            adjudication.spatial_deltas,
+        )
         adjudication.rules_notes.extend(effect_notes)
+        adjudication.rules_notes.extend(spatial_notes)
         _sync_combat_effects(ckpt)
         result = _compile_combat_router_output(
             ckpt=ckpt,
@@ -1440,6 +1445,7 @@ def _build_combat_packet(
             ),
         })
 
+    spatial_context = dnd_spatial.combat_packet_context(combat, actor_id)
     payload = {
         "ruleset_id": ckpt.session.config.settings.ruleset_id,
         "player_roll_mode": ckpt.session.config.settings.player_roll_mode,
@@ -1455,6 +1461,7 @@ def _build_combat_packet(
             "Agents do not need roll details; expose dice only through player UI.",
         ],
         "combatants": participants,
+        **spatial_context,
     }
     return json.dumps(payload, indent=2, sort_keys=True)
 
@@ -1768,7 +1775,25 @@ def _combat_affected_ids(
     for delta in adjudication.effect_deltas:
         if delta.target_id:
             affected.add(delta.target_id)
+    for delta in adjudication.spatial_deltas:
+        if delta.target_id:
+            affected.add(delta.target_id)
+        if delta.character_id:
+            affected.add(delta.character_id)
     return affected
+
+
+def _apply_combat_spatial_deltas(
+    ckpt: CheckpointFile,
+    deltas: list[Any],
+) -> list[str]:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None or not deltas:
+        return []
+    notes = dnd_spatial.apply_spatial_deltas(combat, deltas)
+    for note in notes:
+        dnd_combat.append_audit_line(combat, note)
+    return notes
 
 
 def _apply_combat_state_deltas(

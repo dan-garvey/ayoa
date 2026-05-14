@@ -1,5 +1,51 @@
   "interaction_mode": "cat_i | cat_ii | dnd_combat_start | dnd_combat_end",
   "combatant_ids": ["character_id - required only for dnd_combat_start, else empty"],
+  "battle_map_seed": {{
+    "present": true or false,
+    "map_name": "string - short tactical map label, empty when absent",
+    "width": 0,
+    "height": 0,
+    "square_size_ft": 5,
+    "tokens": [
+      {{
+        "token_id": "string - usually the combatant or character id",
+        "character_id": "character_id",
+        "label": "visible token label",
+        "x": 0,
+        "y": 0,
+        "size_squares": 1
+      }}
+    ],
+    "terrain": [
+      {{
+        "zone_id": "string",
+        "label": "visible terrain label",
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1,
+        "blocks_movement": true or false,
+        "blocks_line_of_sight": true or false,
+        "cover": "none | half | three_quarters | total",
+        "notes": "string - visible tactical caveat only"
+      }}
+    ],
+    "areas": [
+      {{
+        "template_id": "string",
+        "label": "visible area label",
+        "shape": "square | circle | cone | line",
+        "x": 0,
+        "y": 0,
+        "radius_squares": 0,
+        "width": 1,
+        "height": 1,
+        "duration_rounds": 0,
+        "notes": "string - visible tactical caveat only"
+      }}
+    ],
+    "notes": "string - visible tactical context only"
+  }},
   "loot_offer": {{
     "present": true or false,
     "source_kind": "body | container | reward | handoff | vendor | other",

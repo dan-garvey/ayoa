@@ -18,6 +18,14 @@ other immediately involved combatants in `combatant_ids`. Observable facts show
 the combat-starting trigger only; do not resolve attack rolls, hits, damage, or
 spell effects before initiative.
 
+Also seed `battle_map_seed` for `dnd_combat_start` when the fiction gives enough
+spatial context to establish a tactical grid. Use a simple square battle map:
+dimensions in squares, 5 feet per square, one token per combatant, and terrain
+zones only for visible blockers, cover, hazards, or difficult ground. Do not
+invent an elaborate tactical scene when the fiction has no spatial basis; emit
+`present=false` with empty lists instead. The seed is tactical context, not an
+observable fact.
+
 For `dnd_combat_end`, set `requires_responders=false`,
 `required_responders=[]`, and `combatant_ids=[]`.
 

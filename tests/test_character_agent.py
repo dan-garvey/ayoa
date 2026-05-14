@@ -22,6 +22,7 @@ from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
+from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
@@ -426,6 +427,28 @@ class TestCharacterAgent:
         sample_checkpoint.session.active_combat = DndCombatState(
             round_number=2,
             turn_index=0,
+            battle_map=DndBattleMapState(
+                present=True,
+                map_name="Gatehouse",
+                width=8,
+                height=6,
+                tokens=[
+                    DndBattleMapToken(
+                        token_id="guard_17",
+                        character_id="guard_17",
+                        label="Captain Vero",
+                        x=1,
+                        y=1,
+                    ),
+                    DndBattleMapToken(
+                        token_id="raider",
+                        character_id="raider",
+                        label="Raider",
+                        x=4,
+                        y=1,
+                    ),
+                ],
+            ),
             combatants=[
                 DndCombatantState(
                     combatant_id="guard_17",
@@ -476,6 +499,10 @@ class TestCharacterAgent:
             in user_text
         )
         assert "Before initiative, you declared this pending intent: I cut down the raider." in user_text
+        assert "## Tactical Map" in user_text
+        assert "Gatehouse" in user_text
+        assert "raider 15 ft" in user_text
+        assert "Gatehouse" not in system_text
         assert "d20" not in user_text
         assert "99" not in user_text
         assert "remaining_rounds" not in user_text

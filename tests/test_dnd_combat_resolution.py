@@ -1,4 +1,5 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -9,6 +10,7 @@ from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import PlannedRoll, RollPlan, RulesAdjudication
+from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
@@ -255,6 +257,94 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
         "D&D combat resolved:"
     )
     assert ckpt.session_conversation == []
+
+
+def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
+    ckpt = _ckpt()
+    ckpt.session.active_combat.battle_map = DndBattleMapState(
+        present=True,
+        map_name="Bridge",
+        width=8,
+        height=5,
+        square_size_ft=5,
+        tokens=[
+            DndBattleMapToken(
+                token_id="alice",
+                character_id="alice",
+                label="Alice",
+                x=0,
+                y=0,
+                size_squares=1,
+            ),
+            DndBattleMapToken(
+                token_id="bob",
+                character_id="bob",
+                label="Bob",
+                x=5,
+                y=0,
+                size_squares=1,
+            ),
+        ],
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="No roll.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            mechanical_summary="Alice moves closer.",
+            visible_outcome_facts=["Alice closes the distance."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            spatial_deltas=[
+                {
+                    "kind": "move_token",
+                    "target_id": "alice",
+                    "character_id": "alice",
+                    "x": 2,
+                    "y": 1,
+                    "size_squares": 1,
+                    "label": "Alice",
+                    "shape": "",
+                    "radius_squares": 0,
+                    "width": 1,
+                    "height": 1,
+                    "duration_rounds": 0,
+                    "reason": "Alice moved.",
+                }
+            ],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+        ckpt=ckpt,
+        actor_id="alice",
+        intention="I move toward Bob.",
+    ))
+
+    packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[0].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    assert packet["battle_map"]["map_name"] == "Bridge"
+    assert packet["spatial_advisories"][0]["to"] == "bob"
+    assert packet["spatial_advisories"][0]["distance_ft"] == 25
+    alice = next(
+        token for token in ckpt.session.active_combat.battle_map.tokens
+        if token.character_id == "alice"
+    )
+    assert (alice.x, alice.y) == (2, 1)
 
 
 def test_combat_resolver_observes_target_dropped_by_same_event(monkeypatch):

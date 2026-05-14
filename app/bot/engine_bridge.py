@@ -32,7 +32,7 @@ from app.engine.dnd_character_import import (
     mechanics_from_snapshot,
     normalize_dndbeyond_export,
 )
-from app.engine import dnd_inventory
+from app.engine import dnd_inventory, dnd_spatial
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -203,6 +203,7 @@ class DndCombatView:
     turn_number: int = 0
     current_participant_id: str = ""
     participants: tuple[DndCombatParticipantView, ...] = ()
+    map_lines: tuple[str, ...] = ()
     message: str = ""
 
 
@@ -2050,6 +2051,12 @@ class EngineBridge:
             labels.append(f"{name} ({detail})" if detail else name)
         return tuple(labels)
 
+    def _combat_map_lines(self, source: Any) -> tuple[str, ...]:
+        raw_lines = self._combat_get(source, "battle_map_summary", default=None)
+        if raw_lines:
+            return tuple(str(line) for line in raw_lines if str(line).strip())
+        return tuple(dnd_spatial.render_battle_map_summary(source))
+
     def _combat_participant_view(
         self,
         raw: Any,
@@ -2245,6 +2252,7 @@ class EngineBridge:
             turn_number=turn_number,
             current_participant_id=current_id,
             participants=participants,
+            map_lines=self._combat_map_lines(source),
             message=str(self._combat_get(source, "message", default="") or ""),
         )
 

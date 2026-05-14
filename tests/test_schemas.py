@@ -22,6 +22,7 @@ from app.schemas.event_router import (
     ObserverEntry,
     SpawnRequest,
 )
+from app.schemas.dnd_cat_ii import RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -560,6 +561,28 @@ class TestDndEventRouterOutput:
 
         with pytest.raises(ValidationError):
             DndEventRouterOutput(**data)
+
+
+class TestDndRulesAdjudication:
+    def test_spatial_delta_schema_is_strict_object_compatible(self):
+        schema = RulesAdjudication.model_json_schema()
+        spatial_delta = schema["$defs"]["DndSpatialDelta"]
+        assert spatial_delta["additionalProperties"] is False
+        assert set(spatial_delta["required"]) == {
+            "kind",
+            "target_id",
+            "character_id",
+            "x",
+            "y",
+            "size_squares",
+            "label",
+            "shape",
+            "radius_squares",
+            "width",
+            "height",
+            "duration_rounds",
+            "reason",
+        }
 
 
 class TestCharacterAgentOutput:

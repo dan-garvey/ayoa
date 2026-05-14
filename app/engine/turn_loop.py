@@ -107,7 +107,7 @@ from app.schemas.state import (
     RenderBufferEntry,
     SlotEntry,
 )
-from app.engine import dnd_combat
+from app.engine import dnd_combat, dnd_spatial
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 
 logger = logging.getLogger(__name__)
@@ -1521,6 +1521,13 @@ def _start_dnd_combat_from_router_signal(
         participants,
         combat_id=combat_id,
     )
+    battle_map_seed = getattr(result, "battle_map_seed", None)
+    battle_map = dnd_spatial.normalize_battle_map_seed(
+        battle_map_seed,
+        combat.combatants,
+    )
+    if battle_map is not None:
+        combat.battle_map = battle_map
     order = ", ".join(
         f"{c.name or c.character_id} {c.initiative_total}"
         for c in combat.combatants
@@ -1546,6 +1553,13 @@ def _start_dnd_combat_from_router_signal(
         f"{actor_id}; combatants={', '.join(c.character_id for c in participants)}. "
         f"Initiative order: {order}.",
     )
+    if combat.battle_map is not None:
+        dnd_combat.append_audit_line(
+            combat,
+            "Battle map seeded: "
+            f"{combat.battle_map.map_name} "
+            f"{combat.battle_map.width}x{combat.battle_map.height}.",
+        )
     return True
 
 

@@ -126,6 +126,9 @@ def _render_combat_status(view: DndCombatView) -> discord.Embed:
 
     if not view.participants:
         lines.append("(no participants)")
+    if view.map_lines:
+        lines.append("")
+        lines.extend(view.map_lines)
     return render_info("Combat", "\n".join(lines))
 
 
