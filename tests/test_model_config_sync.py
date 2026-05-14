@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from app.bot.engine_bridge import EngineBridge
 from app.engine.model_config_sync import (
@@ -84,3 +85,28 @@ def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):
     assert ckpt_0000.session.config.models == expected
     assert ckpt_0001.config.models == expected
     assert ckpt_0001.session.config.models == expected
+
+
+def test_load_story_into_session_rejects_stale_schema(tmp_path: Path):
+    bridge = EngineBridge(
+        saves_dir=str(tmp_path),
+        prompts_dir="app/prompts",
+        llm_config=LLMConfig(api_key="sk-ant-test"),
+    )
+    story_id = "stale_schema_story"
+    story_dir = tmp_path / "stories" / story_id
+    story_dir.mkdir(parents=True)
+    data = json.loads(_stale_checkpoint(story_id).model_dump_json())
+    data["schema_version"] = "3.0"
+    (story_dir / "ckpt_0000.json").write_text(json.dumps(data))
+
+    bridge.create_empty_session("session_1")
+
+    try:
+        bridge.load_story_into_session("session_1", story_id)
+    except ValueError as exc:
+        assert "schema_version" in str(exc)
+        assert "Re-import" in str(exc)
+    else:
+        raise AssertionError("stale story schema should be rejected")
+    assert not (tmp_path / "sessions" / "session_1" / "ckpt_0000.json").exists()

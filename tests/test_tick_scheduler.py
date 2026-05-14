@@ -413,7 +413,11 @@ class TestTickFanIn:
         self, monkeypatch,
     ):
         ckpt = _ckpt(turns_since_last_tick=14, stagnation=15)
-        routed = _tick_router_output()
+        ckpt.session.leading_at_s = 50
+        routed = EventRouterOutput.model_validate({
+            **_tick_router_output().model_dump(),
+            "effective_at_s": 10,
+        })
         _stub_character_agent(monkeypatch, recorder=[])
         _stub_dispatcher(monkeypatch, routed)
         before = len(ckpt.canonical_events)
@@ -423,6 +427,7 @@ class TestTickFanIn:
         )
 
         assert len(ckpt.canonical_events) == before + 1
+        assert ckpt.canonical_events[-1].effective_at_s == 50
 
     @pytest.mark.asyncio
     async def test_fan_in_skipped_when_no_ticks_succeed(self, monkeypatch):

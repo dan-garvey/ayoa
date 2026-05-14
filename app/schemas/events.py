@@ -48,20 +48,61 @@ class ObservableFact(BaseModel):
     text: str
     audience: Literal["all_observers", "only"]
     visible_to: list[str]
+    at_offset_s: int
+    duration_s: int
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_timing(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        value = dict(value)
+        value.setdefault("at_offset_s", 0)
+        value.setdefault("duration_s", 0)
+        return value
 
     @classmethod
-    def all(cls, text: str) -> "ObservableFact":
-        return cls(text=text, audience="all_observers", visible_to=[])
+    def all(
+        cls,
+        text: str,
+        *,
+        at_offset_s: int = 0,
+        duration_s: int = 0,
+    ) -> "ObservableFact":
+        return cls(
+            text=text,
+            audience="all_observers",
+            visible_to=[],
+            at_offset_s=at_offset_s,
+            duration_s=duration_s,
+        )
 
     @classmethod
-    def only(cls, text: str, visible_to: Iterable[str]) -> "ObservableFact":
+    def only(
+        cls,
+        text: str,
+        visible_to: Iterable[str],
+        *,
+        at_offset_s: int = 0,
+        duration_s: int = 0,
+    ) -> "ObservableFact":
         ids = [cid for cid in visible_to if cid]
-        return cls(text=text, audience="only", visible_to=ids)
+        return cls(
+            text=text,
+            audience="only",
+            visible_to=ids,
+            at_offset_s=at_offset_s,
+            duration_s=duration_s,
+        )
 
     @model_validator(mode="after")
     def _validate_visibility(self) -> "ObservableFact":
         self.text = (self.text or "").strip()
         self.visible_to = [cid.strip() for cid in self.visible_to if cid.strip()]
+        if self.at_offset_s < 0:
+            self.at_offset_s = 0
+        if self.duration_s < 0:
+            self.duration_s = 0
         if self.audience == "all_observers":
             self.visible_to = []
         elif not self.visible_to:
@@ -145,6 +186,8 @@ class CanonicalEvent(BaseModel):
                     "text": item,
                     "audience": "all_observers",
                     "visible_to": [],
+                    "at_offset_s": 0,
+                    "duration_s": 0,
                 })
             else:
                 upgraded.append(item)

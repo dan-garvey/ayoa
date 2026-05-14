@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
@@ -56,6 +57,33 @@ def build_character_packet(char: CharacterRecord) -> dict[str, str]:
         "character_backstory": char.backstory or "No detailed backstory available.",
         "character_personality": char.personality or "No detailed personality notes.",
     }
+
+
+def replace_character_ids_with_names(
+    text: str,
+    checkpoint: CheckpointFile,
+) -> str:
+    """Render id-authored facts for prose-facing LLM roles.
+
+    Router and rules prompts use `character_id` as their single character
+    handle. Narrator and agent prompts are prose-facing, so they should see
+    display names instead of ids. This keeps each model role on one identity
+    surface without requiring router prompts to carry name/id pairs.
+    """
+    if not text:
+        return ""
+    out = text
+    pairs = [
+        (char.character_id, char.name)
+        for char in checkpoint.characters
+        if char.character_id and char.name
+    ]
+    for char_id, name in sorted(pairs, key=lambda pair: len(pair[0]), reverse=True):
+        pattern = re.compile(
+            rf"(?<![A-Za-z0-9_]){re.escape(char_id)}(?![A-Za-z0-9_])"
+        )
+        out = pattern.sub(name, out)
+    return out
 
 
 def build_character_state(char: CharacterRecord) -> dict[str, str]:
@@ -315,10 +343,7 @@ def build_player_characters_block(
         role = char.public_sheet.role or "unspecified role"
         appearance = (char.public_sheet.appearance or "not yet described").strip()
         marker = " (acting this turn)" if char.character_id == acting_character_id else ""
-        lines.append(
-            f"- **{char.name}**{marker} (id: {char.character_id}) — "
-            f"{role}. {appearance}"
-        )
+        lines.append(f"- **{char.character_id}**{marker} — {role}. {appearance}")
 
     if not lines:
         return "- No player characters bound to this session."

@@ -21,8 +21,10 @@ from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
+    CommitmentRevisionPrompt,
     LocationState,
     OpenCatIIEvent,
+    OpenCommitment,
     RenderBufferEntry,
     SessionState,
     StorySetting,
@@ -133,6 +135,42 @@ class TestRouterContext:
         assert "A bell rings." in ctx["since_last_turn_block"]
         assert alice.pending_observations == []
 
+    def test_relative_time_and_commitments_are_user_tail_context(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.clock_at_s = 12
+        ckpt.session.leading_at_s = 30
+        ckpt.session.open_commitments = [
+            OpenCommitment(
+                commitment_id="commit_search",
+                actor_ids=["alice"],
+                description="Alice searches the cabinet.",
+                started_at_s=12,
+                expected_end_s=72,
+                max_end_s=192,
+                location_label="gatehouse",
+            )
+        ]
+        ckpt.session.pending_commitment_revisions["alice"] = (
+            CommitmentRevisionPrompt(
+                character_id="alice",
+                commitment_id="commit_search",
+                trigger_event_id="evt_noise",
+                observed_at_s=20,
+                reason="the cabinet changed",
+                previous_description="Alice searches the cabinet.",
+            )
+        )
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert "Session leading time: 30s" in ctx["relative_time_block"]
+        assert "alice at 12s" in ctx["relative_time_block"]
+        assert "Alice (id: alice)" not in ctx["relative_time_block"]
+        assert "commit_search" in ctx["open_commitments_block"]
+        assert "Alice searches the cabinet." in ctx["open_commitments_block"]
+        assert "evt_noise" in ctx["commitment_revision_block"]
+
 
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
@@ -150,8 +188,12 @@ class TestRouteIntention:
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        assert "Alice attempts: examine the lock" in user_content
+        assert "## Acting Character\nalice" in user_content
+        assert "examine the lock" in user_content
+        assert "Alice attempts:" not in user_content
+        assert "alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
+        assert "## Intention" not in user_content
 
     def test_npc_cascade_emits_intends_framing(
         self, prompt_mgr, mock_client,
@@ -168,8 +210,44 @@ class TestRouteIntention:
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        assert "Pip intends: polishes the bell" in user_content
+        assert "## Acting Character\npip" in user_content
+        assert "polishes the bell" in user_content
+        assert "Pip intends:" not in user_content
+        assert "pip intends:" not in user_content
         assert "Pip attempts:" not in user_content
+        assert "## Intention" not in user_content
+
+    def test_router_history_omits_volatile_commitment_context(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.open_commitments = [
+            OpenCommitment(
+                commitment_id="commit_search",
+                actor_ids=["alice"],
+                description="Alice searches the cabinet.",
+            )
+        ]
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="check the hinges",
+        ))
+
+        live_user = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        stored_user = ckpt.session_conversation[-2].content
+        assert "## Open Commitments" in live_user
+        assert "commit_search" in live_user
+        assert "## Open Commitments" not in stored_user
+        assert "commit_search" not in stored_user
+        assert "[beat:" not in stored_user
+        assert "effective_at_s" not in stored_user
+        assert "## Intention" not in stored_user
+        assert stored_user == "alice: check the hinges"
 
     def test_dnd_fresh_intention_uses_dnd_router_contract(
         self, prompt_mgr, mock_client,
@@ -354,7 +432,7 @@ class TestRouteIntention:
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session.pending_router_state_changes = [
-            "Spawned: Sera (id: sera_01)",
+            "Spawned: sera_01",
         ]
         ckpt.world_state.facts = ["The keep predates the road."]
         ckpt.session.surfaced_world_facts = []
@@ -406,10 +484,12 @@ class TestRouteTickIntentions:
             mock_client.complete.await_args.kwargs["messages"]
         )
         assert "## Off-Stage Tick" in user_content
-        assert "Pip" in user_content
+        assert "pip" in user_content
+        assert "Pip" not in user_content
         assert "He paces the threshold" in user_content
         assert "gatehouse" in user_content
-        assert "Wraith" in user_content
+        assert "wraith_42" in user_content
+        assert "Wraith" not in user_content
         assert "It descends the stair" in user_content
         assert "tower" in user_content
         assert "## Intention" not in user_content

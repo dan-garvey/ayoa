@@ -70,6 +70,8 @@ CANONICAL_EVENT_EXAMPLE = {
 # emits explicit empty values; this example mirrors that contract.
 ROUTER_OUTPUT_EXAMPLE = {
     "event_id": "",
+    "effective_at_s": 0,
+    "duration_s": 0,
     "decision_rationale": "(test fixture)",
     "canonical_event": {
         "world_adjudication": {
@@ -92,6 +94,17 @@ ROUTER_OUTPUT_EXAMPLE = {
     "spawn": [],
     "dormant": [],
     "cull": [],
+    "commitment_open": {
+        "present": False,
+        "actor_ids": [],
+        "description": "",
+        "expected_duration_s": 0,
+        "max_duration_s": 0,
+        "location_label": "",
+    },
+    "commitment_resolutions": [],
+    "commitment_interrupts": [],
+    "location_updates": [],
 }
 
 AGENT_OUTPUT_EXAMPLE = {
@@ -348,6 +361,86 @@ class TestEventRouterOutput:
         r = EventRouterOutput(**data)
         assert r.spawn[0].character_id == "stablehand_03"
 
+    def test_empty_internal_time_commitment_signals_are_clamped_not_rejected(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "effective_at_s": -5,
+            "duration_s": -10,
+            "commitment_open": {
+                "present": True,
+                "actor_ids": [],
+                "description": "wait",
+                "expected_duration_s": -1,
+                "max_duration_s": -1,
+                "location_label": "",
+            },
+            "commitment_resolutions": [
+                {
+                    "commitment_id": "",
+                    "actor_ids": [],
+                    "reason": "",
+                    "resolved_at_offset_s": -1,
+                }
+            ],
+            "commitment_interrupts": [
+                {
+                    "commitment_id": "",
+                    "actor_ids": [],
+                    "observed_at_offset_s": -1,
+                    "reason": "",
+                }
+            ],
+            "location_updates": [
+                {"character_id": "", "location_label": "gatehouse"},
+                {"character_id": "alice", "location_label": ""},
+            ],
+        }
+
+        rebuilt = EventRouterOutput.model_validate(data)
+
+        assert rebuilt.effective_at_s == 0
+        assert rebuilt.duration_s == 0
+        assert rebuilt.commitment_open.expected_duration_s == 0
+        assert rebuilt.commitment_open.max_duration_s == 0
+        assert rebuilt.commitment_resolutions[0].resolved_at_offset_s == 0
+        assert rebuilt.commitment_interrupts[0].observed_at_offset_s == 0
+        assert rebuilt.location_updates == []
+
+        data["duration_s"] = 10
+        data["commitment_resolutions"][0]["resolved_at_offset_s"] = 999
+        data["commitment_interrupts"][0]["observed_at_offset_s"] = 999
+        rebuilt = EventRouterOutput.model_validate(data)
+        assert rebuilt.commitment_resolutions[0].resolved_at_offset_s == 10
+        assert rebuilt.commitment_interrupts[0].observed_at_offset_s == 10
+
+    def test_cat_ii_open_does_not_advance_duration(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "duration_s": 20,
+            "requires_responders": True,
+            "required_responders": ["guard_17"],
+            "ends_beat_reason": "cat_ii_open",
+            "canonical_event": {
+                **ROUTER_OUTPUT_EXAMPLE["canonical_event"],
+                "observable_facts": [
+                    {
+                        "text": "Alice's fist drives toward Pip.",
+                        "audience": "all_observers",
+                        "visible_to": [],
+                        "at_offset_s": 10,
+                        "duration_s": 5,
+                    }
+                ],
+            },
+        }
+
+        rebuilt = EventRouterOutput.model_validate(data)
+
+        assert rebuilt.duration_s == 0
+        fact = rebuilt.canonical_event.observable_facts[0]
+        assert fact.at_offset_s == 0
+        assert fact.duration_s == 0
+
 
 class TestDndEventRouterOutput:
     def test_json_schema_is_openai_strict_object_compatible(self):
@@ -566,6 +659,7 @@ class TestTurnResponse:
         assert tr.per_player_renders == {}
         assert tr.beat_ended_reason == ""
         assert tr.loot_prompts == {}
+        assert tr.commitment_revision_prompts == {}
 
     def test_legacy_debug_payload_silently_dropped(self):
         tr = TurnResponse(
@@ -584,7 +678,7 @@ class TestCheckpointFile:
             world_state=WorldState(**WORLD_STATE_EXAMPLE),
             characters=[CharacterRecord(**CHARACTER_EXAMPLE)],
         )
-        assert ckpt.schema_version == "3.0"  # v11 hard break
+        assert ckpt.schema_version == "4.0"  # relative-time hard break
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
         # Pre-versioning / hand-built checkpoints have empty importer_version;

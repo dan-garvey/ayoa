@@ -342,6 +342,61 @@ class TestTurnResponseDelivery:
         assert captured["view"].character_id == "bob"
         assert captured["view"].event_id == "evt_react"
 
+    def test_actor_commitment_revision_prompt_adds_intro_note(self, monkeypatch):
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0005",
+            turn_index=5,
+            output_text="The room changes around Alice.",
+            per_player_renders={"alice": "The room changes around Alice."},
+            beat_ended_reason="state_change",
+            commitment_revision_prompts={"alice": ["commit_watch"]},
+        )
+
+        engine = MagicMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+        )
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        smap = MagicMock()
+        captured = {}
+        thread = MagicMock()
+        thread.id = 999
+
+        async def _fake_post_actor_render(**kwargs):
+            captured.update(kwargs)
+            return ("thread", thread)
+
+        monkeypatch.setattr(
+            bot_commands, "_post_actor_render", _fake_post_actor_render,
+        )
+        monkeypatch.setattr(
+            bot_commands, "_clear_interaction_response", AsyncMock(),
+        )
+
+        asyncio.run(bot_commands._deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id="s",
+            story_id="story",
+            actor_character_id="alice",
+            actor_user=inter.user,
+            response=response,
+        ))
+
+        assert "ongoing activity was interrupted" in captured["intro_content"]
+        assert "/act (continue)" in captured["intro_content"]
+
 
 class TestImportAnalysisCallback:
     """EngineBridge.import_story fires on_analysis_complete with

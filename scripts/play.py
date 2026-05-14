@@ -1050,13 +1050,10 @@ class CLIState:
         # Mirror the Discord bot: if no narrator turns yet, fire (begin) so
         # the opening lands with the description in hand.
         #
-        # v11-r6c note: `(begin)` rides through the normal /act path and
-        # gets wrapped as "{name} attempts: (begin)" by the dispatcher.
-        # The event_router prompt's Author-directive OOC rule fires on
-        # the parenthesized-input shape itself, independent of the
-        # "attempts:" framing, so OOC routing is correct without a
-        # dedicated CLI code path. Same reasoning as /describe in the
-        # Discord frontend.
+        # v11-r6c note: `(begin)` rides through the normal /act path.
+        # The dispatcher preserves the parenthesized content, so the
+        # event_router prompt's OOC rule fires without a dedicated CLI
+        # code path. Same reasoning as /describe in the Discord frontend.
         if not any(ckpt.narrator_conversations.values()):
             print("opening story…")
             await self._act("(begin)")
@@ -1559,6 +1556,7 @@ class CLIState:
                 print(prose)
                 print()
             self._print_loot_prompts(pre_resp)
+            self._print_commitment_revision_prompts(pre_resp)
 
         per_player = response.per_player_renders or {}
 
@@ -1608,6 +1606,7 @@ class CLIState:
 
         self._print_reaction_prompts(response)
         self._print_loot_prompts(response)
+        self._print_commitment_revision_prompts(response)
         self._sync_current_actor_to_active_combat()
 
     def _print_cat_ii_pending_notice(self) -> None:
@@ -1720,6 +1719,20 @@ class CLIState:
             for offer_id in offer_ids:
                 print(f"offer {offer_id}")
             print("Use /loot to inspect, /loot take <offer_id> all to claim.")
+            print()
+
+    def _print_commitment_revision_prompts(self, response) -> None:
+        prompts = getattr(response, "commitment_revision_prompts", None) or {}
+        for cid, commitment_ids in prompts.items():
+            if cid not in self.claims or not commitment_ids:
+                continue
+            print(f"--- Commitment Interrupted · {cid} ---")
+            for commitment_id in commitment_ids:
+                print(f"commitment {commitment_id}")
+            print(
+                f"Use /as {cid}, then type a revised action or "
+                "(continue) to keep going."
+            )
             print()
 
     def _joined_pending_roll_prompts(self) -> list[PendingRollPrompt]:

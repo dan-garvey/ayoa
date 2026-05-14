@@ -11,7 +11,6 @@ PARTIAL_MODE_MARKER = (
 )
 CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
-INTENTION_BLOCK_HEADER = "## Intention"
 TICK_FAN_IN_HEADER = "## Off-Stage Tick"
 ROUTER_CONTINUATION_HEADER = "## Continuation Required"
 
@@ -39,21 +38,21 @@ AGENT_TICK_HEADER = "## TICK"
 AGENT_PERCEPTION_HEADER = "## PERCEPTION"
 
 
-def format_human_initiator_intention(name: str, user_input: str) -> str:
+def format_human_initiator_intention(character_id: str, user_input: str) -> str:
     """Cat I / Cat II OPEN path: a human player's /act.
 
-    DO NOT use for NPC cascade intentions — the "attempts:" framing
-    biases the router toward Cat II classification on dialogue (which
-    is Cat I). Use `format_npc_cascade_intention` for cascade steps.
-    See the USER-TEMPLATE CONTRACT block in event_router.txt for
-    the full shape contract.
+    The router user tail already identifies the acting character by id.
+    Keep the input as the player's raw intention so we do not duplicate
+    actor labels or add "attempts:"/markdown framing to every call.
     """
-    return f"{INTENTION_BLOCK_HEADER}\n{name} attempts: {user_input}"
+    del character_id
+    return (user_input or "").strip()
 
 
-def format_npc_cascade_intention(name: str, intention: str) -> str:
+def format_npc_cascade_intention(character_id: str, intention: str) -> str:
     """NPC cascade step in a beat (not a fresh player action)."""
-    return f"{INTENTION_BLOCK_HEADER}\n{name} intends: {intention}"
+    del character_id
+    return (intention or "").strip()
 
 
 def format_cat_ii_resolution_block(
@@ -99,6 +98,8 @@ def format_tick_fan_in_block(
     user message for the unified router.
 
     Each entry is `(name, character_id, location, public_text)`. The
+    name is accepted for caller compatibility but not rendered; router
+    and rules prompts use character ids as their single character handle.
     parenthetical (private intent) the agent emitted MUST be stripped
     BEFORE this helper is called — only `public_text` belongs here.
     The information-asymmetry rule (no agent's interior reaches the
@@ -118,10 +119,10 @@ def format_tick_fan_in_block(
         "The player did not see this beat."
     )
     lines.append("")
-    for name, char_id, location, public_text in entries:
+    for _name, char_id, location, public_text in entries:
         loc = location or "(unset)"
         text = (public_text or "").strip() or "(no public action)"
-        lines.append(f"- **{name}** (id: `{char_id}`, at `{loc}`): {text}")
+        lines.append(f"- {char_id} at {loc}: {text}")
     lines.append("")
     return "\n".join(lines)
 

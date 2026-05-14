@@ -33,11 +33,12 @@ class ImportAnalysis(BaseModel):
     preservation_notes: str = ""
 
 
-CURRENT_SCHEMA_VERSION = "3.0"
+CURRENT_SCHEMA_VERSION = "4.0"
 
 
 class CheckpointFile(BaseModel):
-    # v11 schema is 3.0 (turn pipeline rewrite). v2.0 checkpoints are
+    # v11 schema is 4.0 (relative-time + private commitments). Older
+    # checkpoints are
     # HARD-BREAK on load — the loader in checkpoint_manager raises with a
     # message pointing the user at /story start. No migration shim.
     schema_version: str = CURRENT_SCHEMA_VERSION

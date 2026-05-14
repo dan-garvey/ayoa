@@ -340,9 +340,12 @@ class TestFormatVisibleEventsBlock:
     def _resolved(
         self, *, event_id: str, outcome: str, facts: list[object],
         level: str = "direct", observers: list[str] | None = None,
+        duration_s: int = 0,
     ):
         ev = EventRouterOutput(
             event_id=event_id,
+            effective_at_s=0,
+            duration_s=duration_s,
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True,
@@ -423,6 +426,21 @@ class TestFormatVisibleEventsBlock:
         assert "Vex keeps a hand on the doorframe." in out
         assert "[loadout" not in out
 
+    def test_router_ids_render_as_names_for_narrator(self):
+        from app.engine.narrator import _format_visible_events_block
+
+        ckpt = _ckpt()
+        resolved = self._resolved(
+            event_id="evt_ids",
+            outcome="alice passes pip.",
+            facts=["alice sets pip's ledger on the table."],
+        )
+
+        out = _format_visible_events_block(resolved, ckpt=ckpt)
+
+        assert "Alice sets Pip's ledger on the table." in out
+        assert "alice sets pip" not in out
+
     def test_scoped_facts_filter_by_pov_before_narrator_sees_them(self):
         from app.engine.narrator import _format_visible_events_block
         resolved = self._resolved(
@@ -447,6 +465,49 @@ class TestFormatVisibleEventsBlock:
         assert "knows curses" in as_ashara
         assert "foot touches Ashara's boot" not in as_aldric
         assert "knows curses" in as_aldric
+
+    def test_resolved_buffers_sort_by_visible_time(self):
+        from app.engine.narrator import _resolve_buffered_events
+
+        ckpt = _ckpt()
+        buffered = [
+            RenderBufferEntry(
+                event_id="evt_alpha",
+                observation_level="direct",
+                visible_at_s=20,
+                event_sequence=0,
+            ),
+            RenderBufferEntry(
+                event_id="evt_beta",
+                observation_level="direct",
+                visible_at_s=10,
+                event_sequence=1,
+            ),
+        ]
+
+        resolved = _resolve_buffered_events(ckpt, buffered)
+
+        assert [event.event_id for _, event in resolved] == [
+            "evt_beta",
+            "evt_alpha",
+        ]
+
+    def test_visible_facts_sort_by_fact_time(self):
+        from app.engine.narrator import _format_visible_events_block
+
+        resolved = self._resolved(
+            event_id="evt_timed",
+            outcome="(audit-only)",
+            facts=[
+                ObservableFact.all("Second visible beat.", at_offset_s=5),
+                ObservableFact.all("First visible beat.", at_offset_s=1),
+            ],
+            duration_s=10,
+        )
+
+        out = _format_visible_events_block(resolved)
+
+        assert out.index("First visible beat.") < out.index("Second visible beat.")
 
 # NOTE: The `TestOpeningVerbatimRender` class lived here in v8 and earlier.
 # It exercised a now-removed verbatim shortcut that rendered the importer's

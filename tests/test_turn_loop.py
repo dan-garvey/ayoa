@@ -47,6 +47,7 @@ from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
+    OpenCommitment,
     RenderBufferEntry,
     SessionState,
     SlotEntry,
@@ -94,6 +95,8 @@ def _router_out(
     agent_picks: list[str] | None = None,
     ends_beat: bool = True,
     facts: list[ObservableFact | str] | None = None,
+    effective_at_s: int = 0,
+    duration_s: int = 0,
 ) -> EventRouterOutput:
     picks = agent_picks or []
     required = required_responders or []
@@ -113,6 +116,8 @@ def _router_out(
         )
     return EventRouterOutput(
         event_id="",
+        effective_at_s=effective_at_s,
+        duration_s=duration_s,
         decision_rationale="test fixture",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(feasible=True),
@@ -610,9 +615,15 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["pip"],
             ends_beat=False,
+            effective_at_s=100,
+            duration_s=30,
         ))
         fake.queue_agent("Pip dodges")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(
+            ends_beat=True,
+            effective_at_s=500,
+            duration_s=5,
+        ))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -624,6 +635,9 @@ class TestCatIIBeat:
         assert result.ended_reason == "cat_ii_resolution"
         assert result.events_closed == 2
         assert ckpt.canonical_events[0].ends_beat_reason == "cat_ii_open"
+        assert ckpt.canonical_events[0].effective_at_s == 100
+        assert ckpt.canonical_events[0].duration_s == 0
+        assert ckpt.canonical_events[1].effective_at_s == 100
         assert ckpt.session.open_cat_ii_events == []
 
     def test_cat_ii_inline_overrun_logs_cap_telemetry(self, caplog):
@@ -1218,9 +1232,13 @@ class TestBroadcastEvent:
         self,
         observer_ids: list[str],
         facts: list[ObservableFact | str] | None = None,
+        effective_at_s: int = 0,
+        duration_s: int = 0,
     ) -> EventRouterOutput:
         return EventRouterOutput(
             event_id="",
+            effective_at_s=effective_at_s,
+            duration_s=duration_s,
             decision_rationale="test fixture",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
@@ -1245,6 +1263,11 @@ class TestBroadcastEvent:
             dormant=[],
             cull=[],
         )
+
+    def _with_updates(self, event: EventRouterOutput, **updates) -> EventRouterOutput:
+        data = event.model_dump()
+        data.update(updates)
+        return EventRouterOutput.model_validate(data)
 
     def test_same_location_without_observer_entry_gets_nothing(self):
         ckpt = _ckpt()
@@ -1277,6 +1300,18 @@ class TestBroadcastEvent:
         broadcast_event(ckpt, event, actor_id="alice")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == ["Alice sets down a glass."]
+
+    def test_npc_observer_sees_names_when_router_fact_uses_ids(self):
+        ckpt = _ckpt()
+        event = self._event(
+            observer_ids=["pip"],
+            facts=[ObservableFact.all("alice sets bob's cup by pip.")],
+        )
+
+        broadcast_event(ckpt, event, actor_id="alice")
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert pip.pending_observations == ["Alice sets Bob's cup by Pip."]
 
     def test_actor_excluded_from_own_inbox(self):
         ckpt = _ckpt()
@@ -1371,6 +1406,192 @@ class TestBroadcastEvent:
         broadcast_event(ckpt, event, actor_id="alice")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == []
+
+    def test_broadcast_applies_relative_time_to_clocks_and_buffers(self):
+        ckpt = _ckpt({"alice": "1"})
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        pip.clock_at_s = 10
+        event = self._with_updates(
+            self._event(
+                observer_ids=["alice", "pip"],
+                facts=[
+                    ObservableFact.all(
+                        "Pip opens the west door.",
+                        at_offset_s=2,
+                        duration_s=3,
+                    )
+                ],
+                effective_at_s=4,
+                duration_s=10,
+            ),
+        )
+
+        visible = broadcast_event(ckpt, event, actor_id="pip")
+
+        assert visible == ["alice"]
+        assert event.effective_at_s == 10
+        assert pip.clock_at_s == 20
+        assert alice.clock_at_s == 15
+        assert ckpt.session.leading_at_s == 20
+        entry = ckpt.session.render_buffers["alice"][0]
+        assert entry.visible_at_s == 15
+        assert entry.event_sequence == 0
+
+    def test_open_commitment_is_private_and_does_not_render_without_facts(self):
+        ckpt = _ckpt({"alice": "1"})
+        event = self._with_updates(
+            self._event(observer_ids=["alice"], facts=[]),
+            commitment_open={
+                "present": True,
+                "actor_ids": ["alice"],
+                "description": "Alice searches the cabinet.",
+                "expected_duration_s": 60,
+                "max_duration_s": 180,
+                "location_label": "gatehouse",
+            },
+        )
+
+        visible = broadcast_event(ckpt, event, actor_id="alice")
+
+        assert visible == []
+        assert ckpt.session.render_buffers == {}
+        assert len(ckpt.session.open_commitments) == 1
+        assert ckpt.session.open_commitments[0].description == (
+            "Alice searches the cabinet."
+        )
+
+    def test_commitment_interrupt_creates_revision_without_act_slot(self):
+        ckpt = _ckpt({"alice": "1"})
+        open_event = self._with_updates(
+            self._event(observer_ids=["alice"], facts=[]),
+            commitment_open={
+                "present": True,
+                "actor_ids": ["alice"],
+                "description": "Alice searches the cabinet.",
+                "expected_duration_s": 60,
+                "max_duration_s": 180,
+                "location_label": "gatehouse",
+            },
+        )
+        broadcast_event(ckpt, open_event, actor_id="alice")
+        commitment_id = ckpt.session.open_commitments[0].commitment_id
+
+        interrupt_event = self._with_updates(
+            self._event(
+                observer_ids=["alice"],
+                facts=[ObservableFact.all("The cabinet door swings shut.")],
+            ),
+            commitment_interrupts=[
+                {
+                    "commitment_id": commitment_id,
+                    "actor_ids": ["alice"],
+                    "observed_at_offset_s": 0,
+                    "reason": "the cabinet changed while Alice searched it",
+                }
+            ],
+        )
+
+        broadcast_event(ckpt, interrupt_event, actor_id="pip")
+
+        prompt = ckpt.session.pending_commitment_revisions["alice"]
+        assert prompt.commitment_id == commitment_id
+        assert prompt.trigger_event_id == interrupt_event.event_id
+        assert ckpt.session.active_act_slots == {}
+        assert len(ckpt.session.open_commitments) == 1
+
+    def test_commitment_id_takes_precedence_over_actor_ids(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        ckpt.session.open_commitments = [
+            OpenCommitment(
+                commitment_id="commit_alice",
+                actor_ids=["alice"],
+                description="Alice searches.",
+            ),
+            OpenCommitment(
+                commitment_id="commit_bob",
+                actor_ids=["bob"],
+                description="Bob waits.",
+            ),
+        ]
+        event = self._with_updates(
+            self._event(observer_ids=[], facts=[]),
+            commitment_resolutions=[
+                {
+                    "commitment_id": "commit_alice",
+                    "actor_ids": ["bob"],
+                    "reason": "resolved",
+                    "resolved_at_offset_s": 0,
+                }
+            ],
+        )
+
+        broadcast_event(ckpt, event, actor_id="pip")
+
+        assert [c.commitment_id for c in ckpt.session.open_commitments] == [
+            "commit_bob"
+        ]
+
+    def test_commitment_resolution_offset_advances_committed_actor_clock(self):
+        ckpt = _ckpt({"alice": "1"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        ckpt.session.open_commitments = [
+            OpenCommitment(
+                commitment_id="commit_alice",
+                actor_ids=["alice"],
+                description="Alice waits.",
+            )
+        ]
+        event = self._event(
+            observer_ids=[],
+            facts=[],
+            effective_at_s=20,
+            duration_s=30,
+        )
+        event = self._with_updates(
+            event,
+            commitment_resolutions=[
+                {
+                    "commitment_id": "commit_alice",
+                    "actor_ids": [],
+                    "reason": "resolved",
+                    "resolved_at_offset_s": 15,
+                }
+            ],
+        )
+
+        broadcast_event(ckpt, event, actor_id="pip")
+
+        assert ckpt.session.open_commitments == []
+        assert alice.clock_at_s == 35
+
+    def test_visible_event_auto_interrupts_human_open_commitment(self):
+        ckpt = _ckpt({"alice": "1"})
+        open_event = self._with_updates(
+            self._event(observer_ids=["alice"], facts=[]),
+            commitment_open={
+                "present": True,
+                "actor_ids": ["alice"],
+                "description": "Alice searches the cabinet.",
+                "expected_duration_s": 60,
+                "max_duration_s": 180,
+                "location_label": "gatehouse",
+            },
+        )
+        broadcast_event(ckpt, open_event, actor_id="alice")
+        commitment_id = ckpt.session.open_commitments[0].commitment_id
+
+        visible_event = self._event(
+            observer_ids=["alice"],
+            facts=[ObservableFact.all("Pip drops a key beside Alice.")],
+        )
+        broadcast_event(ckpt, visible_event, actor_id="pip")
+
+        prompt = ckpt.session.pending_commitment_revisions["alice"]
+        assert prompt.commitment_id == commitment_id
+        assert prompt.trigger_event_id == visible_event.event_id
+        assert "new visible information" in prompt.reason
+        assert ckpt.session.active_act_slots == {}
 
 
 class TestBookkeeping:

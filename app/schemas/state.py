@@ -34,6 +34,63 @@ class SlotEntry(BaseModel):
     claimed_at: str = ""
 
 
+class OpenCommitment(BaseModel):
+    """Private checkpoint record for an interruptible ongoing activity.
+
+    Open commitments are not canonical observable facts. They summarize an
+    activity that can be advanced, interrupted, or resolved by later events;
+    only those later canonical events become narrator-visible.
+    """
+
+    commitment_id: str
+    actor_ids: list[str] = Field(default_factory=list)
+    description: str = ""
+    trigger_event_id: str = ""
+    started_at_s: int = 0
+    expected_end_s: int = 0
+    max_end_s: int = 0
+    location_label: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OpenCommitment":
+        self.commitment_id = self.commitment_id.strip()
+        self.actor_ids = [
+            cid.strip() for cid in dict.fromkeys(self.actor_ids) if cid.strip()
+        ]
+        self.description = self.description.strip()
+        self.trigger_event_id = self.trigger_event_id.strip()
+        self.location_label = self.location_label.strip()
+        if self.started_at_s < 0:
+            self.started_at_s = 0
+        if self.expected_end_s < self.started_at_s:
+            self.expected_end_s = self.started_at_s
+        if self.max_end_s < self.expected_end_s:
+            self.max_end_s = self.expected_end_s
+        return self
+
+
+class CommitmentRevisionPrompt(BaseModel):
+    """Private player prompt to revise or continue an open commitment."""
+
+    character_id: str
+    commitment_id: str
+    trigger_event_id: str = ""
+    observed_at_s: int = 0
+    reason: str = ""
+    previous_description: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CommitmentRevisionPrompt":
+        self.character_id = self.character_id.strip()
+        self.commitment_id = self.commitment_id.strip()
+        self.trigger_event_id = self.trigger_event_id.strip()
+        self.reason = self.reason.strip()
+        self.previous_description = self.previous_description.strip()
+        if self.observed_at_s < 0:
+            self.observed_at_s = 0
+        return self
+
+
 class OpenCatIIEvent(BaseModel):
     """v11: a Cat II (contested) event that's collecting responder
     intentions and hasn't adjudicated yet. The router opens it when an
@@ -354,6 +411,11 @@ class RenderBufferEntry(BaseModel):
     # character, copied from the event's observer list at broadcast
     # time.
     observation_level: str = "direct"
+    # Fictional time when this POV has received the visible facts in this
+    # event. Narrator composition sorts by this rather than by append order.
+    visible_at_s: int = 0
+    # Stable event-log order tie-breaker for simultaneous visible events.
+    event_sequence: int = 0
 
 
 class SessionSettings(BaseModel):
@@ -437,6 +499,9 @@ class SessionState(BaseModel):
     # the JSON is stable across the int-sized Discord ids). A character with
     # no entry here is AI-driven. Updated by /join, /leave, and /story start.
     character_bindings: dict[str, str] = Field(default_factory=dict)
+    # Durable relative story clock. Per-character clocks live on
+    # CharacterRecord; this is the maximum known checkpoint time.
+    leading_at_s: int = 0
     # Off-stage tick scheduler state.
     #
     # last-tick counter that the scheduler resets only on a real fire.
@@ -488,6 +553,14 @@ class SessionState(BaseModel):
     # D&D-adapter pending loot/reward choices. Generic narrative sessions leave
     # this empty; item/currency claims mutate character mechanics overlays.
     dnd_inventory_offers: list[DndLootOffer] = Field(default_factory=list)
+    # Private long-action state. These records are surfaced only to the router
+    # as routing context, never to narrator renders as facts.
+    open_commitments: list[OpenCommitment] = Field(default_factory=list)
+    # Non-blocking player revision prompts created when a visible event changes
+    # the scene around an open commitment.
+    pending_commitment_revisions: dict[str, CommitmentRevisionPrompt] = Field(
+        default_factory=dict
+    )
     # v11: per-player queue of canonical events awaiting render. Keyed by
     # character_id (a human's bound character). Cleared after each render
     # fires. An agent's "render buffer" is just its observation context

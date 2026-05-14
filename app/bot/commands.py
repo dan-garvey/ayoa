@@ -1261,10 +1261,12 @@ async def _deliver_turn_response_to_povs(
         turn_index: int,
         note_prefix: str = "",
         reaction_prompts: dict[str, str] | None = None,
+        commitment_revision_prompts: dict[str, list[str]] | None = None,
     ) -> list[str]:
         """Post each (cid, prose) to that user's POV thread or DM."""
         notified: list[str] = []
         reaction_prompts = reaction_prompts or {}
+        commitment_revision_prompts = commitment_revision_prompts or {}
         for cid, prose in renders.items():
             if cid == skip_cid or not prose:
                 continue
@@ -1281,7 +1283,15 @@ async def _deliver_turn_response_to_povs(
                 "**No reaction** to pass._"
                 if event_id else ""
             )
-            prefixes = [p for p in (note_prefix, reaction_note) if p]
+            revision_note = (
+                "_Your ongoing activity was interrupted. Use `/act` to revise "
+                "it, or `/act (continue)` to keep going if the new situation "
+                "still permits it._"
+                if commitment_revision_prompts.get(cid) else ""
+            )
+            prefixes = [
+                p for p in (note_prefix, reaction_note, revision_note) if p
+            ]
             payload = "\n\n".join([*prefixes, prose]) if prefixes else prose
             char = next((c for c in roster if c.character_id == cid), None)
             char_name = char.name if char else cid
@@ -1324,6 +1334,9 @@ async def _deliver_turn_response_to_povs(
                 "_(Auto-resolved while you were away — your prior "
                 "beat closed out.)_"
             ),
+            commitment_revision_prompts=(
+                pre_resp.commitment_revision_prompts or {}
+            ),
         )
         await _deliver_loot_prompts(
             inter=inter,
@@ -1339,6 +1352,13 @@ async def _deliver_turn_response_to_povs(
     actor_name = actor_char.name if actor_char else actor_character_id
     per_player = response.per_player_renders or {}
     reaction_prompts = response.reaction_prompts or {}
+    commitment_revision_prompts = response.commitment_revision_prompts or {}
+    actor_revision_note = (
+        "_Your ongoing activity was interrupted. Use `/act` to revise it, "
+        "or `/act (continue)` to keep going if the new situation still "
+        "permits it._"
+        if commitment_revision_prompts.get(actor_character_id) else ""
+    )
 
     combat_start_blocked = response.beat_ended_reason == "combat_start_blocked"
     pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
@@ -1385,7 +1405,9 @@ async def _deliver_turn_response_to_povs(
                 character_id=actor_character_id,
                 char_name=actor_name,
                 embeds=embeds,
-                intro_content=pause_note,
+                intro_content="\n\n".join(
+                    p for p in (pause_note, actor_revision_note) if p
+                ),
                 session_id=session_id,
                 turn_index=response.turn_index,
                 view=(
@@ -1413,7 +1435,9 @@ async def _deliver_turn_response_to_povs(
                     smap=smap,
                     session_id=session_id,
                     turn_index=response.turn_index,
-                    content=pause_note,
+                    content="\n\n".join(
+                        p for p in (pause_note, actor_revision_note) if p
+                    ),
                     embeds=embeds,
                     view=(
                         _CombatReactionView(
@@ -1429,7 +1453,12 @@ async def _deliver_turn_response_to_povs(
                     ),
                 )
         else:
-            await inter.followup.send(content=pause_note, ephemeral=True)
+            await inter.followup.send(
+                content="\n\n".join(
+                    p for p in (pause_note, actor_revision_note) if p
+                ),
+                ephemeral=True,
+            )
     else:
         actor_render = (
             response.output_text
@@ -1448,6 +1477,7 @@ async def _deliver_turn_response_to_povs(
             character_id=actor_character_id,
             char_name=actor_name,
             embeds=embeds,
+            intro_content=actor_revision_note or None,
             session_id=session_id,
             turn_index=response.turn_index,
             view=(
@@ -1475,6 +1505,7 @@ async def _deliver_turn_response_to_povs(
                 smap=smap,
                 session_id=session_id,
                 turn_index=response.turn_index,
+                content=actor_revision_note or None,
                 embeds=embeds,
                 view=(
                     _CombatReactionView(
@@ -1495,6 +1526,7 @@ async def _deliver_turn_response_to_povs(
             per_player, skip_cid=actor_character_id,
             turn_index=response.turn_index,
             reaction_prompts=reaction_prompts,
+            commitment_revision_prompts=commitment_revision_prompts,
         )
         if notified_names:
             try:
@@ -4469,15 +4501,9 @@ def register(
         # composes the opening from world + roster state alone.)
         #
         # v11-r6c note: we pass `(begin)` as a plain `user_input` through
-        # /act's normal path. The dispatcher's `format_human_initiator_
-        # intention` wraps this as "Alice attempts: (begin)" — visually a
-        # bit odd, but the event_router prompt's Author-directive OOC
-        # rule (search for "Author-directive OOC" in event_router.txt)
-        # fires on the shape of the content itself (fully parenthesized
-        # input), NOT on the surrounding "attempts:" framing. So OOC
-        # routing is correct here and no code change is needed. If the
-        # router prompt's OOC detection ever narrows, revisit the
-        # intention framing here.
+        # /act's normal path. The dispatcher's intention helper preserves
+        # the content as-is, so the event_router prompt's parenthesized
+        # OOC rule fires cleanly.
         arrival_action = "(begin)"
         logger.info(
             "Describe+open for %s by %s: %s",

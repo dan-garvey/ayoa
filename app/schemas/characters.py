@@ -51,6 +51,9 @@ class CharacterRecord(BaseModel):
     name: str
     status: CharacterStatus = CharacterStatus.active
     location: str = ""
+    # Fiction-time clock in seconds since session start. Updated from
+    # canonical event/fact timing for events this character acts in or observes.
+    clock_at_s: int = 0
     # True if this character is REASONABLY PLAYABLE BY A HUMAN — i.e.,
     # the author/importer marked them as a slot a player can claim via
     # /join. They run as agent NPCs by default and only stop being

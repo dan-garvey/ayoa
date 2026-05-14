@@ -182,7 +182,7 @@ class TestSerializeForAnalysis:
         assert "Aetheri were deliberately" in rendered  # hidden_lore
         assert "borders are closed" in rendered  # facts
         assert "Regent knows the truth" in rendered  # hidden_facts
-        assert "Emeric Hale" in rendered  # character name
+        assert "regent" in rendered  # character id
         assert "testimony crystals" in rendered  # known_context
 
     def test_missing_fields_are_silently_skipped(self):

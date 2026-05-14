@@ -17,12 +17,12 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
     append_turn_to_conversation,
     build_narrator_player_characters_block,
+    replace_character_ids_with_names,
 )
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.events import visible_fact_texts
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import RenderBufferEntry
 
@@ -69,7 +69,10 @@ def _resolve_buffered_events(
             )
             continue
         resolved.append((entry, ev))
-    return resolved
+    return sorted(
+        resolved,
+        key=lambda pair: (pair[0].visible_at_s, pair[0].event_sequence),
+    )
 
 
 _OBS_LEVEL_HEADERS = {
@@ -92,6 +95,7 @@ def _strip_loadout_tag(text: str) -> str:
 def _format_visible_events_block(
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]],
     pov_character_id: str = "",
+    ckpt: CheckpointFile | None = None,
 ) -> str:
     """Serialize only POV-visible surface facts for prose composition."""
     if not resolved:
@@ -100,14 +104,29 @@ def _format_visible_events_block(
     for entry, ev in resolved:
         header = _OBS_LEVEL_HEADERS.get(entry.observation_level, "Perceived:")
         ca = ev.canonical_event
+        visible_facts = []
+        for index, fact in enumerate(ca.observable_facts):
+            if fact.audience == "all_observers" or (
+                pov_character_id and fact.is_visible_to(pov_character_id)
+            ):
+                visible_facts.append((index, fact))
         facts = [
-            cleaned for fact in visible_fact_texts(
-                ca.observable_facts,
-                pov_character_id,
-                include_all_observers=True,
+            cleaned
+            for _, fact in sorted(
+                visible_facts,
+                key=lambda item: (
+                    item[1].at_offset_s,
+                    item[1].duration_s,
+                    item[0],
+                ),
             )
-            if (cleaned := _strip_loadout_tag(fact))
+            if (cleaned := _strip_loadout_tag(fact.text))
         ]
+        if ckpt is not None:
+            facts = [
+                replace_character_ids_with_names(fact, ckpt)
+                for fact in facts
+            ]
         if pov_character_id and not facts:
             # No fact visible to this POV means the event must not
             # surface in their render at all.
@@ -179,7 +198,7 @@ async def compose_pov_render(
         ckpt, pov_character_id
     )
     visible_events_block = _format_visible_events_block(
-        resolved, pov_character_id,
+        resolved, pov_character_id, ckpt,
     )
     rendering_note = (
         PARTIAL_MODE_MARKER

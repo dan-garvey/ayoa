@@ -116,7 +116,10 @@ class TestPromptManagerWithRealTemplates:
             hidden_facts="- Hidden fact one",
             acting_character_name="Aldric",
             acting_character_id="aldric",
-            player_characters_block="- **Aldric** (acting this turn) (id: aldric) — scholar. Tall, broad-shouldered, grey-streaked hair.",
+            player_characters_block=(
+                "- **aldric** (acting this turn) — scholar. "
+                "Tall, broad-shouldered, grey-streaked hair."
+            ),
             since_last_turn_block="",
             # Commit-3: dropped `world_facts` (full) + `character_registry`
             # from per-turn context. Replaced with three new optional
@@ -124,14 +127,27 @@ class TestPromptManagerWithRealTemplates:
             world_facts_delta_block="",
             initial_roster_block="",
             state_changes_block="",
+            relative_time_block=(
+                "## Relative Time\n"
+                "Session leading time: 77s.\n"
+                "Unique clock marker.\n"
+            ),
+            open_commitments_block=(
+                "## Open Commitments\n"
+                "- commit_unique_marker: activity: unique commitment.\n"
+            ),
+            commitment_revision_block=(
+                "## Commitment Revision\n"
+                "- Trigger event id: evt_unique_revision\n"
+            ),
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
             tick_fan_in_block="",
-            intention_block="## Intention\nAldric attempts: I try to lift the building.",
+            intention_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
-        assert "Aldric" in result
+        assert "aldric" in result
         assert "No magic" in result
         assert "Tall, broad-shouldered" in result
 
@@ -218,6 +234,19 @@ class TestPromptManagerWithRealTemplates:
             world_facts_delta_block="",
             initial_roster_block="",
             state_changes_block="",
+            relative_time_block=(
+                "## Relative Time\n"
+                "Session leading time: 77s.\n"
+                "Unique clock marker.\n"
+            ),
+            open_commitments_block=(
+                "## Open Commitments\n"
+                "- commit_unique_marker: activity: unique commitment.\n"
+            ),
+            commitment_revision_block=(
+                "## Commitment Revision\n"
+                "- Trigger event id: evt_unique_revision\n"
+            ),
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
@@ -242,19 +271,31 @@ class TestPromptManagerWithRealTemplates:
             acting_character_name="Aldric UniqueActor",
             acting_character_id="aldric_unique_actor",
             player_characters_block=(
-                "- **Aldric UniqueActor** (acting this turn) "
-                "(id: aldric_unique_actor) — scholar. "
+                "- **aldric_unique_actor** (acting this turn) — scholar. "
                 "Unique player-block appearance."
             ),
             since_last_turn_block="",
             world_facts_delta_block="",
             initial_roster_block="",
             state_changes_block="",
+            relative_time_block=(
+                "## Relative Time\n"
+                "Session leading time: 77s.\n"
+                "Unique clock marker.\n"
+            ),
+            open_commitments_block=(
+                "## Open Commitments\n"
+                "- commit_unique_marker: activity: unique commitment.\n"
+            ),
+            commitment_revision_block=(
+                "## Commitment Revision\n"
+                "- Trigger event id: evt_unique_revision\n"
+            ),
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
             tick_fan_in_block="",
-            intention_block="## Intention\nAldric UniqueActor attempts: I wait.",
+            intention_block="I wait.",
         )
 
         system = messages[0]["content"]
@@ -264,11 +305,17 @@ class TestPromptManagerWithRealTemplates:
         assert "aldric_unique_actor" not in system
         assert "acting this turn" not in system
         assert "Unique player-block appearance" not in system
+        assert "Unique clock marker" not in system
+        assert "commit_unique_marker" not in system
+        assert "evt_unique_revision" not in system
 
-        assert "Aldric UniqueActor" in user
+        assert "Aldric UniqueActor" not in user
         assert "aldric_unique_actor" in user
         assert "acting this turn" in user
         assert "Unique player-block appearance" in user
+        assert "Unique clock marker" in user
+        assert "commit_unique_marker" in user
+        assert "evt_unique_revision" in user
 
     def test_narrator_keeps_pov_context_out_of_system_prefix(self):
         """Narrator cache efficiency depends on POV-specific render inputs
@@ -335,6 +382,9 @@ class TestPromptManagerWithRealTemplates:
             world_facts_delta_block="",
             initial_roster_block="",
             state_changes_block="",
+            relative_time_block="",
+            open_commitments_block="",
+            commitment_revision_block="",
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",

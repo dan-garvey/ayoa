@@ -86,13 +86,6 @@ def _combatant_character_id(combatant: Any) -> str:
     )
 
 
-def _combatant_name(combatant: Any) -> str:
-    return str(
-        _obj_get(combatant, "name", "")
-        or _combatant_character_id(combatant)
-    )
-
-
 def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
     for combatant in list(_obj_get(combat, "combatants", []) or []):
         if _combatant_character_id(combatant) == character_id:
@@ -262,14 +255,13 @@ class CharacterAgent:
             return ""
         current = _current_combatant(combat)
         current_id = _combatant_character_id(current) if current else ""
-        current_name = _combatant_name(current) if current else "(unknown)"
         own = _combatant_for_character(combat, character.character_id)
 
         lines = [
             "## D&D Combat",
             "Active D&D 5e initiative is running.",
             f"Round: {_obj_get(combat, 'round_number', 1)}.",
-            f"Current turn: {current_name} ({current_id}).",
+            f"Current turn: {current_id or '(unknown)'}.",
         ]
         if own is None:
             lines.append("You are not listed as a combatant.")

@@ -14,14 +14,16 @@ from app.engine.turn_loop_contracts import (
 
 class TestContractHelpers:
     def test_human_initiator_framing(self):
-        out = format_human_initiator_intention("Alice", "I look around")
-        assert out.startswith("## Intention")
-        assert "Alice attempts: I look around" in out
+        out = format_human_initiator_intention("alice", "I look around")
+        assert out == "I look around"
+        assert "## Intention" not in out
+        assert "attempts:" not in out
 
     def test_npc_cascade_framing(self):
-        out = format_npc_cascade_intention("Pip", "steps closer")
-        assert "Pip intends: steps closer" in out
-        assert "attempts:" not in out  # Crucial — NPC cascades must NOT use "attempts"
+        out = format_npc_cascade_intention("pip", "steps closer")
+        assert out == "steps closer"
+        assert "intends:" not in out
+        assert "attempts:" not in out
 
     def test_cat_ii_resolution_omits_swept_from_responder_list(self):
         block = format_cat_ii_resolution_block(
@@ -83,12 +85,12 @@ class TestTickFanInBlock:
         ])
         assert TICK_FAN_IN_HEADER in block
         assert "2 off-stage NPC(s)" in block
-        # Per-entry: name, id, location, body all present.
-        assert "**Regent**" in block
+        # Per-entry: id, location, body all present; name is not repeated.
+        assert "**Regent**" not in block
         assert "regent" in block
         assert "great_hall" in block
         assert "He paces the long table." in block
-        assert "**Scribe**" in block
+        assert "**Scribe**" not in block
         assert "library" in block
         assert "She copies a passage." in block
 

@@ -211,14 +211,14 @@ class TestCharacterSpawn:
         queue = sample_checkpoint.session.pending_router_state_changes
         assert len(queue) == 1
         line = queue[0]
-        assert "Spawned: Sera the Cartographer" in line
+        assert "Spawned: sera_01" in line
         assert "sera_01" in line
         assert "Exiled cartographer" in line
         assert "steward" in line
 
         block = _build_state_changes_block(sample_checkpoint)
         assert "## State Changes Since Your Last Call" in block
-        assert "Spawned: Sera the Cartographer" in block
+        assert "Spawned: sera_01" in block
         assert sample_checkpoint.session.pending_router_state_changes == []
 
         block_again = _build_state_changes_block(sample_checkpoint)
@@ -255,7 +255,7 @@ class TestCharacterSpawn:
         queue = sample_checkpoint.session.pending_router_state_changes
         assert len(queue) == 1
         line = queue[0]
-        assert "Spawned: Anon" in line
+        assert "Spawned: anon_01" in line
         assert "role=messenger" in line
         assert "objectives=deliver the writ" in line
 
@@ -297,7 +297,7 @@ class TestCharacterSpawn:
         assert len(queue) == 1
         line = queue[0]
         assert "\n" not in line
-        prefix_overhead = len("Spawned: Verbose Visitor (id: verb_01) — ")
+        prefix_overhead = len("Spawned: verb_01 — ")
         assert len(line) <= prefix_overhead + ROUTER_SUMMARY_MAX_CHARS
 
         cleaned = _normalize_router_summary(long_summary)

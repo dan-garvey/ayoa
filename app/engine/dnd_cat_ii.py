@@ -1361,7 +1361,6 @@ def _build_contested_packet(
             continue
         participants.append({
             "character_id": cid,
-            "name": char.name,
             "role": char.public_sheet.role,
             "location": char.location,
             "player_controlled": cid in bindings,
@@ -1404,7 +1403,6 @@ def _build_combat_packet(
         participants.append({
             "combatant_id": str(getattr(combatant, "combatant_id", "") or cid),
             "character_id": cid,
-            "name": str(getattr(combatant, "name", "") or cid),
             "player_controlled": cid in bindings,
             "current": combatant is current,
             "armor_class": int(getattr(combatant, "armor_class", 10) or 10),
@@ -1448,7 +1446,6 @@ def _build_combat_packet(
         "round_number": int(getattr(combat, "round_number", 1) or 1),
         "current_turn": {
             "actor_id": actor_id,
-            "name": _character_name(ckpt, actor_id),
         },
         "intention": intention,
         "house_rules": [
@@ -1629,13 +1626,6 @@ def _current_combatant(combat: object) -> object | None:
     except (TypeError, ValueError):
         idx = 0
     return combatants[idx]
-
-
-def _character_name(ckpt: CheckpointFile, character_id: str) -> str:
-    return next(
-        (c.name for c in ckpt.characters if c.character_id == character_id),
-        character_id,
-    )
 
 
 def _compile_event_router_output(

@@ -59,18 +59,22 @@ def _drop_pending_spawn_line(
     references `character_id` as a freshly-spawned character.
 
     Called when a character is culled before the queue drains. Without
-    this, the next router call would see "Spawned: NAME (id: X) — ..."
+    this, the next router call would see "Spawned: X — ..."
     for a character who no longer exists on the roster — a ghost
     instruction that confuses adjudication and may prompt the router
     to re-spawn or hallucinate them.
 
-    Matches by `(id: {character_id})` rather than the name to be robust
-    against the LLM-authored summary embedding the name elsewhere in
-    the line. Returns True if any line was removed.
+    Matches both the current id-only form and the older name/id form so
+    mixed live checkpoints remain cleanup-safe. Returns True if any line
+    was removed.
     """
     queue = checkpoint.session.pending_router_state_changes or []
-    needle = f"(id: {character_id})"
-    kept = [line for line in queue if needle not in line]
+    new_needle = f"Spawned: {character_id}"
+    old_needle = f"(id: {character_id})"
+    kept = [
+        line for line in queue
+        if new_needle not in line and old_needle not in line
+    ]
     if len(kept) == len(queue):
         return False
     removed = len(queue) - len(kept)
@@ -108,7 +112,7 @@ def _push_spawn_state_change(
     cleaned = _normalize_router_summary(router_summary or "")
     if cleaned:
         checkpoint.session.pending_router_state_changes.append(
-            f"Spawned: {char.name} (id: {char.character_id}) — {cleaned}"
+            f"Spawned: {char.character_id} — {cleaned}"
         )
         return
 
@@ -116,7 +120,7 @@ def _push_spawn_state_change(
     loc = char.location or "unknown"
     objs = [o for o in (char.private_state.current_objectives or []) if o]
     parts = [
-        f"Spawned: {char.name} (id: {char.character_id})",
+        f"Spawned: {char.character_id}",
         f"role={role}",
         f"location={loc}",
     ]

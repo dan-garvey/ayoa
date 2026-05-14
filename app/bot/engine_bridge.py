@@ -483,6 +483,15 @@ class EngineBridge:
             )
 
         data = json.loads(src.read_text())
+        from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION
+
+        version = str(data.get("schema_version", "")).strip()
+        if version != CURRENT_SCHEMA_VERSION:
+            raise ValueError(
+                f"Story '{story_id}' has schema_version={version!r}, "
+                f"expected {CURRENT_SCHEMA_VERSION!r}. Re-import or "
+                f"regenerate the story before starting a new session."
+            )
         data["session"]["session_id"] = session_id
         data.pop("import_analysis", None)
         ckpt = CheckpointFile.model_validate(data)
@@ -1118,8 +1127,8 @@ class EngineBridge:
             class_line = ", ".join(summary.classes) or "unknown class"
             imported = summary.imported_name or "unnamed D&D character"
             ckpt.session.pending_router_state_changes.append(
-                f"D&D sheet attached: {summary.character_name} "
-                f"(id: {target.character_id}) now has imported D&D mechanics "
+                f"D&D sheet attached: {target.character_id} now has "
+                f"imported D&D mechanics "
                 f"from {imported}; {class_line}, level {summary.total_level}, "
                 f"AC {summary.armor_class}, HP "
                 f"{summary.hit_points_current}/{summary.hit_points_max}. "
@@ -1362,12 +1371,8 @@ class EngineBridge:
             )
 
         ckpt.session.character_bindings[character_id] = uid
-        target_name = next(
-            (c.name for c in ckpt.characters if c.character_id == character_id),
-            character_id,
-        )
         ckpt.session.pending_router_state_changes.append(
-            f"Player binding: {target_name} (id: {character_id}) is now "
+            f"Player binding: {character_id} is now "
             f"driven by a human player. Treat them as a protagonist; "
             f"the narrator may pivot POV to them."
         )
@@ -1399,12 +1404,8 @@ class EngineBridge:
             purge_character_state(ckpt, freed)
             del ckpt.session.character_bindings[freed]
             dnd_inventory.remove_character_from_loot_offers(ckpt, freed)
-            freed_name = next(
-                (c.name for c in ckpt.characters if c.character_id == freed),
-                freed,
-            )
             ckpt.session.pending_router_state_changes.append(
-                f"Player binding: {freed_name} (id: {freed}) returned to "
+                f"Player binding: {freed} returned to "
                 f"AI control. Their character agent will resume producing "
                 f"intentions on cascade."
             )
@@ -1491,15 +1492,15 @@ class EngineBridge:
             # binding metadata). Tag stays compact to minimize echo
             # surface in router short-circuit prose.
             ckpt.session.pending_router_state_changes.append(
-                f"Custom player character created: {new_char.name} "
-                f"(id: {new_id}) — {summary} [player-bound]"
+                f"Custom player character created: {new_id} — "
+                f"{summary} [player-bound]"
             )
         else:
             role = new_char.public_sheet.role or "unknown role"
             loc = new_char.location or "unknown"
             ckpt.session.pending_router_state_changes.append(
-                f"Custom player character created: {new_char.name} "
-                f"(id: {new_id}), role={role}, location={loc}, bound to a "
+                f"Custom player character created: {new_id}, "
+                f"role={role}, location={loc}, bound to a "
                 f"human player."
             )
             logger.warning(
@@ -1583,8 +1584,8 @@ class EngineBridge:
             "as in-fiction observable_facts to the NPCs who would know"
         )
         ckpt.session.pending_router_state_changes.append(
-            f"Custom player character created: {new_char.name} "
-            f"(id: {new_id}) — {'; '.join(bits)}. [player-bound]"
+            f"Custom player character created: {new_id} — "
+            f"{'; '.join(bits)}. [player-bound]"
         )
 
         self.checkpoint_mgr.save(ckpt)
@@ -1617,8 +1618,16 @@ class EngineBridge:
             description=description,
             invoking_user_id=invoking_user_id,
         )
+        by_id = {c.character_id: c for c in ckpt.characters}
+        candidates = []
+        for candidate in out.candidates:
+            data = candidate.model_dump()
+            character = by_id.get(candidate.character_id)
+            if character is not None:
+                data["name"] = character.name
+            candidates.append(data)
         return {
-            "candidates": [c.model_dump() for c in out.candidates],
+            "candidates": candidates,
             "preamble": out.preamble,
         }
 
@@ -1703,13 +1712,13 @@ class EngineBridge:
         if summary:
             ckpt.session.pending_router_state_changes.append(
                 f"Character replacement: id {target_character_id} "
-                f"is now '{target.name}' — {summary} "
+                f"identity overwritten — {summary} "
                 f"[player-bound, replaced prior occupant of this id]"
             )
         else:
             ckpt.session.pending_router_state_changes.append(
                 f"Character replacement: identity of {target_character_id} "
-                f"has been overwritten — they are now '{target.name}', "
+                f"has been overwritten — "
                 f"role={target.public_sheet.role or 'unknown role'}, bound "
                 f"to a human player. Goals and personality are different "
                 f"from the prior version; treat as a new actor with the "
@@ -2914,9 +2923,7 @@ def _build_takeover_context(
         role = f" — {c.public_sheet.role}" if c.public_sheet.role else ""
         fac = f" ({c.public_sheet.faction})" if c.public_sheet.faction else ""
         loc = f" @ {c.location}" if c.location else ""
-        registry_lines.append(
-            f"- {c.name} ({c.character_id}){role}{fac}{loc}{marker}"
-        )
+        registry_lines.append(f"- {c.character_id}{role}{fac}{loc}{marker}")
     character_registry = "\n".join(registry_lines) or "(empty)"
 
     transcript = ckpt.transcript[-6:] if ckpt.transcript else []
@@ -2932,7 +2939,6 @@ def _build_takeover_context(
         picked_target_block = (
             "## Picked Target\n"
             f"character_id: {picked_target.character_id}\n"
-            f"name: {picked_target.name}\n"
             f"role: {picked_target.public_sheet.role}\n"
             f"faction: {picked_target.public_sheet.faction}\n"
             f"location: {picked_target.location}\n"

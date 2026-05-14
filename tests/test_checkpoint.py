@@ -191,12 +191,20 @@ class TestCheckpointErrors:
         mgr = CheckpointManager(save_dir=str(tmp_path))
         session_dir = tmp_path / "test-session"
         session_dir.mkdir()
-        # v11 hard-break: pre-3.0 schema now rejected with explicit
+        # v11 hard-break: stale schema now rejected with explicit
         # "hard break" message.
         (session_dir / "ckpt_0000.json").write_text('{"schema_version": "1.0"}')
 
         with pytest.raises(ValueError, match="hard break|schema_version"):
             mgr.load("test-session", "ckpt_0000")
+
+    def test_save_rejects_stale_schema(self, tmp_path):
+        mgr = CheckpointManager(save_dir=str(tmp_path))
+        ckpt = _make_checkpoint(turn_index=0)
+        ckpt.schema_version = "3.0"
+
+        with pytest.raises(ValueError, match="Refusing to save|schema_version"):
+            mgr.save(ckpt)
 
     def test_invalid_checkpoint_id_format(self, tmp_path):
         mgr = CheckpointManager(save_dir=str(tmp_path))

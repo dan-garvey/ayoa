@@ -434,6 +434,24 @@ class TestCombatCommand:
         assert "type their response to continue" in out
         assert "Aldric waits for Sera's answer." in out
 
+    def test_commitment_revision_prompt_prints_for_claimed_character(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            output_text="The hall changes.",
+            commitment_revision_prompts={"aldric": ["commit_watch"]},
+        ))
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("I wait."))
+
+        out = capsys.readouterr().out
+        assert "--- Commitment Interrupted · aldric ---" in out
+        assert "commitment commit_watch" in out
+        assert "type a revised action or (continue)" in out
+
 
 class TestRollCommand:
     def test_act_surfaces_pending_rolls(self, run, capsys):

@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from app.schemas.checkpoint import CheckpointFile
+from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION, CheckpointFile
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,12 @@ class CheckpointManager:
 
     def save(self, state: CheckpointFile) -> str:
         """Save a checkpoint. Returns the checkpoint_id."""
+        if str(state.schema_version).strip() != CURRENT_SCHEMA_VERSION:
+            raise ValueError(
+                f"Refusing to save checkpoint with schema_version="
+                f"{state.schema_version!r}; expected "
+                f"{CURRENT_SCHEMA_VERSION!r}."
+            )
         session_id = state.session.session_id
         turn_index = state.session.turn_index
         session_dir = self._session_dir(session_id)
@@ -155,7 +161,7 @@ class CheckpointManager:
     def _load_file(self, path: Path) -> CheckpointFile:
         """Load and validate a checkpoint file.
 
-        v11 hard-break: checkpoints with schema_version < "3.0" fail with
+        v11 hard-break: checkpoints with stale schema_version fail with
         an explicit ValueError pointing the user at /story start. No
         automatic migration.
         """
@@ -169,7 +175,6 @@ class CheckpointManager:
             raise ValueError(f"Corrupt checkpoint file {path}: {e}") from e
 
         # Schema version gate — hard break for pre-v11 checkpoints.
-        from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION
         version = str(data.get("schema_version", "")).strip()
         if version != CURRENT_SCHEMA_VERSION:
             raise ValueError(

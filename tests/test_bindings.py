@@ -214,9 +214,9 @@ class TestPlayerCharactersBlock:
         ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
         block = build_player_characters_block(ckpt, "aldric")
         assert "acting this turn" in block
-        # Acting marker on Aldric, not Sera.
-        aldric_line = next(l for l in block.splitlines() if "Aldric" in l)
-        sera_line = next(l for l in block.splitlines() if "Sera" in l)
+        # Acting marker on aldric, not sera.
+        aldric_line = next(l for l in block.splitlines() if "aldric" in l)
+        sera_line = next(l for l in block.splitlines() if "sera" in l)
         assert "acting this turn" in aldric_line
         assert "acting this turn" not in sera_line
 
@@ -226,7 +226,7 @@ class TestPlayerCharactersBlock:
         checkpoints still render their protagonist)."""
         ckpt = _make_checkpoint()
         block = build_player_characters_block(ckpt, "aldric")
-        assert "Aldric" in block
+        assert "aldric" in block
 
     def test_unbound_playable_does_not_appear(self):
         """An is_playable=True character without a binding is an
@@ -239,14 +239,14 @@ class TestPlayerCharactersBlock:
         ckpt.session.player_character_id = ""
         ckpt.session.character_bindings = {}
         block = build_player_characters_block(ckpt, "aldric")
-        assert "Aldric" not in block
+        assert "aldric" not in block
         assert "No player characters bound" in block
 
-    def test_includes_character_id_annotation(self):
-        """The router needs the id visible alongside the name; player
-        characters do not appear in the NPC registry."""
+    def test_uses_character_ids_without_name_annotations(self):
+        """The router uses character_id as the sole LLM-facing handle."""
         ckpt = _make_checkpoint()
         ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
         block = build_player_characters_block(ckpt, "aldric")
-        assert "(id: aldric)" in block
-        assert "(id: sera)" in block
+        assert "**aldric**" in block
+        assert "**sera**" in block
+        assert "(id:" not in block

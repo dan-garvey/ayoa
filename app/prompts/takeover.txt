@@ -83,7 +83,7 @@ For mode `suggest`:
   "candidates": [
     {{
       "character_id": "string — existing roster character_id",
-      "name": "string — current display name of that character",
+      "name": "string — leave empty; the runtime fills the display name from character_id",
       "fit_rationale": "string — 1–3 sentences on why this is a good replacement AND what narrative consequences follow"
     }}
   ],

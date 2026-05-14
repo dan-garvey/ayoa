@@ -958,7 +958,7 @@ def _format_world_for_knowledge(world: WorldExtraction) -> str:
 def _format_roster_for_knowledge(roster: CharacterListExtraction) -> str:
     parts: list[str] = []
     for c in roster.characters:
-        lines = [f"### {c.name} (character_id: `{c.character_id}`)"]
+        lines = [f"### {c.character_id}"]
         if c.public_sheet.role:
             lines.append(f"Role: {c.public_sheet.role}")
         if c.public_sheet.faction:
@@ -1186,7 +1186,7 @@ def _serialize_checkpoint_for_analysis(ckpt: CheckpointFile) -> str:
     if ckpt.characters:
         char_lines = ["# Characters"]
         for c in ckpt.characters:
-            char_lines.append(f"## {c.name} ({c.character_id})")
+            char_lines.append(f"## {c.character_id}")
             if c.public_sheet.role:
                 char_lines.append(f"Role: {c.public_sheet.role}")
             if c.public_sheet.faction:

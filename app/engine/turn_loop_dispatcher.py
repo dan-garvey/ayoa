@@ -185,7 +185,7 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
         role = char.public_sheet.role or "unknown role"
 
         parts = [
-            f"- {char.name} (id: {char.character_id})",
+            f"- {char.character_id}",
             f"  Role: {role}",
         ]
         goals = [g for g in (char.private_state.goals or []) if g]
@@ -283,6 +283,145 @@ def _build_since_last_turn_block(acting_char) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_seconds(seconds: int) -> str:
+    return f"{max(0, seconds)}s"
+
+
+def _build_relative_time_block(checkpoint: CheckpointFile) -> str:
+    lines = [
+        "## Relative Time",
+        f"Session leading time: {_format_seconds(checkpoint.session.leading_at_s)}.",
+        "Character clocks:",
+    ]
+    for char in checkpoint.characters:
+        if char.status.value != "active":
+            continue
+        location = char.location or "unknown location"
+        lines.append(
+            f"- {char.character_id} at "
+            f"{_format_seconds(char.clock_at_s)}; location: {location}"
+        )
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def _build_open_commitments_block(checkpoint: CheckpointFile) -> str:
+    commitments = checkpoint.session.open_commitments or []
+    if not commitments:
+        return ""
+    lines = [
+        "## Open Commitments",
+        "Private routing state for interruptible ongoing activities. Do not "
+        "copy these records into observable facts unless a visible event "
+        "actually reveals them.",
+    ]
+    for commitment in commitments:
+        actors = (
+            ", ".join(commitment.actor_ids)
+            if commitment.actor_ids else "unknown actor"
+        )
+        location = commitment.location_label or "unknown location"
+        lines.append(
+            f"- {commitment.commitment_id}: {actors}; "
+            f"started {_format_seconds(commitment.started_at_s)}; "
+            f"expected by {_format_seconds(commitment.expected_end_s)}; "
+            f"hard limit {_format_seconds(commitment.max_end_s)}; "
+            f"location: {location}; activity: {commitment.description or 'ongoing'}"
+        )
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def _build_commitment_revision_block(
+    checkpoint: CheckpointFile,
+    acting_character_id: str,
+) -> str:
+    prompt = checkpoint.session.pending_commitment_revisions.get(
+        acting_character_id
+    )
+    if prompt is None:
+        return ""
+    lines = [
+        "## Commitment Revision",
+        "The acting character has an open commitment whose scene changed "
+        "before it resolved. Treat this input as their chance to revise that "
+        "commitment. If the input is `(continue)`, keep the commitment going "
+        "only if the new visible situation still permits it.",
+        f"- Commitment id: {prompt.commitment_id}",
+        f"- Trigger event id: {prompt.trigger_event_id}",
+        f"- Observed at: {_format_seconds(prompt.observed_at_s)}",
+    ]
+    if prompt.previous_description:
+        lines.append(f"- Previous activity: {prompt.previous_description}")
+    if prompt.reason:
+        lines.append(f"- Revision reason: {prompt.reason}")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def _router_history_user_content(
+    *,
+    acting_character_id: str,
+    result: EventRouterOutput | None = None,
+    mode: str = "intention",
+    intention_block: str = "",
+    cat_ii_resolution_block: str = "",
+    tick_fan_in_block: str = "",
+) -> str:
+    """Compact router history entry without volatile turn-context blocks."""
+    del result
+    parts: list[str] = []
+    if mode in {"continuation", "tick"}:
+        parts.append(f"framing_actor: {acting_character_id}")
+    for block in (cat_ii_resolution_block, tick_fan_in_block, intention_block):
+        block = (block or "").strip()
+        if block:
+            if mode == "intention" and block == intention_block.strip():
+                parts.append(f"{acting_character_id}: {block}")
+            else:
+                parts.append(block)
+    return "\n\n".join(parts)
+
+
+def _normalize_router_result_for_history(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+    cat_ii_event: OpenCatIIEvent | None = None,
+    tick_mode: bool = False,
+) -> None:
+    if actor_id:
+        actor = next(
+            (c for c in ckpt.characters if c.character_id == actor_id),
+            None,
+        )
+        if actor is not None and cat_ii_event is None:
+            result.effective_at_s = max(result.effective_at_s, actor.clock_at_s)
+    if cat_ii_event is not None and cat_ii_event.opening_event_id:
+        opening = next(
+            (
+                event for event in ckpt.canonical_events
+                if event.event_id == cat_ii_event.opening_event_id
+            ),
+            None,
+        )
+        if opening is not None:
+            result.effective_at_s = opening.effective_at_s
+    if tick_mode:
+        result.effective_at_s = max(
+            result.effective_at_s,
+            ckpt.session.leading_at_s,
+        )
+
+
+def _store_normalized_router_response(response, result: EventRouterOutput) -> None:
+    response.assistant_content = [{
+        "type": "text",
+        "text": result.model_dump_json(),
+    }]
+
+
 def _build_router_context(
     ckpt: CheckpointFile,
     acting_character_id: str,
@@ -294,7 +433,7 @@ def _build_router_context(
     Returns a dict ready to splat into `prompt_mgr.render_messages`
     after merging in `{intention_block}` and `{cat_ii_resolution_block}`.
     """
-    acting_id, acting_char, acting_name = resolve_acting_character(
+    acting_id, acting_char, _acting_name = resolve_acting_character(
         ckpt, acting_character_id,
     )
     since_last_turn_block = _build_since_last_turn_block(acting_char)
@@ -309,12 +448,17 @@ def _build_router_context(
         "world_rules": _build_world_rules(ckpt),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": _build_hidden_facts(ckpt),
-        "acting_character_name": acting_name,
         "acting_character_id": acting_id,
         "player_characters_block": build_player_characters_block(
             ckpt, acting_id,
         ),
         "since_last_turn_block": since_last_turn_block,
+        "relative_time_block": _build_relative_time_block(ckpt),
+        "open_commitments_block": _build_open_commitments_block(ckpt),
+        "commitment_revision_block": _build_commitment_revision_block(
+            ckpt,
+            acting_id,
+        ),
         "world_facts_delta_block": _build_world_facts_delta(ckpt),
         "initial_roster_block": _build_initial_roster_block(ckpt),
         "state_changes_block": _build_state_changes_block(ckpt),
@@ -374,22 +518,15 @@ class LLMDispatcher:
             ctx = _build_router_context(ckpt, actor_id)
             dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
-            # Resolve the actor's display name for the intention framing.
-            actor_char = next(
-                (c for c in ckpt.characters if c.character_id == actor_id),
-                None,
-            )
-            actor_name = actor_char.name if actor_char else actor_id
-
             if cat_ii_event is None:
                 bindings = ckpt.session.character_bindings or {}
                 if actor_id in bindings:
                     intention_block = format_human_initiator_intention(
-                        actor_name, intention,
+                        actor_id, intention,
                     )
                 else:
                     intention_block = format_npc_cascade_intention(
-                        actor_name, intention,
+                        actor_id, intention,
                     )
                 cat_ii_resolution_block = ""
             else:
@@ -428,10 +565,6 @@ class LLMDispatcher:
                 **template_vars,
             )
 
-            # Plain-text user content captured before LLMClient wraps with
-            # cache_control for this call.
-            user_content = messages[-1]["content"]
-
             logger.info(
                 "LLMDispatcher.route_intention: actor=%s cat_ii=%s",
                 actor_id, cat_ii_event.event_id if cat_ii_event else None,
@@ -454,10 +587,25 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
+        _normalize_router_result_for_history(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+            cat_ii_event=cat_ii_event,
+        )
+        _store_normalized_router_response(response, result)
         # Persist the user/assistant pair to the rolling session
         # conversation so next turn's router sees it as history.
         append_turn_to_conversation(
-            ckpt.session_conversation, user_content, response,
+            ckpt.session_conversation,
+            _router_history_user_content(
+                acting_character_id=actor_id,
+                result=result,
+                mode="cat_ii_resolution" if cat_ii_event else "intention",
+                intention_block=intention_block,
+                cat_ii_resolution_block=cat_ii_resolution_block,
+            ),
+            response,
         )
         return result
 
@@ -538,7 +686,6 @@ class LLMDispatcher:
                 history=ckpt.session_conversation,
                 **template_vars,
             )
-            user_content = messages[-1]["content"]
 
             logger.info(
                 "LLMDispatcher.route_continuation: actor=%s", actor_id,
@@ -559,8 +706,21 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
+        _normalize_router_result_for_history(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+        _store_normalized_router_response(response, result)
         append_turn_to_conversation(
-            ckpt.session_conversation, user_content, response,
+            ckpt.session_conversation,
+            _router_history_user_content(
+                acting_character_id=actor_id,
+                result=result,
+                mode="continuation",
+                intention_block=continuation_block,
+            ),
+            response,
         )
         return result
 
@@ -634,8 +794,6 @@ class LLMDispatcher:
                 **template_vars,
             )
 
-            user_content = messages[-1]["content"]
-
             logger.info(
                 "LLMDispatcher.route_tick_intentions: %d off-stage "
                 "agents bundled into one router call",
@@ -657,8 +815,23 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
+        actor_id = acting_character_id
+        _normalize_router_result_for_history(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+            tick_mode=True,
+        )
+        _store_normalized_router_response(response, result)
         append_turn_to_conversation(
-            ckpt.session_conversation, user_content, response,
+            ckpt.session_conversation,
+            _router_history_user_content(
+                acting_character_id=actor_id,
+                result=result,
+                mode="tick",
+                tick_fan_in_block=tick_block,
+            ),
+            response,
         )
         return result
 
@@ -677,7 +850,7 @@ class LLMDispatcher:
         The agent's prose IS the intention — no serialization layer
         needed. The trailing parenthetical (private intent) is stripped
         at parse time; what we return here is the public surface only,
-        which is what the router framing wants ("`{name}` intends: ...").
+        which is what the router reads as the acting character's intention.
 
         Three result shapes the caller (run_beat) must distinguish:
           - **non-empty prose** → real intention, route normally.

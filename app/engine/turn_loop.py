@@ -100,7 +100,13 @@ from app.schemas.events import (
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.state import OpenCatIIEvent, RenderBufferEntry, SlotEntry
+from app.schemas.state import (
+    CommitmentRevisionPrompt,
+    OpenCatIIEvent,
+    OpenCommitment,
+    RenderBufferEntry,
+    SlotEntry,
+)
 from app.engine import dnd_combat
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 
@@ -658,6 +664,26 @@ def close_cat_ii(ckpt: CheckpointFile, event_id: str) -> None:
     ]
 
 
+def align_cat_ii_resolution_time(
+    ckpt: CheckpointFile,
+    open_event: OpenCatIIEvent,
+    resolved: EventRouterOutput,
+) -> None:
+    """Pin a Cat II resolution to the opening event's fiction time."""
+    if not open_event.opening_event_id:
+        return
+    opening = next(
+        (
+            event for event in ckpt.canonical_events
+            if event.event_id == open_event.opening_event_id
+        ),
+        None,
+    )
+    if opening is None:
+        return
+    resolved.effective_at_s = opening.effective_at_s
+
+
 # ---- Broadcast + render buffering ------------------------------------------
 
 
@@ -666,6 +692,9 @@ def append_to_render_buffer(
     character_id: str,
     event_id: str,
     observation_level: str = "direct",
+    *,
+    visible_at_s: int = 0,
+    event_sequence: int = 0,
 ) -> None:
     """Queue a canonical event for a human's next render."""
     buf = ckpt.session.render_buffers.setdefault(character_id, [])
@@ -673,6 +702,8 @@ def append_to_render_buffer(
         RenderBufferEntry(
             event_id=event_id,
             observation_level=observation_level,
+            visible_at_s=max(0, visible_at_s),
+            event_sequence=max(0, event_sequence),
         )
     )
 
@@ -750,6 +781,294 @@ def _filter_picks_for_dispatch(
 
     humans = collect_player_ids(ckpt)
     return [rid for rid in picks if rid not in humans]
+
+
+def _character_by_id(ckpt: CheckpointFile) -> dict[str, Any]:
+    return {c.character_id: c for c in ckpt.characters}
+
+
+def _visible_facts_for_character(
+    event: EventRouterOutput,
+    character_id: str,
+) -> list[ObservableFact]:
+    out: list[ObservableFact] = []
+    for fact in event.canonical_event.observable_facts:
+        if fact.audience == "all_observers" or fact.is_visible_to(character_id):
+            if fact.text.strip():
+                out.append(fact)
+    return out
+
+
+def _visible_at_for_facts(
+    event: EventRouterOutput,
+    facts: list[ObservableFact],
+) -> int:
+    if not facts:
+        return event.effective_at_s + event.duration_s
+    return max(
+        event.effective_at_s + fact.at_offset_s + fact.duration_s
+        for fact in facts
+    )
+
+
+def _advance_character_clock(
+    ckpt: CheckpointFile,
+    character_id: str,
+    at_s: int,
+    by_id: dict[str, Any],
+) -> None:
+    if at_s < 0:
+        at_s = 0
+    char = by_id.get(character_id)
+    if char is None:
+        return
+    char.clock_at_s = max(getattr(char, "clock_at_s", 0), at_s)
+    ckpt.session.leading_at_s = max(ckpt.session.leading_at_s, char.clock_at_s)
+
+
+def _commitment_id_for_event(
+    event: EventRouterOutput,
+    actor_ids: list[str],
+) -> str:
+    suffix = "_".join(actor_ids) if actor_ids else "open"
+    suffix = re.sub(r"[^a-zA-Z0-9_]+", "_", suffix).strip("_") or "open"
+    return f"commit_{event.event_id}_{suffix}"[:96]
+
+
+def _matching_commitments(
+    ckpt: CheckpointFile,
+    *,
+    commitment_id: str = "",
+    actor_ids: list[str] | None = None,
+) -> list[OpenCommitment]:
+    actors = {cid for cid in (actor_ids or []) if cid}
+    matches: list[OpenCommitment] = []
+    for commitment in ckpt.session.open_commitments:
+        if commitment_id:
+            if commitment.commitment_id == commitment_id:
+                matches.append(commitment)
+            continue
+        if actors and actors.intersection(commitment.actor_ids):
+            matches.append(commitment)
+    return matches
+
+
+def _drop_commitments(
+    ckpt: CheckpointFile,
+    commitments: list[OpenCommitment],
+) -> None:
+    drop_ids = {commitment.commitment_id for commitment in commitments}
+    if not drop_ids:
+        return
+    affected_actor_ids = {
+        actor_id
+        for commitment in commitments
+        for actor_id in commitment.actor_ids
+    }
+    ckpt.session.open_commitments = [
+        commitment
+        for commitment in ckpt.session.open_commitments
+        if commitment.commitment_id not in drop_ids
+    ]
+    for actor_id in affected_actor_ids:
+        prompt = ckpt.session.pending_commitment_revisions.get(actor_id)
+        if prompt and prompt.commitment_id in drop_ids:
+            ckpt.session.pending_commitment_revisions.pop(actor_id, None)
+
+
+def _apply_location_updates(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    by_id: dict[str, Any],
+) -> None:
+    for update in event.location_updates:
+        char = by_id.get(update.character_id)
+        if char is None:
+            logger.warning(
+                "location_updates referenced unknown character_id %s",
+                update.character_id,
+            )
+            continue
+        char.location = update.location_label
+
+
+def _apply_commitment_open(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    actor_id: str,
+    by_id: dict[str, Any],
+) -> None:
+    signal = event.commitment_open
+    if not signal.present:
+        return
+    actor_ids = list(signal.actor_ids)
+    if not actor_ids and actor_id:
+        actor_ids = [actor_id]
+    actor_ids = [cid for cid in dict.fromkeys(actor_ids) if cid]
+    if not actor_ids:
+        logger.warning("commitment_open ignored for %s: no actor_ids", event.event_id)
+        return
+    overlapping = _matching_commitments(ckpt, actor_ids=actor_ids)
+    if overlapping:
+        _drop_commitments(ckpt, overlapping)
+
+    expected_duration_s = signal.expected_duration_s
+    max_duration_s = signal.max_duration_s or expected_duration_s
+    if expected_duration_s == 0 and event.duration_s > 0:
+        expected_duration_s = event.duration_s
+    if max_duration_s == 0:
+        max_duration_s = expected_duration_s
+    location_label = signal.location_label
+    if not location_label:
+        first_actor = by_id.get(actor_ids[0])
+        location_label = getattr(first_actor, "location", "") if first_actor else ""
+
+    ckpt.session.open_commitments.append(
+        OpenCommitment(
+            commitment_id=_commitment_id_for_event(event, actor_ids),
+            actor_ids=actor_ids,
+            description=signal.description,
+            trigger_event_id=event.event_id,
+            started_at_s=event.effective_at_s,
+            expected_end_s=event.effective_at_s + expected_duration_s,
+            max_end_s=event.effective_at_s + max_duration_s,
+            location_label=location_label,
+        )
+    )
+
+
+def _apply_commitment_resolutions(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    by_id: dict[str, Any],
+) -> None:
+    for signal in event.commitment_resolutions:
+        matches = _matching_commitments(
+            ckpt,
+            commitment_id=signal.commitment_id,
+            actor_ids=signal.actor_ids,
+        )
+        if not matches:
+            logger.info(
+                "commitment resolution on %s matched no open commitments",
+                event.event_id,
+            )
+            continue
+        resolved_at_s = event.effective_at_s + signal.resolved_at_offset_s
+        for commitment in matches:
+            for actor_id in commitment.actor_ids:
+                _advance_character_clock(ckpt, actor_id, resolved_at_s, by_id)
+        _drop_commitments(ckpt, matches)
+
+
+def _apply_commitment_interrupts(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    by_id: dict[str, Any],
+) -> None:
+    if not event.commitment_interrupts:
+        return
+    from app.engine.context_builder import collect_player_ids
+
+    player_ids = collect_player_ids(ckpt)
+    observer_ids = {observer.character_id for observer in event.observers}
+    for signal in event.commitment_interrupts:
+        matches = _matching_commitments(
+            ckpt,
+            commitment_id=signal.commitment_id,
+            actor_ids=signal.actor_ids,
+        )
+        if not matches:
+            logger.info(
+                "commitment interrupt on %s matched no open commitments",
+                event.event_id,
+            )
+            continue
+        for commitment in matches:
+            target_ids = signal.actor_ids or commitment.actor_ids
+            for character_id in target_ids:
+                if character_id not in player_ids or character_id not in observer_ids:
+                    continue
+                facts = _visible_facts_for_character(event, character_id)
+                if not facts:
+                    continue
+                observed_at_s = event.effective_at_s + signal.observed_at_offset_s
+                observed_at_s = max(observed_at_s, _visible_at_for_facts(event, facts))
+                _advance_character_clock(ckpt, character_id, observed_at_s, by_id)
+                ckpt.session.pending_commitment_revisions[character_id] = (
+                    CommitmentRevisionPrompt(
+                        character_id=character_id,
+                        commitment_id=commitment.commitment_id,
+                        trigger_event_id=event.event_id,
+                        observed_at_s=observed_at_s,
+                        reason=signal.reason,
+                        previous_description=commitment.description,
+                    )
+                )
+
+
+def _auto_commitment_revision_for_visible_event(
+    ckpt: CheckpointFile,
+    *,
+    character_id: str,
+    event: EventRouterOutput,
+    visible_at_s: int,
+    actor_id: str,
+) -> None:
+    if character_id == actor_id:
+        return
+    commitments = _matching_commitments(ckpt, actor_ids=[character_id])
+    if not commitments:
+        return
+    for commitment in commitments:
+        if commitment.trigger_event_id == event.event_id:
+            continue
+        existing = ckpt.session.pending_commitment_revisions.get(character_id)
+        if existing is not None and existing.trigger_event_id == event.event_id:
+            continue
+        ckpt.session.pending_commitment_revisions[character_id] = (
+            CommitmentRevisionPrompt(
+                character_id=character_id,
+                commitment_id=commitment.commitment_id,
+                trigger_event_id=event.event_id,
+                observed_at_s=visible_at_s,
+                reason=(
+                    "new visible information arrived before this commitment "
+                    "resolved"
+                ),
+                previous_description=commitment.description,
+            )
+        )
+        return
+
+
+def _apply_time_and_private_state(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    actor_id: str,
+    by_id: dict[str, Any],
+) -> None:
+    if event.effective_at_s < 0:
+        event.effective_at_s = 0
+    if event.duration_s < 0:
+        event.duration_s = 0
+    if actor_id:
+        actor_clock = getattr(by_id.get(actor_id), "clock_at_s", 0)
+        event.effective_at_s = max(event.effective_at_s, actor_clock)
+
+    end_at_s = event.effective_at_s + event.duration_s
+    if actor_id:
+        _advance_character_clock(ckpt, actor_id, end_at_s, by_id)
+    ckpt.session.leading_at_s = max(ckpt.session.leading_at_s, end_at_s)
+
+    _apply_location_updates(ckpt, event, by_id)
+    _apply_commitment_resolutions(ckpt, event, by_id=by_id)
+    _apply_commitment_open(ckpt, event, actor_id=actor_id, by_id=by_id)
+    _apply_commitment_interrupts(ckpt, event, by_id=by_id)
 
 
 async def _agent_intention_for_dispatch(
@@ -874,12 +1193,19 @@ def broadcast_event(
             "d": "direct", "i": "indirect", "f": "inferred",
         }.get(o.observation_level, "direct")
 
+    by_id = _character_by_id(ckpt)
+    _apply_time_and_private_state(
+        ckpt,
+        event,
+        actor_id=actor_id,
+        by_id=by_id,
+    )
+    event_sequence = len(ckpt.canonical_events)
     ckpt.canonical_events.append(event)
 
     from app.engine.context_builder import collect_player_ids
 
     player_ids = collect_player_ids(ckpt)
-    by_id = {c.character_id: c for c in ckpt.characters}
     # NPC perception payload. Pre-v11-r10 this was the router's
     # one-line event summary — narrator-grade prose with interior
     # interpretation woven in ("the strain of speaking close to the
@@ -890,19 +1216,34 @@ def broadcast_event(
     # facts (`audience="only"`) are filtered per recipient before
     # anything reaches an NPC inbox.
     visible_humans: list[str] = []
-    canonical = event.canonical_event
-
     for o in event.observers:
-        facts = visible_fact_texts(
-            canonical.observable_facts,
-            o.character_id,
-            include_all_observers=True,
-        )
+        visible_facts = _visible_facts_for_character(event, o.character_id)
+        facts = [
+            fact.text.strip()
+            for fact in visible_facts
+            if fact.text.strip()
+        ]
         if not facts:
             continue
+        visible_at_s = _visible_at_for_facts(event, visible_facts)
+        _advance_character_clock(ckpt, o.character_id, visible_at_s, by_id)
         if o.character_id in player_ids:
             level = obs_level_by_char.get(o.character_id, "direct")
-            append_to_render_buffer(ckpt, o.character_id, event.event_id, level)
+            append_to_render_buffer(
+                ckpt,
+                o.character_id,
+                event.event_id,
+                level,
+                visible_at_s=visible_at_s,
+                event_sequence=event_sequence,
+            )
+            _auto_commitment_revision_for_visible_event(
+                ckpt,
+                character_id=o.character_id,
+                event=event,
+                visible_at_s=visible_at_s,
+                actor_id=actor_id,
+            )
             visible_humans.append(o.character_id)
 
         if o.character_id in player_ids:
@@ -928,6 +1269,9 @@ def broadcast_event(
             # outcome. (We deliberately do NOT fall back to any
             # summary string; that's the leak this fix closes.)
             continue
+        from app.engine.context_builder import replace_character_ids_with_names
+
+        payload = replace_character_ids_with_names(payload, ckpt)
         recipient.pending_observations.append(payload)
 
     return visible_humans
@@ -1715,6 +2059,7 @@ async def run_beat(
                 "Router returned Cat II nesting on an adjudication call; "
                 "Part C invariant violated."
             )
+        align_cat_ii_resolution_time(ckpt, evt, resolved)
         # A Cat II resolution is not a single actor's self-action; it is the
         # adjudicated outcome of every collected intention. Broadcast it to all
         # NPC observers, including the initiator, so agents retain the final
@@ -2066,6 +2411,7 @@ async def run_beat(
                         "Router returned Cat II nesting on an adjudication "
                         "call; Part C invariant violated."
                     )
+                align_cat_ii_resolution_time(ckpt, evt, resolved)
                 # Cat II resolution belongs to every participant in the
                 # contest, so do not exclude the initiator from the observer
                 # inbox fan-out.

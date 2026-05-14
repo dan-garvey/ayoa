@@ -51,6 +51,7 @@ from app.engine.turn_loop import (
     release_beat_slots,
     run_beat,
     _agent_intention_for_dispatch,
+    align_cat_ii_resolution_time,
     _clear_pending_initiating_action,
     _end_beat,
     flush_combat_visible_facts,
@@ -486,6 +487,17 @@ def _combine_loot_prompts(results: list[BeatResult]) -> dict[str, list[str]]:
     return combined
 
 
+def _commitment_revision_prompts(
+    ckpt: CheckpointFile,
+) -> dict[str, list[str]]:
+    prompts: dict[str, list[str]] = {}
+    for cid, prompt in (ckpt.session.pending_commitment_revisions or {}).items():
+        if not prompt.commitment_id:
+            continue
+        prompts[cid] = [prompt.commitment_id]
+    return prompts
+
+
 def _combined_beat_reason(results: list[BeatResult]) -> str:
     if any(result.ended_reason == "combat_started" for result in results):
         return "combat_started"
@@ -810,6 +822,15 @@ class Orchestrator:
 
             # 5. Run the beat.
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            revision_input_consumed = (
+                cat_ii_event_id is None
+                and combat_reaction_event_id is None
+                and acting_id not in _active_combat_character_ids(ckpt)
+            )
+            revision_before = (
+                ckpt.session.pending_commitment_revisions.get(acting_id)
+                if revision_input_consumed else None
+            )
             beat_result = await run_beat(
                 ckpt=ckpt,
                 dispatcher=dispatcher,
@@ -818,6 +839,21 @@ class Orchestrator:
                 cat_ii_event_id=cat_ii_event_id,
                 combat_reaction_event_id=combat_reaction_event_id,
             )
+            if revision_before is not None:
+                current_revision = ckpt.session.pending_commitment_revisions.get(
+                    acting_id
+                )
+                if (
+                    current_revision is not None
+                    and current_revision.commitment_id
+                    == revision_before.commitment_id
+                    and current_revision.trigger_event_id
+                    == revision_before.trigger_event_id
+                ):
+                    ckpt.session.pending_commitment_revisions.pop(
+                        acting_id,
+                        None,
+                    )
 
             # 6. Apply roster side-effects of every event that closed
             # this beat. `run_beat` broadcasts + renders but leaves
@@ -891,6 +927,7 @@ class Orchestrator:
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
+            commitment_revision_prompts=_commitment_revision_prompts(ckpt),
         )
 
     def _defer_combat_reaction_locked(
@@ -1089,6 +1126,7 @@ class Orchestrator:
                         "Cat II resolution returned nested Cat II "
                         "(Part C invariant violated)."
                     )
+                align_cat_ii_resolution_time(ckpt, evt_live, resolved)
                 # A Cat II resolution is the adjudicated outcome of all
                 # collected intentions. Every NPC observer, including the
                 # initiator, needs the final result in their inbox for future
@@ -1179,6 +1217,7 @@ class Orchestrator:
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
+            commitment_revision_prompts=_commitment_revision_prompts(ckpt),
         )
 
     async def submit_cat_ii_roll(
@@ -1392,6 +1431,7 @@ class Orchestrator:
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
+            commitment_revision_prompts=_commitment_revision_prompts(ckpt),
         )
 
     def _stale_combat_roll_response(
@@ -1507,6 +1547,7 @@ class Orchestrator:
                 "Cat II resolution returned nested Cat II "
                 "(Part C invariant violated)."
             )
+        align_cat_ii_resolution_time(ckpt, evt_live, resolved)
         broadcast_event(ckpt, resolved)
         initiator_pick = _filter_picks_for_dispatch(
             ckpt, [evt_live.initiator_id],
@@ -1578,6 +1619,7 @@ class Orchestrator:
             beat_ended_reason=_combined_beat_reason(beat_results),
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
+            commitment_revision_prompts=_commitment_revision_prompts(ckpt),
         )
 
     # ------------------------------------------------------------------ helpers
@@ -1849,13 +1891,29 @@ class Orchestrator:
             await self.char_mgr.spawn_characters(
                 ckpt, routed.spawn, acting_actor_location="",
             )
-        # Append the tick canonical event to the world log so future
-        # router calls + recap passes see it as part of session truth.
-        # The narrator never composes off this entry (no human render
-        # for tick events); this append exists for the router's
-        # session_conversation continuity (which the dispatcher's
-        # `route_tick_intentions` already handles).
-        ckpt.canonical_events.append(routed)
+        tick_actor_ids = [char.character_id for char, _ in ticked]
+        if routed.effective_at_s == 0 and tick_actor_ids:
+            clocks = [
+                getattr(char, "clock_at_s", 0)
+                for char, _ in ticked
+            ]
+            routed.effective_at_s = max(clocks) if clocks else 0
+        routed.effective_at_s = max(
+            routed.effective_at_s,
+            ckpt.session.leading_at_s,
+        )
+        broadcast_event(
+            ckpt,
+            routed,
+            actor_id=tick_actor_ids[0] if len(tick_actor_ids) == 1 else "",
+        )
+        tick_end_s = routed.effective_at_s + routed.duration_s
+        for char, _ in ticked:
+            char.clock_at_s = max(getattr(char, "clock_at_s", 0), tick_end_s)
+            ckpt.session.leading_at_s = max(
+                ckpt.session.leading_at_s,
+                char.clock_at_s,
+            )
         logger.info(
             "Tick fan-in routed: %d spawn(s); off-stage canonical event appended.",
             len(routed.spawn),

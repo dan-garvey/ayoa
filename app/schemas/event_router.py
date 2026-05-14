@@ -156,6 +156,107 @@ class SpawnRequest(BaseModel):
         return data
 
 
+class CommitmentOpenSignal(BaseModel):
+    """Router-authored internal long-action directive.
+
+    This is not observable prose. Visible setup, if any, belongs in
+    `observable_facts`; the directive only tells runtime state that an actor
+    has begun an interruptible activity.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    present: bool
+    actor_ids: list[str]
+    description: str
+    expected_duration_s: int
+    max_duration_s: int
+    location_label: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CommitmentOpenSignal":
+        self.actor_ids = [
+            cid.strip() for cid in dict.fromkeys(self.actor_ids) if cid.strip()
+        ]
+        self.description = self.description.strip()
+        self.location_label = self.location_label.strip()
+        if self.expected_duration_s < 0:
+            self.expected_duration_s = 0
+        if self.max_duration_s < 0:
+            self.max_duration_s = 0
+        return self
+
+
+class CommitmentResolutionSignal(BaseModel):
+    """Router-authored instruction to close an existing commitment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    commitment_id: str
+    actor_ids: list[str]
+    reason: str
+    resolved_at_offset_s: int
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CommitmentResolutionSignal":
+        self.commitment_id = self.commitment_id.strip()
+        self.actor_ids = [
+            cid.strip() for cid in dict.fromkeys(self.actor_ids) if cid.strip()
+        ]
+        self.reason = self.reason.strip().lower() or "resolved"
+        if self.resolved_at_offset_s < 0:
+            self.resolved_at_offset_s = 0
+        return self
+
+
+class CommitmentInterruptSignal(BaseModel):
+    """Router-authored revision prompt for a still-open commitment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    commitment_id: str
+    actor_ids: list[str]
+    observed_at_offset_s: int
+    reason: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CommitmentInterruptSignal":
+        self.commitment_id = self.commitment_id.strip()
+        self.actor_ids = [
+            cid.strip() for cid in dict.fromkeys(self.actor_ids) if cid.strip()
+        ]
+        self.reason = self.reason.strip()
+        if self.observed_at_offset_s < 0:
+            self.observed_at_offset_s = 0
+        return self
+
+
+class LocationUpdateSignal(BaseModel):
+    """Router-authored durable update to a character's opaque location label."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: str
+    location_label: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "LocationUpdateSignal":
+        self.character_id = self.character_id.strip()
+        self.location_label = self.location_label.strip()
+        return self
+
+
+def empty_commitment_open_signal() -> dict[str, Any]:
+    return {
+        "present": False,
+        "actor_ids": [],
+        "description": "",
+        "expected_duration_s": 0,
+        "max_duration_s": 0,
+        "location_label": "",
+    }
+
+
 class EventRouterOutput(BaseModel):
     """Merged adjudication + perception output — AND in v11, the router's
     beat-pacing decision.
@@ -198,6 +299,8 @@ class EventRouterOutput(BaseModel):
     # back into "optional" in the JSON schema and re-explode the
     # grammar).
     event_id: str
+    effective_at_s: int
+    duration_s: int
 
     # ---- v11-r7g: TEMPORARY diagnostic — terse justification ------------
     # The router emits a concise diagnostic note explaining its core
@@ -261,6 +364,10 @@ class EventRouterOutput(BaseModel):
     spawn: list[SpawnRequest]
     dormant: list[str]
     cull: list[str]
+    commitment_open: CommitmentOpenSignal
+    commitment_resolutions: list[CommitmentResolutionSignal]
+    commitment_interrupts: list[CommitmentInterruptSignal]
+    location_updates: list[LocationUpdateSignal]
 
     @model_validator(mode="before")
     @classmethod
@@ -296,6 +403,20 @@ class EventRouterOutput(BaseModel):
             eid = data.get("event_id", "")
             if not eid:
                 data["event_id"] = _new_event_id()
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_new_timing_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        data.setdefault("effective_at_s", 0)
+        data.setdefault("duration_s", 0)
+        data.setdefault("commitment_open", empty_commitment_open_signal())
+        data.setdefault("commitment_resolutions", [])
+        data.setdefault("commitment_interrupts", [])
+        data.setdefault("location_updates", [])
         return data
 
     @model_validator(mode="after")
@@ -382,6 +503,28 @@ class EventRouterOutput(BaseModel):
                     "Coercing ends_beat=true.",
                 )
                 self.ends_beat = True
+        if self.ends_beat_reason == "cat_ii_open" or self.requires_responders:
+            self.duration_s = 0
+        if self.effective_at_s < 0:
+            self.effective_at_s = 0
+        if self.duration_s < 0:
+            self.duration_s = 0
+        for fact in self.canonical_event.observable_facts:
+            if fact.at_offset_s > self.duration_s:
+                fact.at_offset_s = self.duration_s
+            if fact.at_offset_s + fact.duration_s > self.duration_s:
+                fact.duration_s = max(0, self.duration_s - fact.at_offset_s)
+        for signal in self.commitment_resolutions:
+            if signal.resolved_at_offset_s > self.duration_s:
+                signal.resolved_at_offset_s = self.duration_s
+        for signal in self.commitment_interrupts:
+            if signal.observed_at_offset_s > self.duration_s:
+                signal.observed_at_offset_s = self.duration_s
+        self.location_updates = [
+            update
+            for update in self.location_updates
+            if update.character_id and update.location_label
+        ]
         return self
 
 

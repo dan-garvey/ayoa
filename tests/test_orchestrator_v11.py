@@ -26,10 +26,12 @@ from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import (
     CatIIRollTransaction,
+    CommitmentRevisionPrompt,
     DndCombatantState,
     DndCombatState,
     LocationState,
     OpenCatIIEvent,
+    OpenCommitment,
     SessionState,
     SlotEntry,
     WorldState,
@@ -1178,6 +1180,58 @@ class TestCombatTurnGating:
 
 
 class TestCatIIPending:
+    @pytest.mark.asyncio
+    async def test_cat_ii_response_does_not_clear_commitment_revision(
+        self, patched_orchestrator,
+    ):
+        from app.engine.turn_loop import open_cat_ii, pin_cat_ii_responder
+
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.open_commitments = [
+            OpenCommitment(
+                commitment_id="commit_bob_watch",
+                actor_ids=["bob"],
+                description="Bob keeps watch.",
+            )
+        ]
+        ckpt.session.pending_commitment_revisions["bob"] = (
+            CommitmentRevisionPrompt(
+                character_id="bob",
+                commitment_id="commit_bob_watch",
+                trigger_event_id="evt_scene_changed",
+                observed_at_s=10,
+                reason="the scene changed",
+                previous_description="Bob keeps watch.",
+            )
+        )
+        opened = open_cat_ii(
+            ckpt,
+            initiator_id="alice",
+            initiator_intention="Alice presses Bob",
+            required_responders=["bob"],
+        )
+        pin_cat_ii_responder(ckpt, "bob", opened.event_id)
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(
+            ends_beat=True,
+            ends_beat_reason="cat_ii_resolution",
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I answer Alice",
+            acting_character_id="bob",
+        ))
+
+        assert response.beat_ended_reason == "cat_ii_resolution"
+        assert ckpt.session.pending_commitment_revisions["bob"].commitment_id == (
+            "commit_bob_watch"
+        )
+        assert response.commitment_revision_prompts == {
+            "bob": ["commit_bob_watch"]
+        }
+        assert mgr.save.call_count == 1
+
     @pytest.mark.asyncio
     async def test_cat_ii_against_human_pauses_and_persists_open_event(
         self, patched_orchestrator,
