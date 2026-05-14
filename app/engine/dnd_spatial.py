@@ -8,7 +8,16 @@ from app.schemas.dnd_spatial import (
     DndBattleMapToken,
     DndSpatialDelta,
     DndTerrainZone,
+    MAX_BATTLE_MAP_HEIGHT,
+    MAX_BATTLE_MAP_TOKENS,
+    MAX_BATTLE_MAP_WIDTH,
 )
+
+
+SUMMARY_TOKEN_LIMIT = 12
+SUMMARY_TERRAIN_LIMIT = 4
+SUMMARY_AREA_LIMIT = 4
+SUMMARY_LABEL_MAX = 32
 
 
 def normalize_battle_map_seed(
@@ -25,47 +34,80 @@ def normalize_battle_map_seed(
     if not battle_map.present:
         return None
 
-    participants = _participant_records(combatants)
+    participants = _participant_records(combatants)[:MAX_BATTLE_MAP_TOKENS]
     if not participants:
         return None
 
-    width = battle_map.width if battle_map.width > 0 else 12
-    height = battle_map.height if battle_map.height > 0 else 12
-    participant_by_id = {
-        value: participant
+    width = _clamp(
+        battle_map.width if battle_map.width > 0 else 12,
+        1,
+        MAX_BATTLE_MAP_WIDTH,
+    )
+    height = _clamp(
+        battle_map.height if battle_map.height > 0 else 12,
+        1,
+        MAX_BATTLE_MAP_HEIGHT,
+    )
+
+    participants_by_combatant = {
+        participant["combatant_id"]: participant
         for participant in participants
-        for value in (participant["combatant_id"], participant["character_id"])
-        if value
+        if participant["combatant_id"]
+    }
+    character_counts: dict[str, int] = {}
+    for participant in participants:
+        character_id = participant["character_id"]
+        if character_id:
+            character_counts[character_id] = (
+                character_counts.get(character_id, 0) + 1
+            )
+    participants_by_unique_character = {
+        participant["character_id"]: participant
+        for participant in participants
+        if participant["character_id"]
+        and character_counts.get(participant["character_id"]) == 1
     }
 
-    tokens_by_character: dict[str, DndBattleMapToken] = {}
+    tokens_by_id: dict[str, DndBattleMapToken] = {}
     for raw in battle_map.tokens:
-        token_id = raw.token_id or raw.character_id
-        participant = participant_by_id.get(raw.character_id) or participant_by_id.get(
-            token_id
+        raw_token_id = raw.token_id.strip()
+        raw_character_id = raw.character_id.strip()
+        participant = (
+            participants_by_combatant.get(raw_token_id)
+            if raw_token_id else None
         )
+        if participant is None and raw_character_id:
+            participant = participants_by_unique_character.get(raw_character_id)
+        if participant is None and raw_token_id:
+            participant = participants_by_unique_character.get(raw_token_id)
         if participant is None:
             continue
-        character_id = participant["character_id"] or participant["combatant_id"]
-        token = DndBattleMapToken(
-            token_id=token_id or participant["combatant_id"] or character_id,
+
+        identity = _participant_identity(participant)
+        if not identity:
+            continue
+        character_id = participant["character_id"] or identity
+        max_size = max(1, min(width, height))
+        size = _clamp(raw.size_squares, 1, max_size)
+        tokens_by_id[identity] = DndBattleMapToken(
+            token_id=identity,
             character_id=character_id,
             label=raw.label or participant["name"] or character_id,
-            x=_clamp(raw.x, 0, max(0, width - 1)),
-            y=_clamp(raw.y, 0, max(0, height - 1)),
-            size_squares=max(1, raw.size_squares),
+            x=_clamp(raw.x, 0, max(0, width - size)),
+            y=_clamp(raw.y, 0, max(0, height - size)),
+            size_squares=size,
         )
-        tokens_by_character[character_id] = token
 
-    occupied = {(token.x, token.y) for token in tokens_by_character.values()}
+    occupied = {(token.x, token.y) for token in tokens_by_id.values()}
     for index, participant in enumerate(participants):
-        character_id = participant["character_id"] or participant["combatant_id"]
-        if not character_id or character_id in tokens_by_character:
+        identity = _participant_identity(participant)
+        if not identity or identity in tokens_by_id:
             continue
+        character_id = participant["character_id"] or identity
         x, y = _fallback_position(index, width, height, occupied)
         occupied.add((x, y))
-        tokens_by_character[character_id] = DndBattleMapToken(
-            token_id=participant["combatant_id"] or character_id,
+        tokens_by_id[identity] = DndBattleMapToken(
+            token_id=identity,
             character_id=character_id,
             label=participant["name"] or character_id,
             x=x,
@@ -90,7 +132,7 @@ def normalize_battle_map_seed(
         width=width,
         height=height,
         square_size_ft=battle_map.square_size_ft or 5,
-        tokens=list(tokens_by_character.values()),
+        tokens=list(tokens_by_id.values()),
         terrain=terrain,
         areas=areas,
         notes=battle_map.notes,
@@ -126,8 +168,8 @@ def spatial_advisories(combat: Any, actor_id: str) -> list[dict[str, Any]]:
         line_of_sight = _line_of_sight_clear(battle_map, actor_token, token)
         cover = _cover_between(battle_map, actor_token, token)
         advisories.append({
-            "from": actor_token.character_id or actor_token.token_id,
-            "to": token.character_id or token.token_id,
+            "from": _token_identity(actor_token),
+            "to": _token_identity(token),
             "distance_ft": distance_ft,
             "within_5_ft": distance_ft <= 5,
             "within_30_ft": distance_ft <= 30,
@@ -152,50 +194,62 @@ def apply_spatial_deltas(
     notes: list[str] = []
     for delta in deltas:
         if delta.kind in {"move_token", "place_token"}:
-            token = (
-                _token_for(battle_map, delta.target_id)
-                if delta.target_id else None
-            )
-            if token is None and delta.character_id:
+            selector = delta.target_id.strip()
+            token = _token_for(battle_map, selector) if selector else None
+            if token is None and not selector and delta.character_id:
                 token = _token_for(battle_map, delta.character_id)
+            created = False
             if token is None and delta.kind == "place_token":
+                max_size = max(1, min(battle_map.width, battle_map.height))
+                size = _clamp(delta.size_squares, 1, max_size)
+                token_id = (
+                    selector
+                    or delta.character_id
+                    or _slug(delta.label)
+                    or "token"
+                )
                 token = DndBattleMapToken(
-                    token_id=delta.target_id or delta.character_id,
-                    character_id=delta.character_id or delta.target_id,
-                    label=delta.label or delta.character_id or delta.target_id,
+                    token_id=token_id,
+                    character_id=delta.character_id or token_id,
+                    label=delta.label or delta.character_id or token_id,
                     x=0,
                     y=0,
-                    size_squares=delta.size_squares,
+                    size_squares=size,
                 )
                 battle_map.tokens.append(token)
+                created = True
             if token is None:
+                missing = selector or delta.character_id
                 notes.append(
-                    f"Spatial delta skipped: token {delta.target_id!r} not found."
+                    f"Spatial delta skipped: token {missing!r} not found."
                 )
                 continue
-            token.x = _clamp(delta.x, 0, max(0, battle_map.width - 1))
-            token.y = _clamp(delta.y, 0, max(0, battle_map.height - 1))
-            token.size_squares = max(1, delta.size_squares)
+            max_size = max(1, min(battle_map.width, battle_map.height))
+            token.size_squares = _clamp(delta.size_squares, 1, max_size)
+            token.x = _clamp(
+                delta.x, 0, max(0, battle_map.width - token.size_squares)
+            )
+            token.y = _clamp(
+                delta.y, 0, max(0, battle_map.height - token.size_squares)
+            )
             if delta.label:
                 token.label = delta.label
+            verb = "Placed" if created else "Moved"
             notes.append(
-                f"Moved {token.character_id or token.token_id} to "
-                f"({token.x}, {token.y})."
+                f"{verb} {_token_identity(token)} to ({token.x}, {token.y})."
             )
         elif delta.kind == "remove_token":
-            before = len(battle_map.tokens)
-            battle_map.tokens = [
-                token for token in battle_map.tokens
-                if delta.target_id not in {
-                    token.token_id,
-                    token.character_id,
-                    token.label,
-                }
-            ]
-            if len(battle_map.tokens) == before:
+            selector = delta.target_id.strip() or delta.character_id.strip()
+            token = _token_for(battle_map, selector)
+            if token is None:
                 notes.append(
-                    f"Spatial delta skipped: token {delta.target_id!r} not found."
+                    f"Spatial delta skipped: token {selector!r} not found."
                 )
+                continue
+            battle_map.tokens = [
+                candidate for candidate in battle_map.tokens
+                if candidate is not token
+            ]
         elif delta.kind == "add_area":
             template_id = delta.target_id or _slug(delta.label) or "area"
             battle_map.areas = [
@@ -219,11 +273,40 @@ def apply_spatial_deltas(
                 battle_map.height,
             ))
         elif delta.kind == "remove_area":
+            selector = delta.target_id.strip() or delta.label.strip()
+            if not selector:
+                notes.append("Spatial delta skipped: area selector is empty.")
+                continue
             battle_map.areas = [
                 area for area in battle_map.areas
-                if delta.target_id not in {area.template_id, area.label}
+                if selector not in {area.template_id, area.label}
             ]
     return notes
+
+
+def tick_area_durations(combat: Any) -> list[str]:
+    battle_map = _battle_map(combat)
+    if battle_map is None:
+        return []
+
+    remaining: list[DndAreaTemplate] = []
+    expired: list[DndAreaTemplate] = []
+    for area in battle_map.areas:
+        if area.duration_rounds <= 0:
+            remaining.append(area)
+            continue
+        area.duration_rounds -= 1
+        if area.duration_rounds <= 0:
+            expired.append(area)
+        else:
+            remaining.append(area)
+    if not expired:
+        return []
+    battle_map.areas = remaining
+    return [
+        f"Area expired: {area.label or area.template_id}."
+        for area in expired
+    ]
 
 
 def battle_map_status(combat: Any) -> dict[str, Any]:
@@ -252,28 +335,42 @@ def render_battle_map_summary(
         f"{battle_map.square_size_ft} ft squares)."
     ]
     if battle_map.tokens:
+        shown = battle_map.tokens[:SUMMARY_TOKEN_LIMIT]
         positions = [
-            f"{token.label or token.character_id or token.token_id} "
-            f"({token.character_id or token.token_id}) at "
+            f"{_short_text(token.label or _token_identity(token))} "
+            f"({_short_text(_token_identity(token))}) at "
             f"({token.x}, {token.y})"
-            for token in battle_map.tokens
+            for token in shown
         ]
+        omitted = len(battle_map.tokens) - len(shown)
+        if omitted > 0:
+            positions.append(f"... {omitted} more")
         lines.append("Positions: " + "; ".join(positions) + ".")
     if battle_map.terrain:
         terrain = [
-            f"{zone.label or zone.zone_id} at ({zone.x}, {zone.y}) "
-            f"{zone.width}x{zone.height}"
+            f"{_short_text(zone.label or zone.zone_id)} "
+            f"at ({zone.x}, {zone.y}) {zone.width}x{zone.height}"
             + (f", cover {zone.cover}" if zone.cover != "none" else "")
             + (", blocks sight" if zone.blocks_line_of_sight else "")
-            for zone in battle_map.terrain[:4]
+            for zone in battle_map.terrain[:SUMMARY_TERRAIN_LIMIT]
         ]
+        omitted = len(battle_map.terrain) - SUMMARY_TERRAIN_LIMIT
+        if omitted > 0:
+            terrain.append(f"... {omitted} more")
         lines.append("Terrain: " + "; ".join(terrain) + ".")
     if battle_map.areas:
         areas = [
-            f"{area.label or area.template_id} {area.shape} at "
-            f"({area.x}, {area.y})"
-            for area in battle_map.areas[:4]
+            f"{_short_text(area.label or area.template_id)} "
+            f"{area.shape} at ({area.x}, {area.y})"
+            + (
+                f", {area.duration_rounds} rounds"
+                if area.duration_rounds > 0 else ""
+            )
+            for area in battle_map.areas[:SUMMARY_AREA_LIMIT]
         ]
+        omitted = len(battle_map.areas) - SUMMARY_AREA_LIMIT
+        if omitted > 0:
+            areas.append(f"... {omitted} more")
         lines.append("Areas: " + "; ".join(areas) + ".")
     if actor_id:
         advisory_text = [
@@ -322,6 +419,10 @@ def _participant_records(combatants: Iterable[Any]) -> list[dict[str, str]]:
     return records
 
 
+def _participant_identity(participant: dict[str, str]) -> str:
+    return participant["combatant_id"] or participant["character_id"]
+
+
 def _token_for(
     battle_map: DndBattleMapState,
     target_id: str,
@@ -330,9 +431,73 @@ def _token_for(
     if not target:
         return None
     for token in battle_map.tokens:
-        if target in {token.token_id, token.character_id, token.label}:
+        if target == token.token_id:
             return token
+    character_matches = [
+        token for token in battle_map.tokens
+        if target == token.character_id
+    ]
+    if len(character_matches) == 1:
+        return character_matches[0]
+    label_matches = [
+        token for token in battle_map.tokens
+        if target == token.label
+    ]
+    if len(label_matches) == 1:
+        return label_matches[0]
     return None
+
+
+def _token_identity(token: DndBattleMapToken) -> str:
+    return token.token_id or token.character_id or token.label
+
+
+def _token_extent(token: DndBattleMapToken) -> tuple[int, int, int, int]:
+    size = max(1, token.size_squares)
+    return token.x, token.y, token.x + size - 1, token.y + size - 1
+
+
+def _point_in_token(x: int, y: int, token: DndBattleMapToken) -> bool:
+    left, top, right, bottom = _token_extent(token)
+    return left <= x <= right and top <= y <= bottom
+
+
+def _closest_square(
+    origin: DndBattleMapToken,
+    target: DndBattleMapToken,
+) -> tuple[int, int]:
+    left, top, right, bottom = _token_extent(origin)
+    target_left, target_top, target_right, target_bottom = _token_extent(target)
+    target_x = (target_left + target_right) // 2
+    target_y = (target_top + target_bottom) // 2
+    return _clamp(target_x, left, right), _clamp(target_y, top, bottom)
+
+
+def _line_between_tokens(
+    a: DndBattleMapToken,
+    b: DndBattleMapToken,
+) -> list[tuple[int, int]]:
+    ax, ay = _closest_square(a, b)
+    bx, by = _closest_square(b, a)
+    return _line_points(ax, ay, bx, by)
+
+
+def _short_text(text: str, limit: int = SUMMARY_LABEL_MAX) -> str:
+    clean = " ".join(str(text or "").split())
+    if len(clean) <= limit:
+        return clean
+    return clean[: max(0, limit - 3)].rstrip() + "..."
+
+
+def _token_gap_squares(
+    a: DndBattleMapToken,
+    b: DndBattleMapToken,
+) -> tuple[int, int]:
+    a_left, a_top, a_right, a_bottom = _token_extent(a)
+    b_left, b_top, b_right, b_bottom = _token_extent(b)
+    dx = max(0, b_left - a_right, a_left - b_right)
+    dy = max(0, b_top - a_bottom, a_top - b_bottom)
+    return dx, dy
 
 
 def _distance_ft(
@@ -340,7 +505,8 @@ def _distance_ft(
     a: DndBattleMapToken,
     b: DndBattleMapToken,
 ) -> int:
-    squares = max(abs(a.x - b.x), abs(a.y - b.y))
+    dx, dy = _token_gap_squares(a, b)
+    squares = max(dx, dy)
     return squares * battle_map.square_size_ft
 
 
@@ -352,8 +518,8 @@ def _line_of_sight_clear(
     blockers = [zone for zone in battle_map.terrain if zone.blocks_line_of_sight]
     if not blockers:
         return True
-    for x, y in _line_points(a.x, a.y, b.x, b.y):
-        if (x, y) in {(a.x, a.y), (b.x, b.y)}:
+    for x, y in _line_between_tokens(a, b):
+        if _point_in_token(x, y, a) or _point_in_token(x, y, b):
             continue
         if any(_point_in_zone(x, y, zone) for zone in blockers):
             return False
@@ -370,9 +536,13 @@ def _cover_between(
     for zone in battle_map.terrain:
         if zone.cover == "none":
             continue
-        if _point_in_zone(b.x, b.y, zone) or any(
+        if any(
             _point_in_zone(x, y, zone)
-            for x, y in _line_points(a.x, a.y, b.x, b.y)
+            for x in range(b.x, b.x + max(1, b.size_squares))
+            for y in range(b.y, b.y + max(1, b.size_squares))
+        ) or any(
+            _point_in_zone(x, y, zone)
+            for x, y in _line_between_tokens(a, b)
         ):
             if cover_rank[zone.cover] > cover_rank[best]:
                 best = zone.cover
@@ -419,17 +589,17 @@ def _fallback_position(
     right_x = width - 2 if width > 2 else max(0, width - 1)
     base_y = 1 if height > 2 else 0
     span = max(1, height - 2)
-    candidates: list[tuple[int, int]] = []
     for offset in range(max(width, height, 1) * 2):
         y = min(height - 1, base_y + ((index // 2 + offset) % span))
         x = left_x if (index + offset) % 2 == 0 else right_x
-        candidates.append((x, y))
-    for y in range(height):
-        for x in range(width):
-            candidates.append((x, y))
-    for candidate in candidates:
+        candidate = (x, y)
         if candidate not in occupied:
             return candidate
+    for y in range(height):
+        for x in range(width):
+            candidate = (x, y)
+            if candidate not in occupied:
+                return candidate
     return (0, 0)
 
 

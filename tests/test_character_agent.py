@@ -509,6 +509,13 @@ class TestCharacterAgent:
         assert "death save" not in user_text.lower()
         assert "successes" not in user_text
         assert "failures" not in user_text
+        persisted_user = sample_checkpoint.character_conversations[
+            "guard_17"
+        ][0].content
+        assert isinstance(persisted_user, str)
+        assert "## D&D Combat" in persisted_user
+        assert "## Tactical Map" not in persisted_user
+        assert "Gatehouse" not in persisted_user
 
     @pytest.mark.asyncio
     async def test_pending_observations_carry_in_scene_perception(

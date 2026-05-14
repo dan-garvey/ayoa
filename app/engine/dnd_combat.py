@@ -910,6 +910,8 @@ def _end_turn(
         timing="end_of_turn",
     )
     _tick_effect_durations(combat, combatant)
+    for line in dnd_spatial.tick_area_durations(combat):
+        append_audit_line(combat, line)
 
 
 def _process_recurring_saves(

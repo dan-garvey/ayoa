@@ -5,6 +5,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
+MAX_BATTLE_MAP_WIDTH = 80
+MAX_BATTLE_MAP_HEIGHT = 80
+MAX_BATTLE_MAP_TOKENS = 80
+MAX_BATTLE_MAP_TERRAIN = 80
+MAX_BATTLE_MAP_AREAS = 40
+
 TerrainCover = Literal["none", "half", "three_quarters", "total"]
 AreaShape = Literal["square", "circle", "cone", "line"]
 SpatialDeltaKind = Literal[
@@ -193,10 +199,34 @@ class DndBattleMapState(BaseModel):
         self.notes = self.notes.strip()
         if self.width < 0:
             self.width = 0
+        if self.width > MAX_BATTLE_MAP_WIDTH:
+            self.width = MAX_BATTLE_MAP_WIDTH
         if self.height < 0:
             self.height = 0
+        if self.height > MAX_BATTLE_MAP_HEIGHT:
+            self.height = MAX_BATTLE_MAP_HEIGHT
         if self.square_size_ft <= 0:
             self.square_size_ft = 5
+        self.tokens = self.tokens[:MAX_BATTLE_MAP_TOKENS]
+        self.terrain = self.terrain[:MAX_BATTLE_MAP_TERRAIN]
+        self.areas = self.areas[:MAX_BATTLE_MAP_AREAS]
+        if self.width > 0 and self.height > 0:
+            max_size = max(1, min(self.width, self.height))
+            for token in self.tokens:
+                if token.size_squares > max_size:
+                    token.size_squares = max_size
+                token.x = min(token.x, max(0, self.width - token.size_squares))
+                token.y = min(token.y, max(0, self.height - token.size_squares))
+            for zone in self.terrain:
+                zone.x = min(zone.x, max(0, self.width - 1))
+                zone.y = min(zone.y, max(0, self.height - 1))
+                zone.width = max(1, min(zone.width, self.width - zone.x))
+                zone.height = max(1, min(zone.height, self.height - zone.y))
+            for area in self.areas:
+                area.x = min(area.x, max(0, self.width - 1))
+                area.y = min(area.y, max(0, self.height - 1))
+                area.width = max(1, min(area.width, self.width - area.x))
+                area.height = max(1, min(area.height, self.height - area.y))
         return self
 
 

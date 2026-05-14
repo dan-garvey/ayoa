@@ -576,6 +576,9 @@ class DndEventRouterOutput(EventRouterOutput):
                 )
             self.requires_responders = True
             self.combatant_ids = []
+            self.battle_map_seed = DndBattleMapState.model_validate(
+                empty_battle_map_state()
+            )
             return self
 
         self.requires_responders = False
@@ -586,5 +589,8 @@ class DndEventRouterOutput(EventRouterOutput):
             self.combatant_ids = [cid for cid in unique if cid]
         elif self.interaction_mode in {"cat_i", "dnd_combat_end"}:
             self.combatant_ids = []
+            self.battle_map_seed = DndBattleMapState.model_validate(
+                empty_battle_map_state()
+            )
 
         return self

@@ -1,6 +1,7 @@
 import pytest
 
 from app.bot.commands import _render_combat_status
+from app.bot.embed import MAX_DESCRIPTION
 from app.bot.engine_bridge import (
     DndCombatParticipantView,
     DndCombatView,
@@ -100,7 +101,7 @@ def test_discord_combat_status_renders_active_effects():
     assert "Effects: Bless (concentration; 8 rounds)" in (embed.description or "")
 
 
-def test_discord_combat_status_renders_battle_map_lines():
+def test_discord_combat_status_hides_battle_map_lines_by_default():
     embed = _render_combat_status(
         DndCombatView(
             session_id="s",
@@ -112,4 +113,41 @@ def test_discord_combat_status_renders_battle_map_lines():
         )
     )
 
+    assert "Battle map: Bridge" not in (embed.description or "")
+
+
+def test_discord_combat_status_renders_battle_map_lines_when_requested():
+    embed = _render_combat_status(
+        DndCombatView(
+            session_id="s",
+            active=True,
+            participants=(
+                DndCombatParticipantView(character_id="alice", name="Alice"),
+            ),
+            map_lines=("Battle map: Bridge (8x5, 5 ft squares).",),
+        ),
+        include_map=True,
+    )
+
     assert "Battle map: Bridge" in (embed.description or "")
+
+
+def test_discord_combat_status_truncates_large_battle_map_lines():
+    embed = _render_combat_status(
+        DndCombatView(
+            session_id="s",
+            active=True,
+            participants=(
+                DndCombatParticipantView(character_id="alice", name="Alice"),
+            ),
+            map_lines=tuple(
+                f"Map row {index}: " + ("x" * 500)
+                for index in range(20)
+            ),
+        ),
+        include_map=True,
+    )
+
+    description = embed.description or ""
+    assert len(description) <= MAX_DESCRIPTION
+    assert "... map truncated." in description

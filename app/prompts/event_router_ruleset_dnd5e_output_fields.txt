@@ -8,8 +8,8 @@
     "square_size_ft": 5,
     "tokens": [
       {{
-        "token_id": "string - usually the combatant or character id",
-        "character_id": "character_id",
+        "token_id": "string - exact combatant token id when known",
+        "character_id": "character_id - underlying character id",
         "label": "visible token label",
         "x": 0,
         "y": 0,

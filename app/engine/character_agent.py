@@ -53,6 +53,22 @@ logger = logging.getLogger(__name__)
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
 
 
+def _conversation_safe_user_content(text: str) -> str:
+    lines: list[str] = []
+    skipping_tactical_map = False
+    for line in text.splitlines():
+        if line.strip() == "## Tactical Map":
+            skipping_tactical_map = True
+            continue
+        if skipping_tactical_map and (
+            line.startswith("## ") or line.strip() == "</input>"
+        ):
+            skipping_tactical_map = False
+        if not skipping_tactical_map:
+            lines.append(line)
+    return "\n".join(lines)
+
+
 def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(name, default)
@@ -384,7 +400,9 @@ class CharacterAgent:
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],
         )
-        append_turn_to_conversation(conv, user_content, response)
+        append_turn_to_conversation(
+            conv, _conversation_safe_user_content(user_content), response
+        )
 
         logger.info(
             "Agent %s perceive: %d chars",
@@ -505,7 +523,9 @@ class CharacterAgent:
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],
         )
-        append_turn_to_conversation(conv, user_content, response)
+        append_turn_to_conversation(
+            conv, _conversation_safe_user_content(user_content), response
+        )
 
         logger.info(
             "Agent %s %s: %d chars public, %d chars intent",

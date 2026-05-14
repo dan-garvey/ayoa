@@ -540,6 +540,38 @@ class TestDndEventRouterOutput:
         assert out.loot_offer.visibility == "table"
         assert out.loot_offer.currency.gp == 1
 
+    def test_non_combat_start_modes_clear_battle_map_seed(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "cat_i",
+            "combatant_ids": [],
+            "battle_map_seed": {
+                "present": True,
+                "map_name": "Leaky Seed",
+                "width": 8,
+                "height": 8,
+                "square_size_ft": 5,
+                "tokens": [
+                    {
+                        "token_id": "alice",
+                        "character_id": "alice",
+                        "label": "Alice",
+                        "x": 1,
+                        "y": 1,
+                        "size_squares": 1,
+                    }
+                ],
+                "terrain": [],
+                "areas": [],
+                "notes": "",
+            },
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.battle_map_seed.present is False
+        assert out.battle_map_seed.tokens == []
+
     def test_combat_start_allows_engine_to_validate_participant_count(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
@@ -567,6 +599,7 @@ class TestDndRulesAdjudication:
     def test_spatial_delta_schema_is_strict_object_compatible(self):
         schema = RulesAdjudication.model_json_schema()
         spatial_delta = schema["$defs"]["DndSpatialDelta"]
+        assert "spatial_deltas" in schema["required"]
         assert spatial_delta["additionalProperties"] is False
         assert set(spatial_delta["required"]) == {
             "kind",

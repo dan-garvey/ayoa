@@ -254,7 +254,7 @@ class RulesAdjudication(BaseModel):
     state_deltas: list[str]
     combat_state_deltas: list[CombatStateDelta] = Field(default_factory=list)
     effect_deltas: list[EffectDelta] = Field(default_factory=list)
-    spatial_deltas: list[DndSpatialDelta] = Field(default_factory=list)
+    spatial_deltas: list[DndSpatialDelta]
     rules_notes: list[str]
     fallback_reason: str
 

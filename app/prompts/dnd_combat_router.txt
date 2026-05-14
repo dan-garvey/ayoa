@@ -85,6 +85,17 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Use spatial_deltas for tactical map changes: movement, forced movement,
   created areas, removed areas, or token placement that should persist into the
   next combat action. Emit [] when the action does not change the map.
+- In each spatial_delta, target_id names the exact token to move, remove, or
+  update. Use the combatant id when one is available; character_id names the
+  underlying character. If two tokens share a character_id, target_id must
+  distinguish the exact token.
+- For move_token, set target_id to an existing token and x/y to the new origin
+  square. For place_token, set target_id to the new token id. For remove_token,
+  set target_id when known; use character_id only when exactly one token has
+  that character_id.
+- For add_area, use target_id as the persistent area id, set shape and size
+  fields, and set duration_rounds when the area should expire. For remove_area,
+  target_id names the existing area id.
 
 <<<USER>>>
 ## Phase

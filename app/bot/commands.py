@@ -42,7 +42,13 @@ from typing import Any, Optional
 import discord
 from discord import app_commands
 
-from app.bot.embed import render_briefing, render_error, render_info, render_turn
+from app.bot.embed import (
+    MAX_DESCRIPTION,
+    render_briefing,
+    render_error,
+    render_info,
+    render_turn,
+)
 from app.bot.engine_bridge import (
     CompletedPendingRoll,
     DndCombatView,
@@ -82,7 +88,27 @@ DND_SHEET_PAGES = (
 )
 
 
-def _render_combat_status(view: DndCombatView) -> discord.Embed:
+def _append_combat_map_lines(lines: list[str], map_lines: tuple[str, ...]) -> None:
+    if not map_lines:
+        return
+    lines.append("")
+    for raw_line in map_lines:
+        line = str(raw_line).strip()
+        if not line:
+            continue
+        if len("\n".join([*lines, line])) > MAX_DESCRIPTION:
+            truncation = "... map truncated."
+            if len("\n".join([*lines, truncation])) <= MAX_DESCRIPTION:
+                lines.append(truncation)
+            break
+        lines.append(line)
+
+
+def _render_combat_status(
+    view: DndCombatView,
+    *,
+    include_map: bool = False,
+) -> discord.Embed:
     if not view.active:
         return render_info("Combat", view.message or "No active combat.")
 
@@ -126,9 +152,8 @@ def _render_combat_status(view: DndCombatView) -> discord.Embed:
 
     if not view.participants:
         lines.append("(no participants)")
-    if view.map_lines:
-        lines.append("")
-        lines.extend(view.map_lines)
+    if include_map:
+        _append_combat_map_lines(lines, view.map_lines)
     return render_info("Combat", "\n".join(lines))
 
 
@@ -5288,7 +5313,7 @@ def register(
             )
             return
         await inter.response.send_message(
-            embed=_render_combat_status(view),
+            embed=_render_combat_status(view, include_map=True),
             ephemeral=True,
         )
 
