@@ -50,6 +50,12 @@ Player UX review should assume pseudo-live table norms unless the user says othe
 - Before changing schema or prompt shape, check downstream consumers and tests. Remove vestigial schema fields when the last reader or writer goes away.
 - When asked for a dump, write raw artifacts to a file under the repo or session storage and report the path.
 
+## Model Input Case Study
+
+Router-history compaction is the reference example for changing model inputs before changing model instructions. The router used to replay both the raw user message and the full JSON output, even though the JSON mostly restated the user input as canonical facts plus empty schema fields. Replacing each stored router exchange with a deterministic assistant-side `prior_event` record kept event id, timing, facts, observers, beat pacing, and non-empty side effects while dropping the user message, rationale, feasibility boilerplate, empty fields, and JSON punctuation.
+
+Result from the relative-time live harness: router checkpoint history fell from 8,345 tokens to 2,792 tokens, final checks improved from 99/101 to 101/101, and the previous advanced-observer backfill failures passed. Use this pattern when model context is bloated or semantically noisy: identify the true runtime contract, store that contract directly, test both token movement and behavioral accuracy, and prefer deterministic input projection over prompt wording changes.
+
 ## Existing Context
 
 Read `DESIGN.md` for broader project structure, long-term goals, and architectural concerns (see especially "Repository And Setup", §15 Rules Adapters, §18 Current Gaps And Maintenance Notes, §19 Engineering Discipline, and §20 Future Directions). This file is the concise repo-local editing contract for coding agents.

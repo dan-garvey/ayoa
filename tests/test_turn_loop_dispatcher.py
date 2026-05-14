@@ -16,8 +16,12 @@ from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
-from app.schemas.events import CanonicalEvent, WorldAdjudication
+from app.schemas.event_router import (
+    DndEventRouterOutput,
+    EventRouterOutput,
+    ObserverEntry,
+)
+from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
@@ -239,15 +243,66 @@ class TestRouteIntention:
         live_user = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        stored_user = ckpt.session_conversation[-2].content
+        stored = ckpt.session_conversation[-1]
+        stored_text = stored.content
         assert "## Open Commitments" in live_user
         assert "commit_search" in live_user
-        assert "## Open Commitments" not in stored_user
-        assert "commit_search" not in stored_user
-        assert "[beat:" not in stored_user
-        assert "effective_at_s" not in stored_user
-        assert "## Intention" not in stored_user
-        assert stored_user == "alice: check the hinges"
+        assert stored.role == "assistant"
+        assert isinstance(stored_text, str)
+        assert stored_text.startswith("prior_event evt_")
+        assert "## Open Commitments" not in stored_text
+        assert "commit_search" not in stored_text
+        assert "[beat:" not in stored_text
+        assert "effective_at_s" not in stored_text
+        assert "decision_rationale" not in stored_text
+        assert "world_adjudication" not in stored_text
+        assert "## Intention" not in stored_text
+        assert "check the hinges" not in stored_text
+
+    def test_router_history_stores_compact_facts_without_user_message(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        result = _router_output()
+        result.canonical_event.observable_facts = [
+            ObservableFact.only(
+                "Alice whispers, 'The hinge is loose.'",
+                ["alice", "pip"],
+                duration_s=2,
+            )
+        ]
+        result.observers = [
+            ObserverEntry(
+                character_id="alice",
+                observation_level="d",
+                response_priority=1,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="i",
+                response_priority=3,
+            ),
+        ]
+        mock_client.complete.return_value = _llm_response(result)
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I check whether the hinge is loose.",
+        ))
+
+        assert len(ckpt.session_conversation) == 1
+        record = ckpt.session_conversation[0]
+        assert record.role == "assistant"
+        assert isinstance(record.content, str)
+        assert "prior_event" in record.content
+        assert "source=alice mode=intention" in record.content
+        assert "fact only[alice,pip] @0+2" in record.content
+        assert "Alice whispers, 'The hinge is loose.'" in record.content
+        assert "obs alice:d1 pip:i3" in record.content
+        assert "I check whether the hinge is loose" not in record.content
+        assert "decision_rationale" not in record.content
+        assert '"canonical_event"' not in record.content
 
     def test_dnd_fresh_intention_uses_dnd_router_contract(
         self, prompt_mgr, mock_client,
@@ -399,9 +454,9 @@ class TestRouteIntention:
 
         assert captured["template"] == "event_router"
         assert captured["history"] is ckpt.session_conversation
-        assert len(ckpt.session_conversation) == 4
-        assert ckpt.session_conversation[-2].role == "user"
+        assert len(ckpt.session_conversation) == 3
         assert ckpt.session_conversation[-1].role == "assistant"
+        assert "prior_event" in ckpt.session_conversation[-1].content
 
     def test_route_continuation_uses_recovery_block_not_intention(
         self, prompt_mgr, mock_client,

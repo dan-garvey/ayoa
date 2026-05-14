@@ -25,7 +25,6 @@ import logging
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
-    append_turn_to_conversation,
     build_player_characters_block,
     build_setting_summary,
     clear_character_inbox,
@@ -48,6 +47,7 @@ from app.engine.turn_loop_contracts import (
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
@@ -359,28 +359,168 @@ def _build_commitment_revision_block(
     return "\n".join(lines) + "\n"
 
 
-def _router_history_user_content(
+def _compact_router_history_text(text: str) -> str:
+    return " ".join((text or "").split())
+
+
+def _compact_id_list(values: list[str]) -> str:
+    return ",".join(value for value in values if value) or "-"
+
+
+def _router_history_record(
     *,
     acting_character_id: str,
-    result: EventRouterOutput | None = None,
+    result: EventRouterOutput,
     mode: str = "intention",
-    intention_block: str = "",
-    cat_ii_resolution_block: str = "",
-    tick_fan_in_block: str = "",
 ) -> str:
-    """Compact router history entry without volatile turn-context blocks."""
-    del result
-    parts: list[str] = []
-    if mode in {"continuation", "tick"}:
-        parts.append(f"framing_actor: {acting_character_id}")
-    for block in (cat_ii_resolution_block, tick_fan_in_block, intention_block):
-        block = (block or "").strip()
-        if block:
-            if mode == "intention" and block == intention_block.strip():
-                parts.append(f"{acting_character_id}: {block}")
-            else:
-                parts.append(block)
-    return "\n\n".join(parts)
+    """Compact assistant-side memory of a prior router output.
+
+    Router history exists to carry canonical continuity, not to replay the
+    full structured-output envelope. Store a deterministic event memory and
+    omit the raw user message, `decision_rationale`, feasibility boilerplate,
+    empty schema fields, and JSON punctuation.
+    """
+    header = (
+        f"prior_event {result.event_id} @{result.effective_at_s}"
+        f"+{result.duration_s} source={acting_character_id} mode={mode}"
+    )
+    if result.ends_beat_reason:
+        header += f" end={result.ends_beat_reason}"
+    elif result.ends_beat:
+        header += " end=true"
+    if result.requires_responders:
+        header += f" requires={_compact_id_list(result.required_responders)}"
+    if result.agent_responder_picks:
+        header += f" picks={_compact_id_list(result.agent_responder_picks)}"
+
+    lines = [header]
+
+    for fact in result.canonical_event.observable_facts:
+        text = _compact_router_history_text(fact.text)
+        if not text:
+            continue
+        audience = (
+            "all"
+            if fact.audience == "all_observers"
+            else f"only[{_compact_id_list(fact.visible_to)}]"
+        )
+        lines.append(
+            f"fact {audience} @{fact.at_offset_s}+{fact.duration_s}: {text}"
+        )
+
+    if result.observers:
+        observer_bits = [
+            f"{observer.character_id}:{observer.observation_level}{observer.response_priority}"
+            for observer in result.observers
+            if observer.character_id
+        ]
+        if observer_bits:
+            lines.append("obs " + " ".join(observer_bits))
+
+    if result.spawn:
+        for spawn in result.spawn:
+            objectives = "; ".join(
+                _compact_router_history_text(objective)
+                for objective in spawn.seed.objectives
+                if objective
+            )
+            seed_bits = [
+                f"role={_compact_router_history_text(spawn.seed.role)}",
+                f"reason={_compact_router_history_text(spawn.seed.reason)}",
+                f"loc={_compact_router_history_text(spawn.seed.location)}",
+            ]
+            if objectives:
+                seed_bits.append(f"objectives={objectives}")
+            lines.append(f"spawn {spawn.character_id} " + " ".join(seed_bits))
+    if result.dormant:
+        lines.append(f"dormant {_compact_id_list(result.dormant)}")
+    if result.cull:
+        lines.append(f"cull {_compact_id_list(result.cull)}")
+
+    commitment_open = result.commitment_open
+    if commitment_open.present:
+        lines.append(
+            "commit_open "
+            f"actors={_compact_id_list(commitment_open.actor_ids)} "
+            f"expected={commitment_open.expected_duration_s} "
+            f"max={commitment_open.max_duration_s} "
+            f"loc={_compact_router_history_text(commitment_open.location_label)} "
+            f"desc={_compact_router_history_text(commitment_open.description)}"
+        )
+    for signal in result.commitment_resolutions:
+        lines.append(
+            "commit_resolve "
+            f"id={signal.commitment_id or '-'} "
+            f"actors={_compact_id_list(signal.actor_ids)} "
+            f"at={signal.resolved_at_offset_s} "
+            f"reason={_compact_router_history_text(signal.reason)}"
+        )
+    for signal in result.commitment_interrupts:
+        lines.append(
+            "commit_interrupt "
+            f"id={signal.commitment_id or '-'} "
+            f"actors={_compact_id_list(signal.actor_ids)} "
+            f"at={signal.observed_at_offset_s} "
+            f"reason={_compact_router_history_text(signal.reason)}"
+        )
+    for update in result.location_updates:
+        lines.append(
+            "loc "
+            f"{update.character_id}={_compact_router_history_text(update.location_label)}"
+        )
+
+    interaction_mode = getattr(result, "interaction_mode", "")
+    if interaction_mode:
+        lines.append(f"dnd_mode {interaction_mode}")
+    combatant_ids = getattr(result, "combatant_ids", [])
+    if combatant_ids:
+        lines.append(f"combatants {_compact_id_list(combatant_ids)}")
+    loot_offer = getattr(result, "loot_offer", None)
+    if loot_offer is not None and getattr(loot_offer, "present", False):
+        item_bits = [
+            f"{item.item_id}:{_compact_router_history_text(item.name)}x{item.quantity}"
+            for item in loot_offer.items
+            if item.item_id
+        ]
+        currency = getattr(loot_offer, "currency", None)
+        coin_bits = []
+        if currency is not None:
+            for key in ("cp", "sp", "ep", "gp", "pp"):
+                value = getattr(currency, key, 0)
+                if value:
+                    coin_bits.append(f"{value}{key}")
+        loot_bits = [
+            f"source={loot_offer.source_kind}",
+            f"label={_compact_router_history_text(loot_offer.source_label)}",
+            f"visibility={loot_offer.visibility}",
+            f"eligible={_compact_id_list(loot_offer.eligible_character_ids)}",
+        ]
+        if item_bits:
+            loot_bits.append("items=" + "; ".join(item_bits))
+        if coin_bits:
+            loot_bits.append("coins=" + ",".join(coin_bits))
+        if loot_offer.notes:
+            loot_bits.append(f"notes={_compact_router_history_text(loot_offer.notes)}")
+        lines.append("loot_offer " + " ".join(loot_bits))
+
+    return "\n".join(lines)
+
+
+def _append_router_history_record(
+    conversation: list[ConversationMessage],
+    *,
+    acting_character_id: str,
+    result: EventRouterOutput,
+    mode: str = "intention",
+) -> None:
+    conversation.append(ConversationMessage(
+        role="assistant",
+        content=_router_history_record(
+            acting_character_id=acting_character_id,
+            result=result,
+            mode=mode,
+        ),
+    ))
 
 
 def _normalize_router_result_for_history(
@@ -413,13 +553,6 @@ def _normalize_router_result_for_history(
             result.effective_at_s,
             ckpt.session.leading_at_s,
         )
-
-
-def _store_normalized_router_response(response, result: EventRouterOutput) -> None:
-    response.assistant_content = [{
-        "type": "text",
-        "text": result.model_dump_json(),
-    }]
 
 
 def _build_router_context(
@@ -593,19 +726,14 @@ class LLMDispatcher:
             result=result,
             cat_ii_event=cat_ii_event,
         )
-        _store_normalized_router_response(response, result)
-        # Persist the user/assistant pair to the rolling session
-        # conversation so next turn's router sees it as history.
-        append_turn_to_conversation(
+        # Persist only compact canonical memory. The current turn's raw
+        # input already shaped this result; replaying it beside the result
+        # duplicates context and delays cache benefit.
+        _append_router_history_record(
             ckpt.session_conversation,
-            _router_history_user_content(
-                acting_character_id=actor_id,
-                result=result,
-                mode="cat_ii_resolution" if cat_ii_event else "intention",
-                intention_block=intention_block,
-                cat_ii_resolution_block=cat_ii_resolution_block,
-            ),
-            response,
+            acting_character_id=actor_id,
+            result=result,
+            mode="cat_ii_resolution" if cat_ii_event else "intention",
         )
         return result
 
@@ -711,16 +839,11 @@ class LLMDispatcher:
             actor_id=actor_id,
             result=result,
         )
-        _store_normalized_router_response(response, result)
-        append_turn_to_conversation(
+        _append_router_history_record(
             ckpt.session_conversation,
-            _router_history_user_content(
-                acting_character_id=actor_id,
-                result=result,
-                mode="continuation",
-                intention_block=continuation_block,
-            ),
-            response,
+            acting_character_id=actor_id,
+            result=result,
+            mode="continuation",
         )
         return result
 
@@ -822,16 +945,11 @@ class LLMDispatcher:
             result=result,
             tick_mode=True,
         )
-        _store_normalized_router_response(response, result)
-        append_turn_to_conversation(
+        _append_router_history_record(
             ckpt.session_conversation,
-            _router_history_user_content(
-                acting_character_id=actor_id,
-                result=result,
-                mode="tick",
-                tick_fan_in_block=tick_block,
-            ),
-            response,
+            acting_character_id=actor_id,
+            result=result,
+            mode="tick",
         )
         return result
 
