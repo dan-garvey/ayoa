@@ -332,6 +332,9 @@ class TestPromptManagerWithRealTemplates:
                 "- Aldric UniquePOV (you) - scholar. "
                 "Unique player-block appearance."
             ),
+            pov_knowledge_block=(
+                "- Pip UniqueKnown: visible glossary marker."
+            ),
             rendering_note=PARTIAL_MODE_MARKER,
             visible_events=(
                 "Seen directly:\n"
@@ -345,6 +348,7 @@ class TestPromptManagerWithRealTemplates:
 
         assert "Aldric UniquePOV" not in system
         assert "Unique player-block appearance" not in system
+        assert "Pip UniqueKnown" not in system
         assert "Unique event fact" not in system
         assert "Unique submitted action" not in system
         assert PARTIAL_MODE_MARKER not in system
@@ -353,6 +357,7 @@ class TestPromptManagerWithRealTemplates:
         assert "Concise prose." in system
         assert "Aldric UniquePOV" in user
         assert "Unique player-block appearance" in user
+        assert "Pip UniqueKnown" in user
         assert "Unique event fact" in user
         assert "Unique submitted action" in user
         assert PARTIAL_MODE_MARKER in user

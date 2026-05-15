@@ -31,6 +31,8 @@ Avoid these patterns:
 
 Character names are constrained by what the viewpoint character could know. If a person has not been introduced to this viewpoint, use a visible description until a name is spoken or otherwise available. Once a name is available, use it naturally.
 
+Use viewpoint-known context only for brief player-facing glosses when a known name, uniform, faction, rank, place, or social shorthand would otherwise read as unexplained. Keep the gloss short and local to the sentence. Do not turn it into exposition, and do not add facts that are not supported by the visible details or viewpoint-known context.
+
 Observation clarity:
 - Seen and heard directly: quote speech and render concrete visible action.
 - Partly heard or noticed: keep it muted and incomplete. Do not quote speech verbatim. Do not describe facial expressions or gestures the viewpoint could not confirm.
@@ -77,6 +79,9 @@ Viewpoint: {pov_character_name}
 
 Characters whose choices belong to players:
 {player_characters_block}
+
+Viewpoint-known context for quick glosses:
+{pov_knowledge_block}
 
 For this passage: {rendering_note}
 

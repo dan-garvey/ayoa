@@ -78,15 +78,18 @@ class TestExtractJson:
 # --- LLMConfig tests ---
 
 class TestLLMConfig:
-    def test_defaults_use_openai_with_router_on_gpt_5_2(self):
+    def test_defaults_use_gpt_router_and_anthropic_agent_narrator(self):
         config = LLMConfig()
         assert config.default_provider == "openai"
         assert config.default_model == "gpt-5.1"
-        assert config.providers_in_use() == {"openai"}
+        assert config.providers_in_use() == {"anthropic", "openai"}
         assert config.role_models["event_router"] == "gpt-5.2"
-        assert config.role_models["narrator"] == "gpt-5.1"
-        assert config.role_models["agent"] == "gpt-5.1"
-        assert config.role_models["character_gen"] == "gpt-5.1"
+        assert config.role_models["narrator"] == "claude-sonnet-4-6"
+        assert config.role_models["agent"] == "claude-opus-4-6"
+        assert config.role_models["character_gen"] == "claude-opus-4-6"
+        assert config.provider_for_role("event_router") == "openai"
+        assert config.provider_for_role("narrator") == "anthropic"
+        assert config.provider_for_role("agent") == "anthropic"
         assert all(
             effort == "medium"
             for effort in config.openai_reasoning_efforts.values()

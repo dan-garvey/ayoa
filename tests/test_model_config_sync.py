@@ -51,6 +51,15 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
     assert ckpt.config.models.agent_default == "anthropic:claude-sonnet-4-6"
 
 
+def test_runtime_model_config_defaults_label_mixed_provider_roles():
+    models = runtime_model_config(LLMConfig())
+
+    assert models.event_router == "openai:gpt-5.2"
+    assert models.discriminator == "openai:gpt-5.2"
+    assert models.narrator == "anthropic:claude-sonnet-4-6"
+    assert models.agent_default == "anthropic:claude-opus-4-6"
+
+
 def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):
     llm_config = LLMConfig(
         api_key="sk-ant-test",

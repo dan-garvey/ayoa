@@ -1,11 +1,11 @@
 """Character agent engine — generates in-character responses.
 
 Each character carries a rolling conversation on the checkpoint
-(`checkpoint.character_conversations[character_id]`). Every response and
-tick is appended verbatim — including the trailing parenthetical — so
-the agent's own future self sees its prior interior. Cross-agent /
-narrator chokepoints strip the parenthetical via `_extract_parenthetical`
-before its public_text is forwarded.
+(`checkpoint.character_conversations[character_id]`). Every committed
+response and canonized tick is appended verbatim — including the trailing
+parenthetical — so the agent's own future self sees its prior interior.
+Cross-agent / narrator chokepoints strip the parenthetical via
+`_extract_parenthetical` before its public_text is forwarded.
 
 Cache lineage (v11): on-stage and off-stage calls share a SINGLE
 unified system prompt (`agent_v*.txt`) and a single rolling history
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from app.engine import dnd_spatial
@@ -31,6 +32,7 @@ from app.engine.context_builder import (
     build_character_state,
     build_world_context,
     clear_character_inbox,
+    conversation_turn_messages,
     format_pending_observations_block,
 )
 from app.engine.prompt_manager import PromptManager
@@ -46,11 +48,21 @@ from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 
 logger = logging.getLogger(__name__)
 
 
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
+
+
+@dataclass(frozen=True)
+class CharacterAgentTurnDraft:
+    """A completed agent call whose history effects are not committed yet."""
+
+    output: CharacterAgentOutput
+    user_message: ConversationMessage
+    assistant_message: ConversationMessage
 
 
 def _conversation_safe_user_content(text: str) -> str:
@@ -240,9 +252,9 @@ class CharacterAgent:
         or explicitly named by a mediated fact), so the parameters were dead
         weight. They've been removed from the signature.
 
-        See `_run_beat` for the shared plumbing.
+        See `_draft_beat` for the shared plumbing.
         """
-        return await self._run_beat(
+        draft = await self._draft_beat(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
@@ -254,6 +266,8 @@ class CharacterAgent:
             log_label="respond",
             log_extra="on-stage",
         )
+        self._commit_draft(character, checkpoint, draft)
+        return draft.output
 
     def _agent_ruleset_system_addon(self, checkpoint: CheckpointFile) -> str:
         if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
@@ -426,12 +440,32 @@ class CharacterAgent:
         ticks and responses (one history per character, one cache
         lineage per character).
         """
+        draft = await self.draft_tick(
+            character=character,
+            checkpoint=checkpoint,
+            acting_character_id=acting_character_id,
+        )
+        self._commit_draft(character, checkpoint, draft)
+        return draft.output
+
+    async def draft_tick(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str = "",
+    ) -> CharacterAgentTurnDraft:
+        """Prepare an off-stage tick without mutating agent memory.
+
+        The unified tick router may canonize only a subset of tick
+        proposals. Until that happens, the proposal must not enter the
+        agent's rolling history or clear its pending observations.
+        """
         location_context = (
             f"Location: {character.location}"
             if character.location else "Off-screen / unspecified location."
         )
 
-        return await self._run_beat(
+        return await self._draft_beat(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
@@ -441,7 +475,19 @@ class CharacterAgent:
             log_extra="off-stage",
         )
 
-    async def _run_beat(
+    def _commit_draft(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        draft: CharacterAgentTurnDraft,
+    ) -> None:
+        clear_character_inbox(character)
+        conv = checkpoint.character_conversations.setdefault(
+            character.character_id, [],
+        )
+        conv.extend([draft.user_message, draft.assistant_message])
+
+    async def _draft_beat(
         self,
         *,
         character: CharacterRecord,
@@ -451,12 +497,12 @@ class CharacterAgent:
         mode_block: str,
         log_label: str,
         log_extra: str,
-    ) -> CharacterAgentOutput:
+    ) -> CharacterAgentTurnDraft:
         """Shared agent-beat plumbing for both `respond` and `tick`.
 
         Renders the unified `agent` template, calls the LLM, parses
-        the trailing parenthetical, and persists the user/assistant
-        pair onto the rolling conversation. Both modes flow through
+        the trailing parenthetical, and prepares the user/assistant
+        history pair. Both modes flow through
         here so any future tweak (model swap, retry policy,
         compaction, telemetry) lands once.
 
@@ -475,7 +521,6 @@ class CharacterAgent:
         history = checkpoint.character_conversations.get(character.character_id, [])
 
         pending_block = format_pending_observations_block(character)
-        clear_character_inbox(character)
 
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)
@@ -519,12 +564,8 @@ class CharacterAgent:
             intent=intent,
         )
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
-
-        conv = checkpoint.character_conversations.setdefault(
-            character.character_id, [],
-        )
-        append_turn_to_conversation(
-            conv, _conversation_safe_user_content(user_content), response
+        user_message, assistant_message = conversation_turn_messages(
+            _conversation_safe_user_content(user_content), response,
         )
 
         logger.info(
@@ -533,4 +574,8 @@ class CharacterAgent:
             len(result.public_text), len(result.intent),
         )
 
-        return result
+        return CharacterAgentTurnDraft(
+            output=result,
+            user_message=user_message,
+            assistant_message=assistant_message,
+        )

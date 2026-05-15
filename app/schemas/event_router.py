@@ -37,10 +37,9 @@ EndsBeatReason = Literal[
     # Engine-authored guard: a ruleset-owned mode suppressed the generic Cat II
     # responder flow in favor of adapter-native handling.
     "ruleset_cat_ii_suppressed",
-    # query_response: a private /query result. The router emits a
-    # canonical observable fact scoped to the querying player. If the
-    # answer needs current visual self-presentation from NPCs, picks
-    # may name harvest targets rather than response actors.
+    # query_response: a private /query result. If the answer needs current
+    # visual self-presentation from NPCs, picks name harvest targets rather
+    # than response actors and the harvested loadout is authoritative.
     "query_response",
     # observation_harvest: the actor's intention is pure targeted
     # observation of perceptually available characters (looking, studying, sizing

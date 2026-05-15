@@ -523,6 +523,43 @@ def _append_router_history_record(
     ))
 
 
+def refresh_router_history_record(
+    conversation: list[ConversationMessage],
+    *,
+    acting_character_id: str,
+    result: EventRouterOutput,
+    mode: str = "intention",
+) -> None:
+    """Replace the compact memory for a router event after mutation.
+
+    Harvest paths append authoritative perception facts after the router
+    output has already been normalized and stored. Keep the durable
+    router ledger aligned with the final canonical event object.
+    """
+    content = _router_history_record(
+        acting_character_id=acting_character_id,
+        result=result,
+        mode=mode,
+    )
+    prefix = f"prior_event {result.event_id} "
+    for index in range(len(conversation) - 1, -1, -1):
+        message = conversation[index]
+        if (
+            message.role == "assistant"
+            and isinstance(message.content, str)
+            and message.content.startswith(prefix)
+        ):
+            conversation[index] = ConversationMessage(
+                role="assistant",
+                content=content,
+            )
+            return
+    logger.warning(
+        "Router history refresh found no prior record for event %s",
+        result.event_id,
+    )
+
+
 def _normalize_router_result_for_history(
     ckpt: CheckpointFile,
     *,

@@ -26,7 +26,8 @@ import asyncio
 import logging
 from typing import Any
 
-from app.engine.character_agent import CharacterAgent
+from app.engine.character_agent import CharacterAgent, CharacterAgentTurnDraft
+from app.engine.context_builder import clear_character_inbox, collect_player_ids
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine import dnd_combat, dnd_inventory
@@ -67,6 +68,7 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 
@@ -525,6 +527,26 @@ def _active_combat_character_ids(ckpt: CheckpointFile) -> set[str]:
     }
 
 
+def _canonized_tick_character_ids(
+    routed: EventRouterOutput,
+    drafts: list[tuple[CharacterRecord, CharacterAgentTurnDraft]],
+) -> set[str]:
+    """Return tick proposal ids represented in the canonical tick event."""
+    observer_ids = {observer.character_id for observer in routed.observers}
+    draft_ids = {char.character_id for char, _draft in drafts}
+    return observer_ids & draft_ids
+
+
+def _commit_tick_draft(
+    ckpt: CheckpointFile,
+    char: CharacterRecord,
+    draft: CharacterAgentTurnDraft,
+) -> None:
+    clear_character_inbox(char)
+    conv = ckpt.character_conversations.setdefault(char.character_id, [])
+    conv.extend([draft.user_message, draft.assistant_message])
+
+
 class Orchestrator:
     """Binds `turn_loop.run_beat` to the LLM/storage layers.
 
@@ -872,16 +894,15 @@ class Orchestrator:
 
             # 6.5. Commits 5 + 6: background tick fan-out + unified-
             # router fan-in. Eligible off-stage NPCs run their
-            # `.tick()` after the on-stage beat closes — each tick's
-            # prose + trailing parenthetical lands in that agent's
-            # rolling conversation (the parenthetical never leaves
-            # the agent). Successful ticks are then bundled into ONE
+            # `.draft_tick()` after the on-stage beat closes. Successful
+            # drafts are then bundled into ONE
             # router call in tick mode (the router's user message
             # gets a `## Off-Stage Tick` block listing each ticker's
             # public prose + location). The router emits one
             # canonical event capturing the off-stage developments,
-            # plus any spawn/dormancy/cull changes; we apply those to the checkpoint
-            # off-stage (no narrator pass — the player wasn't there).
+            # plus any spawn/dormancy/cull changes; only canonized
+            # drafts are committed to agent history. No narrator pass —
+            # the player wasn't there.
             # Per-tick errors and the fan-in router error are both
             # logged-and-swallowed so a single LLM hiccup doesn't
             # drop the rest of the turn.
@@ -1671,6 +1692,8 @@ class Orchestrator:
           - `status == active` — dormant/culled don't tick
           - NOT in any player binding (`character_bindings` keys or
             `session.player_character_id`) — humans don't get auto-ticked
+          - NOT in a current bound-player location — physically present
+            scene participants stay on the normal on-stage routing path
           - NOT in `acted_this_turn` (the on-stage actor + any picked
             responders this beat) — they already had their say
           - NOT in active combat — combatants advance through initiative,
@@ -1681,11 +1704,14 @@ class Orchestrator:
         Order is roster order; that's also the order their tick
         outputs will reach the unified router.
         """
-        from app.engine.context_builder import collect_player_ids
-
         pinned_ids = _pinned_character_ids(ckpt)
         player_ids = collect_player_ids(ckpt)
         combat_ids = _active_combat_character_ids(ckpt)
+        player_locations = {
+            char.location
+            for char in ckpt.characters
+            if char.character_id in player_ids and char.location
+        }
 
         eligible: list[CharacterRecord] = []
         for char in ckpt.characters:
@@ -1694,6 +1720,8 @@ class Orchestrator:
             if char.status != CharacterStatus.active:
                 continue
             if char.character_id in player_ids:
+                continue
+            if char.location and char.location in player_locations:
                 continue
             if char.character_id in acted_this_turn:
                 continue
@@ -1711,7 +1739,7 @@ class Orchestrator:
         acting_id: str,
     ) -> list[tuple[CharacterRecord, CharacterAgentOutput]]:
         """Decide whether to fire a tick pass this beat, and if so,
-        fan out `CharacterAgent.tick()` for every eligible NPC under a
+        fan out `CharacterAgent.draft_tick()` for every eligible NPC under a
         bounded semaphore.
 
         Trigger model (Commit 5 / decision #9):
@@ -1727,15 +1755,12 @@ class Orchestrator:
         Each tick uses its OWN `CharacterAgent` instance so concurrent
         completions don't race on `agent.last_usage`.
 
-        After fan-out, Commit 6 bundles every successful tick's
-        `public_text` (parenthetical stripped — interior never leaves
-        the agent) into a single unified-router call in tick mode.
-        The router emits one canonical event capturing off-stage
-        developments. We apply roster updates and append the canonical
-        event to `ckpt.canonical_events`.
-        Returns the per-character tick outputs primarily for tests
-        and observability; the orchestrator caller doesn't otherwise
-        use them.
+        After fan-out, Commit 6 bundles every successful draft's
+        `public_text` into a single unified-router call in tick mode.
+        Only drafts represented in the canonical event are committed to
+        agent history and inbox clearing; uncanonized drafts are discarded.
+        Returns the committed tick outputs primarily for tests and
+        observability; the orchestrator caller doesn't otherwise use them.
         """
         sess = ckpt.session
         settings = sess.config.settings
@@ -1799,13 +1824,13 @@ class Orchestrator:
 
         async def _one(
             char: CharacterRecord,
-        ) -> tuple[CharacterRecord, CharacterAgentOutput] | None:
+        ) -> tuple[CharacterRecord, CharacterAgentTurnDraft] | None:
             async with semaphore:
                 # Fresh agent per tick so concurrent ticks don't race
                 # on `agent.last_usage`.
                 agent = CharacterAgent(self.client, self.prompt_mgr)
                 try:
-                    output = await agent.tick(
+                    draft = await agent.draft_tick(
                         character=char,
                         checkpoint=ckpt,
                         acting_character_id=acting_id,
@@ -1825,37 +1850,39 @@ class Orchestrator:
                 logger.info(
                     "Tick %s (%s): public=%dch intent=%dch usage=%s",
                     char.name, char.character_id,
-                    len(output.public_text), len(output.intent), usage,
+                    len(draft.output.public_text), len(draft.output.intent),
+                    usage,
                 )
-                return (char, output)
+                return (char, draft)
 
         results = await asyncio.gather(*[_one(c) for c in eligible])
-        ticked = [r for r in results if r is not None]
+        drafts = [r for r in results if r is not None]
 
         sess.turns_since_last_tick = 0
 
         logger.info(
-            "Tick scheduler: %s fire complete — %d/%d ticks succeeded.",
-            reason, len(ticked), len(eligible),
+            "Tick scheduler: %s fire complete — %d/%d tick drafts succeeded.",
+            reason, len(drafts), len(eligible),
         )
 
         # Commit 6: tick fan-in to the unified router.
-        # Bundle every successful tick's public prose (parenthetical
-        # stripped — `output.public_text` only) into one router call
+        # Bundle every successful draft's public prose (parenthetical
+        # stripped — `draft.output.public_text` only) into one router call
         # in tick mode. The router emits a single canonical event
-        # capturing off-stage developments. No narrator pass — the
-        # player wasn't there.
-        if not ticked:
-            return ticked
+        # capturing off-stage developments. No narrator pass — the player
+        # wasn't there. Drafts are committed only after that canonical
+        # event identifies which proposed beats actually happened.
+        if not drafts:
+            return []
 
         tick_outputs = [
             (
                 char.name,
                 char.character_id,
                 char.location or "",
-                output.public_text,
+                draft.output.public_text,
             )
-            for char, output in ticked
+            for char, draft in drafts
         ]
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
         try:
@@ -1867,21 +1894,27 @@ class Orchestrator:
         except Exception:
             # Same swallow philosophy as per-tick failures — the on-
             # stage render landed already; ticks are best-effort. If
-            # the fan-in router call fails, the per-character tick
-            # outputs are still in the agents' rolling histories
-            # (their future replays inherit the interior), and the
-            # next /act will go through the on-stage router as
-            # normal. World state just doesn't pick up the off-stage
+            # the fan-in router call fails, the per-character drafts are
+            # discarded; the next /act will go through the on-stage router
+            # as normal. World state just doesn't pick up the off-stage
             # canonical event on this beat.
             logger.exception(
                 "Tick fan-in router call failed; off-stage agent "
-                "outputs are in their own conversations but no "
-                "canonical event lands this turn.",
+                "drafts were discarded and no canonical event lands "
+                "this turn.",
             )
-            return ticked
+            return []
 
         if routed is None:
-            return ticked
+            return []
+
+        canonized_ids = _canonized_tick_character_ids(routed, drafts)
+        committed: list[tuple[CharacterRecord, CharacterAgentOutput]] = []
+        for char, draft in drafts:
+            if char.character_id not in canonized_ids:
+                continue
+            _commit_tick_draft(ckpt, char, draft)
+            committed.append((char, draft.output))
 
         self.char_mgr.apply_roster_updates(ckpt, routed)
         if routed.spawn:
@@ -1891,11 +1924,11 @@ class Orchestrator:
             await self.char_mgr.spawn_characters(
                 ckpt, routed.spawn, acting_actor_location="",
             )
-        tick_actor_ids = [char.character_id for char, _ in ticked]
+        tick_actor_ids = [char.character_id for char, _ in committed]
         if routed.effective_at_s == 0 and tick_actor_ids:
             clocks = [
                 getattr(char, "clock_at_s", 0)
-                for char, _ in ticked
+                for char, _ in committed
             ]
             routed.effective_at_s = max(clocks) if clocks else 0
         routed.effective_at_s = max(
@@ -1908,15 +1941,13 @@ class Orchestrator:
             actor_id=tick_actor_ids[0] if len(tick_actor_ids) == 1 else "",
         )
         tick_end_s = routed.effective_at_s + routed.duration_s
-        for char, _ in ticked:
+        ckpt.session.leading_at_s = max(ckpt.session.leading_at_s, tick_end_s)
+        for char, _ in committed:
             char.clock_at_s = max(getattr(char, "clock_at_s", 0), tick_end_s)
-            ckpt.session.leading_at_s = max(
-                ckpt.session.leading_at_s,
-                char.clock_at_s,
-            )
         logger.info(
-            "Tick fan-in routed: %d spawn(s); off-stage canonical event appended.",
-            len(routed.spawn),
+            "Tick fan-in routed: %d/%d draft(s) committed; %d spawn(s); "
+            "off-stage canonical event appended.",
+            len(committed), len(drafts), len(routed.spawn),
         )
 
-        return ticked
+        return committed

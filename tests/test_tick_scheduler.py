@@ -21,7 +21,8 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.conversation import ConversationMessage
+from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.state import (
     DndCombatantState,
@@ -97,19 +98,41 @@ def _orchestrator() -> Orchestrator:
     )
 
 
+def _draft_for(
+    character: CharacterRecord,
+    *,
+    public_text: str | None = None,
+    intent: str = "watch the gate",
+):
+    from app.engine.character_agent import CharacterAgentTurnDraft
+
+    output = CharacterAgentOutput(
+        character_id=character.character_id,
+        public_text=public_text or f"{character.name} paces.",
+        intent=intent,
+    )
+    return CharacterAgentTurnDraft(
+        output=output,
+        user_message=ConversationMessage(
+            role="user",
+            content=f"tick user {character.character_id}",
+        ),
+        assistant_message=ConversationMessage(
+            role="assistant",
+            content=f"{output.public_text} ({intent})",
+        ),
+    )
+
+
 def _stub_character_agent(monkeypatch, recorder: list[str] | None = None):
     class _StubAgent:
         def __init__(self, client, prompt_mgr):
             self.last_usage = {"input_tokens": 1, "output_tokens": 2}
 
-        async def tick(self, *, character, checkpoint, acting_character_id):
+        async def draft_tick(self, *, character, checkpoint, acting_character_id):
             if recorder is not None:
                 recorder.append(character.character_id)
-            return CharacterAgentOutput(
-                character_id=character.character_id,
-                public_text=f"{character.name} paces.",
-                intent="watch the gate",
-            )
+            return _draft_for(character)
 
     monkeypatch.setattr("app.engine.orchestrator.CharacterAgent", _StubAgent)
     return _StubAgent
@@ -145,7 +168,18 @@ def _tick_router_output() -> EventRouterOutput:
             world_adjudication=WorldAdjudication(feasible=True),
             observable_facts=[],
         ),
-        observers=[],
+        observers=[
+            ObserverEntry(
+                character_id="regent",
+                observation_level="d",
+                response_priority=1,
+            ),
+            ObserverEntry(
+                character_id="scribe",
+                observation_level="d",
+                response_priority=1,
+            ),
+        ],
         requires_responders=False,
         required_responders=[],
         agent_responder_picks=[],
@@ -187,7 +221,7 @@ def _stub_dispatcher(
 class TestEligibility:
     def test_filters_non_tickable_characters(self):
         ckpt = _ckpt(characters=[
-            _npc("alice", is_playable=True),
+            _npc("alice", is_playable=True, location="pod_a"),
             _npc("dormant", status=CharacterStatus.dormant),
             _npc("culled", status=CharacterStatus.culled),
             _npc("quiet", intentions_enabled=False),
@@ -202,8 +236,8 @@ class TestEligibility:
         ckpt = _ckpt(
             bindings={"alice": "u1", "regent": "u2"},
             characters=[
-                _npc("alice", is_playable=True),
-                _npc("regent"),
+                _npc("alice", is_playable=True, location="pod_a"),
+                _npc("regent", location="pod_b"),
                 _npc("scribe"),
             ],
         )
@@ -212,7 +246,7 @@ class TestEligibility:
 
     def test_pinned_slots_and_cat_ii_responders_excluded(self):
         ckpt = _ckpt(characters=[
-            _npc("alice", is_playable=True),
+            _npc("alice", is_playable=True, location="pod_a"),
             _npc("slotted"),
             _npc("required"),
             _npc("eligible"),
@@ -229,7 +263,7 @@ class TestEligibility:
 
     def test_active_combatants_excluded_from_offstage_ticks(self):
         ckpt = _ckpt(characters=[
-            _npc("alice", is_playable=True),
+            _npc("alice", is_playable=True, location="pod_a"),
             _npc("regent"),
             _npc("scribe"),
         ])
@@ -253,6 +287,17 @@ class TestEligibility:
         eligible = _orchestrator()._eligible_for_tick(ckpt, acted_this_turn=set())
 
         assert [c.character_id for c in eligible] == ["scribe"]
+
+    def test_current_player_location_excluded_from_offstage_ticks(self):
+        ckpt = _ckpt(characters=[
+            _npc("alice", is_playable=True, location="hall"),
+            _npc("present", location="hall"),
+            _npc("remote", location="garden"),
+        ])
+
+        eligible = _orchestrator()._eligible_for_tick(ckpt, acted_this_turn=set())
+
+        assert [c.character_id for c in eligible] == ["remote"]
 
 
 class TestTriggerLogic:
@@ -360,11 +405,11 @@ class TestFanOut:
             def __init__(self, client, prompt_mgr):
                 self.last_usage = {}
 
-            async def tick(self, *, character, checkpoint, acting_character_id):
+            async def draft_tick(self, *, character, checkpoint, acting_character_id):
                 if character.character_id == "regent":
                     raise RuntimeError("simulated API hiccup")
-                return CharacterAgentOutput(
-                    character_id=character.character_id,
+                return _draft_for(
+                    character,
                     public_text=f"{character.name} watches.",
                     intent="stay quiet",
                 )
@@ -430,12 +475,43 @@ class TestTickFanIn:
         assert ckpt.canonical_events[-1].effective_at_s == 50
 
     @pytest.mark.asyncio
+    async def test_only_canonized_tick_drafts_commit_history_and_inbox(
+        self, monkeypatch,
+    ):
+        ckpt = _ckpt(turns_since_last_tick=14, stagnation=15)
+        by_id = {char.character_id: char for char in ckpt.characters}
+        by_id["regent"].pending_observations = ["Regent saw a bell."]
+        by_id["scribe"].pending_observations = ["Scribe saw a door."]
+        routed = EventRouterOutput.model_validate({
+            **_tick_router_output().model_dump(),
+            "observers": [
+                {
+                    "character_id": "regent",
+                    "observation_level": "d",
+                    "response_priority": 1,
+                },
+            ],
+        })
+        _stub_character_agent(monkeypatch, recorder=[])
+        _stub_dispatcher(monkeypatch, routed)
+
+        result = await _orchestrator()._run_ticks(
+            ckpt, acted_this_turn=set(), acting_id="alice",
+        )
+
+        assert [char.character_id for char, _ in result] == ["regent"]
+        assert "regent" in ckpt.character_conversations
+        assert "scribe" not in ckpt.character_conversations
+        assert by_id["regent"].pending_observations == []
+        assert by_id["scribe"].pending_observations == ["Scribe saw a door."]
+
+    @pytest.mark.asyncio
     async def test_fan_in_skipped_when_no_ticks_succeed(self, monkeypatch):
         class _AlwaysFailAgent:
             def __init__(self, client, prompt_mgr):
                 self.last_usage = {}
 
-            async def tick(self, *, character, checkpoint, acting_character_id):
+            async def draft_tick(self, *, character, checkpoint, acting_character_id):
                 raise RuntimeError("every tick fails this beat")
 
         monkeypatch.setattr(
@@ -468,6 +544,6 @@ class TestTickFanIn:
             ckpt, acted_this_turn=set(), acting_id="alice",
         )
 
-        assert sorted(c.character_id for c, _ in result) == ["regent", "scribe"]
+        assert result == []
         assert len(ckpt.canonical_events) == before
         assert ckpt.session.turns_since_last_tick == 0

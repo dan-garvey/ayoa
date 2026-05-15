@@ -8,13 +8,13 @@
   sourcing the virtualenv activate script.
 * Provider API keys belong in `.env`, never committed. The Anthropic
   client reads `ANTHROPIC_API_KEY`; the OpenAI client reads
-  `OPENAI_API_KEY`. At least one is required at startup for whichever
-  provider the active role configuration selects (`app/bot/__main__.py`
-  fails fast on missing keys).
+  `OPENAI_API_KEY`. Both are required at startup when the default mixed
+  provider role configuration is active (`app/bot/__main__.py` fails
+  fast on missing keys).
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
-  Responses API) with per-role provider/model dispatch. Default provider
-  is OpenAI; default models are `gpt-5.2` for `event_router` and
-  `gpt-5.1` for `narrator`, `agent`, and `character_gen`. Per-role
+  Responses API) with per-role provider/model dispatch. Default models
+  are `gpt-5.2` for `event_router`, `claude-sonnet-4-6` for `narrator`,
+  and `claude-opus-4-6` for `agent` and `character_gen`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
@@ -470,9 +470,9 @@ It supports:
 Provider/model selection can be configured with model prefixes such as
 `anthropic:claude-sonnet-4-6`, explicit `role_providers`, or
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
-`LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI provider
-with `gpt-5.2` for `event_router` and `gpt-5.1` for `narrator`,
-`agent`, and `character_gen`.
+`LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.2`
+for `event_router`, Anthropic `claude-sonnet-4-6` for `narrator`,
+and Anthropic `claude-opus-4-6` for `agent` and `character_gen`.
 
 Active live model roles are `event_router`, `narrator`, and `agent`.
 `character_gen` remains in configuration and has a prompt file, but the
@@ -593,6 +593,10 @@ based on:
 * tick concurrency cap
 * NPC status, play binding, pin state, prior action this turn, and
   whether the NPC is eligible to act
+
+`ticks_enabled` currently defaults to `false` because synchronous fan-out
+can dominate player response latency on large rosters. Operators can turn
+it back on per session with `/settings set ticks_enabled on`.
 
 Successful tick outputs are bundled into one router fan-in call. The
 router emits an off-stage canonical event and any implied mutations. No

@@ -496,11 +496,16 @@ class EngineBridge:
         data["session"]["session_id"] = session_id
         data.pop("import_analysis", None)
         ckpt = CheckpointFile.model_validate(data)
+        default_ticks_enabled = bool(SETTINGS_BY_KEY["ticks_enabled"].default)
+        ckpt.session.config.settings.ticks_enabled = default_ticks_enabled
+        ckpt.config.settings.ticks_enabled = default_ticks_enabled
         sync_checkpoint_runtime_models(ckpt, self.client.config)
         (dst_dir / "ckpt_0000.json").write_text(ckpt.model_dump_json(indent=2))
         ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
         if ckpt.session.turn_index == 0:
             ckpt.session.turn_index = 1
+        ckpt.session.config.settings.ticks_enabled = default_ticks_enabled
+        ckpt.config.settings.ticks_enabled = default_ticks_enabled
         sync_checkpoint_runtime_models(ckpt, self.client.config)
         self.checkpoint_mgr.save(ckpt)
         logger.info("Loaded story %s into session %s", story_id, session_id)

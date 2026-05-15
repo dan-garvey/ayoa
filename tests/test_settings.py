@@ -106,7 +106,7 @@ class TestSettingsRegistry:
 class TestSettingsHelpers:
     def test_get_setting_returns_default_on_fresh_ckpt(self):
         ckpt = _ckpt()
-        assert get_setting(ckpt, "ticks_enabled") is True
+        assert get_setting(ckpt, "ticks_enabled") is False
 
     def test_get_unknown_raises(self):
         ckpt = _ckpt()
@@ -115,9 +115,9 @@ class TestSettingsHelpers:
 
     def test_set_setting_applies_parsed_value(self):
         ckpt = _ckpt()
-        new = set_setting(ckpt, "ticks_enabled", "off")
-        assert new is False
-        assert ckpt.session.config.settings.ticks_enabled is False
+        new = set_setting(ckpt, "ticks_enabled", "on")
+        assert new is True
+        assert ckpt.session.config.settings.ticks_enabled is True
 
     def test_set_player_roll_mode(self):
         ckpt = _ckpt()
@@ -154,12 +154,35 @@ class TestSettingsHelpers:
 
 class TestEngineBridgeSettings:
     def test_get_returns_default(self, bridge: EngineBridge):
-        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is True
+        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is False
 
     def test_set_persists_across_reloads(self, bridge: EngineBridge):
-        bridge.set_setting(SESSION_ID, "ticks_enabled", "false")
+        bridge.set_setting(SESSION_ID, "ticks_enabled", "true")
         # New handle, fresh disk read.
-        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is False
+        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is True
+
+    def test_story_start_applies_current_tick_default(
+        self, bridge: EngineBridge,
+    ):
+        story_id = "legacy_ticks_on_story"
+        story_dir = bridge.stories_dir / story_id
+        story_dir.mkdir(parents=True)
+        ckpt = _ckpt()
+        ckpt.session.session_id = story_id
+        ckpt.session.story_id = story_id
+        ckpt.session.config.settings.ticks_enabled = True
+        ckpt.config.settings.ticks_enabled = True
+        (story_dir / "ckpt_0000.json").write_text(
+            ckpt.model_dump_json(indent=2)
+        )
+
+        bridge.create_empty_session("loaded_ticks_default")
+        loaded = bridge.load_story_into_session(
+            "loaded_ticks_default", story_id,
+        )
+
+        assert loaded.session.config.settings.ticks_enabled is False
+        assert loaded.config.settings.ticks_enabled is False
 
     def test_list_has_rows(self, bridge: EngineBridge):
         rows = bridge.list_settings(SESSION_ID)

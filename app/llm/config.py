@@ -22,8 +22,10 @@ _VALID_OPENAI_REASONING_SUMMARIES = {
     "detailed",
     "none",
 }
-_DEFAULT_MODEL = "gpt-5.1"
 _ROUTER_MODEL = "gpt-5.2"
+_NARRATOR_MODEL = "claude-sonnet-4-6"
+_AGENT_MODEL = "claude-opus-4-6"
+_DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
     "agent": ("AGENT",),
     "character_gen": ("CHARACTER_GEN", "AGENT"),
@@ -153,9 +155,9 @@ class LLMConfig(BaseModel):
     # caller asks for role="discriminator" anymore, so it's omitted here.
     role_models: dict[str, str] = Field(default_factory=lambda: {
         "event_router": _ROUTER_MODEL,
-        "narrator": _DEFAULT_MODEL,
-        "agent": _DEFAULT_MODEL,
-        "character_gen": _DEFAULT_MODEL,
+        "narrator": _NARRATOR_MODEL,
+        "agent": _AGENT_MODEL,
+        "character_gen": _AGENT_MODEL,
     })
 
     # v11-r9b: per-role extended-thinking budgets (Anthropic Messages
@@ -194,9 +196,10 @@ class LLMConfig(BaseModel):
         "event_router": 2048,
     })
     # OpenAI reasoning models use effort levels rather than token budgets.
-    # GPT-5.1 defaults to "none"; start at medium so the router and agents
-    # get explicit reasoning instead of silently running in fast/no-reasoning
-    # mode. Per-role env overrides can lower cheap roles later.
+    # Keep medium defaults for roles that run on OpenAI by default or by
+    # override, so they get explicit reasoning instead of silently running
+    # in fast/no-reasoning mode. Per-role env overrides can lower cheap
+    # roles later.
     openai_reasoning_efforts: dict[str, str] = Field(default_factory=lambda: {
         "event_router": "medium",
         "narrator": "medium",

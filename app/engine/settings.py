@@ -100,15 +100,15 @@ SETTINGS: list[SettingDef] = [
     ),
     SettingDef(
         key="ticks_enabled",
-        default=True,
+        default=False,
         description=(
-            "Master kill switch for the off-stage tick scheduler. Off = "
-            "no background NPC ticks at all (no stagnation fires, no "
-            "fan-out). Useful for token-budget runs "
-            "and for isolating on-stage behavior in diagnostics. The "
-            "tick counters freeze in disabled mode, so flipping back on "
-            "resumes the trigger model from where it left off rather "
-            "than firing a backlog."
+            "Master kill switch for the off-stage tick scheduler. Default "
+            "off for now because large rosters can make synchronous tick "
+            "fan-out dominate player response latency. Off = no background "
+            "NPC ticks at all (no stagnation fires, no fan-out). The tick "
+            "counters freeze in disabled mode, so flipping back on resumes "
+            "the trigger model from where it left off rather than firing a "
+            "backlog."
         ),
         parse=_parse_bool,
         render=_render_bool,

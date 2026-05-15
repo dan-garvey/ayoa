@@ -1097,7 +1097,7 @@ async def _append_harvest_fragments(
     picks: list[str],
     current_actor: str,
     log_label: str,
-) -> None:
+) -> int:
     """Append perception fragments to a just-broadcast event.
 
     Used by normal observation harvest and by private query answers
@@ -1111,7 +1111,7 @@ async def _append_harvest_fragments(
             "remained after filtering.",
             log_label,
         )
-        return
+        return 0
 
     fragments = await dispatcher.harvest_perceptions(
         ckpt=ckpt,
@@ -1136,6 +1136,39 @@ async def _append_harvest_fragments(
     logger.info(
         "%s: %d/%d fragments appended to event %s",
         log_label, appended, len(picks), result.event_id,
+    )
+    return appended
+
+
+def _loadout_fact_count(result: EventRouterOutput) -> int:
+    return sum(
+        1
+        for fact in result.canonical_event.observable_facts
+        if fact.text.lstrip().startswith("[loadout")
+    )
+
+
+def _keep_only_harvest_loadout_facts(result: EventRouterOutput) -> None:
+    result.canonical_event.observable_facts = [
+        fact for fact in result.canonical_event.observable_facts
+        if fact.text.lstrip().startswith("[loadout")
+    ]
+
+
+def _refresh_router_history_after_mutation(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    acting_character_id: str,
+    mode: str = "intention",
+) -> None:
+    from app.engine.turn_loop_dispatcher import refresh_router_history_record
+
+    refresh_router_history_record(
+        ckpt.session_conversation,
+        acting_character_id=acting_character_id,
+        result=result,
+        mode=mode,
     )
 
 
@@ -2499,24 +2532,41 @@ async def run_beat(
                 ckpt, result.agent_responder_picks,
                 event=result,
             )
-            await _append_harvest_fragments(
+            appended = await _append_harvest_fragments(
                 dispatcher, ckpt, result,
                 picks=harvest_picks,
                 current_actor=current_actor,
                 log_label="Observation harvest",
             )
+            if appended:
+                _refresh_router_history_after_mutation(
+                    ckpt, result,
+                    acting_character_id=result_actor_id or current_actor,
+                    mode="continuation" if result_is_continuation else "intention",
+                )
         elif result.ends_beat_reason == "query_response":
             query_picks = _filter_picks_for_dispatch(
                 ckpt, result.agent_responder_picks,
                 event=result,
             )
             if query_picks:
-                await _append_harvest_fragments(
+                before_loadouts = _loadout_fact_count(result)
+                appended = await _append_harvest_fragments(
                     dispatcher, ckpt, result,
                     picks=query_picks,
                     current_actor=current_actor,
                     log_label="Query harvest",
                 )
+                if appended and _loadout_fact_count(result) > before_loadouts:
+                    _keep_only_harvest_loadout_facts(result)
+                    _refresh_router_history_after_mutation(
+                        ckpt, result,
+                        acting_character_id=result_actor_id or current_actor,
+                        mode=(
+                            "continuation"
+                            if result_is_continuation else "intention"
+                        ),
+                    )
 
         # Ends-beat decision.
         if result.ends_beat or events_closed >= max_events:

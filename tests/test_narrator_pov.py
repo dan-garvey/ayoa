@@ -3,7 +3,7 @@
 Exercises the new function against a mocked LLMClient so we can verify:
 - Buffered events resolve against ckpt.canonical_events by event_id and
   the resolved prose is returned unchanged from the LLM parsed output.
-- Per-POV rolling history grows by one user + one assistant message.
+- Per-POV rolling history stores assistant messages only.
 - partial_mode puts the stop-before-resolution instruction in the user payload.
 - A stale buffer entry (event_id missing from canonical_events) is
   logged and skipped without aborting the render.
@@ -184,11 +184,10 @@ class TestComposePovRender:
         assert result.final_text == "RENDERED"
         assert entry.user == "I look around."
         assert entry.assistant == "RENDERED"
-        # Per-POV history grew by exactly one exchange (user + assistant).
+        # Per-POV history stores only the assistant output.
         alice_hist = ckpt.narrator_conversations["alice"]
-        assert len(alice_hist) == 2
-        assert alice_hist[0].role == "user"
-        assert alice_hist[1].role == "assistant"
+        assert len(alice_hist) == 1
+        assert alice_hist[0].role == "assistant"
 
         # Visible details made it into the rendered prompt.
         call_kwargs = mock_client.complete.call_args.kwargs
@@ -238,6 +237,136 @@ class TestComposePovRender:
         assert stored["final_text"] == "She says, 'entirely human?'"
 
     @pytest.mark.asyncio
+    async def test_player_legible_pov_gloss_context_is_in_user_message(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.characters.append(CharacterRecord(
+            character_id="sora_kageyama",
+            name="Sora Kageyama",
+            public_sheet=PublicSheet(
+                role="the cohort's informal leader",
+                appearance=(
+                    "Japanese, tall, quick posture. Wears the Crown's "
+                    "blue Hero livery over a close-fitting white shirt."
+                ),
+            ),
+            location="gatehouse",
+        ))
+        ckpt.canonical_events.append(EventRouterOutput(
+            event_id="evt_sora",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.all(
+                        "sora_kageyama adjusts the blue tabard."
+                    ),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_sora", observation_level="direct",
+                ),
+            ],
+            partial_mode=False,
+        )
+
+        user_content = mock_client.complete.call_args.kwargs["messages"][-1][
+            "content"
+        ]
+        assert "Viewpoint-known context for quick glosses" in user_content
+        assert "Sora Kageyama: the cohort's informal leader" in user_content
+        assert "Crown's blue Hero livery" in user_content
+
+    @pytest.mark.asyncio
+    async def test_pov_gloss_context_does_not_include_baseline_appearance(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.characters.append(CharacterRecord(
+            character_id="korva_sahl",
+            name="Korva Sahl",
+            public_sheet=PublicSheet(
+                role="quartermaster",
+                appearance=(
+                    "Plain travel leathers. Hidden horns are tucked under "
+                    "her hair."
+                ),
+            ),
+            location="gatehouse",
+        ))
+        ckpt.canonical_events.append(EventRouterOutput(
+            event_id="evt_korva",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.all(
+                        "korva_sahl stands near the notice board."
+                    ),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=3,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=[],
+            ends_beat=True,
+            ends_beat_reason="",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_korva", observation_level="direct",
+                ),
+            ],
+            partial_mode=False,
+        )
+
+        user_content = mock_client.complete.call_args.kwargs["messages"][-1][
+            "content"
+        ]
+        assert "Korva Sahl: quartermaster" in user_content
+        assert "Plain travel leathers" not in user_content
+        assert "Hidden horns" not in user_content
+
+    @pytest.mark.asyncio
     async def test_partial_mode_includes_stop_instruction(
         self, mock_client, prompt_manager,
     ):
@@ -265,10 +394,11 @@ class TestComposePovRender:
         assert PARTIAL_MODE_MARKER in last["content"]
         assert PARTIAL_MODE_MARKER not in messages[0]["content"]
 
-        # And the stored history captures the instruction.
+        # The stored history does not replay redundant user packets.
         alice_hist = ckpt.narrator_conversations["alice"]
-        assert alice_hist[0].role == "user"
-        assert PARTIAL_MODE_MARKER in alice_hist[0].content
+        assert len(alice_hist) == 1
+        assert alice_hist[0].role == "assistant"
+        assert PARTIAL_MODE_MARKER not in json.dumps(alice_hist[0].content)
 
     @pytest.mark.asyncio
     async def test_no_partial_marker_when_not_partial(
@@ -293,10 +423,11 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
-        # And the POV's stored history records a user message without it.
+        # And the POV's stored history records only assistant output.
         alice_hist = ckpt.narrator_conversations["alice"]
-        assert alice_hist[0].role == "user"
-        assert PARTIAL_MODE_MARKER not in alice_hist[0].content
+        assert len(alice_hist) == 1
+        assert alice_hist[0].role == "assistant"
+        assert PARTIAL_MODE_MARKER not in json.dumps(alice_hist[0].content)
 
     @pytest.mark.asyncio
     async def test_missing_event_id_is_warned_and_skipped(

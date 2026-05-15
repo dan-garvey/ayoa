@@ -32,6 +32,7 @@ from app.engine.turn_loop import (
 )
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
@@ -556,10 +557,104 @@ class TestBeatCascade:
         assert fake.harvest_calls[0]["character_ids"] == ["pip"]
         facts = ckpt.canonical_events[0].canonical_event.observable_facts
         assert [fact.text for fact in facts] == [
-            "You focus on Pip.",
             "[loadout — Pip] Pip wears a red coat.",
         ]
         assert "alice" in result.renders
+
+    def test_query_harvest_suppresses_router_authored_visual_guess(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(EventRouterOutput(
+            event_id="",
+            decision_rationale="private query answer",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.only(
+                        "Pip has invented gray-green eyes.", ["alice"],
+                    ),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=1,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=["pip"],
+            ends_beat=True,
+            ends_beat_reason="query_response",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+        fake.queue_harvest(["Pip has brown eyes."])
+
+        asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="(query: what does Pip look like?)",
+        ))
+
+        facts = ckpt.canonical_events[0].canonical_event.observable_facts
+        assert [fact.text for fact in facts] == [
+            "[loadout — Pip] Pip has brown eyes.",
+        ]
+
+    def test_query_harvest_refreshes_existing_router_history(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session_conversation.append(ConversationMessage(
+            role="assistant",
+            content=(
+                "prior_event evt_query @0+0 source=alice mode=intention "
+                "end=query_response\n"
+                "fact only[alice] @0+0: Pip has invented gray-green eyes."
+            ),
+        ))
+        fake = FakeDispatcher()
+        fake.queue_route(EventRouterOutput(
+            event_id="evt_query",
+            decision_rationale="private query answer",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.only(
+                        "Pip has invented gray-green eyes.", ["alice"],
+                    ),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=1,
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            agent_responder_picks=["pip"],
+            ends_beat=True,
+            ends_beat_reason="query_response",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+        fake.queue_harvest(["Pip has brown eyes."])
+
+        asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="(query: what does Pip look like?)",
+        ))
+
+        stored = ckpt.session_conversation[-1].content
+        assert "Pip has brown eyes" in stored
+        assert "gray-green" not in stored
 
     def test_cat_i_cascades_through_agent_pick(self):
         ckpt = _ckpt({"alice": "1"})

@@ -15,7 +15,8 @@ import time
 
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
-    append_turn_to_conversation,
+    append_assistant_to_conversation,
+    build_narrator_pov_knowledge_block,
     build_narrator_player_characters_block,
     replace_character_ids_with_names,
 )
@@ -156,7 +157,8 @@ async def compose_pov_render(
 
     Renders the beat from `pov_character_id`'s point of view in
     second-person present tense, using their per-character rolling
-    conversation history (`ckpt.narrator_conversations[pov_character_id]`).
+    assistant-side conversation history
+    (`ckpt.narrator_conversations[pov_character_id]`).
 
     Events are resolved by `event_id` against `ckpt.canonical_events`;
     observation levels on the buffer entries tag how each event is
@@ -177,9 +179,11 @@ async def compose_pov_render(
     carries `final_text` now; the engine constructs the transcript
     entry from the real `user_input` + the rendered prose.
 
-    Side-effect unchanged: appends the exchange into
-    `ckpt.narrator_conversations[pov_character_id]` in-place — the
-    caller is responsible for saving the checkpoint.
+    Side-effect: appends the assistant output into
+    `ckpt.narrator_conversations[pov_character_id]` in-place. The
+    current user message is still sent to the LLM, but prior narrator
+    user messages are redundant with canonical events and transcripts,
+    so they are no longer stored.
     """
     resolved = _resolve_buffered_events(ckpt, buffered_events)
 
@@ -200,6 +204,9 @@ async def compose_pov_render(
     visible_events_block = _format_visible_events_block(
         resolved, pov_character_id, ckpt,
     )
+    pov_knowledge_block = build_narrator_pov_knowledge_block(
+        ckpt, pov_character_id, visible_events_block,
+    )
     rendering_note = (
         PARTIAL_MODE_MARKER
         if partial_mode
@@ -207,17 +214,22 @@ async def compose_pov_render(
     )
 
     pov_history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
+    assistant_history = [
+        message for message in pov_history
+        if message.role == "assistant"
+    ]
 
     render_t0 = time.monotonic()
     messages = prompt_mgr.render_conversation(
         "narrator_phase2",
-        history=pov_history,
+        history=assistant_history,
         setting_summary=setting_summary,
         narrative_rules=narrative_rules,
         visible_events=visible_events_block,
         user_input=user_input,
         pov_character_name=pov_name,
         player_characters_block=player_characters_block,
+        pov_knowledge_block=pov_knowledge_block,
         rendering_note=rendering_note,
     )
     render_ms = (time.monotonic() - render_t0) * 1000
@@ -227,7 +239,7 @@ async def compose_pov_render(
     logger.info(
         "compose_pov_render: pov=%s events=%d partial=%s history=%d msgs "
         "(prompt_render_ms=%.1f)",
-        pov_character_id, len(resolved), partial_mode, len(pov_history),
+        pov_character_id, len(resolved), partial_mode, len(assistant_history),
         render_ms,
     )
 
@@ -252,12 +264,10 @@ async def compose_pov_render(
             "text": result.model_dump_json(),
         }]
 
-    # Append user + assistant to the POV's rolling history. We can't
-    # reuse `append_turn_to_conversation` here because the user content
-    # we want stored is the marker-prepended string (when partial);
-    # the helper would pick up `user_content` from the messages list
-    # anyway, so just use it directly for clarity.
-    append_turn_to_conversation(pov_history, user_content, response)
+    # Store assistant output only. The current user message is still sent
+    # above, but replaying old narrator user packets duplicates canonical
+    # visible-event context and player transcript input.
+    append_assistant_to_conversation(pov_history, response)
 
     final_text = result.final_text if result is not None else ""
     logger.info(

@@ -3,22 +3,23 @@
 The agent's LLM call no longer uses structured output. The model produces
 free-form prose followed by a single trailing parenthetical containing
 its private intent. The engine parses that into the two fields below at
-`CharacterAgent.respond`/`tick` time:
+`CharacterAgent.respond`/`tick`/`draft_tick` time:
 
 - `public_text`: everything before the trailing parenthetical. This is
   what flows downstream — narrator phase-1 input, other agents'
   prior-responses cascade input, the router's intention block.
 - `intent`: contents of the trailing parenthetical. Used for
   logging and as a parsed handle on what the model put in the
-  parens; NOT mirrored anywhere on the character record. The
-  parenthetical lives verbatim in the agent's own rolling history
-  (so its future self carries continuous interior) and is stripped
-  at every cross-agent / narrator / router chokepoint. No other
-  actor — not the router, not the narrator, not another agent —
-  gets to see this character's parenthetical. That asymmetry is
-  load-bearing; if you want to surface a character's planning to
-  another LLM, do it through in-fiction signals (a courier, a
-  witnessed action, an observable fact) instead.
+  parens; NOT mirrored anywhere on the character record. For committed
+  on-stage responses and canonized ticks, the parenthetical lives
+  verbatim in the agent's own rolling history (so its future self
+  carries continuous interior) and is stripped at every cross-agent /
+  narrator / router chokepoint. Uncanonized tick drafts are discarded
+  rather than remembered. No other actor — not the router, not the
+  narrator, not another agent — gets to see this character's
+  parenthetical. That asymmetry is load-bearing; if you want to surface
+  a character's planning to another LLM, do it through in-fiction
+  signals (a courier, a witnessed action, an observable fact) instead.
 
 Why no LLM-target schema:
 - The four `private_updates` fields in v9/v10 were schema-required,

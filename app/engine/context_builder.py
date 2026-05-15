@@ -30,13 +30,40 @@ def append_turn_to_conversation(
     `response` is an LLMResponse; imported lazily to avoid a module-level
     dependency from context_builder on the LLM client.
     """
+    user_message, assistant_message = conversation_turn_messages(
+        user_content, response,
+    )
+    conversation.append(user_message)
+    conversation.append(assistant_message)
+
+
+def assistant_message_from_response(response) -> ConversationMessage:
+    """Build the assistant-side history message for a completed LLM call."""
     from app.llm.client import serialize_assistant_content
 
     assistant_content = getattr(response, "assistant_content", None)
     if assistant_content is None:
         assistant_content = serialize_assistant_content(response.raw_response.content)
-    conversation.append(ConversationMessage(role="user", content=user_content))
-    conversation.append(ConversationMessage(role="assistant", content=assistant_content))
+    return ConversationMessage(role="assistant", content=assistant_content)
+
+
+def conversation_turn_messages(
+    user_content: str,
+    response,
+) -> tuple[ConversationMessage, ConversationMessage]:
+    """Build the two rolling-history messages for a completed exchange."""
+    return (
+        ConversationMessage(role="user", content=user_content),
+        assistant_message_from_response(response),
+    )
+
+
+def append_assistant_to_conversation(
+    conversation: list[ConversationMessage],
+    response,
+) -> None:
+    """Append only the assistant output for roles with redundant user turns."""
+    conversation.append(assistant_message_from_response(response))
 
 
 def build_character_packet(char: CharacterRecord) -> dict[str, str]:
@@ -380,6 +407,142 @@ def build_narrator_player_characters_block(
 
     if not lines:
         return "- No human-played characters are currently listed."
+    return "\n".join(lines)
+
+
+def _compact_player_context(text: str, *, limit: int) -> str:
+    compact = " ".join((text or "").split())
+    if len(compact) <= limit:
+        return compact
+    cut = compact.rfind(". ", 0, limit)
+    if cut < max(80, limit // 2):
+        cut = compact.rfind(" ", 0, limit)
+    if cut < 0:
+        cut = limit
+    return compact[:cut].rstrip(" .") + "."
+
+
+_NARRATOR_GLOSS_VISUAL_TERM_GROUPS = (
+    (
+        "color",
+        "colour",
+        "habit",
+        "livery",
+        "robe",
+        "surcoat",
+        "tabard",
+        "uniform",
+        "vestment",
+    ),
+    (
+        "badge",
+        "crest",
+        "emblem",
+        "insignia",
+        "seal",
+        "sigil",
+    ),
+    (
+        "epaulet",
+        "rank",
+        "stripe",
+    ),
+)
+
+
+def _contains_gloss_term(text: str, term: str) -> bool:
+    suffix = "" if term.endswith("s") else "s?"
+    return bool(re.search(
+        rf"(?<![A-Za-z0-9_]){re.escape(term)}{suffix}(?![A-Za-z0-9_])",
+        text,
+    ))
+
+
+def _appearance_gloss_for_visible_terms(
+    appearance: str,
+    visible_text: str,
+) -> str:
+    appearance = " ".join((appearance or "").split())
+    visible_lower = (visible_text or "").lower()
+    if not appearance or not visible_lower:
+        return ""
+
+    active_terms: set[str] = set()
+    for group in _NARRATOR_GLOSS_VISUAL_TERM_GROUPS:
+        if any(_contains_gloss_term(visible_lower, term) for term in group):
+            active_terms.update(group)
+    if not active_terms:
+        return ""
+
+    sentences = re.split(r"(?<=[.!?])\s+", appearance)
+    matched = [
+        sentence.strip()
+        for sentence in sentences
+        if sentence.strip()
+        and any(
+            _contains_gloss_term(sentence.lower(), term)
+            for term in active_terms
+        )
+    ]
+    if not matched:
+        return ""
+    return _compact_player_context(" ".join(matched), limit=260)
+
+
+def build_narrator_pov_knowledge_block(
+    checkpoint: CheckpointFile,
+    pov_character_id: str,
+    visible_text: str,
+    *,
+    max_characters: int = 8,
+) -> str:
+    """Render concise POV-known glosses for narrator-facing prose.
+
+    The narrator should not invent exposition, but it does need enough
+    context to translate things the character already understands into
+    player-legible appositives. Keep this deterministic and public-sheet
+    based: no private goals, secrets, or agent intent.
+    """
+    haystack = visible_text or ""
+    if not haystack.strip():
+        return "- No additional viewpoint-known glosses for this passage."
+
+    mentioned: list[CharacterRecord] = []
+    for char in checkpoint.characters:
+        if char.character_id == pov_character_id:
+            continue
+        probes = [char.character_id, char.name]
+        if any(
+            probe and re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(probe)}(?![A-Za-z0-9_])",
+                haystack,
+            )
+            for probe in probes
+        ):
+            mentioned.append(char)
+        if len(mentioned) >= max_characters:
+            break
+
+    lines: list[str] = []
+    for char in mentioned:
+        details: list[str] = []
+        role = _compact_player_context(char.public_sheet.role, limit=180)
+        faction = _compact_player_context(char.public_sheet.faction, limit=180)
+        appearance = _appearance_gloss_for_visible_terms(
+            char.public_sheet.appearance,
+            visible_text,
+        )
+        if role:
+            details.append(role)
+        if faction:
+            details.append(f"Faction: {faction}")
+        if appearance:
+            details.append(f"Known visual shorthand: {appearance}")
+        if details:
+            lines.append(f"- {char.name}: " + " ".join(details))
+
+    if not lines:
+        return "- No additional viewpoint-known glosses for this passage."
     return "\n".join(lines)
 
 

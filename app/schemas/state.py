@@ -11,9 +11,9 @@ from app.schemas.dnd_spatial import DndBattleMapState
 
 class ModelConfig(BaseModel):
     event_router: str = "gpt-5.2"
-    narrator: str = "gpt-5.1"
+    narrator: str = "claude-sonnet-4-6"
     discriminator: str = "gpt-5.2"
-    agent_default: str = "gpt-5.1"
+    agent_default: str = "claude-opus-4-6"
 
 
 class SlotEntry(BaseModel):
@@ -445,7 +445,9 @@ class SessionSettings(BaseModel):
     # enough that idle turns don't burn the budget, short enough that
     # camping doesn't make the world feel frozen.
     tick_stagnation_max: int = 15
-    # Master kill switch for the off-stage tick scheduler. When False,
+    # Master kill switch for the off-stage tick scheduler. Default is off
+    # for now because synchronous background fan-out can dominate player
+    # response latency on large rosters. When False,
     # `Orchestrator._run_ticks` short-circuits at the top: no eligibility
     # filtering, no agent fan-out, no router fan-in, no canonical-event
     # append. `turns_since_last_tick` is NOT touched in disabled mode
@@ -454,7 +456,7 @@ class SessionSettings(BaseModel):
     # firing a backlog. Useful for token-budget runs, isolating on-stage
     # behavior in playtests, and diagnosing whether a behavior originates
     # from on-stage routing or from background world activity.
-    ticks_enabled: bool = True
+    ticks_enabled: bool = False
     # v11: hard cap on how many canonical events the router may chain
     # inside a single beat before the orchestrator forces render + slot
     # release. Prevents runaway agent cascades. 5 is a reasonable
