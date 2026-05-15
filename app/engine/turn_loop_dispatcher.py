@@ -367,6 +367,20 @@ def _compact_id_list(values: list[str]) -> str:
     return ",".join(value for value in values if value) or "-"
 
 
+def _defer_history_user_prompt(intention: str) -> str:
+    """Return the compact user-history entry for defer, if applicable.
+
+    Router history usually stores only deterministic assistant-side
+    `prior_event` records. `(defer)` is the exception: repeated defers
+    are pacing feedback, so the next router call needs to see that the
+    player explicitly deferred rather than merely infer it from whatever
+    event the previous router authored.
+    """
+    if (intention or "").strip().lower() == "(defer)":
+        return "(defer)"
+    return ""
+
+
 def _router_history_record(
     *,
     acting_character_id: str,
@@ -512,7 +526,13 @@ def _append_router_history_record(
     acting_character_id: str,
     result: EventRouterOutput,
     mode: str = "intention",
+    user_prompt: str = "",
 ) -> None:
+    if user_prompt:
+        conversation.append(ConversationMessage(
+            role="user",
+            content=user_prompt,
+        ))
     conversation.append(ConversationMessage(
         role="assistant",
         content=_router_history_record(
@@ -771,6 +791,10 @@ class LLMDispatcher:
             acting_character_id=actor_id,
             result=result,
             mode="cat_ii_resolution" if cat_ii_event else "intention",
+            user_prompt=(
+                _defer_history_user_prompt(intention)
+                if cat_ii_event is None else ""
+            ),
         )
         return result
 

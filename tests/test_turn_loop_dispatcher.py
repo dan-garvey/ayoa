@@ -304,6 +304,66 @@ class TestRouteIntention:
         assert "decision_rationale" not in record.content
         assert '"canonical_event"' not in record.content
 
+    def test_router_history_preserves_defer_user_prompt(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        result = _router_output()
+        result.event_id = "evt_defer_continue"
+        mock_client.complete.return_value = _llm_response(result)
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="  (defer)  ",
+        ))
+
+        assert [m.role for m in ckpt.session_conversation] == [
+            "user",
+            "assistant",
+        ]
+        assert ckpt.session_conversation[0].content == "(defer)"
+        assert ckpt.session_conversation[1].content.startswith(
+            "prior_event evt_defer_continue "
+        )
+
+    def test_router_history_replays_prior_defer_to_next_call(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        first = _router_output()
+        first.event_id = "evt_defer_continue"
+        second = _router_output()
+        second.event_id = "evt_after_defer"
+        mock_client.complete.side_effect = [
+            _llm_response(first),
+            _llm_response(second),
+        ]
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="(defer)",
+        ))
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="look around",
+        ))
+
+        second_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
+        prior_user_messages = [
+            m for m in second_messages[:-1]
+            if m.get("role") == "user"
+        ]
+        assert any(m["content"] == "(defer)" for m in prior_user_messages)
+        assert [m.role for m in ckpt.session_conversation] == [
+            "user",
+            "assistant",
+            "assistant",
+        ]
+
     def test_dnd_fresh_intention_uses_dnd_router_contract(
         self, prompt_mgr, mock_client,
     ):
