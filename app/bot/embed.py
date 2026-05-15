@@ -12,6 +12,7 @@ import discord
 from app.schemas.checkpoint import CheckpointFile
 
 MAX_DESCRIPTION = 4096
+MAX_TITLE = 256
 MAX_TOTAL = 6000
 _FIELD_VALUE_MAX = 1024  # Discord's per-field value limit
 EMBED_COLOR_STORY = 0x5865F2  # Discord blurple
@@ -65,10 +66,17 @@ def render_turn(
 def render_info(title: str, body: str) -> discord.Embed:
     """Generic informational embed (status, story listings, etc.)."""
     return discord.Embed(
-        title=title,
+        title=_truncate_title(title),
         description=body[:MAX_DESCRIPTION],
         color=EMBED_COLOR_INFO,
     )
+
+
+def _truncate_title(title: str) -> str:
+    clean = str(title or "").strip()
+    if len(clean) <= MAX_TITLE:
+        return clean
+    return clean[: MAX_TITLE - 1].rstrip() + "…"
 
 
 def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
@@ -115,7 +123,7 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
         primer = primer[: MAX_DESCRIPTION - 1].rstrip() + "…"
 
     embed = discord.Embed(
-        title=title,
+        title=_truncate_title(title),
         description=primer,
         color=EMBED_COLOR_STORY,
     )

@@ -23,14 +23,17 @@ Commands inside the REPL:
     /story delete               Unload the current story (leaves session empty)
     /session list               List existing sessions
     /session end                Exit the REPL (save files stay on disk)
-    /characters                 List roster grouped by location/status
+    /characters                 List open playable slots, then full roster
     /character <id>             Full dossier for one character
     /join <character_id>        Claim a character; prints their dossier
-    /join_custom [mode]         Play a custom character (describe/replace)
+    /join_custom                Create your own character
     /leave [character_id]       Release a claim (default: current actor)
     /as <character_id>          Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
     /defer                      Submit no action and let the scene continue
+    /begin                      Open the story for the joined lobby
+    /attach <json> [id]         Attach a D&D Beyond JSON export
+    /sheet [page] [id]          Show an attached D&D character sheet
     /inventory [character_id]   Show current D&D inventory
     /loot                       List open D&D loot offers
     /roll [roll_id|all]         Roll pending D&D player check(s)
@@ -51,27 +54,52 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
+import shlex
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
 from app.bot.engine_bridge import (
+    CharacterSummary,
     CompletedPendingRoll,
     DndCombatParticipantView,
     DndCombatView,
     DndInventoryView,
+    DndSheetAttachmentSummary,
     EngineBridge,
     PendingRollPrompt,
+    joinable_character_summaries,
 )
 from app.engine import dnd_inventory
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+MAX_DND_CHARACTER_BYTES = 5_000_000
+DND_SHEET_PAGES = (
+    "overview",
+    "abilities",
+    "actions",
+    "spells",
+    "inventory",
+    "features",
+)
+ABILITY_ORDER = ("str", "dex", "con", "int", "wis", "cha")
+ABILITY_LABELS = {
+    "str": "STR",
+    "dex": "DEX",
+    "con": "CON",
+    "int": "INT",
+    "wis": "WIS",
+    "cha": "CHA",
+}
 
 
 HELP_TEXT = """\
@@ -83,14 +111,18 @@ Commands:
   /story delete                     Unload the current story from this session
   /session list                     List existing sessions
   /session end                      Exit the REPL (files stay)
-  /characters                       List roster grouped by location/status
+  /characters                       List open playable slots, then full roster
   /character <id>                   Full dossier for a character
   /join <character_id>              Claim a character; prints their dossier
-  /join_custom [describe|replace]   Play a character of your own description
+  /join_custom                      Create your own character
   /leave [character_id]             Release a claim (default: current actor)
   /as <character_id>                Switch which claimed character acts next
   /describe                         Set name + appearance of the current actor
   /defer                            Submit no action and let the scene continue
+  /begin                            Open the story for the joined lobby
+  /attach <json> [id] [--name N]    Attach a D&D Beyond JSON export
+  /sheet [page] [character_id]      Show an attached D&D character sheet
+  /sheet all [character_id]         Show every sheet page
   /inventory [character_id]         Show current D&D inventory
   /loot                             List open D&D loot offers
   /loot take <offer> <all|ids>      Claim all or comma-separated item ids
@@ -202,6 +234,12 @@ def _print_combat_status(view: DndCombatView) -> None:
             f"{marker} {participant.name} "
             f"({participant.character_id}){suffix}"
         )
+    if view.map_lines:
+        print()
+        for raw_line in view.map_lines:
+            line = str(raw_line).strip()
+            if line:
+                print(line)
     print()
 
 
@@ -228,6 +266,530 @@ def _print_inventory(view: DndInventoryView) -> None:
         for item in carried:
             print(f"  - {_inventory_item_line(item)}")
     print()
+
+
+def _print_dnd_sheet(character, page: str) -> None:
+    pages = _sheet_pages_for(page)
+    sheet = _dnd_sheet_for(character)
+    identity = sheet.get("identity") or {}
+    statblock = sheet.get("statblock") or {}
+    print()
+    print(f"--- Sheet · {character.name} ({character.character_id}) ---")
+    print(_sheet_identity_line(character, identity))
+    for page_name in pages:
+        print()
+        print(f"## {_sheet_page_label(page_name)}")
+        for line in _sheet_page_lines(character, sheet, statblock, page_name):
+            print(line)
+    print()
+
+
+def _sheet_pages_for(page: str) -> tuple[str, ...]:
+    normalized = (page or "overview").strip().lower()
+    if normalized == "all":
+        return DND_SHEET_PAGES
+    if normalized not in DND_SHEET_PAGES:
+        raise ValueError(
+            f"Unknown sheet page '{page}'. Use one of: "
+            f"{', '.join((*DND_SHEET_PAGES, 'all'))}."
+        )
+    return (normalized,)
+
+
+def _dnd_sheet_for(character) -> dict[str, Any]:
+    mechanics = getattr(character, "mechanics", None) or {}
+    sheet = mechanics.get("dnd5e_sheet") or {}
+    if not isinstance(sheet, dict) or not sheet:
+        character_id = getattr(character, "character_id", "?")
+        raise ValueError(
+            f"`{character_id}` does not have an attached D&D sheet. "
+            "Use /attach with a D&D Beyond JSON export first."
+        )
+    return sheet
+
+
+def _sheet_page_label(page: str) -> str:
+    return (page or "overview").replace("_", " ").title()
+
+
+def _sheet_identity_line(character, identity: dict[str, Any]) -> str:
+    bits: list[str] = []
+    class_line = _class_line(identity)
+    if class_line:
+        bits.append(class_line)
+    species = str(identity.get("species") or "").strip()
+    background = str(identity.get("background") or "").strip()
+    if species:
+        bits.append(species)
+    if background:
+        bits.append(background)
+    imported = str(identity.get("name") or "").strip()
+    if imported and imported != getattr(character, "name", ""):
+        bits.append(f"Imported name: {imported}")
+    return " · ".join(bits) or "D&D character sheet"
+
+
+def _class_line(identity: dict[str, Any]) -> str:
+    labels = []
+    for entry in identity.get("classes") or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()
+        subclass = str(entry.get("subclass") or "").strip()
+        level = _safe_int(entry.get("level"), 0)
+        label = name
+        if subclass and subclass.lower() != name.lower():
+            label = f"{subclass} {name}" if name else subclass
+        if label:
+            labels.append(f"{label} {level}".strip())
+    return ", ".join(labels)
+
+
+def _sheet_page_lines(
+    character,
+    sheet: dict[str, Any],
+    statblock: dict[str, Any],
+    page: str,
+) -> list[str]:
+    if page == "overview":
+        return _sheet_overview_lines(sheet, statblock)
+    if page == "abilities":
+        return _sheet_ability_lines(statblock)
+    if page == "actions":
+        return _sheet_action_lines(statblock)
+    if page == "spells":
+        return _sheet_spell_lines(statblock)
+    if page == "inventory":
+        return _sheet_inventory_lines(dnd_inventory.inventory_view(character))
+    if page == "features":
+        return _sheet_feature_lines(statblock)
+    return ["(unknown page)"]
+
+
+def _sheet_overview_lines(
+    sheet: dict[str, Any],
+    statblock: dict[str, Any],
+) -> list[str]:
+    defenses = statblock.get("defenses") or {}
+    hp = defenses.get("hit_points") or {}
+    ac = defenses.get("armor_class") or {}
+    initiative = defenses.get("initiative") or {}
+    skills = statblock.get("skills") or {}
+    perception = skills.get("perception") or {}
+    hp_text = (
+        f"{_safe_int(hp.get('current'), 0)}/"
+        f"{_safe_int(hp.get('max'), 0)}"
+    )
+    temp_hp = _safe_int(hp.get("temporary"), 0)
+    if temp_hp:
+        hp_text += f" (+{temp_hp} temp)"
+    combat = [
+        f"AC {_safe_int(ac.get('value'), 0)}",
+        f"HP {hp_text}",
+        f"PB {_signed(statblock.get('proficiency_bonus') or 0)}",
+        f"Initiative {_signed(initiative.get('value') or 0)}",
+    ]
+    if perception:
+        passive = perception.get("passive")
+        if passive is None:
+            passive = 10 + _safe_int(perception.get("value"), 0)
+        combat.append(f"Passive Perception {_safe_int(passive, 10)}")
+    movement = _movement_line(defenses.get("movement") or {})
+    if movement:
+        combat.append(f"Speed {movement}")
+
+    lines = ["Combat: " + " · ".join(combat)]
+    resources = _resource_lines(statblock.get("resources") or [], limit=10)
+    if resources:
+        lines.append("Resources:")
+        lines.extend(f"  {line}" for line in resources)
+    defense_lines = _defense_lines(defenses)
+    if defense_lines:
+        lines.append("Defenses:")
+        lines.extend(f"  {line}" for line in defense_lines)
+    source = sheet.get("source") or {}
+    source_line = " · ".join(
+        bit for bit in (
+            str(sheet.get("ruleset_id") or ""),
+            str(source.get("type") or ""),
+        )
+        if bit
+    )
+    if source_line:
+        lines.append(f"Source: {source_line}")
+    return lines
+
+
+def _sheet_ability_lines(statblock: dict[str, Any]) -> list[str]:
+    scores = statblock.get("ability_scores") or {}
+    saves = statblock.get("saves") or {}
+    lines = ["Abilities:"]
+    for ability in ABILITY_ORDER:
+        score = scores.get(ability) or {}
+        save = saves.get(ability) or {}
+        prof = " prof" if (save.get("proficiency_multiplier") or 0) > 0 else ""
+        lines.append(
+            f"  {ABILITY_LABELS[ability]} "
+            f"{_safe_int(score.get('score'), 10):>2} "
+            f"({_signed(score.get('modifier') or 0)}) · "
+            f"save {_signed(save.get('value') or score.get('modifier') or 0)}"
+            f"{prof}"
+        )
+
+    skill_lines = []
+    for name, skill in sorted((statblock.get("skills") or {}).items()):
+        if not isinstance(skill, dict):
+            continue
+        prof = " prof" if (skill.get("proficiency_multiplier") or 0) > 0 else ""
+        skill_lines.append(
+            f"  {_title_skill(name)} {_signed(skill.get('value') or 0)}"
+            f"{prof}{_advantage_suffix(skill.get('advantage_state'))}"
+        )
+    lines.append("Skills:")
+    lines.extend(skill_lines or ["  No skills imported."])
+    return lines
+
+
+def _sheet_action_lines(statblock: dict[str, Any]) -> list[str]:
+    actions = [
+        action for action in (statblock.get("actions") or [])
+        if isinstance(action, dict)
+    ]
+    if not actions:
+        return ["No actions imported."]
+    lines = [_action_line(action) for action in actions[:18]]
+    if len(actions) > 18:
+        lines.append(f"... {len(actions) - 18} more")
+    return lines
+
+
+def _sheet_spell_lines(statblock: dict[str, Any]) -> list[str]:
+    spellcasting = statblock.get("spellcasting") or {}
+    lines: list[str] = []
+    profiles = []
+    for profile in spellcasting.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        profiles.append(
+            f"{profile.get('name') or 'Spellcasting'} "
+            f"({_upper(profile.get('ability'))}) · "
+            f"ATK {_signed(profile.get('spell_attack_bonus') or 0)} · "
+            f"DC {_safe_int(profile.get('spell_save_dc'), 0)}"
+        )
+    if profiles:
+        lines.append("Spellcasting:")
+        lines.extend(f"  {profile}" for profile in profiles)
+
+    slots = _slots_line(spellcasting.get("slots") or {})
+    pact = spellcasting.get("pact_slots")
+    if isinstance(pact, dict):
+        pact_line = (
+            f"Pact L{_safe_int(pact.get('level'), 1)} "
+            f"{_safe_int(pact.get('current'), 0)}/"
+            f"{_safe_int(pact.get('max'), 0)}"
+        )
+        slots = f"{slots} · {pact_line}" if slots else pact_line
+    if slots:
+        lines.append(f"Slots: {slots}")
+
+    spells = [
+        spell for spell in (spellcasting.get("spells") or [])
+        if isinstance(spell, dict)
+    ]
+    if not spells:
+        return lines or ["No spells imported."]
+    grouped: dict[int, list[str]] = {}
+    for spell in spells:
+        grouped.setdefault(_safe_int(spell.get("level"), 0), []).append(
+            str(spell.get("name") or "Spell")
+        )
+    lines.append("Prepared/Known:")
+    for level in sorted(grouped):
+        label = "Cantrips" if level == 0 else f"Level {level}"
+        names = ", ".join(sorted(grouped[level])[:18])
+        extra = len(grouped[level]) - min(len(grouped[level]), 18)
+        if extra:
+            names += f", ... {extra} more"
+        lines.append(f"  {label}: {names}")
+    return lines
+
+
+def _sheet_inventory_lines(inventory: dict[str, Any]) -> list[str]:
+    items = [
+        item for item in (inventory.get("items") or [])
+        if isinstance(item, dict)
+    ]
+    equipped = [item for item in items if item.get("equipped")]
+    carried = [item for item in items if not item.get("equipped")]
+    currency_line = _coin_line(inventory.get("currency") or {})
+    lines: list[str] = []
+    if currency_line:
+        lines.append(f"Coins: {currency_line}")
+    if equipped:
+        lines.append("Equipped:")
+        lines.extend(f"  - {_inventory_item_line(item)}" for item in equipped[:15])
+    if carried:
+        lines.append("Carried:")
+        lines.extend(f"  - {_inventory_item_line(item)}" for item in carried[:15])
+        if len(carried) > 15:
+            lines.append(f"  ... {len(carried) - 15} more")
+    return lines or ["No items imported."]
+
+
+def _sheet_feature_lines(statblock: dict[str, Any]) -> list[str]:
+    features = [
+        feature for feature in (statblock.get("features") or [])
+        if isinstance(feature, dict)
+    ]
+    proficiencies = statblock.get("proficiencies") or {}
+    languages = statblock.get("languages") or []
+    lines: list[str] = []
+    if features:
+        lines.extend(_feature_line(feature) for feature in features[:20])
+        if len(features) > 20:
+            lines.append(f"... {len(features) - 20} more")
+    else:
+        lines.append("No features imported.")
+    if isinstance(proficiencies, dict):
+        prof_lines = []
+        for key in ("armor", "weapons", "tools", "other"):
+            values = [str(v) for v in proficiencies.get(key) or [] if v]
+            if values:
+                prof_lines.append(f"  {key.title()}: {', '.join(values[:12])}")
+        if prof_lines:
+            lines.append("Proficiencies:")
+            lines.extend(prof_lines)
+    if languages:
+        lines.append("Languages: " + ", ".join(str(lang) for lang in languages[:20]))
+    return lines
+
+
+def _movement_line(movement: dict[str, Any]) -> str:
+    bits = []
+    for key in ("walk", "fly", "swim", "climb", "burrow"):
+        item = movement.get(key)
+        if not isinstance(item, dict):
+            continue
+        value = item.get("value")
+        if value is not None:
+            bits.append(f"{key} {value} {item.get('unit') or 'ft'}")
+    return ", ".join(bits)
+
+
+def _defense_lines(defenses: dict[str, Any]) -> list[str]:
+    lines = []
+    for label, key in (
+        ("Resist", "damage_resistances"),
+        ("Immune", "damage_immunities"),
+        ("Vulnerable", "damage_vulnerabilities"),
+        ("Condition immune", "condition_immunities"),
+    ):
+        names = [
+            str(item.get("name") or item.get("id") or "")
+            for item in defenses.get(key) or []
+            if isinstance(item, dict)
+        ]
+        if names:
+            lines.append(f"{label}: {', '.join(names)}")
+    conditions = [
+        str(item.get("name") or item.get("id") or "")
+        for item in defenses.get("conditions") or []
+        if isinstance(item, dict)
+    ]
+    if conditions:
+        lines.append(f"Conditions: {', '.join(conditions)}")
+    exhaustion = _safe_int(defenses.get("exhaustion_level"), 0)
+    if exhaustion:
+        lines.append(f"Exhaustion: {exhaustion}")
+    return lines
+
+
+def _resource_lines(resources: list[dict[str, Any]], *, limit: int) -> list[str]:
+    lines = []
+    for res in resources[:limit]:
+        if not isinstance(res, dict):
+            continue
+        name = str(res.get("name") or res.get("id") or "Resource")
+        current = res.get("current")
+        maximum = res.get("max")
+        if current is not None and maximum is not None:
+            value = f"{_safe_int(current, 0)}/{_safe_int(maximum, 0)}"
+        else:
+            value = str(current if current is not None else maximum or "")
+        reset = ((res.get("reset") or {}).get("type") or "").replace("_", " ")
+        suffix = f" ({reset})" if reset else ""
+        lines.append(f"- {name}: {value}{suffix}".rstrip())
+    if len(resources) > limit:
+        lines.append(f"... {len(resources) - limit} more")
+    return lines
+
+
+def _action_line(action: dict[str, Any]) -> str:
+    parts = [str(action.get("kind") or "").replace("_", " ")]
+    attack = action.get("attack") or {}
+    if isinstance(attack, dict) and attack.get("bonus") is not None:
+        parts.append(f"hit {_signed(attack.get('bonus'))}")
+    save = action.get("save") or {}
+    if isinstance(save, dict) and (save.get("dc") or save.get("ability")):
+        dc = f" DC {_safe_int(save.get('dc'), 0)}" if save.get("dc") else ""
+        parts.append(f"{_upper(save.get('ability'))}{dc} save".strip())
+    damage = _damage_line(action.get("damage") or [])
+    if damage:
+        parts.append(damage)
+    text = ", ".join(part for part in parts if part)
+    return f"- {action.get('name') or 'Action'}" + (f" - {text}" if text else "")
+
+
+def _damage_line(items: list[dict[str, Any]]) -> str:
+    bits = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        formula = str(item.get("formula") or "").strip()
+        damage_type = str(item.get("damage_type") or "").strip()
+        if formula:
+            bits.append(f"{formula} {damage_type}".strip())
+    return ", ".join(bits)
+
+
+def _slots_line(slots: dict[str, dict[str, Any]]) -> str:
+    lines = []
+    for level in sorted(slots, key=lambda value: _safe_int(value, 0)):
+        slot = slots[level]
+        if not isinstance(slot, dict):
+            continue
+        lines.append(
+            f"L{level}: {_safe_int(slot.get('current'), 0)}/"
+            f"{_safe_int(slot.get('max'), 0)}"
+        )
+    return " · ".join(lines)
+
+
+def _feature_line(feature: dict[str, Any]) -> str:
+    kind = str(feature.get("kind") or "").replace("_", " ")
+    level = _safe_int(feature.get("level"), 0)
+    suffix_bits = [bit for bit in (kind, f"L{level}" if level else "") if bit]
+    suffix = f" ({', '.join(suffix_bits)})" if suffix_bits else ""
+    return f"- {feature.get('name') or 'Feature'}{suffix}"
+
+
+def _advantage_suffix(value: Any) -> str:
+    text = str(value or "normal")
+    if text == "normal":
+        return ""
+    return f" {text.replace('_', ' ')}"
+
+
+def _title_skill(name: str) -> str:
+    return str(name).replace("-", " ").title()
+
+
+def _upper(value: Any) -> str:
+    text = str(value or "").strip()
+    return text.upper() if text else "?"
+
+
+def _signed(value: Any) -> str:
+    number = _safe_int(value, 0)
+    return f"+{number}" if number >= 0 else str(number)
+
+
+def _print_dnd_attachment_summary(summary: DndSheetAttachmentSummary) -> None:
+    classes = ", ".join(summary.classes) or "unknown class"
+    hp = f"{summary.hit_points_current}/{summary.hit_points_max}"
+    if summary.hit_points_temporary:
+        hp += f" (+{summary.hit_points_temporary} temp)"
+    name_line = (
+        f"Story name changed to {summary.character_name}."
+        if summary.name_overridden
+        else f"Story name preserved as {summary.character_name}."
+    )
+    print()
+    print("--- D&D Sheet Attached ---")
+    print(
+        f"Attached {summary.imported_name or 'D&D character'} to "
+        f"{summary.character_id}."
+    )
+    print(name_line)
+    print(f"Classes: {classes}")
+    print(f"Level: {summary.total_level}")
+    print(f"AC / HP: {summary.armor_class} / {hp}")
+    print(
+        f"D&D mode: {summary.session_ruleset_id} · "
+        f"player rolls {summary.player_roll_mode}"
+    )
+    print(
+        f"Imported: {summary.skills_count} skills, "
+        f"{summary.actions_count} actions, {summary.spells_count} spells, "
+        f"{summary.resources_count} resources"
+    )
+    print("Use /inventory to view carried items.")
+    print()
+
+
+def _parse_attach_args(
+    arg: str,
+) -> tuple[Path, str | None, str | None] | None:
+    try:
+        tokens = shlex.split(arg)
+    except ValueError as e:
+        print(
+            "usage: /attach <json_path> [character_id] "
+            f"[--name \"Name\"] ({e})"
+        )
+        return None
+    if not tokens:
+        print("usage: /attach <json_path> [character_id] [--name \"Name\"]")
+        return None
+
+    path = Path(tokens[0]).expanduser()
+    character_id: str | None = None
+    name_override: str | None = None
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token in {"--name", "--name-override"}:
+            if i + 1 >= len(tokens):
+                print(
+                    "usage: /attach <json_path> [character_id] "
+                    "[--name \"Name\"]"
+                )
+                return None
+            name_override = tokens[i + 1].strip() or None
+            i += 2
+            continue
+        if token.startswith("--name="):
+            name_override = token.split("=", 1)[1].strip() or None
+            i += 1
+            continue
+        if token in {"--character", "--character-id"}:
+            if i + 1 >= len(tokens):
+                print(
+                    "usage: /attach <json_path> [character_id] "
+                    "[--name \"Name\"]"
+                )
+                return None
+            character_id = tokens[i + 1].strip() or None
+            i += 2
+            continue
+        if (
+            token.startswith("--character=")
+            or token.startswith("--character-id=")
+        ):
+            character_id = token.split("=", 1)[1].strip() or None
+            i += 1
+            continue
+        if token.startswith("--"):
+            print(f"unknown attach option: {token}")
+            return None
+        if character_id is None:
+            character_id = token
+            i += 1
+            continue
+        print("usage: /attach <json_path> [character_id] [--name \"Name\"]")
+        return None
+
+    return path, character_id, name_override
 
 
 def _print_loot_offers(offers) -> None:
@@ -322,6 +884,35 @@ def _split_combat_ids(arg: str) -> list[str]:
         for part in chunk.split(",")
         if part.strip()
     ]
+
+
+def _joinable_character_line(summary: CharacterSummary) -> str:
+    bits = [
+        bit for bit in (
+            summary.name,
+            summary.role,
+            summary.faction,
+        )
+        if bit
+    ]
+    suffix = " — " + " · ".join(bits) if bits else ""
+    return f"{summary.character_id}{suffix}"
+
+
+def _print_joinable_characters(
+    summaries: list[CharacterSummary],
+    *,
+    include_hint: bool,
+) -> None:
+    joinable = joinable_character_summaries(summaries)
+    print("## Joinable")
+    if joinable:
+        for summary in joinable:
+            print(f"  {_joinable_character_line(summary)}")
+        if include_hint:
+            print("  Use /join <character_id> to claim one.")
+    else:
+        print("  (none)")
 
 
 class CLIState:
@@ -526,6 +1117,11 @@ class CLIState:
         if not self._require_story():
             return
         ckpt = self.engine.load_latest(self.session_id)
+        summaries = self.engine.list_session_characters(self.session_id)
+        joinable_ids = {
+            summary.character_id
+            for summary in joinable_character_summaries(summaries)
+        }
         from app.engine.context_builder import resolve_location_for_character
         location = resolve_location_for_character(
             ckpt,
@@ -554,7 +1150,12 @@ class CLIState:
                     elsewhere.append(c.character_id)
 
         def _suffix(cid: str) -> str:
+            if cid in joinable_ids:
+                return "  [joinable]"
             return ""
+
+        _print_joinable_characters(summaries, include_hint=True)
+        print()
 
         print(f"## Here ({location or 'no active location'})")
         for cid in here:
@@ -639,6 +1240,132 @@ class CLIState:
             marker = "  ← acting" if char_id == self.current_actor else ""
             print(f"  - {char_id} (uid {uid}){marker}")
         self._print_open_reaction_slots()
+
+    async def cmd_begin(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        if arg.strip():
+            print("usage: /begin")
+            return
+        actor_id = self.current_actor or next(iter(self.claims), "")
+        try:
+            response = await self.engine.run_begin_turn(
+                session_id=self.session_id,
+                triggering_character_id=actor_id,
+            )
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("begin failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        if actor_id:
+            self.current_actor = actor_id
+        self._print_turn_response(response, actor_id=actor_id)
+
+    async def cmd_attach(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        parsed = _parse_attach_args(arg)
+        if parsed is None:
+            return
+        path, explicit_character_id, name_override = parsed
+        target = explicit_character_id or self.current_actor
+        if target is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(target)
+        if uid is None:
+            print(f"not claimed: {target}")
+            return
+
+        try:
+            if not path.is_file():
+                print(f"error: no such JSON file: {path}")
+                return
+            size = path.stat().st_size
+        except OSError as e:
+            print(f"error: {e}")
+            return
+        if size > MAX_DND_CHARACTER_BYTES:
+            print(
+                f"error: sheet export is too large ({size} bytes). "
+                f"Limit is {MAX_DND_CHARACTER_BYTES} bytes."
+            )
+            return
+
+        try:
+            raw = path.read_bytes()
+        except OSError as e:
+            print(f"error: could not read {path}: {e}")
+            return
+        try:
+            export = json.loads(raw.decode("utf-8-sig"))
+        except UnicodeDecodeError:
+            print("error: attachment is not valid UTF-8 JSON")
+            return
+        except json.JSONDecodeError as e:
+            print(f"error: attachment is not valid JSON: {e}")
+            return
+        if not isinstance(export, dict):
+            print("error: D&D Beyond export must be a JSON object")
+            return
+
+        try:
+            summary = await self.engine.attach_dndbeyond_character_export(
+                self.session_id,
+                uid,
+                export,
+                character_id=target,
+                name_override=name_override,
+            )
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        except Exception as e:
+            logger.exception("D&D sheet attach failed")
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        _print_dnd_attachment_summary(summary)
+
+    def cmd_sheet(self, arg: str) -> None:
+        if not self._require_story():
+            return
+        parts = arg.split()
+        if len(parts) > 2:
+            print("usage: /sheet [page|all] [character_id]")
+            return
+        page = "overview"
+        target = self.current_actor
+        if len(parts) == 1:
+            token = parts[0].lower()
+            if token in {*DND_SHEET_PAGES, "all"}:
+                page = token
+            else:
+                target = parts[0]
+        elif len(parts) == 2:
+            page = parts[0].lower()
+            target = parts[1]
+        if target is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(target)
+        if uid is None:
+            print(f"not claimed: {target}")
+            return
+        try:
+            character = self.engine.get_bound_character_record(
+                self.session_id,
+                uid,
+                character_id=target,
+            )
+            _print_dnd_sheet(character, page)
+        except ValueError as e:
+            print(f"error: {e}")
+        except Exception as e:
+            logger.exception("D&D sheet display failed")
+            print(f"error: {type(e).__name__}: {e}")
 
     def cmd_inventory(self, arg: str) -> None:
         if not self._require_story():
@@ -790,7 +1517,15 @@ class CLIState:
             return
         char_id = arg.strip()
         if not char_id:
-            print("usage: /join <character_id>")
+            try:
+                summaries = self.engine.list_session_characters(
+                    self.session_id
+                )
+            except Exception as e:
+                print(f"error: {type(e).__name__}: {e}")
+                return
+            _print_joinable_characters(summaries, include_hint=True)
+            print("Custom character: /join_custom")
             return
         if char_id in self.claims:
             print(f"already claimed: {char_id}. /as {char_id} to switch.")
@@ -823,6 +1558,9 @@ class CLIState:
     async def cmd_join_custom(self, arg: str) -> None:
         if not self._require_story():
             return
+        if arg.strip():
+            print("usage: /join_custom")
+            return
         loop = asyncio.get_event_loop()
 
         async def _prompt(label: str) -> str | None:
@@ -833,144 +1571,66 @@ class CLIState:
                 return None
             return raw
 
-        mode = arg.strip().lower()
-        if not mode:
-            resp = await _prompt("describe or replace? > ")
-            if resp is None:
-                print("(cancelled)")
-                return
-            mode = resp.strip().lower()
-        if mode not in {"describe", "replace"}:
-            print("usage: /join_custom [describe|replace]")
-            return
-
-        desc_resp = await _prompt("describe the character you want to play: ")
-        if desc_resp is None:
+        name_resp = await _prompt("character name: ")
+        if name_resp is None:
             print("(cancelled)")
             return
-        description = desc_resp.strip()
-        if not description:
-            print("(cancelled — empty description)")
+        name = name_resp.strip()
+        if not name:
+            print("(cancelled — empty name)")
             return
-
+        appearance_resp = await _prompt("appearance: ")
+        if appearance_resp is None:
+            print("(cancelled)")
+            return
+        appearance = appearance_resp.strip()
+        if not appearance:
+            print("(cancelled — empty appearance)")
+            return
+        backstory_resp = await _prompt("backstory (optional): ")
+        if backstory_resp is None:
+            print("(cancelled)")
+            return
+        backstory = backstory_resp.strip()
         uid = self._next_user_id
-
-        if mode == "describe":
-            try:
-                new_char = await self.engine.create_custom_character(
-                    self.session_id, uid, description,
-                )
-            except ValueError as e:
-                print(f"error: {e}")
-                return
-            except Exception as e:
-                print(f"error: {e}")
-                return
-            self.claims[new_char.character_id] = uid
-            self._next_user_id += 1
-            if self.current_actor is None:
-                self.current_actor = new_char.character_id
-            try:
-                dossier = self.engine.build_character_dossier(
-                    self.session_id, new_char.character_id,
-                )
-            except Exception as e:
-                dossier = f"(dossier unavailable: {e})"
-            print()
-            print(dossier)
-            print()
-            if self.current_actor == new_char.character_id:
-                print(
-                    f"created {new_char.character_id} — now acting as "
-                    f"{new_char.character_id}."
-                )
-            else:
-                print(
-                    f"created {new_char.character_id}. "
-                    f"/as {new_char.character_id} to switch."
-                )
-            return
-
-        # replace mode
         try:
-            suggestion = await self.engine.suggest_replacement_targets(
-                self.session_id, description,
-            )
-        except Exception as e:
-            print(f"error: {e}")
-            return
-
-        preamble = suggestion.get("preamble", "") or ""
-        candidates = suggestion.get("candidates", []) or []
-        if preamble.strip():
-            print()
-            print(preamble.strip())
-        if not candidates:
-            print("(no replacement candidates suggested)")
-            return
-
-        print()
-        for i, cand in enumerate(candidates, start=1):
-            cid = cand.get("character_id", "")
-            name = cand.get("name", "")
-            rationale = (cand.get("fit_rationale") or "").strip().replace("\n", " ")
-            print(f"  [{i}] {cid} — {name} — {rationale}")
-        print()
-
-        pick_resp = await _prompt("pick a number (or blank to cancel): ")
-        if pick_resp is None:
-            print("(cancelled)")
-            return
-        pick_raw = pick_resp.strip()
-        if not pick_raw:
-            print("(cancelled)")
-            return
-        try:
-            idx = int(pick_raw)
-        except ValueError:
-            print(f"(cancelled — not a number: {pick_raw!r})")
-            return
-        if idx < 1 or idx > len(candidates):
-            print(f"(cancelled — out of range: {idx})")
-            return
-        target_id = candidates[idx - 1].get("character_id", "")
-        if not target_id:
-            print("(cancelled — candidate missing character_id)")
-            return
-
-        try:
-            mutated = await self.engine.replace_with_custom(
-                self.session_id, uid, target_id, description,
+            new_char = self.engine.create_player_character_simple(
+                self.session_id,
+                uid,
+                name=name,
+                appearance=appearance,
+                backstory=backstory,
             )
         except ValueError as e:
             print(f"error: {e}")
             return
         except Exception as e:
-            print(f"error: {e}")
+            logger.exception("custom character creation failed")
+            print(f"error: {type(e).__name__}: {e}")
             return
 
-        self.claims[mutated.character_id] = uid
+        self.claims[new_char.character_id] = uid
         self._next_user_id += 1
         if self.current_actor is None:
-            self.current_actor = mutated.character_id
+            self.current_actor = new_char.character_id
         try:
             dossier = self.engine.build_character_dossier(
-                self.session_id, mutated.character_id,
+                self.session_id, new_char.character_id,
             )
         except Exception as e:
             dossier = f"(dossier unavailable: {e})"
         print()
         print(dossier)
         print()
-        if self.current_actor == mutated.character_id:
+        if self.current_actor == new_char.character_id:
             print(
-                f"replaced {mutated.character_id} — now acting as "
-                f"{mutated.character_id}."
+                f"created {new_char.character_id} — now acting as "
+                f"{new_char.character_id}."
             )
         else:
             print(
-                f"replaced {mutated.character_id}. "
-                f"/as {mutated.character_id} to switch."
+                f"created {new_char.character_id}. "
+                f"/as {new_char.character_id} to switch."
             )
 
     async def cmd_leave(self, arg: str) -> None:

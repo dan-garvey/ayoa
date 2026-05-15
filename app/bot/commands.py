@@ -87,6 +87,32 @@ DND_SHEET_PAGES = (
     "features",
 )
 
+DISCORD_SELECT_OPTION_TEXT_MAX = 100
+
+
+def _discord_select_text(
+    text: str,
+    limit: int = DISCORD_SELECT_OPTION_TEXT_MAX,
+) -> str:
+    clean = " ".join(str(text or "").split())
+    if len(clean) <= limit:
+        return clean
+    return clean[: limit - 1].rstrip() + "…"
+
+
+def _join_select_label(
+    name: str,
+    character_id: str,
+    *,
+    role: str = "",
+    appearance: str = "",
+) -> str:
+    for candidate in (name, role, appearance, character_id, "Character"):
+        label = _discord_select_text(candidate)
+        if label:
+            return label
+    return "Character"
+
 
 def _append_combat_map_lines(lines: list[str], map_lines: tuple[str, ...]) -> None:
     if not map_lines:
@@ -3171,7 +3197,10 @@ def register(
             by_id = {c.character_id: c for c in roster}
             for cid in sorted(bindings.keys()):
                 ch = by_id.get(cid)
-                bound_lines.append(f"• **{ch.name if ch else cid}**")
+                display_name = (
+                    ch.name if ch and (ch.name or "").strip() else cid
+                )
+                bound_lines.append(f"• **{display_name}**")
         except Exception:
             logger.exception(
                 "lobby message: load_latest(%s) failed; "
@@ -3684,21 +3713,14 @@ def register(
             return
 
         try:
-            roster = engine.list_session_characters(row.session_id)
+            candidates = engine.list_joinable_characters(row.session_id)
         except Exception as e:
-            logger.exception("/join: list_session_characters failed")
+            logger.exception("/join: list_joinable_characters failed")
             await inter.response.send_message(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-
-        candidates = [
-            c for c in roster
-            if c.is_playable
-            and c.status != "culled"
-            and not c.bound_user_id
-        ]
 
         # SelectMenu cap is 25 total options. Reserve one slot for the
         # custom-create row, leaving 24 for pre-authored playables. If a
@@ -3706,10 +3728,6 @@ def register(
         # pickers are deferred until we actually need them.
         truncated = len(candidates) > 24
         candidates = candidates[:24]
-
-        def _trim(text: str, limit: int) -> str:
-            text = (text or "").strip().replace("\n", " ")
-            return text if len(text) <= limit else text[: limit - 1] + "…"
 
         # Custom-create option always sits at the top. Stories with zero
         # pre-authored playable slots (sengoku-style "humans bring their
@@ -3726,11 +3744,21 @@ def register(
         ]
         char_lookup: dict[str, str] = {}
         for c in candidates:
-            char_lookup[c.character_id] = c.name
+            label = _join_select_label(
+                c.name,
+                c.character_id,
+                role=c.role,
+                appearance=c.appearance,
+            )
+            char_lookup[c.character_id] = (c.name or "").strip() or label
             descr_bits = [b for b in (c.role, c.faction) if b]
-            description = _trim(" · ".join(descr_bits) or c.appearance, 100)
+            description = _discord_select_text(
+                " · ".join(descr_bits) or c.appearance,
+            )
+            if description == label:
+                description = _discord_select_text(c.character_id)
             options.append(discord.SelectOption(
-                label=_trim(c.name, 100),
+                label=label,
                 value=c.character_id,
                 description=description or None,
             ))

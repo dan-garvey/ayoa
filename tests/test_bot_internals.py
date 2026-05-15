@@ -27,7 +27,7 @@ from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.responses import TurnResponse
-from app.schemas.state import SessionState, WorldState
+from app.schemas.state import SessionState, StorySetting, WorldState
 
 
 # ---- F3.9: admin env parsing ------------------------------------------------
@@ -1119,6 +1119,30 @@ class TestRunBeginTurn:
         assert "already started" in str(errors[0])
 
 
+# ---- /join Discord option text ----------------------------------------------
+
+
+class TestJoinOptionText:
+    def test_join_select_label_prefers_role_for_unnamed_character(self):
+        label = bot_commands._join_select_label(
+            "",
+            "player_protagonist",
+            role="the kingdom's defective summon",
+        )
+
+        assert label == "the kingdom's defective summon"
+
+    def test_join_select_label_falls_back_to_character_id(self):
+        label = bot_commands._join_select_label("   ", "player_protagonist")
+
+        assert label == "player_protagonist"
+
+    def test_join_select_label_stays_within_discord_limit(self):
+        label = bot_commands._join_select_label("x" * 150, "hero")
+
+        assert 1 <= len(label) <= bot_commands.DISCORD_SELECT_OPTION_TEXT_MAX
+
+
 # ---- briefing copy: /describe demoted, /join is the canonical opener ---
 
 
@@ -1169,6 +1193,25 @@ class TestBriefingCopy:
         text = self._embed_text(embed)
         assert "/describe" not in text, text
         assert "/join" in text, text
+
+    def test_briefing_title_is_discord_safe_for_long_genre(self):
+        from app.bot.embed import MAX_TITLE, render_briefing
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="briefing_long_title"),
+            world_state=WorldState(
+                setting=StorySetting(
+                    genre="Mature isekai dark fantasy with romance, "
+                    "political intrigue, and a three-layer hidden conspiracy. "
+                    * 8,
+                ),
+            ),
+            player_primer="You wake up somewhere strange after the truck.",
+        )
+
+        embed = render_briefing(ckpt, story_id="long_story")
+
+        assert embed.title is not None
+        assert len(embed.title) <= MAX_TITLE
 
 
 # ---- _post_actor_render: thread → DM → public cascade -----------------

@@ -8,6 +8,7 @@ from pathlib import Path
 from app.bot.engine_bridge import (
     CharacterSummary,
     EngineBridge,
+    joinable_character_summaries,
     _summaries_from_checkpoint,
 )
 from app.engine.context_builder import (
@@ -104,6 +105,54 @@ class TestSummaries:
         # Player-slot flag comes through.
         assert by_id["aldric"].is_playable is True
         assert by_id["sera"].is_playable is False
+
+    def test_joinable_filter_matches_join_picker_contract(self):
+        summaries = [
+            CharacterSummary(
+                character_id="open",
+                name="Open",
+                role="hero",
+                faction="",
+                appearance="",
+                status="active",
+                is_playable=True,
+                bound_user_id="",
+            ),
+            CharacterSummary(
+                character_id="claimed",
+                name="Claimed",
+                role="hero",
+                faction="",
+                appearance="",
+                status="active",
+                is_playable=True,
+                bound_user_id="42",
+            ),
+            CharacterSummary(
+                character_id="npc",
+                name="NPC",
+                role="guide",
+                faction="",
+                appearance="",
+                status="active",
+                is_playable=False,
+                bound_user_id="",
+            ),
+            CharacterSummary(
+                character_id="culled",
+                name="Culled",
+                role="gone",
+                faction="",
+                appearance="",
+                status="culled",
+                is_playable=True,
+                bound_user_id="",
+            ),
+        ]
+
+        joinable = joinable_character_summaries(summaries)
+
+        assert [summary.character_id for summary in joinable] == ["open"]
 
 
 class TestBindUnbind:

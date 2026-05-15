@@ -8,6 +8,7 @@ regular test suite."""
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,8 +20,10 @@ from app.bot.engine_bridge import (
     CompletedPendingRoll,
     DndCombatParticipantView,
     DndCombatView,
+    DndSheetAttachmentSummary,
     PendingRollPrompt,
 )
+from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.state import SessionState, SlotEntry, WorldState
@@ -63,6 +66,31 @@ def _turn_response(**overrides):
     return SimpleNamespace(**base)
 
 
+def _attachment_summary(**overrides) -> DndSheetAttachmentSummary:
+    base = {
+        "character_id": "aldric",
+        "character_name": "Aldric",
+        "imported_name": "DDB Aldric",
+        "ruleset_id": "dnd5e_basic",
+        "session_ruleset_id": "dnd5e_basic",
+        "player_roll_mode": "auto",
+        "source_type": "dndbeyond_browser_export",
+        "total_level": 3,
+        "classes": ["Fighter 3"],
+        "armor_class": 16,
+        "hit_points_current": 19,
+        "hit_points_max": 22,
+        "hit_points_temporary": 0,
+        "skills_count": 1,
+        "actions_count": 2,
+        "spells_count": 0,
+        "resources_count": 1,
+        "name_overridden": False,
+    }
+    base.update(overrides)
+    return DndSheetAttachmentSummary(**base)
+
+
 def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine = MagicMock()
     engine.load_latest.return_value = _empty_ckpt(bindings)
@@ -84,7 +112,18 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.unbind_user = MagicMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
     engine.set_character_identity = MagicMock(return_value=_empty_ckpt(bindings))
+    engine.get_bound_character_record = MagicMock()
+    engine.create_player_character_simple = MagicMock()
+    engine.attach_dndbeyond_character_export = AsyncMock(
+        return_value=_attachment_summary(),
+    )
     engine.run_turn = AsyncMock()
+    engine.run_begin_turn = AsyncMock(return_value=_turn_response(
+        beat_ended_reason="state_change",
+        turn_index=1,
+        output_text="opening narration",
+        per_player_renders={"aldric": "Aldric wakes."},
+    ))
     engine.combat_reaction_prompt_event = MagicMock(return_value="")
     engine.pending_roll_prompts = MagicMock(return_value=[])
     engine.complete_pending_roll = AsyncMock()
@@ -130,6 +169,77 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         message="No active combat.",
     ))
     return engine
+
+
+def _character(
+    character_id: str,
+    name: str,
+    *,
+    role: str = "",
+    location: str = "hall",
+    status: CharacterStatus = CharacterStatus.active,
+    is_playable: bool = False,
+) -> CharacterRecord:
+    return CharacterRecord(
+        character_id=character_id,
+        name=name,
+        location=location,
+        status=status,
+        is_playable=is_playable,
+        public_sheet=PublicSheet(role=role),
+    )
+
+
+def _sheet_character(character_id: str = "aldric") -> CharacterRecord:
+    char = _character(character_id, "Aldric", role="fighter", is_playable=True)
+    char.mechanics["dnd5e_sheet"] = {
+        "ruleset_id": "dnd5e_basic",
+        "identity": {
+            "name": "DDB Aldric",
+            "species": "Human",
+            "background": "Soldier",
+            "classes": [{"name": "Fighter", "level": 3}],
+        },
+        "source": {"type": "dndbeyond_browser_export"},
+        "statblock": {
+            "proficiency_bonus": 2,
+            "ability_scores": {
+                "str": {"score": 16, "modifier": 3},
+                "dex": {"score": 12, "modifier": 1},
+                "con": {"score": 14, "modifier": 2},
+                "int": {"score": 10, "modifier": 0},
+                "wis": {"score": 11, "modifier": 0},
+                "cha": {"score": 8, "modifier": -1},
+            },
+            "saves": {"str": {"value": 5, "proficiency_multiplier": 1}},
+            "skills": {
+                "athletics": {"value": 5, "proficiency_multiplier": 1},
+                "perception": {"value": 2, "passive": 12},
+            },
+            "defenses": {
+                "armor_class": {"value": 16},
+                "hit_points": {"current": 19, "max": 22, "temporary": 4},
+                "initiative": {"value": 1},
+                "movement": {"walk": {"value": 30, "unit": "ft"}},
+            },
+            "actions": [
+                {
+                    "name": "Longsword",
+                    "kind": "weapon",
+                    "attack": {"bonus": 5},
+                    "damage": [
+                        {"formula": "1d8+3", "damage_type": "slashing"},
+                    ],
+                },
+            ],
+            "spellcasting": {
+                "slots": {"1": {"current": 2, "max": 2}},
+                "spells": [{"name": "Light", "level": 0}],
+            },
+            "features": [{"name": "Second Wind", "kind": "class", "level": 1}],
+        },
+    }
+    return char
 
 
 @pytest.fixture
@@ -182,6 +292,19 @@ class TestInitialization:
 
 
 class TestJoinLeave:
+    def test_join_without_target_lists_open_playables(self, run, capsys):
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join"))
+
+        engine.takeover.assert_not_called()
+        out = capsys.readouterr().out
+        assert "## Joinable" in out
+        assert "aldric — Aldric · wanderer" in out
+        assert "sera —" not in out
+        assert "Custom character: /join_custom" in out
+
     def test_join_binds_and_sets_current(self, run):
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
@@ -222,6 +345,253 @@ class TestJoinLeave:
         run(state.handle_line("/join sera"))
         run(state.handle_line("/leave aldric"))
         assert state.current_actor == "sera"
+
+    def test_join_custom_uses_discord_style_create_flow(
+        self, run, monkeypatch, capsys,
+    ):
+        engine = _mock_engine()
+        new_char = _character(
+            "akari_tanaka",
+            "Akari Tanaka",
+            is_playable=True,
+        )
+        engine.create_player_character_simple.return_value = new_char
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        inputs = iter([
+            "Akari Tanaka",
+            "blue cloak, short sword, travel-stained boots",
+            "Former shrine guard.",
+        ])
+        monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+        run(state.handle_line("/join_custom"))
+
+        engine.create_player_character_simple.assert_called_once_with(
+            SESSION_ID,
+            1,
+            name="Akari Tanaka",
+            appearance="blue cloak, short sword, travel-stained boots",
+            backstory="Former shrine guard.",
+        )
+        assert state.claims == {"akari_tanaka": 1}
+        assert state.current_actor == "akari_tanaka"
+        assert "created akari_tanaka" in capsys.readouterr().out
+
+
+class TestAttachCommand:
+    def test_attach_defaults_to_current_actor(self, run, capsys, tmp_path):
+        payload = {"raw": {"data": {"name": "DDB Aldric"}}}
+        path = tmp_path / "aldric.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line(f"/attach {path}"))
+
+        engine.attach_dndbeyond_character_export.assert_awaited_once_with(
+            SESSION_ID,
+            1,
+            payload,
+            character_id="aldric",
+            name_override=None,
+        )
+        out = capsys.readouterr().out
+        assert "--- D&D Sheet Attached ---" in out
+        assert "Attached DDB Aldric to aldric." in out
+        assert "Use /inventory to view carried items." in out
+
+    def test_attach_can_target_claimed_character_with_name_override(
+        self, run, capsys, tmp_path,
+    ):
+        payload = {"raw": {"data": {"name": "DDB Sera"}}}
+        path = tmp_path / "sera.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        engine = _mock_engine()
+        engine.attach_dndbeyond_character_export.return_value = (
+            _attachment_summary(
+                character_id="sera",
+                character_name="Seren Swift",
+                imported_name="DDB Sera",
+                name_overridden=True,
+            )
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/join sera"))
+        capsys.readouterr()
+        run(state.handle_line(f"/attach {path} sera --name \"Seren Swift\""))
+
+        engine.attach_dndbeyond_character_export.assert_awaited_once_with(
+            SESSION_ID,
+            2,
+            payload,
+            character_id="sera",
+            name_override="Seren Swift",
+        )
+        out = capsys.readouterr().out
+        assert "Story name changed to Seren Swift." in out
+
+    def test_attach_rejects_invalid_json(self, run, capsys, tmp_path):
+        path = tmp_path / "broken.json"
+        path.write_text("{", encoding="utf-8")
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line(f"/attach {path}"))
+
+        engine.attach_dndbeyond_character_export.assert_not_awaited()
+        assert "not valid JSON" in capsys.readouterr().out
+
+
+class TestSheetCommand:
+    def test_sheet_defaults_to_current_actor_overview(self, run, capsys):
+        engine = _mock_engine()
+        engine.get_bound_character_record.return_value = _sheet_character()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/sheet"))
+
+        engine.get_bound_character_record.assert_called_once_with(
+            SESSION_ID,
+            1,
+            character_id="aldric",
+        )
+        out = capsys.readouterr().out
+        assert "--- Sheet · Aldric (aldric) ---" in out
+        assert "Fighter 3 · Human · Soldier · Imported name: DDB Aldric" in out
+        assert "## Overview" in out
+        assert "AC 16" in out
+        assert "HP 19/22 (+4 temp)" in out
+
+    def test_sheet_page_and_character_id(self, run, capsys):
+        engine = _mock_engine()
+        engine.get_bound_character_record.return_value = _sheet_character("sera")
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/join sera"))
+        capsys.readouterr()
+        run(state.handle_line("/sheet abilities sera"))
+
+        engine.get_bound_character_record.assert_called_once_with(
+            SESSION_ID,
+            2,
+            character_id="sera",
+        )
+        out = capsys.readouterr().out
+        assert "## Abilities" in out
+        assert "STR 16 (+3) · save +5 prof" in out
+        assert "Athletics +5 prof" in out
+
+    def test_sheet_all_prints_multiple_pages(self, run, capsys):
+        engine = _mock_engine()
+        engine.get_bound_character_record.return_value = _sheet_character()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/sheet all"))
+
+        out = capsys.readouterr().out
+        assert "## Overview" in out
+        assert "## Actions" in out
+        assert "Longsword - weapon, hit +5, 1d8+3 slashing" in out
+        assert "## Features" in out
+        assert "Second Wind" in out
+
+
+class TestCharactersCommand:
+    def test_characters_lists_discord_joinable_slots_first(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        ckpt = _empty_ckpt()
+        ckpt.characters = [
+            _character(
+                "player_protagonist",
+                "Intended Protagonist",
+                role="defective hero",
+                is_playable=True,
+            ),
+            _character("guild_master", "Guild Master", role="guild master"),
+            _character(
+                "claimed_slot",
+                "Claimed Slot",
+                role="claimed hero",
+                is_playable=True,
+            ),
+            _character(
+                "dead_queen",
+                "Dead Queen",
+                status=CharacterStatus.dormant,
+                is_playable=True,
+            ),
+        ]
+        engine.load_latest.return_value = ckpt
+        engine.list_session_characters.return_value = [
+            CharacterSummary(
+                character_id="player_protagonist",
+                name="Intended Protagonist",
+                role="defective hero",
+                faction="",
+                appearance="",
+                status="active",
+                is_playable=True,
+                bound_user_id="",
+            ),
+            CharacterSummary(
+                character_id="guild_master",
+                name="Guild Master",
+                role="guild master",
+                faction="",
+                appearance="",
+                status="active",
+                is_playable=False,
+                bound_user_id="",
+            ),
+            CharacterSummary(
+                character_id="claimed_slot",
+                name="Claimed Slot",
+                role="claimed hero",
+                faction="",
+                appearance="",
+                status="active",
+                is_playable=True,
+                bound_user_id="2",
+            ),
+            CharacterSummary(
+                character_id="dead_queen",
+                name="Dead Queen",
+                role="",
+                faction="",
+                appearance="",
+                status="dormant",
+                is_playable=True,
+                bound_user_id="",
+            ),
+        ]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/characters"))
+
+        out = capsys.readouterr().out
+        joinable_block = out.split("## Here", 1)[0]
+        assert "## Joinable" in joinable_block
+        assert (
+            "player_protagonist — Intended Protagonist · defective hero"
+            in joinable_block
+        )
+        assert "dead_queen — Dead Queen" in joinable_block
+        assert "guild_master" not in joinable_block
+        assert "claimed_slot" not in joinable_block
+        assert "player_protagonist  [joinable]" in out
 
 
 class TestAs:
@@ -280,6 +650,24 @@ class TestDeferCommand:
         engine.run_turn.assert_not_awaited()
 
 
+class TestBeginCommand:
+    def test_begin_uses_current_actor_and_prints_opening(self, run, capsys):
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/begin"))
+
+        engine.run_begin_turn.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            triggering_character_id="aldric",
+        )
+        out = capsys.readouterr().out
+        assert "--- Turn 1 · aldric ---" in out
+        assert "opening narration" in out
+
+
 class TestCombatCommand:
     def test_combat_status_renders_order(self, run, capsys):
         engine = _mock_engine()
@@ -322,6 +710,27 @@ class TestCombatCommand:
             "> Sera (sera) - HP 7/9 (+2); AC 16; Init 18; "
             "Effects: Bless (concentration; 8 rounds)"
         ) in out
+
+    def test_combat_status_renders_map_lines(self, run, capsys):
+        engine = _mock_engine()
+        engine.combat_status.return_value = DndCombatView(
+            session_id=SESSION_ID,
+            active=True,
+            participants=(
+                DndCombatParticipantView(character_id="aldric", name="Aldric"),
+            ),
+            map_lines=(
+                "Battle map: Bridge (8x5, 5 ft squares).",
+                "A1: Aldric; B2: Sera.",
+            ),
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/combat status"))
+
+        out = capsys.readouterr().out
+        assert "Battle map: Bridge (8x5, 5 ft squares)." in out
+        assert "A1: Aldric; B2: Sera." in out
 
     def test_combat_damage_parses_amount(self, run):
         engine = _mock_engine()

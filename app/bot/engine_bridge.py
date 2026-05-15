@@ -18,7 +18,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable
 
 from app.engine.character_agent import _extract_parenthetical
 from app.engine.character_manager import _normalize_router_summary
@@ -864,6 +864,16 @@ class EngineBridge:
         with binding state. Used by /story characters when a session exists."""
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         return _summaries_from_checkpoint(ckpt)
+
+    def list_joinable_characters(self, session_id: str) -> list[CharacterSummary]:
+        """Open pre-authored slots surfaced by `/join`.
+
+        Keep this as the single filter used by Discord and CLI entrypoints so
+        the interactive picker and text-mode roster do not drift apart.
+        """
+        return joinable_character_summaries(
+            self.list_session_characters(session_id)
+        )
 
     def list_story_characters(self, story_id: str) -> list[CharacterSummary]:
         """Spoiler-free roster from the source ckpt_0000 (no session needed)."""
@@ -3179,3 +3189,14 @@ def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
             bound_user_id=bindings.get(char.character_id, ""),
         ))
     return summaries
+
+
+def joinable_character_summaries(
+    summaries: Iterable[CharacterSummary],
+) -> list[CharacterSummary]:
+    return [
+        summary for summary in summaries
+        if summary.is_playable
+        and summary.status != "culled"
+        and not summary.bound_user_id
+    ]
