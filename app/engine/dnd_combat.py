@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from app.engine import dice, dnd_spatial, mechanics
+from app.engine import dice, dnd_experience, dnd_spatial, mechanics
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.state import (
     DndCombatantState,
@@ -688,6 +688,12 @@ def apply_damage(
         _set_active(combatant)
     _process_concentration_damage(
         active, combatant, amount, characters=characters,
+    )
+    _award_defeat_xp_if_needed(
+        combat,
+        active,
+        combatant,
+        characters=characters,
     )
     return combatant
 
@@ -1718,6 +1724,92 @@ def _set_defeated(combatant: DndCombatantState) -> None:
     combatant.defeat_state = "defeated"
     combatant.death_save_successes = 0
     combatant.death_save_failures = 0
+
+
+def _award_defeat_xp_if_needed(
+    combat: DndCombatState | SessionState,
+    active: DndCombatState,
+    combatant: DndCombatantState,
+    *,
+    characters: Iterable[CharacterRecord] | None,
+) -> None:
+    if not isinstance(combat, SessionState) or characters is None:
+        return
+    if _defeat_state(combatant) not in {"dead", "defeated"}:
+        return
+    if combatant.player_controlled:
+        return
+    defeated_id = combatant.character_id or combatant.combatant_id
+    if defeated_id in (combat.character_bindings or {}):
+        return
+
+    award_key = combatant.combatant_id or defeated_id
+    if award_key in active.xp_awarded_combatant_ids:
+        return
+
+    by_id = {character.character_id: character for character in characters}
+    defeated_character = by_id.get(defeated_id)
+    xp_total = dnd_experience.encounter_xp_value(defeated_character)
+    if xp_total <= 0:
+        return
+
+    recipients = _defeat_xp_recipients(combat, active, by_id)
+    if not recipients:
+        return
+
+    active.xp_awarded_combatant_ids.append(award_key)
+    shares = _split_xp(xp_total, len(recipients))
+    awarded_labels: list[str] = []
+    for character, share in zip(recipients, shares):
+        if share <= 0:
+            continue
+        dnd_experience.award_experience(
+            character,
+            share,
+            source=f"Defeated {combatant.name or award_key}",
+            turn_index=combat.turn_index,
+        )
+        awarded_labels.append(f"{character.name or character.character_id} +{share}")
+
+    if awarded_labels:
+        append_audit_line(
+            active,
+            "XP awarded for defeating "
+            f"{combatant.name or award_key}: {xp_total} split as "
+            f"{', '.join(awarded_labels)}.",
+        )
+
+
+def _defeat_xp_recipients(
+    session: SessionState,
+    combat: DndCombatState,
+    characters: dict[str, CharacterRecord],
+) -> list[CharacterRecord]:
+    recipients: list[CharacterRecord] = []
+    bound_ids = set(session.character_bindings or {})
+    for combatant in combat.combatants:
+        cid = combatant.character_id or combatant.combatant_id
+        if not cid or cid not in bound_ids:
+            continue
+        if not combatant.player_controlled:
+            continue
+        character = characters.get(cid)
+        if character is None:
+            continue
+        if not dnd_experience.has_dnd_mechanics(character):
+            continue
+        recipients.append(character)
+    return recipients
+
+
+def _split_xp(total: int, count: int) -> list[int]:
+    if count <= 0:
+        return []
+    base, remainder = divmod(max(0, int(total)), count)
+    return [
+        base + (1 if index < remainder else 0)
+        for index in range(count)
+    ]
 
 
 def _add_death_save_success(combatant: DndCombatantState) -> None:

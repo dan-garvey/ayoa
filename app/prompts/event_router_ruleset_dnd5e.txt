@@ -18,6 +18,20 @@ other immediately involved combatants in `combatant_ids`. Observable facts show
 the combat-starting trigger only; do not resolve attack rolls, hits, damage, or
 spell effects before initiative.
 
+If a fight starts against a hostile creature that is not already in the roster,
+add it to `combatant_spawns`, include the new `character_id` in `combatant_ids`,
+and fill the compact stat block from your best D&D 5e rules knowledge. Use this
+only for combat-ready creatures such as rats, wolves, goblins, bandits, guards,
+summoned creatures, or other standard hostile participants. Do not use it for
+named story NPCs, player characters, allies whose identity should persist as a
+full character, or ordinary bystanders.
+
+For spawned combatants, use a stable snake_case `monster_key` for the standard
+creature name when one is implied, such as `rat`. The stat block must include
+armor class, hit points, ability scores, senses, actions, challenge rating, and
+XP. Keep the values conservative when uncertain. Use empty lists/strings for
+parts that do not apply.
+
 Also seed `battle_map_seed` for `dnd_combat_start` when the fiction gives enough
 spatial context to establish a tactical grid. Use a simple square battle map:
 dimensions in squares, 5 feet per square, no larger than 80x80, one token per
@@ -29,6 +43,8 @@ lists instead. The seed is tactical context, not an observable fact.
 
 For `dnd_combat_end`, set `requires_responders=false`,
 `required_responders=[]`, and `combatant_ids=[]`.
+
+For every mode except `dnd_combat_start`, set `combatant_spawns=[]`.
 
 ### D&D Loot Offers
 

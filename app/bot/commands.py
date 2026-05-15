@@ -16,6 +16,7 @@ Commands:
     /sheet [page]                         — show your attached D&D character sheet
     /inventory                            — show your current D&D inventory
     /loot list/take/take_all/split/decline — inspect and claim D&D loot offers
+    /xp award                             — admin-only D&D experience award
     /begin                                — open the story for everyone in the lobby
                                             (any bound player or admin can fire)
     /leave                                — release your character
@@ -52,13 +53,14 @@ from app.bot.embed import (
 from app.bot.engine_bridge import (
     CompletedPendingRoll,
     DndCombatView,
+    DndExperienceAwardResult,
     DndInventoryView,
     DndLootClaimResult,
     DndSheetAttachmentSummary,
     EngineBridge,
     PendingRollPrompt,
 )
-from app.engine import dnd_inventory
+from app.engine import dnd_experience, dnd_inventory
 from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
@@ -1793,7 +1795,7 @@ def _render_dnd_sheet_page(
     )
 
     if page == "overview":
-        _sheet_overview(embed, sheet, statblock)
+        _sheet_overview(embed, character, sheet, statblock)
     elif page == "abilities":
         _sheet_abilities(embed, statblock)
     elif page == "actions":
@@ -1868,6 +1870,7 @@ def _class_line(identity: dict[str, Any]) -> str:
 
 def _sheet_overview(
     embed: discord.Embed,
+    character: CharacterRecord,
     sheet: dict[str, Any],
     statblock: dict[str, Any],
 ) -> None:
@@ -1902,6 +1905,12 @@ def _sheet_overview(
     if movement:
         combat.append(f"Speed {movement}")
     _add_sheet_field(embed, "Combat", " · ".join(combat), inline=False)
+
+    experience = dnd_experience.format_experience_progress(
+        dnd_experience.experience_view(character)
+    )
+    if experience:
+        _add_sheet_field(embed, "Progression", experience, inline=False)
 
     resources = _resource_lines(statblock.get("resources") or [], limit=10)
     if resources:
@@ -2387,6 +2396,26 @@ def _dnd_attachment_body(summary: DndSheetAttachmentSummary) -> str:
     ])
 
 
+def _render_xp_award(results: list[DndExperienceAwardResult]) -> discord.Embed:
+    if not results:
+        return render_info("D&D XP", "No experience was awarded.")
+    lines = []
+    for result in results:
+        progress = f"{result.before:,} -> {result.after:,} XP"
+        if result.level_available and result.eligible_level:
+            progress += f"; eligible for level {result.eligible_level}"
+        elif result.next_level:
+            progress += (
+                f"; {result.xp_to_next_level:,} XP to level "
+                f"{result.next_level}"
+            )
+        lines.append(
+            f"**{result.character_name}** (`{result.character_id}`): "
+            f"+{result.amount:,} XP ({progress})"
+        )
+    return render_info("D&D XP Awarded", "\n".join(lines))
+
+
 class _DndSheetView(discord.ui.View):
     """Ephemeral button pager for `/sheet`.
 
@@ -2529,6 +2558,11 @@ def register(
     loot_group = app_commands.Group(
         name="loot",
         description="Inspect and claim D&D loot offers.",
+    )
+
+    xp_group = app_commands.Group(
+        name="xp",
+        description="Admin D&D experience tools.",
     )
 
     # ---- /session start / end / resume / list -------------------------------
@@ -4223,6 +4257,57 @@ def register(
             return
         await inter.response.send_message(result.message, ephemeral=True)
 
+    # ---- /xp ---------------------------------------------------------------
+
+    @xp_group.command(
+        name="award",
+        description="[Admin] Award D&D experience to one character or all bound players.",
+    )
+    @app_commands.describe(
+        target="Character id, or `all` for all bound player characters.",
+        amount="Experience points to add.",
+        note="Optional source note for the checkpoint audit log.",
+    )
+    async def _xp_award(
+        inter: discord.Interaction,
+        target: str,
+        amount: app_commands.Range[int, 1, 1_000_000],
+        note: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message("No session here.", ephemeral=True)
+            return
+        if not _is_admin(inter.user.id):
+            await inter.response.send_message(
+                "Admin-only command.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True)
+        try:
+            results = await engine.award_dnd_experience_locked(
+                row.session_id,
+                target.strip(),
+                int(amount),
+                source=note.strip(),
+            )
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            await inter.followup.send(
+                embed=render_error(str(e)),
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            logger.exception("/xp award failed")
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        await inter.followup.send(embed=_render_xp_award(results))
+
     # ---- /begin -------------------------------------------------------------
     #
     # No-arg slash command. Opens the canonical story for everyone in
@@ -5903,10 +5988,12 @@ def register(
         tree.add_command(story_group, guild=guild)
         tree.add_command(combat_group, guild=guild)
         tree.add_command(loot_group, guild=guild)
+        tree.add_command(xp_group, guild=guild)
         tree.add_command(settings_group, guild=guild)
     else:
         tree.add_command(session_group)
         tree.add_command(story_group)
         tree.add_command(combat_group)
         tree.add_command(loot_group)
+        tree.add_command(xp_group)
         tree.add_command(settings_group)

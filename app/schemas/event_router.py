@@ -14,6 +14,7 @@ from app.schemas.dnd_spatial import (
     DndBattleMapState,
     empty_battle_map_state,
 )
+from app.schemas.dnd_monsters import DndCombatantSpawn
 
 
 # Typed enum for `ends_beat_reason`. Keeps the model grammar-constrained
@@ -541,6 +542,7 @@ class DndEventRouterOutput(EventRouterOutput):
 
     interaction_mode: DndInteractionMode
     combatant_ids: list[str]
+    combatant_spawns: list[DndCombatantSpawn]
     loot_offer: DndLootOfferSignal
     battle_map_seed: DndBattleMapState
 
@@ -555,6 +557,9 @@ class DndEventRouterOutput(EventRouterOutput):
         if "battle_map_seed" not in data:
             data = dict(data)
             data["battle_map_seed"] = empty_battle_map_state()
+        if "combatant_spawns" not in data:
+            data = dict(data)
+            data["combatant_spawns"] = []
         mode = data.get("interaction_mode")
         if mode in {"cat_i", "dnd_combat_start", "dnd_combat_end"}:
             data = dict(data)
@@ -564,6 +569,7 @@ class DndEventRouterOutput(EventRouterOutput):
             data = dict(data)
             data["requires_responders"] = True
             data["combatant_ids"] = []
+            data["combatant_spawns"] = []
         return data
 
     @model_validator(mode="after")
@@ -575,6 +581,7 @@ class DndEventRouterOutput(EventRouterOutput):
                 )
             self.requires_responders = True
             self.combatant_ids = []
+            self.combatant_spawns = []
             self.battle_map_seed = DndBattleMapState.model_validate(
                 empty_battle_map_state()
             )
@@ -584,10 +591,22 @@ class DndEventRouterOutput(EventRouterOutput):
         self.required_responders = []
 
         if self.interaction_mode == "dnd_combat_start":
-            unique = list(dict.fromkeys(cid.strip() for cid in self.combatant_ids))
+            seen_spawn_ids: set[str] = set()
+            combatant_spawns: list[DndCombatantSpawn] = []
+            for spawn in self.combatant_spawns:
+                if not spawn.character_id or spawn.character_id in seen_spawn_ids:
+                    continue
+                seen_spawn_ids.add(spawn.character_id)
+                combatant_spawns.append(spawn)
+            self.combatant_spawns = combatant_spawns
+            unique = list(dict.fromkeys([
+                *[cid.strip() for cid in self.combatant_ids],
+                *[spawn.character_id for spawn in self.combatant_spawns],
+            ]))
             self.combatant_ids = [cid for cid in unique if cid]
         elif self.interaction_mode in {"cat_i", "dnd_combat_end"}:
             self.combatant_ids = []
+            self.combatant_spawns = []
             self.battle_map_seed = DndBattleMapState.model_validate(
                 empty_battle_map_state()
             )

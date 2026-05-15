@@ -382,6 +382,7 @@ class TestRouteIntention:
         system_content = call["messages"][0]["content"]
         assert "D&D Interaction Mode" in system_content
         assert '"interaction_mode"' in system_content
+        assert '"combatant_spawns"' in system_content
 
     def test_narrative_fresh_intention_keeps_generic_router_contract(
         self, prompt_mgr, mock_client,

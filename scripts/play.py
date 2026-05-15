@@ -77,7 +77,7 @@ from app.bot.engine_bridge import (
     PendingRollPrompt,
     joinable_character_summaries,
 )
-from app.engine import dnd_inventory
+from app.engine import dnd_experience, dnd_inventory
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -352,7 +352,7 @@ def _sheet_page_lines(
     page: str,
 ) -> list[str]:
     if page == "overview":
-        return _sheet_overview_lines(sheet, statblock)
+        return _sheet_overview_lines(character, sheet, statblock)
     if page == "abilities":
         return _sheet_ability_lines(statblock)
     if page == "actions":
@@ -367,6 +367,7 @@ def _sheet_page_lines(
 
 
 def _sheet_overview_lines(
+    character,
     sheet: dict[str, Any],
     statblock: dict[str, Any],
 ) -> list[str]:
@@ -399,6 +400,11 @@ def _sheet_overview_lines(
         combat.append(f"Speed {movement}")
 
     lines = ["Combat: " + " · ".join(combat)]
+    experience = dnd_experience.format_experience_progress(
+        dnd_experience.experience_view(character)
+    )
+    if experience:
+        lines.append(f"Progression: {experience}")
     resources = _resource_lines(statblock.get("resources") or [], limit=10)
     if resources:
         lines.append("Resources:")

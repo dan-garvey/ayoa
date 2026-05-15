@@ -218,6 +218,58 @@ class TestQueryCommandDelivery:
         assert captured["response"] is response
         assert captured["actor_character_id"] == "alice"
         assert captured["story_id"] == "story"
+
+
+class TestXpAwardCommandPermissions:
+    def test_session_owner_cannot_award_xp_without_admin_env(self, monkeypatch):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+                self.groups = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, group, **_kwargs):
+                self.groups[group.name] = group
+                return None
+
+        monkeypatch.delenv("DISCORD_ADMIN_USER_IDS", raising=False)
+        engine = MagicMock()
+        engine.award_dnd_experience_locked = AsyncMock(return_value=[])
+        smap = MagicMock()
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(
+                session_id="s",
+                story_id="story",
+                owner_user_id=42,
+            ),
+        )
+
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        xp_award = tree.groups["xp"].get_command("award")
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.response.send_message = AsyncMock()
+        inter.response.defer = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(xp_award.callback(inter, "all", 100, "session reward"))
+
+        inter.response.send_message.assert_awaited_once_with(
+            "Admin-only command.",
+            ephemeral=True,
+        )
+        inter.response.defer.assert_not_awaited()
+        engine.award_dnd_experience_locked.assert_not_awaited()
         inter.followup.send.assert_not_awaited()
 
 

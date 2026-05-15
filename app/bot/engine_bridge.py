@@ -32,7 +32,7 @@ from app.engine.dnd_character_import import (
     mechanics_from_snapshot,
     normalize_dndbeyond_export,
 )
-from app.engine import dnd_inventory, dnd_spatial
+from app.engine import dnd_experience, dnd_inventory, dnd_spatial
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -175,6 +175,20 @@ class DndLootClaimResult:
     shares: dict[str, dict[str, int]]
     offer_closed: bool
     message: str
+
+
+@dataclass(frozen=True)
+class DndExperienceAwardResult:
+    character_id: str
+    character_name: str
+    amount: int
+    before: int
+    after: int
+    total_level: int
+    next_level: int
+    xp_to_next_level: int
+    level_available: bool
+    eligible_level: int
 
 
 @dataclass(frozen=True)
@@ -949,6 +963,59 @@ class EngineBridge:
             ],
             currency=inventory.get("currency") or {},
         )
+
+    def award_dnd_experience(
+        self,
+        session_id: str,
+        target: str,
+        amount: int,
+        *,
+        source: str = "",
+    ) -> list[DndExperienceAwardResult]:
+        if amount <= 0:
+            raise ValueError("Experience award must be positive.")
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        target_ids = _dnd_experience_target_ids(ckpt, target)
+
+        results: list[DndExperienceAwardResult] = []
+        for target_id in target_ids:
+            character = next(
+                (c for c in ckpt.characters if c.character_id == target_id),
+                None,
+            )
+            if character is None:
+                raise ValueError(f"No character '{target_id}' in this session.")
+            view = dnd_experience.award_experience(
+                character,
+                amount,
+                source=source,
+                turn_index=ckpt.session.turn_index,
+            )
+            results.append(_dnd_experience_award_result(character, view))
+
+        self.checkpoint_mgr.save(ckpt)
+        return results
+
+    async def award_dnd_experience_locked(
+        self,
+        session_id: str,
+        target: str,
+        amount: int,
+        *,
+        source: str = "",
+    ) -> list[DndExperienceAwardResult]:
+        bridge_lock = await self._lock_for(session_id)
+        async with bridge_lock:
+            orchestrator_lock = await self.orchestrator.session_locks.get(
+                session_id
+            )
+            async with orchestrator_lock:
+                return self.award_dnd_experience(
+                    session_id,
+                    target,
+                    amount,
+                    source=source,
+                )
 
     def list_loot_offers(
         self,
@@ -2472,7 +2539,12 @@ class EngineBridge:
         if getattr(module, "combat_damage", None) is not None:
             module.combat_damage(ckpt, target_id=target_id, amount=amount)
         elif getattr(module, "apply_damage", None) is not None:
-            module.apply_damage(ckpt.session, target_id, amount)
+            module.apply_damage(
+                ckpt.session,
+                target_id,
+                amount,
+                characters=ckpt.characters,
+            )
         else:
             self._combat_call(
                 module,
@@ -3046,6 +3118,70 @@ def _dnd_attachment_summary(
         spells_count=len(spellcasting.get("spells") or []),
         resources_count=len(statblock.get("resources") or []),
         name_overridden=name_overridden,
+    )
+
+
+def _dnd_experience_target_ids(
+    ckpt: CheckpointFile,
+    target: str,
+) -> list[str]:
+    normalized = (target or "").strip()
+    if not normalized:
+        raise ValueError("Choose a character id, or `all` for all bound players.")
+
+    characters = {c.character_id: c for c in ckpt.characters}
+    if normalized.lower() in {"all", "party", "players"}:
+        target_ids = [
+            cid
+            for cid in (ckpt.session.character_bindings or {})
+            if cid in characters
+        ]
+        if not target_ids:
+            raise ValueError("No bound player characters are available for XP.")
+    else:
+        if normalized not in characters:
+            raise ValueError(f"No character '{normalized}' in this session.")
+        target_ids = [normalized]
+
+    missing = [
+        cid
+        for cid in target_ids
+        if not dnd_experience.has_dnd_mechanics(characters[cid])
+    ]
+    if missing:
+        joined = ", ".join(missing)
+        raise ValueError(
+            "D&D experience can only be awarded to characters with attached "
+            f"D&D mechanics. Missing: {joined}."
+        )
+
+    culled = [
+        cid
+        for cid in target_ids
+        if str(getattr(characters[cid].status, "value", characters[cid].status))
+        == "culled"
+    ]
+    if culled:
+        joined = ", ".join(culled)
+        raise ValueError(f"Cannot award XP to culled character(s): {joined}.")
+    return target_ids
+
+
+def _dnd_experience_award_result(
+    character: CharacterRecord,
+    view: dict[str, Any],
+) -> DndExperienceAwardResult:
+    return DndExperienceAwardResult(
+        character_id=character.character_id,
+        character_name=character.name,
+        amount=_safe_int(view.get("amount"), 0),
+        before=_safe_int(view.get("before"), 0),
+        after=_safe_int(view.get("after"), 0),
+        total_level=_safe_int(view.get("total_level"), 0),
+        next_level=_safe_int(view.get("next_level"), 0),
+        xp_to_next_level=_safe_int(view.get("xp_to_next_level"), 0),
+        level_available=bool(view.get("level_available")),
+        eligible_level=_safe_int(view.get("eligible_level"), 0),
     )
 
 

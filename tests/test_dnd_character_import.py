@@ -294,6 +294,7 @@ def test_snapshot_projects_to_existing_mechanics_shape_without_prompt_raw_bloat(
     assert projected["ruleset_id"] == "dnd5e_basic"
     assert projected["ability_scores"]["cha"] == 18
     assert projected["armor_class"] == 19
+    assert projected["experience_points"] == 14000
     assert projected["hit_points"] == {
         "current": 23,
         "max": 28,

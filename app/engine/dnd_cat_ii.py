@@ -934,7 +934,7 @@ def _clean_damage_expression(raw: str) -> str:
         r"[+-]?\s*(?:\d+d\d+|\d+)",
         raw.strip().lower(),
     )
-    if not any("d" in term for term in terms):
+    if not terms:
         return ""
     expression = "".join(re.sub(r"\s+", "", term) for term in terms)
     return expression.lstrip("+")

@@ -109,6 +109,57 @@ ROUTER_OUTPUT_EXAMPLE = {
     "location_updates": [],
 }
 
+RAT_COMBATANT_SPAWN = {
+    "character_id": "rat_1",
+    "monster_key": "rat",
+    "name": "Rat",
+    "location": "",
+    "description": "A small rat snaps at exposed ankles.",
+    "statblock": {
+        "size": "Tiny",
+        "creature_type": "beast",
+        "alignment": "unaligned",
+        "armor_class": 10,
+        "hit_points": 1,
+        "hit_dice": "1d4 - 1",
+        "speed": "20 ft.",
+        "ability_scores": {
+            "strength": 2,
+            "dexterity": 11,
+            "constitution": 9,
+            "intelligence": 2,
+            "wisdom": 10,
+            "charisma": 4,
+        },
+        "proficiency_bonus": 2,
+        "skills": [],
+        "senses": ["darkvision 30 ft."],
+        "passive_perception": 10,
+        "languages": [],
+        "challenge_rating": "0",
+        "xp": 10,
+        "traits": [],
+        "actions": [
+            {
+                "action_id": "bite",
+                "name": "Bite",
+                "attack_bonus": 0,
+                "reach_ft": 5,
+                "range_normal_ft": 0,
+                "range_long_ft": 0,
+                "target": "one target",
+                "damage": "1 piercing",
+                "damage_type": "piercing",
+                "description": (
+                    "Melee Weapon Attack: +0 to hit, reach 5 ft., one "
+                    "target. Hit: 1 piercing damage."
+                ),
+            }
+        ],
+    },
+}
+
+
 AGENT_OUTPUT_EXAMPLE = {
     "character_id": "guard_17",
     "public_text": (
@@ -490,6 +541,22 @@ class TestDndEventRouterOutput:
         assert out.combatant_ids == ["alice", "pip"]
         assert out.loot_offer.present is False
 
+
+    def test_combat_start_accepts_spawned_statblock_combatants(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "dnd_combat_start",
+            "combatant_ids": ["alice"],
+            "combatant_spawns": [RAT_COMBATANT_SPAWN],
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.combatant_ids == ["alice", "rat_1"]
+        assert out.combatant_spawns[0].monster_key == "rat"
+        assert out.combatant_spawns[0].statblock.challenge_rating == "0"
+        assert out.combatant_spawns[0].statblock.xp == 10
+
     def test_dnd_loot_offer_contract(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
@@ -555,6 +622,7 @@ class TestDndEventRouterOutput:
             **ROUTER_OUTPUT_EXAMPLE,
             "interaction_mode": "cat_i",
             "combatant_ids": [],
+            "combatant_spawns": [RAT_COMBATANT_SPAWN],
             "battle_map_seed": {
                 "present": True,
                 "map_name": "Leaky Seed",
@@ -581,6 +649,7 @@ class TestDndEventRouterOutput:
 
         assert out.battle_map_seed.present is False
         assert out.battle_map_seed.tokens == []
+        assert out.combatant_spawns == []
 
     def test_combat_start_allows_engine_to_validate_participant_count(self):
         data = {

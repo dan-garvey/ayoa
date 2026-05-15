@@ -1,5 +1,57 @@
   "interaction_mode": "cat_i | cat_ii | dnd_combat_start | dnd_combat_end",
   "combatant_ids": ["character_id - required only for dnd_combat_start, else empty"],
+  "combatant_spawns": [
+    {{
+      "character_id": "new snake_case character id for this combatant",
+      "monster_key": "standard monster key such as rat, empty only if unknown",
+      "name": "visible combatant name",
+      "location": "opaque location label, empty if same scene as the actor",
+      "description": "brief visible description",
+      "statblock": {{
+        "size": "Tiny | Small | Medium | Large | Huge | Gargantuan",
+        "creature_type": "beast | humanoid | undead | fiend | other",
+        "alignment": "alignment text or unaligned",
+        "armor_class": 10,
+        "hit_points": 1,
+        "hit_dice": "hit dice formula or empty",
+        "speed": "speed text such as 20 ft.",
+        "ability_scores": {{
+          "strength": 10,
+          "dexterity": 10,
+          "constitution": 10,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        }},
+        "proficiency_bonus": 0,
+        "skills": [
+          {{"name": "skill name", "value": 0}}
+        ],
+        "senses": ["sense text"],
+        "passive_perception": 10,
+        "languages": ["language name"],
+        "challenge_rating": "0",
+        "xp": 10,
+        "traits": [
+          {{"name": "trait name", "description": "trait rules text"}}
+        ],
+        "actions": [
+          {{
+            "action_id": "bite",
+            "name": "Bite",
+            "attack_bonus": 0,
+            "reach_ft": 5,
+            "range_normal_ft": 0,
+            "range_long_ft": 0,
+            "target": "one target",
+            "damage": "1 piercing",
+            "damage_type": "piercing",
+            "description": "rules text for the action"
+          }}
+        ]
+      }}
+    }}
+  ],
   "battle_map_seed": {{
     "present": true or false,
     "map_name": "string - short tactical map label, empty when absent",

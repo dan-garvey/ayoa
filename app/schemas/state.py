@@ -395,6 +395,10 @@ class DndCombatState(BaseModel):
     turn_index: int = 0
     combatants: list[DndCombatantState] = Field(default_factory=list)
     audit_lines: list[str] = Field(default_factory=list)
+    # Combatant ids whose defeat XP has already been paid out. Kept on
+    # combat state so repeated damage, overkill, or stale roll finalization
+    # cannot duplicate rewards.
+    xp_awarded_combatant_ids: list[str] = Field(default_factory=list)
     started_at_turn_index: int = 0
     ended_at_turn_index: int | None = None
     # When a combatant's completed turn opens reaction prompts, initiative

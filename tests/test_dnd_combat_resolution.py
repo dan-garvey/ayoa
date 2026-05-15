@@ -743,6 +743,47 @@ def test_combat_damage_parses_trailing_same_type_and_ignores_alternative(
     assert damage.raw_amount == 4
 
 
+def test_combat_damage_parses_static_monster_damage(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[
+            {
+                "id": "bite",
+                "name": "Bite",
+                "attack": {"bonus": 5, "damage": "1 piercing"},
+            }
+        ],
+    )
+    values = iter([14])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack(
+        action_id="bite",
+        reason="Alice bites Bob.",
+    ))
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I bite Bob.",
+        )
+    )
+
+    damage = ckpt.session.cat_ii_roll_transactions[0].damage_records[0]
+    bob = ckpt.session.active_combat.combatants[1]
+    assert damage.raw_amount == 1
+    assert damage.amount == 1
+    assert damage.components[0].expression == "1"
+    assert damage.components[0].damage_type == "piercing"
+    assert bob.hit_points_current == 12
+
+
 def test_combat_crit_doubles_every_damage_component(monkeypatch):
     ckpt = _ckpt()
     ckpt.characters[0] = _character(

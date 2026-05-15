@@ -107,7 +107,7 @@ from app.schemas.state import (
     RenderBufferEntry,
     SlotEntry,
 )
-from app.engine import dnd_combat, dnd_spatial
+from app.engine import dnd_combat, dnd_monsters, dnd_spatial
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 
 logger = logging.getLogger(__name__)
@@ -1442,6 +1442,51 @@ def _dnd_combat_start_participants(
     return selected
 
 
+def _character_location(ckpt: CheckpointFile, character_id: str) -> str:
+    for character in ckpt.characters:
+        if character.character_id == character_id:
+            return str(getattr(character, "location", "") or "")
+    return ""
+
+
+def _materialize_dnd_combatant_spawns(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+) -> None:
+    spawns = list(getattr(result, "combatant_spawns", []) or [])
+    if not spawns:
+        return
+    by_id = {character.character_id: character for character in ckpt.characters}
+    combatant_ids = list(getattr(result, "combatant_ids", []) or [])
+    default_location = _character_location(ckpt, actor_id)
+    spawned_ids: list[str] = []
+    for spawn in spawns:
+        if not spawn.character_id:
+            continue
+        if spawn.character_id in by_id:
+            if spawn.character_id not in combatant_ids:
+                combatant_ids.append(spawn.character_id)
+            continue
+        character = dnd_monsters.character_from_combatant_spawn(
+            spawn,
+            default_location=default_location,
+        )
+        ckpt.characters.append(character)
+        by_id[character.character_id] = character
+        combatant_ids.append(character.character_id)
+        spawned_ids.append(character.character_id)
+    if spawned_ids:
+        result.combatant_ids = [
+            cid for cid in dict.fromkeys(combatant_ids) if cid
+        ]
+        logger.info(
+            "Materialized D&D combatant spawn(s): %s",
+            ", ".join(spawned_ids),
+        )
+
+
 def _ensure_combatant_observers(
     result: EventRouterOutput,
     participants: list[Any],
@@ -1536,6 +1581,11 @@ def _start_dnd_combat_from_router_signal(
 ) -> bool:
     if not _dnd_ruleset_enabled(ckpt) or _active_combat(ckpt) is not None:
         return False
+    _materialize_dnd_combatant_spawns(
+        ckpt,
+        result,
+        actor_id=actor_id,
+    )
     combatant_ids = list(getattr(result, "combatant_ids", []) or [])
     participants = _dnd_combat_start_participants(
         ckpt, actor_id, combatant_ids,

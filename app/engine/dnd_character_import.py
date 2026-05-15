@@ -165,6 +165,9 @@ def mechanics_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
             if (bonus or {}).get("proficiency_multiplier", 0) > 0
         ],
         "armor_class": (defenses.get("armor_class") or {}).get("value", 0),
+        "experience_points": (snapshot.get("identity") or {}).get(
+            "experience_points", 0
+        ),
         "hit_points": {
             "current": hp.get("current", 0),
             "max": hp.get("max", 0),

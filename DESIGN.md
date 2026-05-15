@@ -232,6 +232,7 @@ D&D adapter commands (active when `ruleset_id == "dnd5e_basic"`; see §15):
 * `/attach` — attach a D&D Beyond character snapshot to a player character.
 * `/sheet` — display the attached D&D character sheet.
 * `/roll` — answer a pending interactive player roll.
+* `/xp award` — admin-only D&D experience award to one character or the bound party.
 * `/combat begin|status|next|end|damage|heal` — combat lifecycle and HP
   management.
 
@@ -1155,9 +1156,12 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   a fresh non-combat action, the engine validates participants, rolls
   initiative, creates `session.active_combat`, syncs all combatants into the
   observer list, attaches a validated router-seeded battle map when supplied,
-  stores the actor's `pending_initiating_action`, and appends only
-  player-safe visible facts such as "D&D combat begins." Initiative totals
-  and true statblock names stay in combat audit/status surfaces, not in
+  materializes any `combatant_spawns` into non-playable adapter-owned D&D
+  characters, stores the actor's `pending_initiating_action`, and appends only
+  player-safe visible facts such as "D&D combat begins." Spawned combatants use
+  the router-emitted fallback stat block unless an adapter-local statblock
+  override provider supplies corrected values for the `monster_key`. Initiative
+  totals and true statblock names stay in combat audit/status surfaces, not in
   narrator or agent facts;
 * if `dnd_combat_start` appears while another combat is already active, the
   engine does not open Cat II and does not start a parallel combat. It appends
@@ -1186,6 +1190,11 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   and concentration-loss cleanup;
 * `_run_automated_combat_turns_locked` drives NPC combatant turns
   inline before the player's response returns;
+* when combat damage newly defeats a non-player combatant with an XP value
+  or challenge rating in its D&D mechanics, the combat adapter splits that
+  XP among the bound player combatants in the active combat. The payout is
+  checkpoint-audited and keyed by combatant id so repeated damage or roll
+  finalization cannot duplicate rewards;
 * `Orchestrator.submit_cat_ii_roll` and
   `Orchestrator.continue_cat_ii_after_roll` branch on
   `roll_transaction_source(ckpt, event_id) == "combat"` to finalize

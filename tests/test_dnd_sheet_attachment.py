@@ -253,7 +253,39 @@ async def test_sheet_renderer_uses_snapshot_not_raw_source(bridge: EngineBridge)
     assert "Combat" in rendered
     assert "AC 10" in rendered
     assert "HP 19/22 (+4 temp)" in rendered
+    assert "Progression" in rendered
+    assert "XP 900" in rendered
     assert "raw_source" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_xp_award_updates_sheet_overview(bridge: EngineBridge):
+    _seed(bridge, _checkpoint())
+    await bridge.attach_dndbeyond_character_export(
+        SESSION_ID,
+        42,
+        _ddb_export(),
+    )
+
+    results = bridge.award_dnd_experience(
+        SESSION_ID,
+        "hero",
+        150,
+        source="playtest reward",
+    )
+
+    assert results[0].before == 900
+    assert results[0].after == 1050
+
+    hero = bridge.get_bound_character_record(SESSION_ID, 42)
+    embed = _render_dnd_sheet_page(hero, "overview")
+    rendered = "\n".join(
+        [embed.description or ""]
+        + [f"{field.name}\n{field.value}" for field in embed.fields]
+    )
+
+    assert "XP 1,050" in rendered
+    assert "1,650 XP to level 4" in rendered
 
 
 @pytest.mark.asyncio

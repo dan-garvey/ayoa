@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.engine import dice
-from app.engine.dnd_combat import current_combatant
+from app.engine import dice, dnd_experience, dnd_monsters
+from app.engine.dnd_combat import apply_damage, current_combatant
 from app.engine.orchestrator import Orchestrator
 from app.engine.turn_loop import BeatResult
 from app.schemas.characters import CharacterRecord, PublicSheet
@@ -125,12 +125,97 @@ def _dnd_router_out(
     *,
     interaction_mode: str,
     combatant_ids: list[str] | None = None,
+    combatant_spawns: list[dict] | None = None,
     **kwargs,
 ) -> DndEventRouterOutput:
     data = _router_out(**kwargs).model_dump()
     data["interaction_mode"] = interaction_mode
     data["combatant_ids"] = combatant_ids or []
+    data["combatant_spawns"] = combatant_spawns or []
     return DndEventRouterOutput(**data)
+
+
+def _dnd_mechanics(
+    *,
+    xp: int = 0,
+    hp: int = 10,
+    ac: int = 12,
+) -> dict:
+    return {
+        "ruleset_id": "dnd5e_basic",
+        "experience_points": xp,
+        "armor_class": ac,
+        "hit_points": {"current": hp, "max": hp, "temporary": 0},
+        "ability_scores": {
+            "str": 10,
+            "dex": 10,
+            "con": 10,
+            "int": 10,
+            "wis": 10,
+            "cha": 10,
+        },
+        "dnd5e_sheet": {
+            "identity": {
+                "name": "Alice",
+                "total_level": 1,
+                "experience_points": xp,
+                "classes": [{"name": "Fighter", "level": 1}],
+            },
+            "statblock": {},
+        },
+    }
+
+
+def _rat_combatant_spawn() -> dict:
+    return {
+        "character_id": "rat_1",
+        "monster_key": "rat",
+        "name": "Rat",
+        "location": "",
+        "description": "A small rat snaps at exposed ankles.",
+        "statblock": {
+            "size": "Tiny",
+            "creature_type": "beast",
+            "alignment": "unaligned",
+            "armor_class": 10,
+            "hit_points": 1,
+            "hit_dice": "1d4 - 1",
+            "speed": "20 ft.",
+            "ability_scores": {
+                "strength": 2,
+                "dexterity": 11,
+                "constitution": 9,
+                "intelligence": 2,
+                "wisdom": 10,
+                "charisma": 4,
+            },
+            "proficiency_bonus": 2,
+            "skills": [],
+            "senses": ["darkvision 30 ft."],
+            "passive_perception": 10,
+            "languages": [],
+            "challenge_rating": "0",
+            "xp": 10,
+            "traits": [],
+            "actions": [
+                {
+                    "action_id": "bite",
+                    "name": "Bite",
+                    "attack_bonus": 0,
+                    "reach_ft": 5,
+                    "range_normal_ft": 0,
+                    "range_long_ft": 0,
+                    "target": "one target",
+                    "damage": "1 piercing",
+                    "damage_type": "piercing",
+                    "description": (
+                        "Melee Weapon Attack: +0 to hit, reach 5 ft., one "
+                        "target. Hit: 1 piercing damage."
+                    ),
+                }
+            ],
+        },
+    }
 
 
 class FakeDispatcher:
@@ -506,6 +591,70 @@ class TestCombatTurnGating:
         assert ckpt.session.open_cat_ii_events == []
         assert ckpt.session.active_act_slots == {}
         assert mgr.save.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_materializes_spawned_monster_with_override(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        spawn = _rat_combatant_spawn()
+
+        def corrected(candidate):
+            assert candidate.monster_key == "rat"
+            return {
+                **candidate.statblock.model_dump(),
+                "armor_class": 13,
+                "hit_points": 2,
+                "challenge_rating": "1/8",
+                "xp": 25,
+            }
+
+        try:
+            dnd_monsters.clear_statblock_override_providers()
+            dnd_monsters.register_statblock_override_provider(corrected)
+            orch, _mgr = patched_orchestrator(ckpt)
+            FakeDispatcher.queue_route(_dnd_router_out(
+                interaction_mode="dnd_combat_start",
+                combatant_ids=["alice"],
+                combatant_spawns=[spawn],
+                facts=["Alice kicks at the rat under the table."],
+            ))
+
+            response = await orch.process_turn(TurnRequest(
+                session_id="s",
+                user_input="I kick the rat",
+                acting_character_id="alice",
+            ))
+
+            assert response.beat_ended_reason == "combat_started"
+            rat = next(c for c in ckpt.characters if c.character_id == "rat_1")
+            assert rat.name == "Rat"
+            assert rat.location == "gatehouse"
+            assert rat.mechanics["armor_class"] == 13
+            assert rat.mechanics["hit_points"]["max"] == 2
+            assert rat.mechanics["challenge_rating"] == "1/8"
+            combat = ckpt.session.active_combat
+            assert combat is not None
+            rat_combatant = next(
+                c for c in combat.combatants if c.character_id == "rat_1"
+            )
+            assert rat_combatant.armor_class == 13
+            assert rat_combatant.hit_points_max == 2
+
+            apply_damage(ckpt.session, "rat_1", 99, characters=ckpt.characters)
+
+            assert dnd_experience.experience_points(ckpt.characters[0]) == 25
+            assert combat.xp_awarded_combatant_ids == ["rat_1"]
+        finally:
+            dnd_monsters.clear_statblock_override_providers()
 
     @pytest.mark.asyncio
     async def test_non_current_human_combatant_is_rejected_without_save(
