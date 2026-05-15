@@ -17,11 +17,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.engine.context_builder import build_narrator_public_character_context_block
 from app.engine.narrator import compose_pov_render
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterDescriptions, CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
@@ -119,6 +120,24 @@ def _ckpt() -> CheckpointFile:
     )
     ckpt.canonical_events.extend([ev1, ev2])
     return ckpt
+
+
+def test_public_character_context_skips_nameless_player_slot():
+    ckpt = _ckpt()
+    ckpt.characters.append(CharacterRecord(
+        character_id="player_protagonist",
+        name="",
+        descriptions=CharacterDescriptions(
+            public="The nameless player slot should not render as a blank label.",
+            private="Private player-slot context.",
+        ),
+        is_playable=True,
+    ))
+
+    block = build_narrator_public_character_context_block(ckpt)
+
+    assert "blank label" not in block
+    assert "- :" not in block
 
 
 def _llm_response(final_text: str = "RENDERED") -> LLMResponse:
@@ -237,19 +256,27 @@ class TestComposePovRender:
         assert stored["final_text"] == "She says, 'entirely human?'"
 
     @pytest.mark.asyncio
-    async def test_player_legible_pov_gloss_context_is_in_user_message(
+    async def test_player_legible_public_context_is_in_system_prefix(
         self, mock_client, prompt_manager,
     ):
         ckpt = _ckpt()
+        ckpt.session.character_bindings["sora_kageyama"] = "2"
         ckpt.characters.append(CharacterRecord(
             character_id="sora_kageyama",
             name="Sora Kageyama",
             public_sheet=PublicSheet(
-                role="the cohort's informal leader",
+                role="Hero of the Realm; private authorial role should not leak",
                 appearance=(
                     "Japanese, tall, quick posture. Wears the Crown's "
                     "blue Hero livery over a close-fitting white shirt."
                 ),
+            ),
+            descriptions=CharacterDescriptions(
+                public=(
+                    "Sora is the cohort's informal leader; his blue "
+                    "sun-crest tabard marks Crown Hero livery."
+                ),
+                private="Sora is also quietly watching the defective summon.",
             ),
             location="gatehouse",
         ))
@@ -294,15 +321,29 @@ class TestComposePovRender:
             partial_mode=False,
         )
 
-        user_content = mock_client.complete.call_args.kwargs["messages"][-1][
-            "content"
-        ]
-        assert "Viewpoint-known context for quick glosses" in user_content
-        assert "Sora Kageyama: the cohort's informal leader" in user_content
-        assert "Crown's blue Hero livery" in user_content
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_content = messages[0]["content"]
+        user_content = messages[-1]["content"]
+        flat = "\n".join(
+            m["content"] for m in messages
+            if isinstance(m.get("content"), str)
+        )
+
+        assert "Public character context for brief glosses" in system_content
+        assert "Sora Kageyama: Sora is the cohort's informal leader" in system_content
+        assert "blue sun-crest tabard" in system_content
+        assert "quietly watching" not in system_content
+        assert "private authorial role" not in system_content
+        assert "Crown's blue Hero livery" not in flat
+
+        assert "Gloss candidates for this passage" in user_content
+        assert "- Sora Kageyama" in user_content
+        assert "cohort's informal leader" not in user_content
+        assert "blue sun-crest tabard" not in user_content
+        assert "private authorial role" not in user_content
 
     @pytest.mark.asyncio
-    async def test_pov_gloss_context_does_not_include_baseline_appearance(
+    async def test_public_context_does_not_use_raw_sheet_or_private_description(
         self, mock_client, prompt_manager,
     ):
         ckpt = _ckpt()
@@ -310,11 +351,16 @@ class TestComposePovRender:
             character_id="korva_sahl",
             name="Korva Sahl",
             public_sheet=PublicSheet(
-                role="quartermaster",
+                role="quartermaster; privately the demon heir",
                 appearance=(
                     "Plain travel leathers. Hidden horns are tucked under "
                     "her hair."
                 ),
+                faction="Public Guild. Private demonic court.",
+            ),
+            descriptions=CharacterDescriptions(
+                public="Korva is an S-rank Guild adventurer usually found near the contract board.",
+                private="Korva is the Demon Lord's daughter with hidden horns.",
             ),
             location="gatehouse",
         ))
@@ -359,12 +405,18 @@ class TestComposePovRender:
             partial_mode=False,
         )
 
-        user_content = mock_client.complete.call_args.kwargs["messages"][-1][
-            "content"
-        ]
-        assert "Korva Sahl: quartermaster" in user_content
-        assert "Plain travel leathers" not in user_content
-        assert "Hidden horns" not in user_content
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        flat = "\n".join(
+            m["content"] for m in messages
+            if isinstance(m.get("content"), str)
+        )
+        assert "Korva is an S-rank Guild adventurer" in flat
+        assert "quartermaster" not in flat
+        assert "privately the demon heir" not in flat
+        assert "Plain travel leathers" not in flat
+        assert "Hidden horns" not in flat
+        assert "demonic court" not in flat
+        assert "Demon Lord's daughter" not in flat
 
     @pytest.mark.asyncio
     async def test_partial_mode_includes_stop_instruction(

@@ -7,7 +7,12 @@ from app.engine.character_manager import CharacterManager
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, PublicSheet, PrivateState
+from app.schemas.characters import (
+    CharacterAgentTier,
+    CharacterRecord,
+    PublicSheet,
+    PrivateState,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, SpawnRequest
 from app.schemas.events import CanonicalEvent, WorldAdjudication
@@ -117,6 +122,8 @@ class TestCharacterSpawn:
 
         assert len(spawned) == 1
         assert spawned[0].name == "Tom the Stablehand"
+        assert spawned[0].agent_tier == CharacterAgentTier.convenience
+        assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
         # Should be added to checkpoint
         assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
 

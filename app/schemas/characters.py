@@ -15,6 +15,17 @@ class CharacterStatus(str, Enum):
     culled = "culled"
 
 
+class CharacterAgentTier(str, Enum):
+    # Source-authored story characters from the initial checkpoint. These
+    # carry plot, secrets, and long-running agency; keep them on the
+    # default character-agent model.
+    plot = "plot"
+    # Router-spawned utility people such as clerks, guards, couriers, and
+    # bystanders created to make the current beat playable. They still
+    # need continuity, but not the expensive plot-agent model.
+    convenience = "convenience"
+
+
 class PublicSheet(BaseModel):
     # Trait list and voice absorbed into CharacterRecord.personality as
     # a single prose block — fewer author-time fields, less token cost,
@@ -23,6 +34,18 @@ class PublicSheet(BaseModel):
     role: str = ""
     appearance: str = ""
     faction: str = ""
+
+
+class CharacterDescriptions(BaseModel):
+    # Player-safe identity context. The narrator may use this to explain
+    # why a known name, uniform, rank, or social shorthand matters to the
+    # viewpoint character. It must not contain secrets, motives, hidden
+    # allegiances, authorial labels, or private body details.
+    public: str = ""
+    # Omniscient/private character description for future engine use and
+    # auditing. This may contain spoiler-bearing identity context, but it is
+    # never sent to the narrator.
+    private: str = ""
 
 
 class PrivateState(BaseModel):
@@ -69,7 +92,9 @@ class CharacterRecord(BaseModel):
     # checkpoint JSONs stored under that name are still loadable —
     # see the model_validator below that maps it on parse.
     is_playable: bool = False
+    agent_tier: CharacterAgentTier = CharacterAgentTier.plot
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
+    descriptions: CharacterDescriptions = Field(default_factory=CharacterDescriptions)
     private_state: PrivateState = Field(default_factory=PrivateState)
     # Staging area for observations the character perceived silently
     # (turns where they didn't respond). Flushed into the next agent

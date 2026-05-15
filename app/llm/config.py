@@ -28,6 +28,7 @@ _AGENT_MODEL = "claude-opus-4-6"
 _DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
     "agent": ("AGENT",),
+    "agent_convenience": ("AGENT_CONVENIENCE", "CONVENIENCE_AGENT"),
     "character_gen": ("CHARACTER_GEN", "AGENT"),
     "event_router": ("ROUTER",),
     "narrator": ("NARRATOR",),
@@ -157,6 +158,7 @@ class LLMConfig(BaseModel):
         "event_router": _ROUTER_MODEL,
         "narrator": _NARRATOR_MODEL,
         "agent": _AGENT_MODEL,
+        "agent_convenience": _NARRATOR_MODEL,
         "character_gen": _AGENT_MODEL,
     })
 

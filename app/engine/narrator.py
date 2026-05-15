@@ -16,6 +16,7 @@ import time
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
     append_assistant_to_conversation,
+    build_narrator_public_character_context_block,
     build_narrator_pov_knowledge_block,
     build_narrator_player_characters_block,
     replace_character_ids_with_names,
@@ -201,6 +202,9 @@ async def compose_pov_render(
     player_characters_block = build_narrator_player_characters_block(
         ckpt, pov_character_id
     )
+    public_character_context_block = build_narrator_public_character_context_block(
+        ckpt,
+    )
     visible_events_block = _format_visible_events_block(
         resolved, pov_character_id, ckpt,
     )
@@ -229,6 +233,7 @@ async def compose_pov_render(
         user_input=user_input,
         pov_character_name=pov_name,
         player_characters_block=player_characters_block,
+        public_character_context_block=public_character_context_block,
         pov_knowledge_block=pov_knowledge_block,
         rendering_note=rendering_note,
     )

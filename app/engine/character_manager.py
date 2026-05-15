@@ -12,6 +12,7 @@ import logging
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.characters import (
+    CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
     PublicSheet,
@@ -368,7 +369,7 @@ class CharacterManager:
 
         from app.schemas.takeover import AuthoredCharacter
         response = await self.client.complete(
-            role="agent",
+            role="agent_convenience",
             messages=messages,
             response_model=AuthoredCharacter,
             temperature=0.6,
@@ -376,6 +377,7 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
+        char.agent_tier = CharacterAgentTier.convenience
         # Override the LLM's authored.location only when the router or
         # caller supplied a concrete location label. When neither is set,
         # trust the LLM.

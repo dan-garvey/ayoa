@@ -332,8 +332,11 @@ class TestPromptManagerWithRealTemplates:
                 "- Aldric UniquePOV (you) - scholar. "
                 "Unique player-block appearance."
             ),
+            public_character_context_block=(
+                "- Pip StableKnown: stable public glossary marker."
+            ),
             pov_knowledge_block=(
-                "- Pip UniqueKnown: visible glossary marker."
+                "- Pip UniqueKnown"
             ),
             rendering_note=PARTIAL_MODE_MARKER,
             visible_events=(
@@ -355,9 +358,12 @@ class TestPromptManagerWithRealTemplates:
 
         assert "Genre: fantasy" in system
         assert "Concise prose." in system
+        assert "Pip StableKnown" in system
+        assert "stable public glossary marker" in system
         assert "Aldric UniquePOV" in user
         assert "Unique player-block appearance" in user
         assert "Pip UniqueKnown" in user
+        assert "stable public glossary marker" not in user
         assert "Unique event fact" in user
         assert "Unique submitted action" in user
         assert PARTIAL_MODE_MARKER in user

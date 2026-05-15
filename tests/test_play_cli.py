@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from scripts.play import CLIState
+from scripts.play import CLIState, _cli_log_level
 from app.bot.engine_bridge import (
     CharacterSummary,
     CompletedPendingRoll,
@@ -31,6 +32,11 @@ from app.schemas.state import SessionState, SlotEntry, WorldState
 
 SESSION_ID = "cli_test"
 STORY_ID = "test_story"
+
+
+def test_cli_suppresses_warning_logs_by_default():
+    assert _cli_log_level(verbose=False) == logging.ERROR
+    assert _cli_log_level(verbose=True) == logging.INFO
 
 
 def _empty_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:

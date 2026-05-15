@@ -46,7 +46,7 @@ from app.engine.turn_loop_contracts import (
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord
+from app.schemas.characters import CharacterAgentTier, CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 
@@ -54,6 +54,8 @@ logger = logging.getLogger(__name__)
 
 
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
+CONVENIENCE_AGENT_ROLE = "agent_convenience"
+PLOT_AGENT_ROLE = "agent"
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,12 @@ def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
         None,
     )
     return str(getattr(settings, "ruleset_id", "") or "")
+
+
+def model_role_for_character(character: CharacterRecord) -> str:
+    if character.agent_tier == CharacterAgentTier.convenience:
+        return CONVENIENCE_AGENT_ROLE
+    return PLOT_AGENT_ROLE
 
 
 def _active_combat(checkpoint: CheckpointFile) -> Any | None:
@@ -401,7 +409,7 @@ class CharacterAgent:
         )
 
         response = await self.client.complete(
-            role="agent",
+            role=model_role_for_character(character),
             messages=messages,
             temperature=0.5,
             max_tokens=600,
@@ -550,7 +558,7 @@ class CharacterAgent:
         )
 
         response = await self.client.complete(
-            role="agent",
+            role=model_role_for_character(character),
             messages=messages,
             temperature=0.6,
             max_tokens=2000,

@@ -19,7 +19,12 @@ from app.engine.turn_loop_contracts import (
 )
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import (
+    CharacterAgentTier,
+    CharacterRecord,
+    PrivateState,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
@@ -560,6 +565,19 @@ class TestCharacterAgent:
         # to write natural language.
         assert "response_model" not in call_args.kwargs
         assert call_args.kwargs["compact"] is True
+
+    @pytest.mark.asyncio
+    async def test_convenience_agent_uses_cheaper_role(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        guard_character.agent_tier = CharacterAgentTier.convenience
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
 
     @pytest.mark.asyncio
     async def test_appends_to_rolling_conversation(

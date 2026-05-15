@@ -109,6 +109,15 @@ class PublicSheetExtraction(BaseModel):
     faction: str
 
 
+class CharacterDescriptionsExtraction(BaseModel):
+    # Player-facing, spoiler-safe identity context. Suitable for the
+    # narrator to use in a short first-mention gloss.
+    public: str
+    # Omniscient/private identity context. Useful for audit and future
+    # engine roles, never for player-facing narrator context.
+    private: str
+
+
 class PrivateStateExtraction(BaseModel):
     # Existential drives — who they are at core. Stable across the story.
     goals: list[str]
@@ -138,6 +147,7 @@ class CharacterExtraction(BaseModel):
     # background figure, the world's gods) stay false.
     is_playable: bool
     public_sheet: PublicSheetExtraction
+    descriptions: CharacterDescriptionsExtraction
     private_state: PrivateStateExtraction
     backstory: str
     # personality absorbs narrative_notes (portrayal direction) and the

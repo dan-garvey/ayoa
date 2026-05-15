@@ -14,6 +14,7 @@ from app.engine.story_importer import (
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.import_extraction import (
     CharacterExtraction,
+    CharacterDescriptionsExtraction,
     CharacterKnowledgeEnvelope,
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
@@ -57,6 +58,10 @@ def _roster() -> CharacterListExtraction:
             public_sheet=PublicSheetExtraction(
                 role="Regent", appearance="", faction="",
             ),
+            descriptions=CharacterDescriptionsExtraction(
+                public="Emeric Hale is the publicly recognized Regent of Mirenza.",
+                private="Emeric knows the Aetheri conspiracy and keeps it hidden.",
+            ),
             private_state=PrivateStateExtraction(
                 goals=["preserve Mirenza"],
                 current_objectives=[],
@@ -74,6 +79,10 @@ def _roster() -> CharacterListExtraction:
             is_playable=False,
             public_sheet=PublicSheetExtraction(
                 role="Court Liaison", appearance="", faction="",
+            ),
+            descriptions=CharacterDescriptionsExtraction(
+                public="Lira Fontaine is a court liaison assigned to foreign guests.",
+                private="Lira privately longs to leave Mirenza.",
             ),
             private_state=PrivateStateExtraction(
                 goals=["see the world outside"],
@@ -108,6 +117,10 @@ class TestBuildCheckpointEnvelope:
         by_id = {c.character_id: c for c in ckpt.characters}
         assert "testimony crystals" in by_id["regent"].known_context
         assert "testimony crystals" not in by_id["lira"].known_context
+        assert by_id["regent"].descriptions.public.startswith(
+            "Emeric Hale is the publicly recognized Regent"
+        )
+        assert "Aetheri conspiracy" in by_id["regent"].descriptions.private
 
     def test_missing_envelope_falls_back_to_empty(self, caplog):
         """If the envelope extraction silently omits a character, the
@@ -136,7 +149,7 @@ class TestBuildCheckpointEnvelope:
         assert ckpt.importer_version == IMPORTER_VERSION
         # Any bump here means the extraction contract changed — re-import
         # in-flight stories if you rely on a new field.
-        assert IMPORTER_VERSION == "v9"
+        assert IMPORTER_VERSION == "v10"
 
 
 class TestImportAnalysisSchema:
@@ -242,6 +255,10 @@ class TestLocationSeedPush:
                 public_sheet=PublicSheetExtraction(
                     role="Regent", appearance="", faction="",
                 ),
+                descriptions=CharacterDescriptionsExtraction(
+                    public="Emeric Hale is the publicly recognized Regent of Mirenza.",
+                    private="Emeric is the private keeper of sealed intelligence.",
+                ),
                 private_state=PrivateStateExtraction(
                     goals=[], current_objectives=[], secrets=[],
                     intentions_enabled=False,
@@ -256,6 +273,10 @@ class TestLocationSeedPush:
                 is_playable=False,
                 public_sheet=PublicSheetExtraction(
                     role="Liaison", appearance="", faction="",
+                ),
+                descriptions=CharacterDescriptionsExtraction(
+                    public="Lira Fontaine is a court liaison assigned to guests.",
+                    private="Lira privately doubts the court's isolation.",
                 ),
                 private_state=PrivateStateExtraction(
                     goals=[], current_objectives=[], secrets=[],

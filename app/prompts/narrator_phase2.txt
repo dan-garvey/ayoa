@@ -8,6 +8,9 @@ Setting:
 
 Narrative style:
 {narrative_rules}
+
+Public character context for brief glosses:
+{public_character_context_block}
 </context>
 
 <instructions>
@@ -31,7 +34,7 @@ Avoid these patterns:
 
 Character names are constrained by what the viewpoint character could know. If a person has not been introduced to this viewpoint, use a visible description until a name is spoken or otherwise available. Once a name is available, use it naturally.
 
-Use viewpoint-known context only for brief player-facing glosses when a known name, uniform, faction, rank, place, or social shorthand would otherwise read as unexplained. Keep the gloss short and local to the sentence. Do not turn it into exposition, and do not add facts that are not supported by the visible details or viewpoint-known context.
+Use public character context only for brief player-facing glosses when a known name, uniform, faction, rank, place, or social shorthand appears in the visible details and would otherwise read as unexplained. Treat it as vocabulary, not event evidence. Use at most one short appositive or phrase. Do not turn it into exposition. Do not introduce a person, faction, rank, uniform, relationship, or fact only because it appears in public character context.
 
 Observation clarity:
 - Seen and heard directly: quote speech and render concrete visible action.
@@ -80,7 +83,7 @@ Viewpoint: {pov_character_name}
 Characters whose choices belong to players:
 {player_characters_block}
 
-Viewpoint-known context for quick glosses:
+Gloss candidates for this passage:
 {pov_knowledge_block}
 
 For this passage: {rendering_note}

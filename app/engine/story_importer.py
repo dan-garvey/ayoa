@@ -1,7 +1,7 @@
 """Master-prompt → CheckpointFile import pipeline.
 
 Active path: `run_import_two_call` (name retained for caller
-compatibility; v10 now runs four LLM calls that share a cached
+compatibility; v10 now runs six LLM calls that share a cached
 source-prompt prefix):
   1. PUBLIC world (setting, public lore, public facts, physics,
      narrative rules) — serial. Primes the shared cache so subsequent
@@ -10,17 +10,20 @@ source-prompt prefix):
      reads Call 1 as cached history. Split off from Call 1 because
      dense conspiracy stories pack so much into hidden content that
      a combined public+hidden call still overran the 64K output cap.
-  3. Characters — continuation that reads Calls 1-2. (v9 dropped the
+  3. Locations — continuation that reads Calls 1-2.
+  4. Characters — continuation that reads Calls 1-3. (v9 dropped the
      paired opening-prose extraction; the opening beat is now
      composed at runtime by the router and rendered by the narrator
      on the first `(begin)` turn, so there is no authored opener to
      extract here.)
-  4. Knowledge envelope extraction — continuation that sees the
+     v10 adds player-safe/public and private identity descriptions.
+  5. Knowledge envelope extraction — continuation that sees the
      full extracted world + roster and outputs per-character
      `known_context`.
+  6. Player primer — short player-facing briefing for `/story start`.
 
 Preservation analysis (`run_preservation_analysis_continuation`) is a
-separate sixth call callers run independently — on the bot path it
+separate follow-up call callers run independently — on the bot path it
 fires background via `asyncio.create_task`; on the CLI path it runs
 inline.
 
@@ -96,6 +99,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.llm.client import LLMClient
 from app.schemas.characters import (
+    CharacterDescriptions,
     CharacterRecord,
     CharacterStatus,
     PrivateState,
@@ -189,13 +193,17 @@ MAX_EXTRACTION_TOKENS = 64_000
 # checkpoints with `opening_narrative` populated load cleanly
 # (Pydantic v2 default `extra='ignore'` drops the field) and the
 # field is no longer consulted by any runtime code.
-IMPORTER_VERSION = "v9"
+# v9 → v10: character extraction now emits `descriptions.public` and
+# `descriptions.private`. Public descriptions are player-safe identity
+# glosses for narrator context; private descriptions retain authorial /
+# spoiler-bearing identity context without exposing it to narrator prompts.
+IMPORTER_VERSION = "v10"
 
 
 class CombinedImportExtraction(BaseModel):
     """(v3) Wraps the legacy single-call extraction in one structured-
     output response. Retained so the v3 path stays runnable for
-    quality comparisons; the active importer is v9 (six-call).
+    quality comparisons; the active importer is v10 (six-call).
 
     Required fields only — the structured-output grammar compiler
     handles deeply-nested schemas more reliably when optionals are
@@ -452,6 +460,21 @@ depth as the source describes them.
   - `appearance`: every physical detail the source gives. Height, build,
     hair, eyes, clothing, bearing, signatures. Full.
   - `faction`: faction/house/group affiliation.
+
+- **descriptions**:
+  - `public`: 1-2 sentences the player-facing narrator may safely use as a
+    brief gloss when this character's known name, uniform, rank, faction, or
+    social shorthand appears. Write only what a viewpoint character could
+    plausibly know or recognize without exposing secrets. Good shape:
+    "Sora is the cohort's favored Hero and informal organizer; his blue
+    sun-crest tabard marks Crown Hero livery." Bad shape: "Riku is a
+    manipulator cultivated by the Cardinal" unless that is already openly
+    known to the viewpoint. Do not include private motives, hidden
+    allegiances, concealed species markers, private body details, authorial
+    labels, or plot spoilers.
+  - `private`: 1-3 sentences of omniscient identity context that may include
+    secrets, hidden role, true faction, private stakes, and authorial framing.
+    This is audit/future-engine context and is not player-facing.
 
 - **private_state**:
   - `goals`: **existential drives only** — who this character is at their
@@ -1047,6 +1070,10 @@ def build_checkpoint(
                 appearance=cd.public_sheet.appearance,
                 faction=cd.public_sheet.faction,
             ),
+            descriptions=CharacterDescriptions(
+                public=cd.descriptions.public,
+                private=cd.descriptions.private,
+            ),
             private_state=PrivateState(
                 goals=cd.private_state.goals,
                 current_objectives=cd.private_state.current_objectives,
@@ -1530,13 +1557,14 @@ async def run_import_two_call(
     source_text: str,
     story_id: str,
 ) -> _CombinedImportResult:
-    """Six-call importer (v9; function name retained for caller
+    """Six-call importer (v10; function name retained for caller
     compatibility — bridge + CLI + tests still import this symbol).
     Call 1 extracts the PUBLIC world; Call 2 extracts the HIDDEN
     world as a continuation that reads Call 1 as cached history;
     Call 3 extracts locations reading the prior chain; Call 4
-    extracts `characters` (v9 dropped the paired `opening`
-    extraction); Call 5 extracts `knowledge` envelopes; Call 6
+    extracts `characters` with public/private descriptions
+    (v9 dropped the paired `opening` extraction); Call 5 extracts
+    `knowledge` envelopes; Call 6
     extracts the player-facing `player_primer` — a 1-2 paragraph
     spoiler-free framing the bot shows on briefing before the
     player ever runs `/join`.
@@ -1575,7 +1603,7 @@ async def run_import_two_call(
         "Starting six-call import (pipeline %s): source prompt %d chars, ~%d words",
         IMPORTER_VERSION, len(source_text), len(source_text.split()),
     )
-    # v9: Call 4 produces characters alone (no paired `opening`).
+    # v9+: Call 4 produces characters alone (no paired `opening`).
     # The opening beat is composed at runtime by the router from
     # the world + character state extracted across Calls 1-4.
 

@@ -86,10 +86,13 @@ class TestLLMConfig:
         assert config.role_models["event_router"] == "gpt-5.2"
         assert config.role_models["narrator"] == "claude-sonnet-4-6"
         assert config.role_models["agent"] == "claude-opus-4-6"
+        assert config.role_models["agent_convenience"] == "claude-sonnet-4-6"
         assert config.role_models["character_gen"] == "claude-opus-4-6"
         assert config.provider_for_role("event_router") == "openai"
         assert config.provider_for_role("narrator") == "anthropic"
         assert config.provider_for_role("agent") == "anthropic"
+        assert config.provider_for_role("agent_convenience") == "anthropic"
+        assert config.thinking_budget_for_role("agent_convenience") == 0
         assert all(
             effort == "medium"
             for effort in config.openai_reasoning_efforts.values()
@@ -224,6 +227,7 @@ def mock_config():
             "event_router": "claude-sonnet-4-6",
             "narrator": "claude-haiku-4-5",
             "agent": "claude-sonnet-4-6",
+            "agent_convenience": "claude-haiku-4-5",
             "character_gen": "claude-sonnet-4-6",
         },
         max_retries=1,

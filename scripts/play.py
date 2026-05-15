@@ -2474,8 +2474,12 @@ class CLIState:
 # ---- bootstrap --------------------------------------------------------------
 
 
+def _cli_log_level(verbose: bool) -> int:
+    return logging.INFO if verbose else logging.ERROR
+
+
 async def main_async(args: argparse.Namespace) -> int:
-    level = logging.INFO if args.verbose else logging.WARNING
+    level = _cli_log_level(args.verbose)
     logging.basicConfig(
         level=level,
         format="%(levelname)s %(name)s: %(message)s",
@@ -2559,7 +2563,7 @@ def main() -> None:
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
-        help="Log engine INFO messages to stderr.",
+        help="Log engine INFO and WARNING messages to stderr.",
     )
     args = parser.parse_args()
     sys.exit(asyncio.run(main_async(args)))
