@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from difflib import SequenceMatcher
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -73,6 +74,87 @@ def _new_event_id() -> str:
     """Stable event identifier for the canonical event log + render
     buffers. Short enough to be dev-readable; unique across sessions."""
     return f"evt_{uuid.uuid4().hex[:12]}"
+
+
+def _ascii_id_skeleton(value: str) -> str:
+    return "".join(ch for ch in (value or "").strip() if ch.isascii()).lower()
+
+
+def _unique_match(values: list[str]) -> str:
+    unique = list(dict.fromkeys(value for value in values if value))
+    return unique[0] if len(unique) == 1 else ""
+
+
+def _repair_observer_id(value: str, observer_ids: list[str]) -> str:
+    """Best-effort repair for model typos in fact-level visibility ids.
+
+    The router sometimes emits a visually close but invalid character id in
+    `observable_facts[].visible_to` while the correct id is already present in
+    `observers`. Repair only when the observer set makes the intended target
+    unambiguous; otherwise return "" and let the caller drop the private
+    recipient instead of leaking it.
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    observer_ids = list(dict.fromkeys(cid for cid in observer_ids if cid))
+    if raw in observer_ids:
+        return raw
+
+    raw_skeleton = _ascii_id_skeleton(raw)
+    if raw_skeleton:
+        exact = _unique_match(
+            [
+                observer_id
+                for observer_id in observer_ids
+                if _ascii_id_skeleton(observer_id) == raw_skeleton
+            ]
+        )
+        if exact:
+            return exact
+
+        raw_suffix = raw_skeleton.rsplit("_", 1)[-1]
+        raw_first = next((ch for ch in raw_skeleton if ch.isalnum()), "")
+        if raw_suffix and raw_first:
+            suffix_candidates = []
+            for observer_id in observer_ids:
+                observer_skeleton = _ascii_id_skeleton(observer_id)
+                if not observer_skeleton.startswith(raw_first):
+                    continue
+                if observer_skeleton.rsplit("_", 1)[-1] != raw_suffix:
+                    continue
+                if (
+                    SequenceMatcher(None, raw_skeleton, observer_skeleton).ratio()
+                    < 0.8
+                ):
+                    continue
+                suffix_candidates.append(observer_id)
+            suffix_match = _unique_match(suffix_candidates)
+            if suffix_match:
+                return suffix_match
+
+    basis = raw_skeleton or raw.lower()
+    scored = sorted(
+        (
+            (
+                SequenceMatcher(
+                    None,
+                    basis,
+                    _ascii_id_skeleton(observer_id) or observer_id.lower(),
+                ).ratio(),
+                observer_id,
+            )
+            for observer_id in observer_ids
+        ),
+        reverse=True,
+    )
+    if not scored:
+        return ""
+    best_score, best_id = scored[0]
+    second_score = scored[1][0] if len(scored) > 1 else 0.0
+    if best_score >= 0.82 and best_score - second_score >= 0.08:
+        return best_id
+    return ""
 
 
 class ObserverEntry(BaseModel):
@@ -474,18 +556,53 @@ class EventRouterOutput(BaseModel):
                 self.agent_responder_picks = [
                     p for p in self.agent_responder_picks if p in observer_ids
                 ]
-        observer_ids = {o.character_id for o in self.observers}
+        observer_ids = [o.character_id for o in self.observers if o.character_id]
+        observer_id_set = set(observer_ids)
+        visible_facts = []
+        repaired_visibility: list[str] = []
+        dropped_visibility: list[str] = []
+        dropped_fact_count = 0
         for fact in self.canonical_event.observable_facts:
             if fact.audience != "only":
+                visible_facts.append(fact)
                 continue
-            missing_visibility = [
-                cid for cid in fact.visible_to if cid not in observer_ids
-            ]
-            if missing_visibility:
-                raise ValueError(
-                    "observable_facts[].visible_to entries must also appear "
-                    "in observers for the event. Missing from observers: "
-                    + ", ".join(sorted(set(missing_visibility)))
+            repaired_ids: list[str] = []
+            for cid in fact.visible_to:
+                if cid in observer_id_set:
+                    repaired_ids.append(cid)
+                    continue
+                repaired = _repair_observer_id(cid, observer_ids)
+                if repaired:
+                    repaired_ids.append(repaired)
+                    repaired_visibility.append(f"{cid}->{repaired}")
+                else:
+                    dropped_visibility.append(cid)
+            fact.visible_to = list(dict.fromkeys(repaired_ids))
+            if fact.visible_to:
+                visible_facts.append(fact)
+            else:
+                dropped_fact_count += 1
+        self.canonical_event.observable_facts = visible_facts
+        if repaired_visibility or dropped_visibility or dropped_fact_count:
+            import logging
+            logger = logging.getLogger(__name__)
+            if repaired_visibility:
+                logger.warning(
+                    "observable_facts[].visible_to ids repaired against "
+                    "observers: %s",
+                    sorted(set(repaired_visibility)),
+                )
+            if dropped_visibility:
+                logger.warning(
+                    "observable_facts[].visible_to entries not in observers "
+                    "were dropped: %s",
+                    sorted(set(dropped_visibility)),
+                )
+            if dropped_fact_count:
+                logger.warning(
+                    "observable_facts with no valid visible_to recipients "
+                    "were dropped: %s",
+                    dropped_fact_count,
                 )
         if self.ends_beat_reason == "observation_harvest":
             # Harvest is a fork in the engine: picks become perception

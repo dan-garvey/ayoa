@@ -93,6 +93,7 @@ class TestLLMConfig:
         assert config.provider_for_role("agent") == "anthropic"
         assert config.provider_for_role("agent_convenience") == "anthropic"
         assert config.thinking_budget_for_role("agent_convenience") == 0
+        assert config.enable_anthropic_compaction is False
         assert all(
             effort == "medium"
             for effort in config.openai_reasoning_efforts.values()
@@ -134,6 +135,7 @@ class TestLLMConfig:
                 "LLM_OPENAI_REASONING_ROUTER": "high",
                 "LLM_OPENAI_REASONING_SUMMARY_ROUTER": "auto",
                 "LLM_REASONING_NARRATOR": "low",
+                "ANTHROPIC_COMPACTION_ENABLED": "true",
             },
             clear=True,
         ):
@@ -158,11 +160,21 @@ class TestLLMConfig:
             assert config.openai_reasoning_effort_for_role("event_router") == "high"
             assert config.openai_reasoning_summary_for_role("event_router") == "auto"
             assert config.openai_reasoning_effort_for_role("narrator") == "low"
+            assert config.enable_anthropic_compaction is True
 
 
 # --- LLMClient unit tests (mocked API) ---
 
-def _make_mock_response(content: str, model: str = "claude-haiku-4-5", parsed=None):
+def _make_mock_response(
+    content: str,
+    model: str = "claude-haiku-4-5",
+    parsed=None,
+    *,
+    cache_read: int = 0,
+    cache_write: int | None = 0,
+    cache_write_5m: int = 0,
+    cache_write_1h: int = 0,
+):
     """Create a mock Anthropic Message response.
 
     If `parsed` is supplied, the text block carries `parsed_output` — this is
@@ -177,6 +189,15 @@ def _make_mock_response(content: str, model: str = "claude-haiku-4-5", parsed=No
     usage = MagicMock()
     usage.input_tokens = 10
     usage.output_tokens = 20
+    usage.cache_read_input_tokens = cache_read
+    usage.cache_creation_input_tokens = cache_write
+    if cache_write_5m or cache_write_1h:
+        usage.cache_creation = MagicMock(
+            ephemeral_5m_input_tokens=cache_write_5m,
+            ephemeral_1h_input_tokens=cache_write_1h,
+        )
+    else:
+        usage.cache_creation = None
 
     response = MagicMock()
     response.content = [text_block]
@@ -414,6 +435,39 @@ class TestLLMClientComplete:
         ]
 
     @pytest.mark.asyncio
+    async def test_anthropic_usage_reads_per_ttl_cache_write_tokens(
+        self, client, caplog,
+    ):
+        _install_stream_mock(
+            client,
+            _make_mock_response(
+                "ok",
+                model="claude-opus-4-6",
+                cache_read=512,
+                cache_write=None,
+                cache_write_1h=4096,
+            ),
+        )
+
+        with caplog.at_level(logging.INFO, logger="app.llm.client"):
+            result = await client.complete(
+                role="agent",
+                messages=[
+                    {"role": "system", "content": "You are a character."},
+                    {"role": "user", "content": "Act."},
+                ],
+                temperature=0.5,
+                max_tokens=100,
+            )
+
+        assert result.usage["cache_read_input_tokens"] == 512
+        assert result.usage["cache_creation_input_tokens"] == 4096
+        assert result.usage["cache_creation_1h_input_tokens"] == 4096
+        assert result.usage["full_input_tokens"] == 4618
+        assert "model=claude-opus-4-6" in caplog.text
+        assert "cache_write=4096" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_openai_usage_logs_reasoning_tokens(self, caplog):
         config = LLMConfig(
             openai_api_key="fake-openai-key",
@@ -557,7 +611,40 @@ class TestLLMClientComplete:
         assert "betas" not in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_compact_true_adds_context_management(self, client):
+    async def test_compact_true_does_not_compact_by_default(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="event_router",
+            messages=[{"role": "user", "content": "hi"}],
+            compact=True,
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert "context_management" not in call_kwargs
+        assert "betas" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_compact_enabled_still_skips_unsupported_haiku(self, client):
+        client.config.enable_anthropic_compaction = True
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[{"role": "user", "content": "hi"}],
+            compact=True,
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert "context_management" not in call_kwargs
+        assert "betas" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_compact_true_adds_context_management_when_enabled(self, client):
         """compact=True switches to the beta stream with compaction
         config + beta header. Uses `event_router` as the role because
         the client's `compact_supported` gate (see app/llm/client.py)
@@ -567,6 +654,7 @@ class TestLLMClientComplete:
         (Option B's narrowed render contract makes the cheaper model
         sufficient), so this test now uses event_router which remains
         Sonnet."""
+        client.config.enable_anthropic_compaction = True
         # Install the mock on beta.messages.stream instead.
         from unittest.mock import AsyncMock, MagicMock
 

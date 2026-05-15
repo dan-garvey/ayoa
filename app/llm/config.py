@@ -237,6 +237,10 @@ class LLMConfig(BaseModel):
     # Keep the client deadline high enough for long structured-output
     # requests and transient provider-side work, especially during imports.
     timeout: float = 600.0
+    # Server-side context compaction is opt-in. It is useful for very long
+    # Anthropic conversations, but model support varies and prompt-cache plus
+    # deterministic history compaction already handle normal sessions.
+    enable_anthropic_compaction: bool = False
     # Compaction trigger for providers/models that support server-side
     # context compaction. Tune down for smaller-window models.
     compact_trigger_tokens: int = 900_000
@@ -391,6 +395,16 @@ class LLMConfig(BaseModel):
             if role_key:
                 openai_role_api_keys[role] = role_key
 
+        compaction_raw = os.environ.get(
+            "ANTHROPIC_COMPACTION_ENABLED",
+            os.environ.get("LLM_ANTHROPIC_COMPACTION_ENABLED", ""),
+        ).strip().lower()
+        enable_anthropic_compaction = (
+            compaction_raw in {"1", "true", "yes", "on"}
+            if compaction_raw
+            else defaults.enable_anthropic_compaction
+        )
+
         return cls(
             api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
             openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
@@ -403,4 +417,5 @@ class LLMConfig(BaseModel):
             openai_reasoning_efforts=openai_reasoning_efforts,
             openai_reasoning_summaries=openai_reasoning_summaries,
             cache_ttl=ttl,
+            enable_anthropic_compaction=enable_anthropic_compaction,
         )

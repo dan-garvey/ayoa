@@ -519,14 +519,6 @@ class SessionState(BaseModel):
     # Trigger model lives in `Orchestrator._run_ticks`; `tick_stagnation_max`
     # forces a fire after N idle turns.
     turns_since_last_tick: int = 0
-    # DEPRECATED (Commit 5): pre-v11 cadence-based tick scheduler.
-    # `tick_turn_counter` is no longer incremented; `tick_cadence` is
-    # no longer read. Kept on the schema for one release so old saves
-    # written before Commit 5 round-trip cleanly and `/inspect` doesn't
-    # show a missing field. Safe to drop in a future migration once
-    # no live save references them.
-    tick_turn_counter: int = 0
-    tick_cadence: int = 10
     # Commit-3 (router-trim): which `world_state.facts` entries have
     # already been surfaced to the router in some prior turn's user
     # message. The per-turn user message now carries
@@ -546,7 +538,6 @@ class SessionState(BaseModel):
     # external mutation).
     pending_router_state_changes: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
 
     # v11: beat-pacing state. Keyed by slot-holder character_id. The session
@@ -584,11 +575,6 @@ class SessionState(BaseModel):
     pending_intentions: list[dict[str, str]] = Field(default_factory=list)
 
 
-class TimeState(BaseModel):
-    story_time: datetime = Field(default_factory=datetime.utcnow)
-    turn_count: int = 0
-
-
 class LocationState(BaseModel):
     """No runtime scene topology.
 
@@ -613,7 +599,6 @@ class StorySetting(BaseModel):
 
 
 class WorldState(BaseModel):
-    time: TimeState = Field(default_factory=TimeState)
     locations: LocationState = Field(default_factory=LocationState)
     facts: list[str] = Field(default_factory=list)
     physics_ruleset: PhysicsRuleset = Field(default_factory=PhysicsRuleset)

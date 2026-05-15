@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
@@ -134,6 +134,16 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
     engine.pending_roll_prompts = MagicMock(return_value=[])
     engine.complete_pending_roll = AsyncMock()
     engine.continue_pending_roll = AsyncMock()
+    engine.list_loot_offers = MagicMock(return_value=[])
+    engine.claim_loot = AsyncMock(return_value=SimpleNamespace(
+        message="Claimed loot.",
+    ))
+    engine.split_loot_currency = AsyncMock(return_value=SimpleNamespace(
+        message="Split coins.",
+    ))
+    engine.decline_loot = AsyncMock(return_value=SimpleNamespace(
+        message="Declined loot.",
+    ))
     engine.begin_combat = MagicMock(return_value=DndCombatView(
         session_id=SESSION_ID,
         active=False,
@@ -654,6 +664,64 @@ class TestDeferCommand:
             user_id=1,
         )
         engine.run_turn.assert_not_awaited()
+
+
+class TestLootCommand:
+    def test_loot_all_claims_every_open_offer(self, run, capsys):
+        engine = _mock_engine()
+        engine.list_loot_offers.return_value = [
+            SimpleNamespace(offer_id="offer_a"),
+            SimpleNamespace(offer_id="offer_b"),
+        ]
+        engine.claim_loot.side_effect = [
+            SimpleNamespace(message="Claimed from offer_a."),
+            SimpleNamespace(message="Claimed from offer_b."),
+        ]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/loot all"))
+
+        engine.list_loot_offers.assert_called_once_with(
+            SESSION_ID,
+            1,
+            character_id="aldric",
+        )
+        engine.claim_loot.assert_has_awaits([
+            call(
+                session_id=SESSION_ID,
+                user_id=1,
+                character_id="aldric",
+                offer_id="offer_a",
+                item_ids=[],
+                take_currency=True,
+                take_all_available=True,
+            ),
+            call(
+                session_id=SESSION_ID,
+                user_id=1,
+                character_id="aldric",
+                offer_id="offer_b",
+                item_ids=[],
+                take_currency=True,
+                take_all_available=True,
+            ),
+        ])
+        out = capsys.readouterr().out
+        assert "Claimed from offer_a." in out
+        assert "Claimed from offer_b." in out
+
+    def test_loot_all_reports_empty_offers(self, run, capsys):
+        engine = _mock_engine()
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/loot all"))
+
+        engine.claim_loot.assert_not_awaited()
+        assert "no open loot offers" in capsys.readouterr().out
 
 
 class TestBeginCommand:

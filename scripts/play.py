@@ -36,6 +36,7 @@ Commands inside the REPL:
     /sheet [page] [id]          Show an attached D&D character sheet
     /inventory [character_id]   Show current D&D inventory
     /loot                       List open D&D loot offers
+    /loot all                   Claim all open D&D loot offers
     /roll [roll_id|all]         Roll pending D&D player check(s)
     /combat status              Show active D&D combat order and HP
     /query <question>           Ask an out-of-character question (POV-bounded)
@@ -125,6 +126,7 @@ Commands:
   /sheet all [character_id]         Show every sheet page
   /inventory [character_id]         Show current D&D inventory
   /loot                             List open D&D loot offers
+  /loot all                         Claim all open D&D loot offers
   /loot take <offer> <all|ids>      Claim all or comma-separated item ids
   /loot split-coins <offer>         Split offer coins among eligible players
   /loot decline <offer>             Decline a loot offer
@@ -1469,6 +1471,53 @@ class CLIState:
             print(f"error: {type(e).__name__}: {e}")
             return
         print(result.message)
+
+    async def cmd_loot_all(self, arg: str) -> None:
+        if arg.strip():
+            print("usage: /loot all")
+            return
+        if self.current_actor is None:
+            print("no current actor — /join a character first")
+            return
+        uid = self.claims.get(self.current_actor)
+        if uid is None:
+            print(f"not claimed: {self.current_actor}")
+            return
+        try:
+            offers = self.engine.list_loot_offers(
+                self.session_id,
+                uid,
+                character_id=self.current_actor,
+            )
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        if not offers:
+            print("no open loot offers for the current actor")
+            return
+
+        claimed_any = False
+        for offer in offers:
+            offer_id = str(getattr(offer, "offer_id", "") or "").strip()
+            if not offer_id:
+                continue
+            try:
+                result = await self.engine.claim_loot(
+                    session_id=self.session_id,
+                    user_id=uid,
+                    character_id=self.current_actor,
+                    offer_id=offer_id,
+                    item_ids=[],
+                    take_currency=True,
+                    take_all_available=True,
+                )
+            except Exception as e:
+                print(f"error claiming {offer_id}: {type(e).__name__}: {e}")
+                continue
+            print(result.message)
+            claimed_any = True
+        if not claimed_any:
+            print("no claimable loot found")
 
     async def cmd_loot_split_coins(self, arg: str) -> None:
         offer_id = arg.strip()

@@ -248,6 +248,64 @@ def _usage_attr(obj: Any, name: str, default: int = 0) -> int:
     return int(getattr(obj, name, default) or default)
 
 
+def _usage_optional_int(obj: Any, name: str) -> int | None:
+    if obj is None:
+        return None
+    value = obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _normalise_anthropic_usage(raw_usage: Any) -> dict[str, int]:
+    if not raw_usage:
+        return {}
+
+    prompt_tokens = _usage_optional_int(raw_usage, "input_tokens") or 0
+    completion_tokens = _usage_optional_int(raw_usage, "output_tokens") or 0
+    cache_read = _usage_optional_int(raw_usage, "cache_read_input_tokens") or 0
+
+    cache_creation = (
+        raw_usage.get("cache_creation")
+        if isinstance(raw_usage, dict)
+        else getattr(raw_usage, "cache_creation", None)
+    )
+    cache_write_5m = (
+        _usage_optional_int(cache_creation, "ephemeral_5m_input_tokens") or 0
+    )
+    cache_write_1h = (
+        _usage_optional_int(cache_creation, "ephemeral_1h_input_tokens") or 0
+    )
+    ttl_cache_write = cache_write_5m + cache_write_1h
+    legacy_cache_write = _usage_optional_int(
+        raw_usage, "cache_creation_input_tokens",
+    )
+    cache_write = legacy_cache_write or ttl_cache_write
+
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+        "cache_read_input_tokens": cache_read,
+        "cache_creation_input_tokens": cache_write,
+        "cache_creation_5m_input_tokens": cache_write_5m,
+        "cache_creation_1h_input_tokens": cache_write_1h,
+        # Full prompt size = uncached + cache read + cache write.
+        "full_input_tokens": prompt_tokens + cache_read + cache_write,
+    }
+
+
 def _normalise_openai_usage(raw_usage: Any) -> dict[str, int]:
     if not raw_usage:
         return {}
@@ -391,11 +449,11 @@ class LLMClient:
                    caller expects a follow-up call to read
                    [system, user1, assistant1] as a cached prefix — e.g. the
                    two-call importer pattern.
-            compact: If True, enable server-side context compaction (beta). The API
+            compact: If True, request server-side context compaction (beta). The
+                     request is honored only when `config.enable_anthropic_compaction`
+                     is also true and the selected model supports the beta. The API
                      automatically summarizes earlier context when input tokens cross
-                     `config.compact_trigger_tokens`. Callers that send rolling
-                     conversation history are the ones that benefit; single-request
-                     calls will never approach the threshold and pay nothing extra.
+                     `config.compact_trigger_tokens`.
             stream: Reserved; adapters pick their own transport strategy.
 
         Returns:
@@ -483,27 +541,12 @@ class LLMClient:
         )
 
         content = _extract_text(raw_response)
-        usage: dict[str, int] = {}
-        if raw_response.usage:
-            # input_tokens is the *uncached* remainder. Cache write/read columns
-            # come in separately and are billed at 1.25× / 0.1× respectively.
-            prompt_tokens = raw_response.usage.input_tokens
-            completion_tokens = raw_response.usage.output_tokens
-            cache_read = getattr(
-                raw_response.usage, "cache_read_input_tokens", None
-            ) or 0
-            cache_write = getattr(
-                raw_response.usage, "cache_creation_input_tokens", None
-            ) or 0
-            usage = {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-                "cache_read_input_tokens": cache_read,
-                "cache_creation_input_tokens": cache_write,
-                # Full prompt size = uncached + cache read + cache write.
-                "full_input_tokens": prompt_tokens + cache_read + cache_write,
-            }
+        # Anthropic usage.input_tokens is the *uncached* remainder. Cache
+        # write/read columns come in separately and are billed at separate
+        # rates. Newer SDK/API responses expose writes under
+        # usage.cache_creation.ephemeral_{5m,1h}_input_tokens, while older
+        # responses used top-level cache_creation_input_tokens.
+        usage = _normalise_anthropic_usage(getattr(raw_response, "usage", None))
 
         parsed = _extract_parsed(raw_response) if response_model is not None else None
         if response_model is not None and parsed is None:
@@ -806,7 +849,11 @@ class LLMClient:
         # we already do keeps inputs far below the 200K/1M ceiling, so the
         # loss is purely an optimization miss.
         compact_supported = "sonnet" in model.lower() or "opus" in model.lower()
-        effective_compact = compact and compact_supported
+        effective_compact = (
+            compact
+            and self.config.enable_anthropic_compaction
+            and compact_supported
+        )
         needs_beta = effective_compact or response_model is not None
         if effective_compact:
             kwargs["context_management"] = {

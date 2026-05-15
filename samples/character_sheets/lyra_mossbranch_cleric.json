@@ -1,0 +1,418 @@
+{
+  "exporter": {
+    "name": "ayoa-ddb-json-exporter",
+    "version": "0.1.0"
+  },
+  "source": {
+    "type": "dndbeyond_browser_export",
+    "character_id": "sample-lyra-mossbranch",
+    "url": "",
+    "exported_at": "2026-05-14T00:00:00.000Z"
+  },
+  "raw": {
+    "id": 0,
+    "success": true,
+    "message": "Sample character sheet.",
+    "data": {
+      "id": "sample-lyra-mossbranch",
+      "userId": 0,
+      "username": "sample",
+      "isAssignedToPlayer": true,
+      "readonlyUrl": "",
+      "name": "Lyra Mossbranch",
+      "socialName": null,
+      "gender": "F",
+      "faith": "Quiet service to the dawn gods",
+      "age": 27,
+      "hair": "Auburn",
+      "eyes": "Hazel",
+      "skin": "Warm brown",
+      "height": "5'6\"",
+      "weight": 135,
+      "inspiration": false,
+      "baseHitPoints": 10,
+      "bonusHitPoints": null,
+      "overrideHitPoints": null,
+      "removedHitPoints": 0,
+      "temporaryHitPoints": 0,
+      "currentXp": 0,
+      "alignmentId": 1,
+      "stats": [
+        {
+          "id": 1,
+          "value": 10
+        },
+        {
+          "id": 2,
+          "value": 12
+        },
+        {
+          "id": 3,
+          "value": 14
+        },
+        {
+          "id": 4,
+          "value": 11
+        },
+        {
+          "id": 5,
+          "value": 16
+        },
+        {
+          "id": 6,
+          "value": 13
+        }
+      ],
+      "bonusStats": [
+        {
+          "id": 1,
+          "value": null
+        },
+        {
+          "id": 2,
+          "value": null
+        },
+        {
+          "id": 3,
+          "value": null
+        },
+        {
+          "id": 4,
+          "value": null
+        },
+        {
+          "id": 5,
+          "value": null
+        },
+        {
+          "id": 6,
+          "value": null
+        }
+      ],
+      "overrideStats": [
+        {
+          "id": 1,
+          "value": null
+        },
+        {
+          "id": 2,
+          "value": null
+        },
+        {
+          "id": 3,
+          "value": null
+        },
+        {
+          "id": 4,
+          "value": null
+        },
+        {
+          "id": 5,
+          "value": null
+        },
+        {
+          "id": 6,
+          "value": null
+        }
+      ],
+      "deathSaves": {
+        "successCount": 0,
+        "failCount": 0
+      },
+      "conditions": [],
+      "currencies": {
+        "cp": 0,
+        "sp": 0,
+        "ep": 0,
+        "gp": 15,
+        "pp": 0
+      },
+      "race": {
+        "fullName": "Hill Dwarf",
+        "baseName": "Dwarf",
+        "sizeId": 3,
+        "creatureTypeName": "Humanoid",
+        "weightSpeeds": {
+          "walk": 25
+        },
+        "racialTraits": [
+          {
+            "definition": {
+              "id": "dwarven-resilience",
+              "name": "Dwarven Resilience",
+              "description": "You have advantage on saving throws against poison.",
+              "requiredLevel": 1
+            }
+          }
+        ]
+      },
+      "background": {
+        "definition": {
+          "id": "acolyte",
+          "name": "Acolyte",
+          "featureName": "Shelter of the Faithful",
+          "featureDescription": "Lyra can call on temples of her faith for modest aid."
+        }
+      },
+      "traits": {
+        "personalityTraits": "Soft-spoken until someone is hurt.",
+        "ideals": "Mercy should arrive before judgment.",
+        "bonds": "Her village shrine sent her out with its only silver bell.",
+        "flaws": "She assumes every wound can be healed if she tries hard enough."
+      },
+      "notes": {
+        "backstory": "Lyra left a quiet hill shrine after seeing omens in a basin of dawn water. She now travels to help strangers before trouble finds her home."
+      },
+      "classes": [
+        {
+          "id": "cleric-1",
+          "level": 1,
+          "isStartingClass": true,
+          "hitDiceUsed": 0,
+          "definition": {
+            "id": 2,
+            "name": "Cleric",
+            "hitDice": 8,
+            "canCastSpells": true,
+            "spellCastingAbilityId": 5
+          },
+          "subclassDefinition": null
+        }
+      ],
+      "modifiers": {
+        "race": [
+          {
+            "id": "darkvision",
+            "type": "set-base",
+            "subType": "darkvision",
+            "friendlySubtypeName": "Darkvision",
+            "fixedValue": 60
+          },
+          {
+            "id": "dwarvish",
+            "type": "language",
+            "subType": "dwarvish",
+            "friendlySubtypeName": "Dwarvish"
+          }
+        ],
+        "class": [
+          {
+            "id": "wis-save",
+            "type": "proficiency",
+            "subType": "wisdom-saving-throws",
+            "friendlySubtypeName": "Wisdom Saving Throws"
+          },
+          {
+            "id": "cha-save",
+            "type": "proficiency",
+            "subType": "charisma-saving-throws",
+            "friendlySubtypeName": "Charisma Saving Throws"
+          },
+          {
+            "id": "insight",
+            "type": "proficiency",
+            "subType": "insight",
+            "friendlySubtypeName": "Insight"
+          },
+          {
+            "id": "medicine",
+            "type": "proficiency",
+            "subType": "medicine",
+            "friendlySubtypeName": "Medicine"
+          },
+          {
+            "id": "light-armor",
+            "type": "proficiency",
+            "subType": "light-armor",
+            "friendlySubtypeName": "Light Armor"
+          },
+          {
+            "id": "medium-armor",
+            "type": "proficiency",
+            "subType": "medium-armor",
+            "friendlySubtypeName": "Medium Armor"
+          },
+          {
+            "id": "shields",
+            "type": "proficiency",
+            "subType": "shields",
+            "friendlySubtypeName": "Shields"
+          }
+        ],
+        "background": [
+          {
+            "id": "religion",
+            "type": "proficiency",
+            "subType": "religion",
+            "friendlySubtypeName": "Religion"
+          },
+          {
+            "id": "common",
+            "type": "language",
+            "subType": "common",
+            "friendlySubtypeName": "Common"
+          }
+        ],
+        "item": [],
+        "feat": [],
+        "condition": []
+      },
+      "actions": {
+        "class": [
+          {
+            "id": "channel-mercy",
+            "name": "Merciful Prayer",
+            "snippet": "Offer a brief prayer and steady an ally.",
+            "activationType": 1,
+            "activationTime": 1,
+            "range": {
+              "range": 30
+            },
+            "limitedUse": {
+              "numberUsed": 0,
+              "maxUses": 1,
+              "resetType": 2
+            }
+          }
+        ],
+        "race": [],
+        "background": [],
+        "item": [],
+        "feat": []
+      },
+      "spells": {
+        "class": [
+          {
+            "id": "sacred-flame",
+            "prepared": true,
+            "alwaysPrepared": false,
+            "usesSpellSlot": false,
+            "definition": {
+              "id": "sacred-flame",
+              "name": "Sacred Flame",
+              "level": 0,
+              "school": "Evocation",
+              "activationType": 1,
+              "activationTime": 1,
+              "range": {
+                "origin": "Ranged",
+                "rangeValue": 60
+              },
+              "duration": {
+                "durationInterval": 0,
+                "durationType": "Instantaneous"
+              },
+              "components": [
+                1,
+                2
+              ]
+            }
+          },
+          {
+            "id": "cure-wounds",
+            "prepared": true,
+            "alwaysPrepared": false,
+            "usesSpellSlot": true,
+            "definition": {
+              "id": "cure-wounds",
+              "name": "Cure Wounds",
+              "level": 1,
+              "school": "Evocation",
+              "activationType": 1,
+              "activationTime": 1,
+              "range": {
+                "origin": "Touch",
+                "rangeValue": 5
+              },
+              "duration": {
+                "durationInterval": 0,
+                "durationType": "Instantaneous"
+              },
+              "components": [
+                1,
+                2
+              ],
+              "healing": [
+                {
+                  "diceString": "1d8",
+                  "fixedValue": 3
+                }
+              ]
+            }
+          }
+        ],
+        "race": [],
+        "background": [],
+        "item": [],
+        "feat": []
+      },
+      "classSpells": [],
+      "spellSlots": [
+        {
+          "level": 1,
+          "used": 0,
+          "available": 2
+        }
+      ],
+      "pactMagic": [],
+      "inventory": [
+        {
+          "id": "scale-mail",
+          "quantity": 1,
+          "equipped": true,
+          "isAttuned": false,
+          "definition": {
+            "id": "scale-mail",
+            "name": "Scale Mail",
+            "filterType": "Armor",
+            "armorClass": 14,
+            "armorTypeId": 2,
+            "baseArmorName": "Scale Mail",
+            "weight": 45,
+            "grantedModifiers": []
+          }
+        },
+        {
+          "id": "shield",
+          "quantity": 1,
+          "equipped": true,
+          "isAttuned": false,
+          "definition": {
+            "id": "shield",
+            "name": "Shield",
+            "filterType": "Armor",
+            "armorClass": 2,
+            "armorTypeId": 4,
+            "baseArmorName": "Shield",
+            "weight": 6
+          }
+        },
+        {
+          "id": "mace",
+          "quantity": 1,
+          "equipped": true,
+          "isAttuned": false,
+          "definition": {
+            "id": "mace",
+            "name": "Mace",
+            "filterType": "Weapon",
+            "attackType": 1,
+            "damage": {
+              "diceString": "1d6"
+            },
+            "damageType": "Bludgeoning",
+            "weight": 4
+          }
+        }
+      ],
+      "features": [],
+      "feats": [],
+      "creatures": [],
+      "activeSourceCategories": [
+        "2014"
+      ],
+      "configuration": {},
+      "preferences": {}
+    }
+  }
+}

@@ -62,6 +62,8 @@ Silent NPCs recede. If someone is present but does nothing visible in the suppli
 
 If the submitted action is "(begin)", render arrival or opening motion in progress. Do not imply the viewpoint character was already settled unless the visible details say so.
 
+If the submitted action starts with "(query:", render only the private clarification that reaches this viewpoint. Do not turn the query into spoken dialogue, a visible question, body language, waiting, sitting, looking, or any other in-fiction action by the human-played character.
+
 Never end with menu options, numbered choices, or "what do you do?"
 
 Stay inside the fiction. The player should never see labels, diagnostics, data names, or explanations of why information is present or absent.

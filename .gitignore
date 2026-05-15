@@ -19,3 +19,4 @@ core.egg-info/
 logs/
 playtest_*_console.txt
 playtest_*_logs.txt
+tests/test_unblessed_summon_checkpoint.py

@@ -1,0 +1,342 @@
+{
+  "exporter": {
+    "name": "ayoa-ddb-json-exporter",
+    "version": "0.1.0"
+  },
+  "source": {
+    "type": "dndbeyond_browser_export",
+    "character_id": "sample-garrick-ironvale",
+    "url": "",
+    "exported_at": "2026-05-14T00:00:00.000Z"
+  },
+  "raw": {
+    "id": 0,
+    "success": true,
+    "message": "Sample character sheet.",
+    "data": {
+      "id": "sample-garrick-ironvale",
+      "userId": 0,
+      "username": "sample",
+      "isAssignedToPlayer": true,
+      "readonlyUrl": "",
+      "name": "Garrick Ironvale",
+      "socialName": null,
+      "gender": "M",
+      "faith": "",
+      "age": 31,
+      "hair": "Brown",
+      "eyes": "Blue",
+      "skin": "Weathered",
+      "height": "6'1\"",
+      "weight": 205,
+      "inspiration": false,
+      "baseHitPoints": 12,
+      "bonusHitPoints": null,
+      "overrideHitPoints": null,
+      "removedHitPoints": 0,
+      "temporaryHitPoints": 0,
+      "currentXp": 0,
+      "alignmentId": 3,
+      "stats": [
+        {
+          "id": 1,
+          "value": 16
+        },
+        {
+          "id": 2,
+          "value": 12
+        },
+        {
+          "id": 3,
+          "value": 14
+        },
+        {
+          "id": 4,
+          "value": 10
+        },
+        {
+          "id": 5,
+          "value": 13
+        },
+        {
+          "id": 6,
+          "value": 8
+        }
+      ],
+      "bonusStats": [
+        {
+          "id": 1,
+          "value": null
+        },
+        {
+          "id": 2,
+          "value": null
+        },
+        {
+          "id": 3,
+          "value": null
+        },
+        {
+          "id": 4,
+          "value": null
+        },
+        {
+          "id": 5,
+          "value": null
+        },
+        {
+          "id": 6,
+          "value": null
+        }
+      ],
+      "overrideStats": [
+        {
+          "id": 1,
+          "value": null
+        },
+        {
+          "id": 2,
+          "value": null
+        },
+        {
+          "id": 3,
+          "value": null
+        },
+        {
+          "id": 4,
+          "value": null
+        },
+        {
+          "id": 5,
+          "value": null
+        },
+        {
+          "id": 6,
+          "value": null
+        }
+      ],
+      "deathSaves": {
+        "successCount": 0,
+        "failCount": 0
+      },
+      "conditions": [],
+      "currencies": {
+        "cp": 0,
+        "sp": 0,
+        "ep": 0,
+        "gp": 10,
+        "pp": 0
+      },
+      "race": {
+        "fullName": "Human",
+        "baseName": "Human",
+        "sizeId": 3,
+        "creatureTypeName": "Humanoid",
+        "weightSpeeds": {
+          "walk": 30
+        },
+        "racialTraits": [
+          {
+            "definition": {
+              "id": "human-versatility",
+              "name": "Human Versatility",
+              "description": "Garrick adapts quickly to unfamiliar dangers.",
+              "requiredLevel": 1
+            }
+          }
+        ]
+      },
+      "background": {
+        "definition": {
+          "id": "soldier",
+          "name": "Soldier",
+          "featureName": "Military Rank",
+          "featureDescription": "Garrick is recognized by soldiers from his old company."
+        }
+      },
+      "traits": {
+        "personalityTraits": "Direct, disciplined, and slow to leave anyone behind.",
+        "ideals": "A shield matters most when someone else is behind it.",
+        "bonds": "He carries the dented badge of a fallen sergeant.",
+        "flaws": "He treats every disagreement like a battle plan."
+      },
+      "notes": {
+        "backstory": "Garrick left the border garrison after a failed retreat cost his unit dearly. He adventures to earn coin, rebuild his name, and keep his sword pointed at real threats."
+      },
+      "classes": [
+        {
+          "id": "fighter-1",
+          "level": 1,
+          "isStartingClass": true,
+          "hitDiceUsed": 0,
+          "definition": {
+            "id": 1,
+            "name": "Fighter",
+            "hitDice": 10,
+            "canCastSpells": false,
+            "spellCastingAbilityId": null
+          },
+          "subclassDefinition": null
+        }
+      ],
+      "modifiers": {
+        "race": [
+          {
+            "id": "common",
+            "type": "language",
+            "subType": "common",
+            "friendlySubtypeName": "Common"
+          }
+        ],
+        "class": [
+          {
+            "id": "str-save",
+            "type": "proficiency",
+            "subType": "strength-saving-throws",
+            "friendlySubtypeName": "Strength Saving Throws"
+          },
+          {
+            "id": "con-save",
+            "type": "proficiency",
+            "subType": "constitution-saving-throws",
+            "friendlySubtypeName": "Constitution Saving Throws"
+          },
+          {
+            "id": "athletics",
+            "type": "proficiency",
+            "subType": "athletics",
+            "friendlySubtypeName": "Athletics"
+          },
+          {
+            "id": "intimidation",
+            "type": "proficiency",
+            "subType": "intimidation",
+            "friendlySubtypeName": "Intimidation"
+          },
+          {
+            "id": "all-armor",
+            "type": "proficiency",
+            "subType": "all-armor",
+            "friendlySubtypeName": "All Armor"
+          },
+          {
+            "id": "shields",
+            "type": "proficiency",
+            "subType": "shields",
+            "friendlySubtypeName": "Shields"
+          },
+          {
+            "id": "martial-weapons",
+            "type": "proficiency",
+            "subType": "martial-weapons",
+            "friendlySubtypeName": "Martial Weapons"
+          }
+        ],
+        "background": [
+          {
+            "id": "survival",
+            "type": "proficiency",
+            "subType": "survival",
+            "friendlySubtypeName": "Survival"
+          }
+        ],
+        "item": [],
+        "feat": [],
+        "condition": []
+      },
+      "actions": {
+        "class": [
+          {
+            "id": "second-wind",
+            "name": "Second Wind",
+            "snippet": "Regain 1d10 + fighter level hit points.",
+            "activationType": 3,
+            "activationTime": 1,
+            "limitedUse": {
+              "numberUsed": 0,
+              "maxUses": 1,
+              "resetType": 1
+            }
+          }
+        ],
+        "race": [],
+        "background": [],
+        "item": [],
+        "feat": []
+      },
+      "spells": {
+        "class": [],
+        "race": [],
+        "background": [],
+        "item": [],
+        "feat": []
+      },
+      "classSpells": [],
+      "spellSlots": [],
+      "pactMagic": [],
+      "inventory": [
+        {
+          "id": "chain-mail",
+          "quantity": 1,
+          "equipped": true,
+          "isAttuned": false,
+          "definition": {
+            "id": "chain-mail",
+            "name": "Chain Mail",
+            "filterType": "Armor",
+            "armorClass": 16,
+            "armorTypeId": 3,
+            "baseArmorName": "Chain Mail",
+            "weight": 55,
+            "grantedModifiers": []
+          }
+        },
+        {
+          "id": "shield",
+          "quantity": 1,
+          "equipped": true,
+          "isAttuned": false,
+          "definition": {
+            "id": "shield",
+            "name": "Shield",
+            "filterType": "Armor",
+            "armorClass": 2,
+            "armorTypeId": 4,
+            "baseArmorName": "Shield",
+            "weight": 6
+          }
+        },
+        {
+          "id": "longsword",
+          "quantity": 1,
+          "equipped": true,
+          "isAttuned": false,
+          "definition": {
+            "id": "longsword",
+            "name": "Longsword",
+            "filterType": "Weapon",
+            "attackType": 1,
+            "damage": {
+              "diceString": "1d8"
+            },
+            "damageType": "Slashing",
+            "properties": [
+              {
+                "name": "Versatile"
+              }
+            ],
+            "weight": 3
+          }
+        }
+      ],
+      "features": [],
+      "feats": [],
+      "creatures": [],
+      "activeSourceCategories": [
+        "2014"
+      ],
+      "configuration": {},
+      "preferences": {}
+    }
+  }
+}

@@ -1,10 +1,11 @@
 """Tests for all Pydantic schemas — construct from design doc examples, round-trip, reject invalid."""
 
+import json
 import pytest
 from pydantic import ValidationError
 
 from app.schemas.state import (
-    ModelConfig, SessionConfig, SessionState, TimeState,
+    ModelConfig, SessionConfig, SessionState,
     LocationState, PhysicsRuleset, StorySetting, WorldState,
 )
 from app.schemas.characters import (
@@ -34,7 +35,6 @@ from app.schemas.checkpoint import CheckpointFile
 # --- Design doc example data (sections 7.1-7.7) ---
 
 WORLD_STATE_EXAMPLE = {
-    "time": {"story_time": "2026-04-10T15:21:00Z", "turn_count": 42},
     "locations": {},
     "facts": ["The courtyard is wet from earlier rain.", "The main building is made of stone."],
     "physics_ruleset": {"strength_limits": "human_baseline", "magic_enabled": False},
@@ -109,6 +109,7 @@ ROUTER_OUTPUT_EXAMPLE = {
     "location_updates": [],
 }
 
+
 RAT_COMBATANT_SPAWN = {
     "character_id": "rat_1",
     "monster_key": "rat",
@@ -158,7 +159,6 @@ RAT_COMBATANT_SPAWN = {
         ],
     },
 }
-
 
 AGENT_OUTPUT_EXAMPLE = {
     "character_id": "guard_17",
@@ -398,7 +398,7 @@ class TestEventRouterOutput:
         with pytest.raises(ValidationError):
             EventRouterOutput(**data)
 
-    def test_scoped_fact_visible_to_must_be_observer(self):
+    def test_scoped_fact_visible_to_unknown_observer_is_dropped(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
             "canonical_event": {
@@ -412,8 +412,33 @@ class TestEventRouterOutput:
                 ],
             },
         }
-        with pytest.raises(ValidationError):
-            EventRouterOutput(**data)
+        r = EventRouterOutput(**data)
+        assert r.canonical_event.observable_facts == []
+
+    def test_scoped_fact_visible_to_confusable_observer_is_repaired(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "canonical_event": {
+                **ROUTER_OUTPUT_EXAMPLE["canonical_event"],
+                "observable_facts": [
+                    {
+                        "text": "Mika hears the introduction.",
+                        "audience": "only",
+                        "visible_to": ["m\u10d8\u10d9\u10d0_aoyama"],
+                    }
+                ],
+            },
+            "observers": [
+                *ROUTER_OUTPUT_EXAMPLE["observers"],
+                {
+                    "character_id": "mika_aoyama",
+                    "observation_level": "d",
+                    "response_priority": 2,
+                },
+            ],
+        }
+        r = EventRouterOutput(**data)
+        assert r.canonical_event.observable_facts[0].visible_to == ["mika_aoyama"]
 
     def test_spawn_request(self):
         data = {
@@ -541,7 +566,6 @@ class TestDndEventRouterOutput:
         assert out.combatant_ids == ["alice", "pip"]
         assert out.loot_offer.present is False
 
-
     def test_combat_start_accepts_spawned_statblock_combatants(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
@@ -556,6 +580,37 @@ class TestDndEventRouterOutput:
         assert out.combatant_spawns[0].monster_key == "rat"
         assert out.combatant_spawns[0].statblock.challenge_rating == "0"
         assert out.combatant_spawns[0].statblock.xp == 10
+
+    def test_dnd_scoped_fact_visible_to_confusable_observer_is_repaired(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "cat_i",
+            "combatant_ids": [],
+            "canonical_event": {
+                **ROUTER_OUTPUT_EXAMPLE["canonical_event"],
+                "observable_facts": [
+                    {
+                        "text": "Mika hears the introduction.",
+                        "audience": "only",
+                        "visible_to": ["m\u10d8\u10d9\u10d0_aoyama"],
+                    }
+                ],
+            },
+            "observers": [
+                *ROUTER_OUTPUT_EXAMPLE["observers"],
+                {
+                    "character_id": "mika_aoyama",
+                    "observation_level": "d",
+                    "response_priority": 2,
+                },
+            ],
+        }
+
+        out = DndEventRouterOutput.model_validate_json(json.dumps(data))
+
+        assert out.canonical_event.observable_facts[0].visible_to == [
+            "mika_aoyama"
+        ]
 
     def test_dnd_loot_offer_contract(self):
         data = {

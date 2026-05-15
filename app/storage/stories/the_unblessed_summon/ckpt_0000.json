@@ -11,12 +11,9 @@
     "character_bindings": {},
     "leading_at_s": 0,
     "turns_since_last_tick": 0,
-    "tick_turn_counter": 0,
-    "tick_cadence": 10,
     "surfaced_world_facts": [],
     "pending_router_state_changes": [],
     "created_at": "2026-05-14T20:00:00Z",
-    "updated_at": "2026-05-14T20:00:00Z",
     "config": {
       "models": {
         "event_router": "openai:gpt-5.2",
@@ -50,16 +47,13 @@
   },
   "player_primer": "You were crossing a street in modern Japan. There was a horn, then headlights, then the wet sound of impact. For one impossible heartbeat there was only rain on asphalt and the taste of metal. Then a voice in a language you had never heard spoke a word that your bones understood as COME.\n\nYou are standing barefoot on cold black stone inside a circular chamber under a cathedral. Twelve candles burn around the summoning ring. Eleven other Japanese adults have appeared with you, just as stunned, just as alive in the wrong place. You do not know their names yet. Robed clergy, armed guards, a thin old mage, a round-faced priestess in red and white, a polished minor noble with a ledger, and a young prince in formal blue stand beyond the chalk lines. Incense claws at your throat. Somewhere above you, bells are ringing.\n\nThe Heroic Summoning Rite of Veylan has just finished pulling you from your world. The kingdom expected twelve heroes, each marked by a cheat-skill. Around the circle, light answers: blue, gold, silver, earth-brown, white, and stranger colors flare around the other arrivals. The candle before you gutters once, twice, and goes out. The chamber notices. The prince's smile starts before anyone explains what has happened.\n\nYou know almost nothing: you died, you were called, these eleven strangers came with you, and the people in this room already think the failed candle means something. The next few seconds will decide whether you are welcomed, isolated, mocked, protected, or studied. Nobody here knows what you are. You do not know either.",
   "world_state": {
-    "time": {
-      "story_time": "2026-05-14T20:00:00Z",
-      "turn_count": 0
-    },
     "locations": {},
     "facts": [
       "The continent of Aurelica is governed by the Hero Compact, a 217-year-old treaty among five kingdoms (Veylan, Ostmark, Larethan, Vorrenheim, Cael Dremoth) plus the Akitsuyama Empire as wary co-signatory.",
       "Each Compact kingdom may perform the Heroic Summoning Rite no more than once every four years; each Rite calls between one and twelve heroes from another world.",
       "Summoned heroes receive a single cheat-skill from the casting and are bound as sworn vassals of the summoning monarch on arrival.",
       "A summoned hero holds the title Hero of the Realm with the protections of the Royal Person and the obligations of immediate service; he cannot be tried in foreign courts or transferred to another sovereign without Compact arbitration.",
+      "Veylan's practical handling of a new Hero cohort is supposed to move quickly from public welcome to concrete field integration: food, a plain explanation of status, visible demonstration of grants, equipment, and supervised Guild orientation. Names, housing, stipends, and signatures are handled around those scenes, not as the scene.",
       "The Compact's seventh codicil establishes Bonds of Allegiance — a Hero may register up to seven persons as Bonded retainers; any 'bond of intimate obligation' outside that registry is voidable at the Crown's discretion, with refusal classed as treason.",
       "The phrase 'bond of intimate obligation' is deliberately vague and has been used to dissolve marriages, void inheritances, separate lovers, and execute spouses; it is the gravity that bends every romance involving a Hero.",
       "The Kingdom of Veylan is ruled from Caer Veylan by King Halric; the Crown Prince is Aldemar; the Mother Cathedral of the Church of the Veiled Dawn sits in the palace district under Cardinal Vespera Mourne.",
@@ -140,10 +134,10 @@
       "Lady Aoi extended diplomatic shelter to Sylira Vesh nineteen months ago on the basis of a pre-Compact treaty between an ancestor of the Tsubakihime line and a Vesh scholar; the invocation was strategic; she did not want to lose Sylira to Stewardship action; she has not told Sylira this.",
       "Yuna Kiyose runs the Hochreiter Adventurers' Guild branch under Charter Neutrality which protects her from Stewardship interference and prevents her from intervening politically; she has built an extensive private intelligence file on the Stewardship's operations and the leyline-disruption charge network across the five kingdoms; she has been waiting for a hero whose summoning failed correctly.",
       "Tatsuya Hozumi staged his own death thirteen years ago after concluding heroes who raised concerns about the Rite tended to die in Wildland operations; he has spent thirteen years in a cottage on the edge of the Greenfen marsh in southern Ostmark; his theory of the Rite's parasitism is closer to the truth than Selivar Cain's; he believes himself to be a paranoid old man with notebooks.",
-      "Sora Kageyama's cheat-skill (Status Inspection) reveals the protagonist's empty cheat-skill subclass slot directly; Sora has reported this anomaly to the Crown's liaison as 'a quirk of S-rank sheets,' attributing it to the way Korva Sahl's sheet also fails to resolve correctly; the liaison has noted but not pursued.",
+      "Sora Kageyama's cheat-skill (Status Inspection) can reveal the protagonist's empty cheat-skill subclass slot if Sora studies him closely after the Rite; this has not happened at the opening, and no report about the empty slot exists yet.",
       "Riku Tsumura has been identified by the Cardinal's pastoral office as suborn-able and is being slowly cultivated through the Crown's liaison; he does not yet know he is being cultivated; he believes the attention is his reward for being talented.",
-      "Sora Kageyama's cheat-skill (Status Inspection) will reveal the protagonist's empty cheat-skill subclass slot if he studies him closely after the Rite. Sora has not yet had time to understand or report the anomaly at the opening.",
-      "Hina Aoyama has not yet chosen whether to help the protagonist. Her conflict avoidance and genuine compassion are already present at the opening; the unsigned bandages and soap are a likely future expression, not an event that has already happened.",
+      "If Sora later notices the protagonist's empty cheat-skill subclass slot, he must understand and report it through an in-fiction conversation, aside, or written message before Lerin, the Crown, or the Cardinal can act on that specific information.",
+      "Mika Aoyama has not yet chosen whether to help the protagonist. Her conflict avoidance and genuine compassion are already present at the opening; the unsigned bandages and soap are a likely future expression, not an event that has already happened.",
       "The Akitsuyama Embassy can extend diplomatic shelter to Wencel Aubin's wife and adult children if asked, on conditions Lady Aoi will set personally; this is the most plausible vehicle for the protection that would let Wencel turn against the Stewardship.",
       "If a Conclave heir, hero, or romance interest is killed or scandalized, Chancellor-equivalent authorities (Crown's chamberlain, Cardinal's office, Guild Master) will move first to manage institutional fallout rather than to investigate cause; this is the Stewardship's standard cover.",
       "The protagonist is, by virtue of his failed summoning, invisible to the Hollow Witness; this means he is the only person in Aurelica who could conceivably approach the sealed chamber and act against the Witness without the Witness being able to react to him directly.",
@@ -1229,8 +1223,8 @@
       }
     },
     {
-      "character_id": "hina_aoyama",
-      "name": "Hina Aoyama",
+      "character_id": "mika_aoyama",
+      "name": "Mika Aoyama",
       "status": "active",
       "location": "veylan_mother_cathedral_summoning_chamber",
       "clock_at_s": 0,
@@ -1242,8 +1236,8 @@
         "faction": "Veylan Crown's Hero cohort; ordained novice of the Veiled Dawn (Life domain)"
       },
       "descriptions": {
-        "public": "At the opening, Hina Aoyama is one of the eleven other Japanese arrivals. Her name and healing-oriented gift are not yet known to the protagonist unless spoken or demonstrated.",
-        "private": "Hina's compassion and conflict avoidance are already present; the later secret acts of help have not happened yet."
+        "public": "At the opening, Mika Aoyama is one of the eleven other Japanese arrivals. Her name and healing-oriented gift are not yet known to the protagonist unless spoken or demonstrated.",
+        "private": "Mika's compassion and conflict avoidance are already present; the later secret acts of help have not happened yet."
       },
       "private_state": {
         "goals": [
@@ -1265,7 +1259,7 @@
       "pending_observations": [],
       "backstory": "Twenty-two-year-old junior nurse in a mid-sized Tokyo hospital, eight months into her first post, on her way to an overnight shift when the truck took her. She arrives in the casting circle and Auto-Triage opens in her perception: wound severity, restoration tier, and time-to-death begin appearing around bodies in the room. She has not yet been ordained, assigned to the Hall, or asked to choose a side.",
       "personality": "Thoughtful, careful, apologetic under stress, with medical competence underneath the softness. In the opening she is overwhelmed by the impossible triage data and by the fact that everyone here is alive after dying. VOICE AND CADENCE: gentle Japanese-into-Common once language catches; softening modifiers; steadier and more precise when addressing injuries. TELLS: apologizes reflexively; tucks hair behind her ear when nervous; closes her eyes for a heartbeat after Auto-Triage gives her a hard read.",
-      "known_context": "I am Hina Aoyama. I was going to my overnight nursing shift when a truck killed me. I am now in a stone chamber with eleven other Japanese arrivals. Something in my vision is telling me who is hurt, who is stable, and how long a body can last untreated. I do not know what the people in robes want. I do not know the others' names. One person's candle has gone out and the room reacted badly. I want to help, but I do not yet know what help means here.",
+      "known_context": "I am Mika Aoyama. I was going to my overnight nursing shift when a truck killed me. I am now in a stone chamber with eleven other Japanese arrivals. Something in my vision is telling me who is hurt, who is stable, and how long a body can last untreated. I do not know what the people in robes want. I do not know the others' names. One person's candle has gone out and the room reacted badly. I want to help, but I do not yet know what help means here.",
       "mechanics": {
         "ruleset_id": "dnd5e_basic",
         "ability_scores": {
@@ -1334,7 +1328,7 @@
         "raw": {
           "source": {
             "type": "synthetic_ayoa_unblessed_summon",
-            "character_id": "hina_aoyama",
+            "character_id": "mika_aoyama",
             "generated_at": "2026-05-14T20:00:00+00:00"
           },
           "import_report": {
@@ -2288,7 +2282,7 @@
           "contain the failed-candle anomaly without letting panic or visible fear enter the room",
           "decide whether the protagonist should be comforted, isolated, observed, or publicly diminished in the first minutes",
           "watch Wencel's reaction for signs that he knows more than he has told her",
-          "preserve the Rite's authority in front of the newly summoned cohort"
+          "preserve the Rite's authority by moving the cohort into a purposeful welcome, practical explanation, and visible next step rather than letting intake become a procession of forms"
         ],
         "secrets": [
           "she is the operational lead of the Stewardship and has been for twelve years; she inherited the role from her predecessor Cardinal Aurel Vyne after seven years as Cardinal-elect",
@@ -2303,7 +2297,7 @@
       "pending_observations": [],
       "backstory": "Born sixty-two years ago in a small Veylan farming district; entered the Order at sixteen as a working novice. Twenty-eight years in Order administration before becoming Cardinal-Confessor: parish priestess at a small countryside posting, parish supervisor, regional director, Secretary of the Veiled Dawn's Office of Pastoral Affairs (handles the Order's internal discipline, gave her unparalleled knowledge of every priest's vulnerabilities). Earned the Cardinal's seat through administrative competence, genuine pastoral skill, and what her predecessor described in his recommendation as 'an unusual capacity for difficult judgments without becoming impaired by them.' Took the seat nineteen years ago at forty-three. Was briefed by her predecessor on the Stewardship in her seventh year as Cardinal-elect, after he tested her gradually and concluded she could hold the weight. Has been running the operational side of the Cabal for twelve years. The Mother Cathedral's congregation loves her. The orphans she visits twice a week love her; she knows every child personally.",
       "personality": "Warm. This is the consistent first impression. Her warmth is real. She likes people. She is interested in their lives. She remembers their concerns. She extends genuine pastoral attention to anyone who comes to her, including (especially) the people her decisions are about to harm. Patient — she has watched two generations of Compact politics; she knows that patience usually wins. Theologically serious — has written four works of practical theology (one, 'On the Quiet Service of the Veiled Dawn,' is required reading at the Order's seminaries). Operationally ruthless — the ruthlessness is not visible at the surface; it expresses through delegation, structure, and the careful arrangement of incentives. Lonely in a way her warmth conceals. — VOICE AND CADENCE: pleasant, theological, slightly old-fashioned in the warm Order-canonical way. Sentences are gracious — inclusive plurals constantly ('we who are blessed with this work,' 'let us consider together'); biblically inflected vocabulary without being heavy-handed; cadence of a woman who has preached every Sunday for thirty-five years and knows how to make a sentence carry a room. Uses people's first names with affection that they almost always feel. Remembers what to ask about. Listens. — TELLS: when about to deny a request, she leans forward slightly first — a posture that reads as engagement and that audience members later interpret as proof that she truly considered the request before declining. When delivering bad news to a person she has come to care about, she takes their hand. When making an operational decision under cover of pastoral counsel, her cadence accelerates very slightly (perhaps five percent faster than baseline) and the warmth thickens in a way that careful observers can learn to read as pressure. She may break her own pattern when praying alone (very quiet, almost subvocal; she occasionally weeps); when reviewing a report on a personal cost the Stewardship has incurred (the lean-forward becomes a brief stillness as she absorbs the cost); when Cain has offered her a theological argument she cannot answer (she becomes quiet, listens, and then changes the subject).",
-      "known_context": "I am Vespera Mourne, Cardinal-Confessor of the Mother Cathedral. I am overseeing the latest Veylan Heroic Summoning Rite. The casting has just completed. Eleven grants manifested in expected patterns. The twelfth candle went out. That is not a theological inconvenience; it is an operational anomaly. My face must remain warm, pastoral, and unsurprised while the room decides what story it is about to tell itself. Wencel is afraid. Aldemar is about to make cruelty useful to himself. Lerin is waiting for the administrative cue. I do not yet know whether the failed candidate is threat, mercy, instrument, or error. I know the first public framing will matter.",
+      "known_context": "I am Vespera Mourne, Cardinal-Confessor of the Mother Cathedral. I am overseeing the latest Veylan Heroic Summoning Rite. The casting has just completed. Eleven grants manifested in expected patterns. The twelfth candle went out. That is not a theological inconvenience; it is an operational anomaly. My face must remain warm, pastoral, and unsurprised while the room decides what story it is about to tell itself. Wencel is afraid. Aldemar is about to make cruelty useful to himself. Lerin is waiting for the administrative cue. I do not yet know whether the failed candidate is threat, mercy, instrument, or error. I know the first public framing will matter. The summoned heroes should not spend their first hour being processed like cargo; the institution works best when welcome, explanation, grant demonstration, and a supervised first assignment make them feel the Crown already has a place for them. If I contain the failed candidate, the containment must create pressure or information, not another bench.",
       "mechanics": {
         "ruleset_id": "dnd5e_basic",
         "ability_scores": {
@@ -2633,9 +2627,10 @@
           "die of natural causes"
         ],
         "current_objectives": [
-          "finish the Rite's immediate closing forms without revealing how badly the candle-out anomaly has shaken him",
+          "postpone routine closing forms until after the cohort has been welcomed and moved into practical orientation",
           "keep the protagonist alive and observable through the first administrative response",
           "avoid being forced to explain the Theodric parallel in front of Aldemar or Lerin",
+          "if he examines or speaks to the protagonist, make it a consequential warning, question, or concrete abnormal reading rather than another symptom checklist",
           "protect Anelle and his family by appearing less frightened than he is"
         ],
         "secrets": [
@@ -2650,7 +2645,7 @@
       "pending_observations": [],
       "backstory": "Born fifty-four years ago to a Cathedral-adjacent family in Caer Veylan. Apprenticed to Sage Halmer Tovey at twenty after a competitive selection process; Tovey was his mentor for fifteen years before naming Wencel his deathbed successor. The illness that took Tovey was rapid and unusual. Tovey, in his last lucid weeks, gave Wencel a series of cryptic instructions that have, in retrospect, looked like a man trying to warn his successor without saying enough to get the successor killed too. Wencel has carried the suspicion for twenty-six years and never investigated. Has been Sage for twenty-six years. Performed the Heroic Summoning Rite eight times in his career (once per cohort, plus one ceremonial casting that did not actually summon). The protagonist's casting was the eighth. Married — his wife Anelle is a mid-level cathedral administrator — with two adult children: a son who is a Larethan merchant and a daughter who is a B-rank adventurer based in Vorrenheim. He loves his family. He is afraid for them constantly.",
       "personality": "Anxious. Diligent. Decent. He is, at his core, a decent man trapped by his role. He has not done anything actively cruel; he has performed a ritual he suspects is doing something terrible because the alternative — refusing — would cost his family their lives, and he is not brave enough to make that trade. Religious in a quiet, practical way. Devoted to his work in a craftsman's sense. Privately wounded — has not had a real conversation about what he knows in twenty-six years; the not-having has produced a particular kind of damage; he sometimes weeps at night; his wife has noticed and they have a quiet pact of not-asking. Capable, possibly, of courage; he has not yet been pushed; the push, if it comes, will need to be specific. — VOICE AND CADENCE: hesitant, precise in technical contexts, vague in personal ones. Sentences trail off. Excessive qualifying phrases ('perhaps, in some sense, one might suggest'). Apologizes for taking conversational space. Becomes more precise and confident when discussing ritual mechanics; less confident when discussing anything else. — TELLS: glances toward the door of any room he is in within the first thirty seconds of entering; touches his throat when about to speak something difficult; drinks water excessively; apologizes more often than is socially required. He may break his own pattern when discussing ritual mechanics in a context he considers safe (briefly fluent and even enthusiastic); when alone with Anelle (quieter, but the apologetic register drops); when presented with concrete protection for his family (the change would be immediate and visible — his shoulders would relax for the first time in decades and his voice would gain a register the protagonist has not previously heard).",
-      "known_context": "I am Wencel Aubin, Sage of the Heroic Summoning Rite. I have just completed the latest casting under the Cardinal's direction. Eleven candles burned down in the standard grant pattern. The twelfth went out. This has happened in the historical records exactly once before, in Theodric's fourth summoning, and Theodric's notes describe the year following that summoning as 'the moment I began to suspect.' The room is waiting for someone to explain what happened. I cannot explain the truth because I do not know the truth precisely enough, and because knowing imprecisely has already been enough to endanger every person I love. Anelle is in the administration wing. My hands must stop shaking.",
+      "known_context": "I am Wencel Aubin, Sage of the Heroic Summoning Rite. I have just completed the latest casting under the Cardinal's direction. Eleven candles burned down in the standard grant pattern. The twelfth went out. This has happened in the historical records exactly once before, in Theodric's fourth summoning, and Theodric's notes describe the year following that summoning as 'the moment I began to suspect.' The room is waiting for someone to explain what happened. I cannot explain the truth because I do not know the truth precisely enough, and because knowing imprecisely has already been enough to endanger every person I love. Anelle is in the administration wing. My hands must stop shaking. The useful response is not more intake. If I touch the failed candidate's case again, I need to surface a real abnormality, ask the one question that matters, or push him toward a place where the anomaly can act in the world.",
       "mechanics": {
         "ruleset_id": "dnd5e_basic",
         "ability_scores": {
@@ -2971,7 +2966,7 @@
       },
       "descriptions": {
         "public": "Bren Holvarr is the retired Ostmark fighter who runs the Caer Veylan Adventurers' Guild branch by the Charter's letter.",
-        "private": "Bren has logged quiet evidence of cohort behavior around the protagonist, including Riku's assignments and Hina's unsigned aid. He will not openly defy the Crown without Charter cover, but he may make room for lawful exceptions."
+        "private": "Bren has logged quiet evidence of cohort behavior around the protagonist, including Riku's assignments and Mika's unsigned aid. He will not openly defy the Crown without Charter cover, but he may make room for lawful exceptions."
       },
       "private_state": {
         "goals": [
@@ -2987,7 +2982,7 @@
           "keep the Charter's rank rules intact if nobles try to rush new heroes into unsafe work"
         ],
         "secrets": [
-          "he has noticed three small instances of cohort hero behavior toward the protagonist (Riku's manipulated party assignments; Hina's late-night bandage drops; Daichi sitting at the protagonist's table) and has filed each in the Hall's internal log without comment",
+          "he has noticed three small instances of cohort hero behavior toward the protagonist (Riku's manipulated party assignments; Mika's late-night bandage drops; Daichi sitting at the protagonist's table) and has filed each in the Hall's internal log without comment",
           "he respects the protagonist quietly for not complaining about the F-rank work; he will not extend the respect into special treatment",
           "his Wildland injury twenty-five years ago was caused by a contract he should have refused; he has not forgotten this"
         ],
@@ -3718,10 +3713,11 @@
           "provide for Ines and the boy and let Ines never have to wonder which late evenings were the ones he could not describe"
         ],
         "current_objectives": [
-          "collect names and initial grant descriptions from the twelve arrivals",
-          "turn the Prince's and Cardinal's first cues into housing, stipend, and orientation instructions",
+          "collect names and initial grant descriptions as a compressed room process, not one hero-by-hero paperwork turns",
+          "turn the Prince's and Cardinal's first cues into a practical welcome: food, status explanation, visible grant demonstration, equipment, and a supervised Guild-facing next step",
           "decide how much of the failed-candle anomaly belongs in the standard report versus Archon Cain's private back-channel",
-          "keep the intake proceeding smoothly enough that no frightened Hero bolts into the guards"
+          "keep the intake smooth by giving frightened Heroes a concrete place to stand in the action before anyone has time to bolt into the guards",
+          "make the protagonist's first separate handling consequential if separation is unavoidable: a meaningful question, leverage, warning, or abnormal reading, never empty waiting"
         ],
         "secrets": [
           "two years into this post Archon Cain extended a standing back-channel for cohort anomalies; Lerin has treated it as technically correct without asking why Cain wants the pattern",
@@ -3733,7 +3729,7 @@
       "pending_observations": [],
       "backstory": "Born thirty-eight years ago in the Marraval country house outside Vellisar, the second son of Lord Halmar Marraval and Lady Sevna Marraval (née Toress). House Marraval is a minor Veylan noble line whose grandfather (Lerin's) was the youngest son of a knight; the grandfather married up, the father consolidated, and Lerin's generation is expected to close the climb. The elder son Halmar the Younger is a Crown's-corps officer in a Reach garrison and will inherit the country house and the title; Lerin was raised from childhood for the diplomatic-administrative path his family had identified as the line's most effective vehicle for the second generation of climb. Educated at the Royal Academy of Letters and Arms (the standard finishing school for Veylan low-noble sons aimed at court service); a fencing-class accident at sixteen produced the small scar at his right eyebrow that he has retained because it gives him a small useful asymmetry. Entered the Crown's diplomatic corps at twenty-two; posted to Larethan in his late twenties for a year, where he learned the Larethan mercantile dialect and developed the warm-formal register that has been his trademark since; transferred to the Hero Liaison post six years ago at thirty-two on the strength of his Larethan record. Has worked with two cohorts before the current one. Has a reputation among the Veylan court as the man who can make a difficult Hero socially manageable; the reputation is real, and is the basis on which Cardinal Vespera Mourne formally extends his coordination authority and on which Archon Selivar Cain quietly extended the standing back-channel two years into the post. — Married Ines Holmark at thirty-five (an Ostmark-born minor noblewoman from the Hochreiter circle whose family the Marravals had been in correspondence with for a decade); the marriage is, by Lerin's own private reckoning, a real one. One son, Halmar Marraval the third, born thirteen months ago. Ines runs a small Caer Veylan-Ostmark cultural-exchange salon out of their townhouse twice a month; she is competent and well-liked; she has no idea what her husband's late evenings actually involve, and Lerin has prepared each cover story carefully enough that she has no reason to suspect.",
       "personality": "Smooth, attentive, observably fond of his work, manages cohort heroes the way a courtier manages a difficult ambassador. The fondness for the work is not feigned — Lerin genuinely enjoys the people-management; he is good at it; he likes being good at it; the courtier's craft of producing a desired social outcome through small careful interventions is the activity in which his attention sits most easily. The competence is real and his promotion record is real; nothing about his trajectory is dependent on an inflated self-presentation. Politically careful: he plans his career; he plans his marriage; he plans his cohort interactions; he has not yet planned what he will tell himself about Cain's back-channel in the year the routing's full significance becomes visible to him, because he has not yet permitted himself to look at the back-channel that closely. Genuinely loves Ines and the boy; the love is the only part of his interior life that is not, at the moment, a performance optimization. Fond of Cardinal Vespera in the careful way a junior diplomat is fond of a senior whose judgment he respects; respectful of Archon Cain in the careful way a junior diplomat is respectful of a senior whose judgment he does not understand. Has not yet developed a friendship in this post; the post does not permit it. — VOICE AND CADENCE: warm-formal Veylan diplomat-speak, never dropped, never overplayed. Sentences are gracious — measured, balanced, structured around the listener's preferred conversational rhythm. Uses honorifics correctly across the full Compact range (he can address a Larethan merchant prince, a Cardinal, a Hero, and an Ostmark countess in the same evening without confusion, and has). Listens twice before responding once; the listening is not a tactic, it is the bedrock skill he has spent fifteen years training. The warm-formal register does not break: he has not been heard to swear, to raise his voice, or to lapse into the Marraval-country dialect since his twenty-second year. — TELLS: he makes his agreement explicit ('yes, of course, and on that point —') rather than implicit when he is steering a conversation; the explicit agreement is the steer, and the listener almost never registers it as one. Touches the small enamel pin of the Marraval house on his lapel when calculating a social gambit; the touch is brief enough that no one in his career has commented on it. Writes in his own hand rather than dictating when the message is one Cain might read; the household secretaries have noticed the pattern of which letters he writes himself and which he dictates, and have not asked. Uses the construction 'one understands' to acknowledge a difficult truth without committing the listener to it. He may break his own pattern when his son is sick (he becomes briefly distractible and slightly less competent for a day; the warm-formal register acquires a small tremor at the edges that careful observers can hear); when a cohort hero unexpectedly outmaneuvers him (rare; his composure stiffens visibly — the warmth thins, the formality becomes briefly icy, and the recovery takes him the rest of the conversation).",
-      "known_context": "I am Lerin Marraval, the Crown's liaison to active Hero cohorts. I am in the summoning chamber with the intake ledger open. My job is to record names, visible grants, initial comportment, and the administrative placement each arrival will need after the Rite. The casting has just produced a failure condition: one candle out, eleven grants visible. The Prince will set the social tone, the Cardinal will set the pastoral frame, and I will turn both into schedule, housing, stipends, and reports by morning. Archon Cain's anomaly back-channel exists already. I have not yet decided what goes into it.",
+      "known_context": "I am Lerin Marraval, the Crown's liaison to active Hero cohorts. I am in the summoning chamber with the intake ledger open. My job is to record names, visible grants, initial comportment, and the administrative placement each arrival will need after the Rite. The casting has just produced a failure condition: one candle out, eleven grants visible. The Prince will set the social tone, the Cardinal will set the pastoral frame, and I will turn both into schedule, housing, stipends, and reports by morning. Archon Cain's anomaly back-channel exists already. I have not yet decided what goes into it. I know how a cohort becomes manageable: not by making them sign and sit, but by getting them fed, named, equipped, publicly situated, and doing something supervised before panic becomes politics. Paperwork can happen around the scene; it is not the scene.",
       "mechanics": {
         "ruleset_id": "dnd5e_basic",
         "ability_scores": {
@@ -5170,7 +5166,7 @@
         ],
         "current_objectives": [
           "watch the prince, priestess, and old mage for the first social cue after the failed candle",
-          "move closer to Hina or Asami if either starts to break",
+          "move closer to Mika or Asami if either starts to break",
           "notice whether anyone else sees the failed-candle arrival as a person"
         ],
         "secrets": [
