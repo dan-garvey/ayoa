@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.schemas.state import (
     SessionState,
-    PhysicsRuleset, StorySetting, WorldState,
+    PendingNarratorRender, PhysicsRuleset, StorySetting, WorldState,
 )
 from app.schemas.characters import (
     CharacterAgentTier, CharacterDescriptions, CharacterRecord,
@@ -968,3 +968,30 @@ class TestCheckpointFile:
         )
         rebuilt = CheckpointFile(**ckpt.model_dump())
         assert rebuilt.player_primer == primer
+
+    def test_pending_narrator_render_round_trips_through_json(self):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="pending-render",
+                pending_narrator_render=PendingNarratorRender(
+                    ended_reason="directed_at_player",
+                    events_closed=2,
+                    event_actor_ids=["alice", "pip"],
+                    acting_player_id="alice",
+                    acting_player_input="I look around",
+                    roll_keys_before=[("txn_1", "roll_1")],
+                    commitment_revision_character_id="alice",
+                    commitment_revision_id="commit_watch",
+                    commitment_revision_trigger_id="evt_changed",
+                ),
+            )
+        )
+
+        rebuilt = CheckpointFile.model_validate_json(
+            ckpt.model_dump_json()
+        )
+
+        pending = rebuilt.session.pending_narrator_render
+        assert pending is not None
+        assert pending.acting_player_input == "I look around"
+        assert pending.roll_keys_before == [("txn_1", "roll_1")]

@@ -87,6 +87,7 @@ from app.schemas.state import (
     CommitmentRevisionPrompt,
     OpenCatIIEvent,
     OpenCommitment,
+    PendingNarratorRender,
     RenderBufferEntry,
     SlotEntry,
 )
@@ -2735,15 +2736,36 @@ async def _end_beat(
 
     # v11-r6c: fan out narrator calls in parallel. Independent POVs; no
     # shared state to mutate mid-call. Trims a 3-human render from 3×
-    # narrator latency to 1× (slowest POV). Buffers are flushed up front
-    # so the concurrent tasks see consistent inputs and no task observes
-    # a race against another's flush.
+    # narrator latency to 1× (slowest POV). Keep the buffers intact until
+    # every narrator call succeeds; if the provider fails mid-render, the
+    # orchestrator can persist and retry exactly this render without
+    # replaying the router or character-agent calls that produced it.
     targets: list[tuple[str, list[RenderBufferEntry]]] = []
     for h in candidates:
-        buf = flush_render_buffer(ckpt, h)
+        buf = list(ckpt.session.render_buffers.get(h, []))
         if not buf:
             continue  # Human had no perceivable events this beat.
         targets.append((h, buf))
+
+    persist_pending = None
+    if targets:
+        persist_pending = getattr(
+            dispatcher, "persist_pending_narrator_render", None,
+        )
+        if (
+            callable(persist_pending)
+            and ckpt.session.pending_narrator_render is None
+        ):
+            ckpt.session.pending_narrator_render = PendingNarratorRender(
+                ended_reason=ended_reason,
+                events_closed=events_closed,
+                event_actor_ids=list(event_actor_ids),
+                acting_player_id=acting_player_id or "",
+                acting_player_input=acting_player_input,
+                release_slots=release_slots,
+                force_partial=force_partial,
+                suppress_reaction_prompts=suppress_reaction_prompts,
+            )
 
     async def _render_one(
         h: str, buf: list[RenderBufferEntry],
@@ -2761,12 +2783,38 @@ async def _end_beat(
         return h, envelope, entry
 
     if targets:
+        narrator_lengths = {
+            h: len(ckpt.narrator_conversations.get(h, []))
+            for h, _buf in targets
+        }
         results = await asyncio.gather(
-            *(_render_one(h, buf) for h, buf in targets)
+            *(_render_one(h, buf) for h, buf in targets),
+            return_exceptions=True,
         )
+        errors = [
+            result for result in results
+            if isinstance(result, BaseException)
+        ]
+        if errors:
+            for h, length in narrator_lengths.items():
+                history = ckpt.narrator_conversations.get(h)
+                if history is not None:
+                    del history[length:]
+            if callable(persist_pending):
+                persist_pending(ckpt)
+            raise errors[0]
+        for h, buf in targets:
+            current = ckpt.session.render_buffers.get(h, [])
+            if current[:len(buf)] == buf:
+                ckpt.session.render_buffers[h] = current[len(buf):]
+            else:
+                ckpt.session.render_buffers[h] = []
         for h, envelope, entry in results:
             renders[h] = envelope.final_text
             transcript_entries[h] = entry
+
+    if ckpt.session.pending_narrator_render is not None:
+        ckpt.session.pending_narrator_render = None
 
     if release_slots:
         release_beat_slots(ckpt)

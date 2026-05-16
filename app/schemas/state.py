@@ -37,6 +37,28 @@ class SlotEntry(BaseModel):
     claimed_at: str = ""
 
 
+class PendingNarratorRender(BaseModel):
+    """A closed beat whose upstream state is durable, but whose POV render
+    has not completed yet.
+
+    This lets a narrator-provider failure be retried without replaying the
+    router and character-agent calls that already mutated canonical state.
+    """
+
+    ended_reason: str = ""
+    events_closed: int = 0
+    event_actor_ids: list[str] = Field(default_factory=list)
+    acting_player_id: str = ""
+    acting_player_input: str = ""
+    release_slots: bool = True
+    force_partial: bool = False
+    suppress_reaction_prompts: bool = False
+    roll_keys_before: list[tuple[str, str]] = Field(default_factory=list)
+    commitment_revision_character_id: str = ""
+    commitment_revision_id: str = ""
+    commitment_revision_trigger_id: str = ""
+
+
 class OpenCommitment(BaseModel):
     """Private checkpoint record for an interruptible ongoing activity.
 
@@ -587,6 +609,10 @@ class SessionState(BaseModel):
     # fires. An agent's "render buffer" is just its observation context
     # on the next intend() call — no separate store here.
     render_buffers: dict[str, list[RenderBufferEntry]] = Field(default_factory=dict)
+    # Non-empty only while a user-visible turn has completed router/agent
+    # work and is awaiting a successful narrator render. The latest
+    # checkpoint can resume the render without rerunning upstream LLM calls.
+    pending_narrator_render: PendingNarratorRender | None = None
     # v11: queued /acts that arrived during a moment where they can't be
     # processed yet — or that may need re-examination once a slot frees.
     # In the reject-on-conflict model we're shipping, this is usually

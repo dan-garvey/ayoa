@@ -26,7 +26,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from app.engine.character_agent import (
     CharacterAgent,
@@ -92,6 +92,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
+from app.schemas.state import CommitmentRevisionPrompt, PendingNarratorRender
 
 logger = logging.getLogger(__name__)
 
@@ -793,6 +794,132 @@ class Orchestrator:
         # serialize here; perception fan-out is observer-driven.
         self.session_locks = SessionLockManager()
 
+    def _install_pending_narrator_render_saver(
+        self,
+        dispatcher: LLMDispatcher,
+        *,
+        acting_id: str,
+        roll_keys_before: set[tuple[str, str]],
+        revision_before: CommitmentRevisionPrompt | None,
+    ) -> Callable[[], bool]:
+        saved = False
+
+        def _persist(ckpt: CheckpointFile) -> None:
+            nonlocal saved
+            if saved:
+                return
+            pending = ckpt.session.pending_narrator_render
+            if pending is not None:
+                pending.roll_keys_before = sorted(roll_keys_before)
+                if revision_before is not None:
+                    pending.commitment_revision_character_id = acting_id
+                    pending.commitment_revision_id = (
+                        revision_before.commitment_id
+                    )
+                    pending.commitment_revision_trigger_id = (
+                        revision_before.trigger_event_id
+                    )
+
+            previous_turn = ckpt.session.turn_index
+            ckpt.session.turn_index = previous_turn + 1
+            try:
+                self.checkpoint_mgr.save(ckpt)
+            except Exception:
+                ckpt.session.turn_index = previous_turn
+                raise
+            saved = True
+
+        setattr(dispatcher, "persist_pending_narrator_render", _persist)
+        return lambda: saved
+
+    @staticmethod
+    def _clear_pending_commitment_revision(
+        ckpt: CheckpointFile,
+        pending: PendingNarratorRender,
+    ) -> None:
+        character_id = pending.commitment_revision_character_id
+        if not character_id:
+            return
+        current = ckpt.session.pending_commitment_revisions.get(character_id)
+        if (
+            current is not None
+            and current.commitment_id == pending.commitment_revision_id
+            and current.trigger_event_id
+            == pending.commitment_revision_trigger_id
+        ):
+            ckpt.session.pending_commitment_revisions.pop(character_id, None)
+
+    async def _resume_pending_narrator_render_locked(
+        self,
+        *,
+        session_id: str,
+        ckpt: CheckpointFile,
+        dispatcher: LLMDispatcher,
+    ) -> TurnResponse | None:
+        pending = ckpt.session.pending_narrator_render
+        if pending is None:
+            return None
+
+        roll_keys_before = {
+            (str(transaction_id), str(roll_id))
+            for transaction_id, roll_id in pending.roll_keys_before
+        }
+        beat_result = await _end_beat(
+            ckpt,
+            dispatcher,
+            ended_reason=pending.ended_reason,
+            events_closed=pending.events_closed,
+            event_actor_ids=list(pending.event_actor_ids),
+            release_slots=pending.release_slots,
+            force_partial=pending.force_partial,
+            acting_player_id=pending.acting_player_id,
+            acting_player_input=pending.acting_player_input,
+            suppress_reaction_prompts=pending.suppress_reaction_prompts,
+        )
+        self._clear_pending_commitment_revision(ckpt, pending)
+        await self._apply_beat_roster_side_effects(
+            ckpt, beat_result, log_label="Resumed BeatResult",
+        )
+        _append_transcript_entry(
+            ckpt, beat_result, pending.acting_player_id,
+        )
+        reaction_prompts = beat_result.reaction_prompts or {}
+        if not reaction_prompts:
+            await self._run_ticks(
+                ckpt,
+                acted_this_turn=set(beat_result.event_actor_ids),
+                acting_id=pending.acting_player_id,
+            )
+        _handle_combat_after_beat(
+            ckpt,
+            acting_id=pending.acting_player_id,
+            beat_result=beat_result,
+        )
+        flush_combat_visible_facts(ckpt)
+        self.checkpoint_mgr.save(ckpt)
+        automated_results = await self._run_automated_combat_turns_locked(
+            ckpt=ckpt,
+            dispatcher=dispatcher,
+        )
+
+        beat_results = [beat_result, *automated_results]
+        per_player = _combine_beat_renders(beat_results)
+        output_text = per_player.get(pending.acting_player_id, "")
+        final_result = beat_results[-1]
+        return TurnResponse(
+            session_id=session_id,
+            checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+            turn_index=ckpt.session.turn_index,
+            output_text=output_text,
+            per_player_renders=per_player,
+            beat_ended_reason=_combined_beat_reason(beat_results),
+            reaction_prompts=final_result.reaction_prompts or {},
+            loot_prompts=_combine_loot_prompts(beat_results),
+            commitment_revision_prompts=_commitment_revision_prompts(ckpt),
+            dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+            experience_awards=_drain_experience_awards(ckpt),
+        )
+
     async def _apply_beat_roster_side_effects(
         self,
         ckpt: CheckpointFile,
@@ -962,35 +1089,42 @@ class Orchestrator:
         slot check → run beat → apply per-event roster side-effects →
         save → build response.
         """
-        ckpt = self.checkpoint_mgr.load_latest(request.session_id)
-        sync_checkpoint_runtime_models(ckpt, self.client.config)
-
-        # 1. Resolve the acting character.
-        try:
-            acting_id = self._resolve_acting_character(ckpt, request)
-        except ValueError:
-            return TurnResponse(
-                session_id=request.session_id,
-                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
-                turn_index=ckpt.session.turn_index,
-                output_text=(
-                    "Choose a character before acting. Use /join to claim "
-                    "one, or pass an acting character id."
-                ),
-                per_player_renders={},
-                beat_ended_reason="acting_character_required",
-            )
-
-        logger.info(
-            "Turn %d for session %s (acting=%s)",
-            ckpt.session.turn_index, request.session_id, acting_id,
-        )
-
         # 3. Acquire the session lock. Prevents two concurrent /acts
         # from both seeing FREE on their check_act_slot.
         lock = await self.session_locks.get(request.session_id)
         async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(request.session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
             dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            resumed = await self._resume_pending_narrator_render_locked(
+                session_id=request.session_id,
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+            )
+            if resumed is not None:
+                return resumed
+
+            # 1. Resolve the acting character.
+            try:
+                acting_id = self._resolve_acting_character(ckpt, request)
+            except ValueError:
+                return TurnResponse(
+                    session_id=request.session_id,
+                    checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                    turn_index=ckpt.session.turn_index,
+                    output_text=(
+                        "Choose a character before acting. Use /join to "
+                        "claim one, or pass an acting character id."
+                    ),
+                    per_player_renders={},
+                    beat_ended_reason="acting_character_required",
+                )
+
+            logger.info(
+                "Turn %d for session %s (acting=%s)",
+                ckpt.session.turn_index, request.session_id, acting_id,
+            )
+
             pre_turn_resolutions: list[TurnResponse] = []
             if _should_resume_automated_combat_before_act(ckpt, acting_id):
                 pre_roll_keys_before = completed_automatic_roll_keys(ckpt)
@@ -1128,6 +1262,14 @@ class Orchestrator:
                 ckpt.session.pending_commitment_revisions.get(acting_id)
                 if revision_input_consumed else None
             )
+            pending_render_saved = (
+                self._install_pending_narrator_render_saver(
+                    dispatcher,
+                    acting_id=acting_id,
+                    roll_keys_before=roll_keys_before,
+                    revision_before=revision_before,
+                )
+            )
             beat_result = await run_beat(
                 ckpt=ckpt,
                 dispatcher=dispatcher,
@@ -1202,7 +1344,8 @@ class Orchestrator:
             # (through the dispatcher) narrator_conversations. Ticks
             # (above) added rolling-conversation appends and last-intent
             # writes; one save covers both.
-            ckpt.session.turn_index += 1
+            if not pending_render_saved():
+                ckpt.session.turn_index += 1
             self.checkpoint_mgr.save(ckpt)
             automated_results = await self._run_automated_combat_turns_locked(
                 ckpt=ckpt,

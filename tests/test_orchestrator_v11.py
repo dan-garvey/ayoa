@@ -222,6 +222,7 @@ def _rat_combatant_spawn() -> dict:
 class FakeDispatcher:
     _route_responses: list[EventRouterOutput] = []
     _agent_responses: list[str] = []
+    _narrator_errors: list[Exception] = []
     _narrator_text: str = "POV_RENDER"
     route_calls: list[dict] = []
     agent_calls: list[dict] = []
@@ -234,6 +235,7 @@ class FakeDispatcher:
     def reset(cls) -> None:
         cls._route_responses = []
         cls._agent_responses = []
+        cls._narrator_errors = []
         cls._narrator_text = "POV_RENDER"
         cls.route_calls = []
         cls.agent_calls = []
@@ -246,6 +248,10 @@ class FakeDispatcher:
     @classmethod
     def queue_agent(cls, intention: str) -> None:
         cls._agent_responses.append(intention)
+
+    @classmethod
+    def queue_narrator_error(cls, error: Exception) -> None:
+        cls._narrator_errors.append(error)
 
     async def route_intention(self, **kw) -> EventRouterOutput:
         type(self).route_calls.append(kw)
@@ -269,6 +275,8 @@ class FakeDispatcher:
 
     async def narrator_compose(self, **kw):
         type(self).narrator_calls.append(kw)
+        if type(self)._narrator_errors:
+            raise type(self)._narrator_errors.pop(0)
         envelope = NarratorFinalOutput(final_text=type(self)._narrator_text)
         entry = TranscriptEntry(
             user=kw.get("user_input", ""),
@@ -325,6 +333,53 @@ class TestHappyPath:
         assert saved.session.active_act_slots == {}
         assert len(saved.transcript) == 1
         assert saved.transcript[0].assistant == "POV_RENDER"
+
+    @pytest.mark.asyncio
+    async def test_narrator_failure_preserves_beat_for_render_retry(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+        FakeDispatcher.queue_narrator_error(RuntimeError("narrator offline"))
+
+        with pytest.raises(RuntimeError, match="narrator offline"):
+            await orch.process_turn(TurnRequest(
+                session_id="s",
+                user_input="I look around",
+                acting_character_id="alice",
+            ))
+
+        assert mgr.save.call_count == 1
+        assert ckpt.session.turn_index == 1
+        assert ckpt.session.pending_narrator_render is not None
+        assert ckpt.session.pending_narrator_render.acting_player_input == (
+            "I look around"
+        )
+        assert len(ckpt.canonical_events) == 1
+        assert ckpt.session.render_buffers["alice"]
+        assert ckpt.session.active_act_slots["alice"].reason == "initiator"
+        assert ckpt.transcript == []
+        assert len(FakeDispatcher.route_calls) == 1
+        assert len(FakeDispatcher.narrator_calls) == 1
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="This should not route yet",
+            acting_character_id="alice",
+        ))
+
+        assert response.output_text == "POV_RENDER"
+        assert response.turn_index == 1
+        assert ckpt.session.pending_narrator_render is None
+        assert ckpt.session.render_buffers["alice"] == []
+        assert ckpt.session.active_act_slots == {}
+        assert len(ckpt.transcript) == 1
+        assert ckpt.transcript[0].user == "I look around"
+        assert ckpt.transcript[0].assistant == "POV_RENDER"
+        assert len(FakeDispatcher.route_calls) == 1
+        assert len(FakeDispatcher.narrator_calls) == 2
+        assert mgr.save.call_count == 2
 
     @pytest.mark.asyncio
     async def test_dnd_loot_offer_becomes_turn_prompt(
