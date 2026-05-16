@@ -15,7 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
-from scripts.play import CLIState, _cli_log_level
+from scripts.play import (
+    CLIState,
+    _ConsoleInput,
+    _cli_log_level,
+    _default_history_path,
+)
 from app.bot.engine_bridge import (
     CharacterSummary,
     CompletedPendingRoll,
@@ -40,6 +45,76 @@ STORY_ID = "test_story"
 def test_cli_suppresses_warning_logs_by_default():
     assert _cli_log_level(verbose=False) == logging.ERROR
     assert _cli_log_level(verbose=True) == logging.INFO
+
+
+class _FakeReadline:
+    def __init__(self) -> None:
+        self.history: list[str] = []
+        self.bindings: list[str] = []
+        self.history_length = 0
+        self.completer = None
+        self.completer_delims = ""
+        self.read_history_path = ""
+        self.written_history_path = ""
+
+    def read_history_file(self, path: str) -> None:
+        self.read_history_path = path
+        raise FileNotFoundError(path)
+
+    def write_history_file(self, path: str) -> None:
+        self.written_history_path = path
+
+    def parse_and_bind(self, binding: str) -> None:
+        self.bindings.append(binding)
+
+    def set_history_length(self, length: int) -> None:
+        self.history_length = length
+
+    def set_completer(self, completer) -> None:
+        self.completer = completer
+
+    def set_completer_delims(self, delims: str) -> None:
+        self.completer_delims = delims
+
+    def get_current_history_length(self) -> int:
+        return len(self.history)
+
+    def get_history_item(self, index: int) -> str:
+        return self.history[index - 1]
+
+    def add_history(self, line: str) -> None:
+        self.history.append(line)
+
+
+def test_console_input_installs_readline_history_and_completion(tmp_path):
+    fake_readline = _FakeReadline()
+    history_path = tmp_path / "state" / "play_history"
+    console = _ConsoleInput(
+        history_path=history_path,
+        readline_module=fake_readline,
+        interactive=True,
+    )
+
+    assert console.install() is True
+    console.add_history("I look around")
+    console.add_history("I look around")
+    console.add_history("")
+    console.save_history()
+
+    assert fake_readline.read_history_path == str(history_path)
+    assert fake_readline.written_history_path == str(history_path)
+    assert fake_readline.history == ["I look around"]
+    assert fake_readline.history_length == 1000
+    assert "tab: complete" in fake_readline.bindings
+    assert fake_readline.completer_delims == "\t\n"
+    assert fake_readline.completer("/he", 0) == "/help"
+    assert fake_readline.completer("/loot t", 0) == "/loot take"
+
+
+def test_default_history_path_uses_xdg_state_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+
+    assert _default_history_path() == tmp_path / "ayoa" / "play_history"
 
 
 def _empty_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:

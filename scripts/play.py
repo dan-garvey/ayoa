@@ -53,10 +53,12 @@ from world_state + the initial roster on the fly.
 
 from __future__ import annotations
 
+import atexit
 import argparse
 import asyncio
 import json
 import logging
+import os
 import re
 import shlex
 import sys
@@ -64,6 +66,11 @@ import time
 import warnings
 from pathlib import Path
 from typing import Any
+
+try:
+    import readline as _readline
+except ImportError:  # pragma: no cover - platform dependent.
+    _readline = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -156,6 +163,151 @@ Commands:
 Plain text is an in-character action for the current actor. Use "(begin)"
 to open the story — the router composes the opening from world_state +
 the initial roster on the fly."""
+
+
+def _default_history_path() -> Path:
+    state_home = os.environ.get("XDG_STATE_HOME")
+    if state_home:
+        return Path(state_home) / "ayoa" / "play_history"
+    return Path.home() / ".local" / "state" / "ayoa" / "play_history"
+
+
+def _command_completions() -> tuple[str, ...]:
+    commands: set[str] = set()
+    for line in HELP_TEXT.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("/"):
+            continue
+        parts = stripped.split()
+        if not parts:
+            continue
+        commands.add(parts[0])
+        if (
+            len(parts) > 1
+            and not parts[1].startswith("[")
+            and not parts[1].startswith("<")
+        ):
+            commands.add(f"{parts[0]} {parts[1]}")
+    commands.update({
+        "/combat add",
+        "/combat damage",
+        "/combat end",
+        "/combat heal",
+        "/combat next",
+        "/loot decline",
+        "/loot split-coins",
+        "/loot take",
+    })
+    return tuple(sorted(commands))
+
+
+_CLI_COMPLETIONS = _command_completions()
+
+
+class _ConsoleInput:
+    """Read player input with optional readline editing and history."""
+
+    def __init__(
+        self,
+        *,
+        history_path: Path | None = None,
+        readline_module: Any = _readline,
+        interactive: bool | None = None,
+    ) -> None:
+        self.history_path = history_path
+        self._readline = readline_module
+        self._interactive = (
+            sys.stdin.isatty() and sys.stdout.isatty()
+            if interactive is None else interactive
+        )
+        self._installed = False
+        self._atexit_registered = False
+
+    def install(self) -> bool:
+        if self._readline is None or not self._interactive:
+            return False
+        self._installed = True
+        self._read_history()
+        self._configure_readline()
+        if self.history_path is not None and not self._atexit_registered:
+            atexit.register(self.save_history)
+            self._atexit_registered = True
+        return True
+
+    async def prompt(
+        self,
+        label: str,
+        *,
+        record_history: bool = False,
+    ) -> str:
+        loop = asyncio.get_running_loop()
+        raw = await loop.run_in_executor(None, input, label)
+        if record_history:
+            self.add_history(raw)
+        return raw
+
+    def add_history(self, raw: str) -> None:
+        if not self._installed or not raw.strip():
+            return
+        try:
+            length = self._readline.get_current_history_length()
+            if length and self._readline.get_history_item(length) == raw:
+                return
+            self._readline.add_history(raw)
+        except Exception:
+            logger.debug("readline add_history failed", exc_info=True)
+
+    def save_history(self) -> None:
+        if not self._installed or self.history_path is None:
+            return
+        try:
+            self.history_path.parent.mkdir(parents=True, exist_ok=True)
+            self._readline.write_history_file(str(self.history_path))
+        except Exception:
+            logger.debug("readline history write failed", exc_info=True)
+
+    def _read_history(self) -> None:
+        if self.history_path is None:
+            return
+        try:
+            self.history_path.parent.mkdir(parents=True, exist_ok=True)
+            self._readline.read_history_file(str(self.history_path))
+        except FileNotFoundError:
+            return
+        except Exception:
+            logger.debug("readline history read failed", exc_info=True)
+
+    def _configure_readline(self) -> None:
+        for binding in (
+            "tab: complete",
+            "set show-all-if-ambiguous on",
+            "set completion-ignore-case on",
+        ):
+            try:
+                self._readline.parse_and_bind(binding)
+            except Exception:
+                logger.debug("readline binding failed: %s", binding, exc_info=True)
+        try:
+            self._readline.set_history_length(1000)
+        except Exception:
+            logger.debug("readline history length setup failed", exc_info=True)
+        try:
+            self._readline.set_completer(self._complete)
+        except Exception:
+            logger.debug("readline completer setup failed", exc_info=True)
+        try:
+            self._readline.set_completer_delims("\t\n")
+        except AttributeError:
+            return
+        except Exception:
+            logger.debug("readline completer delimiter setup failed", exc_info=True)
+
+    def _complete(self, text: str, state: int) -> str | None:
+        matches = [cmd for cmd in _CLI_COMPLETIONS if cmd.startswith(text)]
+        try:
+            return matches[state]
+        except IndexError:
+            return None
 
 
 def _roll_result_line(result: CompletedPendingRoll) -> str:
@@ -1081,10 +1233,18 @@ class CLIState:
     `story_id` is "" when the session is empty (no story loaded yet).
     """
 
-    def __init__(self, engine: EngineBridge, session_id: str, story_id: str):
+    def __init__(
+        self,
+        engine: EngineBridge,
+        session_id: str,
+        story_id: str,
+        *,
+        console: _ConsoleInput | None = None,
+    ):
         self.engine = engine
         self.session_id = session_id
         self.story_id = story_id
+        self.console = console or _ConsoleInput(readline_module=None)
         self.current_actor: str | None = None
         # char_id -> synthetic user_id. Mirrors Discord's one-user-per-char
         # binding so we exercise the full path; the CLI is just "the god user"
@@ -1857,11 +2017,10 @@ class CLIState:
         if arg.strip():
             print("usage: /join_custom")
             return
-        loop = asyncio.get_event_loop()
 
         async def _prompt(label: str) -> str | None:
             try:
-                raw = await loop.run_in_executor(None, input, label)
+                raw = await self.console.prompt(label)
             except (EOFError, KeyboardInterrupt):
                 print()
                 return None
@@ -1979,14 +2138,13 @@ class CLIState:
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
-        loop = asyncio.get_event_loop()
         try:
-            name = (await loop.run_in_executor(
-                None, input, "name (blank to keep existing): ",
-            )).strip()
-            appearance = (await loop.run_in_executor(
-                None, input, "appearance (blank to keep existing): ",
-            )).strip()
+            name = (
+                await self.console.prompt("name (blank to keep existing): ")
+            ).strip()
+            appearance = (
+                await self.console.prompt("appearance (blank to keep existing): ")
+            ).strip()
         except (EOFError, KeyboardInterrupt):
             print("\n(cancelled)")
             return
@@ -2329,8 +2487,11 @@ class CLIState:
         print("This permanently deletes the listed checkpoints. There is no undo.")
         expected = f"rewind {preview.target_turn}"
         try:
-            confirmation = input(f"Type {expected!r} to confirm: ")
-        except EOFError:
+            confirmation = await self.console.prompt(
+                f"Type {expected!r} to confirm: "
+            )
+        except (EOFError, KeyboardInterrupt):
+            print()
             print("rewind cancelled; nothing was deleted")
             return
         if confirmation.strip() != expected:
@@ -2859,7 +3020,9 @@ async def main_async(args: argparse.Namespace) -> int:
                 return 2
             print(f"created session `{session_id}` (empty — /story start to load content)")
 
-        state = CLIState(engine, session_id, story_id)
+        console = _ConsoleInput(history_path=_default_history_path())
+        console.install()
+        state = CLIState(engine, session_id, story_id, console=console)
 
         print()
         if resumed_existing:
@@ -2868,15 +3031,15 @@ async def main_async(args: argparse.Namespace) -> int:
             print(HELP_TEXT)
         print()
 
-        loop = asyncio.get_event_loop()
         while state.running:
             actor = state.current_actor or "-"
             try:
                 # input() is blocking — use run_in_executor so Ctrl-C during
                 # a turn doesn't wedge; and it lets async turns interleave
                 # cleanly with stdin reads.
-                line = await loop.run_in_executor(
-                    None, input, f"[{actor}] > ",
+                line = await console.prompt(
+                    f"[{actor}] > ",
+                    record_history=True,
                 )
             except EOFError:
                 print()
