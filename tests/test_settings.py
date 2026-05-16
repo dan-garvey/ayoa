@@ -105,6 +105,8 @@ class TestSettingsHelpers:
         ckpt = _ckpt()
         assert get_setting(ckpt, "ticks_enabled") is False
         assert get_setting(ckpt, "tick_batch_size") == 4
+        assert get_setting(ckpt, "max_events_per_beat") == 40
+        assert get_setting(ckpt, "max_agent_cascades_per_beat") == 35
 
     def test_get_unknown_raises(self):
         ckpt = _ckpt()
@@ -128,6 +130,17 @@ class TestSettingsHelpers:
         new = set_setting(ckpt, "tick_batch_size", "3")
         assert new == 3
         assert ckpt.session.config.settings.tick_batch_size == 3
+
+    def test_set_beat_caps(self):
+        ckpt = _ckpt()
+        events = set_setting(ckpt, "max_events_per_beat", "40")
+        cascades = set_setting(ckpt, "max_agent_cascades_per_beat", "35")
+        assert events == 40
+        assert cascades == 35
+        assert ckpt.session.config.settings.max_events_per_beat == 40
+        assert (
+            ckpt.session.config.settings.max_agent_cascades_per_beat == 35
+        )
 
     def test_set_setting_unknown_raises(self):
         ckpt = _ckpt()
@@ -199,6 +212,8 @@ class TestEngineBridgeSettings:
         assert {
             "ticks_enabled",
             "tick_batch_size",
+            "max_events_per_beat",
+            "max_agent_cascades_per_beat",
             "ruleset_id",
             "player_roll_mode",
         }.issubset(keys)

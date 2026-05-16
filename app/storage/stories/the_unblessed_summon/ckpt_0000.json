@@ -31,7 +31,8 @@
         "tick_batch_size": 4,
         "tick_stagnation_max": 15,
         "ticks_enabled": false,
-        "max_events_per_beat": 5,
+        "max_events_per_beat": 40,
+        "max_agent_cascades_per_beat": 35,
         "cat_ii_human_timeout_seconds": 86400,
         "ruleset_id": "dnd5e_basic",
         "player_roll_mode": "auto"
@@ -5779,7 +5780,8 @@
       "tick_batch_size": 4,
       "tick_stagnation_max": 15,
       "ticks_enabled": false,
-      "max_events_per_beat": 5,
+      "max_events_per_beat": 40,
+      "max_agent_cascades_per_beat": 35,
       "cat_ii_human_timeout_seconds": 86400,
       "ruleset_id": "dnd5e_basic",
       "player_roll_mode": "auto"

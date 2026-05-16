@@ -2074,9 +2074,16 @@ async def run_beat(
     - Cat II event adjudicates; NPC initiators get first follow-up,
       otherwise render fan-out and slot release.
     - max_events_per_beat reached → forced render + slot release.
+    - max_agent_cascades_per_beat reached → forced render + slot release.
     """
-    max_events = ckpt.session.config.settings.max_events_per_beat
+    settings = ckpt.session.config.settings
+    max_events = max(1, int(settings.max_events_per_beat))
+    max_agent_cascades = max(
+        1,
+        int(getattr(settings, "max_agent_cascades_per_beat", 35)),
+    )
     events_closed = 0
+    agent_cascade_attempts = 0
     event_actor_ids: list[str] = []
     current_intention = intention
     current_actor = actor_id
@@ -2112,6 +2119,22 @@ async def run_beat(
             event_actor_ids=event_actor_ids,
             release_slots=False,
             force_partial=True,
+            acting_player_id=actor_id,
+            acting_player_input=intention,
+            suppress_reaction_prompts=suppress_reaction_prompts,
+        )
+
+    async def _end_for_cascade_cap() -> BeatResult:
+        logger.warning(
+            "Beat cascade cap reached: configured_cap=%d events_rendered=%d",
+            max_agent_cascades,
+            events_closed,
+        )
+        return await _end_beat(
+            ckpt, dispatcher,
+            ended_reason="cascade_cap",
+            events_closed=events_closed,
+            event_actor_ids=event_actor_ids,
             acting_player_id=actor_id,
             acting_player_input=intention,
             suppress_reaction_prompts=suppress_reaction_prompts,
@@ -2451,6 +2474,9 @@ async def run_beat(
                     await _queue_router_continuation(result)
                     continue
                 next_actor = picks[0]
+                if agent_cascade_attempts >= max_agent_cascades:
+                    return await _end_for_cascade_cap()
+                agent_cascade_attempts += 1
                 next_intention = await dispatcher.agent_intend(
                     ckpt=ckpt, character_id=next_actor,
                 )
@@ -2529,6 +2555,9 @@ async def run_beat(
                 )
                 followup = None
                 if initiator_pick:
+                    if agent_cascade_attempts >= max_agent_cascades:
+                        return await _end_for_cascade_cap()
+                    agent_cascade_attempts += 1
                     followup = await _agent_intention_for_dispatch(
                         dispatcher, ckpt, evt.initiator_id,
                     )
@@ -2664,6 +2693,9 @@ async def run_beat(
         next_actor = None
         next_intention: str | None = None
         for candidate in picks:
+            if agent_cascade_attempts >= max_agent_cascades:
+                return await _end_for_cascade_cap()
+            agent_cascade_attempts += 1
             raw = await _agent_intention_for_dispatch(
                 dispatcher, ckpt, candidate,
             )
@@ -2818,7 +2850,7 @@ async def _end_beat(
 
     if release_slots:
         release_beat_slots(ckpt)
-    max_events = ckpt.session.config.settings.max_events_per_beat
+    max_events = max(1, int(ckpt.session.config.settings.max_events_per_beat))
     if events_closed > max_events:
         (
             cat_ii_open,

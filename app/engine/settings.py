@@ -124,6 +124,26 @@ SETTINGS: list[SettingDef] = [
         render=_render_bool,
     ),
     SettingDef(
+        key="max_events_per_beat",
+        default=40,
+        description=(
+            "Max canonical events that can close inside one beat before "
+            "the engine forces a render and releases the beat slot. "
+            "Must be >= 1."
+        ),
+        parse=_parse_int_positive,
+    ),
+    SettingDef(
+        key="max_agent_cascades_per_beat",
+        default=35,
+        description=(
+            "Max agent cascade handoff attempts inside one beat before "
+            "the engine forces a render. This limits NPC-to-NPC chains "
+            "separately from the canonical event cap. Must be >= 1."
+        ),
+        parse=_parse_int_positive,
+    ),
+    SettingDef(
         key="ruleset_id",
         default="narrative",
         description=(

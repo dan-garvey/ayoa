@@ -672,6 +672,26 @@ class TestBeatCascade:
         assert result.events_closed == 2
         assert fake.agent_calls[0]["character_id"] == "pip"
 
+    def test_agent_cascade_cap_forces_beat_end(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.max_agent_cascades_per_beat = 1
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+        fake.queue_agent("Pip polishes the bell")
+        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        assert result.ended_reason == "cascade_cap"
+        assert result.events_closed == 2
+        assert len(fake.route_calls) == 2
+        assert len(fake.agent_calls) == 1
+
     def test_false_endbeat_with_no_picks_routes_continuation(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()

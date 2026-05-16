@@ -507,9 +507,15 @@ class SessionSettings(BaseModel):
     ticks_enabled: bool = False
     # v11: hard cap on how many canonical events the router may chain
     # inside a single beat before the orchestrator forces render + slot
-    # release. Prevents runaway agent cascades. 5 is a reasonable
-    # starting point for playtest; tune after observing real runs.
-    max_events_per_beat: int = 5
+    # release. Prevents runaway event growth while allowing large
+    # ensemble beats to breathe.
+    max_events_per_beat: int = 40
+    # v11: hard cap on successful/attempted agent cascade handoffs inside
+    # one beat. This is distinct from canonical events because Cat II
+    # setup/resolution and router continuations can add events without a
+    # normal NPC handoff, while a long NPC-to-NPC chain needs its own
+    # budget guard.
+    max_agent_cascades_per_beat: int = 35
     # v11: maximum seconds a Cat II pin may hold a human before the
     # orchestrator's sweep auto-resolves them as "stays out." Default
     # 24 hours — long enough that async multiplayer (play over a day)
