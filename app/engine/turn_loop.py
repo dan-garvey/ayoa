@@ -63,6 +63,7 @@ from typing import Any, Protocol
 
 from app.engine import dnd_combat, dnd_monsters, dnd_spatial
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
+from app.engine.text_safety import strip_terminal_control
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
@@ -2919,7 +2920,7 @@ def format_slot_rejection(
         # inputs so the rejection doesn't run off the screen; blockquote
         # so they can easily copy-paste. Discord's raw message limit is
         # ~2000 chars; 1500 leaves headroom for the rejection preamble.
-        preview = attempted_text.strip()
+        preview = strip_terminal_control(attempted_text).strip()
         if len(preview) > 1500:
             preview = preview[:1497] + "..."
         base += f"\n\n> Your submitted text:\n> {preview}"

@@ -28,6 +28,7 @@ from app.bot.engine_bridge import (
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
+from app.schemas.dnd_inventory import DndLootOffer, DndLootOfferItem
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import SessionState, SlotEntry, WorldState
 
@@ -72,6 +73,37 @@ def _turn_response(**overrides):
     }
     base.update(overrides)
     return SimpleNamespace(**base)
+
+
+def _loot_offer(
+    offer_id: str = "loot_evt_chest",
+    *,
+    source_label: str = "iron chest",
+    item_id: str = "old_sword",
+    item_name: str = "Old sword",
+) -> DndLootOffer:
+    return DndLootOffer(
+        offer_id=offer_id,
+        source_event_id="evt_chest",
+        source_kind="container",
+        source_label=source_label,
+        eligible_character_ids=["aldric"],
+        items=[
+            DndLootOfferItem(
+                item_id=item_id,
+                name=item_name,
+                kind="weapon",
+                quantity=1,
+                identified=True,
+                requires_identification=False,
+                requires_attunement=False,
+                consumable=False,
+                value_gp=0,
+                weight=1,
+                notes="",
+            )
+        ],
+    )
 
 
 def _attachment_summary(**overrides) -> DndSheetAttachmentSummary:
@@ -714,6 +746,59 @@ class TestDeferCommand:
 
 
 class TestLootCommand:
+    def test_loot_help_and_list_use_numbered_offers(self, run, capsys):
+        engine = _mock_engine()
+        engine.list_loot_offers.return_value = [
+            _loot_offer(source_label="iron chest"),
+        ]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/loot --help"))
+        run(state.handle_line("/loot"))
+
+        out = capsys.readouterr().out
+        assert "Loot commands:" in out
+        assert "1. iron chest" in out
+        assert "loot_evt_chest" not in out
+        assert "/loot take <offer>" in out
+
+    def test_loot_take_accepts_number_and_defaults_all(self, run, capsys):
+        engine = _mock_engine()
+        engine.list_loot_offers.return_value = [_loot_offer()]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/loot take 1"))
+
+        engine.claim_loot.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            user_id=1,
+            character_id="aldric",
+            offer_id="loot_evt_chest",
+            item_ids=[],
+            take_currency=True,
+            take_all_available=True,
+        )
+
+    def test_loot_item_ref_inspects_offer(self, run, capsys):
+        engine = _mock_engine()
+        engine.list_loot_offers.return_value = [
+            _loot_offer(item_id="split_arch_hostel_voucher"),
+        ]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/loot split_arch_hostel_voucher"))
+
+        out = capsys.readouterr().out
+        assert "--- Loot Offer ---" in out
+        assert "split_arch_hostel_voucher" in out
+        assert "unknown loot subcommand" not in out
+
     def test_loot_all_claims_every_open_offer(self, run, capsys):
         engine = _mock_engine()
         engine.list_loot_offers.return_value = [
@@ -787,6 +872,22 @@ class TestBeginCommand:
         out = capsys.readouterr().out
         assert "--- Turn 1 · aldric ---" in out
         assert "opening narration" in out
+
+    def test_begin_error_is_player_safe(self, run, capsys):
+        engine = _mock_engine()
+        engine.run_begin_turn = AsyncMock(side_effect=RuntimeError(
+            "openai.BadRequestError: /home/dan/ayoa/app/llm/client.py",
+        ))
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/begin"))
+
+        out = capsys.readouterr().out
+        assert "internal error" in out
+        assert "BadRequestError" not in out
+        assert "/home/dan" not in out
 
 
 class TestCombatCommand:
@@ -932,9 +1033,10 @@ class TestCombatCommand:
 
         out = capsys.readouterr().out
         assert "=== COMBAT BEGINS ===" in out
-        assert "Initiative: Sera (sera) 18, Aldric (aldric) 13." in out
-        assert "Current turn: Sera (sera)." in out
-        assert "initiating action has not resolved before initiative" in out
+        assert "Initiative: Sera 18, Aldric 13." in out
+        assert "Current turn: Sera." in out
+        assert "initiating action has not resolved before initiative" not in out
+        assert "(sera)" not in out
 
     def test_cat_ii_pending_switches_to_claimed_responder(
         self, run, capsys,
@@ -1097,6 +1199,53 @@ class TestActingDescribe:
         call_kwargs = engine.run_turn.await_args.kwargs
         assert call_kwargs["user_input"] == "I look around"
         assert call_kwargs["acting_character_id"] == "aldric"
+
+    def test_plain_text_strips_terminal_control_bytes(self, run):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response())
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("I look\x1b[2J around\x07"))
+
+        assert engine.run_turn.await_args.kwargs["user_input"] == "I look around"
+
+    def test_run_turn_error_is_player_safe(self, run, capsys):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(side_effect=RuntimeError(
+            "openai.BadRequestError: /home/dan/ayoa/app/llm/client.py",
+        ))
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("I look around"))
+
+        out = capsys.readouterr().out
+        assert "internal error" in out
+        assert "BadRequestError" not in out
+        assert "/home/dan" not in out
+
+    def test_pre_turn_resolution_header_is_player_facing(self, run, capsys):
+        engine = _mock_engine()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="pre_turn_resolution",
+            output_text="Submit again.",
+            pre_turn_resolutions=[
+                _turn_response(
+                    per_player_renders={"aldric": "The rat darts away."},
+                )
+            ],
+        ))
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("I swing."))
+
+        out = capsys.readouterr().out
+        assert "--- Before Your Action ---" in out
+        assert "POV aldric" not in out
 
     def test_act_refused_without_actor(self, run):
         engine = _mock_engine()

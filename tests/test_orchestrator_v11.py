@@ -872,7 +872,7 @@ class TestCombatTurnGating:
 
         response = await orch.process_turn(TurnRequest(
             session_id="s",
-            user_input="I rush in anyway",
+            user_input="I rush\x1b[2J in anyway",
             acting_character_id="bob",
         ))
 
@@ -881,6 +881,7 @@ class TestCombatTurnGating:
         assert "initiative turn" in response.output_text
         assert "can't /act" not in response.output_text
         assert "Wait for" in response.output_text
+        assert "\x1b" not in response.output_text
         assert response.per_player_renders == {}
         assert mgr.save.call_count == 0
         assert FakeDispatcher.route_calls == []
@@ -934,17 +935,17 @@ class TestCombatTurnGating:
             acting_character_id="alice",
         ))
 
-        assert response.beat_ended_reason == "directed_at_player"
-        assert response.output_text == "alice acts."
-        assert response.per_player_renders == {"alice": "alice acts."}
+        assert response.beat_ended_reason == "pre_turn_resolution"
+        assert "scene changed" in response.output_text
+        assert response.per_player_renders == {}
         assert len(response.pre_turn_resolutions) == 1
         assert response.pre_turn_resolutions[0].output_text == "rat acts."
         assert response.pre_turn_resolutions[0].turn_index == 1
         assert FakeDispatcher.agent_calls[0]["character_id"] == "rat"
         assert FakeDispatcher.route_calls == []
-        assert ckpt.session.active_combat.turn_index == 2
-        assert response.turn_index == 2
-        assert mgr.save.call_count == 2
+        assert ckpt.session.active_combat.turn_index == 1
+        assert response.turn_index == 1
+        assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio
     async def test_failed_automated_npc_turn_rolls_back_partial_state_only(

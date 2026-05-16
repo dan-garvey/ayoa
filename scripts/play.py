@@ -61,6 +61,7 @@ import re
 import shlex
 import sys
 import time
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +69,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
+from app.bot.player_errors import player_safe_error_message
 from app.bot.engine_bridge import (
     CharacterSummary,
     CompletedPendingRoll,
@@ -80,6 +82,7 @@ from app.bot.engine_bridge import (
     joinable_character_summaries,
 )
 from app.engine import dnd_experience, dnd_inventory
+from app.engine.text_safety import strip_terminal_control
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -931,6 +934,17 @@ def _parse_attach_args(
     return path, character_id, name_override
 
 
+def _print_loot_help() -> None:
+    print("Loot commands:")
+    print("  /loot                         List open offers")
+    print("  /loot <offer>                 Inspect one offer")
+    print("  /loot take <offer> [all|ids]  Claim all or comma-separated item ids")
+    print("  /loot all                     Claim all open offers")
+    print("  /loot split-coins <offer>     Split offer coins")
+    print("  /loot decline <offer>         Decline an offer")
+    print("Use offer numbers from /loot, item ids from the offer details, or full offer ids.")
+
+
 def _print_loot_offers(offers) -> None:
     print()
     print("--- Loot Offers ---")
@@ -938,18 +952,19 @@ def _print_loot_offers(offers) -> None:
         print("(none)")
         print()
         return
-    for offer in offers:
-        print(_loot_offer_text(offer))
+    for index, offer in enumerate(offers, start=1):
+        print(_loot_offer_text(offer, index=index))
         print()
-    print("Use /loot take <offer_id> <all|item_id[,item_id...]>.")
-    print("Use /loot split-coins <offer_id> or /loot decline <offer_id>.")
+    print("Use /loot take <offer> [all|item_id[,item_id...]].")
+    print("Use /loot split-coins <offer> or /loot decline <offer>.")
     print("Decline is final for your character while the offer remains open.")
     print()
 
 
-def _loot_offer_text(offer) -> str:
+def _loot_offer_text(offer, *, index: int | None = None) -> str:
     label = offer.source_label or offer.source_kind
-    lines = [f"{label} [{offer.offer_id}]"]
+    prefix = f"{index}. " if index is not None else ""
+    lines = [f"{prefix}{label}"]
     available_ids = set(dnd_inventory.available_item_ids(offer))
     for item in offer.items:
         if item.item_id not in available_ids:
@@ -961,6 +976,10 @@ def _loot_offer_text(offer) -> str:
     if offer.notes:
         lines.append(f"  note: {offer.notes}")
     return "\n".join(lines)
+
+
+def _normalize_loot_ref(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
 
 
 def _inventory_item_line(item: dict) -> str:
@@ -1001,9 +1020,7 @@ def _safe_int(value, default: int = 0) -> int:
 
 
 def _combat_participant_label(participant: DndCombatParticipantView) -> str:
-    if participant.name and participant.name != participant.character_id:
-        return f"{participant.name} ({participant.character_id})"
-    return participant.character_id
+    return participant.name or participant.character_id
 
 
 def _combat_initiative_line(view: DndCombatView) -> str:
@@ -1100,7 +1117,7 @@ class CLIState:
 
     async def handle_line(self, line: str) -> None:
         """Top-level dispatch: /command or in-character action."""
-        line = line.strip()
+        line = strip_terminal_control(line).strip()
         if not line:
             return
         if line.startswith("/"):
@@ -1397,7 +1414,7 @@ class CLIState:
             return
         except Exception as e:
             logger.exception("begin failed")
-            print(f"error: {type(e).__name__}: {e}")
+            print(f"error: {player_safe_error_message(e, operation='the opening')}")
             return
         if actor_id:
             self.current_actor = actor_id
@@ -1535,32 +1552,101 @@ class CLIState:
         if not parts:
             self._print_loot_for_current()
             return
+        if parts[0].lower() in {"--help", "-h", "help"}:
+            _print_loot_help()
+            return
         sub = parts[0].lower().replace("-", "_")
         rest = parts[1] if len(parts) > 1 else ""
         handler = getattr(self, f"cmd_loot_{sub}", None)
         if handler is None:
-            print(f"unknown loot subcommand: {parts[0]}")
+            self._print_loot_offer_detail(" ".join(parts))
             return
         result = handler(rest)
         if asyncio.iscoroutine(result):
             await result
 
-    def _print_loot_for_current(self) -> None:
-        if self.current_actor is None:
+    def _loot_offers_for_actor(self, character_id: str | None):
+        if character_id is None:
             print("no current actor — /join a character first")
-            return
-        uid = self.claims.get(self.current_actor)
+            return None
+        uid = self.claims.get(character_id)
         if uid is None:
-            print(f"not claimed: {self.current_actor}")
-            return
+            print(f"not claimed: {character_id}")
+            return None
         try:
-            offers = self.engine.list_loot_offers(
+            return self.engine.list_loot_offers(
                 self.session_id,
                 uid,
-                character_id=self.current_actor,
+                character_id=character_id,
             )
         except Exception as e:
             print(f"error: {type(e).__name__}: {e}")
+            return None
+
+    def _loot_offers_for_current(self):
+        return self._loot_offers_for_actor(self.current_actor)
+
+    def _resolve_loot_offer_ref(self, offer_ref: str):
+        offers = self._loot_offers_for_current()
+        if offers is None:
+            return None
+        wanted = offer_ref.strip()
+        if not wanted:
+            raise ValueError("missing loot offer; run /loot to see open offers")
+        if wanted.isdigit():
+            index = int(wanted)
+            if 1 <= index <= len(offers):
+                return offers[index - 1]
+            raise ValueError(
+                f"No loot offer numbered {index}. Run /loot to see open offers."
+            )
+        exact = [
+            offer for offer in offers
+            if str(getattr(offer, "offer_id", "") or "") == wanted
+        ]
+        if exact:
+            return exact[0]
+        normalized = _normalize_loot_ref(wanted)
+        matches = []
+        for offer in offers:
+            labels = {
+                _normalize_loot_ref(getattr(offer, "source_label", "") or ""),
+                _normalize_loot_ref(getattr(offer, "source_kind", "") or ""),
+            }
+            item_ids = {
+                _normalize_loot_ref(getattr(item, "item_id", "") or "")
+                for item in getattr(offer, "items", []) or []
+            }
+            if normalized in labels or normalized in item_ids:
+                matches.append(offer)
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise ValueError(
+                f"'{wanted}' matches multiple loot offers; use the number from /loot."
+            )
+        raise ValueError(
+            f"Unknown loot offer '{wanted}'. Run /loot to see numbered offers."
+        )
+
+    def _print_loot_offer_detail(self, offer_ref: str) -> None:
+        try:
+            offer = self._resolve_loot_offer_ref(offer_ref)
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        if offer is None:
+            return
+        print()
+        print("--- Loot Offer ---")
+        print(_loot_offer_text(offer))
+        print()
+        print("Use /loot take <offer> [all|item_id[,item_id...]] to claim.")
+        print()
+
+    def _print_loot_for_current(self) -> None:
+        offers = self._loot_offers_for_current()
+        if offers is None:
             return
         _print_loot_offers(offers)
 
@@ -1569,10 +1655,18 @@ class CLIState:
             print("no current actor — /join a character first")
             return
         parts = arg.split(maxsplit=1)
-        if len(parts) != 2:
-            print("usage: /loot take <offer_id> <all|item_id[,item_id...]>")
+        if not parts:
+            print("usage: /loot take <offer> [all|item_id[,item_id...]]")
             return
-        offer_id, item_spec = parts[0], parts[1].strip()
+        try:
+            offer = self._resolve_loot_offer_ref(parts[0])
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        if offer is None:
+            return
+        offer_id = str(getattr(offer, "offer_id", "") or "")
+        item_spec = parts[1].strip() if len(parts) > 1 else "all"
         uid = self.claims.get(self.current_actor)
         if uid is None:
             print(f"not claimed: {self.current_actor}")
@@ -1643,7 +1737,7 @@ class CLIState:
                     take_all_available=True,
                 )
             except Exception as e:
-                print(f"error claiming {offer_id}: {type(e).__name__}: {e}")
+                print(f"error claiming offer: {type(e).__name__}: {e}")
                 continue
             print(result.message)
             claimed_any = True
@@ -1651,10 +1745,18 @@ class CLIState:
             print("no claimable loot found")
 
     async def cmd_loot_split_coins(self, arg: str) -> None:
-        offer_id = arg.strip()
-        if not offer_id:
-            print("usage: /loot split-coins <offer_id>")
+        offer_ref = arg.strip()
+        if not offer_ref:
+            print("usage: /loot split-coins <offer>")
             return
+        try:
+            offer = self._resolve_loot_offer_ref(offer_ref)
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        if offer is None:
+            return
+        offer_id = str(getattr(offer, "offer_id", "") or "")
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
@@ -1675,10 +1777,18 @@ class CLIState:
         print(result.message)
 
     async def cmd_loot_decline(self, arg: str) -> None:
-        offer_id = arg.strip()
-        if not offer_id:
-            print("usage: /loot decline <offer_id>")
+        offer_ref = arg.strip()
+        if not offer_ref:
+            print("usage: /loot decline <offer>")
             return
+        try:
+            offer = self._resolve_loot_offer_ref(offer_ref)
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        if offer is None:
+            return
+        offer_id = str(getattr(offer, "offer_id", "") or "")
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
@@ -1928,7 +2038,7 @@ class CLIState:
             )
         except Exception as e:
             logger.exception("run_query failed")
-            print(f"error: {type(e).__name__}: {e}")
+            print(f"error: {player_safe_error_message(e, operation='that query')}")
             return
         gate_tag = (
             f"  [gated: {result.gate_reason or '?'}]"
@@ -2374,7 +2484,7 @@ class CLIState:
             )
         except Exception as e:
             logger.exception("run_turn failed")
-            print(f"error: {type(e).__name__}: {e}")
+            print(f"error: {player_safe_error_message(e)}")
             return
 
         self._print_turn_response(response, actor_id=self.current_actor)
@@ -2409,7 +2519,7 @@ class CLIState:
             for cid, prose in (pre_resp.per_player_renders or {}).items():
                 if not prose or cid not in self.claims:
                     continue
-                print(f"--- Pre-turn resolution: POV {cid} ---")
+                print("--- Before Your Action ---")
                 print(prose)
                 print()
             self._print_loot_prompts(pre_resp)
@@ -2527,17 +2637,11 @@ class CLIState:
             view = self.engine.combat_status(self.session_id, private=True)
         except Exception:
             logger.debug("combat-start status lookup failed", exc_info=True)
-            print(
-                "Combat started. The initiating action has not resolved "
-                "before initiative."
-            )
+            print("Combat started.")
             return
 
         if not view.active:
-            print(
-                "Combat started. The initiating action has not resolved "
-                "before initiative."
-            )
+            print("Combat started.")
             return
 
         parts = ["=== COMBAT BEGINS ==="]
@@ -2558,7 +2662,6 @@ class CLIState:
             parts.append(f"Current turn: {_combat_participant_label(current)}.")
         elif view.current_participant_id:
             parts.append(f"Current turn: {view.current_participant_id}.")
-        parts.append("The initiating action has not resolved before initiative.")
         print(" ".join(parts))
         print()
 
@@ -2580,9 +2683,20 @@ class CLIState:
             if cid not in self.claims:
                 continue
             print(f"--- Loot Available · {cid} ---")
-            for offer_id in offer_ids:
-                print(f"offer {offer_id}")
-            print("Use /loot to inspect, /loot take <offer_id> all to claim.")
+            wanted = set(offer_ids)
+            offers = self._loot_offers_for_actor(cid) or []
+            shown = 0
+            for index, offer in enumerate(offers, start=1):
+                if str(getattr(offer, "offer_id", "") or "") not in wanted:
+                    continue
+                label = getattr(offer, "source_label", "") or getattr(
+                    offer, "source_kind", "loot",
+                )
+                print(f"offer {index}: {label}")
+                shown += 1
+            if not shown:
+                print("new loot offer available")
+            print("Use /loot to inspect, /loot take <offer> all to claim.")
             print()
 
     def _print_commitment_revision_prompts(self, response) -> None:
@@ -2682,13 +2796,31 @@ def _cli_log_level(verbose: bool) -> int:
     return logging.INFO if verbose else logging.ERROR
 
 
-async def main_async(args: argparse.Namespace) -> int:
-    level = _cli_log_level(args.verbose)
+def _configure_cli_logging(*, verbose: bool) -> None:
+    level = _cli_log_level(verbose)
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    handlers: list[logging.Handler] = [
+        logging.FileHandler(logs_dir / "play_cli.log", encoding="utf-8"),
+    ]
+    if verbose:
+        handlers.append(logging.StreamHandler(sys.stderr))
     logging.basicConfig(
         level=level,
-        format="%(levelname)s %(name)s: %(message)s",
-        stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=handlers,
+        force=True,
     )
+    logging.captureWarnings(True)
+    warnings.filterwarnings(
+        "default" if verbose else "ignore",
+        message=r".*thinking\.type=enabled.*",
+        category=UserWarning,
+    )
+
+
+async def main_async(args: argparse.Namespace) -> int:
+    _configure_cli_logging(verbose=args.verbose)
 
     engine = EngineBridge()
 
@@ -2710,9 +2842,11 @@ async def main_async(args: argparse.Namespace) -> int:
         # Resolve story_id from the latest checkpoint if the session already
         # has one loaded; otherwise create an empty session to write into.
         story_id = ""
+        resumed_existing = False
         try:
             ckpt = engine.load_latest(session_id)
             story_id = ckpt.session.story_id or ""
+            resumed_existing = True
             print(f"resumed session `{session_id}`" + (
                 f" · story `{story_id}`" if story_id else " (no story loaded)"
             ))
@@ -2728,7 +2862,10 @@ async def main_async(args: argparse.Namespace) -> int:
         state = CLIState(engine, session_id, story_id)
 
         print()
-        print(HELP_TEXT)
+        if resumed_existing:
+            print("Type /help for commands.")
+        else:
+            print(HELP_TEXT)
         print()
 
         loop = asyncio.get_event_loop()

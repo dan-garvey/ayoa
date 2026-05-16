@@ -62,6 +62,7 @@ from app.bot.engine_bridge import (
     PendingRollPrompt,
     RewindResult,
 )
+from app.bot.player_errors import player_safe_error_message
 from app.engine import dnd_experience, dnd_inventory
 from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
@@ -3815,7 +3816,7 @@ def register(
         except Exception as e:
             logger.exception("join arrival run_turn failed")
             await inter.followup.send(embed=render_error(
-                f"`{type(e).__name__}: {e}`"
+                player_safe_error_message(e)
             ))
             return
 
@@ -4836,7 +4837,7 @@ def register(
         except Exception as e:
             logger.exception("/begin run_begin_turn failed")
             await inter.followup.send(embed=render_error(
-                f"`{type(e).__name__}: {e}`"
+                player_safe_error_message(e, operation="the opening")
             ))
             return
 
@@ -5121,7 +5122,7 @@ def register(
         except Exception as e:
             logger.exception("opening run_turn failed")
             await inter.followup.send(embed=render_error(
-                f"`{type(e).__name__}: {e}`"
+                player_safe_error_message(e)
             ))
             return
 
@@ -5231,7 +5232,7 @@ def register(
         except Exception as e:
             logger.exception("run_turn failed")
             await inter.followup.send(
-                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                embed=render_error(player_safe_error_message(e)),
                 ephemeral=True,
             )
             return
@@ -5497,7 +5498,8 @@ def register(
         except Exception as e:
             logger.exception("/query run_turn failed")
             await inter.followup.send(
-                f"`{type(e).__name__}: {e}`", ephemeral=True,
+                player_safe_error_message(e, operation="that query"),
+                ephemeral=True,
             )
             return
 

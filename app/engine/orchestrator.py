@@ -43,6 +43,7 @@ from app.engine.dnd_roll_display import (
 )
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
+from app.engine.text_safety import strip_terminal_control
 from app.engine.turn_loop import (
     BeatResult,
     SessionLockManager,
@@ -276,7 +277,7 @@ def _combat_rejection_message(
         f"Wait for **{current_name}** to finish before **{actor_name}** acts."
     )
     if attempted_text:
-        preview = attempted_text.strip()
+        preview = strip_terminal_control(attempted_text).strip()
         if len(preview) > 1500:
             preview = preview[:1497] + "..."
         message += f"\n\n> Your submitted text:\n> {preview}"
@@ -901,6 +902,25 @@ class Orchestrator:
                 )
                 if pre_response is not None:
                     pre_turn_resolutions.append(pre_response)
+                    if (
+                        pre_response.output_text
+                        or pre_response.per_player_renders
+                        or pre_response.dice_rolls
+                    ):
+                        return _with_pre_turn_resolutions(TurnResponse(
+                            session_id=request.session_id,
+                            checkpoint_id=(
+                                f"ckpt_{ckpt.session.turn_index:04d}"
+                            ),
+                            turn_index=ckpt.session.turn_index,
+                            output_text=(
+                                "The scene changed before your submitted "
+                                "action could be applied. Submit your next "
+                                "action from the updated state."
+                            ),
+                            per_player_renders={},
+                            beat_ended_reason="pre_turn_resolution",
+                        ), pre_turn_resolutions)
 
             # 4. Validate against the session's active_act_slot.
             blocked_entry = ckpt.session.active_act_slots.get(acting_id)

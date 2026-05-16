@@ -1378,6 +1378,86 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
     assert transaction.damage_records[0].expression == "1d6+4"
 
 
+def test_runtime_inventory_weapon_becomes_combat_action(monkeypatch):
+    ckpt = _ckpt()
+    alice = ckpt.characters[0]
+    alice.mechanics["ability_scores"]["str"] = 16
+    alice.mechanics["proficiency_bonus"] = 2
+    statblock = alice.mechanics["dnd5e_sheet"]["statblock"]
+    statblock["proficiencies"] = {"weapons": ["Martial Weapons"]}
+    alice.mechanics["dnd5e_runtime"] = {
+        "inventory": {
+            "items": [
+                {
+                    "id": "loot_evt_club_iron_capped_club",
+                    "item_id": "loot_evt_club_iron_capped_club",
+                    "source_item_id": "iron_capped_club",
+                    "source_offer_id": "loot_evt_club",
+                    "name": "Iron-capped club",
+                    "kind": "weapon",
+                    "quantity": 1,
+                    "equipped": False,
+                    "attuned": False,
+                    "identified": True,
+                }
+            ],
+            "currency": {},
+        }
+    }
+    values = iter([14, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                _planned_attack(
+                    action_id="runtime_item_attack_iron_capped_club",
+                    reason="Alice attacks Bob with the iron-capped club.",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            mechanical_summary="Alice hits Bob with the club.",
+            visible_outcome_facts=["Alice hits Bob with the club."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I swing the iron-capped club.",
+        )
+    )
+
+    first_packet = prompt_mgr.render_messages.call_args_list[0].kwargs[
+        "combat_action_packet"
+    ]
+    assert "Iron-capped club" in first_packet
+    assert "runtime_item_attack_iron_capped_club" in first_packet
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.rolls[0].modifier == 5
+    assert transaction.rolls[0].label == "Attack (Iron-capped club)"
+    assert transaction.damage_records[0].damage_type == "bludgeoning"
+
+
 def test_combat_packet_exposes_defenses_and_effect_break_triggers():
     ckpt = _ckpt()
     ckpt.characters[1] = _character(

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from app.engine import dice, dnd_combat, dnd_spatial, mechanics
+from app.engine import dice, dnd_combat, dnd_inventory, dnd_spatial, mechanics
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
@@ -49,6 +49,66 @@ _DAMAGE_TYPES = {
     "slashing",
     "thunder",
 }
+
+
+@dataclass(frozen=True)
+class _RuntimeWeaponProfile:
+    name: str
+    expression: str
+    damage_type: str
+    ability: str = "str"
+    weapon_class: str = "simple"
+
+
+_RUNTIME_WEAPON_PROFILES: tuple[tuple[str, _RuntimeWeaponProfile], ...] = (
+    ("greatsword", _RuntimeWeaponProfile(
+        "Greatsword",
+        "2d6",
+        "slashing",
+        weapon_class="martial",
+    )),
+    ("longsword", _RuntimeWeaponProfile(
+        "Longsword",
+        "1d8",
+        "slashing",
+        weapon_class="martial",
+    )),
+    ("shortsword", _RuntimeWeaponProfile(
+        "Shortsword",
+        "1d6",
+        "piercing",
+        "dex",
+        "martial",
+    )),
+    ("rapier", _RuntimeWeaponProfile(
+        "Rapier",
+        "1d8",
+        "piercing",
+        "dex",
+        "martial",
+    )),
+    ("scimitar", _RuntimeWeaponProfile(
+        "Scimitar",
+        "1d6",
+        "slashing",
+        "dex",
+        "martial",
+    )),
+    ("longbow", _RuntimeWeaponProfile(
+        "Longbow",
+        "1d8",
+        "piercing",
+        "dex",
+        "martial",
+    )),
+    ("shortbow", _RuntimeWeaponProfile("Shortbow", "1d6", "piercing", "dex")),
+    ("handaxe", _RuntimeWeaponProfile("Handaxe", "1d6", "slashing")),
+    ("spear", _RuntimeWeaponProfile("Spear", "1d6", "piercing")),
+    ("mace", _RuntimeWeaponProfile("Mace", "1d6", "bludgeoning")),
+    ("quarterstaff", _RuntimeWeaponProfile("Quarterstaff", "1d6", "bludgeoning")),
+    ("dagger", _RuntimeWeaponProfile("Dagger", "1d4", "piercing", "dex")),
+    ("club", _RuntimeWeaponProfile("Club", "1d4", "bludgeoning")),
+)
 
 
 @dataclass(frozen=True)
@@ -438,7 +498,7 @@ def _create_transaction(
                 actor_control=actor_control,
                 request=request.model_dump(),
                 modifier=modifier,
-                label=_roll_label(request),
+                label=_roll_label(request, by_id.get(request.actor_id)),
                 reason=request.reason,
             )
         )
@@ -483,7 +543,7 @@ def _create_combat_transaction(
                 actor_control=actor_control,
                 request=request.model_dump(),
                 modifier=modifier,
-                label=_roll_label(request),
+                label=_roll_label(request, by_id.get(request.actor_id)),
                 reason=request.reason,
             )
         )
@@ -761,6 +821,107 @@ def _target_ac(combat: object, target_id: str) -> int:
     return 10
 
 
+def _combat_actions_for_character(character: object | None) -> list[dict[str, object]]:
+    if character is None:
+        return []
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    if not isinstance(mechanics_state, dict):
+        return []
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    actions = [
+        action for action in statblock.get("actions") or []
+        if isinstance(action, dict)
+    ]
+    actions.extend(_runtime_weapon_actions(character))
+    return actions
+
+
+def _runtime_weapon_actions(character: object) -> list[dict[str, object]]:
+    actions: list[dict[str, object]] = []
+    for item in (dnd_inventory.inventory_view(character).get("items") or []):
+        if not isinstance(item, dict) or not item.get("source_offer_id"):
+            continue
+        profile = _runtime_weapon_profile(item)
+        if profile is None:
+            continue
+        name = str(item.get("name") or profile.name).strip() or profile.name
+        item_key = (
+            item.get("source_item_id")
+            or item.get("id")
+            or item.get("item_id")
+            or name
+        )
+        actions.append({
+            "id": f"runtime_item_attack_{_slug(item_key)}",
+            "name": name,
+            "kind": "attack",
+            "attack": {
+                "ability": profile.ability,
+                "bonus": _runtime_weapon_attack_bonus(character, profile),
+                "damage": f"{profile.expression} {profile.damage_type}",
+            },
+            "damage": [{
+                "formula": profile.expression,
+                "damage_type": profile.damage_type,
+            }],
+            "runtime_inventory_item_id": str(
+                item.get("id") or item.get("item_id") or ""
+            ),
+        })
+    return actions
+
+
+def _runtime_weapon_profile(item: dict[str, object]) -> _RuntimeWeaponProfile | None:
+    name = _normalize_action_text(item.get("name") or item.get("id") or "")
+    kind = _normalize_action_text(item.get("kind") or "")
+    for needle, profile in _RUNTIME_WEAPON_PROFILES:
+        if needle in name:
+            return profile
+    if "weapon" not in kind:
+        return None
+    return _RuntimeWeaponProfile("Improvised Weapon", "1d4", "bludgeoning")
+
+
+def _runtime_weapon_attack_bonus(
+    character: object,
+    profile: _RuntimeWeaponProfile,
+) -> int:
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    scores = mechanics_state.get("ability_scores") or {}
+    try:
+        score = int(scores.get(profile.ability, 10) or 10)
+    except (TypeError, ValueError):
+        score = 10
+    bonus = mechanics.ability_modifier(score)
+    if _runtime_weapon_is_proficient(mechanics_state, profile):
+        try:
+            bonus += int(mechanics_state.get("proficiency_bonus", 0) or 0)
+        except (TypeError, ValueError):
+            pass
+    return bonus
+
+
+def _runtime_weapon_is_proficient(
+    mechanics_state: dict[str, object],
+    profile: _RuntimeWeaponProfile,
+) -> bool:
+    statblock = (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    proficiencies = statblock.get("proficiencies") or {}
+    weapons = [
+        _normalize_action_text(value)
+        for value in proficiencies.get("weapons", []) or []
+    ]
+    if any(_normalize_action_text(profile.name) in weapon for weapon in weapons):
+        return True
+    if profile.weapon_class == "martial" and "martial weapons" in weapons:
+        return True
+    return profile.weapon_class == "simple" and (
+        "simple weapons" in weapons or "martial weapons" in weapons
+    )
+
+
 def _roll_modifier_for_request(
     character: object | None,
     request: PlannedRoll,
@@ -771,8 +932,9 @@ def _roll_modifier_for_request(
             (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
         )
         if isinstance(statblock, dict):
+            actions = _combat_actions_for_character(character)
             action = _find_action(
-                statblock,
+                {"actions": actions},
                 request.action_id or request.skill,
                 reason=request.reason,
             )
@@ -780,7 +942,7 @@ def _roll_modifier_for_request(
                 bonus = _action_attack_bonus(action)
                 if bonus is not None:
                     return bonus
-            if request.action_id or _attack_action_count(statblock) > 1:
+            if request.action_id or _attack_action_count({"actions": actions}) > 1:
                 strict_request = request.model_copy(
                     update={"reason": "", "skill": ""}
                 )
@@ -799,11 +961,11 @@ def _damage_profile_for_action(
     )
     if character is None:
         return _DamageProfile()
-    mechanics_state = character.mechanics or {}
-    statblock = (
-        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    action = _find_action(
+        {"actions": _combat_actions_for_character(character)},
+        action_key,
+        reason=request.reason,
     )
-    action = _find_action(statblock, action_key, reason=request.reason)
     if action is None:
         return _DamageProfile()
     return _action_damage_profile(action)
@@ -1507,12 +1669,8 @@ def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
 def _combat_action_summaries(character: object | None) -> list[dict[str, object]]:
     if character is None:
         return []
-    mechanics_state = getattr(character, "mechanics", None) or {}
-    statblock = (
-        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
-    )
     actions: list[dict[str, object]] = []
-    for action in statblock.get("actions") or []:
+    for action in _combat_actions_for_character(character):
         if not isinstance(action, dict):
             continue
         attack = action.get("attack") or {}
@@ -2079,8 +2237,20 @@ def _no_roll_ledger(plan: RollPlan) -> list[str]:
     return [f"No rolls: {reason}"] if reason else []
 
 
-def _roll_label(request: PlannedRoll) -> str:
+def _roll_label(
+    request: PlannedRoll,
+    character: object | None = None,
+) -> str:
     if request.kind == "attack_roll" and request.action_id:
+        action = _find_action(
+            {"actions": _combat_actions_for_character(character)},
+            request.action_id,
+            reason=request.reason,
+        )
+        if action is not None:
+            name = str(action.get("name") or "").strip()
+            if name:
+                return f"Attack ({name})"
         return f"Attack ({request.action_id.replace('_', ' ').title()})"
     if request.kind == "skill_check" and request.skill:
         return request.skill.title()
