@@ -87,7 +87,7 @@ def character_from_combatant_spawn(
         name=spawn.name or spawn.monster_key or spawn.character_id,
         location=location,
         is_playable=False,
-        agent_tier=CharacterAgentTier.convenience,
+        agent_tier=CharacterAgentTier.utility,
         public_sheet=PublicSheet(role=role),
         descriptions=CharacterDescriptions(public=visible_description),
         mechanics=mechanics_from_statblock(

@@ -590,22 +590,33 @@ After the on-stage beat, `_run_ticks()` may fire off-stage NPC ticks
 based on:
 
 * `ticks_enabled`
+* authored `private_state.tick_cues` matching recent canonical facts or
+  queued state changes
 * stagnation threshold
-* tick concurrency cap
+* tick batch size and concurrency caps
 * NPC status, play binding, pin state, prior action this turn, and
   whether the NPC is eligible to act
 
-`ticks_enabled` currently defaults to `false` because synchronous fan-out
-can dominate player response latency on large rosters. Operators can turn
-it back on per session with `/settings set ticks_enabled on`.
+`ticks_enabled` currently defaults to `false` while the bounded scheduler
+is still being playtested. Operators can turn it back on per session with
+`/settings set ticks_enabled on`.
 
 Successful tick outputs are bundled into one router fan-in call. The
 router emits an off-stage canonical event and any implied mutations. No
 narrator render happens for tick-only events.
 
-The tick scheduler is intentionally simple today: a stagnation counter plus
-eligibility filters. It is not yet a clock/resource/faction scheduler. Tick
-fan-out currently runs synchronously on the `/act` critical path.
+The scheduler scores eligible NPCs by model tier, authored cues, pending
+observations, recent event mentions, objective overlap, and how long it has
+been since they last acted. It selects a bounded batch rather than the whole
+roster, limits premium-tier ticks when lower tiers are available, and awaits
+the first selected character per model role before parallelizing the rest so
+provider cache prefixes have a chance to warm. Tick fan-out still runs
+synchronously on the `/act` critical path.
+
+Dormancy is explicit story state, not an inference from "has never appeared
+on-stage." An unseen antagonist with `status=active` and
+`intentions_enabled=true` is tick-eligible; a dormant character does not tick
+until a router/spawn/authored state change activates them.
 
 ### 6.8 Begin, Arrive, Defer, And Query
 
@@ -771,7 +782,8 @@ Router context:
 
 Agent context:
 
-* stable character identity is in the system prompt
+* stable character identity and current state are in the per-turn user tail
+  so model-tier cache prefixes can be shared across characters
 * per-turn user message carries pending observations and mode body
 * per-character `known_context` is the normal world-context source for agents
 * there is no repeating "Characters Present" block
@@ -1386,13 +1398,14 @@ a brittle global counter.
 
 ### 18.2 Tick fan-out latency on the /act critical path
 
-`Orchestrator._run_ticks` runs synchronously on the critical path of
-`process_turn` — every eligible off-stage NPC's tick is awaited before
-the player gets their render back. With a roster of N
-intentions-enabled NPCs and a concurrency cap C, a tick-fire turn
-costs the player roughly `ceil(N/C) * agent_latency` extra wall time
-on top of the on-stage beat. With Sonnet/Haiku that is typically 1–4
-seconds; for larger rosters it can spike higher.
+`Orchestrator._run_ticks` still runs synchronously on the critical path of
+`process_turn`. It no longer awaits every eligible off-stage NPC, but every
+selected tick is still awaited before the player gets their render back. With
+a selected batch size B and concurrency cap C, a tick-fire turn costs roughly
+the sequential per-model-role cache warmup plus `ceil(remaining/C) *
+agent_latency` extra wall time on top of the on-stage beat. With Sonnet/Haiku
+that is typically 1–4 seconds; for larger batches or premium warmups it can
+spike higher.
 
 The likely fix is to batch tick fan-out with the next router call
 using async synchronization primitives — fire ticks immediately after
@@ -1403,10 +1416,10 @@ blocking. This needs careful design around races when two players act
 in quick succession, session-level act-slot locking, and what happens
 when a tick fan-out is still in flight at checkpoint-save time.
 
-Synchronous fan-out is acceptable today, but every change that adds
-work inside `_run_ticks` (more LLM calls, deeper context builds, extra
-serialization) is paid by the player on tick-fire turns. Measure
-before adding work.
+Synchronous bounded fan-out is acceptable today, but every change that adds
+work inside `_run_ticks` (more selected calls, deeper context builds, extra
+serialization) is paid by the player on tick-fire turns. Measure before
+adding work.
 
 ### 18.3 Cross-scene observation inbox
 

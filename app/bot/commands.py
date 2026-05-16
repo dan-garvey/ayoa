@@ -3262,7 +3262,7 @@ def register(
         inter: discord.Interaction,
         story_id: str | None = None,
     ):
-        # Pre-session browsing path: pristine roster from ckpt_0000.
+        # Pre-session browsing path: roster from the story seed ckpt_0000.
         row = await smap.get(_session_channel_id(inter))
         if story_id:
             story_id = story_id.strip()

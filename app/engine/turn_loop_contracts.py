@@ -14,12 +14,12 @@ SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
 TICK_FAN_IN_HEADER = "## Off-Stage Tick"
 ROUTER_CONTINUATION_HEADER = "## Continuation Required"
 
-# v11 unified-agent mode markers. The agent template (`agent_v*.txt`)
-# is a SINGLE system prompt for both on-stage and off-stage calls so a
-# character keeps one cache lineage across modes — switching between
-# respond and tick within the same character does NOT invalidate the
-# system-prompt cache. The mode signal is the first line of the user
-# message: `## ON-STAGE` or `## TICK`. The agent template's "Mode
+# v11 unified-agent mode markers. The agent template (`agent.txt`)
+# is a SINGLE system prompt for on-stage, off-stage, and perception calls.
+# Character identity/current state live in the user tail, so characters on
+# the same model role can share the cached system prefix. The mode signal
+# is the first line of the user message: `## ON-STAGE` or `## TICK`. The
+# agent template's "Mode
 # Routing" section reads this header and applies the matching
 # mode-specific rules. Constants live here so renames trip the
 # prompt-references-constants test instead of silently desynchronizing.
@@ -218,9 +218,10 @@ def format_agent_perception_body() -> str:
     `{AGENT_PERCEPTION_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
     The mode header flips the agent into Perception Mode; this body
     is fixed prose because perception has no per-turn observation
-    surface — the character's identity AND current state (goals,
-    objectives, secrets) live in the cached system prompt and are
-    the only inputs the model needs to author its visual loadout.
+    surface. The shared agent template puts the character's identity
+    and current state (goals, objectives, secrets) in the per-call user
+    tail so the cached system prefix stays shared across characters in
+    the same model tier.
     No location context: presentation is observer-agnostic and largely
     location-invariant. No "what to advance" prompt: perception is not
     action. The pending_observations slot above this body is sent
@@ -252,12 +253,10 @@ def format_agent_tick_body(*, location_context: str) -> str:
     `{AGENT_TICK_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
     The mode header flips the agent into Tick Mode. This helper
     renders the location and the standing tick instruction (advance
-    one objective in your own location, single tight beat) — kept as
-    a fixed string because the off-stage tick has no per-turn
-    observation surface to interpolate. The character's goals,
-    objectives, and secrets sit in the cached system prompt, so
-    this body just needs to point them at the location and the tick
-    instruction.
+    one objective in your own location, single tight beat). Character
+    identity and current state live in the per-call user tail assembled
+    by `CharacterAgent`, so this body just needs to point them at the
+    location and the tick instruction.
     """
     return (
         f"## Where You Are\n{location_context}\n\n"

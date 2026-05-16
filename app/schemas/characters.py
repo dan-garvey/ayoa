@@ -16,13 +16,17 @@ class CharacterStatus(str, Enum):
 
 
 class CharacterAgentTier(str, Enum):
-    # Source-authored story characters from the initial checkpoint. These
-    # carry plot, secrets, and long-running agency; keep them on the
-    # default character-agent model.
+    # Expensive, high-agency characters whose decisions carry core plot,
+    # secrets, or long-running adversarial pressure.
+    premium = "premium"
+    # Normal story characters with ongoing narrative threads. In the
+    # current runtime they use the cheaper character-agent role.
+    standard = "standard"
+    # Utility or supporting characters that need continuity but should not
+    # consume the expensive plot-agent model.
+    utility = "utility"
+    # Legacy tier names kept loadable for older checkpoints.
     plot = "plot"
-    # Router-spawned utility people such as clerks, guards, couriers, and
-    # bystanders created to make the current beat playable. They still
-    # need continuity, but not the expensive plot-agent model.
     convenience = "convenience"
 
 
@@ -67,6 +71,11 @@ class PrivateState(BaseModel):
     # Importer sets true for antagonists, rivals, faction leaders — anyone
     # whose goals should keep moving while the player isn't watching.
     intentions_enabled: bool = False
+    # Author-authored deterministic triggers for off-stage tick selection.
+    # These are scheduler metadata, not prompt state: phrases here are
+    # matched against recent canonical surface facts and state-change lines
+    # to decide who should get a scarce off-screen action slot.
+    tick_cues: list[str] = Field(default_factory=list)
 
 
 class CharacterRecord(BaseModel):
@@ -97,7 +106,7 @@ class CharacterRecord(BaseModel):
     # checkpoint JSONs stored under that name are still loadable —
     # see the model_validator below that maps it on parse.
     is_playable: bool = False
-    agent_tier: CharacterAgentTier = CharacterAgentTier.plot
+    agent_tier: CharacterAgentTier = CharacterAgentTier.premium
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
     descriptions: CharacterDescriptions = Field(default_factory=CharacterDescriptions)
     private_state: PrivateState = Field(default_factory=PrivateState)

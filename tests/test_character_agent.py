@@ -472,7 +472,8 @@ class TestCharacterAgent:
         user_text = messages[-1]["content"]
         assert "<ruleset_addon>" in system_text
         assert system_text.index("<ruleset_addon>") < system_text.index("<role>")
-        assert "Captain Vero" in system_text
+        assert "Captain Vero" not in system_text
+        assert "Captain Vero" in user_text
         assert "Active D&D 5e initiative is running" not in system_text
         assert "Active D&D 5e initiative is running" not in user_text
 
@@ -620,7 +621,20 @@ class TestCharacterAgent:
         assert call_args.kwargs["compact"] is True
 
     @pytest.mark.asyncio
-    async def test_convenience_agent_uses_cheaper_role(
+    async def test_utility_agent_uses_cheaper_role(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        guard_character.agent_tier = CharacterAgentTier.utility
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
+
+    @pytest.mark.asyncio
+    async def test_legacy_convenience_agent_uses_cheaper_role(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -843,7 +857,7 @@ class TestExtractParenthetical:
 
 class TestUnifiedAgentCacheLineage:
     """v11 cache-trail invariant: respond + tick share ONE system
-    prompt and ONE rolling history per character.
+    prompt, while rolling histories remain per character.
 
     Pre-v11 the engine had two separate templates (an `agent` and
     `agent_tick` pair) for on-stage and off-stage calls. Both
@@ -857,13 +871,12 @@ class TestUnifiedAgentCacheLineage:
     bitflip in the user message (`## ON-STAGE` / `## TICK`). These
     tests pin that fix:
 
-      - **Same template name**: both modes load `agent` (resolves to
-        whichever is the latest `agent_v*.txt`). No `agent_tick`
-        sibling.
+      - **Same template name**: both modes load `agent`. No
+        `agent_tick` sibling.
       - **Identical system prefix**: byte-for-byte equality between
-        the two modes' system messages when called against the same
-        character + checkpoint. This is THE invariant — if it
-        regresses, the cache trail re-splits and the bug is back.
+        modes and between characters under the same ruleset. This is
+        THE invariant — if it regresses, the cache trail re-splits and
+        the bug is back.
       - **Mode header is the first user-message line**: the prompt's
         "Mode Routing" section keys off the first token of the user
         message; if the marker drifts off line 1 the agent's mode
@@ -898,6 +911,46 @@ class TestUnifiedAgentCacheLineage:
         # invalidates the Anthropic prompt cache and resurrects the
         # cache-trail proliferation bug.
         assert tick_system["content"] == respond_system["content"]
+
+    @pytest.mark.asyncio
+    async def test_different_characters_share_same_system_prefix(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        other = guard_character.model_copy(deep=True)
+        other.character_id = "mistress_vale"
+        other.name = "Mistress Vale"
+        other.public_sheet = PublicSheet(
+            role="estate spymaster",
+            appearance="Silver mask and black gloves",
+            faction="House Vale",
+        )
+        other.private_state = PrivateState(
+            goals=["control the household intelligence network"],
+            current_objectives=["identify who bribed the footman"],
+            secrets=["keeps a second ledger in the chapel wall"],
+            intentions_enabled=True,
+        )
+        other.backstory = "Raised in the archive rooms and trusted by no one."
+        other.personality = "Soft-spoken, precise, and impossible to hurry."
+
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+        await agent.respond(guard_character, sample_checkpoint)
+        guard_messages = mock_client.complete.call_args.kwargs["messages"]
+
+        mock_client.complete.reset_mock()
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        await agent.respond(other, sample_checkpoint)
+        other_messages = mock_client.complete.call_args.kwargs["messages"]
+
+        guard_system = guard_messages[0]["content"]
+        other_system = other_messages[0]["content"]
+        assert guard_system == other_system
+        assert "Captain Vero" not in guard_system
+        assert "Mistress Vale" not in other_system
+        assert "Captain Vero" in guard_messages[-1]["content"]
+        assert "Mistress Vale" in other_messages[-1]["content"]
 
     @pytest.mark.asyncio
     async def test_respond_user_message_starts_with_on_stage_header(
@@ -983,7 +1036,7 @@ class TestPerceptionMode:
          visual presentation in the scene.
       3. Cache lineage with respond/tick is preserved: the system
          prompt is byte-identical across all three modes for the
-         same character + checkpoint.
+         same ruleset.
     """
 
     def _llm_text_only(self, text: str) -> LLMResponse:
@@ -1081,9 +1134,9 @@ class TestPerceptionMode:
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
-        # Cache-lineage invariant: same character + checkpoint must
-        # yield byte-identical system prompts across respond and
-        # perceive so the Anthropic prompt cache hits across modes.
+        # Cache-lineage invariant: respond and perceive must yield
+        # byte-identical system prompts so the Anthropic prompt cache
+        # hits across modes.
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.respond(guard_character, sample_checkpoint)

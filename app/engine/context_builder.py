@@ -67,10 +67,10 @@ def append_assistant_to_conversation(
 
 
 def build_character_packet(char: CharacterRecord) -> dict[str, str]:
-    """Build the stable character-identity variables for the agent system prompt.
+    """Build the stable character-identity variables for the agent user tail.
 
-    Dynamic state (goals/objectives/secrets) is rendered into the per-turn user
-    message separately; this function covers the frozen-identity portion.
+    Dynamic state (goals/objectives/secrets) is rendered into the same per-turn
+    user message separately; this function covers the stable identity portion.
 
     Traits, voice, and narrative_notes are gone as separate fields —
     personality absorbs all of them into one prose block.

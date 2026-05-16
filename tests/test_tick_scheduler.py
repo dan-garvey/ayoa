@@ -15,6 +15,7 @@ import pytest
 from app.engine.orchestrator import Orchestrator, TICK_CONCURRENCY_HARD_CAP
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import (
+    CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
     PrivateState,
@@ -23,7 +24,7 @@ from app.schemas.characters import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import CanonicalEvent, WorldAdjudication
+from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
@@ -41,6 +42,9 @@ def _npc(
     status: CharacterStatus = CharacterStatus.active,
     location: str = "hall",
     is_playable: bool = False,
+    agent_tier: CharacterAgentTier = CharacterAgentTier.standard,
+    tick_cues: list[str] | None = None,
+    current_objectives: list[str] | None = None,
 ) -> CharacterRecord:
     return CharacterRecord(
         character_id=char_id,
@@ -48,8 +52,13 @@ def _npc(
         status=status,
         location=location,
         is_playable=is_playable,
+        agent_tier=agent_tier,
         public_sheet=PublicSheet(role="npc"),
-        private_state=PrivateState(intentions_enabled=intentions_enabled),
+        private_state=PrivateState(
+            intentions_enabled=intentions_enabled,
+            tick_cues=list(tick_cues or []),
+            current_objectives=list(current_objectives or []),
+        ),
     )
 
 
@@ -61,6 +70,7 @@ def _ckpt(
     turns_since_last_tick: int = 0,
     stagnation: int = 15,
     tick_concurrency: int = 4,
+    tick_batch_size: int = 4,
     ticks_enabled: bool = True,
 ) -> CheckpointFile:
     sess = SessionState(
@@ -71,6 +81,7 @@ def _ckpt(
     )
     sess.config.settings.tick_stagnation_max = stagnation
     sess.config.settings.tick_concurrency = tick_concurrency
+    sess.config.settings.tick_batch_size = tick_batch_size
     sess.config.settings.ticks_enabled = ticks_enabled
     return CheckpointFile(
         session=sess,
@@ -159,7 +170,9 @@ def _patch_semaphore_recorder(monkeypatch) -> list[int]:
     return sizes
 
 
-def _tick_router_output() -> EventRouterOutput:
+def _tick_router_output(
+    observer_ids: tuple[str, ...] = ("regent", "scribe"),
+) -> EventRouterOutput:
     return EventRouterOutput(
         event_id="",
         decision_rationale="tick fan-in fixture",
@@ -169,15 +182,11 @@ def _tick_router_output() -> EventRouterOutput:
         ),
         observers=[
             ObserverEntry(
-                character_id="regent",
+                character_id=character_id,
                 observation_level="d",
                 response_priority=1,
-            ),
-            ObserverEntry(
-                character_id="scribe",
-                observation_level="d",
-                response_priority=1,
-            ),
+            )
+            for character_id in observer_ids
         ],
         requires_responders=False,
         required_responders=[],
@@ -188,6 +197,12 @@ def _tick_router_output() -> EventRouterOutput:
         dormant=[],
         cull=[],
     )
+
+
+def _event_with_fact(text: str) -> EventRouterOutput:
+    routed = _tick_router_output(())
+    routed.canonical_event.observable_facts = [ObservableFact.all(text)]
+    return routed
 
 
 def _stub_dispatcher(
@@ -298,6 +313,16 @@ class TestEligibility:
 
         assert [c.character_id for c in eligible] == ["remote"]
 
+    def test_active_unseen_antagonist_is_eligible(self):
+        ckpt = _ckpt(characters=[
+            _npc("alice", is_playable=True, location="hall"),
+            _npc("lord_verantus", location="celestial_keep"),
+        ])
+
+        eligible = _orchestrator()._eligible_for_tick(ckpt, acted_this_turn=set())
+
+        assert [c.character_id for c in eligible] == ["lord_verantus"]
+
 
 class TestTriggerLogic:
     @pytest.mark.asyncio
@@ -362,6 +387,115 @@ class TestTriggerLogic:
         assert recorder == []
         assert ckpt.session.turns_since_last_tick == 0
 
+    @pytest.mark.asyncio
+    async def test_cue_match_fires_before_stagnation(self, monkeypatch):
+        ckpt = _ckpt(
+            turns_since_last_tick=0,
+            stagnation=15,
+            characters=[
+                _npc("alice", is_playable=True, location="pod_a"),
+                _npc("regent", tick_cues=["failed candle"]),
+                _npc("scribe", tick_cues=["missing ledger"]),
+            ],
+        )
+        ckpt.canonical_events.append(
+            _event_with_fact("The failed candle gutters out on the altar.")
+        )
+        recorder: list[str] = []
+        _stub_character_agent(monkeypatch, recorder)
+        _stub_dispatcher(monkeypatch, _tick_router_output(("regent",)))
+
+        result = await _orchestrator()._run_ticks(
+            ckpt, acted_this_turn=set(), acting_id="alice",
+        )
+
+        assert [c.character_id for c, _ in result] == ["regent"]
+        assert recorder == ["regent"]
+        assert ckpt.session.turns_since_last_tick == 0
+
+    @pytest.mark.asyncio
+    async def test_no_cue_match_waits_for_stagnation(self, monkeypatch):
+        ckpt = _ckpt(turns_since_last_tick=0, stagnation=15)
+        recorder: list[str] = []
+        _stub_character_agent(monkeypatch, recorder)
+
+        result = await _orchestrator()._run_ticks(
+            ckpt, acted_this_turn=set(), acting_id="alice",
+        )
+
+        assert result == []
+        assert recorder == []
+        assert ckpt.session.turns_since_last_tick == 1
+
+    @pytest.mark.asyncio
+    async def test_stagnation_uses_bounded_tick_batch(self, monkeypatch):
+        ckpt = _ckpt(
+            turns_since_last_tick=14,
+            stagnation=15,
+            tick_batch_size=3,
+            characters=[
+                _npc("alice", is_playable=True, location="pod_a"),
+                *[_npc(f"npc_{idx}") for idx in range(6)],
+            ],
+        )
+        recorder: list[str] = []
+        _stub_character_agent(monkeypatch, recorder)
+        _stub_dispatcher(
+            monkeypatch,
+            _tick_router_output(("npc_0", "npc_1", "npc_2")),
+        )
+
+        result = await _orchestrator()._run_ticks(
+            ckpt, acted_this_turn=set(), acting_id="alice",
+        )
+
+        assert [c.character_id for c, _ in result] == [
+            "npc_0",
+            "npc_1",
+            "npc_2",
+        ]
+        assert recorder == ["npc_0", "npc_1", "npc_2"]
+
+    @pytest.mark.asyncio
+    async def test_premium_tiers_capped_when_lower_tiers_available(
+        self, monkeypatch,
+    ):
+        ckpt = _ckpt(
+            turns_since_last_tick=14,
+            stagnation=15,
+            tick_batch_size=4,
+            characters=[
+                _npc("alice", is_playable=True, location="pod_a"),
+                _npc("premium_0", agent_tier=CharacterAgentTier.premium),
+                _npc("premium_1", agent_tier=CharacterAgentTier.premium),
+                _npc("premium_2", agent_tier=CharacterAgentTier.premium),
+                _npc("standard_0", agent_tier=CharacterAgentTier.standard),
+                _npc("standard_1", agent_tier=CharacterAgentTier.standard),
+                _npc("utility_0", agent_tier=CharacterAgentTier.utility),
+            ],
+        )
+        recorder: list[str] = []
+        _stub_character_agent(monkeypatch, recorder)
+        _stub_dispatcher(
+            monkeypatch,
+            _tick_router_output(
+                ("premium_0", "standard_0", "standard_1", "utility_0")
+            ),
+        )
+
+        result = await _orchestrator()._run_ticks(
+            ckpt, acted_this_turn=set(), acting_id="alice",
+        )
+
+        selected_ids = [c.character_id for c, _ in result]
+        assert selected_ids == [
+            "premium_0",
+            "standard_0",
+            "standard_1",
+            "utility_0",
+        ]
+        assert recorder == selected_ids
+
 
 class TestFanOut:
     @pytest.mark.asyncio
@@ -397,6 +531,50 @@ class TestFanOut:
         )
 
         assert sizes == [TICK_CONCURRENCY_HARD_CAP]
+
+    @pytest.mark.asyncio
+    async def test_first_tick_per_model_role_warms_before_parallelizing(
+        self, monkeypatch,
+    ):
+        order: list[str] = []
+
+        class _TracingAgent:
+            def __init__(self, client, prompt_mgr):
+                self.last_usage = {}
+
+            async def draft_tick(self, *, character, checkpoint, acting_character_id):
+                order.append(f"start:{character.character_id}")
+                await asyncio.sleep(0)
+                order.append(f"finish:{character.character_id}")
+                return _draft_for(character)
+
+        monkeypatch.setattr("app.engine.orchestrator.CharacterAgent", _TracingAgent)
+        _stub_dispatcher(
+            monkeypatch,
+            _tick_router_output(
+                ("premium_0", "standard_0", "standard_1", "utility_0")
+            ),
+        )
+        ckpt = _ckpt(
+            turns_since_last_tick=14,
+            stagnation=15,
+            tick_batch_size=4,
+            characters=[
+                _npc("alice", is_playable=True, location="pod_a"),
+                _npc("premium_0", agent_tier=CharacterAgentTier.premium),
+                _npc("standard_0", agent_tier=CharacterAgentTier.standard),
+                _npc("standard_1", agent_tier=CharacterAgentTier.standard),
+                _npc("utility_0", agent_tier=CharacterAgentTier.utility),
+            ],
+        )
+
+        await _orchestrator()._run_ticks(
+            ckpt, acted_this_turn=set(), acting_id="alice",
+        )
+
+        assert order.index("finish:premium_0") < order.index("start:standard_0")
+        assert order.index("finish:standard_0") < order.index("start:standard_1")
+        assert order.index("finish:standard_0") < order.index("start:utility_0")
 
     @pytest.mark.asyncio
     async def test_per_tick_failure_does_not_drop_others(self, monkeypatch):

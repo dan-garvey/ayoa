@@ -1077,14 +1077,12 @@ class LLMDispatcher:
         the whole render down. The caller logs dropped fragments at
         WARN so test playthroughs still surface the failure.
 
-        Cache lineage: each character's `perceive` call shares the
-        SAME system prompt as that character's `respond` / `tick`
-        calls (single unified `agent` template). The system prompt
-        cache hits across modes for the same character; only the
-        per-call user message changes. Parallel fan-out compounds
-        well with this — a 3-character harvest bills three Haiku
-        calls in ~1 round-trip wall time, all hitting the cached
-        system prefix.
+        Cache lineage: every `perceive` call shares the SAME system
+        prompt as `respond` / `tick` under the same ruleset (single
+        unified `agent` template). Character identity lives in the
+        per-call user message, so parallel fan-out compounds well with
+        this — a 3-character harvest bills three Haiku calls in roughly
+        one round-trip wall time, all hitting the cached system prefix.
         """
         if not character_ids:
             return []

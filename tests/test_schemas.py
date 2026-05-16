@@ -217,7 +217,7 @@ class TestCharacterRecord:
         cr = CharacterRecord(**CHARACTER_EXAMPLE)
         assert cr.name == "Captain Vero"
         assert cr.status == CharacterStatus.active
-        assert cr.agent_tier == CharacterAgentTier.plot
+        assert cr.agent_tier == CharacterAgentTier.premium
         assert cr.last_agent_turn_at_s is None
         assert cr.public_sheet.role == "guard captain"
         assert "maintain order" in cr.private_state.goals
@@ -246,7 +246,7 @@ class TestCharacterRecord:
                 public="Ashara is House vel Kothren's heir-designate.",
                 private="Ashara's family is tied to the human collapse.",
             ),
-            agent_tier=CharacterAgentTier.convenience,
+            agent_tier=CharacterAgentTier.utility,
             private_state=PrivateState(
                 goals=["become the greatest demon seat-holder", "lift demon restrictions"],
                 secrets=["grandmother was involved in the human collapse"],
@@ -258,9 +258,18 @@ class TestCharacterRecord:
         assert "Trials of Ascension" in cr.backstory
         assert "tail" in cr.personality
         assert cr.public_sheet.faction == "House vel Kothren"
-        assert cr.agent_tier == CharacterAgentTier.convenience
+        assert cr.agent_tier == CharacterAgentTier.utility
         assert cr.descriptions.public.startswith("Ashara is House")
         assert "human collapse" in cr.descriptions.private
+
+    def test_legacy_agent_tiers_still_load(self):
+        plot = CharacterRecord(**{**CHARACTER_EXAMPLE, "agent_tier": "plot"})
+        convenience = CharacterRecord(
+            **{**CHARACTER_EXAMPLE, "agent_tier": "convenience"}
+        )
+
+        assert plot.agent_tier == CharacterAgentTier.plot
+        assert convenience.agent_tier == CharacterAgentTier.convenience
 
     def test_legacy_is_player_alias_migrated_to_is_playable(self):
         """playable-2 renamed `is_player` to `is_playable`. Old saves on

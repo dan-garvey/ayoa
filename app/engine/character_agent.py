@@ -8,14 +8,10 @@ Cross-agent / narrator chokepoints strip the parenthetical via
 `_extract_parenthetical` before its public_text is forwarded.
 
 Cache lineage (v11): on-stage and off-stage calls share a SINGLE
-unified system prompt (`agent_v*.txt`) and a single rolling history
-per character. The mode distinction is signaled by a first-token
-header in the user message — `## ON-STAGE` vs `## TICK`, defined as
-`AGENT_ON_STAGE_HEADER` / `AGENT_TICK_HEADER` in
-`turn_loop_contracts`. Switching between respond and tick within the
-same character does NOT invalidate the system-prompt cache; cache
-hits compound across both modes. The mode-specific user-message body
-is assembled by the matching `format_agent_*_body` helper.
+unified system prompt (`agent.txt`). Character identity/current
+state and the mode marker live in the user tail so characters on the
+same model role can share the cached system prefix. Each character
+still keeps its own rolling history.
 """
 
 from __future__ import annotations
@@ -100,7 +96,11 @@ def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
 
 
 def model_role_for_character(character: CharacterRecord) -> str:
-    if character.agent_tier == CharacterAgentTier.convenience:
+    if character.agent_tier in {
+        CharacterAgentTier.standard,
+        CharacterAgentTier.utility,
+        CharacterAgentTier.convenience,
+    }:
         return CONVENIENCE_AGENT_ROLE
     return PLOT_AGENT_ROLE
 
@@ -524,13 +524,12 @@ class CharacterAgent:
         here so any future tweak (model swap, retry policy,
         compaction, telemetry) lands once.
 
-        The system prefix is byte-identical between modes when called
-        with the same character + checkpoint — same template, same
-        character-derived variables. Only the user message changes:
-        `mode_header` (`## ON-STAGE` or `## TICK`) is the first token,
-        and `mode_block` is the mode-specific body. This shared
-        prefix is what lets one cache lineage cover both modes for
-        the same character.
+        The system prefix is byte-identical between modes and across
+        characters for the same ruleset. Character-derived variables,
+        `mode_header` (`## ON-STAGE` or `## TICK`), and `mode_block`
+        all live in the user message. This shared prefix is what lets
+        one cache lineage cover multiple characters on the same model
+        role.
 
         `acting_character_id` is currently vestigial — same reasoning
         as `perceive` above. Kept on the signature so callers don't

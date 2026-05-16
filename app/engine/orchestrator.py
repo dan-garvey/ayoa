@@ -24,9 +24,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+from dataclasses import dataclass
 from typing import Any
 
-from app.engine.character_agent import CharacterAgent, CharacterAgentTurnDraft
+from app.engine.character_agent import (
+    CharacterAgent,
+    CharacterAgentTurnDraft,
+    model_role_for_character,
+)
 from app.engine.context_builder import clear_character_inbox, collect_player_ids
 from app.engine.character_manager import CharacterManager, _pinned_character_ids
 from app.engine.checkpoint_manager import CheckpointManager
@@ -81,7 +87,7 @@ from app.llm.client import LLMClient
 # landed — a missing module is a real packaging error.
 from app.engine.turn_loop_dispatcher import LLMDispatcher
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, CharacterStatus
+from app.schemas.characters import CharacterAgentTier, CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.requests import TurnRequest
@@ -96,6 +102,18 @@ logger = logging.getLogger(__name__)
 # roster (~12 NPCs) all eligible at once would still fan out under
 # this. Raise only after measuring rate-limit headroom.
 TICK_CONCURRENCY_HARD_CAP = 16
+TICK_BATCH_HARD_CAP = 8
+TICK_CUE_FIRE_THRESHOLD = 10
+TICK_PREMIUM_PER_BATCH = 1
+
+
+@dataclass(frozen=True)
+class TickCandidate:
+    character: CharacterRecord
+    score: float
+    cue_score: float
+    roster_index: int
+    reason: str
 
 _COMBAT_NO_ADVANCE_REASONS = {
     "slot_rejected",
@@ -580,6 +598,177 @@ def _commit_tick_draft(
     clear_character_inbox(char)
     conv = ckpt.character_conversations.setdefault(char.character_id, [])
     conv.extend([draft.user_message, draft.assistant_message])
+
+
+_WORD_RE = re.compile(r"[a-z0-9_']+")
+
+
+def _words(text: str) -> set[str]:
+    return {
+        word
+        for word in _WORD_RE.findall((text or "").lower())
+        if len(word) >= 3
+    }
+
+
+def _recent_tick_signal_text(ckpt: CheckpointFile, *, event_limit: int = 8) -> str:
+    parts: list[str] = []
+    for event in ckpt.canonical_events[-event_limit:]:
+        canonical = _obj_get(event, "canonical_event")
+        for fact in list(_obj_get(canonical, "observable_facts", []) or []):
+            text = str(_obj_get(fact, "text", "") or "").strip()
+            if text:
+                parts.append(text)
+        for observer in list(_obj_get(event, "observers", []) or []):
+            cid = str(_obj_get(observer, "character_id", "") or "").strip()
+            if cid:
+                parts.append(cid)
+        for update in list(_obj_get(event, "location_updates", []) or []):
+            loc = str(_obj_get(update, "location_label", "") or "").strip()
+            if loc:
+                parts.append(loc)
+    parts.extend(str(line) for line in ckpt.session.pending_router_state_changes)
+    return "\n".join(parts)
+
+
+def _match_phrase_score(phrase: str, haystack: str, hay_words: set[str]) -> float:
+    phrase = (phrase or "").strip().lower()
+    if not phrase:
+        return 0.0
+    if phrase in haystack:
+        return 14.0
+    cue_words = _words(phrase)
+    if not cue_words:
+        return 0.0
+    overlap = len(cue_words & hay_words)
+    if len(cue_words) == 1:
+        return 6.0 if overlap else 0.0
+    required = max(2, int(len(cue_words) * 0.6 + 0.999))
+    if overlap >= required:
+        return 8.0 + min(4, overlap)
+    return 0.0
+
+
+def _agent_tier_weight(char: CharacterRecord) -> float:
+    if char.agent_tier in {CharacterAgentTier.premium, CharacterAgentTier.plot}:
+        return 8.0
+    if char.agent_tier == CharacterAgentTier.standard:
+        return 5.0
+    return 2.0
+
+
+def _is_premium_tick_tier(char: CharacterRecord) -> bool:
+    return char.agent_tier in {CharacterAgentTier.premium, CharacterAgentTier.plot}
+
+
+def _score_tick_candidate(
+    ckpt: CheckpointFile,
+    char: CharacterRecord,
+    *,
+    recent_text: str,
+    recent_words: set[str],
+    roster_index: int,
+) -> TickCandidate:
+    score = _agent_tier_weight(char)
+    reasons: list[str] = [f"tier={char.agent_tier.value}"]
+
+    cue_scores = [
+        _match_phrase_score(cue, recent_text, recent_words)
+        for cue in char.private_state.tick_cues
+    ]
+    cue_score = max(cue_scores) if cue_scores else 0.0
+    if cue_score:
+        score += cue_score
+        reasons.append(f"cue={cue_score:g}")
+
+    if char.pending_observations:
+        score += 5.0
+        reasons.append("pending_observations")
+
+    for label in (
+        char.character_id,
+        char.name,
+        char.public_sheet.faction,
+        char.location,
+    ):
+        if not label:
+            continue
+        match = _match_phrase_score(label, recent_text, recent_words)
+        if match:
+            boost = min(4.0, match)
+            score += boost
+            reasons.append(f"recent_match={boost:g}")
+            break
+
+    for objective in char.private_state.current_objectives:
+        overlap = _words(objective) & recent_words
+        if overlap:
+            boost = min(4.0, float(len(overlap)))
+            score += boost
+            reasons.append(f"objective_overlap={boost:g}")
+            break
+
+    leading = max(int(getattr(ckpt.session, "leading_at_s", 0) or 0), 0)
+    previous = char.last_agent_turn_at_s
+    if previous is None:
+        score += 1.0
+        reasons.append("never_ticked")
+    else:
+        debt = max(0, leading - previous)
+        if debt:
+            boost = min(6.0, debt / 300.0)
+            score += boost
+            reasons.append(f"debt={boost:g}")
+
+    return TickCandidate(
+        character=char,
+        score=score,
+        cue_score=cue_score,
+        roster_index=roster_index,
+        reason=", ".join(reasons),
+    )
+
+
+def _bounded_tick_batch_size(settings: Any) -> int:
+    return min(max(1, int(settings.tick_batch_size)), TICK_BATCH_HARD_CAP)
+
+
+def _select_tick_batch(
+    candidates: list[TickCandidate],
+    *,
+    batch_size: int,
+) -> list[TickCandidate]:
+    selected: list[TickCandidate] = []
+    premium_selected = 0
+    non_premium_available = any(
+        not _is_premium_tick_tier(c.character) for c in candidates
+    )
+
+    for candidate in candidates:
+        if len(selected) >= batch_size:
+            break
+        is_premium = _is_premium_tick_tier(candidate.character)
+        if (
+            is_premium
+            and non_premium_available
+            and premium_selected >= TICK_PREMIUM_PER_BATCH
+        ):
+            continue
+        selected.append(candidate)
+        if is_premium:
+            premium_selected += 1
+
+    if not selected:
+        selected = candidates[:batch_size]
+    elif len(selected) < batch_size and not non_premium_available:
+        seen = {c.character.character_id for c in selected}
+        for candidate in candidates:
+            if len(selected) >= batch_size:
+                break
+            if candidate.character.character_id in seen:
+                continue
+            selected.append(candidate)
+    return selected
 
 
 class Orchestrator:
@@ -1845,13 +2034,15 @@ class Orchestrator:
         acted_this_turn: set[str],
         acting_id: str,
     ) -> list[tuple[CharacterRecord, CharacterAgentOutput]]:
-        """Decide whether to fire a tick pass this beat, and if so,
-        fan out `CharacterAgent.draft_tick()` for every eligible NPC under a
-        bounded semaphore.
+        """Decide whether to fire a tick pass this beat, and if so, draft a
+        bounded batch of high-value off-stage NPC actions.
 
-        Trigger model (Commit 5 / decision #9):
+        Trigger model:
           - `turns_since_last_tick` increments unconditionally each
             beat (even when no tick fires).
+          - **Cue branch**: fires early when an eligible character's
+            authored `private_state.tick_cues` match recent canonical
+            events or queued state changes.
           - **Stagnation branch**: fires unconditionally after
             `tick_stagnation_max` idle beats so the world keeps
             moving even when the player stays in one conversation.
@@ -1861,6 +2052,9 @@ class Orchestrator:
         `min(settings.tick_concurrency, TICK_CONCURRENCY_HARD_CAP)`.
         Each tick uses its OWN `CharacterAgent` instance so concurrent
         completions don't race on `agent.last_usage`.
+        The first selected character for each model role is awaited before
+        parallelizing the rest of that role, giving provider cache prefixes a
+        chance to warm per tier.
 
         After fan-out, Commit 6 bundles every successful draft's
         `public_text` into a single unified-router call in tick mode.
@@ -1889,32 +2083,88 @@ class Orchestrator:
 
         sess.turns_since_last_tick += 1
 
+        eligible = self._eligible_for_tick(ckpt, acted_this_turn)
+        recent_text = _recent_tick_signal_text(ckpt).lower()
+        recent_words = _words(recent_text)
+        ranked = [
+            _score_tick_candidate(
+                ckpt,
+                char,
+                recent_text=recent_text,
+                recent_words=recent_words,
+                roster_index=idx,
+            )
+            for idx, char in enumerate(eligible)
+        ]
+        ranked.sort(key=lambda c: (-c.score, -c.cue_score, c.roster_index))
+
         stagnation_fires = (
             sess.turns_since_last_tick >= settings.tick_stagnation_max
         )
+        cue_fires = bool(
+            ranked and ranked[0].cue_score >= TICK_CUE_FIRE_THRESHOLD
+        )
 
-        if not stagnation_fires:
+        if not (stagnation_fires or cue_fires):
+            top = ranked[0] if ranked else None
             logger.debug(
                 "Tick scheduler: no fire (turns_since_last_tick=%d, "
-                "stagnation_ok=%s)",
-                sess.turns_since_last_tick, stagnation_fires,
+                "stagnation_ok=%s, cue_ok=%s, eligible=%d, top=%s)",
+                sess.turns_since_last_tick,
+                stagnation_fires,
+                cue_fires,
+                len(eligible),
+                (
+                    f"{top.character.character_id} score={top.score:g} "
+                    f"cue={top.cue_score:g}"
+                )
+                if top is not None
+                else "none",
             )
             return []
 
-        eligible = self._eligible_for_tick(ckpt, acted_this_turn)
-        reason = "stagnation"
         if not eligible:
             # Still reset the counter — we DID try to fire, eligibility
             # was just empty (e.g. all NPCs are dormant, on-stage, or
             # already acted). Otherwise an all-on-stage beat would
             # never reset and the next turn would over-fire.
-            sess.turns_since_last_tick = 0
+            if stagnation_fires:
+                sess.turns_since_last_tick = 0
             logger.info(
                 "Tick scheduler: %s fire but no eligible NPCs "
                 "(roster=%d, acted=%d; pinned, player, dormant, "
                 "or intentions_disabled filtered all out); "
-                "counter reset.",
-                reason, len(ckpt.characters), len(acted_this_turn),
+                "counter %s.",
+                "stagnation" if stagnation_fires else "cue",
+                len(ckpt.characters),
+                len(acted_this_turn),
+                "reset" if stagnation_fires else "left unchanged",
+            )
+            return []
+
+        reason = "stagnation" if stagnation_fires else "cue"
+        candidate_pool = (
+            [
+                candidate for candidate in ranked
+                if candidate.cue_score >= TICK_CUE_FIRE_THRESHOLD
+            ]
+            if cue_fires and not stagnation_fires
+            else ranked
+        )
+        selected_candidates = _select_tick_batch(
+            candidate_pool,
+            batch_size=_bounded_tick_batch_size(settings),
+        )
+        selected = [candidate.character for candidate in selected_candidates]
+        if not selected:
+            if stagnation_fires:
+                sess.turns_since_last_tick = 0
+            logger.info(
+                "Tick scheduler: %s fire had %d eligible NPC(s) but no "
+                "candidate survived selection; counter %s.",
+                reason,
+                len(eligible),
+                "reset" if stagnation_fires else "left unchanged",
             )
             return []
 
@@ -1924,9 +2174,18 @@ class Orchestrator:
         semaphore = asyncio.Semaphore(cap)
 
         logger.info(
-            "Tick scheduler: %s fire — %d eligible NPC(s), "
-            "concurrency cap %d",
-            reason, len(eligible), cap,
+            "Tick scheduler: %s fire — %d eligible NPC(s), %d selected "
+            "(batch cap %d, concurrency cap %d): %s",
+            reason,
+            len(eligible),
+            len(selected),
+            _bounded_tick_batch_size(settings),
+            cap,
+            "; ".join(
+                f"{c.character.character_id}:score={c.score:g},"
+                f"cue={c.cue_score:g}({c.reason})"
+                for c in selected_candidates
+            ),
         )
 
         async def _one(
@@ -1962,14 +2221,40 @@ class Orchestrator:
                 )
                 return (char, draft)
 
-        results = await asyncio.gather(*[_one(c) for c in eligible])
-        drafts = [r for r in results if r is not None]
+        result_by_id: dict[str, tuple[CharacterRecord, CharacterAgentTurnDraft]] = {}
+        warmed_roles: set[str] = set()
+        parallel_chars: list[CharacterRecord] = []
+
+        for char in selected:
+            role = model_role_for_character(char)
+            if role in warmed_roles:
+                parallel_chars.append(char)
+                continue
+            result = await _one(char)
+            if result is None:
+                continue
+            result_by_id[char.character_id] = result
+            warmed_roles.add(role)
+
+        if parallel_chars:
+            results = await asyncio.gather(*[_one(c) for c in parallel_chars])
+            for result in results:
+                if result is None:
+                    continue
+                result_by_id[result[0].character_id] = result
+
+        drafts = [
+            result_by_id[char.character_id]
+            for char in selected
+            if char.character_id in result_by_id
+        ]
 
         sess.turns_since_last_tick = 0
 
         logger.info(
-            "Tick scheduler: %s fire complete — %d/%d tick drafts succeeded.",
-            reason, len(drafts), len(eligible),
+            "Tick scheduler: %s fire complete — %d/%d selected tick drafts "
+            "succeeded (%d eligible).",
+            reason, len(drafts), len(selected), len(eligible),
         )
 
         # Commit 6: tick fan-in to the unified router.

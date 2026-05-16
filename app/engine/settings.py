@@ -99,12 +99,22 @@ SETTINGS: list[SettingDef] = [
         parse=_parse_int_positive,
     ),
     SettingDef(
+        key="tick_batch_size",
+        default=4,
+        description=(
+            "Max off-stage NPCs selected for one tick fan-in. Must be >= 1; "
+            "the engine also applies a hard cap so large rosters cannot all "
+            "tick in one pass."
+        ),
+        parse=_parse_int_positive,
+    ),
+    SettingDef(
         key="ticks_enabled",
         default=False,
         description=(
             "Master kill switch for the off-stage tick scheduler. Default "
-            "off for now because large rosters can make synchronous tick "
-            "fan-out dominate player response latency. Off = no background "
+            "off while the bounded scheduler is still being playtested. "
+            "Off = no background "
             "NPC ticks at all (no stagnation fires, no fan-out). The tick "
             "counters freeze in disabled mode, so flipping back on resumes "
             "the trigger model from where it left off rather than firing a "

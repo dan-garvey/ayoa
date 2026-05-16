@@ -192,7 +192,9 @@ MAX_EXTRACTION_TOKENS = 64_000
 # `descriptions.private`. Public descriptions are player-safe identity
 # glosses for narrator context; private descriptions retain authorial /
 # spoiler-bearing identity context without exposing it to narrator prompts.
-IMPORTER_VERSION = "v10"
+# v10 → v11: character extraction now emits `private_state.tick_cues`
+# for authored off-stage tick selection triggers.
+IMPORTER_VERSION = "v11"
 
 
 # ---------------- Extraction prompts ----------------
@@ -458,6 +460,13 @@ depth as the source describes them.
     player encounters them. A good rule of thumb: if the character's
     `current_objectives` list is empty, `intentions_enabled` should
     almost certainly be false.
+  - `tick_cues`: short trigger phrases that should make this character
+    more likely to receive one of the scarce off-stage tick slots.
+    Use concrete story signals: named incidents, locations, factions,
+    mysteries, rivals, thresholds, or player behaviors. Examples:
+    "failed candle", "Rite anomaly", "asks about the Elf War",
+    "approaches the sealed chamber". Leave empty for reactive
+    background characters.
 
 - **backstory**: character history from THEIR perspective — only what THEY
   know or believe about themselves. If the source says an NPC is secretly a
@@ -850,6 +859,7 @@ def build_checkpoint(
                 current_objectives=cd.private_state.current_objectives,
                 secrets=cd.private_state.secrets,
                 intentions_enabled=cd.private_state.intentions_enabled,
+                tick_cues=cd.private_state.tick_cues,
             ),
             backstory=cd.backstory,
             personality=cd.personality,

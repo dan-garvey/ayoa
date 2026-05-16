@@ -2,7 +2,7 @@
 
 Responsibilities:
 - Holds the shared Orchestrator, LLMClient, CheckpointManager, PromptManager.
-- Creates a fresh session from an imported story (copies ckpt_0000 into the
+- Creates a fresh session from an imported story seed (copies ckpt_0000 into the
   session dir; no auto-binding — players pick a character via /join).
 - Runs turns behind a per-session asyncio.Lock so concurrent /act commands
   on the same channel serialize cleanly.
@@ -371,7 +371,7 @@ logger = logging.getLogger(__name__)
 class EngineBridge:
     """Shared engine state for all Discord interactions.
 
-    Stories (imported master prompts, pristine ckpt_0000 only) live under
+    Stories (imported master prompts, story seed ckpt_0000 only) live under
     `stories_dir`. Player sessions (one dir per session_id, ckpt_NNNN
     grows with turn_index) live under `sessions_dir`. Keeping them in
     separate namespaces means creating a new session from a story
@@ -432,7 +432,7 @@ class EngineBridge:
         )
 
     def load_story_ckpt(self, story_id: str) -> CheckpointFile:
-        """Load a story's source ckpt_0000 (pristine, not a session checkpoint)."""
+        """Load a story seed ckpt_0000, not a live session checkpoint."""
         path = self.stories_dir / story_id / "ckpt_0000.json"
         if not path.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {path}")
@@ -578,7 +578,7 @@ class EngineBridge:
         session_id: str,
         story_id: str,
     ) -> CheckpointFile:
-        """Copy a story's pristine ckpt_0000 into the named session dir,
+        """Copy a story seed ckpt_0000 into the named session dir,
         rewriting session_id and stripping import_analysis. No
         personalize, no auto-bind — the player picks characters via
         /join after. Refuses if the session already has
@@ -1030,7 +1030,7 @@ class EngineBridge:
         )
 
     def list_story_characters(self, story_id: str) -> list[CharacterSummary]:
-        """Spoiler-free roster from the source ckpt_0000 (no session needed)."""
+        """Spoiler-free roster from the story seed (no session needed)."""
         ckpt = self.load_story_ckpt(story_id)
         return _summaries_from_checkpoint(ckpt)
 
@@ -3406,7 +3406,7 @@ def migrate_legacy_saves(
 
     Classification: a legacy dir is treated as a session if it has more
     than one ckpt, a non-zero turn_index, or any transcript entries.
-    Otherwise it's treated as a story (pristine ckpt_0000).
+    Otherwise it's treated as a story seed (ckpt_0000).
 
     Not called automatically. Invoke via scripts/migrate_storage.py with
     explicit --legacy-dir / --stories-dir / --sessions-dir arguments.

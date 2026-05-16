@@ -374,7 +374,7 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
-        char.agent_tier = CharacterAgentTier.convenience
+        char.agent_tier = CharacterAgentTier.utility
         # Override the LLM's authored.location only when the router or
         # caller supplied a concrete location label. When neither is set,
         # trust the LLM.

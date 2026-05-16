@@ -104,6 +104,7 @@ class TestSettingsHelpers:
     def test_get_setting_returns_default_on_fresh_ckpt(self):
         ckpt = _ckpt()
         assert get_setting(ckpt, "ticks_enabled") is False
+        assert get_setting(ckpt, "tick_batch_size") == 4
 
     def test_get_unknown_raises(self):
         ckpt = _ckpt()
@@ -121,6 +122,12 @@ class TestSettingsHelpers:
         new = set_setting(ckpt, "player_roll_mode", "interactive")
         assert new == "interactive"
         assert ckpt.session.config.settings.player_roll_mode == "interactive"
+
+    def test_set_tick_batch_size(self):
+        ckpt = _ckpt()
+        new = set_setting(ckpt, "tick_batch_size", "3")
+        assert new == 3
+        assert ckpt.session.config.settings.tick_batch_size == 3
 
     def test_set_setting_unknown_raises(self):
         ckpt = _ckpt()
@@ -191,6 +198,7 @@ class TestEngineBridgeSettings:
         assert keys == [spec.key for spec in SETTINGS]
         assert {
             "ticks_enabled",
+            "tick_batch_size",
             "ruleset_id",
             "player_roll_mode",
         }.issubset(keys)

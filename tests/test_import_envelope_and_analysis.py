@@ -66,6 +66,7 @@ def _roster() -> CharacterListExtraction:
                 current_objectives=[],
                 secrets=["knows the Aetheri truth"],
                 intentions_enabled=True,
+                tick_cues=[],
             ),
             backstory="Twenty-five years governing the sealed state.",
             personality="",
@@ -88,6 +89,7 @@ def _roster() -> CharacterListExtraction:
                 current_objectives=[],
                 secrets=["never leaves Mirenza"],
                 intentions_enabled=False,
+                tick_cues=[],
             ),
             backstory="",
             personality="",
@@ -148,7 +150,7 @@ class TestBuildCheckpointEnvelope:
         assert ckpt.importer_version == IMPORTER_VERSION
         # Any bump here means the extraction contract changed — re-import
         # in-flight stories if you rely on a new field.
-        assert IMPORTER_VERSION == "v10"
+        assert IMPORTER_VERSION == "v11"
 
 
 class TestImportAnalysisSchema:
@@ -261,6 +263,7 @@ class TestLocationSeedPush:
                 private_state=PrivateStateExtraction(
                     goals=[], current_objectives=[], secrets=[],
                     intentions_enabled=False,
+                    tick_cues=[],
                 ),
                 backstory="", personality="",
             ),
@@ -280,6 +283,7 @@ class TestLocationSeedPush:
                 private_state=PrivateStateExtraction(
                     goals=[], current_objectives=[], secrets=[],
                     intentions_enabled=False,
+                    tick_cues=[],
                 ),
                 backstory="", personality="",
             ),

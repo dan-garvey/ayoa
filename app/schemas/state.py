@@ -458,6 +458,10 @@ class SessionSettings(BaseModel):
     # by `app.engine.orchestrator.TICK_CONCURRENCY_HARD_CAP` regardless
     # of what's configured here.
     tick_concurrency: int = 4
+    # Maximum number of off-stage NPCs selected for one tick fan-in. The
+    # scheduler may have many eligible characters, but only the highest
+    # pressure candidates should spend model calls on a given fire.
+    tick_batch_size: int = 4
     # Commit 5: hard ceiling on consecutive turns with NO tick fire.
     # Even if the player camps in one conversation, the world should
     # still advance off-screen after this many turns. Acts as the
@@ -468,8 +472,7 @@ class SessionSettings(BaseModel):
     # camping doesn't make the world feel frozen.
     tick_stagnation_max: int = 15
     # Master kill switch for the off-stage tick scheduler. Default is off
-    # for now because synchronous background fan-out can dominate player
-    # response latency on large rosters. When False,
+    # while the bounded scheduler is still being playtested. When False,
     # `Orchestrator._run_ticks` short-circuits at the top: no eligibility
     # filtering, no agent fan-out, no router fan-in, no canonical-event
     # append. `turns_since_last_tick` is NOT touched in disabled mode

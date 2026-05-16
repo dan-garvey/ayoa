@@ -118,8 +118,8 @@ class PrivateStateExtraction(BaseModel):
     # Existential drives — who they are at core. Stable across the story.
     goals: list[str]
     # Active, actionable pursuits — what they are trying to DO right now,
-    # with a target and a time horizon. Seeded by the importer; the
-    # character agent revises these at runtime via its output.
+    # with a target and a time horizon. Seeded by the importer; live
+    # evolution is carried in the agent's rolling conversation history.
     current_objectives: list[str]
     secrets: list[str]
     # Marks this character as significant enough to warrant off-stage ticks
@@ -127,6 +127,10 @@ class PrivateStateExtraction(BaseModel):
     # Set true for antagonists, rivals, faction leaders; false for
     # background/incidental characters.
     intentions_enabled: bool
+    # Short deterministic trigger phrases that should make this character
+    # more likely to receive a scarce off-stage tick. Empty for reactive
+    # background characters.
+    tick_cues: list[str]
 
 
 class CharacterExtraction(BaseModel):
