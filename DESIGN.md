@@ -473,9 +473,12 @@ Provider/model selection can be configured with model prefixes such as
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
 `LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.2`
 for `event_router`, Anthropic `claude-sonnet-4-6` for `narrator`,
-and Anthropic `claude-opus-4-6` for `agent` and `character_gen`.
+Anthropic `claude-opus-4-6` for premium `agent` calls, Anthropic
+`claude-haiku-4-5` for `agent_standard`, Anthropic `claude-sonnet-4-6`
+for `agent_convenience`, and Opus for `character_gen`.
 
-Active live model roles are `event_router`, `narrator`, and `agent`.
+Active live model roles are `event_router`, `narrator`, `agent`,
+`agent_standard`, and `agent_convenience`.
 `character_gen` remains in configuration and has a prompt file, but the
 current spawn path renders `character_gen.txt` and calls the LLM with
 `role="agent"`. The old `discriminator` role is vestigial compatibility state

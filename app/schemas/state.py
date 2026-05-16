@@ -14,6 +14,7 @@ class ModelConfig(BaseModel):
     narrator: str = "claude-sonnet-4-6"
     discriminator: str = "gpt-5.2"
     agent_default: str = "claude-opus-4-6"
+    agent_standard: str = "claude-haiku-4-5"
     agent_convenience: str = "claude-sonnet-4-6"
 
 

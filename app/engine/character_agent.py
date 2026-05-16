@@ -51,8 +51,9 @@ logger = logging.getLogger(__name__)
 
 
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
-CONVENIENCE_AGENT_ROLE = "agent_convenience"
 PLOT_AGENT_ROLE = "agent"
+STANDARD_AGENT_ROLE = "agent_standard"
+CONVENIENCE_AGENT_ROLE = "agent_convenience"
 
 
 @dataclass(frozen=True)
@@ -96,8 +97,9 @@ def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
 
 
 def model_role_for_character(character: CharacterRecord) -> str:
+    if character.agent_tier == CharacterAgentTier.standard:
+        return STANDARD_AGENT_ROLE
     if character.agent_tier in {
-        CharacterAgentTier.standard,
         CharacterAgentTier.utility,
         CharacterAgentTier.convenience,
     }:

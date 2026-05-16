@@ -17,6 +17,7 @@ def runtime_model_config(config: LLMConfig) -> ModelConfig:
         narrator=_runtime_model_label(config, "narrator"),
         discriminator=_runtime_model_label(config, "event_router"),
         agent_default=_runtime_model_label(config, "agent"),
+        agent_standard=_runtime_model_label(config, "agent_standard"),
         agent_convenience=_runtime_model_label(config, "agent_convenience"),
     )
 

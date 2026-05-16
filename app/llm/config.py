@@ -25,9 +25,11 @@ _VALID_OPENAI_REASONING_SUMMARIES = {
 _ROUTER_MODEL = "gpt-5.2"
 _NARRATOR_MODEL = "claude-sonnet-4-6"
 _AGENT_MODEL = "claude-opus-4-6"
+_STANDARD_AGENT_MODEL = "claude-haiku-4-5"
 _DEFAULT_MODEL = "gpt-5.1"
 _ROLE_ENV_ALIASES = {
     "agent": ("AGENT",),
+    "agent_standard": ("AGENT_STANDARD", "STANDARD_AGENT"),
     "agent_convenience": ("AGENT_CONVENIENCE", "CONVENIENCE_AGENT"),
     "character_gen": ("CHARACTER_GEN", "AGENT"),
     "event_router": ("ROUTER",),
@@ -158,6 +160,7 @@ class LLMConfig(BaseModel):
         "event_router": _ROUTER_MODEL,
         "narrator": _NARRATOR_MODEL,
         "agent": _AGENT_MODEL,
+        "agent_standard": _STANDARD_AGENT_MODEL,
         "agent_convenience": _NARRATOR_MODEL,
         "character_gen": _AGENT_MODEL,
     })

@@ -621,7 +621,20 @@ class TestCharacterAgent:
         assert call_args.kwargs["compact"] is True
 
     @pytest.mark.asyncio
-    async def test_utility_agent_uses_cheaper_role(
+    async def test_standard_agent_uses_haiku_role(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        guard_character.agent_tier = CharacterAgentTier.standard
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        assert mock_client.complete.call_args.kwargs["role"] == "agent_standard"
+
+    @pytest.mark.asyncio
+    async def test_utility_agent_uses_convenience_role(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):

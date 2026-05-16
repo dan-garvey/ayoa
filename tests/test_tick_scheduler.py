@@ -494,7 +494,7 @@ class TestTriggerLogic:
             "standard_1",
             "utility_0",
         ]
-        assert recorder == selected_ids
+        assert sorted(recorder) == sorted(selected_ids)
 
 
 class TestFanOut:

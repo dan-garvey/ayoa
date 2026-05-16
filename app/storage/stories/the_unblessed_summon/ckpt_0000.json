@@ -20,6 +20,7 @@
         "narrator": "anthropic:claude-sonnet-4-6",
         "discriminator": "openai:gpt-5.2",
         "agent_default": "anthropic:claude-opus-4-6",
+        "agent_standard": "anthropic:claude-haiku-4-5",
         "agent_convenience": "anthropic:claude-sonnet-4-6"
       },
       "debug": false,
@@ -466,7 +467,7 @@
       "location": "veylan_mother_cathedral_summoning_chamber_outer_door",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "premium",
       "public_sheet": {
         "role": "Paladin of the Veiled Dawn (Oath of Devotion); posted to Cardinal Vespera Mourne's personal guard for the past eighteen months; ordained aasimar",
         "appearance": "Five-foot-eight, athletically built — sword-and-shield trained since fifteen, asymmetric forearm musculature, balanced stance even out of armor. She has the attractive solidity of a working paladin: broad shoulders, a strong back, full breasts usually compressed by armor or uniform, a narrow-to-solid waist, and firm rounded glutes from shield stance, stairs, saddle time, and marching. Skin warm bronze with the celestial luminescence visible only in low light or when she calls power. Hair a dark honey color, worn just past her shoulders, usually braided back in the Order's working style. Eyes normally a warm brown that goes silver-pale (briefly, two or three seconds) when she invokes — one of the most visible signs of her celestial nature. Open features: high forehead, broad cheekbones, full mouth, a small scar along the right jawline from a childhood incident with a hay scythe. She smiles easily and laughs easily; the laugh is a short surprised bark that does not match the warm soft smile, and people who know her find the mismatch endearing. Wears the Order's working uniform (dark blue tabard over plate, embroidered with the Veiled Dawn's eclipse-sigil) on duty and plain well-cut civilian clothing in muted colors off duty. One piece of jewelry: a small silver pendant on a fine chain, given to her by her younger brother on her ordination, that she rarely takes off.",
@@ -604,7 +605,7 @@
       "location": "caer_veylan_coldspire_residence",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "premium",
       "public_sheet": {
         "role": "Coldspire Clan representative to Caer Veylan; registered foreign sovereign in residence under the Coldspire Accord; silver dragon bound to humanoid form by Compact treaty",
         "appearance": "Six-foot-one, slender, long-limbed, wide-shouldered, with a statuesque body shaped by dragon-bone density and monastic control: high firm breasts, a narrow waist, long powerful thighs, and compact glutes that are muscular rather than soft. Athletic in a draconic way — dense bone, low fat, musculature distributed for vertical-axis power. Moves with extraordinary grace and a specific quality of slowness; her gestures are deliberate, complete, never wasted, and they take perhaps one-and-a-half times the time a human's would. Skin pale to translucent, white with a barely-perceptible blue undertone visible at the throat and the inner thighs; under direct sunlight a faint scale-pattern is visible beneath the surface (silver-dragon dermis suppressed but not gone), most visible at the temples, the spine, and the backs of the hands. Hair white (not silver, not gray — white, the color of fresh snow), fine and very long, falling to her hips when unbound, usually in a single braid in the southern monastic style; it does not move correctly in wind. Eyes pale blue with a vertical pupil that dilates and contracts with breath rather than light; faint internal luminescence in low light she has not been able to suppress. Slightly pointed teeth, more prominent at the canines than human normal. Fingernails very hard. Body temperature about four degrees lower than human normal — touching her bare skin is briefly startling.",
@@ -743,7 +744,7 @@
       "location": "caer_veylan_veridis_expedition_quarters",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "premium",
       "public_sheet": {
         "role": "Far-Continent plasmoid alchemist; member of the Larethan Mercantile House Veridis's Far-Continent expedition; chartered specialist at the Caer Veylan Adventurers' Guild (C-rank, novelty-status registration)",
         "appearance": "Stands about five-foot-five in their preferred shape, broadly humanoid: torso, two arms, two legs, head. The shape is stable but slightly approximate — outline soft, joints unhinged compared to a human, head sitting on what is more a broad collar than a neck — and more intentionally attractive than many Veylan observers first understand: a gentle waist taper, suggested pectoral or breast mass, fuller hips, and rounded gluteal volume held by internal pressure rather than muscle or fat. Color is a translucent pale lavender with internal striations of darker purple and pale blue; the striations flow continuously and respond to internal state (more vivid when agitated, more diffuse when calm). No face in the human sense — a darker patch where a face would be, the densest concentration of their sensory organs (light-sensitive zones, pressure-sensitive zones, chemical-sensitive zones, and a vibration-sensitive membrane that processes sound). The patch can shape itself into something approximating eyes and a mouth when Quill chooses to be more human-readable in conversation; in rest it is just a patch. Wears clothing of human cut, Larethan style, modified by the expedition's tailor; the clothing sits oddly because Quill's curves subtly redistribute when they move or attend closely to someone. Speaks Common through a vibration-sensitive membrane, modulating internal pressure — clear, slightly resonant voice with a faint hum underneath.",
@@ -879,7 +880,7 @@
       "location": "akitsuyama_embassy_adjunct_quarters",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "premium",
       "public_sheet": {
         "role": "research librarian at the Akitsuyama Embassy in Caer Veylan; pureblood Yuan-Ti of the Vesh lineage (last surviving member); Mind Whisperer warlock under a Great Old One patron",
         "appearance": "Five-foot-six, slender, narrow-shouldered, with the long-limbed elegance of pureblood Yuan-Ti morphology and a quiet physical allure that takes longer to notice than court beauty: small high breasts, a narrow waist, long legs, and smooth firm hips that move with controlled serpentine economy rather than bounce. Skin very pale — close to white, with a faint greenish undertone visible at the inside of the wrists and the throat. Smooth in most places; on her cheekbones, her temples, the back of her neck, and the inside of her wrists, the skin has a barely-visible scale-pattern that becomes more visible in raking light or when she is emotionally activated. Hair black, very fine, very straight, falling to her mid-back, usually in a single long braid; the hair does not move quite right (a faint serpentine quality, slight delay or excess of inertia). Eyes gold, large, with vertical pupils that are narrow during the day (she squints in bright light) and wide at night; she has trained to keep her eyes downcast or shaded in human company. Tongue long, thin, and forked at the tip; she keeps it tucked. Body temperature about three degrees cooler than human normal — her hands are cold, her bare skin cool to the touch. Moves with a careful sinuous economy. Has spent her adult life being a small target.",
@@ -1018,7 +1019,7 @@
       "location": "veylan_royal_theatre_principal_dressing_room",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "premium",
       "public_sheet": {
         "role": "principal performer at the Veylan Royal Theatre; current run of 'The Ash Maiden' (forty-one performances to date); dhampir under a stable donor-circle arrangement",
         "appearance": "Five-foot-seven, slender, with a dancer's build (trained in physical performance as a child): lean shoulders, a narrow waist, defined abdomen, medium-full breasts that move visibly when not held by stage costuming, and a high firm dancer's butt built from years of turns, lifts, and controlled falls. Skin very pale, almost luminous in low light, with a faint cool undertone. Hair dark red, worn long and curling, often pinned up for performance and let down in private. Eyes dark gray, with the dhampir's nighttime adaptation visible in low light as a faint reflective sheen. Sharp features — high cheekbones, narrow nose, full mouth, decisive chin; striking rather than conventionally pretty. Stage presence is part of her actual physiology, not merely her training; even at rest she draws the eye to line, throat, hands, hip, and mouth. Canines slightly elongated; in smile she keeps them concealed; in intimacy she does not. Wears the Theatre Royal's principal-class costuming for performances and well-cut civilian clothing (Larethan tailoring, dark colors) off-stage; favors fabrics with weight and drape. One piece of jewelry: a small silver locket on a fine chain, given to her by her mother before her mother's death, that contains a curl of her mother's hair.",
@@ -2096,7 +2097,7 @@
       "location": "veylan_mother_cathedral_summoning_chamber",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "utility",
       "public_sheet": {
         "role": "Crown Prince of Veylan; heir apparent; betrothed to Princess Liriel Vaerien under the Treaty of Wraithwater",
         "appearance": "Twenty-nine. Six-foot-two, broad-shouldered, conventionally handsome in the Veylan noble style — fair hair worn long, blue eyes, a beard trimmed close along a strong jaw. A respectable martial figure on paper: trained from childhood in the Veylan court tradition, ranked competently in the formal duel registry. He has never seen real combat. He dresses in the better grade of court formal wear and changes outfits twice in any given evening.",
@@ -2726,7 +2727,7 @@
       "location": "veylan_mother_cathedral_summoning_chamber",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "utility",
       "public_sheet": {
         "role": "Sage of the Heroic Summoning Rite (twenty-six years); the Cabal's most fragile member; the protagonist's most plausible turnable Stewardship asset",
         "appearance": "Fifty-four. Five-foot-eight, slight, with thinning gray-brown hair and a perpetually anxious demeanor he has tried for decades to mask. Wears the Cathedral's Sage robes (deep indigo with silver eclipse-trim) on duty and unobtrusive Veylan clerical wear off duty. Drinks water excessively. His throat is dry from anxiety; he has stopped noticing.",
@@ -3205,7 +3206,7 @@
       "location": "veylan_mother_cathedral_summoning_chamber_observer_gallery",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "utility",
       "public_sheet": {
         "role": "Court Mage to King Halric (nine years); royal-magical advisor, court ceremonial caster, head of the kingdom's official magical scholarship",
         "appearance": "Forty-seven. Five-foot-six, slim, dark-haired worn at shoulder length and pinned back when working. Court working dress: charcoal gown with the Veylan Crown's silver-thread arcane sigil at the cuff. Carries a focus rod (white birch, banded brass) on duty.",
@@ -3860,7 +3861,7 @@
       "location": "veylan_mother_cathedral_summoning_chamber",
       "clock_at_s": 0,
       "is_playable": false,
-      "agent_tier": "standard",
+      "agent_tier": "utility",
       "public_sheet": {
         "role": "the Crown's liaison to the Hero cohort (six years in the post); coordinates the kingdom's daily handling of all currently active Heroes; functionally Cardinal-coordinated and (without yet examining what this means) Cain-coordinated through a private back-channel he has come to understand as 'his career trajectory'",
         "appearance": "Thirty-eight. Five-foot-ten, slim-built, well-presented in the working diplomatic style. Brown hair worn slightly long, kept neat; clean-shaven in the Veylan court manner; warm hazel eyes that are trained to widen by exactly the amount that conveys interest without flattery. Skin a Veylan medium tone, faintly weathered along the upper cheekbones from a year posted in Larethan in his late twenties. A small white scar at the right eyebrow from a fencing-class accident at the Royal Academy of Letters and Arms. Wears the Crown's diplomatic working uniform (dark blue tabard over a fitted court doublet, the Veylan sun-crest small at the throat and the Hero Liaison post-cipher embroidered at the left cuff); off duty, well-cut court-fashion in muted tones (House Marraval is not so wealthy that he can afford ostentation and not so impoverished that the cut is wrong). One piece of jewelry: a small enamel pin of the Marraval house at his lapel.",
@@ -5767,6 +5768,7 @@
       "narrator": "anthropic:claude-sonnet-4-6",
       "discriminator": "openai:gpt-5.2",
       "agent_default": "anthropic:claude-opus-4-6",
+      "agent_standard": "anthropic:claude-haiku-4-5",
       "agent_convenience": "anthropic:claude-sonnet-4-6"
     },
     "debug": false,

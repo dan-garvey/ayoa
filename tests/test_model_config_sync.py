@@ -37,7 +37,8 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
             "event_router": "gpt-5.1",
             "narrator": "openai:gpt-5.1",
             "agent": "claude-sonnet-4-6",
-            "agent_convenience": "claude-haiku-4-5",
+            "agent_standard": "claude-haiku-4-5",
+            "agent_convenience": "claude-sonnet-4-6",
             "character_gen": "gpt-5.1",
         },
     )
@@ -50,7 +51,8 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
     assert ckpt.session.config.models == expected
     assert ckpt.config.models.event_router == "openai:gpt-5.1"
     assert ckpt.config.models.agent_default == "anthropic:claude-sonnet-4-6"
-    assert ckpt.config.models.agent_convenience == "anthropic:claude-haiku-4-5"
+    assert ckpt.config.models.agent_standard == "anthropic:claude-haiku-4-5"
+    assert ckpt.config.models.agent_convenience == "anthropic:claude-sonnet-4-6"
 
 
 def test_runtime_model_config_defaults_label_mixed_provider_roles():
@@ -60,6 +62,7 @@ def test_runtime_model_config_defaults_label_mixed_provider_roles():
     assert models.discriminator == "openai:gpt-5.2"
     assert models.narrator == "anthropic:claude-sonnet-4-6"
     assert models.agent_default == "anthropic:claude-opus-4-6"
+    assert models.agent_standard == "anthropic:claude-haiku-4-5"
     assert models.agent_convenience == "anthropic:claude-sonnet-4-6"
 
 
