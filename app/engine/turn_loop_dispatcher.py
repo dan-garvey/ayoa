@@ -489,33 +489,6 @@ def _router_history_record(
     combatant_ids = getattr(result, "combatant_ids", [])
     if combatant_ids:
         lines.append(f"combatants {_compact_id_list(combatant_ids)}")
-    loot_offer = getattr(result, "loot_offer", None)
-    if loot_offer is not None and getattr(loot_offer, "present", False):
-        item_bits = [
-            f"{item.item_id}:{_compact_router_history_text(item.name)}x{item.quantity}"
-            for item in loot_offer.items
-            if item.item_id
-        ]
-        currency = getattr(loot_offer, "currency", None)
-        coin_bits = []
-        if currency is not None:
-            for key in ("cp", "sp", "ep", "gp", "pp"):
-                value = getattr(currency, key, 0)
-                if value:
-                    coin_bits.append(f"{value}{key}")
-        loot_bits = [
-            f"source={loot_offer.source_kind}",
-            f"label={_compact_router_history_text(loot_offer.source_label)}",
-            f"visibility={loot_offer.visibility}",
-            f"eligible={_compact_id_list(loot_offer.eligible_character_ids)}",
-        ]
-        if item_bits:
-            loot_bits.append("items=" + "; ".join(item_bits))
-        if coin_bits:
-            loot_bits.append("coins=" + ",".join(coin_bits))
-        if loot_offer.notes:
-            loot_bits.append(f"notes={_compact_router_history_text(loot_offer.notes)}")
-        lines.append("loot_offer " + " ".join(loot_bits))
 
     return "\n".join(lines)
 

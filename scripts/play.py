@@ -267,6 +267,34 @@ def _print_dice_roll_displays(rolls: list[Any]) -> None:
         _print_d20_roll_display(roll)
 
 
+def _experience_award_line(award: Any) -> str:
+    name = (
+        str(getattr(award, "character_name", "") or "")
+        or str(getattr(award, "character_id", "") or "Character")
+    )
+    amount = int(getattr(award, "amount", 0) or 0)
+    source = str(getattr(award, "source", "") or "").strip()
+    progress = dnd_experience.format_experience_progress({
+        "experience_points": getattr(award, "experience_points", 0),
+        "total_level": getattr(award, "total_level", 0),
+        "eligible_level": getattr(award, "eligible_level", 0),
+        "level_available": bool(getattr(award, "eligible_level", 0)),
+        "next_level": getattr(award, "next_level", 0),
+        "xp_to_next_level": getattr(award, "xp_to_next_level", 0),
+    })
+    source_text = f" — {source}" if source else ""
+    return f"{name}: +{amount:,} XP{source_text}. {progress}"
+
+
+def _print_experience_awards(awards: list[Any]) -> None:
+    if not awards:
+        return
+    print()
+    print("--- XP Gained ---")
+    for award in awards:
+        print(f"  {_experience_award_line(award)}")
+
+
 def _print_roll_prompts(prompts: list[PendingRollPrompt]) -> None:
     if not prompts:
         return
@@ -2114,7 +2142,7 @@ class CLIState:
             if result.event_id in continued_events:
                 continue
             continued_events.add(result.event_id)
-            print("Interpreting the outcome...")
+            print("Resolving...")
             try:
                 response = await self.engine.continue_pending_roll(
                     session_id=self.session_id,
@@ -2375,6 +2403,9 @@ class CLIState:
         # resumed automated combat after a rewind.
         for pre_resp in (response.pre_turn_resolutions or []):
             _print_dice_roll_displays(getattr(pre_resp, "dice_rolls", []) or [])
+            _print_experience_awards(
+                getattr(pre_resp, "experience_awards", []) or []
+            )
             for cid, prose in (pre_resp.per_player_renders or {}).items():
                 if not prose or cid not in self.claims:
                     continue
@@ -2386,6 +2417,7 @@ class CLIState:
 
         per_player = response.per_player_renders or {}
         _print_dice_roll_displays(getattr(response, "dice_rolls", []) or [])
+        _print_experience_awards(getattr(response, "experience_awards", []) or [])
 
         if response.beat_ended_reason == "pre_turn_resolution":
             print(response.output_text)

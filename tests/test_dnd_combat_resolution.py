@@ -347,6 +347,64 @@ def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
     assert (alice.x, alice.y) == (2, 1)
 
 
+def test_combat_packet_trims_non_actor_inventory_resources_and_raw():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["resources"] = {"superiority_dice": 4}
+    ckpt.characters[0].mechanics["raw"] = {"actor_secret": True}
+    ckpt.characters[1].mechanics["resources"] = {"spell_slots": {"1": 2}}
+    ckpt.characters[1].mechanics["raw"] = {"enemy_secret": True}
+    ckpt.characters[1].mechanics["dnd5e_sheet"]["statblock"]["inventory"] = {
+        "items": [{"id": "amulet", "name": "Hidden Amulet"}],
+        "currency": {"gp": 99},
+    }
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="No roll needed.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            mechanical_summary="Alice waits.",
+            visible_outcome_facts=["Alice waits."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+        ckpt=ckpt,
+        actor_id="alice",
+        intention="I wait.",
+    ))
+
+    packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[0].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    by_id = {
+        combatant["character_id"]: combatant
+        for combatant in packet["combatants"]
+    }
+    assert "resources" in by_id["alice"]["mechanics"]
+    assert "inventory" in by_id["alice"]["mechanics"]
+    assert "raw" in by_id["alice"]["mechanics"]
+    assert "resources" not in by_id["bob"]["mechanics"]
+    assert "inventory" not in by_id["bob"]["mechanics"]
+    assert "raw" not in by_id["bob"]["mechanics"]
+    assert by_id["bob"]["mechanics"]["defenses"] == {}
+
+
 def test_combat_resolver_observes_target_dropped_by_same_event(monkeypatch):
     ckpt = _ckpt()
     ckpt.session.character_bindings["bob"] = "2"

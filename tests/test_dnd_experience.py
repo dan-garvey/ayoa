@@ -4,7 +4,11 @@ import pytest
 
 from app.bot.engine_bridge import EngineBridge
 from app.engine import dnd_experience
-from app.engine.dnd_combat import apply_damage, start_combat
+from app.engine.dnd_combat import (
+    apply_damage,
+    drain_pending_experience_awards,
+    start_combat,
+)
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.state import SessionState, WorldState
@@ -156,6 +160,13 @@ def test_defeated_enemy_awards_split_xp_once_to_player_combatants():
     assert dnd_experience.experience_points(hero) == 25
     assert dnd_experience.experience_points(cleric) == 25
     assert session.active_combat.xp_awarded_combatant_ids == ["goblin"]
+    awards = drain_pending_experience_awards(session)
+    assert sorted((award.character_id, award.amount) for award in awards) == [
+        ("cleric", 25),
+        ("hero", 25),
+    ]
+    assert awards[0].source == "Defeated Goblin"
+    assert awards[0].experience_points == 25
     audit = "\n".join(session.active_combat.audit_lines)
     assert "XP awarded for defeating Goblin: 50 split as" in audit
     assert "Hero +25" in audit

@@ -5,16 +5,17 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from app.engine import dice, dnd_experience, dnd_spatial, mechanics
+from app.engine.dnd_constants import DND_RUNTIME_KEY
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
+    DndExperienceAwardDisplay,
     DndRuntimeEffect,
     SessionState,
 )
 
 
-DND_RUNTIME_KEY = "dnd5e_runtime"
 DND_ACTIVE_EFFECTS_KEY = "active_effects"
 
 
@@ -194,6 +195,27 @@ def drain_pending_visible_facts(
     ]
     active.pending_visible_facts = []
     return facts
+
+
+def drain_pending_experience_awards(
+    combat: DndCombatState | SessionState | None,
+) -> list[DndExperienceAwardDisplay]:
+    if isinstance(combat, SessionState):
+        active = combat.active_combat
+    else:
+        active = combat
+    if active is None:
+        return []
+    if isinstance(active, dict):
+        pending = active.get("pending_experience_awards") or []
+        active["pending_experience_awards"] = []
+        return [
+            DndExperienceAwardDisplay.model_validate(item)
+            for item in pending
+        ]
+    awards = list(active.pending_experience_awards or [])
+    active.pending_experience_awards = []
+    return awards
 
 
 def runtime_effects_for_character(
@@ -1763,12 +1785,24 @@ def _award_defeat_xp_if_needed(
     for character, share in zip(recipients, shares):
         if share <= 0:
             continue
-        dnd_experience.award_experience(
+        source = f"Defeated {combatant.name or award_key}"
+        view = dnd_experience.award_experience(
             character,
             share,
-            source=f"Defeated {combatant.name or award_key}",
+            source=source,
             turn_index=combat.turn_index,
         )
+        active.pending_experience_awards.append(DndExperienceAwardDisplay(
+            character_id=character.character_id,
+            character_name=character.name or character.character_id,
+            amount=share,
+            source=source,
+            experience_points=int(view.get("experience_points", 0) or 0),
+            total_level=int(view.get("total_level", 0) or 0),
+            eligible_level=int(view.get("eligible_level", 0) or 0),
+            next_level=int(view.get("next_level", 0) or 0),
+            xp_to_next_level=int(view.get("xp_to_next_level", 0) or 0),
+        ))
         awarded_labels.append(f"{character.name or character.character_id} +{share}")
 
     if awarded_labels:

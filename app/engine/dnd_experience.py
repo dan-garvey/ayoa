@@ -4,10 +4,9 @@ from datetime import datetime, timezone
 import re
 from typing import Any
 
+from app.engine.dnd_constants import DND_RUNTIME_KEY
 from app.schemas.characters import CharacterRecord
 
-
-DND_RUNTIME_KEY = "dnd5e_runtime"
 
 # D&D 5e cumulative experience thresholds for character levels 1-20.
 DND5E_XP_THRESHOLDS: dict[int, int] = {

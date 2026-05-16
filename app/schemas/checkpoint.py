@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas.characters import CharacterRecord
 from app.schemas.conversation import ConversationMessage
-from app.schemas.event_router import EventRouterOutput
+from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import SessionConfig, SessionState, WorldState
 
@@ -80,7 +80,9 @@ class CheckpointFile(BaseModel):
     character_conversations: dict[str, list[ConversationMessage]] = Field(default_factory=dict)
     # v11: the canonical event log. Every closed canonical event appended
     # here. Source of truth for rendering, replay, and debug.
-    canonical_events: list[EventRouterOutput] = Field(default_factory=list)
+    canonical_events: list[DndEventRouterOutput | EventRouterOutput] = Field(
+        default_factory=list
+    )
     # Display/audit log only — no longer fed into prompts.
     transcript: list[TranscriptEntry] = Field(default_factory=list)
     visibility_log: list[dict[str, Any]] = Field(default_factory=list)

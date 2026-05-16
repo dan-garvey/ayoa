@@ -357,21 +357,6 @@ def _loot_split_router_update(
     )
 
 
-def _loot_decline_router_update(
-    *,
-    character_id: str,
-    offer: DndLootOffer | None,
-    offer_id: str,
-) -> str:
-    source = _loot_source_text(offer, offer_id)
-    return (
-        "Inventory update before the next action: "
-        f"{character_id} declined the pending loot from {source}. Do not "
-        f"treat {character_id} as carrying those items or coins unless "
-        "the current input changes that."
-    )
-
-
 def _coin_text(currency: dict[str, Any]) -> str:
     parts = []
     for key in ("pp", "gp", "ep", "sp", "cp"):
@@ -1307,21 +1292,11 @@ class EngineBridge:
                     user_id=user_id,
                     character_id=character_id,
                 )
-                offer = _loot_offer_by_id(ckpt, offer_id)
                 result = dnd_inventory.decline_loot(
                     ckpt,
                     character_id=target_id,
                     offer_id=offer_id,
                 )
-                router_update = _loot_decline_router_update(
-                    character_id=target_id,
-                    offer=offer,
-                    offer_id=offer_id,
-                )
-                if router_update:
-                    ckpt.session.pending_router_state_changes.append(
-                        router_update,
-                    )
                 self.checkpoint_mgr.save(ckpt)
         return DndLootClaimResult(
             offer_id=offer_id,
@@ -1491,7 +1466,10 @@ class EngineBridge:
             raise ValueError("This Discord user is not bound to a character.")
         prompts = self.pending_roll_prompts(session_id, user_id=user_id)
         if roll_id not in {prompt.roll_id for prompt in prompts}:
-            raise ValueError("That roll is not pending for your character.")
+            raise ValueError(
+                "That roll is not pending for your character. Use /combat "
+                "status to see the current state."
+            )
         return await self.orchestrator.submit_cat_ii_roll(
             session_id=session_id,
             event_id=event_id,
@@ -1525,14 +1503,18 @@ class EngineBridge:
             bindings = ckpt.session.character_bindings or {}
             if bindings.get(actor_id, "") != str(user_id):
                 raise ValueError(
-                    "That roll is not pending for your character."
+                    "That roll is not pending for your character. Use "
+                    "/combat status to see the current state."
                 )
             source = roll_transaction_source(ckpt, event_id)
             if (
                 source == "combat"
                 and getattr(ckpt.session, "active_combat", None) is None
             ):
-                raise ValueError("That combat roll is no longer active.")
+                raise ValueError(
+                    "That combat roll is no longer active. Use /combat "
+                    "status to see the current state."
+                )
             if source != "combat" and not any(
                 evt.event_id == event_id
                 for evt in ckpt.session.open_cat_ii_events
@@ -1548,8 +1530,14 @@ class EngineBridge:
             )
             if record is None:
                 if source == "combat":
-                    raise ValueError("That combat roll is no longer active.")
-                raise ValueError("That roll is not pending for your character.")
+                    raise ValueError(
+                        "That combat roll is no longer active. Use /combat "
+                        "status to see the current state."
+                    )
+                raise ValueError(
+                    "That roll is not pending for your character. Use /combat "
+                    "status to see the current state."
+                )
 
             completed = complete_pending_player_roll(
                 ckpt,

@@ -273,7 +273,7 @@ def _combat_rejection_message(
 
     message = (
         f"It is **{current_name}**'s initiative turn. "
-        f"**{actor_name}** can't /act until their combat turn comes up."
+        f"Wait for **{current_name}** to finish before **{actor_name}** acts."
     )
     if attempted_text:
         preview = attempted_text.strip()
@@ -372,7 +372,7 @@ def _append_combat_audit_line(ckpt: CheckpointFile, line: str) -> None:
         audit_lines.append(line)
         return
 
-    ckpt.session.pending_router_state_changes.append(f"Combat audit: {line}")
+    logger.error("Unable to append D&D combat audit line: %s", line)
 
 
 def _beat_should_advance_combat(
@@ -493,6 +493,63 @@ def _combine_loot_prompts(results: list[BeatResult]) -> dict[str, list[str]]:
     return combined
 
 
+def _drain_experience_awards(ckpt: CheckpointFile):
+    return dnd_combat.drain_pending_experience_awards(ckpt.session)
+
+
+def _automated_turn_snapshot(ckpt: CheckpointFile) -> dict[str, Any]:
+    return {
+        "canonical_events": len(ckpt.canonical_events),
+        "render_buffers": {
+            cid: len(buffer)
+            for cid, buffer in ckpt.session.render_buffers.items()
+        },
+        "open_cat_ii_events": len(ckpt.session.open_cat_ii_events),
+        "active_act_slots": dict(ckpt.session.active_act_slots),
+        "session_conversation": len(ckpt.session_conversation),
+        "narrator_conversations": {
+            cid: len(history)
+            for cid, history in ckpt.narrator_conversations.items()
+        },
+        "character_conversations": {
+            cid: len(history)
+            for cid, history in ckpt.character_conversations.items()
+        },
+    }
+
+
+def _rollback_automated_turn_snapshot(
+    ckpt: CheckpointFile,
+    snapshot: dict[str, Any],
+) -> None:
+    del ckpt.canonical_events[snapshot["canonical_events"]:]
+
+    render_lengths = snapshot["render_buffers"]
+    for cid in list(ckpt.session.render_buffers):
+        if cid not in render_lengths:
+            del ckpt.session.render_buffers[cid]
+            continue
+        del ckpt.session.render_buffers[cid][render_lengths[cid]:]
+
+    del ckpt.session.open_cat_ii_events[snapshot["open_cat_ii_events"]:]
+    ckpt.session.active_act_slots = dict(snapshot["active_act_slots"])
+    del ckpt.session_conversation[snapshot["session_conversation"]:]
+
+    narrator_lengths = snapshot["narrator_conversations"]
+    for cid in list(ckpt.narrator_conversations):
+        if cid not in narrator_lengths:
+            del ckpt.narrator_conversations[cid]
+            continue
+        del ckpt.narrator_conversations[cid][narrator_lengths[cid]:]
+
+    character_lengths = snapshot["character_conversations"]
+    for cid in list(ckpt.character_conversations):
+        if cid not in character_lengths:
+            del ckpt.character_conversations[cid]
+            continue
+        del ckpt.character_conversations[cid][character_lengths[cid]:]
+
+
 def _commitment_revision_prompts(
     ckpt: CheckpointFile,
 ) -> dict[str, list[str]]:
@@ -534,6 +591,7 @@ def _turn_response_from_beat_results(
         loot_prompts=_combine_loot_prompts(beat_results),
         commitment_revision_prompts=_commitment_revision_prompts(ckpt),
         dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+        experience_awards=_drain_experience_awards(ckpt),
     )
 
 
@@ -725,6 +783,7 @@ class Orchestrator:
                 turns_taken += 1
                 continue
 
+            snapshot = _automated_turn_snapshot(ckpt)
             try:
                 beat_result = await run_beat(
                     ckpt=ckpt,
@@ -738,9 +797,7 @@ class Orchestrator:
                     "partial NPC beat and advancing initiative.",
                     _combatant_name(current), actor_id,
                 )
-                from app.engine.turn_loop import abort_beat
-
-                abort_beat(ckpt)
+                _rollback_automated_turn_snapshot(ckpt, snapshot)
                 _append_combat_audit_line(
                     ckpt,
                     f"Automated combat turn for {_combatant_name(current)} "
@@ -803,7 +860,20 @@ class Orchestrator:
         sync_checkpoint_runtime_models(ckpt, self.client.config)
 
         # 1. Resolve the acting character.
-        acting_id = self._resolve_acting_character(ckpt, request)
+        try:
+            acting_id = self._resolve_acting_character(ckpt, request)
+        except ValueError:
+            return TurnResponse(
+                session_id=request.session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text=(
+                    "Choose a character before acting. Use /join to claim "
+                    "one, or pass an acting character id."
+                ),
+                per_player_renders={},
+                beat_ended_reason="acting_character_required",
+            )
 
         logger.info(
             "Turn %d for session %s (acting=%s)",
@@ -831,18 +901,6 @@ class Orchestrator:
                 )
                 if pre_response is not None:
                     pre_turn_resolutions.append(pre_response)
-                    return _with_pre_turn_resolutions(TurnResponse(
-                        session_id=request.session_id,
-                        checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
-                        turn_index=ckpt.session.turn_index,
-                        output_text=(
-                            "The scene changed before your submitted action "
-                            "could be applied. Submit your next action from "
-                            "the updated state."
-                        ),
-                        per_player_renders={},
-                        beat_ended_reason="pre_turn_resolution",
-                    ), pre_turn_resolutions)
 
             # 4. Validate against the session's active_act_slot.
             blocked_entry = ckpt.session.active_act_slots.get(acting_id)
@@ -1042,6 +1100,7 @@ class Orchestrator:
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
             dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+            experience_awards=_drain_experience_awards(ckpt),
         ), pre_turn_resolutions)
 
     def _defer_combat_reaction_locked(
@@ -1065,7 +1124,10 @@ class Orchestrator:
                 session_id=session_id,
                 checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
                 turn_index=ckpt.session.turn_index,
-                output_text="That reaction window is already closed.",
+                output_text=(
+                    "That reaction window is already closed. Use /combat "
+                    "status to see the current state."
+                ),
                 per_player_renders={},
                 beat_ended_reason="combat_reaction_stale",
             )
@@ -1312,6 +1374,7 @@ class Orchestrator:
                 acting_id=evt.initiator_id,
                 beat_result=beat_result,
             )
+            flush_combat_visible_facts(ckpt)
 
             self.checkpoint_mgr.save(ckpt)
             automated_results = await self._run_automated_combat_turns_locked(
@@ -1337,6 +1400,7 @@ class Orchestrator:
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
             dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+            experience_awards=_drain_experience_awards(ckpt),
         )
 
     async def submit_cat_ii_roll(
@@ -1424,7 +1488,8 @@ class Orchestrator:
                     checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
                     turn_index=ckpt.session.turn_index,
                     output_text=(
-                        "That roll is no longer pending for your character."
+                        "That roll is no longer pending for your character. "
+                        "Use /combat status to see the current state."
                     ),
                     per_player_renders={},
                     beat_ended_reason="cat_ii_stale",
@@ -1554,6 +1619,7 @@ class Orchestrator:
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
             dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+            experience_awards=_drain_experience_awards(ckpt),
         )
 
     def _stale_combat_roll_response(
@@ -1570,7 +1636,10 @@ class Orchestrator:
             session_id=session_id,
             checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
             turn_index=ckpt.session.turn_index,
-            output_text="That combat roll is no longer active.",
+            output_text=(
+                "That combat roll is no longer active. Use /combat status "
+                "to see the current state."
+            ),
             per_player_renders={},
             beat_ended_reason="cat_ii_stale",
         )
@@ -1722,6 +1791,7 @@ class Orchestrator:
             acting_id=evt_live.initiator_id,
             beat_result=beat_result,
         )
+        flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         automated_results = await self._run_automated_combat_turns_locked(
             ckpt=ckpt,
@@ -1745,6 +1815,7 @@ class Orchestrator:
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
             dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+            experience_awards=_drain_experience_awards(ckpt),
         )
 
     # ------------------------------------------------------------------ helpers
@@ -1764,11 +1835,7 @@ class Orchestrator:
         if pid:
             return pid
 
-        raise ValueError(
-            "process_turn: no acting_character_id resolvable — request did "
-            "not supply one and session.player_character_id is empty. "
-            "Callers must supply a character id for multi-player sessions."
-        )
+        raise ValueError("Choose a character before acting.")
 
     def _resolve_location(
         self, ckpt: CheckpointFile, acting_id: str

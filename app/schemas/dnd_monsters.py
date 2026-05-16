@@ -12,6 +12,12 @@ def _clean_id(value: object) -> str:
     return re.sub(r"_+", "_", text).strip("_")
 
 
+def _known_fields_only(data: Any, fields: set[str]) -> Any:
+    if not isinstance(data, dict):
+        return data
+    return {key: value for key, value in data.items() if key in fields}
+
+
 class DndMonsterAbilityScores(BaseModel):
     """Router-emitted fallback ability scores for a D&D combatant spawn."""
 
@@ -23,6 +29,11 @@ class DndMonsterAbilityScores(BaseModel):
     intelligence: int
     wisdom: int
     charisma: int
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_surplus(cls, data: Any) -> Any:
+        return _known_fields_only(data, set(cls.model_fields))
 
     @model_validator(mode="after")
     def _clean(self) -> "DndMonsterAbilityScores":
@@ -45,6 +56,11 @@ class DndMonsterSkill(BaseModel):
     name: str
     value: int
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_surplus(cls, data: Any) -> Any:
+        return _known_fields_only(data, set(cls.model_fields))
+
     @model_validator(mode="after")
     def _clean(self) -> "DndMonsterSkill":
         self.name = self.name.strip().lower().replace("_", " ")
@@ -56,6 +72,11 @@ class DndMonsterTrait(BaseModel):
 
     name: str
     description: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_surplus(cls, data: Any) -> Any:
+        return _known_fields_only(data, set(cls.model_fields))
 
     @model_validator(mode="after")
     def _clean(self) -> "DndMonsterTrait":
@@ -77,6 +98,11 @@ class DndMonsterAction(BaseModel):
     damage: str
     damage_type: str
     description: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_surplus(cls, data: Any) -> Any:
+        return _known_fields_only(data, set(cls.model_fields))
 
     @model_validator(mode="after")
     def _clean(self) -> "DndMonsterAction":
@@ -120,6 +146,11 @@ class DndMonsterStatBlock(BaseModel):
     traits: list[DndMonsterTrait]
     actions: list[DndMonsterAction]
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_surplus(cls, data: Any) -> Any:
+        return _known_fields_only(data, set(cls.model_fields))
+
     @model_validator(mode="after")
     def _clean(self) -> "DndMonsterStatBlock":
         self.size = self.size.strip()
@@ -153,6 +184,11 @@ class DndCombatantSpawn(BaseModel):
     location: str
     description: str
     statblock: DndMonsterStatBlock
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_surplus(cls, data: Any) -> Any:
+        return _known_fields_only(data, set(cls.model_fields))
 
     @model_validator(mode="after")
     def _clean(self) -> "DndCombatantSpawn":

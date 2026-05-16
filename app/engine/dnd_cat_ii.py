@@ -1370,7 +1370,12 @@ def _build_contested_packet(
             "role": char.public_sheet.role,
             "location": char.location,
             "player_controlled": cid in bindings,
-            "mechanics": mechanics.mechanics_summary(char),
+            "mechanics": mechanics.mechanics_summary(
+                char,
+                include_inventory_resources=(
+                    cid == cat_ii_event.initiator_id
+                ),
+            ),
         })
 
     payload = {
@@ -1433,7 +1438,11 @@ def _build_combat_packet(
                 ),
             },
             "mechanics": (
-                mechanics.mechanics_summary(char) if char is not None else {}
+                mechanics.mechanics_summary(
+                    char,
+                    include_inventory_resources=(cid == actor_id),
+                )
+                if char is not None else {}
             ),
             "actions": _combat_action_summaries(char),
             "spellcasting": (

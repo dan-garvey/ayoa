@@ -1464,21 +1464,30 @@ def _materialize_dnd_combatant_spawns(
     result: EventRouterOutput,
     *,
     actor_id: str,
-) -> None:
+) -> tuple[list[str], list[str]]:
+    prior_combatant_ids = list(getattr(result, "combatant_ids", []) or [])
     spawns = list(getattr(result, "combatant_spawns", []) or [])
     if not spawns:
-        return
+        return [], prior_combatant_ids
     by_id = {character.character_id: character for character in ckpt.characters}
-    combatant_ids = list(getattr(result, "combatant_ids", []) or [])
+    combatant_ids = list(prior_combatant_ids)
     default_location = _character_location(ckpt, actor_id)
     spawned_ids: list[str] = []
+    materialized_spawns: list[Any] = []
     for spawn in spawns:
-        if not spawn.character_id:
+        spawn_id = str(getattr(spawn, "character_id", "") or "")
+        if not spawn_id:
             continue
-        if spawn.character_id in by_id:
-            if spawn.character_id not in combatant_ids:
-                combatant_ids.append(spawn.character_id)
-            continue
+        if spawn_id in by_id:
+            combatant_ids = [cid for cid in combatant_ids if cid != spawn_id]
+            base = (
+                str(getattr(spawn, "monster_key", "") or "")
+                or str(getattr(spawn, "name", "") or "")
+                or spawn_id
+                or "combatant"
+            )
+            spawn_id = _unique_spawn_character_id(by_id, base)
+            spawn = spawn.model_copy(update={"character_id": spawn_id})
         character = dnd_monsters.character_from_combatant_spawn(
             spawn,
             default_location=default_location,
@@ -1487,14 +1496,35 @@ def _materialize_dnd_combatant_spawns(
         by_id[character.character_id] = character
         combatant_ids.append(character.character_id)
         spawned_ids.append(character.character_id)
+        materialized_spawns.append(spawn)
     if spawned_ids:
         result.combatant_ids = [
             cid for cid in dict.fromkeys(combatant_ids) if cid
         ]
+        result.combatant_spawns = materialized_spawns
         logger.info(
             "Materialized D&D combatant spawn(s): %s",
             ", ".join(spawned_ids),
         )
+    return spawned_ids, prior_combatant_ids
+
+
+def _unique_spawn_character_id(
+    existing: dict[str, Any],
+    base: str,
+) -> str:
+    candidate = _clean_character_id(base) or "combatant"
+    if candidate not in existing:
+        return candidate
+    index = 2
+    while f"{candidate}_{index}" in existing:
+        index += 1
+    return f"{candidate}_{index}"
+
+
+def _clean_character_id(value: str) -> str:
+    text = re.sub(r"[^a-z0-9_]+", "_", value.strip().lower())
+    return re.sub(r"_+", "_", text).strip("_")
 
 
 def _ensure_combatant_observers(
@@ -1591,7 +1621,7 @@ def _start_dnd_combat_from_router_signal(
 ) -> bool:
     if not _dnd_ruleset_enabled(ckpt) or _active_combat(ckpt) is not None:
         return False
-    _materialize_dnd_combatant_spawns(
+    spawned_ids, prior_combatant_ids = _materialize_dnd_combatant_spawns(
         ckpt,
         result,
         actor_id=actor_id,
@@ -1601,6 +1631,16 @@ def _start_dnd_combat_from_router_signal(
         ckpt, actor_id, combatant_ids,
     )
     if len(participants) < 2:
+        if spawned_ids:
+            spawned_set = set(spawned_ids)
+            ckpt.characters = [
+                character for character in ckpt.characters
+                if character.character_id not in spawned_set
+            ]
+            result.combatant_spawns = []
+            result.combatant_ids = [
+                cid for cid in prior_combatant_ids if cid not in spawned_set
+            ]
         result.requires_responders = False
         result.required_responders = []
         result.agent_responder_picks = []

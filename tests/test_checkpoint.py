@@ -111,7 +111,13 @@ class TestCheckpointSaveLoad:
         loaded = mgr.load("test-session", "ckpt_0001")
 
         assert len(loaded.canonical_events) == 1
-        assert loaded.canonical_events[0].event_id == "evt_loot"
+        event = loaded.canonical_events[0]
+        assert isinstance(event, DndEventRouterOutput)
+        assert event.event_id == "evt_loot"
+        assert event.interaction_mode == "cat_i"
+        assert event.loot_offer.present is True
+        assert event.loot_offer.currency.gp == 5
+        assert event.battle_map_seed.present is False
         assert len(loaded.session.dnd_inventory_offers) == 1
         offer = loaded.session.dnd_inventory_offers[0]
         assert offer.offer_id == "loot_evt_loot"

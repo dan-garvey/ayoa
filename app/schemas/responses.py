@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.schemas.state import DndExperienceAwardDisplay
+
 
 class DiceRollDisplay(BaseModel):
     """Runtime UI payload for an already executed d20 roll.
@@ -78,6 +80,9 @@ class TurnResponse(BaseModel):
     # Runtime-only D&D dice-display payloads for rolls completed while building
     # this response. Frontends may animate these before rendering narrator prose.
     dice_rolls: list[DiceRollDisplay] = Field(default_factory=list)
+    # Runtime-only D&D XP notices for automatic combat awards. These are
+    # frontend display data, not prompt context.
+    experience_awards: list[DndExperienceAwardDisplay] = Field(default_factory=list)
     # v11-r7a+: pre-turn resolutions. Stale Cat II closure and resumed
     # automated combat can each produce TurnResponse objects that should be
     # delivered before the actor's own /act result so display order matches

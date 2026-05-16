@@ -9,7 +9,7 @@ import pytest
 from app.engine import dice, dnd_experience, dnd_monsters
 from app.engine.dnd_combat import apply_damage, current_combatant
 from app.engine.orchestrator import Orchestrator
-from app.engine.turn_loop import BeatResult
+from app.engine.turn_loop import BeatResult, broadcast_event
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
@@ -33,6 +33,7 @@ from app.schemas.state import (
     LocationState,
     OpenCatIIEvent,
     OpenCommitment,
+    RenderBufferEntry,
     SessionState,
     SlotEntry,
     WorldState,
@@ -378,6 +379,24 @@ class TestHappyPath:
 
 class TestSlotRejection:
     @pytest.mark.asyncio
+    async def test_missing_acting_character_returns_friendly_response(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={})
+        ckpt.session.player_character_id = ""
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I look around",
+        ))
+
+        assert response.beat_ended_reason == "acting_character_required"
+        assert "Choose a character before acting" in response.output_text
+        assert mgr.save.call_count == 0
+        assert FakeDispatcher.route_calls == []
+
+    @pytest.mark.asyncio
     async def test_second_act_against_held_slot_rejected_without_save(
         self, patched_orchestrator,
     ):
@@ -583,7 +602,10 @@ class TestPendingCombatRolls:
         )
 
         assert response.beat_ended_reason == "cat_ii_stale"
-        assert response.output_text == "That combat roll is no longer active."
+        assert response.output_text == (
+            "That combat roll is no longer active. Use /combat status "
+            "to see the current state."
+        )
         assert ckpt.session.active_act_slots == {}
         assert FakeDispatcher.route_calls == []
         assert mgr.save.call_count == 1
@@ -618,7 +640,10 @@ class TestPendingCombatRolls:
         )
 
         assert response.beat_ended_reason == "cat_ii_stale"
-        assert response.output_text == "That combat roll is no longer active."
+        assert response.output_text == (
+            "That combat roll is no longer active. Use /combat status "
+            "to see the current state."
+        )
         assert ckpt.session.active_act_slots == {}
         assert FakeDispatcher.route_calls == []
         assert mgr.save.call_count == 1
@@ -648,7 +673,8 @@ class TestPendingCombatRolls:
 
         assert response.beat_ended_reason == "cat_ii_stale"
         assert response.output_text == (
-            "That roll is no longer pending for your character."
+            "That roll is no longer pending for your character. "
+            "Use /combat status to see the current state."
         )
         assert "alice" not in response.output_text
         assert "roll_alice" not in response.output_text
@@ -693,7 +719,7 @@ class TestCombatTurnGating:
     async def test_dnd_combat_start_materializes_spawned_monster_with_override(
         self, patched_orchestrator, monkeypatch,
     ):
-        values = iter([19, 0])
+        values = iter([19, 0, 10, 10])
         monkeypatch.setattr(
             dice.d20.expression.random,
             "randrange",
@@ -754,6 +780,73 @@ class TestCombatTurnGating:
             dnd_monsters.clear_statblock_override_providers()
 
     @pytest.mark.asyncio
+    async def test_failed_dnd_combat_start_rolls_back_spawned_monsters(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        spawn = _rat_combatant_spawn()
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["missing_actor"],
+            combatant_spawns=[spawn],
+            facts=["Something skitters under the table."],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I attack",
+            acting_character_id="missing_actor",
+        ))
+
+        assert response.beat_ended_reason == "state_change"
+        assert ckpt.session.active_combat is None
+        assert all(c.character_id != "rat_1" for c in ckpt.characters)
+        event = ckpt.canonical_events[-1]
+        assert event.combatant_spawns == []
+        assert event.combatant_ids == ["missing_actor"]
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_spawn_id_collision_mints_new_monster_id(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10, 10])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        spawn = {**_rat_combatant_spawn(), "character_id": "pip"}
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice"],
+            combatant_spawns=[spawn],
+            facts=["Alice kicks at the rat under the table."],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I kick the rat",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        assert any(c.character_id == "rat" for c in ckpt.characters)
+        existing_pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert existing_pip.name == "Pip"
+        combat_ids = {
+            combatant.character_id
+            for combatant in ckpt.session.active_combat.combatants
+        }
+        assert "rat" in combat_ids
+        assert "pip" not in combat_ids
+
+    @pytest.mark.asyncio
     async def test_non_current_human_combatant_is_rejected_without_save(
         self, patched_orchestrator,
     ):
@@ -786,6 +879,8 @@ class TestCombatTurnGating:
         assert response.beat_ended_reason == "combat_turn_rejected"
         assert "Alice" in response.output_text
         assert "initiative turn" in response.output_text
+        assert "can't /act" not in response.output_text
+        assert "Wait for" in response.output_text
         assert response.per_player_renders == {}
         assert mgr.save.call_count == 0
         assert FakeDispatcher.route_calls == []
@@ -839,15 +934,97 @@ class TestCombatTurnGating:
             acting_character_id="alice",
         ))
 
-        assert response.beat_ended_reason == "pre_turn_resolution"
-        assert "updated state" in response.output_text
-        assert response.per_player_renders == {}
+        assert response.beat_ended_reason == "directed_at_player"
+        assert response.output_text == "alice acts."
+        assert response.per_player_renders == {"alice": "alice acts."}
         assert len(response.pre_turn_resolutions) == 1
         assert response.pre_turn_resolutions[0].output_text == "rat acts."
         assert response.pre_turn_resolutions[0].turn_index == 1
         assert FakeDispatcher.agent_calls[0]["character_id"] == "rat"
         assert FakeDispatcher.route_calls == []
+        assert ckpt.session.active_combat.turn_index == 2
+        assert response.turn_index == 2
+        assert mgr.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_failed_automated_npc_turn_rolls_back_partial_state_only(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fail_combat_action(self, *, ckpt, actor_id, intention):
+            assert actor_id == "rat"
+            partial = _router_out(
+                ends_beat=True,
+                ends_beat_reason="ruleset_resolution",
+                facts=["Rat snaps at Alice but resolution fails."],
+            )
+            partial.observers = [
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    response_priority=5,
+                ),
+                ObserverEntry(
+                    character_id="rat",
+                    observation_level="d",
+                    response_priority=5,
+                ),
+            ]
+            broadcast_event(ckpt, partial, actor_id=actor_id)
+            ckpt.session.active_act_slots["rat_extra"] = SlotEntry(
+                reason="initiator",
+            )
+            raise RuntimeError("forced automated failure")
+
+        monkeypatch.setattr(
+            FakeDispatcher,
+            "route_combat_action",
+            fail_combat_action,
+        )
+        FakeDispatcher.queue_agent("Rat bites.")
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.turn_index = 7
+        prior = _router_out(facts=["Prior visible event."])
+        prior.event_id = "evt_prior"
+        ckpt.canonical_events.append(prior)
+        ckpt.session.render_buffers["alice"] = [
+            RenderBufferEntry(event_id="evt_prior")
+        ]
+        ckpt.session.active_combat = DndCombatState(
+            round_number=3,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="rat",
+                    character_id="rat",
+                    name="Rat",
+                    player_controlled=False,
+                ),
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        results = await orch._run_automated_combat_turns_locked(
+            ckpt=ckpt,
+            dispatcher=FakeDispatcher(),
+        )
+
+        assert results == []
+        assert [event.event_id for event in ckpt.canonical_events] == [
+            "evt_prior"
+        ]
+        assert [
+            entry.event_id for entry in ckpt.session.render_buffers["alice"]
+        ] == ["evt_prior"]
+        assert ckpt.session.active_act_slots == {}
         assert ckpt.session.active_combat.turn_index == 1
+        assert ckpt.session.turn_index == 8
         assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio
@@ -1627,6 +1804,69 @@ class TestResolveCatII:
         assert len(saved.canonical_events) == 2
         assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
         assert FakeDispatcher.route_calls[1]["actor_id"] == "pip"
+
+    @pytest.mark.asyncio
+    async def test_ready_cat_ii_flushes_pending_combat_visible_facts(
+        self, patched_orchestrator,
+    ):
+        from app.engine.turn_loop import open_cat_ii
+
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.active_combat = DndCombatState(
+            combat_id="combat",
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="pip",
+                    character_id="pip",
+                    name="Pip",
+                ),
+            ],
+            pending_visible_facts=["Pip's burning effect ends."],
+        )
+        evt = open_cat_ii(
+            ckpt,
+            initiator_id="alice",
+            initiator_intention="alice shoves pip",
+            required_responders=["pip"],
+        )
+        evt.collected_intentions["pip"] = "I step back"
+        orch, mgr = patched_orchestrator(ckpt)
+        resolution = _router_out(
+            ends_beat=True,
+            ends_beat_reason="cat_ii_resolution",
+            facts=["Pip steps back from Alice."],
+        )
+        resolution.observers = [
+            ObserverEntry(
+                character_id="alice",
+                observation_level="d",
+                response_priority=5,
+            ),
+            ObserverEntry(
+                character_id="pip",
+                observation_level="d",
+                response_priority=5,
+            ),
+        ]
+        FakeDispatcher.queue_route(resolution)
+
+        response = await orch.resolve_cat_ii("s", evt.event_id)
+
+        assert response.beat_ended_reason == "cat_ii_resolution"
+        saved = mgr.save.call_args[0][0]
+        assert saved.session.active_combat.pending_visible_facts == []
+        assert any(
+            fact.text == "Pip's burning effect ends."
+            for event in saved.canonical_events
+            for fact in event.canonical_event.observable_facts
+        )
 
     @pytest.mark.asyncio
     async def test_stale_event_returns_noop(self, patched_orchestrator):

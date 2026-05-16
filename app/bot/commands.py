@@ -342,7 +342,7 @@ def _roll_prompt_content(
         lines.append(_roll_result_line(result))
     if interpreting:
         lines.append("")
-        lines.append("_Interpreting the outcome..._")
+        lines.append("_Resolving..._")
     return "\n".join(lines)
 
 
@@ -436,8 +436,27 @@ def _dice_roll_content(
             lines.append(f"Damage: `{damage_total}{suffix}`")
     if interpreting:
         lines.append("")
-        lines.append("_Interpreting the outcome..._")
+        lines.append("_Resolving..._")
     return "\n".join(lines)
+
+
+def _experience_award_content(award: Any) -> str:
+    name = (
+        str(getattr(award, "character_name", "") or "")
+        or str(getattr(award, "character_id", "") or "Character")
+    )
+    amount = int(getattr(award, "amount", 0) or 0)
+    source = str(getattr(award, "source", "") or "").strip()
+    progress = dnd_experience.format_experience_progress({
+        "experience_points": getattr(award, "experience_points", 0),
+        "total_level": getattr(award, "total_level", 0),
+        "eligible_level": getattr(award, "eligible_level", 0),
+        "level_available": bool(getattr(award, "eligible_level", 0)),
+        "next_level": getattr(award, "next_level", 0),
+        "xp_to_next_level": getattr(award, "xp_to_next_level", 0),
+    })
+    source_text = f"\n{source}" if source else ""
+    return f"**XP Gained:** {name} gains **{amount:,} XP**.{source_text}\n{progress}"
 
 
 async def _animate_interaction_roll_result(
@@ -476,7 +495,7 @@ async def _animate_interaction_roll_result(
         logger.debug("dice roll animation failed", exc_info=True)
         fallback = "\n".join([
             _roll_result_line(result),
-            "_Interpreting the outcome..._" if interpreting else "",
+            "_Resolving..._" if interpreting else "",
         ]).strip()
         if inter.response.is_done():
             await inter.followup.send(fallback, ephemeral=True)
@@ -1073,7 +1092,7 @@ class _PendingRollView(discord.ui.View):
                     await roll_inter.response.send_message(
                         "\n".join([
                             _roll_result_line(result),
-                            "_Interpreting the outcome..._",
+                            "_Resolving..._",
                         ]),
                         ephemeral=True,
                     )
@@ -1715,6 +1734,42 @@ async def _deliver_turn_response_to_povs(
                 turn_index=turn_index,
             )
 
+    async def _deliver_experience_awards(
+        awards: list[Any],
+        *,
+        turn_index: int,
+    ) -> None:
+        if not awards:
+            return
+        for award in awards:
+            cid = str(getattr(award, "character_id", "") or "")
+            if not cid:
+                continue
+            content = _experience_award_content(award)
+            if cid == actor_character_id:
+                await inter.followup.send(content, ephemeral=True)
+                continue
+            uid_str = bindings.get(cid, "")
+            if not uid_str:
+                continue
+            try:
+                uid = int(uid_str)
+            except ValueError:
+                continue
+            char = next((c for c in roster if c.character_id == cid), None)
+            char_name = char.name if char else cid
+            await _post_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=uid,
+                character_id=cid,
+                char_name=char_name,
+                text=content,
+                bot=inter.client,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+
     # Fan out pre-turn resolutions before the actor's render so private POV
     # order matches story time. These can come from stale Cat II closure or
     # resumed automated combat after a rewind.
@@ -1723,6 +1778,10 @@ async def _deliver_turn_response_to_povs(
             pre_resp.dice_rolls or [],
             pre_resp.per_player_renders or {},
             skip_cid=None,
+            turn_index=pre_resp.turn_index,
+        )
+        await _deliver_experience_awards(
+            pre_resp.experience_awards or [],
             turn_index=pre_resp.turn_index,
         )
         await _dm_per_pov(
@@ -1772,6 +1831,10 @@ async def _deliver_turn_response_to_povs(
             session_id=session_id,
             turn_index=response.turn_index,
         )
+    await _deliver_experience_awards(
+        response.experience_awards or [],
+        turn_index=response.turn_index,
+    )
     actor_revision_note = (
         "_Your ongoing activity was interrupted. Use `/act` to revise it, "
         "or `/act (continue)` to keep going if the new situation still "

@@ -409,6 +409,55 @@ class TestRouteIntention:
         assert '"interaction_mode"' in system_content
         assert '"combatant_spawns"' in system_content
 
+    def test_dnd_loot_offer_is_not_replayed_in_router_history(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        data = _dnd_router_output().model_dump()
+        data["event_id"] = "evt_loot"
+        data["loot_offer"] = {
+            "present": True,
+            "source_kind": "container",
+            "source_label": "iron chest",
+            "visibility": "table",
+            "eligible_character_ids": ["alice"],
+            "items": [
+                {
+                    "item_id": "healing_potion",
+                    "name": "Potion of Healing",
+                    "kind": "consumable",
+                    "quantity": 1,
+                    "identified": True,
+                    "requires_identification": False,
+                    "requires_attunement": False,
+                    "consumable": True,
+                    "value_gp": 50,
+                    "weight": 0.5,
+                    "notes": "red liquid",
+                }
+            ],
+            "currency": {"gp": 5},
+            "notes": "under the false bottom",
+        }
+        mock_client.complete.return_value = _llm_response(
+            DndEventRouterOutput(**data)
+        )
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="open the chest",
+        ))
+
+        stored = ckpt.session_conversation[-1].content
+        assert "loot_offer" not in stored
+        assert "healing_potion" not in stored
+        assert "Potion of Healing" not in stored
+        assert "5gp" not in stored
+        assert "iron chest" not in stored
+        assert "under the false bottom" not in stored
+
     def test_narrative_fresh_intention_keeps_generic_router_contract(
         self, prompt_mgr, mock_client,
     ):

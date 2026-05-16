@@ -579,6 +579,40 @@ class TestDndEventRouterOutput:
         assert out.combatant_spawns[0].statblock.challenge_rating == "0"
         assert out.combatant_spawns[0].statblock.xp == 10
 
+    def test_combat_start_tolerates_surplus_spawn_statblock_fields(self):
+        spawn = json.loads(json.dumps(RAT_COMBATANT_SPAWN))
+        spawn["unexpected_spawn_note"] = "hungry"
+        spawn["statblock"]["lore"] = "cellar pest"
+        spawn["statblock"]["ability_scores"]["luck"] = 12
+        spawn["statblock"]["skills"] = [
+            {"name": "perception", "value": 2, "source": "habit"}
+        ]
+        spawn["statblock"]["traits"] = [
+            {
+                "name": "Keen Smell",
+                "description": "The rat has advantage on smell checks.",
+                "rules_note": "extra field should be ignored",
+            }
+        ]
+        spawn["statblock"]["actions"][0]["save_dc"] = 11
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "dnd_combat_start",
+            "combatant_ids": ["alice"],
+            "combatant_spawns": [spawn],
+        }
+
+        out = DndEventRouterOutput(**data)
+        dumped = out.combatant_spawns[0].model_dump()
+
+        assert out.combatant_ids == ["alice", "rat_1"]
+        assert "unexpected_spawn_note" not in dumped
+        assert "lore" not in dumped["statblock"]
+        assert "luck" not in dumped["statblock"]["ability_scores"]
+        assert "source" not in dumped["statblock"]["skills"][0]
+        assert "rules_note" not in dumped["statblock"]["traits"][0]
+        assert "save_dc" not in dumped["statblock"]["actions"][0]
+
     def test_dnd_scoped_fact_visible_to_confusable_observer_is_repaired(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,

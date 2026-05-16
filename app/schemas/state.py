@@ -339,6 +339,20 @@ class DndRuntimeEffect(BaseModel):
         return self
 
 
+class DndExperienceAwardDisplay(BaseModel):
+    """Player-facing D&D XP award notice queued by the combat adapter."""
+
+    character_id: str = ""
+    character_name: str = ""
+    amount: int = 0
+    source: str = ""
+    experience_points: int = 0
+    total_level: int = 0
+    eligible_level: int = 0
+    next_level: int = 0
+    xp_to_next_level: int = 0
+
+
 class DndCombatantState(BaseModel):
     """Checkpoint-persistent snapshot of one active D&D combatant.
 
@@ -405,6 +419,9 @@ class DndCombatState(BaseModel):
     # advancement is delayed until those runtime slots clear.
     pending_advance_actor_id: str = ""
     pending_visible_facts: list[str] = Field(default_factory=list)
+    pending_experience_awards: list[DndExperienceAwardDisplay] = Field(
+        default_factory=list
+    )
     # Adapter-owned tactical map for active D&D combat. Generic narrative
     # location state remains an opaque label and has no topology.
     battle_map: DndBattleMapState | None = None

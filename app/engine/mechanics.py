@@ -54,12 +54,15 @@ def roll_modifier(character: CharacterRecord | None, request: PlannedRoll) -> in
     return total
 
 
-def mechanics_summary(character: CharacterRecord) -> dict[str, Any]:
+def mechanics_summary(
+    character: CharacterRecord,
+    *,
+    include_inventory_resources: bool = True,
+) -> dict[str, Any]:
     mechanics = character.mechanics or {}
     statblock = (mechanics.get("dnd5e_sheet") or {}).get("statblock") or {}
     defenses = statblock.get("defenses", {}) if isinstance(statblock, dict) else {}
-    inventory = dnd_inventory.inventory_view(character)
-    return {
+    summary: dict[str, Any] = {
         "ruleset_id": str(mechanics.get("ruleset_id", "")),
         "ability_scores": mechanics.get("ability_scores", {}),
         "proficiency_bonus": mechanics.get("proficiency_bonus", 0),
@@ -76,10 +79,13 @@ def mechanics_summary(character: CharacterRecord) -> dict[str, Any]:
             else []
         ),
         "defenses": defenses if isinstance(defenses, dict) else {},
-        "resources": mechanics.get("resources", {}),
-        "inventory": _inventory_summary(inventory),
-        "raw": mechanics.get("raw", {}),
     }
+    if include_inventory_resources:
+        inventory = dnd_inventory.inventory_view(character)
+        summary["resources"] = mechanics.get("resources", {})
+        summary["inventory"] = _inventory_summary(inventory)
+        summary["raw"] = mechanics.get("raw", {})
+    return summary
 
 
 def _inventory_summary(inventory: dict[str, Any]) -> dict[str, Any]:

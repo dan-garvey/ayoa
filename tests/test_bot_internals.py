@@ -221,6 +221,45 @@ class TestLootRouterSync:
         assert "alice took Potion of Healing and 8 sp from iron chest" in update
         assert "explicit player continuity" in update
 
+    def test_decline_loot_does_not_queue_router_update(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="loot_decline",
+                character_bindings={"alice": "42"},
+            ),
+            world_state=WorldState(),
+            characters=[
+                CharacterRecord(
+                    character_id="alice",
+                    name="Alice",
+                    mechanics={"ruleset_id": "dnd5e_basic"},
+                ),
+            ],
+        )
+        ckpt.session.dnd_inventory_offers.append(DndLootOffer(
+            offer_id="loot_evt_chest",
+            source_event_id="evt_chest",
+            source_kind="container",
+            source_label="iron chest",
+            eligible_character_ids=["alice"],
+            currency={"sp": 8},
+        ))
+        mock_bridge.checkpoint_mgr.save(ckpt)
+
+        result = asyncio.run(mock_bridge.decline_loot(
+            session_id="loot_decline",
+            user_id=42,
+            character_id="alice",
+            offer_id="loot_evt_chest",
+        ))
+
+        assert result.message.startswith("Declined the loot offer")
+        reloaded = mock_bridge.load_latest("loot_decline")
+        assert reloaded.session.pending_router_state_changes == []
+
 
 class TestRewindMetadata:
     def test_single_binding_supplies_actor_when_player_id_is_empty(
