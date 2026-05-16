@@ -18,21 +18,17 @@ from app.schemas.dnd_spatial import (
 from app.schemas.dnd_monsters import DndCombatantSpawn
 
 
-# Typed enum for `ends_beat_reason`. Keeps the model grammar-constrained
-# and makes future branching safe. Adding a new reason requires both a
-# schema bump and a prompt update — visible contract.
-EndsBeatReason = Literal[
-    "",  # free-form / not yet set
+EventKind = Literal[
+    # The beat should continue after this event by collecting the next
+    # router-selected frontier group.
+    "beat_continues",
     "directed_at_player",
     "state_change",
     "cascade_exhausted",
     "cat_ii_resolution",
     "cat_ii_open",
     "ambient_pause",
-    "off_stage_tick",
     "max_events_cap",
-    "cat_ii_pending",
-    "cat_ii_stale",
     # Ruleset adapters may resolve a turn/action outside the generic router
     # while still returning the standard canonical event shape.
     "ruleset_resolution",
@@ -54,13 +50,19 @@ EndsBeatReason = Literal[
     # one self-presentation fragment per character ("what does
     # the world see of me right now"), and appends the fragments
     # to the canonical event's `observable_facts` before the
-    # narrator renders. ends_beat MUST be true on this reason;
+    # narrator renders. `event_kind` MUST be observation_harvest;
     # picks MUST be non-empty (no targets = nothing to harvest =
     # router should pick `state_change` or `cascade_exhausted`
     # instead). See the router prompt's "Observation harvest"
     # section for classification guidance.
     "observation_harvest",
 ]
+
+TERMINAL_EVENT_KINDS = set(EventKind.__args__) - {"beat_continues"}
+
+# Backward-facing type alias for code that has not yet been renamed. The
+# router-facing schema uses `event_kind`; `ends_beat_reason` is now a property.
+EndsBeatReason = EventKind
 
 DndInteractionMode = Literal[
     "cat_i",
@@ -351,14 +353,13 @@ class EventRouterOutput(BaseModel):
       - `requires_responders` + `required_responders`: Cat I (self-closing)
         vs Cat II (contested). Cat II events open and collect responder
         intentions before canonicalization closes.
-      - `agent_responder_picks`: NPCs the router wants to cascade into the
-        current beat. Addressed NPCs (those the player named, asked, or
-        answered) are mandatory until each has had a turn this beat.
-      - `ends_beat` + `ends_beat_reason`: the router's DM-pacing signal —
-        when true, the beat composes its buffered events into a render
-        and the active beat slot is released. Cat II adjudication
-        always ends the beat (implicit, regardless of this field). For
-        Cat I events the router decides explicitly.
+      - `event_kind`: the router's pacing and dispatch signal. The engine
+        derives beat closure from this field: `beat_continues` collects the
+        next frontier group, while terminal event kinds render, suspend, or
+        hand off to adapter-owned flows.
+      - `agent_responder_picks`: NPCs the router wants in the next frontier
+        group. Addressed NPCs (those the player named, asked, or answered)
+        are mandatory until each has had a turn this beat.
 
     ## Schema-shape policy: no Pydantic defaults
 
@@ -390,10 +391,9 @@ class EventRouterOutput(BaseModel):
 
     # ---- v11-r7g: TEMPORARY diagnostic — terse justification ------------
     # The router emits a concise diagnostic note explaining its core
-    # routing decision this turn (Cat I vs Cat II classification, why
-    # this ends_beat value and ends_beat_reason, why these picks). We
-    # log it at INFO so playtest transcripts surface the "why" alongside
-    # the "what".
+    # routing decision this turn (Cat I vs Cat II classification, why this
+    # event_kind, why these picks). We log it at INFO so playtest transcripts
+    # surface the "why" alongside the "what".
     #
     # NON-FREE in tokens — adds ~1 sentence to every router response,
     # and the LLM has to compose it before emitting structural fields.
@@ -405,6 +405,7 @@ class EventRouterOutput(BaseModel):
     decision_rationale: str
 
     canonical_event: CanonicalEvent
+    event_kind: EventKind
 
     # ---- v11: Cat I / Cat II intention classification --------------------
     # When True, this intention is CONTESTED: a canonical event cannot close
@@ -419,25 +420,14 @@ class EventRouterOutput(BaseModel):
     # intercepter / defender / counter-actor. Empty for Cat I.
     required_responders: list[str]
 
-    # ---- v11: post-canonicalization agent cascade ------------------------
-    # Router-selected NPC agents to dispatch into the current beat as
-    # reactive intentions. No engine-side cap — the router uses
-    # `ends_beat` to do the pacing work. Humans are NEVER in this list;
-    # humans only enter via /act, gated by active_act_slot. Empty when
-    # the router thinks no NPC cascade is warranted. Addressed NPCs
-    # (those the player named, asked, or answered this beat) are
-    # mandatory and must remain in the picks across cascade calls
-    # until each has fired.
+    # ---- v11: router-selected frontier group -----------------------------
+    # Router-selected NPC agents to dispatch as the next frontier group.
+    # Humans are NEVER in this list; humans only enter via /act, gated by
+    # active_act_slot. Empty when the router thinks no NPC turn is warranted.
+    # Addressed NPCs (those the player named, asked, or answered this beat)
+    # are mandatory and must remain in the picks across frontier calls until
+    # each has fired.
     agent_responder_picks: list[str]
-
-    # ---- v11: DM pacing — end beat now, or let the cascade continue? ----
-    # True = render now; false = router will pick next actor and continue.
-    # Cat II adjudication implicitly ends the beat regardless of this
-    # value. For Cat I events this is the router's judgment call.
-    ends_beat: bool
-    # Typed enum; see EndsBeatReason above. Constrained so the grammar
-    # rejects typos and future branching is safe.
-    ends_beat_reason: EndsBeatReason
 
     # ---- Observation and character lifecycle outputs --------------------
     # `observers` drives render-buffer determination: every
@@ -457,23 +447,40 @@ class EventRouterOutput(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _clamp_unknown_reason(cls, data: Any) -> Any:
+    def _normalize_event_kind(cls, data: Any) -> Any:
         """Pydantic's Literal[] validation rejects unknown values with a
-        ValidationError. For a field whose purpose is telemetry, that's
-        too harsh — a model typo in `ends_beat_reason`
-        should be a warn-log, not a crash. Coerce any unknown string to
-        "" and log; the caller will see the beat close correctly.
+        ValidationError. For a pacing field, a model typo should be a
+        warn-log, not a crash. Coerce unknown values to a safe terminal
+        event kind and log.
         """
-        if isinstance(data, dict) and "ends_beat_reason" in data:
-            valid = set(EndsBeatReason.__args__)
-            val = data["ends_beat_reason"]
-            if isinstance(val, str) and val not in valid:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "Unknown ends_beat_reason %r coerced to empty; "
-                    "valid values: %s", val, sorted(valid),
-                )
-                data["ends_beat_reason"] = ""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        valid = set(EventKind.__args__)
+        raw_kind = data.get("event_kind")
+        if raw_kind is None:
+            legacy_reason = data.pop("ends_beat_reason", "")
+            legacy_ends = data.pop("ends_beat", True)
+            if isinstance(legacy_reason, str) and legacy_reason in valid and legacy_reason:
+                raw_kind = legacy_reason
+            elif legacy_ends is False:
+                raw_kind = "beat_continues"
+            elif data.get("requires_responders"):
+                raw_kind = "cat_ii_open"
+            else:
+                raw_kind = "directed_at_player"
+        else:
+            data.pop("ends_beat", None)
+            data.pop("ends_beat_reason", None)
+
+        if not isinstance(raw_kind, str) or raw_kind not in valid:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Unknown event_kind %r coerced to directed_at_player; "
+                "valid values: %s", raw_kind, sorted(valid),
+            )
+            raw_kind = "directed_at_player"
+        data["event_kind"] = raw_kind
         return data
 
     @model_validator(mode="before")
@@ -515,17 +522,10 @@ class EventRouterOutput(BaseModel):
           (edge-case #2) cannot reach the loop.
         - `required_responders` must be unique; duplicates corrupt the
           collection set semantics in `cat_ii_is_ready`.
-        - `agent_responder_picks` must be a subset of the `observers`
-          list. An agent the router picks for cascade must also be
-          perceiving the event — otherwise they're reacting to something
-          they couldn't see. The router prompt declares this as an
-          INVARIANT; the schema here CLAMPS by silently dropping any
-          pick not in observers and logs a warning. Clamp rather than
-          raise because this is prompt drift, not a user-facing error —
-          the beat should still run. `query_response` and
-          `observation_harvest` are exempt because picks there are
-          private perception-harvest targets, not actors reacting to
-          the event.
+        - `agent_responder_picks` may name observer NPCs or off-stage
+          NPCs the router wants in the next frontier group. The engine
+          applies hard safety filters before dispatch; the schema does
+          not clamp picks to observers.
         """
         if self.requires_responders and not self.required_responders:
             raise ValueError(
@@ -538,24 +538,6 @@ class EventRouterOutput(BaseModel):
                 "required_responders contains duplicates; each responder "
                 "must appear exactly once."
             )
-        if (
-            self.agent_responder_picks
-            and self.ends_beat_reason not in {
-                "query_response",
-                "observation_harvest",
-            }
-        ):
-            observer_ids = {o.character_id for o in self.observers}
-            dropped = [p for p in self.agent_responder_picks if p not in observer_ids]
-            if dropped:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "agent_responder_picks ⊆ observers invariant violated; "
-                    "dropping picks not in observers: %s", dropped,
-                )
-                self.agent_responder_picks = [
-                    p for p in self.agent_responder_picks if p in observer_ids
-                ]
         observer_ids = [o.character_id for o in self.observers if o.character_id]
         observer_id_set = set(observer_ids)
         visible_facts = []
@@ -611,7 +593,7 @@ class EventRouterOutput(BaseModel):
             if not self.agent_responder_picks:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "ends_beat_reason='observation_harvest' but "
+                    "event_kind='observation_harvest' but "
                     "agent_responder_picks is empty; nothing to harvest. "
                     "Coercing to cascade_exhausted.",
                 )
@@ -619,9 +601,9 @@ class EventRouterOutput(BaseModel):
             if not self.ends_beat:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "ends_beat_reason='observation_harvest' but "
-                    "ends_beat=false; harvest implies beat-end. "
-                    "Coercing ends_beat=true.",
+                    "event_kind='observation_harvest' cannot continue; "
+                    "harvest implies a terminal event. "
+                    "Coercing to observation_harvest.",
                 )
                 self.ends_beat = True
         if self.ends_beat_reason == "cat_ii_open" or self.requires_responders:
@@ -647,6 +629,31 @@ class EventRouterOutput(BaseModel):
             if update.character_id and update.location_label
         ]
         return self
+
+    @property
+    def ends_beat(self) -> bool:
+        return self.event_kind != "beat_continues"
+
+    @ends_beat.setter
+    def ends_beat(self, value: bool) -> None:
+        self.event_kind = (
+            "directed_at_player"
+            if value
+            else "beat_continues"
+        )
+
+    @property
+    def ends_beat_reason(self) -> EndsBeatReason | str:
+        if self.event_kind == "beat_continues":
+            return ""
+        return self.event_kind
+
+    @ends_beat_reason.setter
+    def ends_beat_reason(self, value: str) -> None:
+        if value in EventKind.__args__ and value:
+            self.event_kind = value  # type: ignore[assignment]
+        elif not value and self.event_kind != "beat_continues":
+            self.event_kind = "directed_at_player"
 
 
 class DndEventRouterOutput(EventRouterOutput):

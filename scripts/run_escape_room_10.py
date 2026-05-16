@@ -90,8 +90,7 @@ async def main() -> None:
         router_events.append({
             "event_id": ev.get("event_id"),
             "decision_rationale": ev.get("decision_rationale"),
-            "ends_beat": ev.get("ends_beat"),
-            "ends_beat_reason": ev.get("ends_beat_reason"),
+            "event_kind": ev.get("event_kind"),
             "agent_responder_picks": ev.get("agent_responder_picks"),
             "observers": ev.get("observers"),
             "facts": ev.get("canonical_event", {}).get("observable_facts", []),
@@ -126,10 +125,7 @@ async def main() -> None:
     lines.extend(["## Router Events", ""])
     for i, ev in enumerate(router_events, 1):
         lines.append(f"### Event {i}: {ev.get('event_id')}")
-        lines.append(
-            f"ends_beat={ev.get('ends_beat')} "
-            f"reason={ev.get('ends_beat_reason')}"
-        )
+        lines.append(f"event_kind={ev.get('event_kind')}")
         lines.append(f"rationale: {ev.get('decision_rationale')}")
         facts = ev.get("facts") or []
         for fact in facts:

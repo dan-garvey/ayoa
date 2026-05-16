@@ -122,13 +122,13 @@ class PrivateStateExtraction(BaseModel):
     # evolution is carried in the agent's rolling conversation history.
     current_objectives: list[str]
     secrets: list[str]
-    # Marks this character as significant enough to warrant off-stage ticks
+    # Marks this character as significant enough to warrant background turns
     # — they'll pursue their objectives while the player isn't watching.
     # Set true for antagonists, rivals, faction leaders; false for
     # background/incidental characters.
     intentions_enabled: bool
     # Short deterministic trigger phrases that should make this character
-    # more likely to receive a scarce off-stage tick. Empty for reactive
+    # more likely to receive a scarce private/background turn. Empty for reactive
     # background characters.
     tick_cues: list[str]
 

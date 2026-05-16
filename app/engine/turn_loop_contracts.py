@@ -11,26 +11,21 @@ PARTIAL_MODE_MARKER = (
 )
 CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
-TICK_FAN_IN_HEADER = "## Off-Stage Tick"
+ROUTER_FRONTIER_RESULTS_HEADER = "## Frontier Results"
 ROUTER_CONTINUATION_HEADER = "## Continuation Required"
 
-# v11 unified-agent mode markers. The agent template (`agent.txt`)
-# is a SINGLE system prompt for on-stage, off-stage, and perception calls.
-# Character identity/current state live in the user tail, so characters on
-# the same model role can share the cached system prefix. The mode signal
-# is the first line of the user message: `## ON-STAGE` or `## TICK`. The
-# agent template's "Mode
-# Routing" section reads this header and applies the matching
-# mode-specific rules. Constants live here so renames trip the
-# prompt-references-constants test instead of silently desynchronizing.
-AGENT_ON_STAGE_HEADER = "## ON-STAGE"
-AGENT_TICK_HEADER = "## TICK"
+# v11 unified-agent turn marker. The agent template (`agent.txt`) is a
+# single system prompt for foreground, private/background, and perception
+# calls. Character identity/current state and the turn frame live in the
+# user tail, so characters on the same model role can share the cached
+# system prefix.
+AGENT_TURN_HEADER = "## AGENT-TURN"
 # Perception mode: the world is asking you to describe how you
 # present yourself right now (clothes, grooming, posture, mood-tell).
 # Observer-agnostic — the character authors their loadout for the
 # moment; whoever's looking sees the same surface. Fired by the
 # engine's harvest fork when the router classifies an action as
-# pure observation (`ends_beat_reason="observation_harvest"`) and
+# pure observation (`event_kind="observation_harvest"`) and
 # also reachable later from `/query` for "what does X look like?"
 # style questions. NOT part of the on-stage cascade — perception
 # calls don't move the beat forward, don't appear in canonical
@@ -85,44 +80,33 @@ def format_cat_ii_resolution_block(
         lines.append("")
     lines.append(
         "Compose the resolved canonical event per Part C. Emit "
-        "requires_responders=false, ends_beat=true, "
-        "ends_beat_reason=cat_ii_resolution, empty picks."
+        "requires_responders=false, event_kind=cat_ii_resolution, empty picks."
     )
     return "\n".join(lines)
 
 
-def format_tick_fan_in_block(
+def format_frontier_results_block(
     entries: list[tuple[str, str, str, str]],
 ) -> str:
-    """Commit 6: bundle N off-stage agents' public prose into a single
-    user message for the unified router.
+    """Bundle completed frontier target outputs into one router input.
 
-    Each entry is `(name, character_id, location, public_text)`. The
-    name is accepted for caller compatibility but not rendered; router
-    and rules prompts use character ids as their single character handle.
-    parenthetical (private intent) the agent emitted MUST be stripped
-    BEFORE this helper is called — only `public_text` belongs here.
-    The information-asymmetry rule (no agent's interior reaches the
-    router) is enforced at the call site; this helper just renders
-    whatever it's handed.
-
-    Empty list returns "" so the caller can skip the route call when
-    no off-stage activity fired.
+    Each entry is `(result_kind, character_id, frame, public_text)`.
+    Agent parentheticals MUST be stripped before this helper is called.
+    Empty list returns "" so the dispatcher can skip payload-less router
+    calls.
     """
     if not entries:
         return ""
-    lines = [TICK_FAN_IN_HEADER, ""]
+    lines = [ROUTER_FRONTIER_RESULTS_HEADER, ""]
     lines.append(
-        f"{len(entries)} off-stage NPC(s) acted between the last "
-        "player /act and now. Compose ONE canonical event capturing "
-        "their actions per the Tick Mode rules in the system prompt. "
-        "The player did not see this beat."
+        f"{len(entries)} selected frontier target(s) completed. Compose "
+        "one canonical event from these public results, then decide "
+        "whether the frontier should continue or render to players."
     )
     lines.append("")
-    for _name, char_id, location, public_text in entries:
-        loc = location or "(unset)"
+    for result_kind, char_id, frame, public_text in entries:
         text = (public_text or "").strip() or "(no public action)"
-        lines.append(f"- {char_id} at {loc}: {text}")
+        lines.append(f"- {result_kind} {char_id} [{frame}]: {text}")
     lines.append("")
     return "\n".join(lines)
 
@@ -131,7 +115,7 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
     """Ask the router to repair an open beat with no continuation path.
 
     This is not a new character intention. It is a router-only recovery
-    mode used after the prior router output kept `ends_beat=false` but
+    mode used after the prior router output used `event_kind=beat_continues` but
     left no dispatchable NPC pick. The next router output must either
     create a concrete human-facing beat boundary or supply a real NPC
     continuation.
@@ -155,8 +139,8 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
         "",
         (
             "If this new event creates a clear human-facing affordance, set "
-            "`ends_beat=true` and choose the correct `ends_beat_reason`. "
-            "If the beat still needs NPC action, set `ends_beat=false` and "
+            "the correct terminal `event_kind`. "
+            "If the beat still needs NPC action, set `event_kind=beat_continues` and "
             "include dispatchable NPC ids in `agent_responder_picks`."
         ),
     ]
@@ -170,7 +154,7 @@ def format_agent_on_stage_body() -> str:
     """v11 unified-agent on-stage user-message body — intentionally empty.
 
     The full user message is
-    `{AGENT_ON_STAGE_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
+    `{AGENT_TURN_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
     The on-stage body USED to carry three blocks (`## Scene`,
     `## What You Observe This Turn`, `## Other Characters' Responses
     This Turn`); all three are gone (v11-r10) because the same
@@ -204,8 +188,8 @@ def format_agent_on_stage_body() -> str:
     The on-stage user message is now just the mode header plus the
     pending-observations block, and that's the entire payload. Kept
     as a function so dispatcher code can stay symmetric with
-    `format_agent_tick_body()` / `format_agent_perception_body()` and
-    so future on-stage-only context (if any ever surfaces a real
+    `format_agent_turn_body()` / `format_agent_perception_body()` and
+    so future foreground-only context (if any ever surfaces a real
     need) has a documented home.
     """
     return ""
@@ -246,21 +230,41 @@ def format_agent_perception_body() -> str:
     )
 
 
-def format_agent_tick_body(*, location_context: str) -> str:
-    """v11 unified-agent off-stage tick user-message body.
+def format_agent_turn_body(*, frame: str, location_context: str = "") -> str:
+    """Unified agent-turn body.
 
-    The full user message is
-    `{AGENT_TICK_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
-    The mode header flips the agent into Tick Mode. This helper
-    renders the location and the standing tick instruction (advance
-    one objective in your own location, single tight beat). Character
-    identity and current state live in the per-call user tail assembled
-    by `CharacterAgent`, so this body just needs to point them at the
-    location and the tick instruction.
+    `frame` is a routing label for the character, not hidden engine
+    mechanics. Foreground turns react to pending observations. Private and
+    background turns advance one objective from the character's current
+    location without assuming a player is watching.
     """
-    return (
-        f"## Where You Are\n{location_context}\n\n"
-        f"## What You Do This Tick\n"
-        "No direct observations — you are off-stage. Advance one "
-        "objective in your own location, in a single tight beat."
+    frame = (frame or "foreground").strip().lower()
+    if frame not in {"foreground", "private", "background"}:
+        frame = "foreground"
+    lines = [
+        "## Turn Frame",
+        frame,
+    ]
+    if frame == "foreground":
+        lines.extend([
+            "",
+            "React in real time to what reached you. If nothing needs "
+            "your action, silence is a valid beat.",
+        ])
+        return "\n".join(lines)
+
+    location = (
+        location_context
+        if location_context.strip()
+        else "Location: Off-screen / unspecified location."
     )
+    lines.extend([
+        "",
+        "## Where You Are",
+        location,
+        "",
+        "## What You Do",
+        "Advance one objective in a single tight beat. If the right move "
+        "is to hold, choose silence and record why in the parenthetical.",
+    ])
+    return "\n".join(lines)

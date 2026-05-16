@@ -273,7 +273,6 @@ def _story_checkpoint(story_id: str, case: SmokeCase) -> CheckpointFile:
         characters=_characters_for(case),
     )
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-    ckpt.session.config.settings.ticks_enabled = False
     ckpt.session.config.settings.player_roll_mode = "auto"
     if case.starts_in_combat:
         ckpt.session.active_combat = DndCombatState(

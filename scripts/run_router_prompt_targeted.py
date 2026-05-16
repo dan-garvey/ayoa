@@ -14,7 +14,7 @@ around:
 - Cat II opening and resolution
 - mediated perception without scene topology
 - custom player arrival guidance
-- off-stage tick fan-in
+- frontier-result fan-in
 
 Outputs:
   app/storage/playtest_reports/router_prompt_targeted_<timestamp>.json
@@ -45,6 +45,7 @@ from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.router_frontier import RouterFrontierResult
 from app.schemas.state import (
     OpenCatIIEvent,
     PhysicsRuleset,
@@ -303,7 +304,7 @@ async def _multi_recipient(dispatcher: LLMDispatcher) -> CaseResult:
             _contains_all(result.agent_responder_picks, ["ashara", "rashid"]),
             f"picks={result.agent_responder_picks}",
         ),
-        _check("keeps_beat_open", not result.ends_beat),
+        _check("keeps_beat_open", result.event_kind == "beat_continues"),
         _check(
             "dialogue_preserved",
             "What do you both want from this room" in _fact_text(result),
@@ -342,8 +343,8 @@ async def _npc_to_npc(dispatcher: LLMDispatcher) -> CaseResult:
         ),
         _check(
             "keeps_beat_open_for_target",
-            not result.ends_beat,
-            f"reason={result.ends_beat_reason}",
+            result.event_kind == "beat_continues",
+            f"kind={result.event_kind}",
         ),
     ]
     return CaseResult(
@@ -395,16 +396,19 @@ async def _defer_pacing(dispatcher: LLMDispatcher) -> CaseResult:
         _check(
             "no_dead_air_closed_beat",
             not (
-                result.ends_beat
-                and result.ends_beat_reason == "ambient_pause"
+                result.event_kind != "beat_continues"
+                and result.event_kind == "ambient_pause"
                 and not non_empty_forward_motion
             ),
-            f"ends={result.ends_beat} reason={result.ends_beat_reason}",
+            f"kind={result.event_kind}",
         ),
         _check(
             "open_has_pick_or_closed_has_affordance",
-            (not result.ends_beat and bool(result.agent_responder_picks))
-            or (result.ends_beat and non_empty_forward_motion),
+            (
+                result.event_kind == "beat_continues"
+                and bool(result.agent_responder_picks)
+            )
+            or (result.event_kind != "beat_continues" and non_empty_forward_motion),
             f"picks={result.agent_responder_picks}",
         ),
     ]
@@ -463,8 +467,7 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
         ]
     )
     thin_direct_return = (
-        result.ends_beat
-        and result.ends_beat_reason == "directed_at_player"
+        result.event_kind == "directed_at_player"
         and not stronger_boundary
     )
     checks = [
@@ -472,20 +475,19 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
         _check(
             "does_not_repeat_thin_direct_handoff",
             not thin_direct_return,
-            f"reason={result.ends_beat_reason} facts={_fact_text(result)}",
+            f"kind={result.event_kind} facts={_fact_text(result)}",
         ),
         _check(
             "keeps_open_or_creates_stronger_boundary",
             (
-                not result.ends_beat
+                result.event_kind == "beat_continues"
                 and bool(result.agent_responder_picks)
             ) or (
-                result.ends_beat
-                and result.ends_beat_reason in {"state_change", "ambient_pause"}
+                result.event_kind in {"state_change", "ambient_pause"}
                 and stronger_boundary
             ),
             (
-                f"ends={result.ends_beat} reason={result.ends_beat_reason} "
+                f"kind={result.event_kind} "
                 f"picks={result.agent_responder_picks}"
             ),
         ),
@@ -516,9 +518,9 @@ async def _cat_ii_open(dispatcher: LLMDispatcher) -> CaseResult:
             f"required={result.required_responders}",
         ),
         _check(
-            "reason_cat_ii_open",
-            result.ends_beat_reason == "cat_ii_open",
-            f"reason={result.ends_beat_reason}",
+            "kind_cat_ii_open",
+            result.event_kind == "cat_ii_open",
+            f"kind={result.event_kind}",
         ),
         _check(
             "does_not_resolve_in_open",
@@ -567,11 +569,11 @@ async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
     checks = [
         _check("resolved_no_more_required", not result.requires_responders),
         _check(
-            "reason_cat_ii_resolution",
-            result.ends_beat_reason == "cat_ii_resolution",
-            f"reason={result.ends_beat_reason}",
+            "kind_cat_ii_resolution",
+            result.event_kind == "cat_ii_resolution",
+            f"kind={result.event_kind}",
         ),
-        _check("ends_beat", result.ends_beat),
+        _check("terminal_event_kind", result.event_kind != "beat_continues"),
         _check(
             "does_not_blindly_accept_total_knockout",
             not any(term in lowered for term in total_incapacitation_terms),
@@ -686,9 +688,12 @@ async def _custom_arrival(dispatcher: LLMDispatcher) -> CaseResult:
         ),
         _check(
             "does_not_dead_end_arrival",
-            (not result.ends_beat and bool(result.agent_responder_picks))
-            or result.ends_beat_reason in {"state_change", "directed_at_player", "ambient_pause"},
-            f"ends={result.ends_beat} reason={result.ends_beat_reason} picks={result.agent_responder_picks}",
+            (
+                result.event_kind == "beat_continues"
+                and bool(result.agent_responder_picks)
+            )
+            or result.event_kind in {"state_change", "directed_at_player", "ambient_pause"},
+            f"kind={result.event_kind} picks={result.agent_responder_picks}",
         ),
     ]
     return CaseResult(
@@ -699,32 +704,55 @@ async def _custom_arrival(dispatcher: LLMDispatcher) -> CaseResult:
     )
 
 
-async def _off_stage_tick(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_off_stage_tick")
-    result = await dispatcher.route_tick_intentions(
+async def _frontier_private_talkback(dispatcher: LLMDispatcher) -> CaseResult:
+    ckpt = _ckpt(session_id="targeted_frontier_private_talkback")
+    result = await dispatcher.route_frontier_results(
         ckpt=ckpt,
         acting_character_id="dan",
-        tick_outputs=[
-            (
-                "Maya Cross",
-                "maya",
-                "control room",
-                (
+        prior_result=EventRouterOutput.model_validate(
+            {
+                "event_id": "evt_prior",
+                "effective_at_s": 0,
+                "duration_s": 0,
+                "decision_rationale": "targeted frontier fixture",
+                "canonical_event": {
+                    "world_adjudication": {"feasible": True},
+                    "observable_facts": [],
+                },
+                "observers": [],
+                "requires_responders": False,
+                "required_responders": [],
+                "agent_responder_picks": ["maya"],
+                "event_kind": "beat_continues",
+                "spawn": [],
+                "dormant": [],
+                "cull": [],
+            }
+        ),
+        frontier_results=[
+            RouterFrontierResult(
+                result_kind="agent_turn",
+                character_id="maya",
+                frame="background",
+                public_text=(
                     "Maya presses the control-room talkback and says into "
                     "Dante's earpiece, \"Bring Britney in now. Tell Dan "
                     "it is the twist.\""
                 ),
+                source_event_id="evt_prior",
             ),
         ],
     )
     if result is None:
-        raise AssertionError("route_tick_intentions returned None for a non-empty tick")
+        raise AssertionError(
+            "route_frontier_results returned None for a non-empty frontier"
+        )
     facts = _fact_text(result).lower()
     checks = [
         _check(
-            "reason_off_stage_tick",
-            result.ends_beat_reason == "off_stage_tick",
-            f"reason={result.ends_beat_reason}",
+            "kind_private_frontier",
+            result.event_kind in {"state_change", "cascade_exhausted"},
+            f"kind={result.event_kind}",
         ),
         _check(
             "talkback_target_observes",
@@ -738,8 +766,8 @@ async def _off_stage_tick(dispatcher: LLMDispatcher) -> CaseResult:
         ),
     ]
     return CaseResult(
-        name="off_stage_tick_private_talkback",
-        input_summary="Maya privately cues Dante through talkback.",
+        name="frontier_private_talkback",
+        input_summary="Maya privately cues Dante through frontier fan-in.",
         output=_result_dict(result),
         checks=checks,
     )
@@ -754,7 +782,7 @@ CASES: list[tuple[str, Callable[[LLMDispatcher], Awaitable[CaseResult]]]] = [
     ("cat_ii_resolution_responder_overclaim", _cat_ii_resolution),
     ("mediated_pod_shared_audio_not_sight", _mediated_pod),
     ("custom_arrival_story_direction", _custom_arrival),
-    ("off_stage_tick_private_talkback", _off_stage_tick),
+    ("frontier_private_talkback", _frontier_private_talkback),
 ]
 
 
@@ -807,10 +835,7 @@ def _markdown(report: dict) -> str:
 
         out = item["output"]
         lines.extend([
-            (
-                f"ends_beat=`{out.get('ends_beat')}` "
-                f"reason=`{out.get('ends_beat_reason')}`"
-            ),
+            f"event_kind=`{out.get('event_kind')}`",
             f"requires_responders=`{out.get('requires_responders')}`",
             f"required_responders=`{out.get('required_responders')}`",
             f"agent_responder_picks=`{out.get('agent_responder_picks')}`",
@@ -896,9 +921,9 @@ async def main() -> None:
         else:
             passed = sum(1 for check in item["checks"] if check["passed"])
             total = len(item["checks"])
-            reason = item["output"].get("ends_beat_reason")
+            reason = item["output"].get("event_kind")
             picks = item["output"].get("agent_responder_picks")
-            print(f"{item['name']}: {passed}/{total} reason={reason} picks={picks}")
+            print(f"{item['name']}: {passed}/{total} kind={reason} picks={picks}")
 
 
 if __name__ == "__main__":

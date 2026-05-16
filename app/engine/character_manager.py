@@ -234,8 +234,8 @@ class CharacterManager:
 
         `acting_actor_location` is the location label of whoever's action
         triggered these spawns — initiator location for Cat I, post-beat
-        actor location for the in-beat path, the off-stage actor's location
-        for tick-driven spawns.
+        actor location for the in-beat path, or a background actor's location
+        for private/background frontier spawns.
         It's the fallback when the router omits `seed.location`, so a new
         character materializes near the action rather than at some
         unrelated default.

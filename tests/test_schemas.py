@@ -77,11 +77,10 @@ ROUTER_OUTPUT_EXAMPLE = {
         },
         "observable_facts": [],
     },
+    "event_kind": "directed_at_player",
     "requires_responders": False,
     "required_responders": [],
     "agent_responder_picks": [],
-    "ends_beat": True,
-    "ends_beat_reason": "",
     "observers": [
         {
             "character_id": "guard_17",
@@ -396,6 +395,12 @@ class TestEventRouterOutput:
         rebuilt = EventRouterOutput(**r.model_dump())
         assert rebuilt == r
 
+    def test_router_output_schema_uses_event_kind_not_legacy_beat_fields(self):
+        props = EventRouterOutput.model_json_schema()["properties"]
+        assert "event_kind" in props
+        assert "ends_beat" not in props
+        assert "ends_beat_reason" not in props
+
     def test_rejects_extra_fields_on_observer(self):
         bad_observer = {**ROUTER_OUTPUT_EXAMPLE["observers"][0], "secret": "leaked"}
         data = {**ROUTER_OUTPUT_EXAMPLE, "observers": [bad_observer]}
@@ -510,7 +515,7 @@ class TestEventRouterOutput:
             "duration_s": 20,
             "requires_responders": True,
             "required_responders": ["guard_17"],
-            "ends_beat_reason": "cat_ii_open",
+            "event_kind": "cat_ii_open",
             "canonical_event": {
                 **ROUTER_OUTPUT_EXAMPLE["canonical_event"],
                 "observable_facts": [

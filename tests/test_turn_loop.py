@@ -156,6 +156,7 @@ class FakeDispatcher:
     def __init__(self):
         self.route_calls: list[dict] = []
         self.continuation_calls: list[dict] = []
+        self.frontier_calls: list[dict] = []
         self.agent_calls: list[dict] = []
         self.narrator_calls: list[dict] = []
         self.harvest_calls: list[dict] = []
@@ -184,6 +185,10 @@ class FakeDispatcher:
 
     async def route_continuation(self, **kw) -> EventRouterOutput:
         self.continuation_calls.append(kw)
+        return self._route_responses.pop(0)
+
+    async def route_frontier_results(self, **kw) -> EventRouterOutput | None:
+        self.frontier_calls.append(kw)
         return self._route_responses.pop(0)
 
     async def route_combat_action(self, **kw) -> EventRouterOutput:
@@ -671,6 +676,29 @@ class TestBeatCascade:
 
         assert result.events_closed == 2
         assert fake.agent_calls[0]["character_id"] == "pip"
+        assert fake.agent_calls[0]["frame"] == "foreground"
+        assert len(fake.frontier_calls) == 1
+        frontier_results = fake.frontier_calls[0]["frontier_results"]
+        assert [item.character_id for item in frontier_results] == ["pip"]
+
+    def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
+        ckpt = _ckpt({})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+        fake.queue_agent("Pip lowers his voice")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        assert fake.agent_calls[0]["character_id"] == "pip"
+        assert fake.agent_calls[0]["frame"] == "private"
+        frontier_results = fake.frontier_calls[0]["frontier_results"]
+        assert frontier_results[0].frame == "private"
 
     def test_agent_cascade_cap_forces_beat_end(self):
         ckpt = _ckpt({"alice": "1"})
@@ -689,8 +717,37 @@ class TestBeatCascade:
 
         assert result.ended_reason == "cascade_cap"
         assert result.events_closed == 2
-        assert len(fake.route_calls) == 2
+        assert len(fake.route_calls) == 1
+        assert len(fake.frontier_calls) == 1
         assert len(fake.agent_calls) == 1
+
+    def test_cat_i_waits_for_all_agent_picks_before_frontier_route(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(agent_picks=["pip", "bob"], ends_beat=False))
+        fake.queue_agent("Pip polishes the bell")
+        fake.queue_agent("Bob studies the latch")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        assert result.events_closed == 2
+        assert [call["character_id"] for call in fake.agent_calls] == [
+            "pip",
+            "bob",
+        ]
+        assert len(fake.frontier_calls) == 1
+        frontier_results = fake.frontier_calls[0]["frontier_results"]
+        assert [item.character_id for item in frontier_results] == [
+            "pip",
+            "bob",
+        ]
+        assert all(item.result_kind == "agent_turn" for item in frontier_results)
 
     def test_false_endbeat_with_no_picks_routes_continuation(self):
         ckpt = _ckpt({"alice": "1"})
@@ -1915,7 +1972,7 @@ class TestSchemaValidators:
         with pytest.raises(ValueError, match="empty"):
             _router_out(requires_responders=True, required_responders=[])
 
-    def test_picks_not_in_observers_dropped(self):
+    def test_picks_not_in_observers_preserved_for_frontier(self):
         out = EventRouterOutput(
             event_id="",
             decision_rationale="test fixture",
@@ -1930,16 +1987,15 @@ class TestSchemaValidators:
                     response_priority=3,
                 )
             ],
+            event_kind="directed_at_player",
             requires_responders=False,
             required_responders=[],
             agent_responder_picks=["alice", "pip"],
-            ends_beat=True,
-            ends_beat_reason="directed_at_player",
             spawn=[],
             dormant=[],
             cull=[],
         )
-        assert out.agent_responder_picks == ["alice"]
+        assert out.agent_responder_picks == ["alice", "pip"]
 
     def test_observation_harvest_picks_do_not_need_to_observe(self):
         out = EventRouterOutput(
@@ -1958,36 +2014,34 @@ class TestSchemaValidators:
                     response_priority=1,
                 )
             ],
+            event_kind="observation_harvest",
             requires_responders=False,
             required_responders=[],
             agent_responder_picks=["pip"],
-            ends_beat=True,
-            ends_beat_reason="observation_harvest",
             spawn=[],
             dormant=[],
             cull=[],
         )
         assert out.agent_responder_picks == ["pip"]
 
-    def test_off_stage_tick_is_valid_end_reason(self):
+    def test_non_observer_agent_picks_are_preserved_for_frontier_routing(self):
+        out = _router_out(agent_picks=["pip"], ends_beat=False)
+        data = out.model_dump()
+        data["agent_responder_picks"] = ["pip", "offstage_npc"]
+        rebuilt = EventRouterOutput.model_validate(data)
+        assert rebuilt.agent_responder_picks == ["pip", "offstage_npc"]
+
+    def test_unknown_event_kind_coerced_to_terminal_kind(self):
         out = _router_out(ends_beat=True)
         data = out.model_dump()
-        data["ends_beat_reason"] = "off_stage_tick"
+        data["event_kind"] = "location-transition"
         rebuilt = EventRouterOutput.model_validate(data)
-        assert rebuilt.ends_beat_reason == "off_stage_tick"
+        assert rebuilt.event_kind == "directed_at_player"
 
-    def test_unknown_ends_beat_reason_coerced_to_empty(self):
-        out = _router_out(ends_beat=True)
-        data = out.model_dump()
-        data["ends_beat_reason"] = "location-transition"
-        rebuilt = EventRouterOutput.model_validate(data)
-        assert rebuilt.ends_beat_reason == ""
-
-    def test_observation_harvest_coerces_ends_beat_true(self):
+    def test_observation_harvest_is_terminal(self):
         out = _router_out(ends_beat=True, agent_picks=["pip"])
         data = out.model_dump()
-        data["ends_beat_reason"] = "observation_harvest"
-        data["ends_beat"] = False
+        data["event_kind"] = "observation_harvest"
         rebuilt = EventRouterOutput.model_validate(data)
         assert rebuilt.ends_beat is True
 

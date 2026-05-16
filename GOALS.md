@@ -53,8 +53,9 @@ what may and may not leave that component.
 
 The world must move when the players are not looking. Antagonists, factions,
 allies, rivals, institutions, hazards, and clocks should progress off stage.
-Background ticks are not flavor; they are how the engine prevents the world from
-becoming a passive stage around the current player.
+Router-selected private and background turns are not flavor; they are how the
+engine prevents the world from becoming a passive stage around the current
+player.
 
 The target shape is not "random ambient events." It is goal-driven world motion
 that can later collide with player-facing scenes through observable evidence,
@@ -114,7 +115,7 @@ The "DM" should be decomposed into roles with explicit contracts:
 - Character agents decide what NPCs intend from inside their own perspective.
 - The router canonicalizes intentions into observable facts and visibility.
 - The router-owned rules subflow resolves mechanics-heavy contested actions.
-- The tick scheduler advances off-stage actors and clocks.
+- Router-selected frontier turns advance off-stage actors and clocks.
 - The content resolver supplies rules, stat blocks, spells, items, lore, and
   source metadata.
 - The narrator renders player-facing prose from visible facts only.

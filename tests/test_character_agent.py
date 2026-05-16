@@ -14,9 +14,8 @@ from app.engine.context_builder import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
-    AGENT_ON_STAGE_HEADER,
     AGENT_PERCEPTION_HEADER,
-    AGENT_TICK_HEADER,
+    AGENT_TURN_HEADER,
 )
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import (
@@ -869,11 +868,11 @@ class TestExtractParenthetical:
 
 
 class TestUnifiedAgentCacheLineage:
-    """v11 cache-trail invariant: respond + tick share ONE system
+    """v11 cache-trail invariant: agent turn frames share ONE system
     prompt, while rolling histories remain per character.
 
     Pre-v11 the engine had two separate templates (an `agent` and
-    `agent_tick` pair) for on-stage and off-stage calls. Both
+    separate prompt pair) for foreground and background calls. Both
     rendered into the same `character_conversations[id]` history,
     but each had a DIFFERENT system prefix — so every mode switch
     invalidated the Anthropic prompt cache for that character. On a
@@ -881,11 +880,10 @@ class TestUnifiedAgentCacheLineage:
     eats a cache-write per mode flip.
 
     The v11 fix is a single unified prompt with a first-token
-    bitflip in the user message (`## ON-STAGE` / `## TICK`). These
+    turn marker plus a user-tail frame. These
     tests pin that fix:
 
-      - **Same template name**: both modes load `agent`. No
-        `agent_tick` sibling.
+      - **Same template name**: both frames load `agent`.
       - **Identical system prefix**: byte-for-byte equality between
         modes and between characters under the same ruleset. This is
         THE invariant — if it regresses, the cache trail re-splits and
@@ -897,7 +895,7 @@ class TestUnifiedAgentCacheLineage:
     """
 
     @pytest.mark.asyncio
-    async def test_respond_and_tick_share_same_system_prefix(
+    async def test_foreground_and_background_share_same_system_prefix(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -909,21 +907,21 @@ class TestUnifiedAgentCacheLineage:
         respond_system = respond_messages[0]
         assert respond_system["role"] == "system"
 
-        # Reset call captures and run tick on the SAME character +
-        # checkpoint. The tick path must produce a byte-identical
+        # Reset call captures and run a background turn on the SAME character
+        # + checkpoint. The path must produce a byte-identical
         # system message — that's the cache-trail invariant.
         mock_client.complete.reset_mock()
         mock_client.complete.return_value = _llm_response(sample_agent_text)
-        await agent.tick(guard_character, sample_checkpoint)
-        tick_messages = mock_client.complete.call_args.kwargs["messages"]
-        tick_system = tick_messages[0]
-        assert tick_system["role"] == "system"
+        await agent.turn(guard_character, sample_checkpoint, frame="background")
+        background_messages = mock_client.complete.call_args.kwargs["messages"]
+        background_system = background_messages[0]
+        assert background_system["role"] == "system"
 
         # Byte-equality: the system prompts MUST match across modes.
         # Any divergence (a stray newline, a mode-conditional line)
         # invalidates the Anthropic prompt cache and resurrects the
         # cache-trail proliferation bug.
-        assert tick_system["content"] == respond_system["content"]
+        assert background_system["content"] == respond_system["content"]
 
     @pytest.mark.asyncio
     async def test_different_characters_share_same_system_prefix(
@@ -966,7 +964,7 @@ class TestUnifiedAgentCacheLineage:
         assert "Mistress Vale" in other_messages[-1]["content"]
 
     @pytest.mark.asyncio
-    async def test_respond_user_message_starts_with_on_stage_header(
+    async def test_respond_user_message_starts_with_agent_turn_header(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -981,32 +979,31 @@ class TestUnifiedAgentCacheLineage:
         first_line = next(
             ln for ln in user_content.splitlines() if ln.strip()
         )
-        assert first_line == AGENT_ON_STAGE_HEADER
-        # And the tick marker must NOT appear (mutually exclusive).
-        assert AGENT_TICK_HEADER not in user_content
+        assert first_line == AGENT_TURN_HEADER
+        assert "## Turn Frame\nforeground" in user_content
 
     @pytest.mark.asyncio
-    async def test_tick_user_message_starts_with_tick_header(
+    async def test_background_user_message_uses_background_frame(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.tick(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint, frame="background")
         messages = mock_client.complete.call_args.kwargs["messages"]
         user_content = messages[-1]["content"]
         first_line = next(
             ln for ln in user_content.splitlines() if ln.strip()
         )
-        assert first_line == AGENT_TICK_HEADER
-        assert AGENT_ON_STAGE_HEADER not in user_content
+        assert first_line == AGENT_TURN_HEADER
+        assert "## Turn Frame\nbackground" in user_content
 
     @pytest.mark.asyncio
-    async def test_tick_appends_to_same_rolling_conversation_as_respond(
+    async def test_background_turn_appends_to_same_rolling_conversation_as_respond(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
-        # Single rolling history per character — respond and tick
+        # Single rolling history per character — foreground and background
         # both write into `character_conversations[character_id]`.
         # If they ever split (separate history per mode), the
         # agent's interior memory desyncs across modes.
@@ -1017,20 +1014,23 @@ class TestUnifiedAgentCacheLineage:
         mock_client.complete.return_value = _llm_response(
             'He stands by the window. (Watching the gate.)'
         )
-        await agent.tick(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint, frame="background")
 
         # Exactly ONE rolling-history key for this character; both
-        # the respond pair AND the tick pair are appended to it.
+        # the foreground pair AND the background pair are appended to it.
         keys = list(sample_checkpoint.character_conversations.keys())
         assert keys == ["guard_17"]
         convo = sample_checkpoint.character_conversations["guard_17"]
         # 2 user/assistant pairs = 4 messages total.
         assert len(convo) == 4
-        # Sequence: respond user, respond asst, tick user, tick asst.
+        # Sequence: foreground user, foreground asst, background user,
+        # background asst.
         assert convo[0].role == "user"
-        assert AGENT_ON_STAGE_HEADER in convo[0].content
+        assert AGENT_TURN_HEADER in convo[0].content
+        assert "## Turn Frame\nforeground" in convo[0].content
         assert convo[2].role == "user"
-        assert AGENT_TICK_HEADER in convo[2].content
+        assert AGENT_TURN_HEADER in convo[2].content
+        assert "## Turn Frame\nbackground" in convo[2].content
 
 
 class TestPerceptionMode:
@@ -1038,7 +1038,7 @@ class TestPerceptionMode:
 
     Fired by the observation-harvest fork in run_beat (and reachable
     later from /query for "what does X look like?" questions). Three
-    load-bearing properties distinguish perception from respond/tick:
+    load-bearing properties distinguish perception from normal agent turns:
 
       1. The user-message FIRST LINE is `## PERCEPTION`. The agent
          prompt's "Mode Routing" section keys off this exact token to
@@ -1047,7 +1047,7 @@ class TestPerceptionMode:
       2. Perception calls append to the same rolling conversation.
          A character should remember what they established about their
          visual presentation in the scene.
-      3. Cache lineage with respond/tick is preserved: the system
+      3. Cache lineage with normal agent turns is preserved: the system
          prompt is byte-identical across all three modes for the
          same ruleset.
     """
@@ -1093,8 +1093,7 @@ class TestPerceptionMode:
         )
         assert first_line == AGENT_PERCEPTION_HEADER
         # Other mode markers must not also appear (mutually exclusive).
-        assert AGENT_ON_STAGE_HEADER not in user_content
-        assert AGENT_TICK_HEADER not in user_content
+        assert AGENT_TURN_HEADER not in user_content
         assert "Hard prose constraint" in user_content
         assert "with the [quality] of someone/people who" in user_content
 
@@ -1121,7 +1120,7 @@ class TestPerceptionMode:
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
         # The pending_observations queue belongs to the next on-stage
-        # tick / respond. Draining it here would silently swallow
+        # normal agent turn. Draining it here would silently swallow
         # off-scene perceptions the next on-stage turn needs to react
         # to. The perception render also passes an EMPTY pending
         # block so the loadout isn't primed by "react to these
@@ -1133,7 +1132,7 @@ class TestPerceptionMode:
         mock_client.complete.return_value = self._llm_text_only("loadout")
         agent = CharacterAgent(mock_client, prompt_manager)
         await agent.perceive(guard_character, sample_checkpoint)
-        # Inbox preserved for the next on-stage / tick call.
+        # Inbox preserved for the next normal agent turn.
         assert len(guard_character.pending_observations) == 2
         # And the perception's user message did NOT carry the inbox
         # contents (no priming).
@@ -1185,7 +1184,7 @@ class TestPerceptionMode:
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
         # Perception is capped at 3 sentences; the call site uses a
-        # smaller token budget than respond/tick. Pinning the budget
+        # smaller token budget than normal agent turns. Pinning the budget
         # so a future "let's give the agent more room" tweak doesn't
         # silently regress to 2000 tokens per perception (which would
         # bloat the cost of a 3-target harvest by 6x).

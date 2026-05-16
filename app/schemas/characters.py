@@ -68,14 +68,13 @@ class PrivateState(BaseModel):
     # trailing parenthetical on every response carries fresh intent).
     current_objectives: list[str] = Field(default_factory=list)
     secrets: list[str] = Field(default_factory=list)
-    # Flag for "this character is significant enough to tick off-screen."
+    # Flag for "this character is significant enough to act off-screen."
     # Importer sets true for antagonists, rivals, faction leaders — anyone
     # whose goals should keep moving while the player isn't watching.
     intentions_enabled: bool = False
-    # Author-authored deterministic triggers for off-stage tick selection.
-    # These are scheduler metadata, not prompt state: phrases here are
-    # matched against recent canonical surface facts and state-change lines
-    # to decide who should get a scarce off-screen action slot.
+    # Author-authored routing cues for private/background turn selection.
+    # Legacy field name kept for checkpoint continuity; prompts should treat
+    # these as candidate cues, not as an engine-owned scheduler.
     tick_cues: list[str] = Field(default_factory=list)
 
 
@@ -153,7 +152,7 @@ class CharacterRecord(BaseModel):
     # Interior continuity (Commit 3 had `last_intent` / `last_intent_turn`
     # mirror fields here; both removed). The agent's freshest interior
     # is the trailing parenthetical at the end of its most recent
-    # `respond()` or `tick()` output, which is appended verbatim to
+    # committed agent turn, which is appended verbatim to
     # `character_conversations[character_id]`. The agent's own future
     # calls see that parenthetical because it's in the history they
     # replay. Cross-actor consumers (router, narrator, other agents)

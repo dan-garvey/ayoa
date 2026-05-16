@@ -1,17 +1,17 @@
-"""Character agent engine — generates in-character responses.
+"""Character agent engine -- generates in-character responses.
 
 Each character carries a rolling conversation on the checkpoint
 (`checkpoint.character_conversations[character_id]`). Every committed
-response and canonized tick is appended verbatim — including the trailing
+response is appended verbatim -- including the trailing
 parenthetical — so the agent's own future self sees its prior interior.
 Cross-agent / narrator chokepoints strip the parenthetical via
 `_extract_parenthetical` before its public_text is forwarded.
 
-Cache lineage (v11): on-stage and off-stage calls share a SINGLE
-unified system prompt (`agent.txt`). Character identity/current
-state and the mode marker live in the user tail so characters on the
-same model role can share the cached system prefix. Each character
-still keeps its own rolling history.
+Cache lineage (v11): foreground and private/background calls share a
+single unified system prompt (`agent.txt`). Character identity/current
+state and the turn frame live in the user tail so characters on the same
+model role can share the cached system prefix. Each character still
+keeps its own rolling history.
 """
 
 from __future__ import annotations
@@ -34,12 +34,11 @@ from app.engine.context_builder import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
-    AGENT_ON_STAGE_HEADER,
+    AGENT_TURN_HEADER,
     AGENT_PERCEPTION_HEADER,
-    AGENT_TICK_HEADER,
     format_agent_on_stage_body,
     format_agent_perception_body,
-    format_agent_tick_body,
+    format_agent_turn_body,
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
@@ -241,7 +240,7 @@ class CharacterAgent:
     def __init__(self, client: LLMClient, prompt_manager: PromptManager):
         self.client = client
         self.prompt_manager = prompt_manager
-        # Usage from the most recent respond() / tick() call.
+        # Usage from the most recent agent turn/perception call.
         self.last_usage: dict[str, int] = {}
 
     async def respond(
@@ -250,32 +249,27 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
     ) -> CharacterAgentOutput:
-        """On-stage agent beat — character is contextually present for the beat.
-
-        The on-stage body (`format_agent_on_stage_body()`) is empty in
-        v11-r10: the agent reads everything they need this turn through
-        their `pending_observations` inbox (the block rendered above the
-        body). The cascade dispatch path used to also pipe in
-        `observed_facts` and `prior_responses` here, but production
-        always passed `[]` / `None` because perception and cascade fan-out
-        both land on the inbox via `broadcast_event` (which pushes each
-        observer's visible observable_facts onto their inbox when local
-        or explicitly named by a mediated fact), so the parameters were dead
-        weight. They've been removed from the signature.
-
-        See `_draft_beat` for the shared plumbing.
-        """
-        draft = await self._draft_beat(
+        """Compatibility wrapper for a foreground agent turn."""
+        return await self.turn(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
-            mode_header=AGENT_ON_STAGE_HEADER,
-            mode_block=_join_mode_blocks(
-                format_agent_on_stage_body(),
-                self._dnd_combat_mode_block(character, checkpoint),
-            ),
-            log_label="respond",
-            log_extra="on-stage",
+            frame="foreground",
+        )
+
+    async def turn(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str = "",
+        frame: str = "foreground",
+    ) -> CharacterAgentOutput:
+        """Committed agent turn in a router-selected frame."""
+        draft = await self.draft_turn(
+            character=character,
+            checkpoint=checkpoint,
+            acting_character_id=acting_character_id,
+            frame=frame,
         )
         self._commit_draft(character, checkpoint, draft)
         return draft.output
@@ -344,7 +338,7 @@ class CharacterAgent:
         (`ends_beat_reason="observation_harvest"`), and reachable
         later from `/query` for "what does X look like?" questions.
 
-        Distinct from `respond` and `tick` in two load-bearing ways:
+        Distinct from committed agent turns in two load-bearing ways:
 
         1. **No parenthetical parse.** Perception mode in `agent.txt`
            tells the model not to emit a trailing parenthetical;
@@ -360,7 +354,7 @@ class CharacterAgent:
         Perception DOES append to the character's rolling conversation.
         A character should remember how they chose to present themself in
         the current scene, especially after repeated look/query harvests.
-        Unlike respond/tick, this still does not drain pending_observations
+        Unlike normal agent turns, this still does not drain pending_observations
         and does not produce private intent.
 
         `acting_character_id` is currently vestigial — the agent
@@ -376,7 +370,7 @@ class CharacterAgent:
         # Deliberately DO NOT call `clear_character_inbox`: perception is
         # a side query, not an on-stage beat. The pending_observations
         # queue holds events the character hasn't yet reacted to in
-        # fiction; the next `respond`/`tick` is what consumes them.
+        # fiction; the next normal agent turn is what consumes them.
         # Draining here would silently swallow off-location or mediated
         # perceptions the next on-stage turn needs to acknowledge. We
         # also pass an EMPTY
@@ -441,23 +435,13 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
     ) -> CharacterAgentOutput:
-        """Off-stage tick — character is not contextually present with the player.
-
-        They get one short beat in their own location to advance an
-        objective. Same unified system prompt as `respond`; the
-        `## TICK` first-token header in the user message flips the
-        agent into Tick Mode. Appended to the same rolling
-        conversation as on-stage responses so continuity holds across
-        ticks and responses (one history per character, one cache
-        lineage per character).
-        """
-        draft = await self.draft_tick(
+        """Compatibility wrapper for a committed background agent turn."""
+        return await self.turn(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
+            frame="background",
         )
-        self._commit_draft(character, checkpoint, draft)
-        return draft.output
 
     async def draft_tick(
         self,
@@ -465,25 +449,52 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
     ) -> CharacterAgentTurnDraft:
-        """Prepare an off-stage tick without mutating agent memory.
+        """Compatibility wrapper for an uncommitted background agent turn."""
+        return await self.draft_turn(
+            character=character,
+            checkpoint=checkpoint,
+            acting_character_id=acting_character_id,
+            frame="background",
+        )
 
-        The unified tick router may canonize only a subset of tick
-        proposals. Until that happens, the proposal must not enter the
-        agent's rolling history or clear its pending observations.
-        """
+    async def draft_turn(
+        self,
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+        acting_character_id: str = "",
+        frame: str = "foreground",
+    ) -> CharacterAgentTurnDraft:
+        """Prepare an agent turn without mutating agent memory."""
+        frame = (frame or "foreground").strip().lower()
+        if frame not in {"foreground", "private", "background"}:
+            frame = "foreground"
         location_context = (
             f"Location: {character.location}"
-            if character.location else "Off-screen / unspecified location."
+            if character.location else "Location: Off-screen / unspecified location."
+        )
+        foreground_block = (
+            _join_mode_blocks(
+                format_agent_on_stage_body(),
+                self._dnd_combat_mode_block(character, checkpoint),
+            )
+            if frame == "foreground"
+            else ""
         )
 
         return await self._draft_beat(
             character=character,
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
-            mode_header=AGENT_TICK_HEADER,
-            mode_block=format_agent_tick_body(location_context=location_context),
-            log_label="tick",
-            log_extra="off-stage",
+            mode_header=AGENT_TURN_HEADER,
+            mode_block=_join_mode_blocks(
+                format_agent_turn_body(
+                    frame=frame,
+                    location_context=location_context,
+                ),
+                foreground_block,
+            ),
+            log_label="turn",
+            log_extra=frame,
         )
 
     def _commit_draft(
@@ -518,7 +529,7 @@ class CharacterAgent:
         log_label: str,
         log_extra: str,
     ) -> CharacterAgentTurnDraft:
-        """Shared agent-beat plumbing for both `respond` and `tick`.
+        """Shared agent-beat plumbing for all committed/drafted turns.
 
         Renders the unified `agent` template, calls the LLM, parses
         the trailing parenthetical, and prepares the user/assistant
@@ -527,11 +538,10 @@ class CharacterAgent:
         compaction, telemetry) lands once.
 
         The system prefix is byte-identical between modes and across
-        characters for the same ruleset. Character-derived variables,
-        `mode_header` (`## ON-STAGE` or `## TICK`), and `mode_block`
-        all live in the user message. This shared prefix is what lets
-        one cache lineage cover multiple characters on the same model
-        role.
+        characters for the same ruleset. Character-derived variables, the
+        mode header (`## AGENT-TURN`), and the turn frame live in the user
+        message. This shared prefix is what lets one cache lineage cover
+        multiple characters on the same model role.
 
         `acting_character_id` is currently vestigial — same reasoning
         as `perceive` above. Kept on the signature so callers don't

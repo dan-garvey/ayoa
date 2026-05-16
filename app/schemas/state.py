@@ -475,36 +475,6 @@ class SessionSettings(BaseModel):
     fields meant for live tuning. Add new toggles here and they become
     automatically available in /settings list / set.
     """
-    # Concurrency cap for the off-stage tick pass. Ticks are independent
-    # so the only cost of raising this is API rate usage; lowering
-    # trades latency for safety on small quotas. Hard-capped engine-side
-    # by `app.engine.orchestrator.TICK_CONCURRENCY_HARD_CAP` regardless
-    # of what's configured here.
-    tick_concurrency: int = 4
-    # Maximum number of off-stage NPCs selected for one tick fan-in. The
-    # scheduler may have many eligible characters, but only the highest
-    # pressure candidates should spend model calls on a given fire.
-    tick_batch_size: int = 4
-    # Commit 5: hard ceiling on consecutive turns with NO tick fire.
-    # Even if the player camps in one conversation, the world should
-    # still advance off-screen after this many turns. Acts as the
-    # "world keeps moving" floor
-    # so the antagonist's plot doesn't go to sleep just because the
-    # player stays in the courtyard. 15 is the v11 default — long
-    # enough that idle turns don't burn the budget, short enough that
-    # camping doesn't make the world feel frozen.
-    tick_stagnation_max: int = 15
-    # Master kill switch for the off-stage tick scheduler. Default is off
-    # while the bounded scheduler is still being playtested. When False,
-    # `Orchestrator._run_ticks` short-circuits at the top: no eligibility
-    # filtering, no agent fan-out, no router fan-in, no canonical-event
-    # append. `turns_since_last_tick` is NOT touched in disabled mode
-    # either, so flipping this back on later
-    # resumes the trigger model from wherever it left off rather than
-    # firing a backlog. Useful for token-budget runs, isolating on-stage
-    # behavior in playtests, and diagnosing whether a behavior originates
-    # from on-stage routing or from background world activity.
-    ticks_enabled: bool = False
     # v11: hard cap on how many canonical events the router may chain
     # inside a single beat before the orchestrator forces render + slot
     # release. Prevents runaway event growth while allowing large
@@ -560,12 +530,6 @@ class SessionState(BaseModel):
     # Durable relative story clock. Per-character clocks live on
     # CharacterRecord; this is the maximum known checkpoint time.
     leading_at_s: int = 0
-    # Off-stage tick scheduler state.
-    #
-    # last-tick counter that the scheduler resets only on a real fire.
-    # Trigger model lives in `Orchestrator._run_ticks`; `tick_stagnation_max`
-    # forces a fire after N idle turns.
-    turns_since_last_tick: int = 0
     # Commit-3 (router-trim): which `world_state.facts` entries have
     # already been surfaced to the router in some prior turn's user
     # message. The per-turn user message now carries

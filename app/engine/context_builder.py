@@ -317,12 +317,12 @@ def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
     NOTE: `CharacterRecord.is_playable` is INTENTIONALLY excluded from
     this set. Under the playable-2 semantics an `is_playable=True`
     character runs as an agent NPC until a human binds them — they
-    DO get cascaded to via the router, DO get ticked off-stage, and
+    DO get cascaded to via the router, DO get picked for background turns, and
     DO show up in the agent fan-out. Only an explicit binding
     transfers them to "human-controlled" status. The pristine-roster
     fallback the function used to apply (treating every is_player slot
-    as already-claimed) caused the playtest's "ticks blocked on every
-    contestant before anyone joined" bug.
+    as already-claimed) caused the playtest's "NPC routing blocked on
+    every contestant before anyone joined" bug.
     """
     ids: set[str] = set(checkpoint.session.character_bindings or {})
     if checkpoint.session.player_character_id:

@@ -143,7 +143,7 @@ class TestPromptManagerWithRealTemplates:
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
-            tick_fan_in_block="",
+            frontier_results_block="",
             intention_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
@@ -250,7 +250,7 @@ class TestPromptManagerWithRealTemplates:
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
-            tick_fan_in_block="",
+            frontier_results_block="",
             intention_block="",
         )
         assert len(messages) == 2
@@ -294,7 +294,7 @@ class TestPromptManagerWithRealTemplates:
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
-            tick_fan_in_block="",
+            frontier_results_block="",
             intention_block="I wait.",
         )
 
@@ -399,7 +399,7 @@ class TestPromptManagerWithRealTemplates:
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
-            tick_fan_in_block="",
+            frontier_results_block="",
             intention_block="",
         )
         assert len(messages) == 4

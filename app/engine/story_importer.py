@@ -192,8 +192,8 @@ MAX_EXTRACTION_TOKENS = 64_000
 # `descriptions.private`. Public descriptions are player-safe identity
 # glosses for narrator context; private descriptions retain authorial /
 # spoiler-bearing identity context without exposing it to narrator prompts.
-# v10 → v11: character extraction now emits `private_state.tick_cues`
-# for authored off-stage tick selection triggers.
+# v10 -> v11: character extraction now emits `private_state.tick_cues`
+# for authored private/background routing cues.
 IMPORTER_VERSION = "v11"
 
 
@@ -461,7 +461,8 @@ depth as the source describes them.
     `current_objectives` list is empty, `intentions_enabled` should
     almost certainly be false.
   - `tick_cues`: short trigger phrases that should make this character
-    more likely to receive one of the scarce off-stage tick slots.
+    more likely to receive a private/background turn when the story's
+    attention moves near their agenda.
     Use concrete story signals: named incidents, locations, factions,
     mysteries, rivals, thresholds, or player behaviors. Examples:
     "failed candle", "Rite anomaly", "asks about the Elf War",

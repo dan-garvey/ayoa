@@ -1,14 +1,14 @@
 from app.engine.turn_loop_contracts import (
     SWEPT_RESPONDERS_SUBHEADER,
     ROUTER_CONTINUATION_HEADER,
-    TICK_FAN_IN_HEADER,
+    ROUTER_FRONTIER_RESULTS_HEADER,
+    format_agent_turn_body,
     format_agent_on_stage_body,
-    format_agent_tick_body,
     format_cat_ii_resolution_block,
+    format_frontier_results_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
     format_router_continuation_block,
-    format_tick_fan_in_block,
 )
 
 
@@ -62,52 +62,31 @@ class TestRouterContinuationBlock:
         assert "Router left the beat open." in block
 
 
-class TestTickFanInBlock:
-    """Commit 6 fan-in helper. The block must render the
-    TICK_FAN_IN_HEADER (so the router prompt's mode-routing line can
-    detect tick mode), name each ticker with their character_id and
-    location, and faithfully forward the public_text the caller
-    handed over. Crucially, it must NEVER carry the agent's
-    parenthetical (intent) — that asymmetry is the whole reason we
-    have separate per-actor LLM calls; the caller is responsible for
-    stripping intent before this helper runs.
+class TestFrontierResultsBlock:
+    """Frontier helper. The block must render the frontier header, name
+    each completed target with character id/frame/result kind, and forward
+    only public_text. Agent parentheticals stay in the agent's own history.
     """
 
     def test_empty_list_returns_empty_string(self):
-        # Empty input → "" so the dispatcher can short-circuit the
-        # router call instead of firing a payload-less LLM hit.
-        assert format_tick_fan_in_block([]) == ""
+        assert format_frontier_results_block([]) == ""
 
     def test_renders_header_and_per_entry_lines(self):
-        block = format_tick_fan_in_block([
-            ("Regent", "regent", "great_hall", "He paces the long table."),
-            ("Scribe", "scribe", "library", "She copies a passage."),
+        block = format_frontier_results_block([
+            ("agent_turn", "regent", "background", "He paces the long table."),
+            ("agent_turn", "scribe", "foreground", "She copies a passage."),
         ])
-        assert TICK_FAN_IN_HEADER in block
-        assert "2 off-stage NPC(s)" in block
-        # Per-entry: id, location, body all present; name is not repeated.
-        assert "**Regent**" not in block
+        assert ROUTER_FRONTIER_RESULTS_HEADER in block
+        assert "2 selected frontier target(s)" in block
         assert "regent" in block
-        assert "great_hall" in block
+        assert "background" in block
         assert "He paces the long table." in block
-        assert "**Scribe**" not in block
-        assert "library" in block
+        assert "foreground" in block
         assert "She copies a passage." in block
 
-    def test_blank_location_falls_back_to_unset(self):
-        block = format_tick_fan_in_block([
-            ("Wraith", "wraith", "", "It drifts."),
-        ])
-        assert "(unset)" in block
-        assert "It drifts." in block
-
     def test_blank_public_text_falls_back_to_silent_marker(self):
-        # Some agents emit only a parenthetical (silent beat). The
-        # caller has already stripped intent, so public_text is "".
-        # The block must surface a placeholder so the router still
-        # sees the character was active without inventing prose.
-        block = format_tick_fan_in_block([
-            ("Mute", "mute", "stables", ""),
+        block = format_frontier_results_block([
+            ("agent_turn", "mute", "background", ""),
         ])
         assert "(no public action)" in block
 
@@ -127,26 +106,19 @@ class TestAgentModeContract:
         body = format_agent_on_stage_body()
         assert body == ""
 
-    def test_tick_body_renders_location_and_standing_instruction(self):
-        body = format_agent_tick_body(
+    def test_background_turn_body_renders_location_and_instruction(self):
+        body = format_agent_turn_body(
+            frame="background",
             location_context="Location: Library (id: library)\nDusty stacks.",
         )
+        assert "background" in body
         assert "## Where You Are" in body
-        assert "## What You Do This Tick" in body
+        assert "## What You Do" in body
         assert "Library" in body
-        # Standing instruction text — the agent's tick rules expect
-        # this nudge to be present.
-        assert "off-stage" in body
         assert "single tight beat" in body
 
-    def test_tick_body_does_not_carry_on_stage_markers(self):
-        # Tick mode keeps the only remaining headered block
-        # (`## Where You Are` for location framing); on-stage's
-        # historical headers (`## Scene`, `## What You Observe This
-        # Turn`, `## Other Characters' Responses This Turn`) are
-        # gone everywhere now and must not resurface in tick body
-        # either.
-        body = format_agent_tick_body(location_context="x")
+    def test_agent_turn_body_does_not_carry_removed_context_blocks(self):
+        body = format_agent_turn_body(frame="background", location_context="x")
         assert "## Scene" not in body
         assert "## What You Observe This Turn" not in body
         assert "## Other Characters' Responses This Turn" not in body

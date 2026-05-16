@@ -40,16 +40,17 @@ from app.engine.dnd_cat_ii import (
 from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
+    format_frontier_results_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
     format_router_continuation_block,
-    format_tick_fan_in_block,
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.router_frontier import RouterFrontierResult
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -162,7 +163,7 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
 
     NOTE: this block does NOT carry per-NPC interior beyond
     importer-seeded goals/objectives. An agent's freshest interior
-    (the trailing parenthetical from its last `respond()` / `tick()`)
+    (the trailing parenthetical from its last committed turn)
     lives in that agent's own rolling history and is deliberately
     NOT mirrored to the router — the router decides who acts based on
     public signals (cascade intentions, prior canonical events) +
@@ -559,7 +560,7 @@ def _normalize_router_result_for_history(
     actor_id: str,
     result: EventRouterOutput,
     cat_ii_event: OpenCatIIEvent | None = None,
-    tick_mode: bool = False,
+    frontier_mode: bool = False,
 ) -> None:
     if actor_id:
         actor = next(
@@ -578,7 +579,7 @@ def _normalize_router_result_for_history(
         )
         if opening is not None:
             result.effective_at_s = opening.effective_at_s
-    if tick_mode:
+    if frontier_mode:
         result.effective_at_s = max(
             result.effective_at_s,
             ckpt.session.leading_at_s,
@@ -715,7 +716,7 @@ class LLMDispatcher:
                 ),
                 "intention_block": intention_block,
                 "cat_ii_resolution_block": cat_ii_resolution_block,
-                "tick_fan_in_block": "",
+                "frontier_results_block": "",
             }
 
             # Use render_conversation so the rolling router ledger rides
@@ -840,7 +841,7 @@ class LLMDispatcher:
                 ),
                 "intention_block": continuation_block,
                 "cat_ii_resolution_block": "",
-                "tick_fan_in_block": "",
+                "frontier_results_block": "",
             }
 
             messages = self.prompt_mgr.render_conversation(
@@ -882,44 +883,24 @@ class LLMDispatcher:
         return result
 
     # ------------------------------------------------------------------
-    # route_tick_intentions  (Commit 6: off-stage tick fan-in)
+    # route_frontier_results
     # ------------------------------------------------------------------
 
-    async def route_tick_intentions(
+    async def route_frontier_results(
         self,
         *,
         ckpt: CheckpointFile,
-        tick_outputs: list[tuple[str, str, str, str]],
+        frontier_results: list[RouterFrontierResult],
+        prior_result: EventRouterOutput,
         acting_character_id: str = "",
     ) -> EventRouterOutput | None:
-        """Bundle off-stage agent prose into a single unified-router call.
+        """Bundle completed frontier target prose into one router call.
 
-        Each entry in `tick_outputs` is `(name, character_id, location,
-        public_text)` — the parenthetical (private intent) MUST already
-        have been stripped upstream by the caller (the orchestrator's
-        `_run_ticks` pulls `output.public_text`, never `output.intent`).
-        That stripping is the load-bearing information-asymmetry guard:
-        the router never sees an agent's interior.
-
-        On empty `tick_outputs`, returns None without any LLM call. On
-        any non-empty list, makes ONE router call in tick mode (signaled
-        by the `## Off-Stage Tick` user-message header) and returns the
-        EventRouterOutput. Caller is responsible for applying the
-        canonical event to ckpt; this
-        method only handles the LLM call and conversation-history append.
-
-        `acting_character_id` is the player who acted on the on-stage
-        beat preceding this tick; used to resolve display name/location
-        framing for the shared router context. The tick itself is not
-        attributed to that player — it just has to come from somewhere
-        for the existing context-builder helpers (which expect an
-        actor frame) to render cleanly.
-
-        Snapshot/restore of context-trim session fields mirrors
-        `route_intention` so a failed tick router call doesn't silently
-        drain queued state-change / world-fact entries.
+        Agent parentheticals are already stripped by the agent adapter. The
+        router receives only public result text and chooses the next frontier
+        group through its normal output fields.
         """
-        if not tick_outputs:
+        if not frontier_results:
             return None
 
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
@@ -929,7 +910,15 @@ class LLMDispatcher:
         try:
             ctx = _build_router_context(ckpt, acting_character_id)
 
-            tick_block = format_tick_fan_in_block(tick_outputs)
+            frontier_block = format_frontier_results_block([
+                (
+                    item.result_kind,
+                    item.character_id,
+                    item.frame,
+                    item.public_text,
+                )
+                for item in frontier_results
+            ])
 
             template_vars = {
                 **ctx,
@@ -937,12 +926,9 @@ class LLMDispatcher:
                     self.prompt_mgr,
                     dnd_fresh=False,
                 ),
-                # Tick mode owns ONE of the three input-block slots; the
-                # other two stay empty. Same exclusivity contract as
-                # intention vs cat_ii_resolution on the on-stage path.
                 "intention_block": "",
                 "cat_ii_resolution_block": "",
-                "tick_fan_in_block": tick_block,
+                "frontier_results_block": frontier_block,
             }
 
             messages = self.prompt_mgr.render_conversation(
@@ -952,9 +938,9 @@ class LLMDispatcher:
             )
 
             logger.info(
-                "LLMDispatcher.route_tick_intentions: %d off-stage "
-                "agents bundled into one router call",
-                len(tick_outputs),
+                "LLMDispatcher.route_frontier_results: %d frontier "
+                "result(s) bundled into one router call",
+                len(frontier_results),
             )
 
             response = await self.client.complete(
@@ -977,13 +963,17 @@ class LLMDispatcher:
             ckpt,
             actor_id=actor_id,
             result=result,
-            tick_mode=True,
+            frontier_mode=True,
         )
         _append_router_history_record(
             ckpt.session_conversation,
             acting_character_id=actor_id,
             result=result,
-            mode="tick",
+            mode="frontier",
+            user_prompt=(
+                f"frontier_after={prior_result.event_id} "
+                f"results={len(frontier_results)}"
+            ),
         )
         return result
 
@@ -996,6 +986,7 @@ class LLMDispatcher:
         *,
         ckpt: CheckpointFile,
         character_id: str,
+        frame: str = "foreground",
     ) -> str:
         """Invoke the character agent and return its prose for the router.
 
@@ -1028,10 +1019,11 @@ class LLMDispatcher:
             )
             return ""
 
-        output = await self._agent.respond(
+        output = await self._agent.turn(
             character=character,
             checkpoint=ckpt,
             acting_character_id=character_id,
+            frame=frame,
         )
         public = output.public_text.strip()
         if public:
@@ -1078,7 +1070,7 @@ class LLMDispatcher:
         WARN so test playthroughs still surface the failure.
 
         Cache lineage: every `perceive` call shares the SAME system
-        prompt as `respond` / `tick` under the same ruleset (single
+        prompt as normal agent turns under the same ruleset (single
         unified `agent` template). Character identity lives in the
         per-call user message, so parallel fan-out compounds well with
         this — a 3-character harvest bills three Haiku calls in roughly

@@ -10,7 +10,10 @@ import pytest
 from app.engine import narrator as narrator_module
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
-from app.engine.turn_loop_contracts import ROUTER_CONTINUATION_HEADER
+from app.engine.turn_loop_contracts import (
+    ROUTER_CONTINUATION_HEADER,
+    ROUTER_FRONTIER_RESULTS_HEADER,
+)
 from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
@@ -23,6 +26,7 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.router_frontier import RouterFrontierResult
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
     CommitmentRevisionPrompt,
@@ -640,50 +644,64 @@ class TestRouteIntention:
         assert ckpt.session_conversation == []
 
 
-class TestRouteTickIntentions:
-    def test_empty_tick_outputs_returns_none_without_llm_call(
+class TestRouteFrontierResults:
+    def test_empty_frontier_results_returns_none_without_llm_call(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        result = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_tick_intentions(
+        result = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
             ckpt=ckpt,
-            tick_outputs=[],
+            frontier_results=[],
+            prior_result=_router_output(),
         ))
         assert result is None
         mock_client.complete.assert_not_called()
         assert ckpt.session_conversation == []
 
-    def test_bundles_per_ticker_prose_in_user_message(
+    def test_bundles_frontier_results_in_user_message(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_tick_intentions(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
             ckpt=ckpt,
-            tick_outputs=[
-                ("Pip", "pip", "gatehouse", "He paces the threshold."),
-                ("Wraith", "wraith_42", "tower", "It descends the stair."),
+            frontier_results=[
+                RouterFrontierResult(
+                    result_kind="agent_turn",
+                    character_id="pip",
+                    frame="foreground",
+                    public_text="He paces the threshold.",
+                    source_event_id="evt_prior",
+                ),
+                RouterFrontierResult(
+                    result_kind="agent_turn",
+                    character_id="wraith_42",
+                    frame="background",
+                    public_text="It descends the stair.",
+                    source_event_id="evt_prior",
+                ),
             ],
+            prior_result=_router_output(),
             acting_character_id="alice",
         ))
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        assert "## Off-Stage Tick" in user_content
+        assert ROUTER_FRONTIER_RESULTS_HEADER in user_content
         assert "pip" in user_content
         assert "Pip" not in user_content
         assert "He paces the threshold" in user_content
-        assert "gatehouse" in user_content
+        assert "foreground" in user_content
         assert "wraith_42" in user_content
         assert "Wraith" not in user_content
         assert "It descends the stair" in user_content
-        assert "tower" in user_content
+        assert "background" in user_content
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
 
-    def test_tick_router_failure_restores_queues(
+    def test_frontier_router_failure_restores_queues(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
@@ -691,12 +709,21 @@ class TestRouteTickIntentions:
         ckpt.world_state.facts = ["The keep predates the road."]
         before_state_changes = list(ckpt.session.pending_router_state_changes)
         before_surfaced = list(ckpt.session.surfaced_world_facts)
-        mock_client.complete.side_effect = RuntimeError("tick API hiccup")
+        mock_client.complete.side_effect = RuntimeError("frontier API hiccup")
 
         with pytest.raises(RuntimeError):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_tick_intentions(
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
                 ckpt=ckpt,
-                tick_outputs=[("Pip", "pip", "gatehouse", "He paces.")],
+                frontier_results=[
+                    RouterFrontierResult(
+                        result_kind="agent_turn",
+                        character_id="pip",
+                        frame="foreground",
+                        public_text="He paces.",
+                        source_event_id="evt_prior",
+                    )
+                ],
+                prior_result=_router_output(),
                 acting_character_id="alice",
             ))
 
@@ -709,8 +736,8 @@ class TestAgentIntend:
     def test_returns_public_text_only(self, prompt_mgr, mock_client, monkeypatch):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        async def _fake_respond(self, *, character, checkpoint,
-                                acting_character_id=""):
+        async def _fake_turn(self, *, character, checkpoint,
+                             acting_character_id="", frame="foreground"):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text='He plants himself in the doorway. "Hold there."',
@@ -718,8 +745,8 @@ class TestAgentIntend:
             )
 
         monkeypatch.setattr(
-            "app.engine.character_agent.CharacterAgent.respond",
-            _fake_respond,
+            "app.engine.character_agent.CharacterAgent.turn",
+            _fake_turn,
         )
 
         out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
@@ -734,8 +761,8 @@ class TestAgentIntend:
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        async def _silent_respond(self, *, character, checkpoint,
-                                  acting_character_id=""):
+        async def _silent_turn(self, *, character, checkpoint,
+                               acting_character_id="", frame="foreground"):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",
@@ -743,8 +770,8 @@ class TestAgentIntend:
             )
 
         monkeypatch.setattr(
-            "app.engine.character_agent.CharacterAgent.respond",
-            _silent_respond,
+            "app.engine.character_agent.CharacterAgent.turn",
+            _silent_turn,
         )
 
         out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(

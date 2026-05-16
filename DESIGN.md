@@ -61,11 +61,14 @@ been collapsed. The current loop is:
 2. The event router classifies and canonicalizes the intention.
 3. The turn loop broadcasts the canonical event to human render buffers
    and NPC observation inboxes.
-4. NPC agents may respond, one routed intention at a time, until the
-   router ends the beat or the engine hits the event cap.
+4. The router-selected frontier group completes: foreground NPCs,
+   private/background NPC turns, and player-render targets selected by
+   the router are awaited together, then submitted back to the router.
+   This loops until `event_kind` says to continue no further or the
+   engine hits a hard cap.
 5. The narrator renders each observing human's POV from visible
    `observable_facts` only.
-6. Spawns, dormancy, culls, off-stage ticks, transcript updates, and
+6. Spawns, dormancy, culls, transcript updates, and
    checkpoint saving are applied around the beat.
 
 The system is intentionally prompt-heavy. Prompt files under
@@ -159,8 +162,8 @@ role. It decides:
 * spawns, dormancy, and culls
 
 The router also handles router-shaped special entries: `(begin)`, `(arrive)`,
-`(query: ...)`, continuation rescue, Cat II resolution blocks, and off-stage
-tick fan-in. These are different user-message framings over the same
+`(query: ...)`, continuation rescue, Cat II resolution blocks, and frontier
+result groups. These are different user-message framings over the same
 `EventRouterOutput` schema, not separate adjudication engines.
 
 ### 4.5 Agents Author Intentions, Not State
@@ -173,8 +176,8 @@ boundary.
 
 Agents do not write canonical events, mutate roster state, move characters,
 or send hidden directives. If an NPC's private plan should affect the world, it
-must surface through the agent's public action, an off-stage tick, or a later
-observable fact the router canonicalizes.
+must surface through the agent's public action, a router-selected background
+turn, or a later observable fact the router canonicalizes.
 
 This asymmetry is structural, not stylistic. Collapsing it back into a
 shared schema field — a `last_intent` mirror on `CharacterRecord`, an
@@ -259,17 +262,16 @@ narrative-engine happy path:
 5. calls `run_beat()`
 6. applies character lifecycle changes and spawns
 7. appends one transcript entry for the beat
-8. runs eligible off-stage ticks
-9. increments the turn index and saves
-10. returns a `TurnResponse`
+8. increments the turn index and saves
+9. returns a `TurnResponse`
 
 When the D&D adapter is active (`ruleset_id == "dnd5e_basic"`), several
 combat-aware branches splice into this flow: a `(defer)` from a
 combatant with an open reaction window resolves as a reaction
 acknowledgement; `_handle_combat_after_beat` advances initiative state
-after the beat closes; off-stage ticks are suppressed while
-`reaction_prompts` is non-empty so combatants must answer their
-reaction window first; and `_run_automated_combat_turns_locked` drives
+after the beat closes; router-selected frontier turns exclude combatants with
+pending reaction prompts so they must answer their reaction window first; and
+`_run_automated_combat_turns_locked` drives
 NPC combatant turns inline before the player's response returns. The
 adapter branches are no-ops outside `dnd5e_basic`. Adapter detail is
 collected in §15.
@@ -305,9 +307,9 @@ Important state:
 * `route_intention()` calls the `event_router` prompt
 * `route_continuation()` asks the router to repair an open beat with no
   dispatchable NPC pick
-* `route_tick_intentions()` bundles off-stage tick outputs into one
-  router call
-* `agent_intend()` calls `CharacterAgent.respond()`
+* `route_frontier_results()` bundles completed frontier target outputs into
+  one router call
+* `agent_intend()` calls `CharacterAgent.turn()`
 * `harvest_perceptions()` calls `CharacterAgent.perceive()` in parallel
 * `narrator_compose()` calls `compose_pov_render()`
 
@@ -322,13 +324,14 @@ so a failed router completion does not silently drain `world_facts_delta` or
 
 The event router prompt and `EventRouterOutput` schema replace both the
 old narrator adjudication phase and the old discriminator role. The
-router emits one structured object per routed intention or tick fan-in.
+router emits one structured object per routed intention or frontier result
+group.
 
 Current router call shapes:
 
 * fresh human or NPC intention (`## Intention`)
 * Cat II final adjudication (`## Cat II Resolution`)
-* off-stage tick fan-in (`## Off-Stage Tick`)
+* frontier result fan-in (`## Frontier Results`)
 * continuation rescue (`## Continuation Required`)
 * OOC directives such as `(begin)`, `(arrive)`, `(defer)`, and
   `(query: ...)`
@@ -339,8 +342,8 @@ The top-level object carries:
 * `decision_rationale`
 * `canonical_event`
 * Cat I / Cat II fields
+* `event_kind`
 * `agent_responder_picks`
-* `ends_beat` and `ends_beat_reason`
 * `observers`
 * `spawn`, `dormant`, `cull`
 
@@ -359,12 +362,11 @@ Each character has one rolling conversation in
 `checkpoint.character_conversations[character_id]`. The same prompt is
 used for:
 
-* on-stage response mode
-* off-stage tick mode
+* agent-turn mode, framed as foreground, private, or background
 * perception/loadout mode
 
-On-stage and tick outputs are free prose followed by a trailing
-parenthetical. Those two modes append the raw exchange, including the
+Agent-turn outputs are free prose followed by a trailing parenthetical.
+Those exchanges append the raw output, including the
 parenthetical, to the character's own rolling history. The engine parses the
 assistant output into:
 
@@ -442,8 +444,8 @@ partials, strips HTML comments, splits system/user sections on
 `<<<USER>>>`, and renders rolling conversations.
 
 `turn_loop_contracts.py` owns exact prompt-code markers such as
-`## Cat II Resolution`, `## Off-Stage Tick`, `## Continuation Required`,
-`## ON-STAGE`, `## TICK`, `## PERCEPTION`, and the partial-render marker.
+`## Cat II Resolution`, `## Frontier Results`, `## Continuation Required`,
+`## AGENT-TURN`, `## PERCEPTION`, and the partial-render marker.
 When code branches on a prompt mode, the marker should live there rather than
 as an ad hoc string in the prompt or caller.
 
@@ -506,10 +508,11 @@ speech act itself happens.
 
 The turn loop broadcasts the event, then either:
 
-* ends and renders, if `ends_beat=true`
-* performs observation harvest, if `ends_beat_reason=observation_harvest`
-* performs private query harvest, if `ends_beat_reason=query_response`
-* dispatches the first valid NPC pick and routes that agent's intention
+* ends and renders, if `event_kind` is terminal
+* performs observation harvest, if `event_kind=observation_harvest`
+* performs private query harvest, if `event_kind=query_response`
+* dispatches every valid NPC pick in the next frontier group and routes the
+  grouped public results back through the router
 * asks the router for one continuation rescue if the beat remains open but
   no dispatchable NPC pick survives filtering
 * forces render if `max_events_per_beat` is reached
@@ -587,39 +590,24 @@ After `run_beat()` returns, the orchestrator applies each closed event's:
 Movement is expressed in `observable_facts`. There is no separate router
 movement side-effect.
 
-### 6.7 Off-Stage Ticks
+### 6.7 Router-Selected Frontier Turns
 
-After the on-stage beat, `_run_ticks()` may fire off-stage NPC ticks
-based on:
+The router owns the decision about who gets the next turn. When it emits
+`event_kind="beat_continues"`, `agent_responder_picks` names the NPCs that
+should complete the next frontier group. The engine waits for every selected
+target, strips private parentheticals, submits the public results in one
+`## Frontier Results` call, and loops.
 
-* `ticks_enabled`
-* authored `private_state.tick_cues` matching recent canonical facts or
-  queued state changes
-* stagnation threshold
-* tick batch size and concurrency caps
-* NPC status, play binding, pin state, prior action this turn, and
-  whether the NPC is eligible to act
-
-`ticks_enabled` currently defaults to `false` while the bounded scheduler
-is still being playtested. Operators can turn it back on per session with
-`/settings set ticks_enabled on`.
-
-Successful tick outputs are bundled into one router fan-in call. The
-router emits an off-stage canonical event and any implied mutations. No
-narrator render happens for tick-only events.
-
-The scheduler scores eligible NPCs by model tier, authored cues, pending
-observations, recent event mentions, objective overlap, and how long it has
-been since they last acted. It selects a bounded batch rather than the whole
-roster, limits premium-tier ticks when lower tiers are available, and awaits
-the first selected character per model role before parallelizing the rest so
-provider cache prefixes have a chance to warm. Tick fan-out still runs
-synchronously on the `/act` critical path.
+The same surface covers foreground responses, private branches, and background
+turns. The engine determines the agent frame from visibility and player
+bindings, then enforces hard safety filters: no human-bound characters, no
+unknown or inactive characters, no pinned Cat II responders, no active
+combatants, and no actors blocked by pending D&D reaction or roll state.
 
 Dormancy is explicit story state, not an inference from "has never appeared
 on-stage." An unseen antagonist with `status=active` and
-`intentions_enabled=true` is tick-eligible; a dormant character does not tick
-until a router/spawn/authored state change activates them.
+`intentions_enabled=true` may be picked by the router; a dormant character
+does not act until a router/spawn/authored state change activates them.
 
 ### 6.8 Begin, Arrive, Defer, And Query
 
@@ -760,7 +748,8 @@ imported sheet) when present. See §15 for the adapter surface.
 * a spawn's own location seed when the spawn path needs the new NPC's first
   dispatch to know where they are
 
-The inbox is drained into the agent's next on-stage or tick prompt.
+The inbox is drained into the agent's next foreground/private/background
+agent-turn prompt.
 
 ### 8.3 Private Continuity
 
@@ -929,7 +918,8 @@ compatibility but is not a live Discord streaming feature.
 `character_id → canonical_event_id` for combatants whose reaction
 window is open. It is `{}` outside D&D combat. The Discord bot uses
 it to render an immediate reaction UI; the orchestrator uses it to
-gate off-stage ticks until reactions resolve. See §15.
+keep those combatants out of router-selected frontier turns until reactions
+resolve. See §15.
 
 ## 13. Checkpoint Schema
 
@@ -1072,7 +1062,7 @@ adjudication.
     traits and router-authored situational adjustments, calls
     FINALIZE_OUTCOME, applies HP changes from structured
     `damage_records`, and synthesizes an
-    `EventRouterOutput` with `ends_beat_reason="ruleset_resolution"`.
+    `EventRouterOutput` with `event_kind="ruleset_resolution"`.
     Neither phase is appended to `session_conversation`.
 * `app/engine/dnd_character_import.py` — D&D Beyond character sheet
   import. See `DND_CHARACTER_IMPORT.md` and `DND_MODULE_IMPORT.md`.
@@ -1190,7 +1180,7 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   other scenes cannot end combat by assertion;
 * if the generic router emits Cat II for an actor in active combat
   (prompt-drift safety net), the engine clamps it down to a single
-  Cat I-shaped beat with `ends_beat_reason="ruleset_cat_ii_suppressed"`
+  Cat I-shaped beat with `event_kind="ruleset_cat_ii_suppressed"`
   rather than opening a parallel responder flow against the
   initiative ladder;
 * a high-priority direct observer of a closed combat beat
@@ -1219,8 +1209,8 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   `LLMDispatcher.continue_combat_transaction`. If combat has ended or the
   transaction was cancelled before the player submits the roll, the slot is
   cleared and the response is a stale-roll notice rather than a 500;
-* off-stage ticks are suppressed while `reaction_prompts` is non-empty
-  (combatants must answer their reaction window first).
+* combatants with pending `reaction_prompts` are excluded from router-selected
+  frontier turns until they answer their reaction window.
 
 All hooks are no-ops outside `dnd5e_basic`.
 
@@ -1294,16 +1284,16 @@ LLM failures:
 * transient API errors are retried with exponential backoff and jitter
 * permanent schema/prompt errors raise
 * a router or narrator failure aborts the turn before checkpoint commit
-* individual off-stage tick failures are logged and swallowed
-* a failed tick fan-in router call does not erase the already-rendered
-  on-stage turn
+* individual frontier agent failures are logged and omitted from that frontier
+  group
+* a failed frontier-result router call aborts before checkpoint commit
 
 Structured output:
 
 * event router and narrator calls use Pydantic response models
 * all fields in `EventRouterOutput` are required to keep the structured
   output grammar small
-* schema validators assign missing event ids, coerce unknown beat reasons
+* schema validators assign missing event ids, coerce unknown event kinds
   where safe, enforce Cat II invariants, and enforce fact visibility
   membership
 
@@ -1348,8 +1338,8 @@ Known stale or transitional areas:
   lives in `narrator_conversations`
 * `/query` is implemented as a mutating router/narrator turn, not a
   read-only information endpoint
-* off-stage ticks are synchronous and stagnation-triggered, not yet a
-  generalized world-clock or faction-clock system
+* router-selected background turns are not yet a generalized world-clock or
+  faction-clock system
 * debug streaming and public HTTP APIs are not implemented
 * prompt version ids are not stored in checkpoints; git history is the
   version source
@@ -1359,35 +1349,30 @@ tests cover the live contracts rather than preserving dead architecture.
 
 The remaining subsections in this chapter are open architectural
 concerns: real, known sharp edges that are not solved. Read the
-relevant entry before redesigning the tick scheduler, the rolling
+relevant entry before redesigning frontier routing, the rolling
 agent conversations, or anything that times the world (turn counters,
 contextual transitions, parallel play).
 
 ### 18.1 World time across asynchronous play
 
-The engine carries two distinct notions of "time":
+The engine carries narrative event timing, not a complete world clock:
 
 * `session.turn_index` — narrative time. Advances on every closed beat
   (both `process_turn` and `resolve_cat_ii` increment it). Player-facing
   transcripts and history are keyed off this counter.
-* `session.turns_since_last_tick` — world ticks. Advances only inside
-  `process_turn`'s tick scheduler block (`Orchestrator._run_ticks`),
-  never inside `resolve_cat_ii`.
+* canonical event timing — `effective_at_s`, `duration_s`, per-character
+  clocks, and commitment signals. These let the router place events relative
+  to the acting branch but do not constitute a shared monotonic world clock.
 
 In single-player single-scene play these stay close enough to be
 indistinguishable. With multiple players acting in multiple scenes
-asynchronously (the design target), they drift: two players each
-running their own beats in two scenes both bump `turn_index`, but the
-tick clock fires off whichever scheduler ran last, and "world time"
-becomes whatever the engine happened to observe most recently. There
-is no shared monotonic world clock for off-stage NPCs to reason
-about.
+asynchronously (the design target), two players can advance separate branches
+without flattening them into one global now. There is still no shared
+monotonic world clock for off-stage NPCs, factions, or hazards to reason
+about independently of routed events.
 
 This matters because:
 
-* Off-stage NPC stagnation triggers (`tick_stagnation_max`) are
-  measured in `turns_since_last_tick`. Under multi-player load that is
-  not a faithful "the player has been camping for N turns" signal.
 * Cross-scene causality (an antagonist in scene A reacts to a player
   victory elsewhere) needs an ordering primitive richer than a single
   local `last_event_at`.
@@ -1399,37 +1384,26 @@ confirm the gate's semantics are coherent across parallel beats. If
 the answer is unclear, surface the problem on a TODO instead of adding
 a brittle global counter.
 
-### 18.2 Tick fan-out latency on the /act critical path
+### 18.2 Frontier fan-out latency on the /act critical path
 
-`Orchestrator._run_ticks` still runs synchronously on the critical path of
-`process_turn`. It no longer awaits every eligible off-stage NPC, but every
-selected tick is still awaited before the player gets their render back. With
-a selected batch size B and concurrency cap C, a tick-fire turn costs roughly
-the sequential per-model-role cache warmup plus `ceil(remaining/C) *
-agent_latency` extra wall time on top of the on-stage beat. With Sonnet/Haiku
-that is typically 1–4 seconds; for larger batches or premium warmups it can
-spike higher.
+Router-selected frontier groups run on the `/act` critical path: each selected
+agent target is awaited, then the grouped public results are routed before a
+player render is returned. This is deliberate table pacing: when the router
+says a group is part of the current beat, the table waits for that group the
+same way it would wait for several NPCs to answer in a live scene.
 
-The likely fix is to batch tick fan-out with the next router call
-using async synchronization primitives — fire ticks immediately after
-the on-stage beat closes but do not make the player wait for them;
-await them inside the next `process_turn`'s router prep so the next
-router call sees their outputs without the current player's render
-blocking. This needs careful design around races when two players act
-in quick succession, session-level act-slot locking, and what happens
-when a tick fan-out is still in flight at checkpoint-save time.
-
-Synchronous bounded fan-out is acceptable today, but every change that adds
-work inside `_run_ticks` (more selected calls, deeper context builds, extra
-serialization) is paid by the player on tick-fire turns. Measure before
-adding work.
+The latency risk is now router behavior, not an engine scheduler. Prompt and
+schema work should keep off-stage/private selection bounded: pick only NPCs
+whose next turn matters, avoid advancing every active NPC, and prefer events
+that can surface meaningful consequences. The engine still enforces hard caps
+on event count and agent cascades.
 
 ### 18.3 Cross-scene observation inbox
 
 `broadcast_event` populates `pending_observations` for every NPC
 observer the router lists (excluding the actor and human-bound
 characters, who route to render buffers instead). The inbox drains on
-the recipient's next on-stage or tick agent call.
+the recipient's next foreground/private/background agent-turn call.
 
 Open knob: `pending_observations` has no length cap. A cross-scene
 NPC observer who never gets called accumulates inbox entries across
@@ -1598,7 +1572,7 @@ The current engine is healthy when:
    to checkpoint state.
 10. `/query` answers through the router/narrator path without leaking
     knowledge outside the querying POV.
-11. Off-stage ticks can advance eligible NPCs and land their public results
-    as router-canonicalized events.
+11. Router-selected private/background frontier turns can advance eligible
+    NPCs and land their public results as router-canonicalized events.
 12. `/rewind` removes later checkpoints and cleans up tracked Discord
     turn messages.

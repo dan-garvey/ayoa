@@ -282,7 +282,6 @@ def _ckpt(case: SmokeCase) -> CheckpointFile:
         ],
     )
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-    ckpt.session.config.settings.ticks_enabled = False
     return ckpt
 
 
@@ -297,6 +296,7 @@ def _result_dict(result) -> dict[str, Any]:
 
 def _event_dict(event: EventRouterOutput) -> dict[str, Any]:
     dumped = event.model_dump(mode="json")
+    dumped["event_kind"] = event.event_kind
     dumped["observer_ids"] = [obs.character_id for obs in event.observers]
     dumped["fact_texts"] = [
         fact.text for fact in event.canonical_event.observable_facts
@@ -425,7 +425,7 @@ def _case_checks(
             "resolution_compiled_to_cat_ii",
             resolution_result.ended_reason == "cat_ii_resolution"
             and resolution_event is not None
-            and resolution_event.ends_beat_reason == "cat_ii_resolution",
+            and resolution_event.event_kind == "cat_ii_resolution",
             resolution_result.ended_reason,
         ),
         _check(
@@ -544,7 +544,7 @@ def _markdown(report: dict[str, Any]) -> str:
         lines.extend(["```", "", "### Canonical Events"])
         for event in case["canonical_events"]:
             lines.append(
-                f"- `{event['ends_beat_reason']}` observers={event['observer_ids']}"
+                f"- `{event['event_kind']}` observers={event['observer_ids']}"
             )
             for fact in event["fact_texts"]:
                 lines.append(f"  - {fact}")

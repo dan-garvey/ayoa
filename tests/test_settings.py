@@ -86,7 +86,7 @@ class TestSettingsRegistry:
         # removed the only setting without replacing it. Add one or remove
         # the UI.
         assert SETTINGS, "no settings registered"
-        assert "ticks_enabled" in SETTINGS_BY_KEY
+        assert "max_events_per_beat" in SETTINGS_BY_KEY
 
     def test_every_spec_round_trips_its_default(self):
         """Every setting's default value should render cleanly back through
@@ -103,8 +103,6 @@ class TestSettingsRegistry:
 class TestSettingsHelpers:
     def test_get_setting_returns_default_on_fresh_ckpt(self):
         ckpt = _ckpt()
-        assert get_setting(ckpt, "ticks_enabled") is False
-        assert get_setting(ckpt, "tick_batch_size") == 4
         assert get_setting(ckpt, "max_events_per_beat") == 40
         assert get_setting(ckpt, "max_agent_cascades_per_beat") == 35
 
@@ -115,21 +113,15 @@ class TestSettingsHelpers:
 
     def test_set_setting_applies_parsed_value(self):
         ckpt = _ckpt()
-        new = set_setting(ckpt, "ticks_enabled", "on")
-        assert new is True
-        assert ckpt.session.config.settings.ticks_enabled is True
+        new = set_setting(ckpt, "max_events_per_beat", "12")
+        assert new == 12
+        assert ckpt.session.config.settings.max_events_per_beat == 12
 
     def test_set_player_roll_mode(self):
         ckpt = _ckpt()
         new = set_setting(ckpt, "player_roll_mode", "interactive")
         assert new == "interactive"
         assert ckpt.session.config.settings.player_roll_mode == "interactive"
-
-    def test_set_tick_batch_size(self):
-        ckpt = _ckpt()
-        new = set_setting(ckpt, "tick_batch_size", "3")
-        assert new == 3
-        assert ckpt.session.config.settings.tick_batch_size == 3
 
     def test_set_beat_caps(self):
         ckpt = _ckpt()
@@ -150,15 +142,15 @@ class TestSettingsHelpers:
     def test_set_setting_bad_value_raises(self):
         ckpt = _ckpt()
         with pytest.raises(ValueError):
-            set_setting(ckpt, "ticks_enabled", "kinda")
+            set_setting(ckpt, "max_events_per_beat", "zero")
 
     def test_list_view_shape(self):
         ckpt = _ckpt()
         view = list_settings_view(ckpt)
         assert len(view) == len(SETTINGS)
         keys = {row["key"] for row in view}
-        assert "ticks_enabled" in keys
-        row = next(r for r in view if r["key"] == "ticks_enabled")
+        assert "max_events_per_beat" in keys
+        row = next(r for r in view if r["key"] == "max_events_per_beat")
         for field in (
             "key", "value", "rendered_value",
             "default", "rendered_default", "description",
@@ -171,24 +163,24 @@ class TestSettingsHelpers:
 
 class TestEngineBridgeSettings:
     def test_get_returns_default(self, bridge: EngineBridge):
-        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is False
+        assert bridge.get_setting(SESSION_ID, "max_events_per_beat") == 40
 
     def test_set_persists_across_reloads(self, bridge: EngineBridge):
-        bridge.set_setting(SESSION_ID, "ticks_enabled", "true")
+        bridge.set_setting(SESSION_ID, "max_events_per_beat", "12")
         # New handle, fresh disk read.
-        assert bridge.get_setting(SESSION_ID, "ticks_enabled") is True
+        assert bridge.get_setting(SESSION_ID, "max_events_per_beat") == 12
 
-    def test_story_start_applies_current_tick_default(
+    def test_story_start_preserves_runtime_defaults(
         self, bridge: EngineBridge,
     ):
-        story_id = "legacy_ticks_on_story"
+        story_id = "runtime_defaults_story"
         story_dir = bridge.stories_dir / story_id
         story_dir.mkdir(parents=True)
         ckpt = _ckpt()
         ckpt.session.session_id = story_id
         ckpt.session.story_id = story_id
-        ckpt.session.config.settings.ticks_enabled = True
-        ckpt.config.settings.ticks_enabled = True
+        ckpt.session.config.settings.max_events_per_beat = 12
+        ckpt.config.settings.max_events_per_beat = 12
         (story_dir / "ckpt_0000.json").write_text(
             ckpt.model_dump_json(indent=2)
         )
@@ -198,8 +190,8 @@ class TestEngineBridgeSettings:
             "loaded_ticks_default", story_id,
         )
 
-        assert loaded.session.config.settings.ticks_enabled is False
-        assert loaded.config.settings.ticks_enabled is False
+        assert loaded.session.config.settings.max_events_per_beat == 12
+        assert loaded.config.settings.max_events_per_beat == 12
 
     def test_list_has_rows(self, bridge: EngineBridge):
         rows = bridge.list_settings(SESSION_ID)
@@ -210,8 +202,6 @@ class TestEngineBridgeSettings:
         keys = bridge.known_setting_keys()
         assert keys == [spec.key for spec in SETTINGS]
         assert {
-            "ticks_enabled",
-            "tick_batch_size",
             "max_events_per_beat",
             "max_agent_cascades_per_beat",
             "ruleset_id",

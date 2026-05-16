@@ -80,7 +80,6 @@ class LiveCase:
     players: tuple[str, ...]
     steps: tuple[Step, ...]
     checks: tuple[str, ...]
-    ticks_enabled: bool = False
     default: bool = True
 
 
@@ -237,29 +236,6 @@ CASES: tuple[LiveCase, ...] = (
                 "the glasshouse, I inspect the cracked sundial and write down "
                 "what it shows without waiting on anyone else.",
                 "Rhea acts in a remote parallel scene.",
-            ),
-        ),
-    ),
-    LiveCase(
-        name="offstage_tick_no_player_observer",
-        description=(
-            "Background NPC ticks should produce off-stage canonical events "
-            "without player observers."
-        ),
-        players=("mira",),
-        checks=(
-            "turns_completed",
-            "offstage_tick_event_recorded",
-            "offstage_tick_has_no_player_observers",
-            "no_commitment_leak",
-        ),
-        ticks_enabled=True,
-        steps=(
-            Step(
-                "mira",
-                "I make a quiet chalk mark below the north gallery window and "
-                "wait just long enough to hear whether the clockhouse stirs.",
-                "A simple on-stage beat that should trigger stagnation ticks.",
             ),
         ),
     ),
@@ -462,20 +438,6 @@ PROGRESSIVE_STEPS: tuple[ProgressiveStep, ...] = (
     ),
     ProgressiveStep(
         phase="2_failure_probes",
-        actor_id="mira",
-        label="Enable ticks after broad player state",
-        settings=(("ticks_enabled", "true"), ("tick_stagnation_max", "1")),
-        user_input=(
-            "I pause in the archive doorway and listen for anything moving "
-            "elsewhere in the clockhouse before I choose my next route."
-        ),
-        expectations=(
-            "offstage_tick_recorded_without_players",
-            "offstage_tick_not_rendered",
-        ),
-    ),
-    ProgressiveStep(
-        phase="2_failure_probes",
         actor_id="theo",
         label="Late call into advanced archive time",
         user_input=(
@@ -542,7 +504,7 @@ def _char(
     )
 
 
-def _story_checkpoint(story_id: str, *, ticks_enabled: bool) -> CheckpointFile:
+def _story_checkpoint(story_id: str) -> CheckpointFile:
     ckpt = CheckpointFile(
         session=SessionState(
             session_id=story_id,
@@ -658,17 +620,14 @@ def _story_checkpoint(story_id: str, *, ticks_enabled: bool) -> CheckpointFile:
         ],
     )
     settings = ckpt.session.config.settings
-    settings.ticks_enabled = ticks_enabled
-    settings.tick_stagnation_max = 1
-    settings.tick_concurrency = 2
     settings.max_events_per_beat = 3
     return ckpt
 
 
-def _write_story(stories_dir: Path, story_id: str, *, ticks_enabled: bool) -> None:
+def _write_story(stories_dir: Path, story_id: str) -> None:
     dst = stories_dir / story_id
     dst.mkdir(parents=True, exist_ok=True)
-    ckpt = _story_checkpoint(story_id, ticks_enabled=ticks_enabled)
+    ckpt = _story_checkpoint(story_id)
     (dst / "ckpt_0000.json").write_text(
         ckpt.model_dump_json(indent=2),
         encoding="utf-8",
@@ -713,7 +672,7 @@ def _event_dump(event: EventRouterOutput) -> dict[str, Any]:
         "event_id": event.event_id,
         "effective_at_s": event.effective_at_s,
         "duration_s": event.duration_s,
-        "ends_beat_reason": event.ends_beat_reason,
+        "event_kind": event.event_kind,
         "requires_responders": event.requires_responders,
         "required_responders": list(event.required_responders),
         "agent_responder_picks": list(event.agent_responder_picks),
@@ -829,10 +788,10 @@ def _all_events(case_report: dict[str, Any]) -> list[dict[str, Any]]:
     return list((_final_snapshot(case_report).get("canonical_events") or []))
 
 
-def _events_by_reason(case_report: dict[str, Any], reason: str) -> list[dict[str, Any]]:
+def _events_by_kind(case_report: dict[str, Any], event_kind: str) -> list[dict[str, Any]]:
     return [
         event for event in _all_events(case_report)
-        if event.get("ends_beat_reason") == reason
+        if event.get("event_kind") == event_kind
     ]
 
 
@@ -955,18 +914,18 @@ def _evaluate_case(case: LiveCase, case_report: dict[str, Any]) -> list[dict[str
         elif name == "cat_ii_resolved":
             checks.append(_check(
                 name,
-                bool(_events_by_reason(case_report, "cat_ii_resolution"))
+                bool(_events_by_kind(case_report, "cat_ii_resolution"))
                 and not final.get("open_cat_ii_events"),
                 {
-                    "cat_ii_resolution_events": _events_by_reason(
+                    "cat_ii_resolution_events": _events_by_kind(
                         case_report, "cat_ii_resolution"
                     ),
                     "open_cat_ii_events": final.get("open_cat_ii_events"),
                 },
             ))
         elif name == "cat_ii_resolution_pinned_to_open_time":
-            opens = _events_by_reason(case_report, "cat_ii_open")
-            resolutions = _events_by_reason(case_report, "cat_ii_resolution")
+            opens = _events_by_kind(case_report, "cat_ii_open")
+            resolutions = _events_by_kind(case_report, "cat_ii_resolution")
             pinned = bool(opens and resolutions) and (
                 resolutions[-1].get("effective_at_s") == opens[-1].get("effective_at_s")
             )
@@ -1008,23 +967,6 @@ def _evaluate_case(case: LiveCase, case_report: dict[str, Any]) -> list[dict[str
                 int(clocks.get("rhea", 0)) < leading
                 and int(clocks.get("mira", 0)) == leading,
                 {"leading_at_s": leading, "character_clocks": clocks},
-            ))
-        elif name == "offstage_tick_event_recorded":
-            ticks = _events_by_reason(case_report, "off_stage_tick")
-            checks.append(_check(name, bool(ticks), ticks))
-        elif name == "offstage_tick_has_no_player_observers":
-            ticks = _events_by_reason(case_report, "off_stage_tick")
-            player_ids = set(case.players)
-            bad = [
-                event for event in ticks
-                if player_ids.intersection(
-                    observer["character_id"] for observer in event.get("observers", [])
-                )
-            ]
-            checks.append(_check(
-                name,
-                bool(ticks) and not bad,
-                {"ticks": ticks, "bad": bad},
             ))
         elif name == "five_player_multiple_clocks_advanced":
             clocks = final.get("character_clocks") or {}
@@ -1081,7 +1023,7 @@ async def _run_case(
 ) -> dict[str, Any]:
     story_id = f"relative_time_lab_{case.name}"
     session_id = f"{story_id}_{TS.lower()}"
-    _write_story(stories_dir, story_id, ticks_enabled=case.ticks_enabled)
+    _write_story(stories_dir, story_id)
     engine.create_empty_session(session_id)
     engine.load_story_into_session(session_id, story_id)
     for char_id in case.players:
@@ -1110,7 +1052,6 @@ async def _run_case(
         "session_id": session_id,
         "story_id": story_id,
         "players": list(case.players),
-        "ticks_enabled": case.ticks_enabled,
         "steps": steps,
         "role_calls": list(role_calls[role_call_start:]),
     }
@@ -1387,7 +1328,7 @@ def _progressive_expectation_check(
         return _check(
             expectation,
             response.get("beat_ended_reason") == "cat_ii_pending"
-            and any(event.get("ends_beat_reason") == "cat_ii_open" for event in new_events)
+            and any(event.get("event_kind") == "cat_ii_open" for event in new_events)
             and bool(after.get("open_cat_ii_events")),
             {
                 "beat_ended_reason": response.get("beat_ended_reason"),
@@ -1432,11 +1373,11 @@ def _progressive_expectation_check(
         all_events = after.get("canonical_events") or []
         opens = [
             event for event in all_events
-            if event.get("ends_beat_reason") == "cat_ii_open"
+            if event.get("event_kind") == "cat_ii_open"
         ]
         resolutions = [
             event for event in new_events
-            if event.get("ends_beat_reason") == "cat_ii_resolution"
+            if event.get("event_kind") == "cat_ii_resolution"
         ]
         passed = bool(opens and resolutions) and (
             int(resolutions[-1].get("effective_at_s", -1))
@@ -1451,7 +1392,7 @@ def _progressive_expectation_check(
     if expectation == "cat_ii_required_mira_only":
         candidates = [
             event for event in new_events
-            if event.get("ends_beat_reason") == "cat_ii_open"
+            if event.get("event_kind") == "cat_ii_open"
         ] or list(after.get("open_cat_ii_events") or [])
         required = [
             sorted(event.get("required_responders") or [])
@@ -1730,12 +1671,6 @@ def _progressive_expectation_check(
             {"actor_events": actor_events},
         )
 
-    if expectation == "offstage_tick_not_rendered":
-        joined = "\n".join(_render_texts_from_response(response))
-        banned = ("Keeper Solan", "Scribe Nell", "silver case", "copy slip")
-        leaks = [term for term in banned if term.lower() in joined.lower()]
-        return _check(expectation, not leaks, {"leaks": leaks})
-
     if expectation == "no_advanced_observer_backfill_without_revision":
         before_clocks = before.get("character_clocks") or {}
         available_revisions = set(revisions) | set(response_prompts)
@@ -1775,21 +1710,6 @@ def _progressive_expectation_check(
                     "available_revisions": sorted(available_revisions),
                 })
         return _check(expectation, not bad, {"bad": bad})
-
-    if expectation == "offstage_tick_recorded_without_players":
-        player_ids = set(PLAYER_IDS)
-        ticks = [
-            event for event in new_events
-            if event.get("ends_beat_reason") == "off_stage_tick"
-        ]
-        bad = [
-            event for event in ticks
-            if player_ids.intersection(
-                observer.get("character_id")
-                for observer in event.get("observers", [])
-            )
-        ]
-        return _check(expectation, bool(ticks) and not bad, {"ticks": ticks, "bad": bad})
 
     return _check(expectation, False, "unknown progressive expectation")
 
@@ -1974,7 +1894,7 @@ async def _run_progressive(
 ) -> dict[str, Any]:
     story_id = "relative_time_progressive"
     session_id = f"{story_id}_{TS.lower()}"
-    _write_story(stories_dir, story_id, ticks_enabled=False)
+    _write_story(stories_dir, story_id)
     engine.create_empty_session(session_id)
     engine.load_story_into_session(session_id, story_id)
     for char_id, user_id in PLAYER_IDS.items():
@@ -2009,7 +1929,7 @@ async def _run_progressive(
             "One session that uses a minimal setup to create divergent clocks "
             "and private commitments, then broadens the failure suite across "
             "advanced-observer backfill, stale commitment resolution, private "
-            "information leakage, backfill attempts, off-stage ticks, and "
+            "information leakage, backfill attempts, and "
             "late multi-target play."
         ),
         "session_id": session_id,
@@ -2136,8 +2056,8 @@ def _progressive_markdown(progressive: dict[str, Any]) -> str:
                     observer["character_id"] for observer in event.get("observers", [])
                 )
                 lines.append(
-                    f"- `{event['event_id']}` reason="
-                    f"`{event['ends_beat_reason']}` "
+                    f"- `{event['event_id']}` kind="
+                    f"`{event['event_kind']}` "
                     f"t={event['effective_at_s']}+{event['duration_s']} "
                     f"observers={observers}"
                 )
@@ -2202,8 +2122,8 @@ def _markdown(report: dict[str, Any]) -> str:
                 lines.extend(["", "New events:"])
                 for event in step["new_events"]:
                     lines.append(
-                        f"- `{event['event_id']}` reason="
-                        f"`{event['ends_beat_reason']}` "
+                        f"- `{event['event_id']}` kind="
+                        f"`{event['event_kind']}` "
                         f"t={event['effective_at_s']}+{event['duration_s']}"
                     )
             lines.append("")
@@ -2316,9 +2236,7 @@ async def main() -> None:
     )
 
     config = LLMConfig.from_env()
-    roles = {"event_router", "narrator"}
-    if progressive_mode or any(case.ticks_enabled for case in selected):
-        roles.add("agent")
+    roles = {"event_router", "narrator", "agent"}
     missing = _preflight_api_keys(config, roles)
     if missing:
         raise SystemExit("Missing API key(s) for: " + ", ".join(missing))
