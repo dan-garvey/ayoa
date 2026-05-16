@@ -63,7 +63,7 @@ from app.bot.engine_bridge import (
     RewindResult,
 )
 from app.bot.player_errors import player_safe_error_message
-from app.engine import dnd_experience, dnd_inventory
+from app.engine import dnd_experience, dnd_inventory, dnd_presentation
 from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
@@ -120,22 +120,6 @@ def _join_select_label(
     return "Character"
 
 
-def _append_combat_map_lines(lines: list[str], map_lines: tuple[str, ...]) -> None:
-    if not map_lines:
-        return
-    lines.append("")
-    for raw_line in map_lines:
-        line = str(raw_line).strip()
-        if not line:
-            continue
-        if len("\n".join([*lines, line])) > MAX_DESCRIPTION:
-            truncation = "... map truncated."
-            if len("\n".join([*lines, truncation])) <= MAX_DESCRIPTION:
-                lines.append(truncation)
-            break
-        lines.append(line)
-
-
 def _render_combat_status(
     view: DndCombatView,
     *,
@@ -143,49 +127,12 @@ def _render_combat_status(
 ) -> discord.Embed:
     if not view.active:
         return render_info("Combat", view.message or "No active combat.")
-
-    current_id = view.current_participant_id
-    lines: list[str] = []
-    if view.round_number:
-        header = f"Round {view.round_number}"
-        if view.turn_number:
-            header += f" · Turn {view.turn_number}"
-        lines.append(header)
-    if view.message:
-        lines.append(view.message)
-
-    for p in view.participants:
-        marker = ">" if p.current or p.character_id == current_id else "-"
-        hp_bits: list[str] = []
-        if p.hp_current is not None:
-            hp_text = str(p.hp_current)
-            if p.hp_max is not None:
-                hp_text += f"/{p.hp_max}"
-            if p.hp_temporary:
-                hp_text += f" (+{p.hp_temporary})"
-            hp_bits.append(f"HP {hp_text}")
-        if p.armor_class is not None:
-            hp_bits.append(f"AC {p.armor_class}")
-        if p.initiative is not None:
-            hp_bits.append(f"Init {p.initiative}")
-        if p.defeat_state != "active":
-            state = p.defeat_state
-            if state == "down":
-                state += f" ({p.death_save_successes}S/{p.death_save_failures}F)"
-            hp_bits.append(state)
-        if p.conditions:
-            hp_bits.append(", ".join(p.conditions))
-        if p.active_effects:
-            hp_bits.append(f"Effects: {', '.join(p.active_effects)}")
-        if p.current and p.pending_initiating_action:
-            hp_bits.append(f"Declared: {p.pending_initiating_action}")
-        suffix = f" - {'; '.join(hp_bits)}" if hp_bits else ""
-        lines.append(f"{marker} **{p.name}** (`{p.character_id}`){suffix}")
-
-    if not view.participants:
-        lines.append("(no participants)")
-    if include_map:
-        _append_combat_map_lines(lines, view.map_lines)
+    lines = dnd_presentation.combat_status_lines(
+        view,
+        markdown=True,
+        include_map=include_map,
+        max_chars=MAX_DESCRIPTION if include_map else None,
+    )
     return render_info("Combat", "\n".join(lines))
 
 
@@ -2596,14 +2543,7 @@ def _loot_offer_summary(offer: DndLootOffer) -> str:
 
 
 def _loot_item_line(item: Any) -> str:
-    qty = _int_or(getattr(item, "quantity", 1), 1)
-    prefix = f"{qty}x " if qty != 1 else ""
-    kind = str(getattr(item, "kind", "") or "").replace("_", " ")
-    notes = str(getattr(item, "notes", "") or "").strip()
-    suffix = f" ({kind})" if kind else ""
-    if notes:
-        suffix += f" - {notes}"
-    return f"{prefix}{getattr(item, 'name', 'Item')}{suffix}"
+    return dnd_presentation.loot_item_line(item)
 
 
 def _loot_item_option_label(item: Any) -> str:
@@ -2765,12 +2705,11 @@ def _slots_line(slots: dict[str, dict[str, Any]]) -> str:
 
 
 def _item_line(item: dict[str, Any]) -> str:
-    qty = _int_or(item.get("quantity"), 1)
-    prefix = f"{qty}x " if qty != 1 else ""
-    kind = str(item.get("kind") or "").replace("_", " ")
-    attuned = " attuned" if item.get("attuned") else ""
-    return f"- {prefix}{item.get('name') or 'Item'}" + (
-        f" ({kind}{attuned})" if kind or attuned else ""
+    return dnd_presentation.inventory_item_line(
+        item,
+        bullet=True,
+        include_id=False,
+        include_attuned=True,
     )
 
 
@@ -2783,12 +2722,7 @@ def _feature_line(feature: dict[str, Any]) -> str:
 
 
 def _currency_line(currency: dict[str, Any]) -> str:
-    parts = []
-    for key in ("pp", "gp", "ep", "sp", "cp"):
-        value = _int_or(currency.get(key), 0)
-        if value:
-            parts.append(f"{value} {key}")
-    return " · ".join(parts)
+    return dnd_presentation.currency_line(currency, separator=" · ")
 
 
 def _advantage_suffix(value: Any) -> str:

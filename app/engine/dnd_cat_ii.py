@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from app.engine import dice, dnd_combat, dnd_inventory, dnd_spatial, mechanics
+from app.engine import dice, dnd_combat, dnd_equipment, dnd_spatial, mechanics
+from app.engine.dnd_combat_access import (
+    combatant_defeat_state as _combatant_defeat_state,
+    combatants as _combatants,
+    current_combatant as _current_combatant,
+    target_armor_class as _target_ac,
+)
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
@@ -49,66 +55,6 @@ _DAMAGE_TYPES = {
     "slashing",
     "thunder",
 }
-
-
-@dataclass(frozen=True)
-class _RuntimeWeaponProfile:
-    name: str
-    expression: str
-    damage_type: str
-    ability: str = "str"
-    weapon_class: str = "simple"
-
-
-_RUNTIME_WEAPON_PROFILES: tuple[tuple[str, _RuntimeWeaponProfile], ...] = (
-    ("greatsword", _RuntimeWeaponProfile(
-        "Greatsword",
-        "2d6",
-        "slashing",
-        weapon_class="martial",
-    )),
-    ("longsword", _RuntimeWeaponProfile(
-        "Longsword",
-        "1d8",
-        "slashing",
-        weapon_class="martial",
-    )),
-    ("shortsword", _RuntimeWeaponProfile(
-        "Shortsword",
-        "1d6",
-        "piercing",
-        "dex",
-        "martial",
-    )),
-    ("rapier", _RuntimeWeaponProfile(
-        "Rapier",
-        "1d8",
-        "piercing",
-        "dex",
-        "martial",
-    )),
-    ("scimitar", _RuntimeWeaponProfile(
-        "Scimitar",
-        "1d6",
-        "slashing",
-        "dex",
-        "martial",
-    )),
-    ("longbow", _RuntimeWeaponProfile(
-        "Longbow",
-        "1d8",
-        "piercing",
-        "dex",
-        "martial",
-    )),
-    ("shortbow", _RuntimeWeaponProfile("Shortbow", "1d6", "piercing", "dex")),
-    ("handaxe", _RuntimeWeaponProfile("Handaxe", "1d6", "slashing")),
-    ("spear", _RuntimeWeaponProfile("Spear", "1d6", "piercing")),
-    ("mace", _RuntimeWeaponProfile("Mace", "1d6", "bludgeoning")),
-    ("quarterstaff", _RuntimeWeaponProfile("Quarterstaff", "1d6", "bludgeoning")),
-    ("dagger", _RuntimeWeaponProfile("Dagger", "1d4", "piercing", "dex")),
-    ("club", _RuntimeWeaponProfile("Club", "1d4", "bludgeoning")),
-)
 
 
 @dataclass(frozen=True)
@@ -162,13 +108,6 @@ def dnd_combat_router_enabled(ckpt: CheckpointFile) -> bool:
         and combat is not None
         and getattr(combat, "status", "active") == "active"
     )
-
-
-def _combatant_defeat_state(combatant: object) -> str:
-    state = str(getattr(combatant, "defeat_state", "") or "")
-    if state:
-        return state
-    return "active"
 
 
 class DndCatIIResolver:
@@ -251,144 +190,6 @@ class DndCatIIResolver:
             "dnd_cat_ii_router",
             phase="FINALIZE_OUTCOME",
             contested_action_packet=packet,
-            roll_ledger_block="\n".join(ledger_lines) or "No rolls were made.",
-        )
-        response = await self.client.complete(
-            role="event_router",
-            messages=messages,
-            response_model=RulesAdjudication,
-            temperature=0.2,
-            max_tokens=3000,
-            cache=True,
-            compact=False,
-        )
-        return response.parsed
-
-
-class DndCombatResolver:
-    """Router-owned D&D combat turn resolver.
-
-    Combat uses the same event-router model role as Cat II D&D resolution,
-    but the durable transaction source is `combat` and the engine applies
-    code-owned dice and HP changes before the final visible event is emitted.
-    """
-
-    def __init__(self, client: LLMClient, prompt_mgr: PromptManager):
-        self.client = client
-        self.prompt_mgr = prompt_mgr
-
-    async def resolve_combat_action(
-        self,
-        *,
-        ckpt: CheckpointFile,
-        actor_id: str,
-        intention: str,
-    ) -> EventRouterOutput:
-        packet = _build_combat_packet(ckpt, actor_id, intention)
-        event_id = f"cmb_{uuid.uuid4().hex[:12]}"
-        plan = await self._plan_rolls(packet)
-        transaction = _create_combat_transaction(
-            ckpt=ckpt,
-            event_id=event_id,
-            actor_id=actor_id,
-            intention=intention,
-            packet=json.loads(packet),
-            plan=plan,
-        )
-        _execute_available_rolls(ckpt, transaction)
-        return await self._resolve_transaction(ckpt, transaction)
-
-    async def continue_combat_transaction(
-        self,
-        *,
-        ckpt: CheckpointFile,
-        event_id: str,
-    ) -> EventRouterOutput:
-        transaction = _find_transaction(ckpt, event_id)
-        if transaction is None or transaction.source != "combat":
-            raise ValueError(f"No D&D combat roll transaction for {event_id}.")
-        if transaction.status == "finalized":
-            raise ValueError(f"D&D combat roll transaction {event_id} is finalized.")
-        if transaction.status == "awaiting_player_rolls":
-            if _pending_player_rolls(transaction):
-                _pin_pending_player_rolls(ckpt, transaction)
-                raise DndCatIIRollsPending(transaction)
-            transaction.status = "ready_to_finalize"
-            transaction.updated_at = _utcnow_iso()
-        elif transaction.status in {"planning", "planned"}:
-            _execute_available_rolls(ckpt, transaction)
-        return await self._resolve_transaction(ckpt, transaction)
-
-    async def _resolve_transaction(
-        self,
-        ckpt: CheckpointFile,
-        transaction: CatIIRollTransaction,
-    ) -> EventRouterOutput:
-        if _pending_player_rolls(transaction):
-            transaction.status = "awaiting_player_rolls"
-            transaction.updated_at = _utcnow_iso()
-            _pin_pending_player_rolls(ckpt, transaction)
-            raise DndCatIIRollsPending(transaction)
-
-        _execute_combat_damage_rolls(ckpt, transaction)
-        packet = json.dumps(transaction.context, indent=2, sort_keys=True)
-        adjudication = await self._finalize(packet, transaction.ledger_lines)
-        _apply_combat_damage_records(ckpt, transaction)
-        _apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
-        effect_notes = _apply_combat_effect_deltas(
-            ckpt,
-            adjudication.effect_deltas,
-            default_originator_id=transaction.actor_id,
-        )
-        spatial_notes = _apply_combat_spatial_deltas(
-            ckpt,
-            adjudication.spatial_deltas,
-        )
-        adjudication.rules_notes.extend(effect_notes)
-        adjudication.rules_notes.extend(spatial_notes)
-        _sync_combat_effects(ckpt)
-        result = _compile_combat_router_output(
-            ckpt=ckpt,
-            transaction=transaction,
-            adjudication=adjudication,
-        )
-        if adjudication.combat_status == "ended":
-            _end_combat_after_adjudication(ckpt, result)
-        transaction.status = "finalized"
-        transaction.final_event_id = result.event_id
-        transaction.updated_at = _utcnow_iso()
-        _queue_router_state_change(
-            ckpt, result, label="D&D combat resolved",
-        )
-        return result
-
-    async def _plan_rolls(self, packet: str) -> RollPlan:
-        messages = self.prompt_mgr.render_messages(
-            "dnd_combat_router",
-            phase="PLAN_ROLLS",
-            combat_action_packet=packet,
-            roll_ledger_block="No rolls have been made yet.",
-        )
-        response = await self.client.complete(
-            role="event_router",
-            messages=messages,
-            response_model=RollPlan,
-            temperature=0.2,
-            max_tokens=2500,
-            cache=True,
-            compact=False,
-        )
-        return response.parsed
-
-    async def _finalize(
-        self,
-        packet: str,
-        ledger_lines: list[str],
-    ) -> RulesAdjudication:
-        messages = self.prompt_mgr.render_messages(
-            "dnd_combat_router",
-            phase="FINALIZE_OUTCOME",
-            combat_action_packet=packet,
             roll_ledger_block="\n".join(ledger_lines) or "No rolls were made.",
         )
         response = await self.client.complete(
@@ -810,17 +611,6 @@ def _attack_hits(
     return total >= dc
 
 
-def _target_ac(combat: object, target_id: str) -> int:
-    for combatant in list(getattr(combat, "combatants", []) or []):
-        ids = {
-            str(getattr(combatant, "combatant_id", "") or ""),
-            str(getattr(combatant, "character_id", "") or ""),
-        }
-        if target_id in ids:
-            return int(getattr(combatant, "armor_class", 10) or 10)
-    return 10
-
-
 def _combat_actions_for_character(character: object | None) -> list[dict[str, object]]:
     if character is None:
         return []
@@ -834,92 +624,8 @@ def _combat_actions_for_character(character: object | None) -> list[dict[str, ob
         action for action in statblock.get("actions") or []
         if isinstance(action, dict)
     ]
-    actions.extend(_runtime_weapon_actions(character))
+    actions.extend(dnd_equipment.runtime_weapon_actions(character))
     return actions
-
-
-def _runtime_weapon_actions(character: object) -> list[dict[str, object]]:
-    actions: list[dict[str, object]] = []
-    for item in (dnd_inventory.inventory_view(character).get("items") or []):
-        if not isinstance(item, dict) or not item.get("source_offer_id"):
-            continue
-        profile = _runtime_weapon_profile(item)
-        if profile is None:
-            continue
-        name = str(item.get("name") or profile.name).strip() or profile.name
-        item_key = (
-            item.get("source_item_id")
-            or item.get("id")
-            or item.get("item_id")
-            or name
-        )
-        actions.append({
-            "id": f"runtime_item_attack_{_slug(item_key)}",
-            "name": name,
-            "kind": "attack",
-            "attack": {
-                "ability": profile.ability,
-                "bonus": _runtime_weapon_attack_bonus(character, profile),
-                "damage": f"{profile.expression} {profile.damage_type}",
-            },
-            "damage": [{
-                "formula": profile.expression,
-                "damage_type": profile.damage_type,
-            }],
-            "runtime_inventory_item_id": str(
-                item.get("id") or item.get("item_id") or ""
-            ),
-        })
-    return actions
-
-
-def _runtime_weapon_profile(item: dict[str, object]) -> _RuntimeWeaponProfile | None:
-    name = _normalize_action_text(item.get("name") or item.get("id") or "")
-    kind = _normalize_action_text(item.get("kind") or "")
-    for needle, profile in _RUNTIME_WEAPON_PROFILES:
-        if needle in name:
-            return profile
-    if "weapon" not in kind:
-        return None
-    return _RuntimeWeaponProfile("Improvised Weapon", "1d4", "bludgeoning")
-
-
-def _runtime_weapon_attack_bonus(
-    character: object,
-    profile: _RuntimeWeaponProfile,
-) -> int:
-    mechanics_state = getattr(character, "mechanics", None) or {}
-    scores = mechanics_state.get("ability_scores") or {}
-    try:
-        score = int(scores.get(profile.ability, 10) or 10)
-    except (TypeError, ValueError):
-        score = 10
-    bonus = mechanics.ability_modifier(score)
-    if _runtime_weapon_is_proficient(mechanics_state, profile):
-        try:
-            bonus += int(mechanics_state.get("proficiency_bonus", 0) or 0)
-        except (TypeError, ValueError):
-            pass
-    return bonus
-
-
-def _runtime_weapon_is_proficient(
-    mechanics_state: dict[str, object],
-    profile: _RuntimeWeaponProfile,
-) -> bool:
-    statblock = (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
-    proficiencies = statblock.get("proficiencies") or {}
-    weapons = [
-        _normalize_action_text(value)
-        for value in proficiencies.get("weapons", []) or []
-    ]
-    if any(_normalize_action_text(profile.name) in weapon for weapon in weapons):
-        return True
-    if profile.weapon_class == "martial" and "martial weapons" in weapons:
-        return True
-    return profile.weapon_class == "simple" and (
-        "simple weapons" in weapons or "martial weapons" in weapons
-    )
 
 
 def _roll_modifier_for_request(
@@ -1403,7 +1109,7 @@ def _character_for_combat_target(
     combat = getattr(ckpt.session, "active_combat", None)
     character_id = target_id
     if combat is not None:
-        for combatant in list(getattr(combat, "combatants", []) or []):
+        for combatant in _combatants(combat):
             ids = {
                 str(getattr(combatant, "combatant_id", "") or ""),
                 str(getattr(combatant, "character_id", "") or ""),
@@ -1566,7 +1272,7 @@ def _build_combat_packet(
     bindings = ckpt.session.character_bindings or {}
     current = _current_combatant(combat)
     participants = []
-    for combatant in list(getattr(combat, "combatants", []) or []):
+    for combatant in _combatants(combat):
         cid = str(
             getattr(combatant, "character_id", "")
             or getattr(combatant, "combatant_id", "")
@@ -1792,17 +1498,6 @@ def _resource_summaries(value: object) -> list[dict[str, object]]:
     return out
 
 
-def _current_combatant(combat: object) -> object | None:
-    combatants = list(getattr(combat, "combatants", []) or [])
-    if not combatants:
-        return None
-    try:
-        idx = int(getattr(combat, "turn_index", 0) or 0) % len(combatants)
-    except (TypeError, ValueError):
-        idx = 0
-    return combatants[idx]
-
-
 def _compile_event_router_output(
     ckpt: CheckpointFile,
     cat_ii_event: OpenCatIIEvent,
@@ -1860,7 +1555,7 @@ def _compile_combat_router_output(
     affected_ids = _combat_affected_ids(transaction, adjudication)
     observer_ids = []
     if combat is not None:
-        for combatant in list(getattr(combat, "combatants", []) or []):
+        for combatant in _combatants(combat):
             if bool(getattr(combatant, "removed", False)):
                 continue
             cid = str(
@@ -2054,7 +1749,7 @@ def _combat_effect_instance_exists(
     combat: object,
     effect: DndRuntimeEffect,
 ) -> bool:
-    for combatant in list(getattr(combat, "combatants", []) or []):
+    for combatant in _combatants(combat):
         if any(existing is effect for existing in combatant.active_effects):
             return True
     return False
@@ -2122,7 +1817,7 @@ def _apply_condition_delta(
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None or not delta.condition:
         return
-    for combatant in list(getattr(combat, "combatants", []) or []):
+    for combatant in _combatants(combat):
         ids = {
             str(getattr(combatant, "combatant_id", "") or ""),
             str(getattr(combatant, "character_id", "") or ""),

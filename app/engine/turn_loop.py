@@ -63,6 +63,16 @@ from typing import Any, Protocol
 
 from app.engine import dnd_combat, dnd_monsters, dnd_spatial
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
+from app.engine.dnd_combat_access import (
+    checkpoint_active_combat,
+    combatant_character_id as _combatant_character_id,
+    combatant_defeat_state as _combatant_defeat_state,
+    combatant_for_character as _combatant_for_character,
+    combatants as _combatants,
+    current_combatant as _current_combatant,
+    obj_get as _obj_get,
+    obj_set as _obj_set,
+)
 from app.engine.text_safety import strip_terminal_control
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
@@ -1342,49 +1352,9 @@ _REACTION_BLOCKING_CONDITIONS = {
 }
 
 
-def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
-
-
-def _obj_set(obj: Any, name: str, value: Any) -> None:
-    if isinstance(obj, dict):
-        obj[name] = value
-    else:
-        setattr(obj, name, value)
-
-
 def _active_combat(ckpt: CheckpointFile) -> Any | None:
-    combat = getattr(ckpt.session, "active_combat", None)
-    if combat is None:
-        return None
-    status = _obj_get(combat, "status")
-    if status is not None and status != "active":
-        return None
-    combatants = list(_obj_get(combat, "combatants", []) or [])
-    return combat if combatants else None
-
-
-def _combatant_character_id(combatant: Any) -> str:
-    return (
-        str(_obj_get(combatant, "character_id", "") or "")
-        or str(_obj_get(combatant, "combatant_id", "") or "")
-    )
-
-
-def _combatant_defeat_state(combatant: Any) -> str:
-    state = str(_obj_get(combatant, "defeat_state", "") or "")
-    if state:
-        return state
-    return "active"
-
-
-def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
-    for combatant in list(_obj_get(combat, "combatants", []) or []):
-        if _combatant_character_id(combatant) == character_id:
-            return combatant
-    return None
+    combat = checkpoint_active_combat(ckpt)
+    return combat if combat is not None and _combatants(combat) else None
 
 
 def _character_in_active_combat(
@@ -1552,7 +1522,7 @@ def _set_pending_initiating_action(
     event_id: str,
     intention: str,
 ) -> None:
-    for combatant in list(_obj_get(combat, "combatants", []) or []):
+    for combatant in _combatants(combat):
         if _combatant_character_id(combatant) != actor_id:
             continue
         _obj_set(combatant, "pending_initiating_action", intention.strip())
@@ -1580,7 +1550,7 @@ def flush_combat_visible_facts(ckpt: CheckpointFile) -> int:
         return 0
     observers: list[ObserverEntry] = []
     seen: set[str] = set()
-    for combatant in list(_obj_get(combat, "combatants", []) or []):
+    for combatant in _combatants(combat):
         cid = _combatant_character_id(combatant)
         if not cid or cid in seen:
             continue
@@ -1823,21 +1793,8 @@ def _combat_reaction_intention(
 
 
 def _current_combat_character_id(combat: Any) -> str:
-    combatants = list(_obj_get(combat, "combatants", []) or [])
-    if not combatants:
-        return ""
-    try:
-        idx = int(_obj_get(combat, "turn_index", 0) or 0) % len(combatants)
-    except (TypeError, ValueError):
-        idx = 0
-    for offset in range(len(combatants)):
-        candidate = combatants[(idx + offset) % len(combatants)]
-        if (
-            _combatant_defeat_state(candidate) == "active"
-            and not bool(_obj_get(candidate, "removed", False))
-        ):
-            return _combatant_character_id(candidate)
-    return ""
+    combatant = _current_combatant(combat, skip_defeated=True)
+    return _combatant_character_id(combatant) if combatant is not None else ""
 
 
 def _eligible_combat_reaction_prompts(

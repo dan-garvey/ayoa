@@ -108,10 +108,10 @@ def _minimal_ckpt(story_id: str) -> CheckpointFile:
     )
 
 
-def _minimal_combined_result(story_id: str):
-    """Match the shape `run_import_combined` returns: checkpoint +
-    priming_messages + assistant_text, so the test can mock the new
-    combined-import path without importing the private result class."""
+def _minimal_import_result(story_id: str):
+    """Match the shape `run_import_two_call` returns: checkpoint +
+    priming_messages + assistant_text, so the test can mock the importer
+    path without importing the private result class."""
     from app.engine.story_importer import _CombinedImportResult
     return _CombinedImportResult(
         checkpoint=_minimal_ckpt(story_id),
@@ -825,7 +825,7 @@ class TestImportAnalysisCallback:
         async def run():
             with patch(
                 "app.bot.engine_bridge.run_import_two_call",
-                new=AsyncMock(return_value=_minimal_combined_result(story_id)),
+                new=AsyncMock(return_value=_minimal_import_result(story_id)),
             ), patch(
                 "app.bot.engine_bridge.run_preservation_analysis_continuation",
                 new=AsyncMock(return_value=analysis),
@@ -857,7 +857,7 @@ class TestImportAnalysisCallback:
         async def run():
             with patch(
                 "app.bot.engine_bridge.run_import_two_call",
-                new=AsyncMock(return_value=_minimal_combined_result(story_id)),
+                new=AsyncMock(return_value=_minimal_import_result(story_id)),
             ), patch(
                 "app.bot.engine_bridge.run_preservation_analysis_continuation",
                 new=AsyncMock(side_effect=boom),
@@ -882,7 +882,7 @@ class TestImportAnalysisCallback:
         async def run():
             with patch(
                 "app.bot.engine_bridge.run_import_two_call",
-                new=AsyncMock(return_value=_minimal_combined_result(story_id)),
+                new=AsyncMock(return_value=_minimal_import_result(story_id)),
             ), patch(
                 "app.bot.engine_bridge.run_preservation_analysis_continuation",
                 new=AsyncMock(return_value=analysis),

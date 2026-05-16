@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.engine.dnd_combat_access import target_armor_class
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import PlannedRoll
 from app.schemas.responses import DiceRollDisplay
@@ -155,13 +156,9 @@ def _target_ac(
     target_id: str,
 ) -> int:
     combat = getattr(ckpt.session, "active_combat", None)
-    for combatant in list(getattr(combat, "combatants", []) or []):
-        ids = {
-            str(getattr(combatant, "combatant_id", "") or ""),
-            str(getattr(combatant, "character_id", "") or ""),
-        }
-        if target_id in ids:
-            return int(getattr(combatant, "armor_class", 10) or 10)
+    ac = target_armor_class(combat, target_id, default=0)
+    if ac:
+        return ac
     for item in _context_combatants(transaction):
         ids = {
             str(item.get("combatant_id") or ""),

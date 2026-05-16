@@ -23,11 +23,10 @@ required collapses the search space; the LLM emits explicit `""` / `[]` /
 `false` for empty content, which downstream `_build_*` helpers handle the
 same way they handled the old defaults.
 
-Pre-r7b this file had defaults on most fields and only `CombinedImportExtraction`
-(the v3 collapsed pass) was annotated as needing required-only — but the v4
-two-call pipeline still hit the timeout because `CoreImportExtraction` wraps
-WorldExtraction/CharacterListExtraction/OpeningExtraction whose nested types
-still carried defaults. Stripping them here fixes both pipelines.
+Pre-r7b this file had defaults on most fields. Older collapsed importer
+experiments exposed how badly those defaults multiplied optional schema
+branches for deeply nested output. Stripping them here keeps the active
+multi-call importer within the structured-output grammar compiler's limits.
 """
 
 from __future__ import annotations
@@ -56,14 +55,11 @@ class PublicWorldExtraction(BaseModel):
     big string), public facts, physics, narrative rules. No locations,
     no hidden content.
 
-    v6 split locations off and that wasn't enough — for dense
-    conspiracy stories the public lore + hidden lore packed into one
-    schema STILL truncated mid-string at ~265K JSON chars (≈60K
-    output tokens) on a 95KB master prompt. Splitting public from
-    hidden gives each call its own 64K budget. The structural
-    separation also matches the engine's runtime contract: hidden
-    content is adjudication-only (never reaches the player), public
-    content is what player-facing renders may draw on."""
+    Dense conspiracy stories pushed combined public + hidden world output
+    past the 64K cap. Splitting public from hidden gives each call its
+    own budget. The structural separation also matches the engine's
+    runtime contract: hidden content is adjudication-only (never reaches
+    the player), public content is what player-facing renders may draw on."""
     setting: SettingExtraction
     lore: str
     facts: list[str]

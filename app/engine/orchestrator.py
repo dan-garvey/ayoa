@@ -37,6 +37,16 @@ from app.engine.dnd_cat_ii import (
     pending_player_rolls,
     roll_transaction_source,
 )
+from app.engine.dnd_combat_access import (
+    checkpoint_active_combat as _active_combat_state,
+    combatant_character_id as _combatant_character_id,
+    combatant_for_character as _combatant_for_character,
+    combatant_name as _combatant_name,
+    combatants as _combatants,
+    current_combatant as _current_combatant_state,
+    obj_get as _obj_get,
+    obj_set as _obj_set,
+)
 from app.engine.dnd_roll_display import (
     completed_automatic_roll_keys,
     dice_roll_displays_since,
@@ -136,74 +146,6 @@ def _append_transcript_entry(
     ckpt.transcript.append(entry)
 
 
-def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
-
-
-def _obj_set(obj: Any, name: str, value: Any) -> None:
-    if isinstance(obj, dict):
-        obj[name] = value
-    else:
-        setattr(obj, name, value)
-
-
-def _active_combat_state(ckpt: CheckpointFile) -> Any | None:
-    """Return the active D&D combat snapshot, if this checkpoint has one.
-
-    Current checkpoints store typed combat state directly on `SessionState`.
-    The fallback branch keeps older/debug dict-shaped snapshots usable in tests
-    and during local checkpoint inspection.
-    """
-    combat = getattr(ckpt.session, "active_combat", None)
-    if combat is None:
-        return None
-    status = _obj_get(combat, "status")
-    if status is not None:
-        return combat if status == "active" else None
-    combatants = _combatants(combat)
-    if combatants and _obj_get(combat, "ended_at_turn_index") is None:
-        return combat
-    return None
-
-
-def _combatants(combat: Any) -> list[Any]:
-    return list(_obj_get(combat, "combatants", []) or [])
-
-
-def _combat_turn_index(combat: Any, combatants: list[Any]) -> int:
-    if not combatants:
-        return 0
-    raw = _obj_get(combat, "turn_index", 0) or 0
-    try:
-        return int(raw) % len(combatants)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _combatant_character_id(combatant: Any) -> str:
-    return (
-        str(_obj_get(combatant, "character_id", "") or "")
-        or str(_obj_get(combatant, "combatant_id", "") or "")
-    )
-
-
-def _combatant_name(combatant: Any) -> str:
-    return (
-        str(_obj_get(combatant, "name", "") or "")
-        or _combatant_character_id(combatant)
-    )
-
-
-def _combatant_defeated(combatant: Any) -> bool:
-    defeat_state = str(_obj_get(combatant, "defeat_state", "") or "")
-    return bool(
-        defeat_state in {"down", "stable", "dead", "defeated"}
-        or _obj_get(combatant, "removed", False)
-    )
-
-
 def _combatant_human_controlled(
     ckpt: CheckpointFile,
     combatant: Any,
@@ -217,26 +159,7 @@ def _combatant_human_controlled(
 
 
 def _current_combatant(ckpt: CheckpointFile, combat: Any) -> Any | None:
-    combatants = _combatants(combat)
-    if not combatants:
-        return None
-
-    getter = getattr(dnd_combat, "current_combatant", None) or getattr(
-        dnd_combat, "get_current_combatant", None
-    )
-    if getter is not None:
-        for arg in (combat, ckpt.session, ckpt):
-            try:
-                return getter(arg)
-            except (AttributeError, TypeError, ValueError):
-                continue
-
-    start = _combat_turn_index(combat, combatants)
-    for offset in range(len(combatants)):
-        candidate = combatants[(start + offset) % len(combatants)]
-        if not _combatant_defeated(candidate):
-            return candidate
-    return None
+    return _current_combatant_state(combat)
 
 
 def _combat_actor_is_human_controlled(
@@ -304,13 +227,6 @@ def _combat_turn_rejection(
         current=current,
         attempted_text=attempted_text,
     )
-
-
-def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
-    for combatant in _combatants(combat):
-        if _combatant_character_id(combatant) == character_id:
-            return combatant
-    return None
 
 
 def _begin_combat_turn(combatant: Any) -> None:

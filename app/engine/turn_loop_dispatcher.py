@@ -34,10 +34,10 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.dnd_cat_ii import (
     DND5E_BASIC_RULESET_ID,
     DndCatIIResolver,
-    DndCombatResolver,
     dnd_cat_ii_router_enabled,
     dnd_combat_router_enabled,
 )
+from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
     format_human_initiator_intention,

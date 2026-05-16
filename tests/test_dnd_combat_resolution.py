@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine import dice
-from app.engine.dnd_cat_ii import DndCombatResolver
+from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile

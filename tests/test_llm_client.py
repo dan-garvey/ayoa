@@ -14,7 +14,7 @@ from app.llm.client import (
 )
 from app.llm.config import LLMConfig
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
-from app.schemas.events import CanonicalEvent
+from app.schemas.events import CanonicalEvent, ObservableFact
 
 
 def _install_stream_mock(client, *responses):
@@ -370,7 +370,7 @@ class TestLLMClientComplete:
             "world_adjudication": {
                 "feasible": True,
             },
-            "observable_facts": ["The door swings open."],
+            "observable_facts": [ObservableFact.all("The door swings open.")],
         })
         mock = _install_stream_mock(client, _make_mock_response("{}", parsed=event))
 
@@ -570,7 +570,7 @@ class TestLLMClientComplete:
             "world_adjudication": {
                 "feasible": True,
             },
-            "observable_facts": ["The door swings open."],
+            "observable_facts": [ObservableFact.all("The door swings open.")],
         })
         config = LLMConfig(
             openai_api_key="fake-openai-key",

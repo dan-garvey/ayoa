@@ -1,29 +1,29 @@
 """Benchmark structured-output/schema-constrained output vs post-hoc JSON parsing.
 
-Hits the configured real LLM provider. Integration tests are skipped by
-default; pass --run-integration to opt in. Runs N trials for each strategy
-against the same prompt + schema and emits a comparison table.
+Hits the configured real LLM provider. This is a manual live tool, not part of
+the offline test suite. Runs N trials for each strategy against the same prompt
+and schema and emits a comparison table.
 
 Run explicitly:
 
-    .venv/bin/pytest tests/test_structured_output_benchmark.py --run-integration -v -s
+    .venv/bin/python scripts/structured_output_benchmark.py --trials 3
 
-(The `-s` flag lets the comparison table reach stdout.)
-
-Adds a TEST so we stop relying on the user's terminal for diagnostic data
-when a structured-output path starts misbehaving. The AuthoredCharacter
-schema was the specific shape that kept hitting "Schema is too complex"
+The AuthoredCharacter schema was the specific shape that kept hitting "Schema is too complex"
 and grammar-compilation timeouts during /join_custom, so it's the
 natural candidate to benchmark on.
 """
 
 from __future__ import annotations
 
+import argparse
+import asyncio
 import re
 import statistics
+import sys
 import time
+from pathlib import Path
 
-import pytest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
@@ -46,11 +46,6 @@ def _has_required_provider_keys() -> bool:
                 return False
     return True
 
-
-SKIP_IF_NO_KEY = pytest.mark.skipif(
-    not _has_required_provider_keys(),
-    reason="configured LLM provider key(s) not set; integration benchmark requires real keys.",
-)
 
 N_TRIALS = 3
 
@@ -216,24 +211,21 @@ def _print_table(summaries: list[dict]) -> None:
     print()
 
 
-@pytest.mark.integration
-@SKIP_IF_NO_KEY
-@pytest.mark.asyncio
-async def test_benchmark_structured_vs_raw_parse():
+async def run_benchmark(trials: int = N_TRIALS) -> bool:
     """Run both strategies against the AuthoredCharacter schema and
-    report the comparison. Fails only when BOTH strategies fail across
-    every trial — the goal is data, not pass/fail."""
+    report the comparison. Returns false only when BOTH strategies fail
+    across every trial — the goal is data, not pass/fail."""
     client = LLMClient(config=LLMConfig.from_env())
     try:
         # Run trials sequentially so shared cache behavior is honest;
         # parallel would let one strategy warm the server-side cache
         # for the other.
         structured_trials = []
-        for _ in range(N_TRIALS):
+        for _ in range(trials):
             structured_trials.append(await _run_structured(client))
 
         raw_trials = []
-        for _ in range(N_TRIALS):
+        for _ in range(trials):
             raw_trials.append(await _run_raw_parse(client))
     finally:
         await client.close()
@@ -248,6 +240,30 @@ async def test_benchmark_structured_vs_raw_parse():
     # strategies failed.
     structured_ok = any(t["success"] for t in structured_trials)
     raw_ok = any(t["success"] for t in raw_trials)
-    assert structured_ok or raw_ok, (
-        "Both strategies failed across all trials — see error list above."
+    return structured_ok or raw_ok
+
+
+async def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=N_TRIALS,
+        help="Number of sequential trials per strategy.",
     )
+    args = parser.parse_args()
+    if args.trials < 1:
+        parser.error("--trials must be at least 1")
+    if not _has_required_provider_keys():
+        raise SystemExit(
+            "configured LLM provider key(s) not set; live benchmark not run"
+        )
+    ok = await run_benchmark(args.trials)
+    if not ok:
+        print("Both strategies failed across all trials.")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))

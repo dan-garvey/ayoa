@@ -88,7 +88,7 @@ from app.bot.engine_bridge import (
     PendingRollPrompt,
     joinable_character_summaries,
 )
-from app.engine import dnd_experience, dnd_inventory
+from app.engine import dnd_experience, dnd_inventory, dnd_presentation
 from app.engine.text_safety import strip_terminal_control
 
 load_dotenv()
@@ -468,66 +468,8 @@ def _print_roll_prompts(prompts: list[PendingRollPrompt]) -> None:
 def _print_combat_status(view: DndCombatView) -> None:
     print()
     print("--- Combat ---")
-    if not view.active:
-        print(view.message or "No active combat.")
-        print()
-        return
-
-    if view.round_number:
-        header = f"Round {view.round_number}"
-        if view.turn_number:
-            header += f" · Turn {view.turn_number}"
-        print(header)
-    if view.message:
-        print(view.message)
-
-    current_id = view.current_participant_id
-    if not view.participants:
-        print("(no participants)")
-        print()
-        return
-
-    for participant in view.participants:
-        marker = ">" if (
-            participant.current or participant.character_id == current_id
-        ) else "-"
-        bits: list[str] = []
-        if participant.hp_current is not None:
-            hp_text = str(participant.hp_current)
-            if participant.hp_max is not None:
-                hp_text += f"/{participant.hp_max}"
-            if participant.hp_temporary:
-                hp_text += f" (+{participant.hp_temporary})"
-            bits.append(f"HP {hp_text}")
-        if participant.armor_class is not None:
-            bits.append(f"AC {participant.armor_class}")
-        if participant.initiative is not None:
-            bits.append(f"Init {participant.initiative}")
-        if participant.defeat_state != "active":
-            state = participant.defeat_state
-            if state == "down":
-                state += (
-                    f" ({participant.death_save_successes}S/"
-                    f"{participant.death_save_failures}F)"
-                )
-            bits.append(state)
-        if participant.conditions:
-            bits.append(", ".join(participant.conditions))
-        if participant.active_effects:
-            bits.append(f"Effects: {', '.join(participant.active_effects)}")
-        if participant.current and participant.pending_initiating_action:
-            bits.append(f"Declared: {participant.pending_initiating_action}")
-        suffix = f" - {'; '.join(bits)}" if bits else ""
-        print(
-            f"{marker} {participant.name} "
-            f"({participant.character_id}){suffix}"
-        )
-    if view.map_lines:
-        print()
-        for raw_line in view.map_lines:
-            line = str(raw_line).strip()
-            if line:
-                print(line)
+    for line in dnd_presentation.combat_status_lines(view):
+        print(line)
     print()
 
 
@@ -1135,33 +1077,15 @@ def _normalize_loot_ref(value: str) -> str:
 
 
 def _inventory_item_line(item: dict) -> str:
-    qty = _safe_int(item.get("quantity"), 1)
-    prefix = f"{qty}x " if qty != 1 else ""
-    kind = str(item.get("kind") or "").replace("_", " ")
-    item_id = str(item.get("id") or item.get("item_id") or "")
-    suffix_bits = [kind, item_id]
-    suffix = " (" + ", ".join(bit for bit in suffix_bits if bit) + ")"
-    return f"{prefix}{item.get('name') or 'Item'}{suffix if suffix != ' ()' else ''}"
+    return dnd_presentation.inventory_item_line(item)
 
 
 def _loot_item_line(item) -> str:
-    qty = _safe_int(getattr(item, "quantity", 1), 1)
-    prefix = f"{qty}x " if qty != 1 else ""
-    kind = str(getattr(item, "kind", "") or "").replace("_", " ")
-    suffix = f" ({kind})" if kind else ""
-    notes = str(getattr(item, "notes", "") or "").strip()
-    if notes:
-        suffix += f" - {notes}"
-    return f"{prefix}{getattr(item, 'name', 'Item')}{suffix}"
+    return dnd_presentation.loot_item_line(item)
 
 
 def _coin_line(currency: dict) -> str:
-    parts = []
-    for key in ("pp", "gp", "ep", "sp", "cp"):
-        value = _safe_int(currency.get(key), 0)
-        if value:
-            parts.append(f"{value} {key}")
-    return ", ".join(parts)
+    return dnd_presentation.currency_line(currency)
 
 
 def _safe_int(value, default: int = 0) -> int:

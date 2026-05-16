@@ -1,7 +1,7 @@
 """Master-prompt → CheckpointFile import pipeline.
 
 Active path: `run_import_two_call` (name retained for caller
-compatibility; v10 now runs six LLM calls that share a cached
+compatibility; v10 now runs five LLM calls that share a cached
 source-prompt prefix):
   1. PUBLIC world (setting, public lore, public facts, physics,
      narrative rules) — serial. Primes the shared cache so subsequent
@@ -10,26 +10,25 @@ source-prompt prefix):
      reads Call 1 as cached history. Split off from Call 1 because
      dense conspiracy stories pack so much into hidden content that
      a combined public+hidden call still overran the 64K output cap.
-  3. Locations — continuation that reads Calls 1-2.
-  4. Characters — continuation that reads Calls 1-3. (v9 dropped the
+  3. Characters — continuation that reads Calls 1-2. (v9 dropped the
      paired opening-prose extraction; the opening beat is now
      composed at runtime by the router and rendered by the narrator
      on the first `(begin)` turn, so there is no authored opener to
      extract here.)
      v10 adds player-safe/public and private identity descriptions.
-  5. Knowledge envelope extraction — continuation that sees the
+  4. Knowledge envelope extraction — continuation that sees the
      full extracted world + roster and outputs per-character
      `known_context`.
-  6. Player primer — short player-facing briefing for `/story start`.
+  5. Player primer — short player-facing briefing for `/story start`.
 
 Preservation analysis (`run_preservation_analysis_continuation`) is a
 separate follow-up call callers run independently — on the bot path it
 fires background via `asyncio.create_task`; on the CLI path it runs
 inline.
 
-Older single-call (`run_import_combined`) and parallel four-stage
-(`run_import`) paths are retained for quality comparisons but are not
-the active pipeline.
+Historical single-call and parallel importer paths were removed once they
+stopped being called. Use git history for quality comparisons; the live
+surface has one importer entry point.
 
 All calls use `response_model=<Pydantic class>` so the API enforces schema
 validity server-side.
@@ -39,7 +38,7 @@ Used by both `scripts/import_story.py` (CLI) and
 
 ## TODO: single-call import experiment
 
-The current 4-stage pipeline was chosen for cache-friendly, focused
+The current five-call pipeline was chosen for cache-friendly, focused
 prompts — each call narrows the LLM onto one extraction task with the
 shared source prefix cached. A tempting optimization: collapse stages
 1-4 into one structured-output call that emits `{world, characters,
@@ -61,7 +60,7 @@ require:
   3. Token and wall-clock deltas per pipeline.
 
 If the comparison shows the single-call pipeline within ~5% of the
-4-stage pipeline on quality for meaningful savings in cost or latency,
+five-call pipeline on quality for meaningful savings in cost or latency,
 ship it. Until that measurement exists, don't refactor blindly.
 
 ## Versioning
@@ -164,9 +163,8 @@ MAX_EXTRACTION_TOKENS = 64_000
 # facts / physics / narrative_rules) and HIDDEN world (Call 2:
 # hidden_lore / hidden_facts) as two consecutive calls. The structural
 # split also matches the engine's adjudication-vs-public contract.
-# Pipeline is now: public-world → hidden-world → locations → chars+
-# opening → knowledge.
-# v7 → v8: six-call pipeline. Adds Call 6 (player_primer) — a short
+# Pipeline is now: public-world → hidden-world → characters → knowledge.
+# v7 → v8: five-call pipeline. Adds Call 5 (player_primer) — a short
 # (≤200 word, ≤2 paragraph) second-person, truck-kun-framed primer
 # the bot displays on /story start before the player picks a
 # character. Replaces the omniscient briefing dump that used to
@@ -176,8 +174,8 @@ MAX_EXTRACTION_TOKENS = 64_000
 # and `render_briefing` falls back to a setting-only stub.
 # v8 → v9: dropped authored opening prose. The `OpeningExtraction`
 # schema, `OPENING_EXTRACTION_INSTRUCTIONS`, and the per-stage
-# `extract_opening` call are gone; Call 4 now extracts characters
-# alone (renamed from "characters + opening"). Rationale: the
+# `extract_opening` call are gone; the character call now extracts
+# characters alone (renamed from "characters + opening"). Rationale: the
 # authored opener was a parallel context channel that fought the
 # rest of the engine — it was POV-bound to a single character (the
 # author writes "you" assuming a specific protagonist), it created
@@ -195,38 +193,6 @@ MAX_EXTRACTION_TOKENS = 64_000
 # glosses for narrator context; private descriptions retain authorial /
 # spoiler-bearing identity context without exposing it to narrator prompts.
 IMPORTER_VERSION = "v10"
-
-
-class CombinedImportExtraction(BaseModel):
-    """(v3) Wraps the legacy single-call extraction in one structured-
-    output response. Retained so the v3 path stays runnable for
-    quality comparisons; the active importer is v10 (six-call).
-
-    Required fields only — the structured-output grammar compiler
-    handles deeply-nested schemas more reliably when optionals are
-    minimized.
-
-    v9 dropped the `opening` member (authored opening prose is no
-    longer extracted; the router composes the opening at runtime).
-    """
-    world: WorldExtraction
-    characters: CharacterListExtraction
-    knowledge: CharacterKnowledgeListExtraction
-
-
-class CoreImportExtraction(BaseModel):
-    """(v4) First of two calls in the legacy two-call pipeline.
-    Produces world + characters in one structured-output response.
-    Knowledge envelopes are generated by a focused Call 2 that reads
-    this conversation as cached history — the split gives envelopes
-    their own attention budget and preserves cross-character
-    relational detail that the v3 single-call pass compressed out.
-
-    v9 dropped the `opening` member here too (see module docstring
-    and the IMPORTER_VERSION v8→v9 note).
-    """
-    world: WorldExtraction
-    characters: CharacterListExtraction
 
 
 # ---------------- Extraction prompts ----------------
@@ -391,7 +357,7 @@ empty (`""` and `[]`).
   Like `lore`, mirror the source's depth on hidden world topics but
   do NOT echo verbatim — extract the substance. Do NOT re-summarize
   the public lore here — only the hidden delta. Do NOT include
-  character-specific secrets (those go in Call 4 character
+  character-specific secrets (those go in Call 3 character
   extraction); only WORLD-level hidden content belongs here.
 
 - **hidden_facts**: 0-50 entries. Each hidden fact is one concrete,
@@ -402,16 +368,6 @@ empty (`""` and `[]`).
   them." Each entry is a single concrete proposition the engine can
   act on. Aim for granular facts (one truth per entry), not
   paragraph-length composites — those go in `hidden_lore`."""
-
-
-# Legacy combined world prompt — used by v3/v4 single-call paths
-# (`extract_world`, `run_import_combined`) that still emit a full
-# `WorldExtraction` in one shot.
-WORLD_EXTRACTION_INSTRUCTIONS = (
-    PUBLIC_WORLD_EXTRACTION_INSTRUCTIONS
-    + "\n\n## Hidden world (also part of this call)\n\n"
-    + HIDDEN_WORLD_EXTRACTION_INSTRUCTIONS
-)
 
 
 CHARACTER_EXTRACTION_INSTRUCTIONS = """\
@@ -798,50 +754,7 @@ exactly once in `envelopes`, and no envelope may reference a
 character_id not in the roster."""
 
 
-COMBINED_EXTRACTION_INSTRUCTIONS = """\
-Extract the COMPLETE import bundle for this master prompt in a single
-structured response. You will produce three sub-objects in one JSON
-output: `world`, `characters`, and `knowledge`.
-
-Every sub-object has its own fidelity standard — spelled out below —
-and each should be populated as if it were its own dedicated extraction
-pass. Because you are producing them together, you have the advantage
-of cross-referencing: the same faction described in `world.lore`
-should appear on the right `characters[].public_sheet.faction`; the
-same secret in `world.hidden_facts` should land on the plausible
-`characters[].private_state.secrets`; `knowledge.envelopes` should
-reflect the world you just extracted, not hallucinated parallel
-content.
-
-(There is no authored-opening extraction. The opening beat is
-composed by the router at runtime; do not include opening prose
-anywhere in this output.)
-
----
-
-## `world` — World Extraction
-
-{world_instructions}
-
----
-
-## `characters` — Character Extraction
-
-{character_instructions}
-
----
-
-## `knowledge` — Character Knowledge Envelopes
-
-{knowledge_instructions}
-
-Every `character_id` in `characters` MUST have exactly one matching
-entry in `knowledge.envelopes`, and no envelope may reference a
-character_id not in `characters`. The two lists are siblings, not
-independent extractions."""
-
-
-# ---------------- Per-stage extractions ----------------
+# ---------------- Shared import helpers ----------------
 
 def _log_usage(stage: str, response) -> None:
     """Log cache hit/write telemetry so we can see at a glance whether the
@@ -859,144 +772,6 @@ def _log_usage(stage: str, response) -> None:
         u.get("cache_creation_input_tokens", 0),
         u.get("full_input_tokens", 0),
     )
-
-
-async def extract_world(client: LLMClient, source: str) -> WorldExtraction:
-    logger.info("Extracting world state...")
-    response = await client.complete(
-        role="narrator",
-        messages=[
-            {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
-            {"role": "user", "content": WORLD_EXTRACTION_INSTRUCTIONS},
-        ],
-        response_model=WorldExtraction,
-        temperature=0.3,
-        max_tokens=MAX_EXTRACTION_TOKENS,
-    )
-    _log_usage("world", response)
-    data: WorldExtraction = response.parsed
-    logger.info(
-        "  Setting: %s / %s", data.setting.genre or "?", data.setting.tone or "?"
-    )
-    logger.info(
-        "  Facts: %d, Hidden facts: %d",
-        len(data.facts), len(data.hidden_facts),
-    )
-    logger.info(
-        "  Lore: %d chars, Hidden lore: %d chars, Narrative rules: %d chars",
-        len(data.lore), len(data.hidden_lore), len(data.narrative_rules),
-    )
-    return data
-
-
-async def extract_characters(client: LLMClient, source: str) -> CharacterListExtraction:
-    logger.info("Extracting characters...")
-    response = await client.complete(
-        role="narrator",
-        messages=[
-            {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
-            {"role": "user", "content": CHARACTER_EXTRACTION_INSTRUCTIONS},
-        ],
-        response_model=CharacterListExtraction,
-        temperature=0.3,
-        max_tokens=MAX_EXTRACTION_TOKENS,
-    )
-    _log_usage("characters", response)
-    data: CharacterListExtraction = response.parsed
-    logger.info("  Characters: %d extracted", len(data.characters))
-    for c in data.characters:
-        playable_tag = " [PLAYABLE]" if c.is_playable else ""
-        logger.info(
-            "    - %s (%s) [%s]%s",
-            c.name, c.character_id, c.public_sheet.role or "?", playable_tag,
-        )
-    return data
-
-
-async def extract_character_knowledge(
-    client: LLMClient,
-    source: str,
-    world: WorldExtraction,
-    roster: CharacterListExtraction,
-) -> CharacterKnowledgeListExtraction:
-    """Batch extraction: one call produces knowledge envelopes for every
-    character. Sees the omniscient world (public + hidden) plus the full
-    roster with backstories and secrets, and filters per-character."""
-    logger.info(
-        "Extracting knowledge envelopes for %d characters...",
-        len(roster.characters),
-    )
-    user_prompt = (
-        f"{KNOWLEDGE_EXTRACTION_INSTRUCTIONS}\n\n"
-        f"## World (omniscient)\n{_format_world_for_knowledge(world)}\n\n"
-        f"## Roster\n{_format_roster_for_knowledge(roster)}"
-    )
-    response = await client.complete(
-        role="narrator",
-        messages=[
-            {"role": "system", "content": SHARED_SOURCE_SYSTEM.format(source_prompt=source)},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_model=CharacterKnowledgeListExtraction,
-        temperature=0.3,
-        max_tokens=MAX_EXTRACTION_TOKENS,
-    )
-    _log_usage("knowledge", response)
-    data: CharacterKnowledgeListExtraction = response.parsed
-    logger.info("  Envelopes: %d produced", len(data.envelopes))
-    return data
-
-
-def _format_world_for_knowledge(world: WorldExtraction) -> str:
-    parts: list[str] = []
-    s = world.setting
-    meta_bits = []
-    if s.genre:
-        meta_bits.append(f"Genre: {s.genre}")
-    if s.era:
-        meta_bits.append(f"Era: {s.era}")
-    if s.tone:
-        meta_bits.append(f"Tone: {s.tone}")
-    if meta_bits:
-        parts.append("\n".join(meta_bits))
-    if s.premise:
-        parts.append(f"### Authorial premise (omniscient)\n{s.premise}")
-    if world.lore:
-        parts.append(f"### Public lore\n{world.lore}")
-    if world.hidden_lore:
-        parts.append(f"### Hidden lore (not public)\n{world.hidden_lore}")
-    if world.facts:
-        parts.append("### Public facts\n" + "\n".join(f"- {f}" for f in world.facts))
-    if world.hidden_facts:
-        parts.append(
-            "### Hidden facts (not public)\n"
-            + "\n".join(f"- {f}" for f in world.hidden_facts)
-        )
-    return "\n\n".join(parts)
-
-
-def _format_roster_for_knowledge(roster: CharacterListExtraction) -> str:
-    parts: list[str] = []
-    for c in roster.characters:
-        lines = [f"### {c.character_id}"]
-        if c.public_sheet.role:
-            lines.append(f"Role: {c.public_sheet.role}")
-        if c.public_sheet.faction:
-            lines.append(f"Faction: {c.public_sheet.faction}")
-        if c.is_playable:
-            lines.append("(PLAYABLE SLOT)")
-        if c.backstory:
-            lines.append(f"Backstory: {c.backstory}")
-        if c.private_state.secrets:
-            lines.append(
-                "Secrets:\n" + "\n".join(f"- {s}" for s in c.private_state.secrets)
-            )
-        if c.private_state.goals:
-            lines.append(
-                "Goals:\n" + "\n".join(f"- {g}" for g in c.private_state.goals)
-            )
-        parts.append("\n".join(lines))
-    return "\n\n".join(parts)
 
 
 # ---------------- Checkpoint assembly ----------------
@@ -1317,65 +1092,11 @@ async def run_preservation_analysis(
     )
 
 
-async def run_import(
-    client: LLMClient,
-    source_text: str,
-    story_id: str,
-) -> CheckpointFile:
-    """Run the legacy three-stage import pipeline and return the
-    assembled checkpoint.
-
-    Pipeline shape:
-      Stage 1: world extraction — serial. Primes the shared cache.
-      Stage 2: characters — runs after stage 1. Reads the source
-        prompt from cache.
-      Stage 3: knowledge envelopes — runs after stage 2 completes.
-        Depends on the extracted world + roster.
-
-    (v9 dropped a parallel `extract_opening` stage that used to run
-    alongside stage 2 — the opening beat is now composed at runtime
-    by the router instead of being authored at import time.)
-
-    Preservation analysis is intentionally NOT part of this function.
-    Callers kick it off separately (background on the bot path, inline on
-    the CLI path) via run_preservation_analysis().
-
-    Does NOT write the checkpoint to disk — callers are responsible for
-    persisting via CheckpointManager.save() (or writing the JSON directly).
-    """
-    t_start = time.monotonic()
-    logger.info(
-        "Starting import (pipeline %s): source prompt %d chars, ~%d words",
-        IMPORTER_VERSION, len(source_text), len(source_text.split()),
-    )
-
-    # Stage 1: serial so the shared-source cache prefix writes exactly once
-    # before the parallel stages consume it.
-    world = await extract_world(client, source_text)
-
-    # Stage 2: characters. Reads the primed cache.
-    roster = await extract_characters(client, source_text)
-
-    # Stage 3: depends on world + roster. Sees omniscient world and filters
-    # per-character knowledge envelopes.
-    knowledge = await extract_character_knowledge(
-        client, source_text, world, roster,
-    )
-
-    checkpoint = build_checkpoint(world, roster, knowledge, story_id)
-    logger.info(
-        "Import complete in %.1fs (%d characters)",
-        time.monotonic() - t_start,
-        len(checkpoint.characters),
-    )
-    return checkpoint
-
-
-# ---------------- Combined single-call path ----------------
+# ---------------- Active import result ----------------
 
 
 class _CombinedImportResult:
-    """Return bundle for `run_import_combined` — ships the assembled
+    """Return bundle for `run_import_two_call` — ships the assembled
     checkpoint plus the priming messages + raw assistant content so the
     caller can cheaply continue the conversation for the preservation-
     analysis pass.
@@ -1396,102 +1117,13 @@ class _CombinedImportResult:
         self.assistant_text = assistant_text
 
 
-def _combined_user_prompt() -> str:
-    """Assemble the single user message containing all three sets of
-    extraction instructions. Reuses the existing per-stage instruction
-    blocks so there's one source of truth for extraction guidance."""
-    body = COMBINED_EXTRACTION_INSTRUCTIONS.format(
-        world_instructions=WORLD_EXTRACTION_INSTRUCTIONS,
-        character_instructions=CHARACTER_EXTRACTION_INSTRUCTIONS,
-        knowledge_instructions=KNOWLEDGE_EXTRACTION_INSTRUCTIONS,
-    )
-    return f"<stage_instructions>\n{body}\n</stage_instructions>"
-
-
-async def run_import_combined(
-    client: LLMClient,
-    source_text: str,
-    story_id: str,
-) -> _CombinedImportResult:
-    """Single-call importer. Produces world + characters + knowledge
-    in one structured-output response and returns the checkpoint
-    along with the exact messages used so the preservation analysis
-    pass can replay them as cached history.
-
-    (v9 dropped the `opening` member from the combined extraction —
-    the opening beat is composed at runtime by the router, not
-    authored at import time.)
-
-    Writes a cache breakpoint on the user message (via
-    `cache_user_tail=True`) so the follow-up analysis call reads
-    [system, user] as cached prefix, paying only for the new assistant
-    echo + analysis question.
-
-    Does NOT persist the checkpoint — callers save via CheckpointManager
-    or direct JSON write.
-    """
-    t_start = time.monotonic()
-    logger.info(
-        "Starting combined import (pipeline %s): source prompt %d chars, ~%d words",
-        IMPORTER_VERSION, len(source_text), len(source_text.split()),
-    )
-
-    system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
-    user_text = _combined_user_prompt()
-    priming_messages = [
-        {"role": "system", "content": system_text},
-        {"role": "user", "content": user_text},
-    ]
-
-    response = await client.complete(
-        role="narrator",
-        messages=priming_messages,
-        response_model=CombinedImportExtraction,
-        temperature=0.3,
-        max_tokens=MAX_EXTRACTION_TOKENS,
-        cache_user_tail=True,
-    )
-    _log_usage("combined", response)
-    bundle: CombinedImportExtraction = response.parsed
-
-    logger.info(
-        "  Setting: %s / %s",
-        bundle.world.setting.genre or "?", bundle.world.setting.tone or "?",
-    )
-    logger.info(
-        "  Facts: %d, Hidden facts: %d",
-        len(bundle.world.facts),
-        len(bundle.world.hidden_facts),
-    )
-    logger.info("  Characters: %d extracted", len(bundle.characters.characters))
-    logger.info("  Envelopes: %d produced", len(bundle.knowledge.envelopes))
-
-    checkpoint = build_checkpoint(
-        bundle.world,
-        bundle.characters,
-        bundle.knowledge,
-        story_id,
-    )
-    logger.info(
-        "Combined import complete in %.1fs (%d characters)",
-        time.monotonic() - t_start,
-        len(checkpoint.characters),
-    )
-
-    return _CombinedImportResult(
-        checkpoint=checkpoint,
-        priming_messages=priming_messages,
-        assistant_text=response.content or "",
-    )
-
-
-# ---------------- Five-call path (v7) ----------------
+# ---------------- Five-call path (v10) ----------------
 
 
 def _public_world_user_prompt() -> str:
     """Assemble the Call-1 user message: PUBLIC world (setting, lore,
-    facts, physics, narrative_rules). Hidden world and locations are
-    extracted in Calls 2 and 3 to keep each output under Sonnet 4.6's
+    facts, physics, narrative_rules). Hidden world and characters are
+    extracted in later calls to keep each output under Sonnet 4.6's
     64K cap."""
     return (
         "<stage_instructions name=\"public_world\">\n"
@@ -1511,9 +1143,8 @@ def _hidden_world_user_prompt() -> str:
 
 
 def _characters_user_prompt() -> str:
-    """Assemble the Call-4 user message: characters as a continuation
-    that reads the prior chain (public + hidden + locations) as
-    cached history.
+    """Assemble the Call-3 user message: characters as a continuation
+    that reads the prior chain (public + hidden) as cached history.
 
     (v9 renamed from `_chars_and_opening_user_prompt`; the paired
     opening-prose extraction is gone — see IMPORTER_VERSION v8→v9
@@ -1525,7 +1156,7 @@ def _characters_user_prompt() -> str:
 
 
 def _knowledge_user_prompt() -> str:
-    """Assemble the Call-5 user message: knowledge envelopes as a
+    """Assemble the Call-4 user message: knowledge envelopes as a
     continuation. Reuses the per-stage knowledge instructions plus the
     cross-character relational emphasis that v3's single-call pass
     tended to drop."""
@@ -1536,7 +1167,7 @@ def _knowledge_user_prompt() -> str:
 
 
 def _player_primer_user_prompt() -> str:
-    """Assemble the Call-6 user message: short player-facing primer as
+    """Assemble the Call-5 user message: short player-facing primer as
     a continuation that reads the full prior chain (world + characters +
     knowledge) as cached history. The primer is what a fresh player sees
     on /story start before they pick a character — it replaces the
@@ -1553,55 +1184,51 @@ async def run_import_two_call(
     source_text: str,
     story_id: str,
 ) -> _CombinedImportResult:
-    """Six-call importer (v10; function name retained for caller
+    """Five-call importer (v10; function name retained for caller
     compatibility — bridge + CLI + tests still import this symbol).
     Call 1 extracts the PUBLIC world; Call 2 extracts the HIDDEN
     world as a continuation that reads Call 1 as cached history;
-    Call 3 extracts locations reading the prior chain; Call 4
-    extracts `characters` with public/private descriptions
-    (v9 dropped the paired `opening` extraction); Call 5 extracts
-    `knowledge` envelopes; Call 6
+    Call 3 extracts `characters` with public/private descriptions
+    (v9 dropped the paired `opening` extraction); Call 4 extracts
+    `knowledge` envelopes; Call 5
     extracts the player-facing `player_primer` — a 1-2 paragraph
     spoiler-free framing the bot shows on briefing before the
     player ever runs `/join`.
 
-    Why this many calls: v6 split the combined world into skeleton
-    (public + hidden) and locations, but a 95KB master prompt with
-    deep conspiracy lore (multi-faction, hidden-history section)
-    STILL pushed the skeleton call past Sonnet 4.6's 64K output cap
-    — truncating mid-string around column 265K of JSON. Splitting
-    public from hidden gives each its own budget, and also matches
-    the engine's adjudication-vs-public contract structurally
+    Why this many calls: a 95KB master prompt with deep conspiracy lore
+    (multi-faction, hidden-history section) pushed combined world
+    extraction past Sonnet 4.6's 64K output cap. Splitting public from
+    hidden gives each its own budget, and also matches the engine's
+    adjudication-vs-public contract structurally
     (hidden content is for the omniscient adjudication layer;
     public content is what player-facing renders may draw on). v8
-    added Call 6 (player primer) — it shares the cached prefix from
+    added the player primer — it shares the cached prefix from
     earlier calls, so it's effectively paid for once. v9 dropped
-    the authored opening from Call 4, leaving the call with
+    the authored opening from the character call, leaving it with
     characters alone (the opening beat is now composed at runtime
     by the router; see IMPORTER_VERSION v8→v9 note for rationale).
 
     The merged `WorldExtraction` shape is assembled in Python from
-    the three world responses (public + hidden + locations), so
-    `build_checkpoint` is unchanged.
+    public + hidden world responses, so `build_checkpoint` is unchanged.
 
     Returns a `_CombinedImportResult` shaped the same as prior
     versions so downstream callers (EngineBridge, preservation
     continuation) don't care which pipeline produced the checkpoint.
-    `priming_messages` contains the conversation up through Call-5's
+    `priming_messages` contains the conversation up through Call-4's
     user turn (the primer is intentionally omitted from the priming
     chain so the preservation continuation reads only the structural
-    extractions); `assistant_text` is the Call-5 assistant reply —
+    extractions); `assistant_text` is the Call-4 assistant reply —
     the preservation analysis tacks itself on as a downstream call
     with the same continuation helper.
     """
     t_start = time.monotonic()
     logger.info(
-        "Starting six-call import (pipeline %s): source prompt %d chars, ~%d words",
+        "Starting five-call import (pipeline %s): source prompt %d chars, ~%d words",
         IMPORTER_VERSION, len(source_text), len(source_text.split()),
     )
-    # v9+: Call 4 produces characters alone (no paired `opening`).
+    # v9+: Call 3 produces characters alone (no paired `opening`).
     # The opening beat is composed at runtime by the router from
-    # the world + character state extracted across Calls 1-4.
+    # the world + character state extracted across Calls 1-3.
 
     system_text = SHARED_SOURCE_SYSTEM.format(source_prompt=source_text)
     public_user = _public_world_user_prompt()
@@ -1696,8 +1323,8 @@ async def run_import_two_call(
         len(characters.characters),
     )
 
-    # Call 5 — knowledge envelopes (continuation; reads the full
-    # four-call upstream chain as cached history).
+    # Call 4 — knowledge envelopes (continuation; reads the full
+    # upstream chain as cached history).
     knowledge_user = _knowledge_user_prompt()
     knowledge_messages = chars_messages + [
         {"role": "assistant", "content": chars_response.content or ""},
@@ -1719,11 +1346,11 @@ async def run_import_two_call(
         time.monotonic() - t_know, len(knowledge.envelopes),
     )
 
-    # Call 6 — player primer (continuation; reads the full five-call
+    # Call 5 — player primer (continuation; reads the full structural
     # chain as cached history, paying fresh only for the primer
     # instructions and the short response). Stamped on the checkpoint;
     # NOT folded into priming_messages so preservation analysis still
-    # branches off the Call-5 prefix and ignores the primer turn.
+    # branches off the Call-4 prefix and ignores the primer turn.
     primer_user = _player_primer_user_prompt()
     primer_messages = knowledge_messages + [
         {"role": "assistant", "content": knowledge_response.content or ""},
@@ -1760,9 +1387,9 @@ async def run_import_two_call(
         len(primer_text),
     )
 
-    # Pack the five-call conversation (NOT the primer turn) into
+    # Pack the structural conversation (NOT the primer turn) into
     # priming_messages so the preservation analysis continuation reads
-    # the same cached prefix it used pre-v8 — branching off Call 5
+    # the same cached prefix it used pre-v8 — branching off Call 4
     # rather than chaining through the primer (which is stylistic and
     # would only confuse the audit pass).
     return _CombinedImportResult(
@@ -1779,9 +1406,9 @@ async def run_preservation_analysis_continuation(
     source_text: str,
     checkpoint: CheckpointFile,
 ) -> ImportAnalysis:
-    """Preservation analysis that piggybacks on the combined-import call's
+    """Preservation analysis that piggybacks on the import call's
     conversation. The second call sends
-    [system, user1, assistant1 (combined blob), user2 (analysis question)]
+    [system, user1, assistant1 (extraction blob), user2 (analysis question)]
     which reads [system, user1] as cached prefix and pays fresh only for
     assistant_text + the analysis prompt.
 

@@ -3359,7 +3359,7 @@ def _parse_model_json(model_cls, content: str):
     """Parse a Pydantic model from the LLM's free-form JSON output.
 
     Used when we can't enforce structured output via output_format. A
-    live benchmark (tests/test_structured_output_benchmark.py) showed
+    live benchmark (scripts/structured_output_benchmark.py) showed
     the enforced path 400s with "Schema is too complex" 0/3 times for
     AuthoredCharacter after ~180s of hanging, while raw JSON + this
     helper succeeded 3/3 times in ~29s. output_format is also marked

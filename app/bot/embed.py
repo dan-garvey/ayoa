@@ -84,7 +84,7 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
     a single nudge to /join.
 
     The primer (1–2 paragraphs, second-person, spoiler-free) is generated
-    by the importer's Call 6 and stored on `CheckpointFile.player_primer`.
+    by the importer's Call 5 and stored on `CheckpointFile.player_primer`.
     Pre-v8 checkpoints have an empty primer; we fall back to a stub
     composed from the public setting fields so older saves still render
     something usable.

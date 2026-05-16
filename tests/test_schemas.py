@@ -945,7 +945,7 @@ class TestCheckpointFile:
         assert ckpt.player_primer == ""
 
     def test_player_primer_round_trip(self):
-        """Importer Call 6 stamps a 1-2 paragraph world primer onto the
+        """Importer Call 5 stamps a 1-2 paragraph world primer onto the
         checkpoint; render_briefing reads it directly. Round-trip
         through JSON to make sure the field survives save → load."""
         primer = (

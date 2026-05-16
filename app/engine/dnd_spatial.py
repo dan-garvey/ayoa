@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from app.engine.dnd_combat_access import obj_get as _obj_get
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
     DndBattleMapState,
@@ -641,12 +642,6 @@ def _clamp(value: int, low: int, high: int) -> int:
     if high < low:
         return low
     return max(low, min(value, high))
-
-
-def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
 
 
 def _slug(text: str) -> str:
