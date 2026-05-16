@@ -234,6 +234,12 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         return_value=_attachment_summary(),
     )
     engine.run_turn = AsyncMock()
+    engine.run_query = AsyncMock(return_value=_turn_response(
+        beat_ended_reason="query_response",
+        turn_index=2,
+        output_text="query narration",
+        per_player_renders={"aldric": "query narration"},
+    ))
     engine.run_begin_turn = AsyncMock(return_value=_turn_response(
         beat_ended_reason="state_change",
         turn_index=1,
@@ -1285,6 +1291,30 @@ class TestActingDescribe:
 
         assert engine.run_turn.await_args.kwargs["user_input"] == "I look around"
 
+    def test_query_uses_bridge_and_prints_turn_response(self, run, capsys):
+        engine = _mock_engine()
+        engine.run_query = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="query_response",
+            turn_index=4,
+            output_text="The crest is weathered silver.",
+            per_player_renders={"aldric": "The crest is weathered silver."},
+        ))
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("/query what does the crest look like?"))
+
+        engine.run_query.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            character_id="aldric",
+            question="what does the crest look like?",
+        )
+        engine.run_turn.assert_not_awaited()
+        out = capsys.readouterr().out
+        assert "--- Turn 4 · aldric ---" in out
+        assert "The crest is weathered silver." in out
+
     def test_run_turn_error_is_player_safe(self, run, capsys):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(side_effect=RuntimeError(
@@ -1360,8 +1390,11 @@ class TestActingDescribe:
             "builtins.input", lambda prompt="": next(inputs),
         )
         run(state.handle_line("/describe"))
-        engine.run_turn.assert_awaited_once()
-        assert engine.run_turn.await_args.kwargs["user_input"] == "(begin)"
+        engine.run_begin_turn.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            triggering_character_id="aldric",
+        )
+        engine.run_turn.assert_not_awaited()
 
 
 class TestQuit:

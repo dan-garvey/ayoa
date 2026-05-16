@@ -47,8 +47,8 @@ Commands inside the REPL:
     /quit                       Exit (Ctrl-D also works)
 
 Anything not starting with '/' is an in-character action for the current
-actor. Use "(begin)" to open the story — the router composes the opening
-from world_state + the initial roster on the fly.
+actor. Use /begin to open the story — the router composes the opening from
+world_state + the initial roster on the fly.
 """
 
 from __future__ import annotations
@@ -160,7 +160,7 @@ Commands:
   /history [N]                      Print all turns, or last N
   /quit                             Exit (Ctrl-D also works)
 
-Plain text is an in-character action for the current actor. Use "(begin)"
+Plain text is an in-character action for the current actor. Use /begin
 to open the story — the router composes the opening from world_state +
 the initial roster on the fly."""
 
@@ -2161,16 +2161,26 @@ class CLIState:
             return
         print(f"updated {self.current_actor}")
 
-        # Mirror the Discord bot: if no narrator turns yet, fire (begin) so
-        # the opening lands with the description in hand.
-        #
-        # v11-r6c note: `(begin)` rides through the normal /act path.
-        # The dispatcher preserves the parenthesized content, so the
-        # event_router prompt's OOC rule fires without a dedicated CLI
-        # code path. Same reasoning as /describe in the Discord frontend.
+        # Mirror the Discord bot: if no narrator turns yet, fire the
+        # canonical opener so the opening lands with the description in hand.
         if not any(ckpt.narrator_conversations.values()):
             print("opening story…")
-            await self._act("(begin)")
+            try:
+                response = await self.engine.run_begin_turn(
+                    session_id=self.session_id,
+                    triggering_character_id=self.current_actor,
+                )
+            except ValueError as e:
+                print(f"error: {e}")
+                return
+            except Exception as e:
+                logger.exception("describe begin failed")
+                print(
+                    "error: "
+                    f"{player_safe_error_message(e, operation='the opening')}"
+                )
+                return
+            self._print_turn_response(response, actor_id=self.current_actor)
 
     async def cmd_query(self, arg: str) -> None:
         """Out-of-character question for the current actor's POV.
@@ -2189,7 +2199,7 @@ class CLIState:
             print("usage: /query <question>")
             return
         try:
-            result = await self.engine.run_query(
+            response = await self.engine.run_query(
                 session_id=self.session_id,
                 character_id=self.current_actor,
                 question=question,
@@ -2198,14 +2208,7 @@ class CLIState:
             logger.exception("run_query failed")
             print(f"error: {player_safe_error_message(e, operation='that query')}")
             return
-        gate_tag = (
-            f"  [gated: {result.gate_reason or '?'}]"
-            if result.knowledge_gated else ""
-        )
-        print()
-        print(f"--- /query · {self.current_actor}{gate_tag} ---")
-        print(result.answer or "(no answer)")
-        print()
+        self._print_turn_response(response, actor_id=self.current_actor)
 
     def cmd_combat(self, arg: str) -> None:
         if not self._require_story():

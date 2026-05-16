@@ -3496,7 +3496,8 @@ def register(
         if story_id in engine.list_story_ids():
             await inter.response.send_message(
                 f"A story with id `{story_id}` already exists. "
-                f"Pick a different id or have an admin run `/story delete {story_id}` first.",
+                "Pick a different id, or unload the current session's story "
+                "with `/story delete` before starting a replacement.",
                 ephemeral=True,
             )
             return
@@ -5062,10 +5063,9 @@ def register(
             return
 
         # Defensive: if we somehow got here pre-play (no narrator turns
-        # yet), fire `(begin)`. The canonical opener is /join's arrival
-        # turn now — but the play CLI and any non-/join binding path
-        # (manual test setup, future programmatic frontends) can still
-        # land here, and we shouldn't silently swallow the opener.
+        # yet), fire the canonical opening. /begin and run_begin_turn are
+        # the source of truth, but manual test setup and future frontends
+        # can still land here, and we shouldn't silently swallow the opener.
         # v11: narrator_conversations is per-POV dict keyed by character_id.
         # "no turns yet" = no POV has any narrator history.
         is_pre_play = not any(ckpt.narrator_conversations.values())
@@ -5086,41 +5086,26 @@ def register(
             )
             return
 
-        # Pre-play: fire the opening turn using the OOC meta-channel. The
-        # event_router prompt recognizes fully-parenthesized input as an
-        # author's directive rather than an in-character attempt, so
-        # `(begin)` cleanly maps to "compose the opening beat from
-        # world_state and place this character in it" — see the
-        # `(begin)` instructions in event_router.txt for the full
-        # contract. (Pre-v9 this leaned on an authored opening passage
-        # extracted at import time; that's gone now and the router
-        # composes the opening from world + roster state alone.)
-        #
-        # v11-r6c note: we pass `(begin)` as a plain `user_input` through
-        # /act's normal path. The dispatcher's intention helper preserves
-        # the content as-is, so the event_router prompt's parenthesized
-        # OOC rule fires cleanly.
-        arrival_action = "(begin)"
         logger.info(
             "Describe+open for %s by %s: %s",
             row.session_id, inter.user.display_name, changed,
         )
 
         try:
-            response = await engine.run_turn(
+            response = await engine.run_begin_turn(
                 session_id=row.session_id,
-                user_input=arrival_action,
-                acting_character_id=binding,
+                triggering_character_id=binding,
             )
         except TransientLLMError as e:
             logger.warning(
-                "opening run_turn hit transient LLM error after %d attempts: %s",
+                "opening run_begin_turn hit transient LLM error after %d "
+                "attempts: %s",
                 e.attempts, e.last_error,
             )
             await inter.followup.send(embed=render_error(str(e)))
             return
         except Exception as e:
-            logger.exception("opening run_turn failed")
+            logger.exception("opening run_begin_turn failed")
             await inter.followup.send(embed=render_error(
                 player_safe_error_message(e)
             ))
@@ -5483,20 +5468,20 @@ def register(
         await inter.response.defer(thinking=True)
 
         try:
-            response = await engine.run_turn(
+            response = await engine.run_query(
                 session_id=row.session_id,
-                user_input=f"(query: {question.strip()})",
-                acting_character_id=binding,
+                character_id=binding,
+                question=question.strip(),
             )
         except TransientLLMError as e:
             logger.warning(
-                "/query run_turn hit transient LLM error after %d attempts: %s",
+                "/query run_query hit transient LLM error after %d attempts: %s",
                 e.attempts, e.last_error,
             )
             await inter.followup.send(str(e), ephemeral=True)
             return
         except Exception as e:
-            logger.exception("/query run_turn failed")
+            logger.exception("/query run_query failed")
             await inter.followup.send(
                 player_safe_error_message(e, operation="that query"),
                 ephemeral=True,

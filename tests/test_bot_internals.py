@@ -125,14 +125,15 @@ def _minimal_combined_result(story_id: str):
 
 class TestEngineBridgeQuery:
     def test_run_query_routes_through_turn_loop(self, mock_bridge: EngineBridge):
-        mock_bridge.run_turn = AsyncMock(return_value=TurnResponse(
+        response = TurnResponse(
             session_id="s",
             checkpoint_id="ckpt_0001",
             turn_index=1,
             output_text="You can see Pip's red coat.",
             per_player_renders={"alice": "You can see Pip's red coat."},
             beat_ended_reason="query_response",
-        ))
+        )
+        mock_bridge.run_turn = AsyncMock(return_value=response)
 
         result = asyncio.run(mock_bridge.run_query(
             session_id="s",
@@ -145,8 +146,7 @@ class TestEngineBridgeQuery:
             user_input="(query: what does Pip look like?)",
             acting_character_id="alice",
         )
-        assert result.answer == "You can see Pip's red coat."
-        assert result.knowledge_gated is False
+        assert result is response
 
 
 class TestLootRouterSync:
@@ -323,8 +323,8 @@ class TestQueryCommandDelivery:
 
         engine = MagicMock()
         engine.get_user_binding.return_value = "alice"
-        engine.run_turn = AsyncMock(return_value=response)
-        engine.run_query = AsyncMock()
+        engine.run_turn = AsyncMock()
+        engine.run_query = AsyncMock(return_value=response)
 
         smap = MagicMock()
         smap.get = AsyncMock(
@@ -355,15 +355,128 @@ class TestQueryCommandDelivery:
         asyncio.run(tree.commands["query"](inter, " what does Pip look like? "))
 
         inter.response.defer.assert_awaited_once_with(thinking=True)
-        engine.run_turn.assert_awaited_once_with(
+        engine.run_query.assert_awaited_once_with(
             session_id="s",
-            user_input="(query: what does Pip look like?)",
-            acting_character_id="alice",
+            character_id="alice",
+            question="what does Pip look like?",
         )
-        engine.run_query.assert_not_awaited()
+        engine.run_turn.assert_not_awaited()
         assert captured["response"] is response
         assert captured["actor_character_id"] == "alice"
         assert captured["story_id"] == "story"
+
+    def test_describe_preplay_opens_with_run_begin_turn(self, monkeypatch):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, *_args, **_kwargs):
+                return None
+
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="s",
+                character_bindings={"alice": "42"},
+            ),
+            world_state=WorldState(),
+            characters=[CharacterRecord(character_id="alice", name="Alice")],
+            narrator_conversations={},
+        )
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0001",
+            turn_index=1,
+            output_text="The story opens.",
+            per_player_renders={"alice": "The story opens."},
+            beat_ended_reason="state_change",
+        )
+
+        engine = MagicMock()
+        engine.get_user_binding.return_value = "alice"
+        engine.set_character_identity.return_value = ckpt
+        engine.run_begin_turn = AsyncMock(return_value=response)
+        engine.run_turn = AsyncMock()
+
+        smap = MagicMock()
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(session_id="s", story_id="story"),
+        )
+
+        captured: dict = {}
+
+        async def _fake_post_actor_render(**kwargs):
+            captured.update(kwargs)
+            return "thread", SimpleNamespace(mention="#alice-thread")
+
+        monkeypatch.setattr(
+            bot_commands, "_post_actor_render", _fake_post_actor_render,
+        )
+
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.user.display_name = "Alice User"
+        inter.response.defer = AsyncMock()
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(tree.commands["describe"](inter, "Alice", "red coat"))
+
+        engine.run_begin_turn.assert_awaited_once_with(
+            session_id="s",
+            triggering_character_id="alice",
+        )
+        engine.run_turn.assert_not_awaited()
+        assert captured["turn_index"] == 1
+        assert captured["character_id"] == "alice"
+
+    def test_duplicate_story_import_guidance_matches_delete_contract(self):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+                self.groups = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, group, **_kwargs):
+                self.groups[group.name] = group
+
+        engine = MagicMock()
+        engine.list_story_ids.return_value = ["dupe_story"]
+        smap = MagicMock()
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+
+        inter = MagicMock()
+        inter.response.send_message = AsyncMock()
+        attachment = MagicMock()
+        attachment.size = 10
+        attachment.filename = "dupe_story.txt"
+        attachment.content_type = "text/plain"
+
+        story_import = tree.groups["story"].get_command("import")
+        asyncio.run(story_import.callback(inter, attachment, "dupe_story"))
+
+        message = inter.response.send_message.await_args.args[0]
+        assert "/story delete`" in message
+        assert "/story delete dupe_story" not in message
 
 
 class TestXpAwardCommandPermissions:
@@ -954,10 +1067,7 @@ class TestApplyRosterUpdatesPurgesCulled:
             event_id="",
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    feasible=True,
-                    resolved_outcome="x",
-                ),
+                world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[],
             ),
             observers=[],

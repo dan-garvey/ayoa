@@ -18,7 +18,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable
+from typing import Any, Awaitable, Callable, Iterable
 
 from app.engine.character_agent import _extract_parenthetical
 from app.engine.character_manager import _normalize_router_summary
@@ -59,10 +59,6 @@ from app.schemas.narrator import TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import SlotEntry
-
-if TYPE_CHECKING:
-    from app.schemas.query import QueryResponse
-
 
 @dataclass(frozen=True)
 class CharacterSummary:
@@ -1451,32 +1447,6 @@ class EngineBridge:
                     )
                 )
         return prompts
-
-    async def submit_pending_roll(
-        self,
-        *,
-        session_id: str,
-        event_id: str,
-        roll_id: str,
-        user_id: int,
-    ) -> TurnResponse:
-        """Submit one pending D&D player roll from Discord UI."""
-        actor_id = self.get_user_binding(session_id, user_id)
-        if actor_id is None:
-            raise ValueError("This Discord user is not bound to a character.")
-        prompts = self.pending_roll_prompts(session_id, user_id=user_id)
-        if roll_id not in {prompt.roll_id for prompt in prompts}:
-            raise ValueError(
-                "That roll is not pending for your character. Use /combat "
-                "status to see the current state."
-            )
-        return await self.orchestrator.submit_cat_ii_roll(
-            session_id=session_id,
-            event_id=event_id,
-            roll_id=roll_id,
-            actor_id=actor_id,
-            user_id=str(user_id),
-        )
 
     async def complete_pending_roll(
         self,
@@ -3120,7 +3090,7 @@ class EngineBridge:
         session_id: str,
         character_id: str,
         question: str,
-    ) -> "QueryResponse":
+    ) -> TurnResponse:
         """Answer /query through the router/narrator path.
 
         A query is no longer a separate read-only LLM role. It enters
@@ -3129,18 +3099,10 @@ class EngineBridge:
         renders it from the querying character's POV. This mutates the
         checkpoint like any other private beat.
         """
-        from app.schemas.query import QueryResponse
-
-        response = await self.run_turn(
+        return await self.run_turn(
             session_id=session_id,
             user_input=f"(query: {question.strip()})",
             acting_character_id=character_id,
-        )
-        gated = response.beat_ended_reason == "slot_rejected"
-        return QueryResponse(
-            answer=(response.output_text or "").strip(),
-            knowledge_gated=gated,
-            gate_reason="slot_rejected" if gated else "",
         )
 
 
