@@ -22,6 +22,7 @@ Commands:
     /leave                                — release your character
     /describe [name] [appearance]         — set/update name and appearance
     /act <action>                         — submit a turn
+    /retry                                — retry a failed narrator render
     /defer                                — submit no action and let the scene continue
     /query <question>                     — ask an out-of-character question
     /status                               — summarize current state
@@ -920,6 +921,27 @@ async def _post_to_pov(
         return False
 
 
+async def _resolve_user_or_fallback(
+    *,
+    bot: discord.Client,
+    user_id: str,
+    fallback: discord.abc.User,
+) -> discord.abc.User:
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return fallback
+    user = bot.get_user(uid)
+    if user is not None:
+        return user
+    try:
+        fetched = await bot.fetch_user(uid)
+    except Exception:
+        logger.exception("resolve_user_or_fallback: fetch_user(%s) failed", uid)
+        return fallback
+    return fetched or fallback
+
+
 async def _send_public_turn_render(
     *,
     inter: discord.Interaction,
@@ -1695,7 +1717,24 @@ async def _deliver_turn_response_to_povs(
                 continue
             content = _experience_award_content(award)
             if cid == actor_character_id:
-                await inter.followup.send(content, ephemeral=True)
+                if actor_user.id == inter.user.id:
+                    await inter.followup.send(content, ephemeral=True)
+                else:
+                    char = next(
+                        (c for c in roster if c.character_id == cid), None,
+                    )
+                    char_name = char.name if char else cid
+                    await _post_to_pov(
+                        inter=inter,
+                        smap=smap,
+                        user_id=actor_user.id,
+                        character_id=cid,
+                        char_name=char_name,
+                        text=content,
+                        bot=inter.client,
+                        session_id=session_id,
+                        turn_index=turn_index,
+                    )
                 continue
             uid_str = bindings.get(cid, "")
             if not uid_str:
@@ -5176,6 +5215,80 @@ def register(
             story_id=row.story_id,
             actor_character_id=binding,
             actor_user=inter.user,
+            response=response,
+        )
+
+    # ---- /retry ------------------------------------------------------------
+
+    @tree.command(
+        name="retry",
+        description="Retry a failed narrator render without a new action.",
+        guild=guild,
+    )
+    async def _retry(inter: discord.Interaction):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here. Run `/session start` then `/story start`.",
+                ephemeral=True,
+            )
+            return
+
+        await inter.response.defer(thinking=True)
+        start = time.monotonic()
+
+        try:
+            result = await engine.retry_failed_render(session_id=row.session_id)
+        except TransientLLMError as e:
+            logger.warning(
+                "retry_failed_render hit transient LLM error after %d "
+                "attempts: %s",
+                e.attempts, e.last_error,
+            )
+            await inter.followup.send(embed=render_error(str(e)), ephemeral=True)
+            return
+        except Exception as e:
+            logger.exception("retry_failed_render failed")
+            await inter.followup.send(
+                embed=render_error(player_safe_error_message(e)),
+                ephemeral=True,
+            )
+            return
+
+        response = result.response
+        if (
+            response.beat_ended_reason == "no_pending_render"
+            or not result.actor_character_id
+        ):
+            await inter.followup.send(
+                response.output_text
+                or "No failed narrator render is pending for this session.",
+                ephemeral=True,
+            )
+            return
+
+        actor_user = await _resolve_user_or_fallback(
+            bot=inter.client,
+            user_id=result.actor_user_id,
+            fallback=inter.user,
+        )
+        elapsed = time.monotonic() - start
+        logger.info(
+            "Retried render for turn %d in %s actor=%s by %s in %.1fs",
+            response.turn_index,
+            row.session_id,
+            result.actor_character_id,
+            inter.user.display_name,
+            elapsed,
+        )
+        await _deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id=row.session_id,
+            story_id=row.story_id,
+            actor_character_id=result.actor_character_id,
+            actor_user=actor_user,
             response=response,
         )
 

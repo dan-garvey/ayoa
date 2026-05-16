@@ -108,6 +108,13 @@ class RewindResult:
 
 
 @dataclass(frozen=True)
+class RetryRenderResult:
+    response: TurnResponse
+    actor_character_id: str = ""
+    actor_user_id: str = ""
+
+
+@dataclass(frozen=True)
 class TurnHistoryEntry:
     turn_index: int
     entry: TranscriptEntry
@@ -2921,6 +2928,44 @@ class EngineBridge:
                 session_id=session_id,
                 user_input=user_input,
                 acting_character_id=acting_character_id,
+            )
+
+    async def retry_failed_render(
+        self,
+        *,
+        session_id: str,
+    ) -> RetryRenderResult:
+        """Retry a pending narrator render without submitting a new action."""
+        lock = await self._lock_for(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            pending = ckpt.session.pending_narrator_render
+            if pending is None:
+                return RetryRenderResult(
+                    response=TurnResponse(
+                        session_id=session_id,
+                        checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                        turn_index=ckpt.session.turn_index,
+                        output_text=(
+                            "No failed narrator render is pending for this "
+                            "session."
+                        ),
+                        per_player_renders={},
+                        beat_ended_reason="no_pending_render",
+                    )
+                )
+
+            actor_id = pending.acting_player_id
+            actor_user_id = str(
+                (ckpt.session.character_bindings or {}).get(actor_id, "")
+            )
+            response = await self.orchestrator.retry_pending_narrator_render(
+                session_id
+            )
+            return RetryRenderResult(
+                response=response,
+                actor_character_id=actor_id,
+                actor_user_id=actor_user_id,
             )
 
     async def run_arrival_turn(

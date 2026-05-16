@@ -920,6 +920,35 @@ class Orchestrator:
             experience_awards=_drain_experience_awards(ckpt),
         )
 
+    async def retry_pending_narrator_render(
+        self,
+        session_id: str,
+    ) -> TurnResponse:
+        """Resume a failed narrator render without accepting a new action."""
+        lock = await self.session_locks.get(session_id)
+        async with lock:
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            sync_checkpoint_runtime_models(ckpt, self.client.config)
+            dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            resumed = await self._resume_pending_narrator_render_locked(
+                session_id=session_id,
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+            )
+            if resumed is not None:
+                return resumed
+
+            return TurnResponse(
+                session_id=session_id,
+                checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                turn_index=ckpt.session.turn_index,
+                output_text=(
+                    "No failed narrator render is pending for this session."
+                ),
+                per_player_renders={},
+                beat_ended_reason="no_pending_render",
+            )
+
     async def _apply_beat_roster_side_effects(
         self,
         ckpt: CheckpointFile,

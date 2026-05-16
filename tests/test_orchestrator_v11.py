@@ -363,11 +363,7 @@ class TestHappyPath:
         assert len(FakeDispatcher.route_calls) == 1
         assert len(FakeDispatcher.narrator_calls) == 1
 
-        response = await orch.process_turn(TurnRequest(
-            session_id="s",
-            user_input="This should not route yet",
-            acting_character_id="alice",
-        ))
+        response = await orch.retry_pending_narrator_render("s")
 
         assert response.output_text == "POV_RENDER"
         assert response.turn_index == 1
@@ -380,6 +376,23 @@ class TestHappyPath:
         assert len(FakeDispatcher.route_calls) == 1
         assert len(FakeDispatcher.narrator_calls) == 2
         assert mgr.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_pending_narrator_render_noops_without_pending_state(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.turn_index = 2
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.retry_pending_narrator_render("s")
+
+        assert response.turn_index == 2
+        assert response.beat_ended_reason == "no_pending_render"
+        assert "No failed narrator render" in response.output_text
+        assert FakeDispatcher.route_calls == []
+        assert FakeDispatcher.narrator_calls == []
+        assert mgr.save.call_count == 0
 
     @pytest.mark.asyncio
     async def test_dnd_loot_offer_becomes_turn_prompt(

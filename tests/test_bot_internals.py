@@ -24,12 +24,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.bot import commands as bot_commands
-from app.bot.engine_bridge import EngineBridge
+from app.bot.engine_bridge import EngineBridge, RetryRenderResult
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.responses import DiceRollDisplay, TurnResponse
-from app.schemas.state import SessionState, StorySetting, WorldState
+from app.schemas.state import (
+    PendingNarratorRender,
+    SessionState,
+    StorySetting,
+    WorldState,
+)
 
 
 # ---- F3.9: admin env parsing ------------------------------------------------
@@ -147,6 +152,212 @@ class TestEngineBridgeQuery:
             acting_character_id="alice",
         )
         assert result is response
+
+
+class TestEngineBridgeRetry:
+    def test_retry_failed_render_resumes_without_submitting_new_act(
+        self, mock_bridge: EngineBridge,
+    ):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="session",
+                character_bindings={"alice": "42"},
+                pending_narrator_render=PendingNarratorRender(
+                    ended_reason="directed_at_player",
+                    events_closed=1,
+                    event_actor_ids=["alice"],
+                    acting_player_id="alice",
+                    acting_player_input="I look around",
+                ),
+            ),
+            world_state=WorldState(),
+            characters=[CharacterRecord(character_id="alice", name="Alice")],
+        )
+        mock_bridge.checkpoint_mgr.save(ckpt)
+        response = TurnResponse(
+            session_id="session",
+            checkpoint_id="ckpt_0001",
+            turn_index=1,
+            output_text="Recovered POV",
+            per_player_renders={"alice": "Recovered POV"},
+            beat_ended_reason="directed_at_player",
+        )
+        mock_bridge.sweep_stale_pins = MagicMock()
+        mock_bridge.orchestrator.retry_pending_narrator_render = AsyncMock(
+            return_value=response
+        )
+        mock_bridge.orchestrator.process_turn = AsyncMock()
+
+        result = asyncio.run(
+            mock_bridge.retry_failed_render(session_id="session")
+        )
+
+        assert result.response is response
+        assert result.actor_character_id == "alice"
+        assert result.actor_user_id == "42"
+        mock_bridge.sweep_stale_pins.assert_not_called()
+        mock_bridge.orchestrator.process_turn.assert_not_called()
+        retry = mock_bridge.orchestrator.retry_pending_narrator_render
+        retry.assert_awaited_once_with("session")
+
+    def test_retry_failed_render_noops_when_no_pending_render(
+        self, mock_bridge: EngineBridge,
+    ):
+        ckpt = CheckpointFile(
+            session=SessionState(session_id="session", turn_index=3),
+            world_state=WorldState(),
+            characters=[],
+        )
+        mock_bridge.checkpoint_mgr.save(ckpt)
+        mock_bridge.orchestrator.retry_pending_narrator_render = AsyncMock()
+        mock_bridge.orchestrator.process_turn = AsyncMock()
+
+        result = asyncio.run(
+            mock_bridge.retry_failed_render(session_id="session")
+        )
+
+        assert result.actor_character_id == ""
+        assert result.actor_user_id == ""
+        assert result.response.turn_index == 3
+        assert result.response.beat_ended_reason == "no_pending_render"
+        assert "No failed narrator render" in result.response.output_text
+        mock_bridge.orchestrator.retry_pending_narrator_render.assert_not_called()
+        mock_bridge.orchestrator.process_turn.assert_not_called()
+
+
+class TestRetryCommandDelivery:
+    def test_retry_delivers_recovered_render_without_new_act(self, monkeypatch):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, *_args, **_kwargs):
+                return None
+
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0002",
+            turn_index=2,
+            output_text="Recovered POV",
+            per_player_renders={"alice": "Recovered POV"},
+            beat_ended_reason="directed_at_player",
+        )
+        result = RetryRenderResult(
+            response=response,
+            actor_character_id="alice",
+            actor_user_id="42",
+        )
+
+        engine = MagicMock()
+        engine.retry_failed_render = AsyncMock(return_value=result)
+        engine.run_turn = AsyncMock()
+
+        smap = MagicMock()
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(session_id="s", story_id="story"),
+        )
+
+        captured: dict = {}
+
+        async def _fake_deliver(**kwargs):
+            captured.update(kwargs)
+
+        monkeypatch.setattr(
+            bot_commands, "_deliver_turn_response_to_povs", _fake_deliver,
+        )
+
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+
+        actor_user = MagicMock()
+        actor_user.id = 42
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 7
+        inter.user.display_name = "Retry User"
+        inter.client.get_user.return_value = actor_user
+        inter.client.fetch_user = AsyncMock()
+        inter.response.defer = AsyncMock()
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(tree.commands["retry"](inter))
+
+        inter.response.defer.assert_awaited_once_with(thinking=True)
+        engine.retry_failed_render.assert_awaited_once_with(session_id="s")
+        engine.run_turn.assert_not_awaited()
+        assert captured["response"] is response
+        assert captured["actor_character_id"] == "alice"
+        assert captured["actor_user"] is actor_user
+        assert captured["story_id"] == "story"
+        inter.client.fetch_user.assert_not_awaited()
+
+    def test_retry_no_pending_render_reports_ephemeral(self, monkeypatch):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, *_args, **_kwargs):
+                return None
+
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0002",
+            turn_index=2,
+            output_text="No failed narrator render is pending for this session.",
+            per_player_renders={},
+            beat_ended_reason="no_pending_render",
+        )
+        engine = MagicMock()
+        engine.retry_failed_render = AsyncMock(
+            return_value=RetryRenderResult(response=response)
+        )
+        engine.run_turn = AsyncMock()
+        smap = MagicMock()
+        smap.get = AsyncMock(
+            return_value=SimpleNamespace(session_id="s", story_id="story"),
+        )
+        deliver = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands, "_deliver_turn_response_to_povs", deliver,
+        )
+
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.user = MagicMock()
+        inter.user.display_name = "Retry User"
+        inter.response.defer = AsyncMock()
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+
+        asyncio.run(tree.commands["retry"](inter))
+
+        inter.response.defer.assert_awaited_once_with(thinking=True)
+        engine.retry_failed_render.assert_awaited_once_with(session_id="s")
+        deliver.assert_not_awaited()
+        inter.followup.send.assert_awaited_once_with(
+            "No failed narrator render is pending for this session.",
+            ephemeral=True,
+        )
 
 
 class TestLootRouterSync:
