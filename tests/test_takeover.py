@@ -34,7 +34,7 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
-from app.schemas.state import LocationState, SessionState, WorldState
+from app.schemas.state import SessionState, WorldState
 from app.schemas.takeover import (
     ReplacementCandidate,
     TakeoverAuthoredOutput,
@@ -98,7 +98,7 @@ def _make_checkpoint(characters: list[CharacterRecord] | None = None,
             turn_index=1,
             character_bindings=bindings or {},
         ),
-        world_state=WorldState(locations=LocationState()),
+        world_state=WorldState(),
         characters=characters,
     )
 

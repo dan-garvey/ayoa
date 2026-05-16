@@ -26,7 +26,6 @@ from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
     CommitmentRevisionPrompt,
-    LocationState,
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
@@ -40,7 +39,6 @@ def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
     return CheckpointFile(
         session=SessionState(session_id="s", character_bindings=bindings or {}),
         world_state=WorldState(
-            locations=LocationState(),
             setting=StorySetting(genre="fantasy", tone="grim"),
         ),
         characters=[

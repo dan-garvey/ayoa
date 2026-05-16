@@ -113,7 +113,6 @@ from app.schemas.import_extraction import (
     WorldExtraction,
 )
 from app.schemas.state import (
-    LocationState,
     PhysicsRuleset,
     SessionConfig,
     SessionState,
@@ -1029,7 +1028,6 @@ def build_checkpoint(
     )
 
     world_state = WorldState(
-        locations=LocationState(),
         facts=world.facts,
         physics_ruleset=physics,
         setting=setting,

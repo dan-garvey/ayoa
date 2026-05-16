@@ -32,7 +32,6 @@ from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
     DndRuntimeEffect,
-    LocationState,
     SessionState,
     StorySetting,
     WorldState,
@@ -97,7 +96,6 @@ def sample_checkpoint():
     return CheckpointFile(
         session=SessionState(session_id="test"),
         world_state=WorldState(
-            locations=LocationState(),
             setting=StorySetting(
                 genre="fantasy",
                 tone="dark intrigue",
@@ -213,7 +211,6 @@ class TestLocationResolution:
         return CheckpointFile(
             session=SessionState(session_id="t"),
             world_state=WorldState(
-                locations=LocationState(),
                 setting=StorySetting(),
             ),
         )
@@ -262,7 +259,6 @@ class TestPovLocationForUser:
         return CheckpointFile(
             session=SessionState(session_id="t"),
             world_state=WorldState(
-                locations=LocationState(),
                 setting=StorySetting(),
             ),
         )

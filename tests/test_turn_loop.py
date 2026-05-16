@@ -94,7 +94,7 @@ def _router_out(
     required_responders: list[str] | None = None,
     agent_picks: list[str] | None = None,
     ends_beat: bool = True,
-    facts: list[ObservableFact | str] | None = None,
+    facts: list[ObservableFact] | None = None,
     effective_at_s: int = 0,
     duration_s: int = 0,
 ) -> EventRouterOutput:
@@ -883,7 +883,7 @@ class TestCatIIBeat:
                 "areas": [],
                 "notes": "",
             },
-            facts=["Alice commits to an attack against Bob."],
+            facts=[ObservableFact.all("Alice commits to an attack against Bob.")],
         ))
 
         result = asyncio.run(run_beat(
@@ -936,7 +936,7 @@ class TestCatIIBeat:
         fake.queue_route(_dnd_router_out(
             interaction_mode="dnd_combat_start",
             combatant_ids=["alice"],
-            facts=["Alice raises a blade with no clear opponent."],
+            facts=[ObservableFact.all("Alice raises a blade with no clear opponent.")],
         ))
 
         result = asyncio.run(run_beat(
@@ -958,7 +958,11 @@ class TestCatIIBeat:
             interaction_mode="cat_ii",
             requires_responders=True,
             required_responders=["bob"],
-            facts=["Alice leans toward Bob without completing contact."],
+            facts=[
+                ObservableFact.all(
+                    "Alice leans toward Bob without completing contact."
+                )
+            ],
         ))
 
         result = asyncio.run(run_beat(
@@ -1000,7 +1004,7 @@ class TestCatIIBeat:
         fake.queue_route(_dnd_router_out(
             interaction_mode="dnd_combat_start",
             combatant_ids=["alice", "pip"],
-            facts=["Alice raises a blade in another room."],
+            facts=[ObservableFact.all("Alice raises a blade in another room.")],
         ))
 
         result = asyncio.run(run_beat(
@@ -1051,7 +1055,7 @@ class TestCatIIBeat:
         )
         out = _dnd_router_out(
             interaction_mode="dnd_combat_end",
-            facts=["Bob and Pip lower their weapons."],
+            facts=[ObservableFact.all("Bob and Pip lower their weapons.")],
         )
         out.observers = [
             ObserverEntry(character_id="bob", observation_level="d", response_priority=3),
@@ -1095,7 +1099,7 @@ class TestCatIIBeat:
         fake = FakeDispatcher()
         fake.queue_route(_dnd_router_out(
             interaction_mode="dnd_combat_end",
-            facts=["Bob and Pip lower their weapons."],
+            facts=[ObservableFact.all("Bob and Pip lower their weapons.")],
         ))
 
         result = asyncio.run(run_beat(
@@ -1139,7 +1143,7 @@ class TestCatIIBeat:
         fake = FakeDispatcher()
         combat_out = _router_out(
             requires_responders=False,
-            facts=["Alice's strike resolves against Bob."],
+            facts=[ObservableFact.all("Alice's strike resolves against Bob.")],
         )
         combat_out.ends_beat_reason = "ruleset_resolution"
         fake.queue_combat(combat_out)
@@ -1380,7 +1384,7 @@ class TestBroadcastEvent:
     def _event(
         self,
         observer_ids: list[str],
-        facts: list[ObservableFact | str] | None = None,
+        facts: list[ObservableFact] | None = None,
         effective_at_s: int = 0,
         duration_s: int = 0,
     ) -> EventRouterOutput:

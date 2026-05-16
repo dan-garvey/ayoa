@@ -447,8 +447,8 @@ class RenderBufferEntry(BaseModel):
 class SessionSettings(BaseModel):
     """User-tunable experimental toggles exposed via /settings.
 
-    Kept separate from the static SessionConfig (models, stream_mode,
-    narrative_rules) so the command surface can introspect exactly the
+    Kept separate from the static SessionConfig (models, narrative_rules)
+    so the command surface can introspect exactly the
     fields meant for live tuning. Add new toggles here and they become
     automatically available in /settings list / set.
     """
@@ -503,8 +503,6 @@ class SessionSettings(BaseModel):
 
 class SessionConfig(BaseModel):
     models: ModelConfig = Field(default_factory=ModelConfig)
-    debug: bool = False
-    stream_mode: str = "final_only"
     # Long-form narrator style rules: prose discipline, pacing, subtext philosophy
     narrative_rules: str = ""
     # User-tunable experimental settings. Expanding this is an
@@ -592,16 +590,6 @@ class SessionState(BaseModel):
     pending_intentions: list[dict[str, str]] = Field(default_factory=list)
 
 
-class LocationState(BaseModel):
-    """No runtime scene topology.
-
-    CharacterRecord.location remains as an opaque continuity label, but
-    perception and participation are determined by router-authored
-    observer lists and fact-level visibility packets.
-    """
-    pass
-
-
 class PhysicsRuleset(BaseModel):
     strength_limits: str = "human_baseline"
     magic_enabled: bool = False
@@ -616,7 +604,6 @@ class StorySetting(BaseModel):
 
 
 class WorldState(BaseModel):
-    locations: LocationState = Field(default_factory=LocationState)
     facts: list[str] = Field(default_factory=list)
     physics_ruleset: PhysicsRuleset = Field(default_factory=PhysicsRuleset)
     global_flags: dict[str, Any] = Field(default_factory=dict)

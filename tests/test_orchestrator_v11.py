@@ -30,7 +30,6 @@ from app.schemas.state import (
     CommitmentRevisionPrompt,
     DndCombatantState,
     DndCombatState,
-    LocationState,
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
@@ -48,7 +47,7 @@ def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
             player_character_id="alice",
             character_bindings=bindings or {"alice": "u1"},
         ),
-        world_state=WorldState(locations=LocationState()),
+        world_state=WorldState(),
         characters=[
             CharacterRecord(
                 character_id="alice",
@@ -82,7 +81,7 @@ def _router_out(
     agent_picks: list[str] | None = None,
     ends_beat: bool = True,
     ends_beat_reason: str = "directed_at_player",
-    facts: list[ObservableFact | str] | None = None,
+    facts: list[ObservableFact] | None = None,
 ) -> EventRouterOutput:
     picks = agent_picks or []
     required = required_responders or []
@@ -699,7 +698,7 @@ class TestCombatTurnGating:
         FakeDispatcher.queue_route(_dnd_router_out(
             interaction_mode="dnd_combat_start",
             combatant_ids=["alice", "bob"],
-            facts=["Alice commits to an attack against Bob."],
+            facts=[ObservableFact.all("Alice commits to an attack against Bob.")],
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -748,7 +747,7 @@ class TestCombatTurnGating:
                 interaction_mode="dnd_combat_start",
                 combatant_ids=["alice"],
                 combatant_spawns=[spawn],
-                facts=["Alice kicks at the rat under the table."],
+                facts=[ObservableFact.all("Alice kicks at the rat under the table.")],
             ))
 
             response = await orch.process_turn(TurnRequest(
@@ -791,7 +790,7 @@ class TestCombatTurnGating:
             interaction_mode="dnd_combat_start",
             combatant_ids=["missing_actor"],
             combatant_spawns=[spawn],
-            facts=["Something skitters under the table."],
+            facts=[ObservableFact.all("Something skitters under the table.")],
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -826,7 +825,7 @@ class TestCombatTurnGating:
             interaction_mode="dnd_combat_start",
             combatant_ids=["alice"],
             combatant_spawns=[spawn],
-            facts=["Alice kicks at the rat under the table."],
+            facts=[ObservableFact.all("Alice kicks at the rat under the table.")],
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -956,7 +955,7 @@ class TestCombatTurnGating:
             partial = _router_out(
                 ends_beat=True,
                 ends_beat_reason="ruleset_resolution",
-                facts=["Rat snaps at Alice but resolution fails."],
+                facts=[ObservableFact.all("Rat snaps at Alice but resolution fails.")],
             )
             partial.observers = [
                 ObserverEntry(
@@ -985,7 +984,7 @@ class TestCombatTurnGating:
         ckpt = _ckpt(bindings={"alice": "u1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         ckpt.session.turn_index = 7
-        prior = _router_out(facts=["Prior visible event."])
+        prior = _router_out(facts=[ObservableFact.all("Prior visible event.")])
         prior.event_id = "evt_prior"
         ckpt.canonical_events.append(prior)
         ckpt.session.render_buffers["alice"] = [
@@ -1842,7 +1841,7 @@ class TestResolveCatII:
         resolution = _router_out(
             ends_beat=True,
             ends_beat_reason="cat_ii_resolution",
-            facts=["Pip steps back from Alice."],
+            facts=[ObservableFact.all("Pip steps back from Alice.")],
         )
         resolution.observers = [
             ObserverEntry(

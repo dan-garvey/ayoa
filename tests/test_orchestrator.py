@@ -16,7 +16,7 @@ from app.schemas.characters import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, SpawnRequest
 from app.schemas.events import CanonicalEvent, WorldAdjudication
-from app.schemas.state import LocationState, SessionState, WorldState
+from app.schemas.state import SessionState, WorldState
 
 # --- Fixtures ---
 
@@ -31,7 +31,7 @@ def mock_client():
 def sample_checkpoint():
     return CheckpointFile(
         session=SessionState(session_id="test-session", turn_index=0),
-        world_state=WorldState(locations=LocationState()),
+        world_state=WorldState(),
         characters=[
             CharacterRecord(
                 character_id="guard_17",
@@ -77,9 +77,7 @@ class TestCharacterManager:
             event_id="",
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    feasible=True, resolved_outcome="",
-                ),
+                world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[],
             ),
             observers=[],
@@ -347,10 +345,7 @@ class TestCharacterSpawn:
             event_id="",
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(
-                    feasible=True,
-                    resolved_outcome="The messenger dies on the spot.",
-                ),
+                world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[],
             ),
             observers=[],

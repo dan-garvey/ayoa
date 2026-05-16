@@ -5,14 +5,12 @@ from pydantic import BaseModel
 
 class TurnRequest(BaseModel):
     session_id: str
-    checkpoint_id: str | None = None
     user_input: str
     # Which character is taking this turn. Empty falls back to
     # session.player_character_id so legacy single-player call sites keep
     # working without change. The orchestrator resolves this against the
     # roster each turn for the router/narrator turn context.
     acting_character_id: str = ""
-    stream: bool = False
     # NOTE: `debug: bool` and `debug_flags: DebugFlags` lived here through
     # v11-r7i. They were the on/off switch for the also-murdered
     # `TurnResponse.debug` payload — and since nothing in the

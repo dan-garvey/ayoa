@@ -32,7 +32,6 @@ from app.schemas.events import (
 )
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import (
-    LocationState,
     SessionState,
     WorldState,
 )
@@ -71,10 +70,7 @@ def _make_ckpt(
                 event_id=f"evt_t{turn_index}_{i}",
                 decision_rationale="(test fixture)",
                 canonical_event=CanonicalEvent(
-                    world_adjudication=WorldAdjudication(
-                        feasible=True,
-                        resolved_outcome=f"Turn {turn_index} event {i}.",
-                    ),
+                    world_adjudication=WorldAdjudication(feasible=True),
                     observable_facts=[],
                 ),
                 observers=[
@@ -111,7 +107,6 @@ def _make_ckpt(
         ),
         world_state=WorldState(
             facts=facts,
-            locations=LocationState(),
         ),
         characters=chars,
         canonical_events=events,

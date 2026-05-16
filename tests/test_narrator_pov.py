@@ -32,7 +32,6 @@ from app.schemas.events import (
 )
 from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.state import (
-    LocationState,
     RenderBufferEntry,
     SessionConfig,
     SessionState,
@@ -54,7 +53,6 @@ def _ckpt() -> CheckpointFile:
             player_character_id="alice",
         ),
         world_state=WorldState(
-            locations=LocationState(),
             setting=StorySetting(genre="fantasy", tone="quiet"),
         ),
         characters=[
@@ -78,11 +76,8 @@ def _ckpt() -> CheckpointFile:
         event_id="evt_alpha",
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(
-                feasible=True,
-                resolved_outcome="Alice sees the arch.",
-            ),
-            observable_facts=["The arch is weathered."],
+            world_adjudication=WorldAdjudication(feasible=True),
+            observable_facts=[ObservableFact.all("The arch is weathered.")],
         ),
         observers=[
             ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
@@ -100,11 +95,8 @@ def _ckpt() -> CheckpointFile:
         event_id="evt_beta",
         decision_rationale="(test fixture)",
         canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(
-                feasible=True,
-                resolved_outcome="Pip dips his chin.",
-            ),
-            observable_facts=["Pip nods."],
+            world_adjudication=WorldAdjudication(feasible=True),
+            observable_facts=[ObservableFact.all("Pip nods.")],
         ),
         observers=[
             ObserverEntry(character_id="alice", observation_level="d", response_priority=3),
@@ -521,7 +513,7 @@ class TestFormatVisibleEventsBlock:
     Audit/framing fields are not part of the render input."""
 
     def _resolved(
-        self, *, event_id: str, outcome: str, facts: list[object],
+        self, *, event_id: str, facts: list[ObservableFact],
         level: str = "direct", observers: list[str] | None = None,
         duration_s: int = 0,
     ):
@@ -531,9 +523,7 @@ class TestFormatVisibleEventsBlock:
             duration_s=duration_s,
             decision_rationale="(test fixture)",
             canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True,
-                    resolved_outcome=outcome,
-                ),
+                world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=list(facts),
             ),
             observers=[
@@ -562,14 +552,11 @@ class TestFormatVisibleEventsBlock:
 
         resolved = self._resolved(
             event_id="evt_x",
-            outcome=(
-                "Seraphel recites a fractured plague verse, the strain "
-                "of speaking close to the edge of what she is permitted "
-                "showing in her wings."
-            ),
             facts=[
-                "Seraphel recites: 'The plague that fell on human ground'",
-                "her wings draw tight against her back",
+                ObservableFact.all(
+                    "Seraphel recites: 'The plague that fell on human ground'"
+                ),
+                ObservableFact.all("her wings draw tight against her back"),
             ],
         )
         out = _format_visible_events_block(resolved)
@@ -586,7 +573,6 @@ class TestFormatVisibleEventsBlock:
 
         resolved = self._resolved(
             event_id="evt_y",
-            outcome="(audit-only)",
             facts=[],
         )
         out = _format_visible_events_block(resolved)
@@ -598,10 +584,11 @@ class TestFormatVisibleEventsBlock:
 
         resolved = self._resolved(
             event_id="evt_loadout",
-            outcome="Dan looks over the room.",
             facts=[
-                "[loadout — Pip] Pip wears a red coat.",
-                "[loadout - Vex] Vex keeps a hand on the doorframe.",
+                ObservableFact.all("[loadout — Pip] Pip wears a red coat."),
+                ObservableFact.all(
+                    "[loadout - Vex] Vex keeps a hand on the doorframe."
+                ),
             ],
         )
         out = _format_visible_events_block(resolved)
@@ -615,8 +602,7 @@ class TestFormatVisibleEventsBlock:
         ckpt = _ckpt()
         resolved = self._resolved(
             event_id="evt_ids",
-            outcome="alice passes pip.",
-            facts=["alice sets pip's ledger on the table."],
+            facts=[ObservableFact.all("alice sets pip's ledger on the table.")],
         )
 
         out = _format_visible_events_block(resolved, ckpt=ckpt)
@@ -628,7 +614,6 @@ class TestFormatVisibleEventsBlock:
         from app.engine.narrator import _format_visible_events_block
         resolved = self._resolved(
             event_id="evt_private",
-            outcome="Dan questions Thessaly and signals Ashara.",
             facts=[
                 ObservableFact.only(
                     "Dan's foot touches Ashara's boot under the table.",
@@ -680,7 +665,6 @@ class TestFormatVisibleEventsBlock:
 
         resolved = self._resolved(
             event_id="evt_timed",
-            outcome="(audit-only)",
             facts=[
                 ObservableFact.all("Second visible beat.", at_offset_s=5),
                 ObservableFact.all("First visible beat.", at_offset_s=1),

@@ -27,7 +27,6 @@ from app.schemas.events import CanonicalEvent, WorldAdjudication
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
-    LocationState,
     OpenCatIIEvent,
     SessionState,
     SlotEntry,
@@ -75,7 +74,7 @@ def _ckpt(
     sess.config.settings.ticks_enabled = ticks_enabled
     return CheckpointFile(
         session=sess,
-        world_state=WorldState(locations=LocationState()),
+        world_state=WorldState(),
         characters=characters or [
             CharacterRecord(
                 character_id="alice",

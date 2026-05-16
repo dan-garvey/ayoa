@@ -22,7 +22,7 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.state import LocationState, SessionState, WorldState
+from app.schemas.state import SessionState, WorldState
 
 
 # ---- fixtures ---------------------------------------------------------------
@@ -37,7 +37,7 @@ def _ckpt() -> CheckpointFile:
             session_id=SESSION_ID,
             player_character_id="aldric",
         ),
-        world_state=WorldState(locations=LocationState()),
+        world_state=WorldState(),
         characters=[
             CharacterRecord(
                 character_id="aldric",

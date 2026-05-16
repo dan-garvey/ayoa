@@ -3,31 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class WorldAdjudication(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     feasible: bool
-
-    @model_validator(mode="before")
-    @classmethod
-    def _drop_legacy_audit_fields(cls, value: Any) -> Any:
-        """Drop retired audit/framing fields from old checkpoints.
-
-        Existing checkpoints may still carry `attempted_action` or the
-        older `resolved_outcome` audit-only field.
-        Drop it before extra-field validation so old saves load and
-        rewrite cleanly under the simplified schema.
-        """
-        if isinstance(value, dict) and (
-            "attempted_action" in value or "resolved_outcome" in value
-        ):
-            value = dict(value)
-            value.pop("attempted_action", None)
-            value.pop("resolved_outcome", None)
-        return value
 
 
 class ObservableFact(BaseModel):
@@ -39,8 +21,6 @@ class ObservableFact(BaseModel):
     were available to that character at all.
 
     Schema fields are all required for structured-output stability.
-    Legacy checkpoints/tests that still store bare strings are upgraded
-    by `CanonicalEvent._coerce_legacy_facts`.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -160,11 +140,10 @@ def visible_fact_texts(
 class CanonicalEvent(BaseModel):
     """Produced by the event router's adjudication pass. LLM output target.
 
-    `user_intent`, `world_adjudication.attempted_action`, and
-    `event_id` were dropped; the canonical event now carries only
-    feasibility and observable facts. The orchestrator tags visibility
-    logs directly from turn_index so there's no need for the router to
-    emit an event id inside this nested object.
+    `user_intent` and `event_id` were dropped; the canonical event now
+    carries only feasibility and observable facts. The orchestrator tags
+    visibility logs directly from turn_index so there's no need for the
+    router to emit an event id inside this nested object.
 
     All fields REQUIRED — see EventRouterOutput docstring for the
     "Schema is too complex" rationale."""
@@ -173,22 +152,3 @@ class CanonicalEvent(BaseModel):
 
     world_adjudication: WorldAdjudication
     observable_facts: list[ObservableFact]
-
-    @field_validator("observable_facts", mode="before")
-    @classmethod
-    def _coerce_legacy_facts(cls, value: Any) -> Any:
-        if not isinstance(value, list):
-            return value
-        upgraded = []
-        for item in value:
-            if isinstance(item, str):
-                upgraded.append({
-                    "text": item,
-                    "audience": "all_observers",
-                    "visible_to": [],
-                    "at_offset_s": 0,
-                    "duration_s": 0,
-                })
-            else:
-                upgraded.append(item)
-        return upgraded

@@ -32,7 +32,6 @@ from app.schemas.checkpoint import CheckpointFile
 # --- Design doc example data (sections 7.1-7.7) ---
 
 WORLD_STATE_EXAMPLE = {
-    "locations": {},
     "facts": ["The courtyard is wet from earlier rain.", "The main building is made of stone."],
     "physics_ruleset": {"strength_limits": "human_baseline", "magic_enabled": False},
     "global_flags": {},
@@ -58,9 +57,9 @@ CANONICAL_EVENT_EXAMPLE = {
         "feasible": False,
     },
     "observable_facts": [
-        "The user braces against the building.",
-        "The building does not move.",
-        "The user visibly strains.",
+        ObservableFact.all("The user braces against the building."),
+        ObservableFact.all("The building does not move."),
+        ObservableFact.all("The user visibly strains."),
     ],
 }
 
@@ -309,7 +308,7 @@ class TestCanonicalEvent:
         rebuilt = CanonicalEvent(**ce.model_dump())
         assert rebuilt == ce
 
-    def test_legacy_audit_fields_are_dropped(self):
+    def test_legacy_audit_fields_are_rejected(self):
         data = {
             **CANONICAL_EVENT_EXAMPLE,
             "world_adjudication": {
@@ -318,10 +317,8 @@ class TestCanonicalEvent:
                 "resolved_outcome": "legacy audit line",
             },
         }
-        ce = CanonicalEvent(**data)
-        dumped = ce.model_dump()
-        assert "attempted_action" not in dumped["world_adjudication"]
-        assert "resolved_outcome" not in dumped["world_adjudication"]
+        with pytest.raises(ValidationError):
+            CanonicalEvent(**data)
 
     def test_rejects_extra_fields(self):
         data = {**CANONICAL_EVENT_EXAMPLE, "rogue_field": "surprise"}
@@ -840,19 +837,26 @@ class TestNarratorFinalOutput:
 class TestTurnRequest:
     def test_construct(self):
         tr = TurnRequest(session_id="abc", user_input="I look around.")
-        assert tr.stream is False
         assert tr.acting_character_id == ""
 
     def test_full(self):
         tr = TurnRequest(
             session_id="abc",
+            user_input="I try the door.",
+            acting_character_id="hero",
+        )
+        assert tr.acting_character_id == "hero"
+
+    def test_legacy_checkpoint_and_stream_fields_silently_dropped(self):
+        tr = TurnRequest(
+            session_id="abc",
             checkpoint_id="ckpt_0001",
             user_input="I try the door.",
             stream=True,
-            acting_character_id="hero",
         )
-        assert tr.stream is True
-        assert tr.acting_character_id == "hero"
+        assert tr.session_id == "abc"
+        assert not hasattr(tr, "checkpoint_id")
+        assert not hasattr(tr, "stream")
 
     def test_legacy_debug_fields_silently_dropped(self):
         # v11-r7j murdered `debug` and `debug_flags`. Pre-v11-r7j on-the-
