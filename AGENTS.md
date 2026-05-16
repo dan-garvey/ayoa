@@ -13,6 +13,8 @@ Every feature change must survive two questions before implementation:
 
 D&D mechanics must remain modular adapters around the narrative engine, not assumptions baked into generic router, narrator, or character-agent behavior.
 
+After completing an implementation or bugfix, commit the verified changes and push the branch before handing the work back to the user unless the user explicitly says not to.
+
 Player UX review should assume pseudo-live table norms unless the user says otherwise. Do not treat AFK-player handling as a primary UX requirement; the expected mitigation is social pressure from making the table wait, not engine machinery that keeps play moving around an absent player.
 
 ## Prompt Editing
