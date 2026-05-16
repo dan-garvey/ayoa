@@ -60,7 +60,7 @@ def test_runtime_model_config_defaults_label_mixed_provider_roles():
 
     assert models.event_router == "openai:gpt-5.2"
     assert models.discriminator == "openai:gpt-5.2"
-    assert models.narrator == "anthropic:claude-sonnet-4-6"
+    assert models.narrator == "openai:gpt-5.2"
     assert models.agent_default == "anthropic:claude-opus-4-6"
     assert models.agent_standard == "anthropic:claude-haiku-4-5"
     assert models.agent_convenience == "anthropic:claude-sonnet-4-6"
