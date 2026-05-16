@@ -8,7 +8,6 @@ error-message formatting. A fake dispatcher stands in for LLM calls.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -1583,10 +1582,29 @@ class TestBroadcastEvent:
         assert event.effective_at_s == 10
         assert pip.clock_at_s == 20
         assert alice.clock_at_s == 15
+        assert pip.last_agent_turn_at_s == 20
+        assert alice.last_agent_turn_at_s is None
         assert ckpt.session.leading_at_s == 20
         entry = ckpt.session.render_buffers["alice"][0]
         assert entry.visible_at_s == 15
         assert entry.event_sequence == 0
+
+    def test_observing_event_does_not_reset_last_agent_turn_time(self):
+        ckpt = _ckpt({"alice": "1"})
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.last_agent_turn_at_s = 5
+        event = self._with_updates(
+            self._event(
+                observer_ids=["pip"],
+                facts=[ObservableFact.all("Alice sets down a glass.")],
+                effective_at_s=25,
+            ),
+        )
+
+        broadcast_event(ckpt, event, actor_id="alice")
+
+        assert pip.clock_at_s == 25
+        assert pip.last_agent_turn_at_s == 5
 
     def test_open_commitment_is_private_and_does_not_render_without_facts(self):
         ckpt = _ckpt({"alice": "1"})

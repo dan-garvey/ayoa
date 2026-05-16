@@ -30,7 +30,7 @@ from app.schemas.events import (
     ObservableFact,
     WorldAdjudication,
 )
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.state import (
     LocationState,
     RenderBufferEntry,

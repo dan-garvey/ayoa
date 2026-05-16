@@ -37,6 +37,10 @@ from app.engine.dnd_cat_ii import (
     pending_player_rolls,
     roll_transaction_source,
 )
+from app.engine.dnd_roll_display import (
+    completed_automatic_roll_keys,
+    dice_roll_displays_since,
+)
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import (
@@ -506,6 +510,62 @@ def _combined_beat_reason(results: list[BeatResult]) -> str:
     return results[-1].ended_reason if results else ""
 
 
+def _turn_response_from_beat_results(
+    *,
+    session_id: str,
+    ckpt: CheckpointFile,
+    acting_id: str,
+    beat_results: list[BeatResult],
+    roll_keys_before: set[tuple[str, str]],
+) -> TurnResponse | None:
+    if not beat_results:
+        return None
+    per_player = _combine_beat_renders(beat_results)
+    final_result = beat_results[-1]
+    output_text = per_player.get(acting_id, "")
+    return TurnResponse(
+        session_id=session_id,
+        checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+        turn_index=ckpt.session.turn_index,
+        output_text=output_text,
+        per_player_renders=per_player,
+        beat_ended_reason=_combined_beat_reason(beat_results),
+        reaction_prompts=final_result.reaction_prompts or {},
+        loot_prompts=_combine_loot_prompts(beat_results),
+        commitment_revision_prompts=_commitment_revision_prompts(ckpt),
+        dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+    )
+
+
+def _with_pre_turn_resolutions(
+    response: TurnResponse,
+    pre_turn: list[TurnResponse],
+) -> TurnResponse:
+    if pre_turn:
+        response.pre_turn_resolutions = [
+            *pre_turn,
+            *(response.pre_turn_resolutions or []),
+        ]
+    return response
+
+
+def _should_resume_automated_combat_before_act(
+    ckpt: CheckpointFile,
+    acting_id: str,
+) -> bool:
+    if ckpt.session.active_act_slots:
+        return False
+    combat = _active_combat_state(ckpt)
+    if combat is None:
+        return False
+    if not _combat_actor_is_human_controlled(ckpt, acting_id, combat):
+        return False
+    current = _current_combatant(ckpt, combat)
+    if current is None:
+        return False
+    return not _combatant_human_controlled(ckpt, current)
+
+
 def _combat_roll_transaction(ckpt: CheckpointFile, event_id: str) -> Any | None:
     for txn in ckpt.session.cat_ii_roll_transactions:
         if txn.event_id == event_id and txn.source == "combat":
@@ -754,6 +814,36 @@ class Orchestrator:
         # from both seeing FREE on their check_act_slot.
         lock = await self.session_locks.get(request.session_id)
         async with lock:
+            dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            pre_turn_resolutions: list[TurnResponse] = []
+            if _should_resume_automated_combat_before_act(ckpt, acting_id):
+                pre_roll_keys_before = completed_automatic_roll_keys(ckpt)
+                automated_before = await self._run_automated_combat_turns_locked(
+                    ckpt=ckpt,
+                    dispatcher=dispatcher,
+                )
+                pre_response = _turn_response_from_beat_results(
+                    session_id=request.session_id,
+                    ckpt=ckpt,
+                    acting_id=acting_id,
+                    beat_results=automated_before,
+                    roll_keys_before=pre_roll_keys_before,
+                )
+                if pre_response is not None:
+                    pre_turn_resolutions.append(pre_response)
+                    return _with_pre_turn_resolutions(TurnResponse(
+                        session_id=request.session_id,
+                        checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
+                        turn_index=ckpt.session.turn_index,
+                        output_text=(
+                            "The scene changed before your submitted action "
+                            "could be applied. Submit your next action from "
+                            "the updated state."
+                        ),
+                        per_player_renders={},
+                        beat_ended_reason="pre_turn_resolution",
+                    ), pre_turn_resolutions)
+
             # 4. Validate against the session's active_act_slot.
             blocked_entry = ckpt.session.active_act_slots.get(acting_id)
             was_combat_blocked = (
@@ -768,7 +858,7 @@ class Orchestrator:
             ):
                 release_character_slot(ckpt, acting_id)
                 self.checkpoint_mgr.save(ckpt)
-                return TurnResponse(
+                return _with_pre_turn_resolutions(TurnResponse(
                     session_id=request.session_id,
                     checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
                     turn_index=ckpt.session.turn_index,
@@ -778,7 +868,7 @@ class Orchestrator:
                     ),
                     per_player_renders={},
                     beat_ended_reason="combat_start_blocked_deferred",
-                )
+                ), pre_turn_resolutions)
 
             if check.conflict in (SlotConflict.INITIATOR_HELD,
                                   SlotConflict.CAT_II_OTHER_HELD,
@@ -789,14 +879,14 @@ class Orchestrator:
                     check, ckpt, attempted_text=request.user_input,
                 )
                 # Reject early. Do NOT save — the checkpoint is unchanged.
-                return TurnResponse(
+                return _with_pre_turn_resolutions(TurnResponse(
                     session_id=request.session_id,
                     checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
                     turn_index=ckpt.session.turn_index,
                     output_text=msg,
                     per_player_renders={},
                     beat_ended_reason="slot_rejected",
-                )
+                ), pre_turn_resolutions)
 
             combat_reaction_event_id = (
                 check.trigger_event_id
@@ -814,7 +904,9 @@ class Orchestrator:
                     event_id=combat_reaction_event_id,
                 )
                 self.checkpoint_mgr.save(ckpt)
-                return response
+                return _with_pre_turn_resolutions(
+                    response, pre_turn_resolutions,
+                )
 
             if check.conflict not in (
                 SlotConflict.CAT_II_SELF_RESPONDER,
@@ -824,14 +916,14 @@ class Orchestrator:
                     ckpt, acting_id, request.user_input,
                 )
                 if combat_rejection is not None:
-                    return TurnResponse(
+                    return _with_pre_turn_resolutions(TurnResponse(
                         session_id=request.session_id,
                         checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
                         turn_index=ckpt.session.turn_index,
                         output_text=combat_rejection,
                         per_player_renders={},
                         beat_ended_reason="combat_turn_rejected",
-                    )
+                    ), pre_turn_resolutions)
 
             cat_ii_event_id = (
                 check.cat_ii_event_id
@@ -843,7 +935,7 @@ class Orchestrator:
                 release_character_slot(ckpt, acting_id)
 
             # 5. Run the beat.
-            dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+            roll_keys_before = completed_automatic_roll_keys(ckpt)
             revision_input_consumed = (
                 cat_ii_event_id is None
                 and combat_reaction_event_id is None
@@ -939,7 +1031,7 @@ class Orchestrator:
         per_player = _combine_beat_renders(beat_results)
         output_text = per_player.get(acting_id, "")
         final_result = beat_results[-1]
-        return TurnResponse(
+        return _with_pre_turn_resolutions(TurnResponse(
             session_id=request.session_id,
             checkpoint_id=f"ckpt_{ckpt.session.turn_index:04d}",
             turn_index=ckpt.session.turn_index,
@@ -949,7 +1041,8 @@ class Orchestrator:
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
-        )
+            dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
+        ), pre_turn_resolutions)
 
     def _defer_combat_reaction_locked(
         self,
@@ -1073,6 +1166,7 @@ class Orchestrator:
             # were waiting for the lock.
             ckpt = self.checkpoint_mgr.load_latest(session_id)
             sync_checkpoint_runtime_models(ckpt, self.client.config)
+            roll_keys_before = completed_automatic_roll_keys(ckpt)
             evt_live = next(
                 (e for e in ckpt.session.open_cat_ii_events
                  if e.event_id == event_id),
@@ -1139,6 +1233,9 @@ class Orchestrator:
                         per_player_renders=renders,
                         beat_ended_reason=beat_result.ended_reason,
                         reaction_prompts=beat_result.reaction_prompts or {},
+                        dice_rolls=dice_roll_displays_since(
+                            ckpt, roll_keys_before,
+                        ),
                     )
                 close_cat_ii(ckpt, evt_live.event_id)
                 release_beat_slots(ckpt)
@@ -1239,6 +1336,7 @@ class Orchestrator:
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
+            dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
         )
 
     async def submit_cat_ii_roll(
@@ -1383,6 +1481,7 @@ class Orchestrator:
                 output_actor_id=output_actor_id,
             )
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+        roll_keys_before = completed_automatic_roll_keys(ckpt)
         try:
             resolved = await dispatcher.continue_combat_transaction(
                 ckpt=ckpt,
@@ -1397,6 +1496,7 @@ class Orchestrator:
                 output_text="",
                 per_player_renders={},
                 beat_ended_reason="cat_ii_pending_rolls",
+                dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
             )
 
         if resolved.requires_responders:
@@ -1453,6 +1553,7 @@ class Orchestrator:
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
+            dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
         )
 
     def _stale_combat_roll_response(
@@ -1543,6 +1644,7 @@ class Orchestrator:
         output_actor_id: str,
     ) -> TurnResponse:
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
+        roll_keys_before = completed_automatic_roll_keys(ckpt)
         try:
             resolved = await dispatcher.route_intention(
                 ckpt=ckpt,
@@ -1559,6 +1661,7 @@ class Orchestrator:
                 output_text="",
                 per_player_renders={},
                 beat_ended_reason="cat_ii_pending_rolls",
+                dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
             )
 
         close_cat_ii(ckpt, evt_live.event_id)
@@ -1641,6 +1744,7 @@ class Orchestrator:
             reaction_prompts=final_result.reaction_prompts or {},
             loot_prompts=_combine_loot_prompts(beat_results),
             commitment_revision_prompts=_commitment_revision_prompts(ckpt),
+            dice_rolls=dice_roll_displays_since(ckpt, roll_keys_before),
         )
 
     # ------------------------------------------------------------------ helpers
@@ -1944,6 +2048,11 @@ class Orchestrator:
         ckpt.session.leading_at_s = max(ckpt.session.leading_at_s, tick_end_s)
         for char, _ in committed:
             char.clock_at_s = max(getattr(char, "clock_at_s", 0), tick_end_s)
+            previous = char.last_agent_turn_at_s
+            char.last_agent_turn_at_s = max(
+                previous if previous is not None else 0,
+                tick_end_s,
+            )
         logger.info(
             "Tick fan-in routed: %d/%d draft(s) committed; %d spawn(s); "
             "off-stage canonical event appended.",

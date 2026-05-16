@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import random
 import re
@@ -37,6 +38,35 @@ class TransientLLMError(RuntimeError):
         self.last_error = last_error
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _openai_strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
+    """Return a JSON schema compatible with OpenAI strict structured outputs.
+
+    OpenAI's strict JSON-schema subset requires every object property to
+    appear in that object's `required` array. Pydantic intentionally omits
+    fields with runtime defaults from `required`, which is useful for
+    checkpoint/backward compatibility but invalid for OpenAI strict mode.
+    Normalize a copy at the provider boundary so model validation semantics
+    stay unchanged inside the app.
+    """
+    schema = copy.deepcopy(model.model_json_schema())
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            node.pop("default", None)
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                node["additionalProperties"] = False
+                node["required"] = list(properties.keys())
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(schema)
+    return schema
 
 
 @dataclass
@@ -686,7 +716,7 @@ class LLMClient:
                 "format": {
                     "type": "json_schema",
                     "name": response_model.__name__,
-                    "schema": response_model.model_json_schema(),
+                    "schema": _openai_strict_json_schema(response_model),
                     "strict": True,
                 }
             }

@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from app.bot.engine_bridge import EngineBridge
 from app.engine.settings import (
@@ -17,10 +16,8 @@ from app.engine.settings import (
     list_settings_view,
     set_setting,
 )
-from app.llm.config import LLMConfig
 from app.schemas.characters import (
     CharacterRecord,
-    CharacterStatus,
     PrivateState,
     PublicSheet,
 )

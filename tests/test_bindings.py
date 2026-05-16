@@ -264,8 +264,12 @@ class TestPlayerCharactersBlock:
         block = build_player_characters_block(ckpt, "aldric")
         assert "acting this turn" in block
         # Acting marker on aldric, not sera.
-        aldric_line = next(l for l in block.splitlines() if "aldric" in l)
-        sera_line = next(l for l in block.splitlines() if "sera" in l)
+        aldric_line = next(
+            line for line in block.splitlines() if "aldric" in line
+        )
+        sera_line = next(
+            line for line in block.splitlines() if "sera" in line
+        )
         assert "acting this turn" in aldric_line
         assert "acting this turn" not in sera_line
 

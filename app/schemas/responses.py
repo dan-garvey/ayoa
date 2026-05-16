@@ -3,6 +3,43 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class DiceRollDisplay(BaseModel):
+    """Runtime UI payload for an already executed d20 roll.
+
+    This is intentionally presentation-shaped rather than prompt-shaped:
+    durable mechanics details stay in checkpoint roll transactions, and LLM
+    context continues to receive only canonical outcome facts.
+    """
+
+    transaction_id: str = ""
+    event_id: str = ""
+    source: str = ""
+    roll_id: str = ""
+    actor_id: str = ""
+    actor_name: str = ""
+    target_id: str = ""
+    target_name: str = ""
+    label: str = ""
+    reason: str = ""
+    kind: str = ""
+    ability: str = ""
+    skill: str = ""
+    expression: str = ""
+    detail: str = ""
+    die_faces: int = 20
+    die_values: list[int] = Field(default_factory=list)
+    kept_die_values: list[int] = Field(default_factory=list)
+    modifier: int = 0
+    total: int = 0
+    dc: int = 0
+    outcome: str = ""
+    crit: str = "none"
+    damage_total: int = 0
+    damage_type: str = ""
+    damage_detail: str = ""
+    automatic: bool = True
+
+
 class TurnResponse(BaseModel):
     session_id: str
     checkpoint_id: str = ""
@@ -38,12 +75,13 @@ class TurnResponse(BaseModel):
     # Runtime-only revision affordances keyed by character_id. Values are open
     # commitment ids whose owning player should revise or continue the activity.
     commitment_revision_prompts: dict[str, list[str]] = Field(default_factory=dict)
-    # v11-r7a: pre-turn AFK-sweep resolutions. When the per-session lock
-    # holder runs `sweep_stale_pins`, each event the sweep fills is
-    # closed by `Orchestrator.resolve_cat_ii`, producing a TurnResponse
-    # of its own. Those responses are appended here so the frontend can
-    # fan their per-POV renders out before showing the actor their own
-    # /act result. Empty in the common case (no stale pins).
+    # Runtime-only D&D dice-display payloads for rolls completed while building
+    # this response. Frontends may animate these before rendering narrator prose.
+    dice_rolls: list[DiceRollDisplay] = Field(default_factory=list)
+    # v11-r7a+: pre-turn resolutions. Stale Cat II closure and resumed
+    # automated combat can each produce TurnResponse objects that should be
+    # delivered before the actor's own /act result so display order matches
+    # story time. Empty in the common case.
     pre_turn_resolutions: list["TurnResponse"] = Field(default_factory=list)
     # NOTE: a `debug: DebugPayload | None` field lived here through
     # v11-r7i. The orchestrator never wrote it, every consumer

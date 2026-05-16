@@ -77,6 +77,11 @@ class CharacterRecord(BaseModel):
     # Fiction-time clock in seconds since session start. Updated from
     # canonical event/fact timing for events this character acts in or observes.
     clock_at_s: int = 0
+    # Fiction-time of the last committed NPC-agent turn for this
+    # character. Observation-only clock advancement does not touch this;
+    # it exists so delayed agent turns can see how much story time has
+    # passed since the character last had a chance to act.
+    last_agent_turn_at_s: int | None = None
     # True if this character is REASONABLY PLAYABLE BY A HUMAN — i.e.,
     # the author/importer marked them as a slot a player can claim via
     # /join. They run as agent NPCs by default and only stop being

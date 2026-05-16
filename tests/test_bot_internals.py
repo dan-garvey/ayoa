@@ -25,8 +25,10 @@ import pytest
 
 from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge
+from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
-from app.schemas.responses import TurnResponse
+from app.schemas.dnd_inventory import DndLootOffer
+from app.schemas.responses import DiceRollDisplay, TurnResponse
 from app.schemas.state import SessionState, StorySetting, WorldState
 
 
@@ -145,6 +147,111 @@ class TestEngineBridgeQuery:
         )
         assert result.answer == "You can see Pip's red coat."
         assert result.knowledge_gated is False
+
+
+class TestLootRouterSync:
+    def test_claim_loot_queues_next_router_update(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="loot_sync",
+                character_bindings={"alice": "42"},
+            ),
+            world_state=WorldState(),
+            characters=[
+                CharacterRecord(
+                    character_id="alice",
+                    name="Alice",
+                    mechanics={
+                        "ruleset_id": "dnd5e_basic",
+                        "dnd5e_sheet": {
+                            "statblock": {
+                                "inventory": {
+                                    "items": [],
+                                    "currency": {"gp": 2},
+                                },
+                            },
+                        },
+                    },
+                ),
+            ],
+        )
+        ckpt.session.dnd_inventory_offers.append(DndLootOffer(
+            offer_id="loot_evt_chest",
+            source_event_id="evt_chest",
+            source_kind="container",
+            source_label="iron chest",
+            eligible_character_ids=["alice"],
+            items=[
+                {
+                    "item_id": "healing_potion",
+                    "name": "Potion of Healing",
+                    "kind": "consumable",
+                    "quantity": 1,
+                    "identified": True,
+                    "requires_identification": False,
+                    "requires_attunement": False,
+                    "consumable": True,
+                    "value_gp": 50,
+                    "weight": 0.5,
+                    "notes": "",
+                },
+            ],
+            currency={"sp": 8},
+        ))
+        mock_bridge.checkpoint_mgr.save(ckpt)
+
+        result = asyncio.run(mock_bridge.claim_loot(
+            session_id="loot_sync",
+            user_id=42,
+            character_id="alice",
+            offer_id="loot_evt_chest",
+            item_ids=[],
+            take_currency=True,
+            take_all_available=True,
+        ))
+
+        assert result.message.startswith("Claimed Potion of Healing.")
+        reloaded = mock_bridge.load_latest("loot_sync")
+        assert len(reloaded.session.pending_router_state_changes) == 1
+        update = reloaded.session.pending_router_state_changes[0]
+        assert "Inventory update before the next action" in update
+        assert "alice took Potion of Healing and 8 sp from iron chest" in update
+        assert "explicit player continuity" in update
+
+
+class TestRewindMetadata:
+    def test_single_binding_supplies_actor_when_player_id_is_empty(
+        self,
+        mock_bridge: EngineBridge,
+    ):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="rewind_meta",
+                turn_index=0,
+                character_bindings={"alice": "42"},
+            ),
+            world_state=WorldState(),
+            characters=[
+                CharacterRecord(
+                    character_id="alice",
+                    name="Alice",
+                    location="cellar",
+                    is_playable=True,
+                ),
+            ],
+        )
+        mock_bridge.checkpoint_mgr.save(ckpt)
+        later = ckpt.model_copy(deep=True)
+        later.session.turn_index = 1
+        mock_bridge.checkpoint_mgr.save(later)
+
+        preview = mock_bridge.preview_rewind("rewind_meta", 0)
+
+        assert preview.actor_character_id == "alice"
+        assert preview.location == "cellar"
 
 
 class TestQueryCommandDelivery:
@@ -337,6 +444,84 @@ class TestTurnResponseDelivery:
         clear.assert_awaited_once_with(inter)
         public_fallback.assert_not_awaited()
         inter.followup.send.assert_not_awaited()
+
+    def test_actor_auto_rolls_deliver_before_render(self, monkeypatch):
+        roll = DiceRollDisplay(
+            event_id="evt_roll",
+            roll_id="attack_rat",
+            actor_id="alice",
+            actor_name="Alice",
+            target_id="rat",
+            target_name="Rat",
+            label="Attack",
+            die_values=[13],
+            kept_die_values=[13],
+            modifier=4,
+            total=17,
+            dc=12,
+            outcome="hit",
+        )
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0006",
+            turn_index=6,
+            output_text="Alice's strike lands.",
+            per_player_renders={"alice": "Alice's strike lands."},
+            beat_ended_reason="ruleset_resolution",
+            dice_rolls=[roll],
+        )
+
+        engine = MagicMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+        )
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        smap = MagicMock()
+        thread = MagicMock()
+        thread.id = 999
+        events: list[str] = []
+
+        async def _fake_rolls(**kwargs):
+            events.append("rolls")
+            assert kwargs["rolls"] == [roll]
+            assert kwargs["character_id"] == "alice"
+            return True
+
+        async def _fake_post_actor_render(**kwargs):
+            events.append("render")
+            return ("thread", thread)
+
+        monkeypatch.setattr(
+            bot_commands, "_post_roll_displays_to_pov", _fake_rolls,
+        )
+        monkeypatch.setattr(
+            bot_commands, "_post_actor_render", _fake_post_actor_render,
+        )
+        monkeypatch.setattr(
+            bot_commands, "_clear_interaction_response", AsyncMock(),
+        )
+
+        asyncio.run(bot_commands._deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id="s",
+            story_id="story",
+            actor_character_id="alice",
+            actor_user=inter.user,
+            response=response,
+        ))
+
+        assert events == ["rolls", "render"]
 
     def test_reaction_prompt_attaches_no_reaction_view(self, monkeypatch):
         response = TurnResponse(
@@ -837,6 +1022,41 @@ class TestSweepDrivesReadjudication:
         mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once()
         assert mock_bridge.orchestrator.process_turn.await_count == 1
         assert result.beat_ended_reason == "directed_at_player"
+
+    def test_process_turn_pre_resolutions_are_preserved(
+        self, mock_bridge,
+    ):
+        """Orchestrator-level pre-turn work, such as resumed NPC combat,
+        must survive the bridge's stale-pin pre-turn handling."""
+        from app.schemas.responses import TurnResponse
+
+        mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
+        npc_response = TurnResponse(
+            session_id="session",
+            checkpoint_id="ckpt_0005",
+            turn_index=5,
+            output_text="The rat lunges.",
+            per_player_renders={"alice": "The rat lunges."},
+            beat_ended_reason="directed_at_player",
+        )
+        mock_bridge.orchestrator.process_turn = AsyncMock(
+            return_value=TurnResponse(
+                session_id="session",
+                beat_ended_reason="directed_at_player",
+                pre_turn_resolutions=[npc_response],
+            )
+        )
+
+        async def run():
+            return await mock_bridge.run_turn(
+                session_id="session",
+                user_input="I strike back",
+                acting_character_id="alice",
+            )
+
+        result = asyncio.run(run())
+
+        assert result.pre_turn_resolutions == [npc_response]
 
 
 # ---- /join directive choice happens INSIDE the per-session lock --------------

@@ -6,7 +6,7 @@ from app.bot.engine_bridge import (
     CompletedPendingRoll,
     EngineBridge,
 )
-from app.bot.commands import _roll_result_line
+from app.bot.commands import _dice_roll_content, _roll_result_line
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.state import (
@@ -239,3 +239,28 @@ def test_roll_result_line_surfaces_total_for_discord_ui():
     assert line == (
         "**Rolled Attack:** 1d20 (**20**) + 4 = `24`. Critical success."
     )
+
+
+def test_dice_roll_content_formats_d20_equation_for_discord_ui():
+    content = _dice_roll_content(
+        CompletedPendingRoll(
+            session_id="s",
+            event_id="evt",
+            roll_id="roll_1",
+            actor_id="alice",
+            user_id="123",
+            label="Attack",
+            reason="",
+            expression="1d20+4",
+            total=19,
+            detail="1d20 (15) + 4 = `19`",
+            crit="none",
+            remaining_pending_rolls=0,
+            dc=12,
+            outcome="hit",
+        )
+    )
+
+    assert "D&D Roll: alice - Attack" in content
+    assert "`d20 15 + 4 = 19 vs DC 12`" in content
+    assert "**Hit**" in content

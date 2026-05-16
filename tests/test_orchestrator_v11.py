@@ -25,6 +25,7 @@ from app.schemas.events import (
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import (
+    CatIIRollRecord,
     CatIIRollTransaction,
     CommitmentRevisionPrompt,
     DndCombatantState,
@@ -459,6 +460,102 @@ class TestPendingCombatRolls:
         assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_continue_combat_response_includes_new_automatic_roll(
+        self,
+        patched_orchestrator,
+        monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.turn_index = 4
+        ckpt.session.active_combat = DndCombatState(
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="rat",
+                    character_id="rat",
+                    name="Rat",
+                    armor_class=12,
+                ),
+            ],
+        )
+        record = CatIIRollRecord(
+            roll_id="attack_rat",
+            actor_id="alice",
+            actor_control="agent",
+            status="pending",
+            request={
+                "roll_id": "attack_rat",
+                "actor_id": "alice",
+                "kind": "attack_roll",
+                "ability": "str",
+                "skill": "",
+                "dc": 0,
+                "opposed_by": "",
+                "advantage_state": "normal",
+                "reason": "Alice attacks the rat.",
+                "action_id": "shortsword",
+                "target_id": "rat",
+                "damage_adjustments": [],
+            },
+            modifier=4,
+            label="Attack (Shortsword)",
+            reason="Alice attacks the rat.",
+        )
+        ckpt.session.cat_ii_roll_transactions.append(
+            CatIIRollTransaction(
+                transaction_id="rolltxn_2",
+                event_id="cmb_2",
+                source="combat",
+                actor_id="alice",
+                status="ready_to_finalize",
+                rolls=[record],
+            )
+        )
+
+        async def _fake_continue(self, **kw):
+            txn = kw["ckpt"].session.cat_ii_roll_transactions[0]
+            roll = txn.rolls[0]
+            roll.status = "completed"
+            roll.completed_by_user_id = "engine"
+            roll.result = {
+                "roll_id": "attack_rat",
+                "expression": "1d20+4",
+                "total": 17,
+                "detail": "1d20 (13) + 4 = `17`",
+                "crit": "none",
+                "dice": [
+                    {"size": 20, "values": [13], "kept": True, "total": 13},
+                ],
+            }
+            return _router_out(ends_beat_reason="ruleset_resolution")
+
+        monkeypatch.setattr(
+            FakeDispatcher,
+            "continue_combat_transaction",
+            _fake_continue,
+        )
+        orch, _mgr = patched_orchestrator(ckpt)
+
+        response = await orch.continue_cat_ii_after_roll(
+            session_id="s",
+            event_id="cmb_2",
+            actor_id="alice",
+        )
+
+        assert response.dice_rolls
+        assert response.dice_rolls[0].roll_id == "attack_rat"
+        assert response.dice_rolls[0].actor_name == "Alice"
+        assert response.dice_rolls[0].target_name == "Rat"
+        assert response.dice_rolls[0].dc == 12
+        assert response.dice_rolls[0].outcome == "hit"
+
+    @pytest.mark.asyncio
     async def test_cancelled_combat_roll_clears_slot_without_dispatch(
         self,
         patched_orchestrator,
@@ -692,6 +789,66 @@ class TestCombatTurnGating:
         assert response.per_player_renders == {}
         assert mgr.save.call_count == 0
         assert FakeDispatcher.route_calls == []
+
+    @pytest.mark.asyncio
+    async def test_npc_current_after_rewind_resumes_before_player_act(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        async def fake_run_beat(**kw):
+            actor_id = kw["actor_id"]
+            return BeatResult(
+                renders={"alice": f"{actor_id} acts."},
+                events_closed=0,
+                ended_reason="directed_at_player",
+                transcript_entries={},
+                event_actor_ids=[actor_id],
+            )
+
+        monkeypatch.setattr("app.engine.orchestrator.run_beat", fake_run_beat)
+        FakeDispatcher.queue_agent("Rat bites.")
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        ckpt.session.active_combat = DndCombatState(
+            round_number=3,
+            turn_index=0,
+            combatants=[
+                DndCombatantState(
+                    combatant_id="rat",
+                    character_id="rat",
+                    name="Rat",
+                    player_controlled=False,
+                ),
+                DndCombatantState(
+                    combatant_id="alice",
+                    character_id="alice",
+                    name="Alice",
+                    player_controlled=True,
+                ),
+                DndCombatantState(
+                    combatant_id="bob",
+                    character_id="bob",
+                    name="Bob",
+                    player_controlled=True,
+                ),
+            ],
+        )
+        orch, mgr = patched_orchestrator(ckpt)
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I strike back",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "pre_turn_resolution"
+        assert "updated state" in response.output_text
+        assert response.per_player_renders == {}
+        assert len(response.pre_turn_resolutions) == 1
+        assert response.pre_turn_resolutions[0].output_text == "rat acts."
+        assert response.pre_turn_resolutions[0].turn_index == 1
+        assert FakeDispatcher.agent_calls[0]["character_id"] == "rat"
+        assert FakeDispatcher.route_calls == []
+        assert ckpt.session.active_combat.turn_index == 1
+        assert mgr.save.call_count == 1
 
     @pytest.mark.asyncio
     async def test_bound_human_outside_combat_can_act_while_combat_exists(

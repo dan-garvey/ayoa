@@ -33,6 +33,7 @@ from app.engine.context_builder import (
     build_world_context,
     clear_character_inbox,
     conversation_turn_messages,
+    format_elapsed_agent_turn_block,
     format_pending_observations_block,
 )
 from app.engine.prompt_manager import PromptManager
@@ -490,6 +491,15 @@ class CharacterAgent:
         draft: CharacterAgentTurnDraft,
     ) -> None:
         clear_character_inbox(character)
+        current_at_s = max(
+            int(checkpoint.session.leading_at_s),
+            int(character.clock_at_s),
+        )
+        previous = character.last_agent_turn_at_s
+        character.last_agent_turn_at_s = max(
+            previous if previous is not None else 0,
+            current_at_s,
+        )
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],
         )
@@ -528,7 +538,12 @@ class CharacterAgent:
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
-        pending_block = format_pending_observations_block(character)
+        elapsed_time_block = format_elapsed_agent_turn_block(
+            character, checkpoint,
+        )
+        pending_block = (
+            elapsed_time_block + format_pending_observations_block(character)
+        )
 
         char_identity = build_character_packet(character)
         char_state = build_character_state(character)

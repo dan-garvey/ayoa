@@ -59,7 +59,28 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Protocol
+
+from app.engine import dnd_combat, dnd_monsters, dnd_spatial
+from app.engine.dnd_cat_ii import DndCatIIRollsPending
+from app.schemas.checkpoint import CheckpointFile
+from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.events import (
+    CanonicalEvent,
+    ObservableFact,
+    WorldAdjudication,
+    visible_fact_texts,
+)
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.state import (
+    CommitmentRevisionPrompt,
+    OpenCatIIEvent,
+    OpenCommitment,
+    RenderBufferEntry,
+    SlotEntry,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow_iso() -> str:
@@ -90,27 +111,6 @@ def _is_agent_refusal(text: str) -> bool:
     Returns True iff the text is empty or whitespace-only.
     """
     return not (text or "").strip()
-
-from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import (
-    CanonicalEvent,
-    ObservableFact,
-    WorldAdjudication,
-    visible_fact_texts,
-)
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.state import (
-    CommitmentRevisionPrompt,
-    OpenCatIIEvent,
-    OpenCommitment,
-    RenderBufferEntry,
-    SlotEntry,
-)
-from app.engine import dnd_combat, dnd_monsters, dnd_spatial
-from app.engine.dnd_cat_ii import DndCatIIRollsPending
-
-logger = logging.getLogger(__name__)
 
 
 _HUMAN_CLASS_NOUNS = (
@@ -1239,6 +1239,16 @@ def broadcast_event(
     from app.engine.context_builder import collect_player_ids
 
     player_ids = collect_player_ids(ckpt)
+    if actor_id and actor_id not in player_ids:
+        actor = by_id.get(actor_id)
+        if actor is not None and actor.status != "culled":
+            end_at_s = max(0, event.effective_at_s + event.duration_s)
+            previous = actor.last_agent_turn_at_s
+            actor.last_agent_turn_at_s = max(
+                previous if previous is not None else 0,
+                end_at_s,
+            )
+
     # NPC perception payload. Pre-v11-r10 this was the router's
     # one-line event summary — narrator-grade prose with interior
     # interpretation woven in ("the strain of speaking close to the

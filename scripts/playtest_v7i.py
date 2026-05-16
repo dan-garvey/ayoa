@@ -237,7 +237,7 @@ async def _run() -> None:
         })
 
     # Save full log buffer to a file for post-run analysis.
-    log_path = Path(f"playtest_v7i_logs.txt")
+    log_path = Path("playtest_v7i_logs.txt")
     log_path.write_text(capture.buffer.getvalue())
     print(f"\nFull logs written to {log_path} ({log_path.stat().st_size} bytes)")
 
@@ -246,7 +246,7 @@ async def _run() -> None:
     print(f"Turns completed: {sum(1 for t in turns_log if not t.get('error'))}/{len(SCRIPT)}")
     errors = [t for t in turns_log if t.get("error")]
     if errors:
-        print(f"\nErrors:")
+        print("\nErrors:")
         for e in errors:
             print(f"  T{e['turn']}: {e['error']}")
 
@@ -254,7 +254,7 @@ async def _run() -> None:
     bucket: dict[str, int] = defaultdict(int)
     for t in turns_log:
         bucket[t.get("ended_reason", "")] += 1
-    print(f"\nended_reason distribution:")
+    print("\nended_reason distribution:")
     for r, c in sorted(bucket.items(), key=lambda kv: -kv[1]):
         print(f"  {r!r}: {c}")
 

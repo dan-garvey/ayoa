@@ -533,6 +533,62 @@ def clear_character_inbox(character: CharacterRecord) -> None:
     character.pending_observations = []
 
 
+def _format_elapsed_duration(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        unit = "second" if seconds == 1 else "seconds"
+        return f"{seconds} {unit}"
+
+    minutes, remainder = divmod(seconds, 60)
+    if minutes < 60:
+        minute_unit = "minute" if minutes == 1 else "minutes"
+        if remainder == 0:
+            return f"{minutes} {minute_unit}"
+        second_unit = "second" if remainder == 1 else "seconds"
+        return f"{minutes} {minute_unit} and {remainder} {second_unit}"
+
+    hours, minutes = divmod(minutes, 60)
+    hour_unit = "hour" if hours == 1 else "hours"
+    if minutes == 0:
+        return f"{hours} {hour_unit}"
+    minute_unit = "minute" if minutes == 1 else "minutes"
+    return f"{hours} {hour_unit} and {minutes} {minute_unit}"
+
+
+def format_elapsed_agent_turn_block(
+    character: CharacterRecord,
+    checkpoint: CheckpointFile,
+) -> str:
+    """Render elapsed story time since this agent last got a turn.
+
+    `clock_at_s` moves when the character observes events, so it cannot
+    answer this question by itself. `last_agent_turn_at_s` is updated only
+    when a character-agent turn commits.
+    """
+    last_turn_at_s = character.last_agent_turn_at_s
+    if last_turn_at_s is None:
+        return ""
+
+    current_at_s = max(
+        int(checkpoint.session.leading_at_s),
+        int(character.clock_at_s),
+    )
+    elapsed_s = max(0, current_at_s - int(last_turn_at_s))
+    lines = ["## Time Since Your Last Turn"]
+    if elapsed_s == 0:
+        lines.append(
+            "No meaningful story time has passed since you last had a "
+            "chance to act."
+        )
+    else:
+        lines.append(
+            f"About {_format_elapsed_duration(elapsed_s)} has passed in the "
+            "story since you last had a chance to act."
+        )
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def format_pending_observations_block(character: CharacterRecord) -> str:
     """Render the "Since your last response" block for the agent user message.
 

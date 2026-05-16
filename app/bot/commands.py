@@ -32,6 +32,7 @@ per-session lock so concurrent /act commands on the same channel serialize.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 import json
 import logging
@@ -59,6 +60,7 @@ from app.bot.engine_bridge import (
     DndSheetAttachmentSummary,
     EngineBridge,
     PendingRollPrompt,
+    RewindResult,
 )
 from app.engine import dnd_experience, dnd_inventory
 from app.schemas.dnd_inventory import DndLootOffer
@@ -66,7 +68,7 @@ from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.responses import TurnResponse
+from app.schemas.responses import DiceRollDisplay, TurnResponse
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,7 @@ DND_SHEET_PAGES = (
     "inventory",
     "features",
 )
+DICE_ROLL_ANIMATION_DELAY_S = 0.35
 
 DISCORD_SELECT_OPTION_TEXT_MAX = 100
 
@@ -340,8 +343,299 @@ def _roll_prompt_content(
     if interpreting:
         lines.append("")
         lines.append("_Interpreting the outcome..._")
-        # TODO(dice-ui): replace the static edit with a short dice animation.
     return "\n".join(lines)
+
+
+def _signed_modifier(value: int) -> str:
+    if value > 0:
+        return f" + {value}"
+    if value < 0:
+        return f" - {abs(value)}"
+    return " + 0"
+
+
+def _dice_roll_heading(roll: DiceRollDisplay | CompletedPendingRoll) -> str:
+    actor = (
+        getattr(roll, "actor_name", "")
+        or getattr(roll, "actor_id", "")
+        or "Unknown"
+    )
+    label = getattr(roll, "label", "") or "Roll"
+    target = (
+        getattr(roll, "target_name", "")
+        or getattr(roll, "target_id", "")
+        or ""
+    )
+    heading = f"{actor} - {label}" if actor else label
+    return f"{heading} vs {target}" if target else heading
+
+
+def _dice_d20_text(roll: DiceRollDisplay | CompletedPendingRoll) -> str:
+    values = list(getattr(roll, "die_values", ()) or ())
+    kept = list(getattr(roll, "kept_die_values", ()) or values)
+    if not values:
+        match = re.search(
+            r"1d20\s*\((?:\*\*)?(\d+)",
+            str(getattr(roll, "detail", "") or ""),
+        )
+        if match:
+            values = [int(match.group(1))]
+            kept = values
+    if not values:
+        return "?"
+    if len(values) == 1:
+        return str(values[0])
+    kept_text = "/".join(str(v) for v in kept) if kept else str(values[-1])
+    return f"{'/'.join(str(v) for v in values)} -> {kept_text}"
+
+
+def _dice_roll_formula(
+    roll: DiceRollDisplay | CompletedPendingRoll,
+) -> str:
+    total = int(getattr(roll, "total", 0) or 0)
+    modifier = int(getattr(roll, "modifier", 0) or 0)
+    if modifier == 0:
+        match = re.fullmatch(
+            r"1d20(?P<modifier>[+-]\d+)?",
+            str(getattr(roll, "expression", "") or "").strip(),
+        )
+        if match and match.group("modifier"):
+            modifier = int(match.group("modifier"))
+    dc = int(getattr(roll, "dc", 0) or 0)
+    line = f"d20 {_dice_d20_text(roll)}{_signed_modifier(modifier)} = {total}"
+    if dc:
+        line = f"{line} vs DC {dc}"
+    return line
+
+
+def _dice_roll_content(
+    roll: DiceRollDisplay | CompletedPendingRoll,
+    *,
+    stage: str = "final",
+    interpreting: bool = False,
+) -> str:
+    heading = f"**D&D Roll: {_dice_roll_heading(roll)}**"
+    if stage == "rolling":
+        lines = [heading, "`d20 rolling...`"]
+    elif stage == "settled":
+        lines = [heading, f"`d20 {_dice_d20_text(roll)}`"]
+    else:
+        lines = [heading, f"`{_dice_roll_formula(roll)}`"]
+        outcome = str(getattr(roll, "outcome", "") or "")
+        if outcome:
+            lines.append(f"**{outcome.title()}**")
+        crit = str(getattr(roll, "crit", "") or "")
+        if crit == "crit":
+            lines.append("_Critical success._")
+        elif crit == "fail":
+            lines.append("_Natural 1._")
+        damage_total = int(getattr(roll, "damage_total", 0) or 0)
+        if damage_total > 0:
+            damage_type = str(getattr(roll, "damage_type", "") or "")
+            suffix = f" {damage_type}" if damage_type else ""
+            lines.append(f"Damage: `{damage_total}{suffix}`")
+    if interpreting:
+        lines.append("")
+        lines.append("_Interpreting the outcome..._")
+    return "\n".join(lines)
+
+
+async def _animate_interaction_roll_result(
+    inter: discord.Interaction,
+    result: CompletedPendingRoll,
+    *,
+    initial_response_sent: bool,
+    view: Optional[discord.ui.View] = None,
+    interpreting: bool = True,
+) -> None:
+    rolling = _dice_roll_content(result, stage="rolling")
+    final = _dice_roll_content(
+        result, stage="final", interpreting=interpreting,
+    )
+    try:
+        if initial_response_sent:
+            await inter.edit_original_response(content=rolling, view=view)
+        elif inter.response.is_done():
+            await inter.followup.send(rolling, ephemeral=True)
+            initial_response_sent = True
+        else:
+            await inter.response.send_message(
+                rolling,
+                ephemeral=True,
+                view=view,
+            )
+            initial_response_sent = True
+        await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+        await inter.edit_original_response(
+            content=_dice_roll_content(result, stage="settled"),
+            view=view,
+        )
+        await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+        await inter.edit_original_response(content=final, view=view)
+    except Exception:
+        logger.debug("dice roll animation failed", exc_info=True)
+        fallback = "\n".join([
+            _roll_result_line(result),
+            "_Interpreting the outcome..._" if interpreting else "",
+        ]).strip()
+        if inter.response.is_done():
+            await inter.followup.send(fallback, ephemeral=True)
+        else:
+            await inter.response.send_message(
+                fallback,
+                ephemeral=True,
+                view=view,
+            )
+
+
+async def _send_roll_animation_to_messageable(
+    *,
+    target,
+    roll: DiceRollDisplay,
+    smap: SessionMap,
+    session_channel_id: int,
+    session_id: str,
+    turn_index: Optional[int],
+    delivery: str,
+    discord_channel_id: Optional[int] = None,
+    recipient_user_id: Optional[int] = None,
+) -> None:
+    msg = await target.send(_dice_roll_content(roll, stage="rolling"))
+    await _record_turn_message(
+        smap=smap,
+        session_channel_id=session_channel_id,
+        session_id=session_id,
+        turn_index=turn_index,
+        message=msg,
+        delivery=delivery,
+        discord_channel_id=discord_channel_id,
+        recipient_user_id=recipient_user_id,
+    )
+    try:
+        await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+        await msg.edit(content=_dice_roll_content(roll, stage="settled"))
+        await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+        await msg.edit(content=_dice_roll_content(roll, stage="final"))
+    except Exception:
+        logger.debug("dice roll message edit failed", exc_info=True)
+
+
+async def _post_roll_displays_to_pov(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    user_id: int,
+    character_id: str,
+    char_name: str,
+    rolls: list[DiceRollDisplay],
+    bot: "discord.Client",
+    session_id: str,
+    turn_index: Optional[int],
+) -> bool:
+    if not rolls:
+        return True
+    channel = _session_text_channel(inter)
+    session_chan_id = _session_channel_id(inter)
+    user = bot.get_user(user_id)
+    if user is None:
+        try:
+            user = await bot.fetch_user(user_id)
+        except Exception:
+            logger.exception(
+                "dice roll POV: fetch_user(%s) failed", user_id,
+            )
+            return False
+
+    thread: Optional[discord.Thread] = None
+    if channel is not None:
+        thread = await _ensure_pov_thread(
+            channel=channel,
+            user=user,
+            smap=smap,
+            character_id=character_id,
+            char_name=char_name,
+        )
+    if thread is not None:
+        try:
+            for roll in rolls:
+                await _send_roll_animation_to_messageable(
+                    target=thread,
+                    roll=roll,
+                    smap=smap,
+                    session_channel_id=session_chan_id,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                    delivery="thread",
+                    discord_channel_id=thread.id,
+                    recipient_user_id=user_id,
+                )
+            return True
+        except Exception:
+            logger.exception(
+                "dice roll POV: thread.send to %s failed; falling back to DM",
+                thread.id,
+            )
+            await smap.clear_pov_thread(session_chan_id, user_id)
+
+    try:
+        for roll in rolls:
+            await _send_roll_animation_to_messageable(
+                target=user,
+                roll=roll,
+                smap=smap,
+                session_channel_id=session_chan_id,
+                session_id=session_id,
+                turn_index=turn_index,
+                delivery="dm",
+                recipient_user_id=user_id,
+            )
+        return True
+    except Exception:
+        logger.exception("dice roll POV: DM fallback to %s failed", user_id)
+        return False
+
+
+async def _send_public_roll_displays(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    session_id: str,
+    turn_index: Optional[int],
+    rolls: list[DiceRollDisplay],
+) -> None:
+    if not rolls:
+        return
+    channel = _session_text_channel(inter)
+    session_chan_id = _session_channel_id(inter)
+    for roll in rolls:
+        if channel is not None:
+            await _send_roll_animation_to_messageable(
+                target=channel,
+                roll=roll,
+                smap=smap,
+                session_channel_id=session_chan_id,
+                session_id=session_id,
+                turn_index=turn_index,
+                delivery="public",
+            )
+        else:
+            msg = await inter.followup.send(
+                _dice_roll_content(roll, stage="rolling"),
+                wait=True,
+            )
+            await _record_turn_message(
+                smap=smap,
+                session_channel_id=session_chan_id,
+                session_id=session_id,
+                turn_index=turn_index,
+                message=msg,
+                delivery="public",
+            )
+            try:
+                await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+                await msg.edit(content=_dice_roll_content(roll, stage="final"))
+            except Exception:
+                logger.debug("public dice roll edit failed", exc_info=True)
 
 
 async def _record_turn_message(
@@ -756,13 +1050,22 @@ class _PendingRollView(discord.ui.View):
                 child.style = discord.ButtonStyle.success
                 child.label = f"Rolled {result.total}"
         try:
-            content = _roll_prompt_content(
-                prompt=self.prompt,
-                char_name=self.char_name,
-                result=result,
-                interpreting=True,
+            await roll_inter.response.edit_message(
+                content=_dice_roll_content(result, stage="rolling"),
+                view=self,
             )
-            await roll_inter.response.edit_message(content=content, view=self)
+            await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+            await roll_inter.edit_original_response(
+                content=_dice_roll_content(result, stage="settled"),
+                view=self,
+            )
+            await asyncio.sleep(DICE_ROLL_ANIMATION_DELAY_S)
+            await roll_inter.edit_original_response(
+                content=_dice_roll_content(
+                    result, stage="final", interpreting=True,
+                ),
+                view=self,
+            )
         except Exception:
             logger.debug("pending roll prompt result edit failed", exc_info=True)
             if not roll_inter.response.is_done():
@@ -1379,17 +1682,54 @@ async def _deliver_turn_response_to_povs(
                 notified.append(char_name)
         return notified
 
-    # Fan out pre-turn AFK-sweep resolutions before the actor's render so
-    # private POV order matches story time.
+    async def _deliver_rolls_to_povs(
+        rolls: list[DiceRollDisplay],
+        renders: dict[str, str],
+        *,
+        skip_cid: str | None,
+        turn_index: int,
+    ) -> None:
+        if not rolls:
+            return
+        for cid in renders:
+            if cid == skip_cid:
+                continue
+            uid_str = bindings.get(cid, "")
+            if not uid_str:
+                continue
+            try:
+                uid = int(uid_str)
+            except ValueError:
+                continue
+            char = next((c for c in roster if c.character_id == cid), None)
+            char_name = char.name if char else cid
+            await _post_roll_displays_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=uid,
+                character_id=cid,
+                char_name=char_name,
+                rolls=rolls,
+                bot=inter.client,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+
+    # Fan out pre-turn resolutions before the actor's render so private POV
+    # order matches story time. These can come from stale Cat II closure or
+    # resumed automated combat after a rewind.
     for pre_resp in (response.pre_turn_resolutions or []):
+        await _deliver_rolls_to_povs(
+            pre_resp.dice_rolls or [],
+            pre_resp.per_player_renders or {},
+            skip_cid=None,
+            turn_index=pre_resp.turn_index,
+        )
         await _dm_per_pov(
             pre_resp.per_player_renders or {},
             skip_cid=None,
             turn_index=pre_resp.turn_index,
-            note_prefix=(
-                "_(Auto-resolved while you were away — your prior "
-                "beat closed out.)_"
-            ),
+            note_prefix="_(Resolved before your action.)_",
             commitment_revision_prompts=(
                 pre_resp.commitment_revision_prompts or {}
             ),
@@ -1402,6 +1742,16 @@ async def _deliver_turn_response_to_povs(
             response=pre_resp,
         )
 
+    if response.beat_ended_reason == "pre_turn_resolution":
+        await inter.followup.send(
+            response.output_text or (
+                "The scene changed before your submitted action could be "
+                "applied. Submit your next action from the updated state."
+            ),
+            ephemeral=True,
+        )
+        return
+
     actor_char = next(
         (c for c in roster if c.character_id == actor_character_id), None,
     )
@@ -1409,6 +1759,19 @@ async def _deliver_turn_response_to_povs(
     per_player = response.per_player_renders or {}
     reaction_prompts = response.reaction_prompts or {}
     commitment_revision_prompts = response.commitment_revision_prompts or {}
+    actor_rolls_delivered = False
+    if response.dice_rolls:
+        actor_rolls_delivered = await _post_roll_displays_to_pov(
+            inter=inter,
+            smap=smap,
+            user_id=actor_user.id,
+            character_id=actor_character_id,
+            char_name=actor_name,
+            rolls=response.dice_rolls,
+            bot=inter.client,
+            session_id=session_id,
+            turn_index=response.turn_index,
+        )
     actor_revision_note = (
         "_Your ongoing activity was interrupted. Use `/act` to revise it, "
         "or `/act (continue)` to keep going if the new situation still "
@@ -1486,6 +1849,14 @@ async def _deliver_turn_response_to_povs(
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             else:
+                if response.dice_rolls and not actor_rolls_delivered:
+                    await _send_public_roll_displays(
+                        inter=inter,
+                        smap=smap,
+                        session_id=session_id,
+                        turn_index=response.turn_index,
+                        rolls=response.dice_rolls,
+                    )
                 await _send_public_turn_render(
                     inter=inter,
                     smap=smap,
@@ -1509,6 +1880,12 @@ async def _deliver_turn_response_to_povs(
                     ),
                 )
         else:
+            if response.dice_rolls and not actor_rolls_delivered:
+                for roll in response.dice_rolls:
+                    await inter.followup.send(
+                        _dice_roll_content(roll, stage="final"),
+                        ephemeral=True,
+                    )
             await inter.followup.send(
                 content="\n\n".join(
                     p for p in (pause_note, actor_revision_note) if p
@@ -1556,6 +1933,14 @@ async def _deliver_turn_response_to_povs(
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         else:
+            if response.dice_rolls and not actor_rolls_delivered:
+                await _send_public_roll_displays(
+                    inter=inter,
+                    smap=smap,
+                    session_id=session_id,
+                    turn_index=response.turn_index,
+                    rolls=response.dice_rolls,
+                )
             await _send_public_turn_render(
                 inter=inter,
                 smap=smap,
@@ -1578,6 +1963,12 @@ async def _deliver_turn_response_to_povs(
             )
 
     if per_player:
+        await _deliver_rolls_to_povs(
+            response.dice_rolls or [],
+            per_player,
+            skip_cid=actor_character_id,
+            turn_index=response.turn_index,
+        )
         notified_names = await _dm_per_pov(
             per_player, skip_cid=actor_character_id,
             turn_index=response.turn_index,
@@ -4885,12 +5276,11 @@ def register(
             )
             return
 
-        await inter.response.send_message(
-            "\n".join([
-                _roll_result_line(result),
-                "_Interpreting the outcome..._",
-            ]),
-            ephemeral=True,
+        await _animate_interaction_roll_result(
+            inter,
+            result,
+            initial_response_sent=False,
+            interpreting=True,
         )
 
         try:
@@ -5082,7 +5472,7 @@ def register(
             session_id: str,
             target_turn: int,
             invoker_id: int,
-            preview: "RewindResult",  # forward-ref string to avoid import cycle
+            preview: RewindResult,
         ):
             super().__init__(timeout=60)
             self._session_id = session_id

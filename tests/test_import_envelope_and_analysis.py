@@ -4,14 +4,13 @@ are mocked or skipped."""
 
 from __future__ import annotations
 
-import pytest
 
 from app.engine.story_importer import (
     IMPORTER_VERSION,
     _serialize_checkpoint_for_analysis,
     build_checkpoint,
 )
-from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
+from app.schemas.checkpoint import ImportAnalysis
 from app.schemas.import_extraction import (
     CharacterExtraction,
     CharacterDescriptionsExtraction,

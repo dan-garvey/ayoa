@@ -30,6 +30,7 @@ from app.schemas.events import (
     CanonicalEvent,
     WorldAdjudication,
 )
+from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import (
     LocationState,
     SessionState,
@@ -192,6 +193,37 @@ class TestPreviewRewind:
         _seed_session(bridge, last_turn=3)
         with pytest.raises(ValueError, match="has no checkpoint"):
             bridge.preview_rewind(SESSION_ID, target_turn=10)
+
+
+# ---- turn_history -----------------------------------------------------------
+
+
+class TestTurnHistory:
+    def test_history_entries_use_checkpoint_turns(self, bridge: EngineBridge):
+        first = TranscriptEntry(user="first", assistant="First render.")
+        second = TranscriptEntry(user="", assistant="Automated render.")
+
+        ckpt0 = _make_ckpt(turn_index=0)
+        bridge.checkpoint_mgr.save(ckpt0)
+
+        ckpt1 = _make_ckpt(turn_index=1)
+        ckpt1.transcript = [first]
+        bridge.checkpoint_mgr.save(ckpt1)
+
+        ckpt2 = _make_ckpt(turn_index=2)
+        ckpt2.transcript = [first]
+        bridge.checkpoint_mgr.save(ckpt2)
+
+        ckpt3 = _make_ckpt(turn_index=3)
+        ckpt3.transcript = [first, second]
+        bridge.checkpoint_mgr.save(ckpt3)
+
+        history = bridge.turn_history(SESSION_ID)
+
+        assert [(item.turn_index, item.entry) for item in history] == [
+            (1, first),
+            (3, second),
+        ]
 
 
 # ---- rewind_session ---------------------------------------------------------

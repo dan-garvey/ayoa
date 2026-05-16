@@ -14,6 +14,8 @@ is still reviewable alongside the report.
 
 from __future__ import annotations
 
+# ruff: noqa: E402
+
 import argparse
 import asyncio
 import json

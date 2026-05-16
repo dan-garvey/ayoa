@@ -28,6 +28,7 @@ from app.engine.dnd_cat_ii import (
     pending_player_rolls,
     roll_transaction_source,
 )
+from app.engine.dnd_roll_display import dice_roll_display_for_record
 from app.engine.dnd_character_import import (
     mechanics_from_snapshot,
     normalize_dndbeyond_export,
@@ -54,6 +55,7 @@ from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.narrator import TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import SlotEntry
@@ -110,6 +112,12 @@ class RewindResult:
 
 
 @dataclass(frozen=True)
+class TurnHistoryEntry:
+    turn_index: int
+    entry: TranscriptEntry
+
+
+@dataclass(frozen=True)
 class PendingRollPrompt:
     session_id: str
     event_id: str
@@ -134,6 +142,16 @@ class CompletedPendingRoll:
     detail: str
     crit: str
     remaining_pending_rolls: int
+    die_values: tuple[int, ...] = ()
+    kept_die_values: tuple[int, ...] = ()
+    modifier: int = 0
+    dc: int = 0
+    outcome: str = ""
+    target_id: str = ""
+    target_name: str = ""
+    damage_total: int = 0
+    damage_type: str = ""
+    damage_detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -249,6 +267,109 @@ def _loot_split_message(result: dict[str, Any]) -> str:
         return "No currency was split."
     suffix = " The loot offer is now closed." if result.get("offer_closed") else ""
     return "Split currency: " + "; ".join(lines) + "." + suffix
+
+
+def _loot_offer_by_id(
+    ckpt: CheckpointFile,
+    offer_id: str,
+) -> DndLootOffer | None:
+    for offer in ckpt.session.dnd_inventory_offers or []:
+        if offer.offer_id == offer_id:
+            return offer
+    return None
+
+
+def _loot_source_text(offer: DndLootOffer | None, offer_id: str) -> str:
+    if offer is None:
+        return f"loot offer {offer_id}"
+    if offer.source_label:
+        return offer.source_label
+    if offer.source_kind:
+        return f"{offer.source_kind} loot offer {offer.offer_id}"
+    return f"loot offer {offer.offer_id}"
+
+
+def _loot_item_claim_text(item: dict[str, Any]) -> str:
+    name = str(item.get("name") or item.get("source_item_id") or "Item").strip()
+    try:
+        quantity = int(item.get("quantity", 1) or 1)
+    except (TypeError, ValueError):
+        quantity = 1
+    if quantity > 1:
+        return f"{name} x{quantity}"
+    return name
+
+
+def _join_claim_parts(parts: list[str]) -> str:
+    if len(parts) <= 1:
+        return "".join(parts)
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return f"{', '.join(parts[:-1])}, and {parts[-1]}"
+
+
+def _loot_claim_router_update(
+    *,
+    character_id: str,
+    offer: DndLootOffer | None,
+    offer_id: str,
+    result: dict[str, Any],
+) -> str:
+    claimed: list[str] = []
+    for item in result.get("claimed_items") or []:
+        if isinstance(item, dict):
+            claimed.append(_loot_item_claim_text(item))
+    currency = _coin_text(result.get("claimed_currency") or {})
+    if currency:
+        claimed.append(currency)
+    if not claimed:
+        return ""
+    source = _loot_source_text(offer, offer_id)
+    return (
+        "Inventory update before the next action: "
+        f"{character_id} took {_join_claim_parts(claimed)} from {source}. "
+        "Preserve this as explicit player continuity unless the current "
+        "input reverses it."
+    )
+
+
+def _loot_split_router_update(
+    *,
+    character_id: str,
+    offer: DndLootOffer | None,
+    offer_id: str,
+    result: dict[str, Any],
+) -> str:
+    shares = result.get("shares") or {}
+    share_bits: list[str] = []
+    for cid, currency in shares.items():
+        text = _coin_text(currency)
+        if text:
+            share_bits.append(f"{cid} received {text}")
+    if not share_bits:
+        return ""
+    source = _loot_source_text(offer, offer_id)
+    return (
+        "Inventory update before the next action: "
+        f"{character_id} split currency from {source}; "
+        f"{'; '.join(share_bits)}. Preserve this as explicit player "
+        "continuity unless the current input reverses it."
+    )
+
+
+def _loot_decline_router_update(
+    *,
+    character_id: str,
+    offer: DndLootOffer | None,
+    offer_id: str,
+) -> str:
+    source = _loot_source_text(offer, offer_id)
+    return (
+        "Inventory update before the next action: "
+        f"{character_id} declined the pending loot from {source}. Do not "
+        f"treat {character_id} as carrying those items or coins unless "
+        "the current input changes that."
+    )
 
 
 def _coin_text(currency: dict[str, Any]) -> str:
@@ -549,6 +670,28 @@ class EngineBridge:
         validate the user's target and show the playable range."""
         return self.checkpoint_mgr.list_turn_indices(session_id)
 
+    def turn_history(self, session_id: str) -> list[TurnHistoryEntry]:
+        """Return transcript entries annotated with their checkpoint turn.
+
+        The transcript itself is append-only prose and does not store a turn
+        id. Reconstruct the display ids from checkpoint deltas so `/history`
+        uses the same numbers as `/rewind`.
+        """
+        history: list[TurnHistoryEntry] = []
+        previous_len = 0
+        for turn in self.list_checkpoint_turns(session_id):
+            ckpt = self.checkpoint_mgr.load(session_id, f"ckpt_{turn:04d}")
+            transcript = list(ckpt.transcript or [])
+            if len(transcript) < previous_len:
+                previous_len = 0
+            for entry in transcript[previous_len:]:
+                history.append(TurnHistoryEntry(
+                    turn_index=turn,
+                    entry=entry,
+                ))
+            previous_len = len(transcript)
+        return history
+
     def preview_rewind(
         self, session_id: str, target_turn: int,
     ) -> RewindResult:
@@ -587,6 +730,7 @@ class EngineBridge:
             )
         would_delete = [t for t in turns if t > target_turn]
         ckpt = self.checkpoint_mgr.load(session_id, f"ckpt_{target_turn:04d}")
+        actor_id = self._actor_id_after_rewind(ckpt)
         return RewindResult(
             session_id=session_id,
             target_turn=target_turn,
@@ -594,7 +738,7 @@ class EngineBridge:
             new_latest=target_turn,
             deleted_turns=would_delete,
             location=self._actor_location_after_rewind(ckpt),
-            actor_character_id=ckpt.session.player_character_id,
+            actor_character_id=actor_id,
         )
 
     async def rewind_session(
@@ -684,6 +828,7 @@ class EngineBridge:
             new_latest = self.list_checkpoint_turns(session_id)[-1]
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
+        actor_id = self._actor_id_after_rewind(ckpt)
         return RewindResult(
             session_id=session_id,
             target_turn=target_turn,
@@ -691,8 +836,17 @@ class EngineBridge:
             new_latest=new_latest,
             deleted_turns=deleted,
             location=self._actor_location_after_rewind(ckpt),
-            actor_character_id=ckpt.session.player_character_id,
+            actor_character_id=actor_id,
         )
+
+    def _actor_id_after_rewind(self, ckpt: CheckpointFile) -> str:
+        cid = ckpt.session.player_character_id
+        if cid:
+            return cid
+        bindings = ckpt.session.character_bindings or {}
+        if len(bindings) == 1:
+            return next(iter(bindings.keys()))
+        return ""
 
     def _actor_location_after_rewind(self, ckpt: CheckpointFile) -> str:
         """Best-effort: return the bound actor's location after rewind.
@@ -700,7 +854,7 @@ class EngineBridge:
         Empty string if we can't resolve it (no bound character, unknown
         character_id) — the embed just omits the location line.
         """
-        cid = ckpt.session.player_character_id
+        cid = self._actor_id_after_rewind(ckpt)
         if not cid:
             return ""
         for c in ckpt.characters:
@@ -1056,6 +1210,7 @@ class EngineBridge:
                     user_id=user_id,
                     character_id=character_id,
                 )
+                offer = _loot_offer_by_id(ckpt, offer_id)
                 result = dnd_inventory.claim_loot(
                     ckpt,
                     character_id=target_id,
@@ -1064,6 +1219,16 @@ class EngineBridge:
                     take_currency=take_currency,
                     take_all_available=take_all_available,
                 )
+                router_update = _loot_claim_router_update(
+                    character_id=target_id,
+                    offer=offer,
+                    offer_id=offer_id,
+                    result=result,
+                )
+                if router_update:
+                    ckpt.session.pending_router_state_changes.append(
+                        router_update,
+                    )
                 self.checkpoint_mgr.save(ckpt)
         return DndLootClaimResult(
             offer_id=offer_id,
@@ -1095,11 +1260,22 @@ class EngineBridge:
                     user_id=user_id,
                     character_id=character_id,
                 )
+                offer = _loot_offer_by_id(ckpt, offer_id)
                 result = dnd_inventory.split_loot_currency(
                     ckpt,
                     offer_id=offer_id,
                     actor_id=target_id,
                 )
+                router_update = _loot_split_router_update(
+                    character_id=target_id,
+                    offer=offer,
+                    offer_id=offer_id,
+                    result=result,
+                )
+                if router_update:
+                    ckpt.session.pending_router_state_changes.append(
+                        router_update,
+                    )
                 self.checkpoint_mgr.save(ckpt)
         return DndLootClaimResult(
             offer_id=offer_id,
@@ -1131,11 +1307,21 @@ class EngineBridge:
                     user_id=user_id,
                     character_id=character_id,
                 )
+                offer = _loot_offer_by_id(ckpt, offer_id)
                 result = dnd_inventory.decline_loot(
                     ckpt,
                     character_id=target_id,
                     offer_id=offer_id,
                 )
+                router_update = _loot_decline_router_update(
+                    character_id=target_id,
+                    offer=offer,
+                    offer_id=offer_id,
+                )
+                if router_update:
+                    ckpt.session.pending_router_state_changes.append(
+                        router_update,
+                    )
                 self.checkpoint_mgr.save(ckpt)
         return DndLootClaimResult(
             offer_id=offer_id,
@@ -1381,6 +1567,18 @@ class EngineBridge:
             self.checkpoint_mgr.save(ckpt)
 
         result = completed.result or {}
+        transaction = next(
+            (
+                txn for txn in ckpt.session.cat_ii_roll_transactions
+                if txn.event_id == event_id
+                and any(r.roll_id == completed.roll_id for r in txn.rolls)
+            ),
+            None,
+        )
+        display = (
+            dice_roll_display_for_record(ckpt, transaction, completed)
+            if transaction is not None else None
+        )
         return CompletedPendingRoll(
             session_id=session_id,
             event_id=event_id,
@@ -1394,6 +1592,18 @@ class EngineBridge:
             detail=str(result.get("detail", "")),
             crit=str(result.get("crit", "none")),
             remaining_pending_rolls=len(remaining),
+            die_values=tuple(display.die_values if display else ()),
+            kept_die_values=tuple(
+                display.kept_die_values if display else (),
+            ),
+            modifier=display.modifier if display else 0,
+            dc=display.dc if display else 0,
+            outcome=display.outcome if display else "",
+            target_id=display.target_id if display else "",
+            target_name=display.target_name if display else "",
+            damage_total=display.damage_total if display else 0,
+            damage_type=display.damage_type if display else "",
+            damage_detail=display.damage_detail if display else "",
         )
 
     async def continue_pending_roll(
@@ -2398,15 +2608,15 @@ class EngineBridge:
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         if getattr(module, "combat_next", None) is not None:
-            result = module.combat_next(ckpt)
+            module.combat_next(ckpt)
         elif getattr(module, "advance_turn", None) is not None:
             advance = getattr(module, "advance_turn_with_effects", None)
             if advance is not None:
-                result = advance(ckpt.session, characters=ckpt.characters)
+                advance(ckpt.session, characters=ckpt.characters)
             else:
-                result = module.advance_turn(ckpt.session)
+                module.advance_turn(ckpt.session)
         else:
-            result = self._combat_call(
+            self._combat_call(
                 module,
                 ("combat_next", "next_turn", "advance_combat"),
                 ckpt,
@@ -2910,7 +3120,10 @@ class EngineBridge:
             user_input=user_input,
             acting_character_id=acting_character_id,
         ))
-        response.pre_turn_resolutions = pre_turn
+        response.pre_turn_resolutions = [
+            *pre_turn,
+            *(response.pre_turn_resolutions or []),
+        ]
         return response
 
     async def run_query(

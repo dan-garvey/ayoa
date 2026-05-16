@@ -7,7 +7,6 @@ from typing import Any, Iterable
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import (
-    DndCurrency,
     DndLootOffer,
     DndLootOfferItem,
     DndLootOfferSignal,

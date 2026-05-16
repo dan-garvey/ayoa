@@ -56,6 +56,7 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
         build_character_packet,
         build_character_state,
         build_world_context,
+        format_elapsed_agent_turn_block,
         format_pending_observations_block,
     )
     from app.engine.prompt_manager import PromptManager
@@ -63,10 +64,26 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
     pm = PromptManager()
     char_identity = build_character_packet(character)
     char_state = build_character_state(character)
-    pending_block = format_pending_observations_block(character)
+    pending_block = (
+        format_elapsed_agent_turn_block(character, checkpoint)
+        + format_pending_observations_block(character)
+    )
+    ruleset_id = str(
+        getattr(
+            getattr(checkpoint.session.config, "settings", None),
+            "ruleset_id",
+            "",
+        ) or ""
+    )
+    ruleset_addon = (
+        pm.render("agent_ruleset_dnd5e").strip()
+        if ruleset_id == "dnd5e_basic"
+        else ""
+    )
 
     msgs = pm.render_messages(
         "agent",
+        agent_ruleset_system_addon=ruleset_addon,
         **char_identity,
         **char_state,
         world_context=build_world_context(character, checkpoint),
@@ -115,7 +132,7 @@ def main() -> int:
     ]
 
     print("=" * 80)
-    print(f"AGENT PROMPT DUMP")
+    print("AGENT PROMPT DUMP")
     print(f"  checkpoint:  {args.checkpoint}")
     print(f"  character:   {char.name} ({args.character_id})")
     print(f"  location:    {char.location}")

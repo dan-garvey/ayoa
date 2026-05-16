@@ -239,8 +239,6 @@ async def compose_pov_render(
     )
     render_ms = (time.monotonic() - render_t0) * 1000
 
-    user_content = messages[-1]["content"]
-
     logger.info(
         "compose_pov_render: pov=%s events=%d partial=%s history=%d msgs "
         "(prompt_render_ms=%.1f)",

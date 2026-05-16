@@ -57,9 +57,10 @@ import argparse
 import asyncio
 import json
 import logging
-import os
+import re
 import shlex
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -141,7 +142,7 @@ Commands:
   /combat remove <id> [hard]        Remove a combat participant
   /query <question>                 Ask an out-of-character question (POV-bounded)
   /rewind                           List available turn checkpoints
-  /rewind <N>                       Rewind to ckpt_N (deletes ckpt_>N — no undo)
+  /rewind <N>                       Preview rewind to ckpt_N, then confirm delete
   /settings                         Show experimental settings for this session
   /settings <key>                   Show one setting's current value
   /settings <key> <value>           Update a setting
@@ -162,6 +163,108 @@ def _roll_result_line(result: CompletedPendingRoll) -> str:
         crit_note = " Natural 1."
     detail = result.detail or f"{result.expression} = `{result.total}`"
     return f"Rolled {result.label}: {detail}.{crit_note}"
+
+
+def _signed_modifier(value: int) -> str:
+    if value > 0:
+        return f" + {value}"
+    if value < 0:
+        return f" - {abs(value)}"
+    return " + 0"
+
+
+def _roll_heading(roll: Any) -> str:
+    actor = (
+        getattr(roll, "actor_name", "")
+        or getattr(roll, "actor_id", "")
+        or "Unknown"
+    )
+    label = getattr(roll, "label", "") or "Roll"
+    target = (
+        getattr(roll, "target_name", "")
+        or getattr(roll, "target_id", "")
+        or ""
+    )
+    heading = f"{actor}: {label}" if actor else label
+    return f"{heading} vs {target}" if target else heading
+
+
+def _d20_text(roll: Any) -> str:
+    values = list(getattr(roll, "die_values", ()) or ())
+    kept = list(getattr(roll, "kept_die_values", ()) or values)
+    if not values:
+        match = re.search(
+            r"1d20\s*\((?:\*\*)?(\d+)",
+            str(getattr(roll, "detail", "") or ""),
+        )
+        if match:
+            values = [int(match.group(1))]
+            kept = values
+    if not values:
+        return "?"
+    if len(values) == 1:
+        return str(values[0])
+    kept_text = "/".join(str(v) for v in kept) if kept else str(values[-1])
+    return f"{'/'.join(str(v) for v in values)} -> {kept_text}"
+
+
+def _roll_formula_line(roll: Any) -> str:
+    total = int(getattr(roll, "total", 0) or 0)
+    modifier = int(getattr(roll, "modifier", 0) or 0)
+    if modifier == 0:
+        match = re.fullmatch(
+            r"1d20(?P<modifier>[+-]\d+)?",
+            str(getattr(roll, "expression", "") or "").strip(),
+        )
+        if match and match.group("modifier"):
+            modifier = int(match.group("modifier"))
+    dc = int(getattr(roll, "dc", 0) or 0)
+    outcome = str(getattr(roll, "outcome", "") or "")
+    line = f"d20 {_d20_text(roll)}{_signed_modifier(modifier)} = {total}"
+    if dc:
+        line = f"{line} vs DC {dc}"
+    if outcome:
+        line = f"{line} ({outcome.upper()})"
+    return line
+
+
+def _print_d20_roll_display(roll: Any, *, include_reason: bool = False) -> None:
+    print()
+    print(f"--- D&D Roll · {_roll_heading(roll)} ---")
+    animate = sys.stdout.isatty()
+    if animate:
+        values = list(getattr(roll, "die_values", ()) or [])
+        final_value = values[-1] if values else "?"
+        for frame in ("rolling.", "rolling..", "rolling..."):
+            print(f"  d20 {frame}", end="\r", flush=True)
+            time.sleep(0.18)
+        print(f"  d20 settles on {final_value}".ljust(48))
+        time.sleep(0.12)
+    print(f"  {_roll_formula_line(roll)}")
+    crit = str(getattr(roll, "crit", "") or "")
+    if crit == "crit":
+        print("  Critical success.")
+    elif crit == "fail":
+        print("  Natural 1.")
+    damage_total = int(getattr(roll, "damage_total", 0) or 0)
+    if damage_total > 0:
+        damage_type = str(getattr(roll, "damage_type", "") or "")
+        suffix = f" {damage_type}" if damage_type else ""
+        print(f"  Damage: {damage_total}{suffix}")
+    if include_reason:
+        reason = str(getattr(roll, "reason", "") or "")
+        if reason:
+            print(f"  {reason}")
+
+
+def _print_completed_roll_result(result: CompletedPendingRoll) -> None:
+    _print_d20_roll_display(result, include_reason=True)
+    print(_roll_result_line(result))
+
+
+def _print_dice_roll_displays(rolls: list[Any]) -> None:
+    for roll in rolls or []:
+        _print_d20_roll_display(roll)
 
 
 def _print_roll_prompts(prompts: list[PendingRollPrompt]) -> None:
@@ -2004,7 +2107,7 @@ class CLIState:
                 logger.exception("pending roll failed")
                 print(f"error: {type(e).__name__}: {e}")
                 return
-            print(_roll_result_line(result))
+            _print_completed_roll_result(result)
 
             if result.remaining_pending_rolls > 0:
                 continue
@@ -2038,7 +2141,7 @@ class CLIState:
 
         Usage:
             /rewind                  → list available turn checkpoints
-            /rewind <N>              → rewind to ckpt_N (deletes ckpt_>N)
+            /rewind <N>              → preview rewind to ckpt_N, then confirm
 
         The new latest becomes ckpt_<N>; the next /act resumes from
         there as turn N+1. Discord-side bindings persist; players who
@@ -2080,15 +2183,22 @@ class CLIState:
             print(f"error: {e}")
             return
 
-        # CLI path: a single playtester driving things deliberately. We
-        # show the preview, then commit immediately. Discord wraps this
-        # same primitive in a confirm button because public sessions
-        # have multiple stakeholders.
         print(
             f"rewinding {self.session_id}: "
             f"turn {preview.previous_latest} → turn {preview.target_turn} "
             f"(deleting turns {preview.deleted_turns})"
         )
+        print("This permanently deletes the listed checkpoints. There is no undo.")
+        expected = f"rewind {preview.target_turn}"
+        try:
+            confirmation = input(f"Type {expected!r} to confirm: ")
+        except EOFError:
+            print("rewind cancelled; nothing was deleted")
+            return
+        if confirmation.strip() != expected:
+            print("rewind cancelled; nothing was deleted")
+            return
+
         try:
             result = await self.engine.rewind_session(
                 self.session_id, target,
@@ -2158,9 +2268,8 @@ class CLIState:
         integer N, emits the last N turns."""
         if not self._require_story():
             return
-        ckpt = self.engine.load_latest(self.session_id)
-        transcript = ckpt.transcript
-        if not transcript:
+        history = self.engine.turn_history(self.session_id)
+        if not history:
             print("(no turns yet)")
             return
 
@@ -2176,11 +2285,11 @@ class CLIState:
                 print("usage: /history [N]  (N must be positive)")
                 return
 
-        entries = transcript[-limit:] if limit else transcript
-        start = len(transcript) - len(entries) + 1
-        for i, entry in enumerate(entries, start=start):
+        entries = history[-limit:] if limit else history
+        for item in entries:
+            entry = item.entry
             print()
-            print(f"--- Turn {i} ---")
+            print(f"--- Turn {item.turn_index} ---")
             if entry.user:
                 print(f"> {entry.user}")
             print(entry.assistant)
@@ -2261,19 +2370,27 @@ class CLIState:
             self._sync_current_actor_to_active_combat()
             return
 
-        # Print pre-turn AFK-sweep resolutions first so in-CLI ordering
-        # matches story time.
+        # Print pre-turn resolutions first so in-CLI ordering matches
+        # story time. These can come from stale Cat II closure or from
+        # resumed automated combat after a rewind.
         for pre_resp in (response.pre_turn_resolutions or []):
+            _print_dice_roll_displays(getattr(pre_resp, "dice_rolls", []) or [])
             for cid, prose in (pre_resp.per_player_renders or {}).items():
                 if not prose or cid not in self.claims:
                     continue
-                print(f"--- AFK auto-resolution · POV {cid} ---")
+                print(f"--- Pre-turn resolution: POV {cid} ---")
                 print(prose)
                 print()
             self._print_loot_prompts(pre_resp)
             self._print_commitment_revision_prompts(pre_resp)
 
         per_player = response.per_player_renders or {}
+        _print_dice_roll_displays(getattr(response, "dice_rolls", []) or [])
+
+        if response.beat_ended_reason == "pre_turn_resolution":
+            print(response.output_text)
+            self._sync_current_actor_to_active_combat()
+            return
 
         if response.beat_ended_reason == "cat_ii_pending":
             actor_render = per_player.get(actor_id) or ""

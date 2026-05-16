@@ -199,6 +199,31 @@ class TestRouteIntention:
         assert "Alice intends:" not in user_content
         assert "## Intention" not in user_content
 
+    def test_pending_inventory_update_precedes_next_intention(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.pending_router_state_changes = [
+            "Inventory update before the next action: alice took 8 sp.",
+        ]
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I leave the shop.",
+        ))
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        update_index = user_content.index(
+            "Inventory update before the next action",
+        )
+        intention_index = user_content.index("I leave the shop.")
+        assert update_index < intention_index
+        assert ckpt.session.pending_router_state_changes == []
+
     def test_npc_cascade_emits_intends_framing(
         self, prompt_mgr, mock_client,
     ):

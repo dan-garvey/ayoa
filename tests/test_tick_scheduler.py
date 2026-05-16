@@ -484,6 +484,8 @@ class TestTickFanIn:
         by_id["scribe"].pending_observations = ["Scribe saw a door."]
         routed = EventRouterOutput.model_validate({
             **_tick_router_output().model_dump(),
+            "effective_at_s": 30,
+            "duration_s": 5,
             "observers": [
                 {
                     "character_id": "regent",
@@ -504,6 +506,8 @@ class TestTickFanIn:
         assert "scribe" not in ckpt.character_conversations
         assert by_id["regent"].pending_observations == []
         assert by_id["scribe"].pending_observations == ["Scribe saw a door."]
+        assert by_id["regent"].last_agent_turn_at_s == 35
+        assert by_id["scribe"].last_agent_turn_at_s is None
 
     @pytest.mark.asyncio
     async def test_fan_in_skipped_when_no_ticks_succeed(self, monkeypatch):

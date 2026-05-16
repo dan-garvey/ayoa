@@ -1,6 +1,5 @@
 """Tests for the checkpoint manager — save/load round-trip, load-latest, corruption handling."""
 
-import json
 
 import pytest
 

@@ -6,8 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.llm.client import LLMClient, LLMResponse, extract_json
+from app.llm.client import (
+    LLMClient,
+    LLMResponse,
+    _openai_strict_json_schema,
+    extract_json,
+)
 from app.llm.config import LLMConfig
+from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.events import CanonicalEvent
 
 
@@ -594,6 +600,36 @@ class TestLLMClientComplete:
         assert reasoning == {"effort": "medium", "summary": "auto"}
         assert isinstance(result.parsed, CanonicalEvent)
         assert result.parsed.world_adjudication.feasible is True
+
+    def test_openai_structured_schema_requires_every_object_property(self):
+        """OpenAI strict JSON Schema rejects Pydantic default fields unless
+        they are still listed as required in the provider-facing schema."""
+        for model in (RollPlan, RulesAdjudication):
+            schema = _openai_strict_json_schema(model)
+            failures = []
+            defaults = []
+
+            def walk(node, path=()):
+                if isinstance(node, dict):
+                    if "default" in node:
+                        defaults.append(path)
+                    properties = node.get("properties")
+                    if isinstance(properties, dict):
+                        required = set(node.get("required") or [])
+                        missing = set(properties) - required
+                        if missing:
+                            failures.append((path, sorted(missing)))
+                        if node.get("additionalProperties") is not False:
+                            failures.append((path, ["additionalProperties"]))
+                    for key, value in node.items():
+                        walk(value, path + (key,))
+                elif isinstance(node, list):
+                    for index, value in enumerate(node):
+                        walk(value, path + (str(index),))
+
+            walk(schema)
+            assert failures == []
+            assert defaults == []
 
     @pytest.mark.asyncio
     async def test_compact_false_uses_stable_stream(self, client):

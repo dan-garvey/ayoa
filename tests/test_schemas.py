@@ -5,8 +5,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.state import (
-    ModelConfig, SessionConfig, SessionState,
-    LocationState, PhysicsRuleset, StorySetting, WorldState,
+    SessionState,
+    PhysicsRuleset, StorySetting, WorldState,
 )
 from app.schemas.characters import (
     CharacterAgentTier, CharacterDescriptions, CharacterRecord,
@@ -15,14 +15,11 @@ from app.schemas.characters import (
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
-    WorldAdjudication,
     visible_fact_texts,
 )
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
-    ObserverEntry,
-    SpawnRequest,
 )
 from app.schemas.dnd_cat_ii import RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
@@ -222,6 +219,7 @@ class TestCharacterRecord:
         assert cr.name == "Captain Vero"
         assert cr.status == CharacterStatus.active
         assert cr.agent_tier == CharacterAgentTier.plot
+        assert cr.last_agent_turn_at_s is None
         assert cr.public_sheet.role == "guard captain"
         assert "maintain order" in cr.private_state.goals
 
@@ -850,6 +848,7 @@ class TestTurnResponse:
         assert tr.beat_ended_reason == ""
         assert tr.loot_prompts == {}
         assert tr.commitment_revision_prompts == {}
+        assert tr.dice_rolls == []
 
     def test_legacy_debug_payload_silently_dropped(self):
         tr = TurnResponse(

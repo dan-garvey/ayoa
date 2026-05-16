@@ -23,10 +23,12 @@ from app.bot.engine_bridge import (
     DndCombatView,
     DndSheetAttachmentSummary,
     PendingRollPrompt,
+    TurnHistoryEntry,
 )
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
+from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import SessionState, SlotEntry, WorldState
 
 
@@ -114,6 +116,7 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
             bound_user_id=(bindings or {}).get("sera", ""),
         ),
     ]
+    engine.turn_history.return_value = []
     engine.takeover = MagicMock()
     engine.unbind_user = MagicMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
@@ -305,6 +308,50 @@ class TestInitialization:
         state = CLIState(engine, SESSION_ID, STORY_ID)
 
         assert state.current_actor == "sera"
+
+
+class TestHistoryCommand:
+    def test_history_uses_checkpoint_turn_ids(self, run, capsys):
+        engine = _mock_engine()
+        engine.turn_history.return_value = [
+            TurnHistoryEntry(
+                turn_index=44,
+                entry=TranscriptEntry(user="", assistant="Rat runs."),
+            ),
+            TurnHistoryEntry(
+                turn_index=47,
+                entry=TranscriptEntry(user="I swing.", assistant="Club lands."),
+            ),
+        ]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/history"))
+
+        out = capsys.readouterr().out
+        assert "--- Turn 44 ---" in out
+        assert "--- Turn 47 ---" in out
+        assert "--- Turn 1 ---" not in out
+        assert "> I swing." in out
+
+    def test_history_limit_preserves_checkpoint_turn_id(self, run, capsys):
+        engine = _mock_engine()
+        engine.turn_history.return_value = [
+            TurnHistoryEntry(
+                turn_index=44,
+                entry=TranscriptEntry(user="", assistant="Rat runs."),
+            ),
+            TurnHistoryEntry(
+                turn_index=47,
+                entry=TranscriptEntry(user="I swing.", assistant="Club lands."),
+            ),
+        ]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/history 1"))
+
+        out = capsys.readouterr().out
+        assert "--- Turn 44 ---" not in out
+        assert "--- Turn 47 ---" in out
 
 
 class TestJoinLeave:
@@ -1166,18 +1213,47 @@ class TestRewindCommand:
         # Bare /rewind should NOT mutate.
         engine.rewind_session.assert_not_called()
 
-    def test_rewind_with_target_invokes_engine(self, run, capsys):
+    def test_rewind_with_target_invokes_engine(
+        self, run, capsys, monkeypatch,
+    ):
         engine = self._make_engine_with_rewind(turns=[0, 1, 2, 3, 4])
         state = CLIState(engine, SESSION_ID, STORY_ID)
+        prompts: list[str] = []
+        monkeypatch.setattr(
+            "builtins.input",
+            lambda prompt="": prompts.append(prompt) or "rewind 2",
+        )
         run(state.handle_line("/rewind 2"))
 
         engine.preview_rewind.assert_called_once_with(SESSION_ID, 2)
         engine.rewind_session.assert_awaited_once_with(SESSION_ID, 2)
+        assert prompts == ["Type 'rewind 2' to confirm: "]
         out = capsys.readouterr().out
         assert "rewinding" in out
         assert "turn 4 → turn 2" in out
+        assert "permanently deletes" in out
         assert "rewound to turn 2" in out
         assert "deleted 2 checkpoint(s)" in out
+
+    def test_rewind_cancel_does_not_commit(
+        self, run, capsys, monkeypatch,
+    ):
+        engine = self._make_engine_with_rewind(turns=[0, 1, 2, 3, 4])
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        prompts: list[str] = []
+        monkeypatch.setattr(
+            "builtins.input",
+            lambda prompt="": prompts.append(prompt) or "no",
+        )
+        run(state.handle_line("/rewind 2"))
+
+        engine.preview_rewind.assert_called_once_with(SESSION_ID, 2)
+        engine.rewind_session.assert_not_called()
+        assert prompts == ["Type 'rewind 2' to confirm: "]
+        out = capsys.readouterr().out
+        assert "rewinding" in out
+        assert "cancelled" in out
+        assert "nothing was deleted" in out
 
     def test_rewind_invalid_target_does_not_commit(self, run, capsys):
         engine = self._make_engine_with_rewind(turns=[0, 1, 2])

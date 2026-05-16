@@ -76,11 +76,11 @@ def _print_tick(idx: int, assistant_text: str) -> None:
     if prose.strip():
         print(f"    prose: {prose.strip()}")
     else:
-        print(f"    prose: (silent)")
+        print("    prose: (silent)")
     if intent:
         print(f"    intent: {intent}")
     else:
-        print(f"    intent: (none — missing trailing parenthetical)")
+        print("    intent: (none — missing trailing parenthetical)")
 
 
 def main() -> int:

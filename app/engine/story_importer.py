@@ -89,12 +89,10 @@ doubt, bump."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import re
 import time
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.llm.client import LLMClient

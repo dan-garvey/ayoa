@@ -6,7 +6,6 @@ roster changes from discriminator output, and LLM-powered character genesis.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from app.engine.prompt_manager import PromptManager
@@ -15,8 +14,6 @@ from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
-    PublicSheet,
-    PrivateState,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, SpawnRequest

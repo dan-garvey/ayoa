@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from app.engine import dice, dnd_combat, dnd_spatial, mechanics
 from app.engine.prompt_manager import PromptManager

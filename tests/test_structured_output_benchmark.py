@@ -19,8 +19,6 @@ natural candidate to benchmark on.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import re
 import statistics
 import time

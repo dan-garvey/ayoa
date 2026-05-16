@@ -8,6 +8,7 @@ from app.engine.context_builder import (
     build_character_packet,
     build_character_state,
     build_world_context,
+    format_elapsed_agent_turn_block,
     format_pending_observations_block,
     resolve_location_for_character,
 )
@@ -18,7 +19,6 @@ from app.engine.turn_loop_contracts import (
     AGENT_TICK_HEADER,
 )
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
@@ -176,6 +176,29 @@ class TestContextBuilder:
         assert "Since your last response" in block
         assert "shout in the hall" in block
         assert "Footsteps receding" in block
+
+    def test_format_elapsed_turn_empty_without_prior_agent_turn(
+        self, sample_checkpoint, guard_character,
+    ):
+        assert (
+            format_elapsed_agent_turn_block(
+                guard_character, sample_checkpoint,
+            ) == ""
+        )
+
+    def test_format_elapsed_turn_uses_session_leading_time(
+        self, sample_checkpoint, guard_character,
+    ):
+        guard_character.last_agent_turn_at_s = 10
+        guard_character.clock_at_s = 50
+        sample_checkpoint.session.leading_at_s = 80
+
+        block = format_elapsed_agent_turn_block(
+            guard_character, sample_checkpoint,
+        )
+
+        assert "Time Since Your Last Turn" in block
+        assert "1 minute and 10 seconds" in block
 
 
 class TestLocationResolution:
@@ -402,6 +425,40 @@ class TestCharacterAgent:
         assert "hidden passage" in prompt
         assert "twenty years" in prompt
         assert "right hand twitches" in prompt
+
+    @pytest.mark.asyncio
+    async def test_elapsed_turn_context_is_user_tail_only(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        guard_character.last_agent_turn_at_s = 15
+        guard_character.clock_at_s = 45
+        sample_checkpoint.session.leading_at_s = 75
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = messages[0]["content"]
+        user_text = messages[-1]["content"]
+        assert "Time Since Your Last Turn" not in system_text
+        assert "Time Since Your Last Turn" in user_text
+        assert "1 minute" in user_text
+
+    @pytest.mark.asyncio
+    async def test_respond_commit_updates_last_agent_turn_time(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        guard_character.clock_at_s = 20
+        sample_checkpoint.session.leading_at_s = 35
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.respond(guard_character, sample_checkpoint)
+
+        assert guard_character.last_agent_turn_at_s == 35
 
     @pytest.mark.asyncio
     async def test_dnd_ruleset_addon_is_cached_system_prefix(
@@ -1043,6 +1100,23 @@ class TestPerceptionMode:
 
         assert perceive_system["role"] == "system"
         assert perceive_system["content"] == respond_system["content"]
+
+    @pytest.mark.asyncio
+    async def test_perceive_does_not_render_or_update_elapsed_turn_context(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+    ):
+        guard_character.last_agent_turn_at_s = 12
+        guard_character.clock_at_s = 40
+        sample_checkpoint.session.leading_at_s = 90
+        mock_client.complete.return_value = self._llm_text_only("loadout")
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.perceive(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        user_text = messages[-1]["content"]
+        assert "Time Since Your Last Turn" not in user_text
+        assert guard_character.last_agent_turn_at_s == 12
 
     @pytest.mark.asyncio
     async def test_perceive_uses_lower_max_tokens_than_respond(
