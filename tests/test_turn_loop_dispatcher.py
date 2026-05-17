@@ -824,7 +824,8 @@ class TestAgentIntend:
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         async def _fake_turn(self, *, character, checkpoint,
-                             acting_character_id="", frame="foreground"):
+                             acting_character_id="", frame="foreground",
+                             local_context=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text='He plants himself in the doorway. "Hold there."',
@@ -849,7 +850,8 @@ class TestAgentIntend:
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
         async def _silent_turn(self, *, character, checkpoint,
-                               acting_character_id="", frame="foreground"):
+                               acting_character_id="", frame="foreground",
+                               local_context=""):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",

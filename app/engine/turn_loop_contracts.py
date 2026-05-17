@@ -224,7 +224,12 @@ def format_agent_perception_body() -> str:
     )
 
 
-def format_agent_turn_body(*, frame: str, location_context: str = "") -> str:
+def format_agent_turn_body(
+    *,
+    frame: str,
+    location_context: str = "",
+    local_context: str = "",
+) -> str:
     """Unified agent-turn body.
 
     `frame` is a routing label for the character, not hidden engine
@@ -256,6 +261,15 @@ def format_agent_turn_body(*, frame: str, location_context: str = "") -> str:
         "",
         "## Where You Are",
         location,
+    ])
+    cleaned_local_context = (local_context or "").strip()
+    if cleaned_local_context:
+        lines.extend([
+            "",
+            "## Local Context",
+            cleaned_local_context,
+        ])
+    lines.extend([
         "",
         "## What You Do",
         "Advance one objective in a single tight beat. If the right move "

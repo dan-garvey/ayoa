@@ -99,6 +99,8 @@ from app.schemas.state import (
 
 logger = logging.getLogger(__name__)
 
+MAX_BACKGROUND_THREADS_PER_BEAT = 4
+
 
 def _utcnow_iso() -> str:
     """v11-r3c: timezone-aware UTC ISO-8601 timestamp. Never use
@@ -1151,12 +1153,14 @@ async def _agent_intention_for_dispatch(
     character_id: str,
     *,
     frame: str = "foreground",
+    local_context: str = "",
 ) -> str | None:
     """Fetch one NPC intention and normalize empty/refusal outputs."""
     raw = await dispatcher.agent_intend(
         ckpt=ckpt,
         character_id=character_id,
         frame=frame,
+        local_context=local_context,
     )
     if raw and raw.strip() and not _is_agent_refusal(raw):
         return raw
@@ -1170,12 +1174,15 @@ async def _collect_agent_frontier_result(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
     target: RouterFrontierTarget,
+    *,
+    local_context: str = "",
 ) -> RouterFrontierResult | None:
     text = await _agent_intention_for_dispatch(
         dispatcher,
         ckpt,
         target.character_id,
         frame=target.frame,
+        local_context=local_context,
     )
     if text is None:
         return None
@@ -1514,6 +1521,52 @@ def _character_location(ckpt: CheckpointFile, character_id: str) -> str:
         if character.character_id == character_id:
             return str(getattr(character, "location", "") or "")
     return ""
+
+
+def _frontier_target_needs_local_context(
+    prior_result: EventRouterOutput,
+    target: RouterFrontierTarget,
+) -> bool:
+    if target.frame != "background":
+        return False
+    if prior_result.event_kind == "public_fact":
+        return True
+    return any(
+        update.character_id == target.character_id
+        for update in prior_result.location_updates
+    )
+
+
+def _frontier_local_context(
+    ckpt: CheckpointFile,
+    character_id: str,
+) -> str:
+    actor = next(
+        (
+            character for character in ckpt.characters
+            if character.character_id == character_id
+        ),
+        None,
+    )
+    if actor is None:
+        return ""
+    location = str(getattr(actor, "location", "") or "").strip()
+    location_label = location or "Off-screen / unspecified location."
+    nearby: list[str] = []
+    if location:
+        for character in ckpt.characters:
+            if character.character_id == character_id:
+                continue
+            if _character_status_value(character) != "active":
+                continue
+            if str(getattr(character, "location", "") or "").strip() != location:
+                continue
+            nearby.append(f"{character.name} ({character.character_id})")
+    nearby_text = ", ".join(nearby) if nearby else "none known"
+    return "\n".join([
+        f"Location: {location_label}",
+        f"Nearby active characters: {nearby_text}",
+    ])
 
 
 def _materialize_dnd_combatant_spawns(
@@ -2044,6 +2097,7 @@ class Dispatcher(Protocol):
         ckpt: CheckpointFile,
         character_id: str,
         frame: str = "foreground",
+        local_context: str = "",
     ) -> str:
         """Ask an agent for their next intention (as free-form text).
         Returns the intention string; the orchestrator re-routes it
@@ -2179,6 +2233,7 @@ async def run_beat(
     )
     events_closed = 0
     agent_cascade_attempts = 0
+    background_thread_attempts = 0
     event_actor_ids: list[str] = []
     current_intention = intention
     current_actor = actor_id
@@ -2213,7 +2268,8 @@ async def run_beat(
         prior_result: EventRouterOutput,
         character_ids: list[str],
     ) -> bool:
-        nonlocal agent_cascade_attempts, pending_result, pending_result_mode
+        nonlocal agent_cascade_attempts, background_thread_attempts
+        nonlocal pending_result, pending_result_mode
         if not character_ids:
             await _queue_router_continuation(prior_result)
             return True
@@ -2236,14 +2292,26 @@ async def run_beat(
             await _queue_router_continuation(prior_result)
             return True
 
+        skipped_for_background_cap = False
         for target in agent_targets:
             if agent_cascade_attempts >= max_agent_cascades:
                 return False
+            if target.frame == "background":
+                if background_thread_attempts >= MAX_BACKGROUND_THREADS_PER_BEAT:
+                    skipped_for_background_cap = True
+                    continue
+                background_thread_attempts += 1
             agent_cascade_attempts += 1
+            local_context = (
+                _frontier_local_context(ckpt, target.character_id)
+                if _frontier_target_needs_local_context(prior_result, target)
+                else ""
+            )
             frontier_result = await _collect_agent_frontier_result(
                 dispatcher,
                 ckpt,
                 target,
+                local_context=local_context,
             )
             if frontier_result is None:
                 continue
@@ -2264,6 +2332,8 @@ async def run_beat(
             )
             return True
 
+        if skipped_for_background_cap:
+            return False
         await _queue_router_continuation(prior_result)
         return True
 
@@ -2819,6 +2889,21 @@ async def run_beat(
                             else "intention"
                         ),
                     )
+
+        if (
+            result.event_kind == "public_fact"
+            and result.next_output_character_ids
+            and events_closed < max_events
+        ):
+            routed_ids = _filter_routed_agents_for_dispatch(
+                ckpt, result.next_output_character_ids,
+                event=result,
+            )
+            if routed_ids:
+                queued = await _queue_router_frontier(result, routed_ids)
+                if not queued:
+                    return await _end_for_cascade_cap()
+                continue
 
         # Ends-beat decision.
         if result.ends_beat or events_closed >= max_events:

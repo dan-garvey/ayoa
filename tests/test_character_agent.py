@@ -999,6 +999,35 @@ class TestUnifiedAgentCacheLineage:
         assert "## Turn Frame\nbackground" in user_content
 
     @pytest.mark.asyncio
+    async def test_background_local_context_is_live_only_not_saved(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.turn(
+            guard_character,
+            sample_checkpoint,
+            frame="background",
+            local_context=(
+                "Location: courtyard\n"
+                "Nearby active characters: Steward Lysa (steward_lysa)"
+            ),
+        )
+
+        live_user = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
+        assert "## Local Context" in live_user
+        assert "Steward Lysa" in live_user
+
+        saved_user = sample_checkpoint.character_conversations[
+            "guard_17"
+        ][0].content
+        assert "## Local Context" not in saved_user
+        assert "Steward Lysa" not in saved_user
+        assert "## Turn Frame\nbackground" in saved_user
+
+    @pytest.mark.asyncio
     async def test_background_turn_appends_to_same_rolling_conversation_as_respond(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,

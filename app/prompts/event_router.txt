@@ -87,7 +87,7 @@ For NPCs, omit observers who receive no packet, have no meaningful perception, a
 
 Use `commitment_resolutions` when this event completes, cancels, supersedes, or makes impossible a prior open commitment. Use `commitment_interrupts` when a character with an open commitment observes new information before that commitment resolves and should be able to revise or continue it. Do not include commitments in narrator-facing facts merely because they exist.
 
-Use `location_updates` for durable changes to a character's opaque location label. Do not rely on visible movement prose alone when a character's location should change for future routing.
+Use `location_updates` for durable changes to a character's opaque location label. Do not rely on visible movement prose alone when a character's location should change for future routing. When an off-stage or frontier output implies that a character leaves, follows, relocates, waits elsewhere, sends for someone from another place, or is about to operate from a new place, update that character's location.
 
 {ruleset_router_addon}
 
@@ -176,23 +176,24 @@ Addressed NPCs are owed a response before the beat closes. If the actor's intent
 
 Other NPCs may also be routed when the event creates real pressure on them. NPC-to-NPC pressure counts: praise, insult, contradiction, exposure, implication, accusation, alliance, or changed standing can make the touched NPC the strongest next output even if the player spoke last. Interrupting a direct exchange is a social move; use it when the interrupter would plausibly pay that cost.
 
-If `event_kind="beat_continues"`, at least one observer should usually have `routing_role="next_output"`. Use more than one `next_output` only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface. Do not burn outputs on every character just because they exist, and do not over-advance private branches compared with the visible table. For terminal event kinds, use `observe_only` unless this is `observation_harvest`, `query_response`, or a ruleset-specific routing role.
+If `event_kind="beat_continues"`, at least one observer should usually have `routing_role="next_output"`. Use more than one `next_output` only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface. Do not burn outputs on every character just because they exist, and do not over-advance private branches compared with the visible table. For `event_kind="public_fact"`, `observe_only` delivers the public information to that character, while `next_output` delivers it and also gives that character a background chance to act. For terminal event kinds, use `observe_only` unless this is `public_fact`, `observation_harvest`, `query_response`, or a ruleset-specific routing role.
 
 ### Off-Screen Thread Liveness
 
-At every routing step, keep the wider story alive. In addition to resolving the current visible pressure, look across prior events, established NPC objectives, open commitments, and delayed consequences for off-screen threads that should advance now. If background pressure exists, select at least one such thread before ending the beat by marking a suitable off-screen NPC with `routing_role="next_output"`. Track no more than 4 concurrent off-screen threads in the current beat; use one next-output character per thread at a time, then reassess after each output is canonicalized.
+At every routing step, keep the wider story alive. In addition to resolving the current visible pressure, look across prior events, established NPC objectives, open commitments, and delayed consequences for off-screen threads that should advance now. When public or semi-public information should become available away from the player-facing scene, write it as a normal canonical event with `event_kind="public_fact"`. Select exact recipients as observers; do not list every active character by default. If background pressure exists and fewer than 4 off-screen threads are live in the current beat, mark one suitable recipient with `routing_role="next_output"` so that character can act from the public information. Use one next-output character per thread at a time, then reassess after each output is canonicalized.
 
 Do not tunnel on the same one or two off-screen agents. Rotate attention among active NPCs, factions, hazards, obligations, messages, pursuers, rivals, and delayed consequences when history gives them live pressure. Prefer threads whose next move can later surface as a concrete consequence, arrival, clue, interruption, rumor, changed location, or new constraint.
 
 A background thread should be a tight beat, not a hidden chapter. Advance one meaningful move per selected thread. Do not spend outputs on every active NPC, do not advance private branches just because they exist, and do not let background motion overwhelm the visible table. If no off-screen thread has established pressure, choose the strongest visible next output or end on a real affordance.
 
-Off-screen output still obeys visibility. If the off-screen event is private to its scene, scope facts to the characters who can perceive it. If its consequence reaches a player-facing scene, make that transfer an observable event: a message, arrival, sound, report, object, environmental change, or other concrete surface.
+Off-screen output still obeys visibility. If the off-screen event is private to its scene, scope facts to the characters who can perceive it. If its consequence reaches a player-facing scene, make that transfer an observable event: a message, arrival, sound, report, object, environmental change, or other concrete surface. When characters leave the player-facing POV together, update their locations and usually route one of them as `next_output` so their off-stage thread can begin with the other nearby character in context.
 
 7. Choose `event_kind`.
 
 End the beat only when the latest event leaves the acting human with a concrete next affordance and no more meaningful character output remains. A concrete affordance is a person addressing them with a meaningful choice or pressure, clear destination with stakes, object or cue to investigate, visible obstacle, changed condition, explicit absence that matters, signal, message, arrival, or decision point. Procedural compliance is not an affordance: "sit there," "follow the attendant," "sign this," "take this chit," or "wait until called" are not valid player-facing boundaries unless paired with a new fact, pressure, dilemma, or actionable opportunity.
 
 Use `beat_continues` when you need more character output before player rendering. Use these terminal event kinds when the beat should render, suspend, or hand off:
+- `public_fact`: public or semi-public information reaches exact selected observers. Use `observe_only` for inbox delivery only, or `next_output` for one recipient who should act on it in the background.
 - `directed_at_player`: an NPC speaks to, asks, demands, offers, attacks, touches, blocks, hands over something, or otherwise acts on a player character in a way that clearly asks for player response. Use only after all addressed NPCs owed this beat have had their response.
 - `state_change`: a player-relevant condition changes and the next meaningful move belongs to a player.
 - `cascade_exhausted`: no NPC has pressure to act further; the exchange has naturally settled.
@@ -252,7 +253,7 @@ If the resolution input lists swept responders, they are present but did not vis
 
 For `## Continuation Required`, the beat is still open but has no next selected NPC. Author the next grounded event that creates forward motion. Use concrete observable facts, a meaningful environmental or production cue, an existing off-screen character moving into perception, or a narratively meaningful spawn. Do not invent an action by the acting character unless the established situation makes that action unavoidable.
 
-If the new event creates a clear human-facing affordance, use the correct terminal event kind. If the beat still needs NPC action, set `event_kind="beat_continues"` and mark those NPC observers with `routing_role="next_output"`.
+If the new event creates a clear human-facing affordance, use the correct terminal event kind. If the beat still needs NPC action, set `event_kind="beat_continues"` and mark those NPC observers with `routing_role="next_output"`. If the needed motion is off-stage public information, use `event_kind="public_fact"` and mark only the recipient who should act as `next_output`.
 
 #### Out-Of-Character Directives
 
@@ -380,7 +381,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 {ruleset_output_schema_fields}
   "requires_responders": true or false,
   "required_responders": ["character_id - Cat II only, else empty"],
-  "event_kind": "string - one of: beat_continues | directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"
+  "event_kind": "string - one of: beat_continues | public_fact | directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"
 }}
 </output_schema>
 

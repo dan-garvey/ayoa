@@ -95,14 +95,19 @@ def _router_out(
     requires_responders: bool = False,
     required_responders: list[str] | None = None,
     agent_ids: list[str] | None = None,
+    observer_ids: list[str] | None = None,
+    event_kind: str | None = None,
     ends_beat: bool = True,
     facts: list[ObservableFact] | None = None,
     effective_at_s: int = 0,
     duration_s: int = 0,
+    location_updates: list[dict] | None = None,
 ) -> EventRouterOutput:
     picks = agent_ids or []
     required = required_responders or []
-    observer_ids = ["alice", *picks, *required]
+    observer_ids = observer_ids if observer_ids is not None else [
+        "alice", *picks, *required
+    ]
     observers: list[ObserverEntry] = []
     seen: set[str] = set()
     for cid in observer_ids:
@@ -116,7 +121,7 @@ def _router_out(
                 routing_role="next_output" if cid in picks else "observe_only",
             )
         )
-    return EventRouterOutput(
+    data = dict(
         event_id="",
         effective_at_s=effective_at_s,
         duration_s=duration_s,
@@ -135,7 +140,11 @@ def _router_out(
         spawn=[],
         dormant=[],
         cull=[],
+        location_updates=location_updates or [],
     )
+    if event_kind is not None:
+        data["event_kind"] = event_kind
+    return EventRouterOutput(**data)
 
 
 def _dnd_router_out(
@@ -692,6 +701,92 @@ class TestBeatCascade:
         frontier_results = fake.frontier_calls[0]["frontier_results"]
         assert [item.character_id for item in frontier_results] == ["pip"]
         assert frontier_results[0].source_event_id == prior.event_id
+
+    def test_public_fact_observe_only_delivers_inbox_without_cascade(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fact = ObservableFact.all(
+            "Official criers announce the cohort has been summoned."
+        )
+        fake.queue_route(_router_out(
+            event_kind="public_fact",
+            observer_ids=["alice", "pip"],
+            facts=[fact],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert result.events_closed == 1
+        assert result.ended_reason == "public_fact"
+        assert pip.pending_observations == [
+            "Official criers announce the cohort has been summoned."
+        ]
+        assert fake.agent_calls == []
+        assert fake.frontier_calls == []
+        assert fake.continuation_calls == []
+
+    def test_public_fact_next_output_dispatches_background_turn(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        prior = _router_out(
+            event_kind="public_fact",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            facts=[ObservableFact.all("A courier reaches Pip with the news.")],
+        )
+        fake.queue_route(prior)
+        fake.queue_agent("Pip sends a runner to the archive")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        assert result.events_closed == 2
+        assert fake.agent_calls[0]["character_id"] == "pip"
+        assert fake.agent_calls[0]["frame"] == "background"
+        assert "Location: gatehouse" in fake.agent_calls[0]["local_context"]
+        assert "Alice (alice)" in fake.agent_calls[0]["local_context"]
+        frontier_results = fake.frontier_calls[0]["frontier_results"]
+        assert frontier_results[0].frame == "background"
+        assert frontier_results[0].source_event_id == prior.event_id
+
+    def test_background_thread_cap_limits_public_fact_cascades(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="public_fact",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+        ))
+        for i in range(4):
+            fake.queue_agent(f"Pip advances background thread {i}")
+            fake.queue_route(_router_out(
+                event_kind="public_fact",
+                agent_ids=["pip"],
+                observer_ids=["alice", "pip"],
+            ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        assert result.ended_reason == "cascade_cap"
+        assert result.events_closed == 5
+        assert len(fake.agent_calls) == 4
+        assert len(fake.frontier_calls) == 4
 
     def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
         ckpt = _ckpt({})
@@ -2042,6 +2137,11 @@ class TestSchemaValidators:
         )
         assert out.next_output_character_ids == ["pip"]
 
+    def test_public_fact_event_kind_is_accepted(self):
+        out = _router_out(event_kind="public_fact", observer_ids=["pip"])
+        assert out.event_kind == "public_fact"
+        assert out.ends_beat is True
+
     def test_observation_harvest_uses_perception_enrichment_targets(self):
         out = EventRouterOutput(
             event_id="",
@@ -2098,6 +2198,31 @@ class TestSchemaValidators:
             offstage,
             player_ids={"alice"},
             agent_ids=["offstage_npc"],
+        ).frontier_targets[0].frame == "background"
+
+        public_fact = _router_out(
+            event_kind="public_fact",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+        )
+        assert frontier_from_router_output(
+            public_fact,
+            player_ids={"alice"},
+            agent_ids=["pip"],
+        ).frontier_targets[0].frame == "background"
+
+        departing = _router_out(
+            agent_ids=["pip"],
+            ends_beat=False,
+            observer_ids=["alice", "pip"],
+            location_updates=[
+                {"character_id": "pip", "location_label": "archive"}
+            ],
+        )
+        assert frontier_from_router_output(
+            departing,
+            player_ids={"alice"},
+            agent_ids=["pip"],
         ).frontier_targets[0].frame == "background"
 
     def test_unknown_event_kind_coerced_to_terminal_kind(self):

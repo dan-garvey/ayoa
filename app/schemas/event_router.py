@@ -22,6 +22,10 @@ EventKind = Literal[
     # The beat should continue after this event by collecting the next
     # router-selected character output.
     "beat_continues",
+    # A public or semi-public information event. The event is still a normal
+    # canonical event: observers receive visible facts through the usual inbox
+    # path. `next_output` observers may also receive a background turn.
+    "public_fact",
     "directed_at_player",
     "state_change",
     "cascade_exhausted",
@@ -381,8 +385,9 @@ class EventRouterOutput(BaseModel):
         intentions before canonicalization closes.
       - `event_kind`: the router's pacing and dispatch signal. The engine
         derives beat closure from this field: `beat_continues` requests the
-        next ordered character output, while terminal event kinds render,
-        suspend, or hand off to adapter-owned flows.
+        next ordered character output, `public_fact` delivers public
+        information and can select background output, while terminal event
+        kinds render, suspend, or hand off to adapter-owned flows.
       - `observers[].routing_role`: ordered perception/render/agent-routing
         intent. `next_output` entries are the response candidates for a live
         beat; `perception_enrichment` entries are non-response targets for

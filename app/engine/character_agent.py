@@ -67,15 +67,25 @@ class CharacterAgentTurnDraft:
 def _conversation_safe_user_content(text: str) -> str:
     lines: list[str] = []
     skipping_tactical_map = False
+    skipping_local_context = False
     for line in text.splitlines():
         if line.strip() == "## Tactical Map":
             skipping_tactical_map = True
+            continue
+        if line.strip() == "## Local Context":
+            skipping_local_context = True
             continue
         if skipping_tactical_map and (
             line.startswith("## ") or line.strip() == "</input>"
         ):
             skipping_tactical_map = False
+        if skipping_local_context and (
+            line.startswith("## ") or line.strip() == "</input>"
+        ):
+            skipping_local_context = False
         if not skipping_tactical_map:
+            if skipping_local_context:
+                continue
             lines.append(line)
     return "\n".join(lines)
 
@@ -263,6 +273,7 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
         frame: str = "foreground",
+        local_context: str = "",
     ) -> CharacterAgentOutput:
         """Committed agent turn in a router-selected frame."""
         draft = await self.draft_turn(
@@ -270,6 +281,7 @@ class CharacterAgent:
             checkpoint=checkpoint,
             acting_character_id=acting_character_id,
             frame=frame,
+            local_context=local_context,
         )
         self._commit_draft(character, checkpoint, draft)
         return draft.output
@@ -435,6 +447,7 @@ class CharacterAgent:
         checkpoint: CheckpointFile,
         acting_character_id: str = "",
         frame: str = "foreground",
+        local_context: str = "",
     ) -> CharacterAgentTurnDraft:
         """Prepare an agent turn without mutating agent memory."""
         frame = (frame or "foreground").strip().lower()
@@ -462,6 +475,7 @@ class CharacterAgent:
                 format_agent_turn_body(
                     frame=frame,
                     location_context=location_context,
+                    local_context=local_context,
                 ),
                 foreground_block,
             ),

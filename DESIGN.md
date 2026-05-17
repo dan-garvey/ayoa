@@ -509,6 +509,7 @@ speech act itself happens.
 The turn loop broadcasts the event, then either:
 
 * ends and renders, if `event_kind` is terminal
+* delivers public information, if `event_kind=public_fact`
 * performs observation harvest, if `event_kind=observation_harvest`
 * performs private query harvest, if `event_kind=query_response`
 * dispatches the next valid NPC pick and routes that public result back
@@ -593,12 +594,13 @@ movement side-effect.
 ### 6.7 Router-Selected Frontier Turns
 
 The router owns the decision about who gets the next turn. When it emits
-`event_kind="beat_continues"`, observers with `routing_role="next_output"`
-name the NPCs eligible for the next frontier target. The turn loop dispatches
-one valid routed agent, strips private parentheticals, routes that single
-public result back through the router, and then lets the router decide whether
-another same-scene target is still needed. Additional `next_output` observers
-are ordered backlog or fallback candidates, not a simultaneous response group.
+`event_kind="beat_continues"` or `event_kind="public_fact"`, observers with
+`routing_role="next_output"` name the NPCs eligible for the next frontier
+target. The turn loop dispatches one valid routed agent, strips private
+parentheticals, routes that single public result back through the router, and
+then lets the router decide whether another target is still needed.
+Additional `next_output` observers are ordered backlog or fallback candidates,
+not a simultaneous response group.
 
 The same surface covers foreground responses, private branches, and background
 turns. Human-bound characters do not dispatch as agents;
@@ -609,10 +611,14 @@ output is a renderer result rather than an agent inbox result. The current
 schema derives that renderer target from terminal event kind plus observers
 rather than from an explicit router target field.
 
-The engine determines the agent frame from visibility and player bindings,
-then enforces hard safety filters: no human-bound characters, no unknown or
-inactive characters, no pinned Cat II responders, no active combatants, and
-no actors blocked by pending D&D reaction or roll state.
+The engine determines the agent frame from visibility, event kind, location
+updates, and player bindings, then enforces hard safety filters: no
+human-bound characters, no unknown or inactive characters, no pinned Cat II
+responders, no active combatants, and no actors blocked by pending D&D reaction
+or roll state. `public_fact` targets and targets whose location changes in the
+source event dispatch as background turns. The first such background ping gets
+a transient local-context block with current location and same-location active
+characters; that block is not persisted in the agent's rolling conversation.
 
 Dormancy is explicit story state, not an inference from "has never appeared
 on-stage." An unseen antagonist with `status=active` and
@@ -1560,32 +1566,22 @@ legality and outcome. Future work may add manual map authoring, image
 rendering, strict movement/path validation, elevation, hidden tokens,
 lighting, and richer area-template geometry.
 
-### 20.4 Delayed public-information buffer for off-screen saliency
+### 20.4 Public information for off-screen saliency
 
-Consistently off-screen characters need a way to become objectively salient
-without requiring the router to spend immediate live-action frontier calls on
-them. A likely future shape is a public-information buffer: durable public or
-semi-public facts, rumors, broadcasts, alerts, records, or aftermath signals
-are queued with a delay and later pushed into eligible character inboxes.
+Off-screen characters become objectively salient through
+`event_kind="public_fact"`. A public fact is still a normal canonical event:
+the router writes public or semi-public `observable_facts`, selects exact
+observers who receive them through `pending_observations`, and uses
+`routing_role="next_output"` only for recipients who should act on that
+information now. `routing_role="observe_only"` delivers the inbox entry without
+cascading.
 
-This would let off-screen NPCs, factions, hazards, and observers react to
-the world from available public information rather than from omniscience or
-from direct observation of scenes they did not witness. It should not leak
-private facts. Eligibility, source, delay, decay, and recipient caps need to
-be explicit enough that long-running sessions do not turn every public event
-into universal inbox noise.
-
-Open questions:
-
-* is the buffer written directly by the router, derived from selected
-  canonical facts, or produced by a lower-cadence story/world process?
-* should delivery happen on the next player intention, on a cache timeout, or
-  on a separate background refresh cadence?
-* does delayed public delivery create normal `pending_observations`, a
-  separate public-news inbox, or a router-routed background target to
-  adjudicate?
-* what provenance survives delivery so an agent can distinguish direct memory
-  from rumor, broadcast, report, feed, or inferred aftermath?
+This is the minimal public-information buffer. It has no separate queue,
+delay, provenance field, or universal broadcast. The router represents delay,
+source, and provenance in the fact text itself, such as criers, courier
+reports, rumors, official notices, records, aftermath, or live broadcasts.
+Long-running sessions still need care: public facts should name eligible
+recipients narrowly so broad public events do not become universal inbox noise.
 
 ### 20.5 D&D inventory and economy
 

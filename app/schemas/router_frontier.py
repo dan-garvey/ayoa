@@ -77,6 +77,13 @@ def frontier_frame_for_pick(
     player_ids: set[str],
     character_id: str,
 ) -> FrontierFrame:
+    if result.event_kind == "public_fact":
+        return "background"
+    if any(
+        update.character_id == character_id
+        for update in result.location_updates
+    ):
+        return "background"
     observer_ids = {observer.character_id for observer in result.observers}
     if character_id not in observer_ids:
         return "background"
@@ -107,7 +114,7 @@ def frontier_from_router_output(
             )
             for cid in perception_targets
         )
-    elif not result.ends_beat:
+    elif not result.ends_beat or result.event_kind == "public_fact":
         targets.extend(
             RouterFrontierTarget(
                 target_kind="agent_turn",

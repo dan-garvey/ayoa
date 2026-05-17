@@ -1024,6 +1024,7 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         character_id: str,
         frame: str = "foreground",
+        local_context: str = "",
     ) -> str:
         """Invoke the character agent and return its prose for the router.
 
@@ -1061,6 +1062,7 @@ class LLMDispatcher:
             checkpoint=ckpt,
             acting_character_id=character_id,
             frame=frame,
+            local_context=local_context,
         )
         public = output.public_text.strip()
         if public:
