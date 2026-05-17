@@ -13,9 +13,25 @@ Every feature change must survive two questions before implementation:
 
 D&D mechanics must remain modular adapters around the narrative engine, not assumptions baked into generic router, narrator, or character-agent behavior.
 
+Until Ayoa reaches a release-candidate migration posture, prefer retiring changed schema/prompt fields directly over maintaining compatibility with old saves. Avoid adding compatibility shims for obsolete checkpoint shapes unless the user explicitly requests them.
+
 After completing an implementation or bugfix, commit the verified changes and push the branch before handing the work back to the user unless the user explicitly says not to.
 
 Player UX review should assume pseudo-live table norms unless the user says otherwise. Do not treat AFK-player handling as a primary UX requirement; the expected mitigation is social pressure from making the table wait, not engine machinery that keeps play moving around an absent player.
+
+## Design Simplification Discipline
+
+When the user challenges a router, schema, prompt, or model-input design as over-engineered, first re-evaluate whether each extra surface is semantically necessary. Do not preserve headers, wrapper blocks, queues, compatibility paths, or diagnostic summaries just because they already exist.
+
+Prefer the smallest model input that preserves the real runtime contract. If compact canonical history already carries a fact, decision, clock, or state transition, do not re-send a derived copy unless there is a current producer outside that canonical path. If two input paths carry the same semantic content, unify them instead of creating a second prompt mode.
+
+Before claiming latency, correctness, or orchestration tradeoffs, draw or describe the actual loop in terms of who is called, what waits for what, and what context each model receives. Distinguish sequential same-context cascades from genuinely independent parallel work.
+
+Treat router-authored fiction as router-owned truth. Engine code should implement, persist, and validate router decisions, not re-explain those same decisions back to the router as synthetic updates. External engine mutations should surface only when they are not already represented in canonical router history.
+
+When a required router-directed side effect fails, prefer a loud runtime error over a compensating summary or silent skip. Silent drops, fallback summaries, and "failed but continue" paths hide contract violations.
+
+For adapter paths such as D&D, make them obey the same generic contract when their semantic output is the same. Do not create adapter-specific side channels for information that should live in canonical history or shared runtime contracts.
 
 ## Prompt Editing
 
