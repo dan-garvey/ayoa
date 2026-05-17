@@ -74,7 +74,7 @@ class TestCheckpointSaveLoad:
                 {
                     "character_id": "guard_17",
                     "observation_level": "d",
-                    "response_priority": 1,
+                    "routing_role": "observe_only",
                 }
             ],
             spawn=[],
@@ -94,7 +94,6 @@ class TestCheckpointSaveLoad:
             },
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="state_change",
         ))

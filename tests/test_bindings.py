@@ -285,8 +285,8 @@ class TestPlayerCharactersBlock:
         """An is_playable=True character without a binding is an
         agent NPC and must NOT appear in the Player Characters
         block — surfacing them would tell the router 'human, never
-        dispatch via picks' and starve the cascade of the very
-        agent it needs."""
+        dispatch as an agent' and starve the cascade of the very agent
+        it needs."""
         ckpt = _make_checkpoint()
         # Aldric is_playable=True but no binding and no creator.
         ckpt.session.player_character_id = ""

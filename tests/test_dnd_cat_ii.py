@@ -145,7 +145,7 @@ def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):
     assert routed.requires_responders is False
     assert routed.ends_beat is True
     assert routed.ends_beat_reason == "cat_ii_resolution"
-    assert routed.agent_responder_picks == []
+    assert routed.next_output_character_ids == []
     assert [o.character_id for o in routed.observers] == ["alice", "pip"]
     assert routed.canonical_event.observable_facts[0].text == (
         "Alice drives Pip back from the doorway."

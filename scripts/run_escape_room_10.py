@@ -91,7 +91,6 @@ async def main() -> None:
             "event_id": ev.get("event_id"),
             "decision_rationale": ev.get("decision_rationale"),
             "event_kind": ev.get("event_kind"),
-            "agent_responder_picks": ev.get("agent_responder_picks"),
             "observers": ev.get("observers"),
             "facts": ev.get("canonical_event", {}).get("observable_facts", []),
         })

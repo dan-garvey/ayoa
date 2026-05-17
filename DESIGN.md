@@ -61,9 +61,11 @@ been collapsed. The current loop is:
 2. The event router classifies and canonicalizes the intention.
 3. The turn loop broadcasts the canonical event to human render buffers
    and NPC observation inboxes.
-4. The router-selected frontier group completes: foreground NPCs,
-   private/background NPC turns, and player-render targets selected by
-   the router are awaited together, then submitted back to the router.
+4. If the router keeps the beat live, the turn loop projects the router
+   output into frontier targets. Current runtime dispatches one NPC target
+   at a time and routes that public result back through the router before
+   another same-scene target can act. Human render targets are inferred from
+   terminal router events and observing player-bound characters.
    This loops until `event_kind` says to continue no further or the
    engine hits a hard cap.
 5. The narrator renders each observing human's POV from visible
@@ -156,8 +158,7 @@ role. It decides:
 * feasibility
 * time advancement
 * observable facts and fact-level visibility
-* observers and response priorities
-* NPC responder picks
+* observers and observer routing roles
 * beat end state
 * spawns, dormancy, and culls
 
@@ -324,14 +325,14 @@ so a failed router completion does not silently drain `world_facts_delta` or
 
 The event router prompt and `EventRouterOutput` schema replace both the
 old narrator adjudication phase and the old discriminator role. The
-router emits one structured object per routed intention or frontier result
-group.
+router emits one structured object per routed intention or frontier result.
 
 Current router call shapes:
 
 * fresh human or NPC intention (`## Intention`)
 * Cat II final adjudication (`## Cat II Resolution`)
-* frontier result fan-in (`## Frontier Results`)
+* frontier result fan-in (`## Frontier Results`; currently one public agent
+  result per same-scene cascade step)
 * continuation rescue (`## Continuation Required`)
 * OOC directives such as `(begin)`, `(arrive)`, `(defer)`, and
   `(query: ...)`
@@ -343,7 +344,6 @@ The top-level object carries:
 * `canonical_event`
 * Cat I / Cat II fields
 * `event_kind`
-* `agent_responder_picks`
 * `observers`
 * `spawn`, `dormant`, `cull`
 
@@ -511,8 +511,8 @@ The turn loop broadcasts the event, then either:
 * ends and renders, if `event_kind` is terminal
 * performs observation harvest, if `event_kind=observation_harvest`
 * performs private query harvest, if `event_kind=query_response`
-* dispatches every valid NPC pick in the next frontier group and routes the
-  grouped public results back through the router
+* dispatches the next valid NPC pick and routes that public result back
+  through the router
 * asks the router for one continuation rescue if the beat remains open but
   no dispatchable NPC pick survives filtering
 * forces render if `max_events_per_beat` is reached
@@ -593,16 +593,26 @@ movement side-effect.
 ### 6.7 Router-Selected Frontier Turns
 
 The router owns the decision about who gets the next turn. When it emits
-`event_kind="beat_continues"`, `agent_responder_picks` names the NPCs that
-should complete the next frontier group. The engine waits for every selected
-target, strips private parentheticals, submits the public results in one
-`## Frontier Results` call, and loops.
+`event_kind="beat_continues"`, observers with `routing_role="next_output"`
+name the NPCs eligible for the next frontier target. The turn loop dispatches
+one valid routed agent, strips private parentheticals, routes that single
+public result back through the router, and then lets the router decide whether
+another same-scene target is still needed. Additional `next_output` observers
+are ordered backlog or fallback candidates, not a simultaneous response group.
 
 The same surface covers foreground responses, private branches, and background
-turns. The engine determines the agent frame from visibility and player
-bindings, then enforces hard safety filters: no human-bound characters, no
-unknown or inactive characters, no pinned Cat II responders, no active
-combatants, and no actors blocked by pending D&D reaction or roll state.
+turns. Human-bound characters do not dispatch as agents;
+their visible facts accumulate in render buffers and are flushed by the
+narrator when a terminal router event targets that POV. Conceptually, a
+player-bound character is still a frontier participant, but their immediate
+output is a renderer result rather than an agent inbox result. The current
+schema derives that renderer target from terminal event kind plus observers
+rather than from an explicit router target field.
+
+The engine determines the agent frame from visibility and player bindings,
+then enforces hard safety filters: no human-bound characters, no unknown or
+inactive characters, no pinned Cat II responders, no active combatants, and
+no actors blocked by pending D&D reaction or roll state.
 
 Dormancy is explicit story state, not an inference from "has never appeared
 on-stage." An unseen antagonist with `status=active` and
@@ -653,13 +663,13 @@ packets.
 
 ### 7.2 ObserverEntry
 
-Observers carry event-level perception and response pressure:
+Observers carry event-level perception and routing intent:
 
 ```json
 {
   "character_id": "dante_royale",
   "observation_level": "d",
-  "response_priority": 4
+  "routing_role": "observe_only"
 }
 ```
 
@@ -672,18 +682,26 @@ Observation levels:
 `observation_level` says how the observer encountered the event.
 Fact-level `audience` / `visible_to` says which facts they receive.
 
-### 7.3 Responder Picks
+### 7.3 Observer Routing Roles
 
-`agent_responder_picks` are NPCs the router wants to dispatch next.
-Human-controlled characters are stripped by the engine. NPC location and
-perception eligibility are router responsibilities, but the schema still
-enforces that picks appear in `observers`. For a remote NPC to respond,
-the router must include that NPC as an observer and give them a concrete
-perceptual path.
+`routing_role` is the executable routing decision attached to each observer or
+enrichment target:
 
-Two beat reasons are exceptions: `observation_harvest` and `query_response`.
-In those modes, `agent_responder_picks` are perception-harvest targets, not
-cascade actors, and the schema does not require them to be event observers.
+* `observe_only` means the character receives visible facts and no immediate
+  output is requested.
+* `next_output` means the router wants this character to produce the next live
+  output if the beat remains open. Runtime safety filters still remove
+  human-bound, inactive, pinned, disabled, or combat-blocked characters.
+* `perception_enrichment` means the character is a perception-harvest target
+  for `observation_harvest` or `query_response`, not a response actor.
+
+Observer list order is routing order. Multiple `next_output` observers are an
+ordered backlog or fallback set; the runtime still dispatches one same-scene
+agent output, routes that result back through the router, and then lets the
+router decide whether another participant is still live.
+
+D&D extends this enum with `dnd_reaction`, an adapter-owned role for direct
+combat observers who should receive a reaction prompt.
 
 ### 7.4 Visibility Caveat
 
@@ -1183,10 +1201,9 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   Cat I-shaped beat with `event_kind="ruleset_cat_ii_suppressed"`
   rather than opening a parallel responder flow against the
   initiative ladder;
-* a high-priority direct observer of a closed combat beat
-  (`observation_level="d"`, `response_priority >= 5`) renders in the
-  same beat as the actor instead of waiting for their own turn, so
-  the target of an attack sees what just hit them;
+* a direct observer of a closed combat beat marked
+  `routing_role="dnd_reaction"` can receive a reaction prompt in the
+  same beat as the actor instead of waiting for their own turn;
 * a `(defer)` from a combatant with an open reaction window resolves
   as a reaction acknowledgement rather than a turn skip;
 * `_handle_combat_after_beat` advances initiative state after a beat
@@ -1384,19 +1401,26 @@ confirm the gate's semantics are coherent across parallel beats. If
 the answer is unclear, surface the problem on a TODO instead of adding
 a brittle global counter.
 
-### 18.2 Frontier fan-out latency on the /act critical path
+### 18.2 Frontier cascade latency on the live action path
 
-Router-selected frontier groups run on the `/act` critical path: each selected
-agent target is awaited, then the grouped public results are routed before a
-player render is returned. This is deliberate table pacing: when the router
-says a group is part of the current beat, the table waits for that group the
-same way it would wait for several NPCs to answer in a live scene.
+Router-selected frontier work runs on the live action path. Same-scene agent
+turns are sequential: one target produces public output, the router
+canonicalizes it, and only then can another target in that scene act with the
+updated context. This matches live table pacing better than parallel NPC
+fan-out, because later speakers know what earlier speakers just said or did.
 
-The latency risk is now router behavior, not an engine scheduler. Prompt and
-schema work should keep off-stage/private selection bounded: pick only NPCs
-whose next turn matters, avoid advancing every active NPC, and prefer events
-that can surface meaningful consequences. The engine still enforces hard caps
-on event count and agent cascades.
+This should not be framed as "returning player control" as a special runtime
+ontology. A human-bound character is a participant whose immediate output is
+rendering visible facts to that player's POV rather than appending an inbox
+entry or asking an agent model for an intention. Some live frontier work
+belongs to scenes with no player currently present; it still needs bounded
+liveness and a clear target, not player-control language.
+
+The latency risk is router over-selection. Prompt and schema work should keep
+off-stage/private selection bounded: pick only targets whose next turn
+matters, avoid advancing every active NPC, and prefer events that can surface
+meaningful consequences. The engine still enforces hard caps on event count
+and agent cascades.
 
 ### 18.3 Cross-scene observation inbox
 
@@ -1536,7 +1560,34 @@ legality and outcome. Future work may add manual map authoring, image
 rendering, strict movement/path validation, elevation, hidden tokens,
 lighting, and richer area-template geometry.
 
-### 20.4 D&D inventory and economy
+### 20.4 Delayed public-information buffer for off-screen saliency
+
+Consistently off-screen characters need a way to become objectively salient
+without requiring the router to spend immediate live-action frontier calls on
+them. A likely future shape is a public-information buffer: durable public or
+semi-public facts, rumors, broadcasts, alerts, records, or aftermath signals
+are queued with a delay and later pushed into eligible character inboxes.
+
+This would let off-screen NPCs, factions, hazards, and observers react to
+the world from available public information rather than from omniscience or
+from direct observation of scenes they did not witness. It should not leak
+private facts. Eligibility, source, delay, decay, and recipient caps need to
+be explicit enough that long-running sessions do not turn every public event
+into universal inbox noise.
+
+Open questions:
+
+* is the buffer written directly by the router, derived from selected
+  canonical facts, or produced by a lower-cadence story/world process?
+* should delivery happen on the next player intention, on a cache timeout, or
+  on a separate background refresh cadence?
+* does delayed public delivery create normal `pending_observations`, a
+  separate public-news inbox, or a scene-liveness target for the router to
+  adjudicate?
+* what provenance survives delivery so an agent can distinguish direct memory
+  from rumor, broadcast, report, feed, or inferred aftermath?
+
+### 20.5 D&D inventory and economy
 
 Imported character sheets already contain item data, but runtime play
 does not yet model carrying, dropping, drawing, buying, selling,
@@ -1544,7 +1595,7 @@ attuning, consuming, or transferring items and currency. A future
 inventory layer should stay adapter-owned and should distinguish
 equipment that affects mechanics from ordinary narrative possessions.
 
-### 20.5 D&D action economy decomposition
+### 20.6 D&D action economy decomposition
 
 Combat currently treats one player `/act` as one adjudicated turn.
 Fuller 5e support needs explicit action, bonus action, movement,

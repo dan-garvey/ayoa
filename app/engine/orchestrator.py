@@ -70,7 +70,7 @@ from app.engine.turn_loop import (
     _clear_pending_initiating_action,
     _end_beat,
     flush_combat_visible_facts,
-    _filter_picks_for_dispatch,
+    _filter_routed_agents_for_dispatch,
 )
 from app.llm.client import LLMClient
 
@@ -1358,7 +1358,7 @@ class Orchestrator:
                 # initiator, needs the final result in their inbox for future
                 # turns.
                 broadcast_event(ckpt, resolved)
-                initiator_pick = _filter_picks_for_dispatch(
+                initiator_pick = _filter_routed_agents_for_dispatch(
                     ckpt, [evt_live.initiator_id],
                     event=resolved,
                 )
@@ -1788,7 +1788,7 @@ class Orchestrator:
             )
         align_cat_ii_resolution_time(ckpt, evt_live, resolved)
         broadcast_event(ckpt, resolved)
-        initiator_pick = _filter_picks_for_dispatch(
+        initiator_pick = _filter_routed_agents_for_dispatch(
             ckpt, [evt_live.initiator_id],
             event=resolved,
         )

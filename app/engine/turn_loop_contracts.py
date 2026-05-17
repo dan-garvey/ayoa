@@ -79,7 +79,7 @@ def format_cat_ii_resolution_block(
         lines.append("")
     lines.append(
         "Compose the resolved canonical event per Part C. Emit "
-        "requires_responders=false, event_kind=cat_ii_resolution, empty picks."
+        "requires_responders=false and event_kind=cat_ii_resolution."
     )
     return "\n".join(lines)
 
@@ -135,7 +135,7 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
             "If this new event creates a clear human-facing affordance, set "
             "the correct terminal `event_kind`. "
             "If the beat still needs NPC action, set `event_kind=beat_continues` and "
-            "include dispatchable NPC ids in `agent_responder_picks`."
+            "mark dispatchable NPC observers with `routing_role=next_output`."
         ),
     ]
     cleaned = (prior_rationale or "").strip()

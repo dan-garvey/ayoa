@@ -77,12 +77,11 @@ def _make_ckpt(
                     ObserverEntry(
                         character_id=actor_id,
                         observation_level="d",
-                        response_priority=3,
+                        routing_role="observe_only",
                     ),
                 ],
                 requires_responders=False,
                 required_responders=[],
-                agent_responder_picks=[],
                 ends_beat=True,
                 ends_beat_reason="cascade_exhausted",
                 spawn=[],

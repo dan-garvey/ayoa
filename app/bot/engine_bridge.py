@@ -2608,7 +2608,7 @@ class EngineBridge:
             observers.append(ObserverEntry(
                 character_id=cid,
                 observation_level="d",
-                response_priority=3,
+                routing_role="observe_only",
             ))
             seen.add(cid)
         pending_facts = []
@@ -2638,7 +2638,6 @@ class EngineBridge:
                 ),
                 requires_responders=False,
                 required_responders=[],
-                agent_responder_picks=[],
                 ends_beat=True,
                 ends_beat_reason="state_change",
                 observers=observers,

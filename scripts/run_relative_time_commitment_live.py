@@ -675,12 +675,15 @@ def _event_dump(event: EventRouterOutput) -> dict[str, Any]:
         "event_kind": event.event_kind,
         "requires_responders": event.requires_responders,
         "required_responders": list(event.required_responders),
-        "agent_responder_picks": list(event.agent_responder_picks),
+        "next_output_character_ids": list(event.next_output_character_ids),
+        "perception_enrichment_character_ids": list(
+            event.perception_enrichment_character_ids
+        ),
         "observers": [
             {
                 "character_id": observer.character_id,
                 "observation_level": observer.observation_level,
-                "response_priority": observer.response_priority,
+                "routing_role": observer.routing_role,
             }
             for observer in event.observers
         ],

@@ -30,8 +30,8 @@ or the backstop fires.
   beat_end?:
     If true → render each human with a queued buffer, flush
     buffers, release beat slots, park loop.
-    If false → pick next actor (agent-only, by pressure or
-      responder_picks from the event), call agent.intend(),
+    If false → route the next `routing_role=next_output` NPC,
+      call agent.intend(),
       recurse.
 
 ## What's wired vs. TODO
@@ -757,20 +757,22 @@ def _log_router_rationale(
     if not rationale:
         rationale = "(no rationale emitted)"
     logger.info(
-        "router[%s] actor=%s cat=%s ends_beat=%s reason=%r picks=%s :: %s",
+        "router[%s] actor=%s cat=%s ends_beat=%s reason=%r next=%s enrich=%s :: %s",
         kind, actor_id,
         "II" if result.requires_responders else "I",
         result.ends_beat, result.ends_beat_reason,
-        result.agent_responder_picks, rationale,
+        result.next_output_character_ids,
+        result.perception_enrichment_character_ids,
+        rationale,
     )
 
 
-def _filter_picks_for_dispatch(
+def _filter_routed_agents_for_dispatch(
     ckpt: CheckpointFile,
-    picks: list[str],
+    character_ids: list[str],
     event: EventRouterOutput | None = None,
 ) -> list[str]:
-    """Drop picks the engine must never dispatch as agent turns.
+    """Drop routed character ids the engine must never dispatch as agent turns.
 
     Humans do not cascade via the router; they only enter through
     `/act`. Using `collect_player_ids` here (rather than the bare
@@ -782,9 +784,9 @@ def _filter_picks_for_dispatch(
     slip into NPC dispatch and produced the "router tried to make my
     own character speak" symptom.
 
-    NPC picks are intentionally not filtered by physical location or
+    Routed NPCs are intentionally not filtered by physical location or
     fact-level visibility here. Whether an off-location NPC should act
-    is a router decision; if it picks a remote producer, caller, spirit,
+    is a router decision; if it routes a remote producer, caller, spirit,
     watcher, or other mediated participant, we dispatch that NPC.
 
     The hard filters here are runtime safety constraints, not pacing:
@@ -824,7 +826,7 @@ def _filter_picks_for_dispatch(
         }
     }
     out: list[str] = []
-    for rid in picks:
+    for rid in character_ids:
         if rid in out or rid in humans or rid in blocked_slot_ids:
             continue
         char = by_id.get(rid)
@@ -1191,7 +1193,7 @@ async def _append_harvest_fragments(
     ckpt: CheckpointFile,
     result: EventRouterOutput,
     *,
-    picks: list[str],
+    targets: list[str],
     current_actor: str,
     log_label: str,
 ) -> int:
@@ -1202,9 +1204,9 @@ async def _append_harvest_fragments(
     event after broadcast is intentional: render buffers store event ids
     and narrator composition resolves the live canonical event by id.
     """
-    if not picks:
+    if not targets:
         logger.warning(
-            "%s requested perception harvest but no harvestable picks "
+            "%s requested perception harvest but no harvestable targets "
             "remained after filtering.",
             log_label,
         )
@@ -1212,12 +1214,12 @@ async def _append_harvest_fragments(
 
     fragments = await dispatcher.harvest_perceptions(
         ckpt=ckpt,
-        character_ids=picks,
+        character_ids=targets,
         acting_character_id=current_actor,
     )
     by_id = {c.character_id: c for c in ckpt.characters}
     appended = 0
-    for cid, fragment in zip(picks, fragments):
+    for cid, fragment in zip(targets, fragments):
         text = _sanitize_harvest_fragment(fragment)
         if not text:
             logger.warning(
@@ -1232,7 +1234,7 @@ async def _append_harvest_fragments(
         appended += 1
     logger.info(
         "%s: %d/%d fragments appended to event %s",
-        log_label, appended, len(picks), result.event_id,
+        log_label, appended, len(targets), result.event_id,
     )
     return appended
 
@@ -1299,9 +1301,9 @@ def broadcast_event(
 
     The NPC inbox path is the engine implementation of the perception
     channel the router describes in `observable_facts`. When an NPC is
-    picked as `agent_responder` for this same beat, their `respond` call
-    drains the queue and they see the just-broadcast event as the most
-    recent entry.
+    routed for next output in this same beat, their `respond` call drains
+    the queue and they see the just-broadcast event as the most recent
+    entry.
 
     Pre-r8b the local observer path was a bug-hatchery: cascade NPCs got
     `observed_facts=[]` from `LLMDispatcher.agent_intend`, so they
@@ -1417,7 +1419,6 @@ def broadcast_event(
     return visible_humans
 
 
-_COMBAT_REACTION_MIN_PRIORITY = 5
 _COMBAT_REACTION_EXCLUDED_REASONS = {
     "cat_ii_open",
     "cat_ii_resolution",
@@ -1595,7 +1596,7 @@ def _ensure_combatant_observers(
         result.observers.append(ObserverEntry(
             character_id=cid,
             observation_level="d",
-            response_priority=3,
+            routing_role="observe_only",
         ))
         existing.add(cid)
 
@@ -1642,7 +1643,7 @@ def flush_combat_visible_facts(ckpt: CheckpointFile) -> int:
         observers.append(ObserverEntry(
             character_id=cid,
             observation_level="d",
-            response_priority=3,
+            routing_role="observe_only",
         ))
         seen.add(cid)
     if not observers:
@@ -1656,7 +1657,6 @@ def flush_combat_visible_facts(ckpt: CheckpointFile) -> int:
         ),
         requires_responders=False,
         required_responders=[],
-        agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="state_change",
         observers=observers,
@@ -1699,7 +1699,7 @@ def _start_dnd_combat_from_router_signal(
             ]
         result.requires_responders = False
         result.required_responders = []
-        result.agent_responder_picks = []
+        result.clear_routing_roles()
         result.ends_beat = True
         result.ends_beat_reason = "state_change"
         return False
@@ -1723,7 +1723,7 @@ def _start_dnd_combat_from_router_signal(
     )
     result.requires_responders = False
     result.required_responders = []
-    result.agent_responder_picks = []
+    result.clear_routing_roles()
     result.ends_beat = True
     result.ends_beat_reason = "state_change"
     _ensure_combatant_observers(result, participants)
@@ -1760,7 +1760,7 @@ def _block_dnd_combat_start_from_router_signal(
 ) -> None:
     result.requires_responders = False
     result.required_responders = []
-    result.agent_responder_picks = []
+    result.clear_routing_roles()
     result.ends_beat = True
     result.ends_beat_reason = "state_change"
     if actor_id:
@@ -1771,7 +1771,7 @@ def _block_dnd_combat_start_from_router_signal(
             result.observers.append(ObserverEntry(
                 character_id=actor_id,
                 observation_level="d",
-                response_priority=3,
+                routing_role="observe_only",
             ))
         result.canonical_event.observable_facts.append(ObservableFact.all(
             "The hostile action stops short; no attack, spell, or injury "
@@ -1792,7 +1792,7 @@ def _end_dnd_combat_from_router_signal(
     if _combatant_for_character(combat, actor_id) is None:
         result.requires_responders = False
         result.required_responders = []
-        result.agent_responder_picks = []
+        result.clear_routing_roles()
         result.ends_beat = True
         result.ends_beat_reason = "state_change"
         return False
@@ -1805,7 +1805,7 @@ def _end_dnd_combat_from_router_signal(
     dnd_combat.end_combat(ckpt.session, characters=ckpt.characters)
     result.requires_responders = False
     result.required_responders = []
-    result.agent_responder_picks = []
+    result.clear_routing_roles()
     result.ends_beat = True
     result.ends_beat_reason = "state_change"
     result.canonical_event.observable_facts.append(ObservableFact.all(
@@ -1891,8 +1891,8 @@ def _eligible_combat_reaction_prompts(
 ) -> dict[str, str]:
     """Return character_id -> triggering event id for combat reaction UI.
 
-    The router's response_priority is treated as a conservative UX signal,
-    not as mechanical proof that a D&D reaction is legal.
+    D&D extends observer routing with an explicit reaction signal. That signal
+    is a UI affordance, not mechanical proof that a reaction is legal.
     """
     if suppress_reaction_prompts or events_closed <= 0:
         return {}
@@ -1923,7 +1923,7 @@ def _eligible_combat_reaction_prompts(
                 continue
             if observer.observation_level != "d":
                 continue
-            if observer.response_priority < _COMBAT_REACTION_MIN_PRIORITY:
+            if observer.routing_role != "dnd_reaction":
                 continue
             if cid in ckpt.session.active_act_slots:
                 continue
@@ -1989,8 +1989,8 @@ class Dispatcher(Protocol):
         cat_ii_event: OpenCatIIEvent | None = None,
     ) -> EventRouterOutput:
         """Classify + adjudicate one intention. Returns a canonical
-        event (with Cat I/II decision + agent_responder_picks +
-        ends_beat populated).
+        event (with Cat I/II decision, observer routing roles, and
+        event_kind populated).
 
         If `cat_ii_event` is provided, the router is composing the final
         adjudication of an open Cat II event — it gets the full
@@ -2194,7 +2194,8 @@ async def run_beat(
         if continuation_rescue_used:
             raise RuntimeError(
                 "Router kept beat open without a dispatchable continuation: "
-                "ends_beat=false and no agent_responder_picks after the "
+                "event_kind=beat_continues and no dispatchable next_output "
+                "after the "
                 "continuation rescue."
             )
         continuation_rescue_used = True
@@ -2210,10 +2211,10 @@ async def run_beat(
 
     async def _queue_router_frontier(
         prior_result: EventRouterOutput,
-        picks: list[str],
+        character_ids: list[str],
     ) -> bool:
         nonlocal agent_cascade_attempts, pending_result, pending_result_mode
-        if not picks:
+        if not character_ids:
             await _queue_router_continuation(prior_result)
             return True
         if agent_cascade_attempts >= max_agent_cascades:
@@ -2224,7 +2225,7 @@ async def run_beat(
         frontier = frontier_from_router_output(
             prior_result,
             player_ids=collect_player_ids(ckpt),
-            agent_picks=picks,
+            agent_ids=character_ids,
         )
         agent_targets = [
             target
@@ -2352,7 +2353,7 @@ async def run_beat(
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
 
-        initiator_pick = _filter_picks_for_dispatch(
+        initiator_pick = _filter_routed_agents_for_dispatch(
             ckpt, [evt.initiator_id], event=resolved,
         )
         followup = None
@@ -2573,7 +2574,7 @@ async def run_beat(
                 )
                 result.requires_responders = False
                 result.required_responders = []
-                result.agent_responder_picks = []
+                result.clear_routing_roles()
                 result.ends_beat = True
                 result.ends_beat_reason = "ruleset_cat_ii_suppressed"
                 broadcast_event(ckpt, result, actor_id=suppressed_actor_id)
@@ -2627,12 +2628,12 @@ async def run_beat(
                         acting_player_input=intention,
                         suppress_reaction_prompts=suppress_reaction_prompts,
                     )
-                # Keep cascading via the router-selected response candidate.
-                picks = _filter_picks_for_dispatch(
-                    ckpt, result.agent_responder_picks,
+                # Keep cascading via the router-selected next-output candidate.
+                routed_ids = _filter_routed_agents_for_dispatch(
+                    ckpt, result.next_output_character_ids,
                     event=result,
                 )
-                queued = await _queue_router_frontier(result, picks)
+                queued = await _queue_router_frontier(result, routed_ids)
                 if not queued:
                     return await _end_for_cascade_cap()
                 continue
@@ -2703,7 +2704,7 @@ async def run_beat(
                 broadcast_event(ckpt, resolved)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
-                initiator_pick = _filter_picks_for_dispatch(
+                initiator_pick = _filter_routed_agents_for_dispatch(
                     ckpt, [evt.initiator_id], event=resolved,
                 )
                 followup = None
@@ -2769,13 +2770,13 @@ async def run_beat(
         # `observable_facts` list at compose time. The harvest path uses
         # the same human-only pick guard as the cascade path.
         if result.ends_beat_reason == "observation_harvest":
-            harvest_picks = _filter_picks_for_dispatch(
-                ckpt, result.agent_responder_picks,
+            harvest_picks = _filter_routed_agents_for_dispatch(
+                ckpt, result.perception_enrichment_character_ids,
                 event=result,
             )
             appended = await _append_harvest_fragments(
                 dispatcher, ckpt, result,
-                picks=harvest_picks,
+                targets=harvest_picks,
                 current_actor=current_actor,
                 log_label="Observation harvest",
             )
@@ -2792,15 +2793,15 @@ async def run_beat(
                     ),
                 )
         elif result.ends_beat_reason == "query_response":
-            query_picks = _filter_picks_for_dispatch(
-                ckpt, result.agent_responder_picks,
+            query_picks = _filter_routed_agents_for_dispatch(
+                ckpt, result.perception_enrichment_character_ids,
                 event=result,
             )
             if query_picks:
                 before_loadouts = _loadout_fact_count(result)
                 appended = await _append_harvest_fragments(
                     dispatcher, ckpt, result,
-                    picks=query_picks,
+                    targets=query_picks,
                     current_actor=current_actor,
                     log_label="Query harvest",
                 )
@@ -2834,15 +2835,15 @@ async def run_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
-        # Dispatch the next router-selected response candidate. Agents only:
+        # Dispatch the next router-selected next-output candidate. Agents only:
         # humans do not continue a beat unless they /act fresh. NPC
         # location and perception relevance are owned by the router; the
         # engine applies only hard safety filters.
-        picks = _filter_picks_for_dispatch(
-            ckpt, result.agent_responder_picks,
+        routed_ids = _filter_routed_agents_for_dispatch(
+            ckpt, result.next_output_character_ids,
             event=result,
         )
-        queued = await _queue_router_frontier(result, picks)
+        queued = await _queue_router_frontier(result, routed_ids)
         if not queued:
             return await _end_for_cascade_cap()
 

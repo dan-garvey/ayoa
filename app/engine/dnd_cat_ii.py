@@ -18,7 +18,12 @@ from app.engine.dnd_combat_access import (
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.event_router import (
+    DndEventRouterOutput,
+    DndObserverEntry,
+    EventRouterOutput,
+    ObserverEntry,
+)
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.dnd_cat_ii import (
     CombatStateDelta,
@@ -1527,14 +1532,13 @@ def _compile_event_router_output(
         ),
         requires_responders=False,
         required_responders=[],
-        agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="cat_ii_resolution",
         observers=[
             ObserverEntry(
                 character_id=cid,
                 observation_level="d",
-                response_priority=5 if cid in _participant_ids(cat_ii_event) else 3,
+                routing_role="observe_only",
             )
             for cid in observer_ids
             if _character_exists(ckpt, cid)
@@ -1550,7 +1554,7 @@ def _compile_combat_router_output(
     ckpt: CheckpointFile,
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
-) -> EventRouterOutput:
+) -> DndEventRouterOutput:
     combat = getattr(ckpt.session, "active_combat", None)
     affected_ids = _combat_affected_ids(transaction, adjudication)
     observer_ids = []
@@ -1586,7 +1590,7 @@ def _compile_combat_router_output(
             if adjudication.fallback_reason else "",
         ) if part
     ]
-    return EventRouterOutput(
+    return DndEventRouterOutput(
         event_id="",
         decision_rationale=" ".join(rationale_parts) or "D&D combat adjudication.",
         canonical_event=CanonicalEvent(
@@ -1600,14 +1604,17 @@ def _compile_combat_router_output(
         ),
         requires_responders=False,
         required_responders=[],
-        agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="ruleset_resolution",
         observers=[
-            ObserverEntry(
+            DndObserverEntry(
                 character_id=cid,
                 observation_level="d",
-                response_priority=5 if cid in affected_ids else 3,
+                routing_role=(
+                    "dnd_reaction"
+                    if cid in affected_ids
+                    else "observe_only"
+                ),
             )
             for cid in observer_ids
             if _character_exists(ckpt, cid)
@@ -1615,6 +1622,8 @@ def _compile_combat_router_output(
         spawn=[],
         dormant=[],
         cull=[],
+        interaction_mode="cat_i",
+        combatant_ids=[],
     )
 
 

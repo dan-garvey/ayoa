@@ -78,12 +78,12 @@ def _router_out(
     *,
     requires_responders: bool = False,
     required_responders: list[str] | None = None,
-    agent_picks: list[str] | None = None,
+    agent_ids: list[str] | None = None,
     ends_beat: bool = True,
     ends_beat_reason: str = "directed_at_player",
     facts: list[ObservableFact] | None = None,
 ) -> EventRouterOutput:
-    picks = agent_picks or []
+    picks = agent_ids or []
     required = required_responders or []
     observer_ids = ["alice", *picks, *required]
     observers: list[ObserverEntry] = []
@@ -96,7 +96,7 @@ def _router_out(
             ObserverEntry(
                 character_id=cid,
                 observation_level="d",
-                response_priority=5 if cid in required else 3,
+                routing_role="next_output" if cid in picks else "observe_only",
             )
         )
     if not ends_beat:
@@ -113,7 +113,6 @@ def _router_out(
         observers=observers,
         requires_responders=requires_responders,
         required_responders=required,
-        agent_responder_picks=picks,
         ends_beat=ends_beat,
         ends_beat_reason=ends_beat_reason,
         spawn=[],
@@ -1029,12 +1028,12 @@ class TestCombatTurnGating:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=5,
+                    routing_role="observe_only",
                 ),
                 ObserverEntry(
                     character_id="rat",
                     observation_level="d",
-                    response_priority=5,
+                    routing_role="observe_only",
                 ),
             ]
             broadcast_event(ckpt, partial, actor_id=actor_id)
@@ -1495,12 +1494,11 @@ class TestCombatTurnGating:
                 ObserverEntry(
                     character_id="bob",
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 )
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
             spawn=[],
@@ -1698,17 +1696,16 @@ class TestCombatTurnGating:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 ),
                 ObserverEntry(
                     character_id="bob",
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="cat_ii_resolution",
             spawn=[],
@@ -1838,27 +1835,27 @@ class TestResolveCatII:
             ObserverEntry(
                 character_id="alice",
                 observation_level="d",
-                response_priority=5,
+                routing_role="observe_only",
             ),
             ObserverEntry(
                 character_id="pip",
                 observation_level="d",
-                response_priority=5,
+                routing_role="observe_only",
             ),
         ]
         FakeDispatcher.queue_route(resolution)
         FakeDispatcher.queue_agent("Pip releases the angle.")
-        followup = _router_out(ends_beat=True, agent_picks=[])
+        followup = _router_out(ends_beat=True, agent_ids=[])
         followup.observers = [
             ObserverEntry(
                 character_id="alice",
                 observation_level="d",
-                response_priority=5,
+                routing_role="observe_only",
             ),
             ObserverEntry(
                 character_id="pip",
                 observation_level="d",
-                response_priority=1,
+                routing_role="observe_only",
             ),
         ]
         FakeDispatcher.queue_route(followup)
@@ -1915,12 +1912,12 @@ class TestResolveCatII:
             ObserverEntry(
                 character_id="alice",
                 observation_level="d",
-                response_priority=5,
+                routing_role="observe_only",
             ),
             ObserverEntry(
                 character_id="pip",
                 observation_level="d",
-                response_priority=5,
+                routing_role="observe_only",
             ),
         ]
         FakeDispatcher.queue_route(resolution)

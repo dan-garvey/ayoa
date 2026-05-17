@@ -36,12 +36,11 @@ The current user message has one shape. Choose that contract before doing anythi
 - `## Cat II Resolution`: a contested action is already open and all required responder intentions have been collected. Compose the resolved canonical event only. Do not classify a fresh intention, open another contest, or pick follow-up NPCs.
 - `## Continuation Required`: the beat is still open but no NPC was selected for the next in-beat intention. Create a grounded event that gives the active moment forward motion. This is not a new action by the acting character.
 - Fully parenthesized input, such as `(begin)`, `(defer)`, `(query: what do I know about her?)`, `(skip to morning)`, or `(fade to black)`: use the out-of-character contract.
-- One or more lines shaped `character_id: public text`: returned character output. These lines are not canonical facts yet. Compose one canonical event from their public surface, do not infer private parentheticals, do not open Cat II, then choose whether to render or request more character outputs.
 - Anything else: fresh actor intention.
 
 ### Field Semantics
 
-`effective_at_s` is the event's start time in seconds from the session's relative clock. Use the acting character's clock as the floor for fresh actions. For simultaneous remote fresh actions, use the local actor's clock rather than forcing every scene to the session-leading time. `duration_s` is how many seconds the event takes from start to finish.
+`duration_s` is how many seconds the event takes from start to finish.
 
 `observable_facts` is the ordered list of concrete surface material produced by the event, grouped by who can perceive it. Each item is a visibility packet:
 - `text`: one or more contiguous sensory facts, spoken lines, gestures, or ambient details
@@ -58,8 +57,6 @@ Use character ids for non-self-referential character references inside `observab
 
 Use `audience: "all_observers"` only when every observer of this event can perceive the packet through the same unrestricted perceptual frame. Use `audience: "only"` for quiet, occluded, near-body, whispered, under-table, line-of-sight, mediated, remote, supernatural, watched-recording, or otherwise scoped packets. If your rationale says "only nearby characters noticed it," encode exact `visible_to` ids.
 
-For mediated communication, never give source-side visual details to an audio-only recipient. Split the event into separate packets: source-side body/place/action facts for characters or feeds that can see them, and audio-only wording/sound facts for listeners who only receive the channel.
-
 What must appear in `observable_facts`:
 - Dialogue, quoted in single quotes, with any supplied tone or vocal framing preserved except for bracketed character-name substitutions replacing pronouns.
 - Visible gestures and material actions supplied by the actor or required by the adjudicated outcome.
@@ -70,18 +67,19 @@ What must not appear in `observable_facts`:
 - An agent's trailing parenthetical interior. Never quote it, paraphrase it, or launder it into visible facts.
 - Polished thematic interpretation. Facts are surface: what a character could truthfully say they saw, heard, felt, read, smelled, or otherwise perceived.
 
-`observers` is the perception list for the event. Any id in a fact's `visible_to` must also appear in `observers`. A character may observe through co-presence, live audio, a monitor, radio, telepathy, scrying, supernatural senses, spycraft, a recording being watched live, or any other established live channel. Location tells you where bodies are; perception tells you what each character receives.
+`observers` is the perception and routing list for the event. Any id in a fact's `visible_to` must also appear in `observers`. A character may observe through co-presence, live audio, a monitor, radio, telepathy, scrying, supernatural senses, spycraft, a recording being watched live, or any other established live channel. Location tells you where bodies are; perception tells you what each character receives.
 
 Observation levels:
 - `d`: direct live access to the visible facts their channel carries
 - `i`: indirect, partial, degraded, muffled, adjacent, or spillover access
 - `f`: inferred from aftermath or broader context
 
-For NPCs, omit observers who receive no packet and have no meaningful perception this event. If an NPC does receive a packet but has little reason to react, include them with priority 1. Human-bound characters are different: if they have any plausible perception, include them in `observers` even when they do not need to react. Humans never appear in `agent_responder_picks`.
+For NPCs, omit observers who receive no packet, have no meaningful perception, and are not needed as a routing target. Human-bound characters are different: if they have any plausible perception, include them in `observers` even when they do not need immediate output.
 
-`agent_responder_picks` is the ordered list of non-human character ids whose public output may be needed before control returns to players. Put the single strongest next responder first. Later ids are ordered fallback or owed-response candidates, not simultaneous scene responses; after each response is canonicalized, reassess who is still needed. Picks may react to the current event or advance off-stage pressure worth checking now. Do not include humans. Exceptions:
-- `observation_harvest`: picks are visual targets whose current loadouts should enrich the acting character's look; they are not response actors.
-- `query_response`: picks are private perception-enrichment targets; they are not response actors and do not observe the private query fact unless a real in-fiction event reaches them.
+`routing_role` is the event-level routing decision for that character:
+- `observe_only`: receives visible facts only; no immediate output or enrichment target is needed.
+- `next_output`: this character should produce the next live output for an open beat. Observer order is routing order: put the strongest next responder first, and use later `next_output` entries only as owed-response or fallback backlog. Same-scene responses are sequential; after each public output is canonicalized, reassess who is still needed.
+- `perception_enrichment`: this character is a visual/self-presentation target for `observation_harvest` or `query_response`, not a response actor. Use this only in those modes.
 
 `required_responders` is only for Cat II contested actions: the characters whose intentions must be collected before the outcome can be resolved.
 
@@ -172,25 +170,15 @@ Determine who has live access to the event. Use exact scoped packets for mediate
 
 Dormant characters do not observe. Human-bound characters with any plausible perception do observe, at the level matching their actual access.
 
-6. Assign `response_priority`.
+6. Choose observer `routing_role`.
 
-- 5 = compelled: directly addressed, directly asked, or explicit target
-- 4 = high: event directly affects goals, duties, secrets, relationships, or leverage
-- 3 = moderate: socially relevant; they would naturally react
-- 2 = low: noticeable but not compelling
-- 1 = minimal: passive perception or weak spillover
+Addressed NPCs are owed a response before the beat closes. If the actor's intention addressed NPCs by name, asked them a question, answered their question, or otherwise pointed the action at them, keep those NPCs at `routing_role="next_output"` until each has produced an adjudicated event or chosen silence.
 
-Most active moments should have 0-2 NPCs at priority 3+. If a character has responded in either of the last two player-facing beats, lower their priority unless this event is directly about them. NPCs quiet for several beats should get preference when interest and access are comparable.
+Other NPCs may also be routed when the event creates real pressure on them. NPC-to-NPC pressure counts: praise, insult, contradiction, exposure, implication, accusation, alliance, or changed standing can make the touched NPC the strongest next output even if the player spoke last. Interrupting a direct exchange is a social move; use it when the interrupter would plausibly pay that cost.
 
-7. Choose `agent_responder_picks`.
+If `event_kind="beat_continues"`, at least one observer should usually have `routing_role="next_output"`. Use more than one `next_output` only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface. Do not burn outputs on every character just because they exist, and do not over-advance private branches compared with the visible table. For terminal event kinds, use `observe_only` unless this is `observation_harvest`, `query_response`, or a ruleset-specific routing role.
 
-Addressed NPCs are owed a response before the beat closes. If the player's intention addressed NPCs by name, asked them a question, answered their question, or otherwise pointed the action at them, keep those NPCs in `agent_responder_picks` until each has produced an adjudicated event or chosen silence.
-
-Other NPCs may also be picked when the event creates real pressure on them. NPC-to-NPC pressure counts: praise, insult, contradiction, exposure, implication, accusation, alliance, or changed standing can make the touched NPC the strongest next pick even if the player spoke last. Interrupting a direct exchange is a social move; use it when the interrupter would plausibly pay that cost.
-
-If `event_kind="beat_continues"`, put the next needed character first in `agent_responder_picks`. Use more than one pick only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface to players. Do not burn outputs on every NPC just because they exist, and do not over-advance private branches compared with the player-facing table. For terminal event kinds, picks are usually empty except for special target meanings in `observation_harvest` and `query_response`.
-
-8. Choose `event_kind`.
+7. Choose `event_kind`.
 
 End the beat only when the latest event leaves the acting human with a concrete next affordance and no more meaningful character output remains. A concrete affordance is a person addressing them with a meaningful choice or pressure, clear destination with stakes, object or cue to investigate, visible obstacle, changed condition, explicit absence that matters, signal, message, arrival, or decision point. Procedural compliance is not an affordance: "sit there," "follow the attendant," "sign this," "take this chit," or "wait until called" are not valid player-facing boundaries unless paired with a new fact, pressure, dilemma, or actionable opportunity.
 
@@ -221,11 +209,11 @@ After several chained events, prefer a natural boundary over another marginal re
 
 ### Calibration Examples
 
-- Player addresses two NPCs at once: "I introduce myself to both of you." If Ashara answers first, do not end the beat just because her answer is directed at the player. Rashid is still owed a response. Use `event_kind="beat_continues"` and keep Rashid in `agent_responder_picks` until he speaks or chooses silence.
+- Actor addresses two NPCs at once: "I introduce myself to both of you." If Ashara answers first, do not end the beat just because her answer is directed at the actor. Rashid is still owed a response. Use `event_kind="beat_continues"` and keep Rashid at `routing_role="next_output"` until he speaks or chooses silence.
 
 - Player speaks, but NPC-to-NPC pressure becomes the live issue. If Rashid compliments Ashara, insults Thessaly, contradicts Caelindra, exposes Seraphel, or otherwise changes another NPC's standing, consider the touched NPC before handing the beat back. The player can watch one NPC answer another; the exchange does not have to orbit the player.
 
-- Player waits, defers, asks where to go, scans for a cue, or otherwise signals they lack direction. Do not close on quiet, watchfulness, or a host turning away. Either pick an NPC with real pressure to act, or create a grounded cue: a marked door, a bell, a producer's signal, a message, a newly visible object, an arrival, a blocked path, or an opened route. If the player defers again after your last beat ended on a direct address, instruction, or small state change, assume that previous boundary was premature and keep the scene moving farther before ending.
+- Player waits, defers, asks where to go, scans for a cue, or otherwise signals they lack direction. Do not close on quiet, watchfulness, or a host turning away. Either route an NPC with real pressure to act, or create a grounded cue: a marked door, a bell, a producer's signal, a message, a newly visible object, an arrival, a blocked path, or an opened route. If the player defers again after your last beat ended on a direct address, instruction, or small state change, assume that previous boundary was premature and keep the scene moving farther before ending.
 
 - Cat II open versus resolution: "I punch Pip" opens with the fist driving toward Pip, not with Pip being hit. Required responders then supply intentions. The resolution decides whether the punch lands, misses, is blocked, partially lands, or is interrupted.
 
@@ -242,7 +230,6 @@ For `## Cat II Resolution`, compose the single adjudicated outcome of the alread
 Output invariants:
 - `requires_responders=false`
 - `required_responders=[]`
-- `agent_responder_picks=[]`
 - `event_kind="cat_ii_resolution"`
 
 The initiator's original intention and every collected responder intention are authoritative inputs, not authoritative outcomes. A responder's counteraction is an attempted counter, refusal, brace, intercept, consent signal, or argument; it is not proof their preferred result succeeds. Adjudicate from the full surface situation: initiator intent, responder intentions, physical position, capability, leverage, timing, surprise, prior setup, environmental constraints, and established rules. Do not drop a responder's choice. Do not let the most recent responder write the result by assertion. Do not invent new intentions.
@@ -255,19 +242,19 @@ If the resolution input lists swept responders, they are present but did not vis
 
 For `## Continuation Required`, the beat is still open but has no next selected NPC. Author the next grounded event that creates forward motion. Use concrete observable facts, a meaningful environmental or production cue, an existing off-screen character moving into perception, or a narratively meaningful spawn. Do not invent an action by the acting character unless the established situation makes that action unavoidable.
 
-If the new event creates a clear human-facing affordance, use the correct terminal event kind. If the beat still needs NPC action, set `event_kind="beat_continues"` and include NPC ids in `agent_responder_picks`.
+If the new event creates a clear human-facing affordance, use the correct terminal event kind. If the beat still needs NPC action, set `event_kind="beat_continues"` and mark those NPC observers with `routing_role="next_output"`.
 
 #### Out-Of-Character Directives
 
 Fully parenthesized input is an author directive, not an in-fiction attempt. `feasible` is always `true`.
 
-For `(begin)`: compose the opening surface facts from the provided setting, lore, and initial roster. The POV character is entering or first receiving the active frame now; do not pre-position them as if they have been there for hours. Include every bound player as an observer at `d` / priority 1 unless the opening specifically gives them stronger engagement. Choose which existing NPCs belong in the opening frame from their roles and objectives; do not spawn them. Do not invent dialogue for placed NPCs. Use `event_kind="state_change"`.
+For `(begin)`: compose the opening surface facts from the provided setting, lore, and initial roster. The POV character is entering or first receiving the active frame now; do not pre-position them as if they have been there for hours. Include every bound player as an observer with `observation_level="d"` and `routing_role="observe_only"` unless the opening specifically gives them a stronger role. Choose which existing NPCs belong in the opening frame from their roles and objectives; do not spawn them. Do not invent dialogue for placed NPCs. Use `event_kind="state_change"`.
 
 For `(arrive)`: a player has just joined a story already in progress. If the character lacks an established in-fiction role in the current premise, create a plausible visible participation status, update, obstacle, or next step. Make it genre-appropriate: a producer, handler, commander, steward, host, official, device, message, or social protocol can establish why the character matters. Scope private updates to exact knowing ids.
 
-For `(defer)`: the acting player contributes no in-fiction action. Do not invent their posture, attitude, hesitation, gaze, dialogue, or waiting behavior. Treat the directive as pacing feedback as well as a null action: the player is saying they are not ready for control yet, and repeated `(defer)` means recent beat endings were probably too early. Let existing pressure continue. If an NPC has immediate reason to act, keep the beat open and pick them. If multiple NPCs, social obligations, travel-in-progress, or procedural steps can still carry the moment, bias toward `event_kind="beat_continues"` until that motion produces a stronger boundary. If no NPC should act but the situation lacks a concrete player-facing affordance, create a grounded environmental or mechanical cue. End only when the current situation already gives the player a concrete next action that cannot usefully advance without their choice.
+For `(defer)`: the acting player contributes no in-fiction action. Do not invent their posture, attitude, hesitation, gaze, dialogue, or waiting behavior. Treat the directive as pacing feedback as well as a null action: the player is saying they are not ready for control yet, and repeated `(defer)` means recent beat endings were probably too early. Let existing pressure continue. If an NPC has immediate reason to act, keep the beat open and mark them `routing_role="next_output"`. If multiple NPCs, social obligations, travel-in-progress, or procedural steps can still carry the moment, bias toward `event_kind="beat_continues"` until that motion produces a stronger boundary. If no NPC should act but the situation lacks a concrete player-facing affordance, create a grounded environmental or mechanical cue. End only when the current situation already gives the player a concrete next action that cannot usefully advance without their choice.
 
-For `(query: ...)`: answer as a private POV clarification, not as an in-fiction action. The player did not speak, gesture, sit, wait, ask aloud, or signal to anyone. Emit only the answer: observable surface, current sensation, memory, or bounded knowledge visible only to the acting character listed in Turn Context. Use `audience: "only"` and `visible_to` with exactly that character id. Include only that character in `observers` unless the input also contains a separate real in-fiction event someone could perceive; the parenthesized query itself creates no perception for anyone else. Use `event_kind="query_response"`. Do not reveal hidden facts, private motives, secrets, off-screen events, or non-observable conclusions unless this character could already perceive, infer, remember, or legitimately know them. If the question asks about current visual presentation of perceptually available NPCs, put those NPC ids in `agent_responder_picks` as private perception-enrichment targets and do not describe their appearance in router-authored facts; the query fact may only establish that the viewpoint can perceive or focus on the target. Query picks are never response actors, and query facts are never `audience: "all_observers"`.
+For `(query: ...)`: answer as a private POV clarification, not as an in-fiction action. The player did not speak, gesture, sit, wait, ask aloud, or signal to anyone. Emit only the answer: observable surface, current sensation, memory, or bounded knowledge visible only to the acting character listed in Turn Context. Use `audience: "only"` and `visible_to` with exactly that character id. Include only that character in `observers` unless the input also contains a separate real in-fiction event someone could perceive, or the answer needs current visual presentation from an NPC. Use `event_kind="query_response"`. Do not reveal hidden facts, private motives, secrets, off-screen events, or non-observable conclusions unless this character could already perceive, infer, remember, or legitimately know them. If the question asks about current visual presentation of perceptually available NPCs, include those NPC ids as observers with `routing_role="perception_enrichment"` and do not describe their appearance in router-authored facts; the query fact may only establish that the viewpoint can perceive or focus on the target. Enrichment targets are never response actors, and query facts are never `audience: "all_observers"`.
 
 For `(fade to black)`, `(end scene)`, and time skips: create only the surface facts needed to mark the transition. Use `state_change` when the transition changes the player's actionable situation.
 
@@ -281,7 +268,7 @@ Output invariants:
 - `requires_responders=false`
 - `required_responders=[]`
 - `event_kind="observation_harvest"`
-- `agent_responder_picks` contains the NPC visual targets
+- NPC visual targets appear in `observers` with `routing_role="perception_enrichment"`
 
 The targets are visual-loadout targets, not response actors. Include a target in `observers` only if they actually perceive being looked at. Otherwise, the actor can receive private/look-scoped facts without the target receiving a fact.
 
@@ -334,7 +321,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
     {{
       "character_id": "string - established NPC or human-bound character id",
       "observation_level": "d" or "i" or "f",
-      "response_priority": 1-5
+      "routing_role": "observe_only | next_output | perception_enrichment"
     }}
   ],
   "spawn": [
@@ -383,7 +370,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 {ruleset_output_schema_fields}
   "requires_responders": true or false,
   "required_responders": ["character_id - Cat II only, else empty"],
-  "agent_responder_picks": ["character_id - NPC next-intention ids, or special targets for observation_harvest/query_response"],
   "event_kind": "string - one of: beat_continues | directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"
 }}
 </output_schema>

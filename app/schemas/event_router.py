@@ -36,25 +36,24 @@ EventKind = Literal[
     # responder flow in favor of adapter-native handling.
     "ruleset_cat_ii_suppressed",
     # query_response: a private /query result. If the answer needs current
-    # visual self-presentation from NPCs, picks name harvest targets rather
-    # than response actors and the harvested loadout is authoritative.
+    # visual self-presentation from NPCs, observers with
+    # routing_role="perception_enrichment" name harvest targets rather than
+    # response actors and the harvested loadout is authoritative.
     "query_response",
     # observation_harvest: the actor's intention is pure targeted
     # observation of perceptually available characters (looking, studying, sizing
     # up, scanning) with no dialogue and no physical interaction.
-    # The router puts the observation TARGETS (NPCs the actor is
-    # looking at) in `agent_responder_picks`; the engine takes a
-    # different path on this reason — instead of cascading those
-    # picks as agents-with-intentions, it fires each of them in
-    # parallel via `Dispatcher.harvest_perceptions` to harvest
-    # one self-presentation fragment per character ("what does
-    # the world see of me right now"), and appends the fragments
-    # to the canonical event's `observable_facts` before the
-    # narrator renders. `event_kind` MUST be observation_harvest;
-    # picks MUST be non-empty (no targets = nothing to harvest =
-    # router should pick `state_change` or `cascade_exhausted`
-    # instead). See the router prompt's "Observation harvest"
-    # section for classification guidance.
+    # The router puts the observation TARGETS (NPCs the actor is looking at)
+    # in observers with routing_role="perception_enrichment"; the engine takes
+    # a different path on this reason instead of cascading those targets as
+    # agents-with-intentions. It fires each target via
+    # `Dispatcher.harvest_perceptions` to harvest one self-presentation
+    # fragment per character ("what does the world see of me right now"), and
+    # appends the fragments to the canonical event's `observable_facts` before
+    # the narrator renders. `event_kind` MUST be observation_harvest; enrichment
+    # targets MUST be non-empty (no targets = nothing to harvest = router should
+    # pick `state_change` or `cascade_exhausted` instead). See the router
+    # prompt's "Observation harvest" section for classification guidance.
     "observation_harvest",
 ]
 
@@ -63,6 +62,31 @@ TERMINAL_EVENT_KINDS = set(EventKind.__args__) - {"beat_continues"}
 # Backward-facing type alias for code that has not yet been renamed. The
 # router-facing schema uses `event_kind`; `ends_beat_reason` is now a property.
 EndsBeatReason = EventKind
+
+ObserverRoutingRole = Literal[
+    # Receives any visible facts for this event, but no immediate output is
+    # requested from this observer.
+    "observe_only",
+    # The router wants this participant to produce the next live output for
+    # this beat. Runtime maps NPC ids to agent turns; human-bound characters
+    # render from their buffer when the router emits a terminal event.
+    "next_output",
+    # The router wants a perception/loadout enrichment target rather than an
+    # in-fiction response actor. Used by observation_harvest/query_response.
+    "perception_enrichment",
+]
+
+DndObserverRoutingRole = Literal[
+    "observe_only",
+    "next_output",
+    "perception_enrichment",
+    # D&D adapter extension: a direct observer may need a player-facing combat
+    # reaction prompt. This is not generic narrative dispatch.
+    "dnd_reaction",
+]
+
+FRONTIER_ROUTING_ROLES = {"next_output"}
+PERCEPTION_ENRICHMENT_ROUTING_ROLES = {"perception_enrichment"}
 
 DndInteractionMode = Literal[
     "cat_i",
@@ -160,9 +184,7 @@ def _repair_observer_id(value: str, observer_ids: list[str]) -> str:
 
 
 class ObserverEntry(BaseModel):
-    """Which characters observed the event and how strongly they should
-    respond. Observers at priority 0 should be omitted entirely — they're
-    routing noise, not silent responders.
+    """Which characters observed or are otherwise targeted by the event.
 
     Observation level is a single-char enum: "d" = direct (clear live
     access through presence or a mediated channel), "i" = indirect
@@ -181,9 +203,13 @@ class ObserverEntry(BaseModel):
 
     character_id: str
     observation_level: str
-    # 1=minimal, 2=low, 3=moderate, 4=high, 5=compelled. Omit 0-priority
-    # observers from the output entirely.
-    response_priority: int
+    routing_role: ObserverRoutingRole
+
+
+class DndObserverEntry(ObserverEntry):
+    """D&D observer entry extends generic routing with adapter-owned cases."""
+
+    routing_role: DndObserverRoutingRole
 
 
 class SpawnSeed(BaseModel):
@@ -357,9 +383,10 @@ class EventRouterOutput(BaseModel):
         derives beat closure from this field: `beat_continues` requests the
         next ordered character output, while terminal event kinds render,
         suspend, or hand off to adapter-owned flows.
-      - `agent_responder_picks`: ordered non-human response candidates.
-        Addressed NPCs (those the player named, asked, or answered) are
-        mandatory until each has responded or chosen silence this beat.
+      - `observers[].routing_role`: ordered perception/render/agent-routing
+        intent. `next_output` entries are the response candidates for a live
+        beat; `perception_enrichment` entries are non-response targets for
+        observation/query enrichment.
 
     ## Schema-shape policy: no Pydantic defaults
 
@@ -392,7 +419,7 @@ class EventRouterOutput(BaseModel):
     # ---- v11-r7g: TEMPORARY diagnostic — terse justification ------------
     # The router emits a concise diagnostic note explaining its core
     # routing decision this turn (Cat I vs Cat II classification, why this
-    # event_kind, why these picks). We log it at INFO so playtest transcripts
+    # event_kind, why these routing roles). We log it at INFO so playtest transcripts
     # surface the "why" alongside the "what".
     #
     # NON-FREE in tokens — adds ~1 sentence to every router response,
@@ -420,22 +447,12 @@ class EventRouterOutput(BaseModel):
     # intercepter / defender / counter-actor. Empty for Cat I.
     required_responders: list[str]
 
-    # ---- v11: router-selected response candidates ------------------------
-    # Router-selected NPC agents to dispatch sequentially.
-    # Humans are NEVER in this list; humans only enter via /act, gated by
-    # active_act_slot. Empty when the router thinks no NPC turn is warranted.
-    # Addressed NPCs (those the player named, asked, or answered this beat)
-    # are mandatory and should remain in ordered picks across router calls
-    # until each has fired.
-    agent_responder_picks: list[str]
-
     # ---- Observation and character lifecycle outputs --------------------
     # `observers` drives render-buffer determination: every
     # character in the observer list gets this event into their render
     # buffer if they're human. Agents get it as observation context for
-    # future intend() calls. The router_responder_picks above is a
-    # DIFFERENT decision — who actually fires next, a subset (or
-    # superset) of observers.
+    # future intend() calls. `routing_role` on each observer is the routing
+    # decision for that character.
     observers: list[ObserverEntry]
     spawn: list[SpawnRequest]
     dormant: list[str]
@@ -522,10 +539,9 @@ class EventRouterOutput(BaseModel):
           (edge-case #2) cannot reach the loop.
         - `required_responders` must be unique; duplicates corrupt the
           collection set semantics in `cat_ii_is_ready`.
-        - `agent_responder_picks` may name observer NPCs or off-stage
-          NPCs the router wants as ordered response candidates. The engine
-          applies hard safety filters before dispatch; the schema does
-          not clamp picks to observers.
+        - `observers[].routing_role` may select observer NPCs or explicit
+          enrichment targets as ordered response/perception candidates. The
+          engine applies hard safety filters before dispatch.
         """
         if self.requires_responders and not self.required_responders:
             raise ValueError(
@@ -587,14 +603,15 @@ class EventRouterOutput(BaseModel):
                     dropped_fact_count,
                 )
         if self.ends_beat_reason == "observation_harvest":
-            # Harvest is a fork in the engine: picks become perception
-            # targets, not cascade actors. These are CLAMP-not-raise
+            # Harvest is a fork in the engine: enrichment roles become
+            # perception targets, not cascade actors. These are CLAMP-not-raise
             # checks so prompt drift doesn't crash a session.
-            if not self.agent_responder_picks:
+            if not self.perception_enrichment_character_ids:
                 import logging
                 logging.getLogger(__name__).warning(
                     "event_kind='observation_harvest' but "
-                    "agent_responder_picks is empty; nothing to harvest. "
+                    "no perception_enrichment targets were selected; "
+                    "nothing to harvest. "
                     "Coercing to cascade_exhausted.",
                 )
                 self.ends_beat_reason = "cascade_exhausted"
@@ -629,6 +646,31 @@ class EventRouterOutput(BaseModel):
             if update.character_id and update.location_label
         ]
         return self
+
+    def routed_character_ids(self, *routing_roles: str) -> list[str]:
+        roles = set(routing_roles)
+        return list(dict.fromkeys(
+            observer.character_id
+            for observer in self.observers
+            if observer.character_id and observer.routing_role in roles
+        ))
+
+    @property
+    def next_output_character_ids(self) -> list[str]:
+        return self.routed_character_ids(*FRONTIER_ROUTING_ROLES)
+
+    @property
+    def perception_enrichment_character_ids(self) -> list[str]:
+        return self.routed_character_ids(*PERCEPTION_ENRICHMENT_ROUTING_ROLES)
+
+    def clear_routing_roles(self, *routing_roles: str) -> None:
+        roles = set(routing_roles or (
+            *FRONTIER_ROUTING_ROLES,
+            *PERCEPTION_ENRICHMENT_ROUTING_ROLES,
+        ))
+        for observer in self.observers:
+            if observer.routing_role in roles:
+                observer.routing_role = "observe_only"  # type: ignore[assignment]
 
     @property
     def ends_beat(self) -> bool:
@@ -665,10 +707,19 @@ class DndEventRouterOutput(EventRouterOutput):
     """
 
     interaction_mode: DndInteractionMode
+    observers: list[DndObserverEntry]
     combatant_ids: list[str]
     combatant_spawns: list[DndCombatantSpawn]
     loot_offer: DndLootOfferSignal
     battle_map_seed: DndBattleMapState
+
+    def clear_routing_roles(self, *routing_roles: str) -> None:
+        roles = set(routing_roles or (
+            *FRONTIER_ROUTING_ROLES,
+            *PERCEPTION_ENRICHMENT_ROUTING_ROLES,
+            "dnd_reaction",
+        ))
+        super().clear_routing_roles(*roles)
 
     @model_validator(mode="before")
     @classmethod

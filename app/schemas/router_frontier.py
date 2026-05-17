@@ -29,10 +29,10 @@ class RouterFrontierTarget(BaseModel):
     """One engine task selected from a router output.
 
     This is not an LLM output model yet. It is the runtime contract that
-    lets the turn loop project the router's ordered picks into dispatchable
+    lets the turn loop project the router's routing roles into dispatchable
     work. Same-scene agent turns are consumed sequentially: one public result
     is sent back to the router, canonicalized, and only then can another
-    picked character respond with updated context.
+    routed character respond with updated context.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -63,7 +63,6 @@ class RouterFrontierOutput(BaseModel):
     events: list[EventRouterOutput]
     event_kind: EventKind
     target_audience: list[str]
-    agent_responder_picks: list[str]
     perception_harvest_targets: list[str]
     frontier_targets: list[RouterFrontierTarget]
 
@@ -90,10 +89,10 @@ def frontier_from_router_output(
     result: EventRouterOutput,
     *,
     player_ids: set[str],
-    agent_picks: list[str],
+    agent_ids: list[str],
     perception_targets: list[str] | None = None,
 ) -> RouterFrontierOutput:
-    """Build a frontier projection from the current legacy router shape."""
+    """Build a frontier projection from the router's routing roles."""
 
     event_kind = event_kind_from_router_output(result)
     perception_targets = list(perception_targets or [])
@@ -120,7 +119,7 @@ def frontier_from_router_output(
                 ),
                 source_event_id=result.event_id,
             )
-            for cid in agent_picks
+            for cid in agent_ids
         )
 
     target_audience = [
@@ -133,7 +132,6 @@ def frontier_from_router_output(
         events=[result],
         event_kind=event_kind,
         target_audience=list(dict.fromkeys(target_audience)),
-        agent_responder_picks=list(dict.fromkeys(agent_picks)),
         perception_harvest_targets=list(dict.fromkeys(perception_targets)),
         frontier_targets=targets,
     )

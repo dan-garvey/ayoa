@@ -74,7 +74,6 @@ def _router_output() -> EventRouterOutput:
         observers=[],
         requires_responders=False,
         required_responders=[],
-        agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="directed_at_player",
         spawn=[],
@@ -396,12 +395,12 @@ class TestRouteIntention:
             ObserverEntry(
                 character_id="alice",
                 observation_level="d",
-                response_priority=1,
+                routing_role="observe_only",
             ),
             ObserverEntry(
                 character_id="pip",
                 observation_level="i",
-                response_priority=3,
+                routing_role="observe_only",
             ),
         ]
         mock_client.complete.return_value = _llm_response(result)
@@ -420,7 +419,7 @@ class TestRouteIntention:
         assert "source=alice mode=intention" in record.content
         assert "fact only[alice,pip] @0+2" in record.content
         assert "Alice whispers, 'The hinge is loose.'" in record.content
-        assert "obs alice:d1 pip:i3" in record.content
+        assert "obs alice:d:observe_only pip:i:observe_only" in record.content
         assert "I check whether the hinge is loose" not in record.content
         assert "decision_rationale" not in record.content
         assert '"canonical_event"' not in record.content

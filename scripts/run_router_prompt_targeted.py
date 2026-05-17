@@ -284,6 +284,10 @@ def _result_dict(result: EventRouterOutput) -> dict:
     dumped = result.model_dump(mode="json")
     dumped["fact_texts"] = _facts(result)
     dumped["observer_ids"] = _observer_ids(result)
+    dumped["next_output_character_ids"] = list(result.next_output_character_ids)
+    dumped["perception_enrichment_character_ids"] = list(
+        result.perception_enrichment_character_ids
+    )
     return dumped
 
 
@@ -301,9 +305,9 @@ async def _multi_recipient(dispatcher: LLMDispatcher) -> CaseResult:
     checks = [
         _check("cat_i_dialogue", not result.requires_responders),
         _check(
-            "picks_both_addressed_npcs",
-            _contains_all(result.agent_responder_picks, ["ashara", "rashid"]),
-            f"picks={result.agent_responder_picks}",
+            "routes_both_addressed_npcs",
+            _contains_all(result.next_output_character_ids, ["ashara", "rashid"]),
+            f"next={result.next_output_character_ids}",
         ),
         _check("keeps_beat_open", result.event_kind == "beat_continues"),
         _check(
@@ -334,13 +338,13 @@ async def _npc_to_npc(dispatcher: LLMDispatcher) -> CaseResult:
         _check("cat_i_dialogue", not result.requires_responders),
         _check(
             "routes_to_ashara",
-            "ashara" in result.agent_responder_picks,
-            f"picks={result.agent_responder_picks}",
+            "ashara" in result.next_output_character_ids,
+            f"next={result.next_output_character_ids}",
         ),
         _check(
             "does_not_player_center_pick",
-            "dan" not in result.agent_responder_picks,
-            f"picks={result.agent_responder_picks}",
+            "dan" not in result.next_output_character_ids,
+            f"next={result.next_output_character_ids}",
         ),
         _check(
             "keeps_beat_open_for_target",
@@ -407,10 +411,10 @@ async def _defer_pacing(dispatcher: LLMDispatcher) -> CaseResult:
             "open_has_pick_or_closed_has_affordance",
             (
                 result.event_kind == "beat_continues"
-                and bool(result.agent_responder_picks)
+                and bool(result.next_output_character_ids)
             )
             or (result.event_kind != "beat_continues" and non_empty_forward_motion),
-            f"picks={result.agent_responder_picks}",
+            f"next={result.next_output_character_ids}",
         ),
     ]
     return CaseResult(
@@ -482,14 +486,14 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
             "keeps_open_or_creates_stronger_boundary",
             (
                 result.event_kind == "beat_continues"
-                and bool(result.agent_responder_picks)
+                and bool(result.next_output_character_ids)
             ) or (
                 result.event_kind in {"state_change", "ambient_pause"}
                 and stronger_boundary
             ),
             (
                 f"kind={result.event_kind} "
-                f"picks={result.agent_responder_picks}"
+                f"next={result.next_output_character_ids}"
             ),
         ),
     ]
@@ -637,8 +641,8 @@ async def _mediated_pod(dispatcher: LLMDispatcher) -> CaseResult:
         ),
         _check(
             "routes_to_britney",
-            "britney" in result.agent_responder_picks,
-            f"picks={result.agent_responder_picks}",
+            "britney" in result.next_output_character_ids,
+            f"next={result.next_output_character_ids}",
         ),
     ]
     return CaseResult(
@@ -692,10 +696,10 @@ async def _custom_arrival(dispatcher: LLMDispatcher) -> CaseResult:
             "does_not_dead_end_arrival",
             (
                 result.event_kind == "beat_continues"
-                and bool(result.agent_responder_picks)
+                and bool(result.next_output_character_ids)
             )
             or result.event_kind in {"state_change", "directed_at_player", "ambient_pause"},
-            f"kind={result.event_kind} picks={result.agent_responder_picks}",
+            f"kind={result.event_kind} next={result.next_output_character_ids}",
         ),
     ]
     return CaseResult(
@@ -720,10 +724,15 @@ async def _frontier_private_talkback(dispatcher: LLMDispatcher) -> CaseResult:
                     "world_adjudication": {"feasible": True},
                     "observable_facts": [],
                 },
-                "observers": [],
+                "observers": [
+                    {
+                        "character_id": "maya",
+                        "observation_level": "f",
+                        "routing_role": "next_output",
+                    }
+                ],
                 "requires_responders": False,
                 "required_responders": [],
-                "agent_responder_picks": ["maya"],
                 "event_kind": "beat_continues",
                 "spawn": [],
                 "dormant": [],
@@ -755,9 +764,9 @@ async def _frontier_private_talkback(dispatcher: LLMDispatcher) -> CaseResult:
             result.event_kind in {"state_change", "cascade_exhausted"}
             or (
                 result.event_kind == "beat_continues"
-                and "dante" in result.agent_responder_picks
+                and "dante" in result.next_output_character_ids
             ),
-            f"kind={result.event_kind} picks={result.agent_responder_picks}",
+            f"kind={result.event_kind} next={result.next_output_character_ids}",
         ),
         _check(
             "talkback_target_observes",
@@ -843,7 +852,7 @@ def _markdown(report: dict) -> str:
             f"event_kind=`{out.get('event_kind')}`",
             f"requires_responders=`{out.get('requires_responders')}`",
             f"required_responders=`{out.get('required_responders')}`",
-            f"agent_responder_picks=`{out.get('agent_responder_picks')}`",
+            f"next_output_character_ids=`{out.get('next_output_character_ids')}`",
             f"observers=`{out.get('observer_ids')}`",
             "",
             f"Rationale: {out.get('decision_rationale', '').strip()}",
@@ -927,8 +936,8 @@ async def main() -> None:
             passed = sum(1 for check in item["checks"] if check["passed"])
             total = len(item["checks"])
             reason = item["output"].get("event_kind")
-            picks = item["output"].get("agent_responder_picks")
-            print(f"{item['name']}: {passed}/{total} kind={reason} picks={picks}")
+            picks = item["output"].get("next_output_character_ids")
+            print(f"{item['name']}: {passed}/{total} kind={reason} next={picks}")
 
 
 if __name__ == "__main__":

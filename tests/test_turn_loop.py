@@ -33,6 +33,7 @@ from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
+    DndObserverEntry,
     DndEventRouterOutput,
     EventRouterOutput,
     ObserverEntry,
@@ -93,13 +94,13 @@ def _router_out(
     *,
     requires_responders: bool = False,
     required_responders: list[str] | None = None,
-    agent_picks: list[str] | None = None,
+    agent_ids: list[str] | None = None,
     ends_beat: bool = True,
     facts: list[ObservableFact] | None = None,
     effective_at_s: int = 0,
     duration_s: int = 0,
 ) -> EventRouterOutput:
-    picks = agent_picks or []
+    picks = agent_ids or []
     required = required_responders or []
     observer_ids = ["alice", *picks, *required]
     observers: list[ObserverEntry] = []
@@ -112,7 +113,7 @@ def _router_out(
             ObserverEntry(
                 character_id=cid,
                 observation_level="d",
-                response_priority=5 if cid in required else 3,
+                routing_role="next_output" if cid in picks else "observe_only",
             )
         )
     return EventRouterOutput(
@@ -129,7 +130,6 @@ def _router_out(
         observers=observers,
         requires_responders=requires_responders,
         required_responders=required,
-        agent_responder_picks=picks,
         ends_beat=ends_beat,
         ends_beat_reason="directed_at_player" if ends_beat else "",
         spawn=[],
@@ -325,7 +325,7 @@ class TestBeatCascade:
         assert "alice" in result.renders
         assert ckpt.session.active_act_slots == {}
 
-    def test_combat_high_priority_observer_gets_reaction_prompt(self):
+    def test_combat_dnd_reaction_observer_gets_reaction_prompt(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         ckpt.session.active_combat = DndCombatState(
             turn_index=0,
@@ -356,17 +356,16 @@ class TestBeatCascade:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 ),
-                ObserverEntry(
+                DndObserverEntry(
                     character_id="bob",
                     observation_level="d",
-                    response_priority=5,
+                    routing_role="dnd_reaction",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
             spawn=[],
@@ -388,7 +387,7 @@ class TestBeatCascade:
         assert ckpt.session.active_act_slots["bob"].trigger_event_id == event_id
         assert "bob" in result.renders
 
-    def test_combat_low_priority_observer_does_not_get_reaction_prompt(self):
+    def test_combat_observe_only_observer_does_not_get_reaction_prompt(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         ckpt.session.active_combat = DndCombatState(
             turn_index=0,
@@ -419,17 +418,16 @@ class TestBeatCascade:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 ),
                 ObserverEntry(
                     character_id="bob",
                     observation_level="d",
-                    response_priority=4,
+                    routing_role="observe_only",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
             spawn=[],
@@ -482,12 +480,11 @@ class TestBeatCascade:
                 ObserverEntry(
                     character_id="bob",
                     observation_level="d",
-                    response_priority=5,
+                    routing_role="observe_only",
                 )
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
             spawn=[],
@@ -536,12 +533,16 @@ class TestBeatCascade:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=1,
+                    routing_role="observe_only",
+                ),
+                ObserverEntry(
+                    character_id="pip",
+                    observation_level="f",
+                    routing_role="perception_enrichment",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=["pip"],
             ends_beat=True,
             ends_beat_reason="query_response",
             spawn=[],
@@ -584,12 +585,16 @@ class TestBeatCascade:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=1,
+                    routing_role="observe_only",
+                ),
+                ObserverEntry(
+                    character_id="pip",
+                    observation_level="f",
+                    routing_role="perception_enrichment",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=["pip"],
             ends_beat=True,
             ends_beat_reason="query_response",
             spawn=[],
@@ -636,12 +641,16 @@ class TestBeatCascade:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=1,
+                    routing_role="observe_only",
+                ),
+                ObserverEntry(
+                    character_id="pip",
+                    observation_level="f",
+                    routing_role="perception_enrichment",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=["pip"],
             ends_beat=True,
             ends_beat_reason="query_response",
             spawn=[],
@@ -664,7 +673,7 @@ class TestBeatCascade:
     def test_cat_i_cascades_through_agent_pick(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        prior = _router_out(agent_picks=["pip"], ends_beat=False)
+        prior = _router_out(agent_ids=["pip"], ends_beat=False)
         fake.queue_route(prior)
         fake.queue_agent("Pip polishes the bell")
         fake.queue_route(_router_out(ends_beat=True))
@@ -687,7 +696,7 @@ class TestBeatCascade:
     def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
         ckpt = _ckpt({})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip"], ends_beat=False))
         fake.queue_agent("Pip lowers his voice")
         fake.queue_route(_router_out(ends_beat=True))
 
@@ -707,9 +716,9 @@ class TestBeatCascade:
         ckpt = _ckpt({"alice": "1"})
         ckpt.session.config.settings.max_agent_cascades_per_beat = 1
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip"], ends_beat=False))
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip"], ends_beat=False))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -729,7 +738,7 @@ class TestBeatCascade:
     ):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_picks=["pip", "bob"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip", "bob"], ends_beat=False))
         fake.queue_agent("Pip polishes the bell")
         fake.queue_route(_router_out(ends_beat=True))
 
@@ -756,9 +765,9 @@ class TestBeatCascade:
     ):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_picks=["pip", "bob"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip", "bob"], ends_beat=False))
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_route(_router_out(agent_picks=["bob"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["bob"], ends_beat=False))
         fake.queue_agent("Bob studies the latch")
         fake.queue_route(_router_out(ends_beat=True))
 
@@ -780,7 +789,7 @@ class TestBeatCascade:
             for call in fake.frontier_calls
         ] == ["pip", "bob"]
 
-    def test_false_endbeat_with_no_picks_routes_continuation(self):
+    def test_false_endbeat_with_no_next_output_routes_continuation(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
         fake.queue_route(_router_out(ends_beat=False))
@@ -797,7 +806,7 @@ class TestBeatCascade:
         assert len(fake.continuation_calls) == 1
         assert result.events_closed == 2
 
-    def test_repeated_false_endbeat_without_picks_errors(self):
+    def test_repeated_false_endbeat_without_next_output_errors(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
         fake.queue_route(_router_out(ends_beat=False))
@@ -1166,8 +1175,8 @@ class TestCatIIBeat:
             facts=[ObservableFact.all("Bob and Pip lower their weapons.")],
         )
         out.observers = [
-            ObserverEntry(character_id="bob", observation_level="d", response_priority=3),
-            ObserverEntry(character_id="pip", observation_level="d", response_priority=3),
+            ObserverEntry(character_id="bob", observation_level="d", routing_role="observe_only"),
+            ObserverEntry(character_id="pip", observation_level="d", routing_role="observe_only"),
         ]
 
         ended = _end_dnd_combat_from_router_signal(
@@ -1308,17 +1317,16 @@ class TestCatIIBeat:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 ),
                 ObserverEntry(
                     character_id="bob",
                     observation_level="d",
-                    response_priority=5,
+                    routing_role="observe_only",
                 ),
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="ruleset_resolution",
             spawn=[],
@@ -1448,8 +1456,11 @@ class TestObservationHarvest:
             location="gatehouse",
         ))
         fake = FakeDispatcher()
-        out = _router_out(ends_beat=True, agent_picks=["pip", "vex"])
+        out = _router_out(ends_beat=True, agent_ids=["pip", "vex"])
         out.ends_beat_reason = "observation_harvest"
+        for observer in out.observers:
+            if observer.character_id in {"pip", "vex"}:
+                observer.routing_role = "perception_enrichment"
         fake.queue_route(out)
         fake.queue_harvest([
             "Pip in patched leathers.",
@@ -1470,9 +1481,9 @@ class TestObservationHarvest:
         assert any("[loadout" in str(f) and "Vex" in str(f) for f in facts)
         assert fake.agent_calls == []
 
-    def test_harvest_drops_human_picks(self):
+    def test_harvest_drops_human_targets(self):
         ckpt = _ckpt({"alice": "1"})
-        out = _router_out(ends_beat=True, agent_picks=["alice"])
+        out = _router_out(ends_beat=True, agent_ids=["alice"])
         out.ends_beat_reason = "observation_harvest"
         fake = FakeDispatcher()
         fake.queue_route(out)
@@ -1511,13 +1522,12 @@ class TestBroadcastEvent:
                 ObserverEntry(
                     character_id=cid,
                     observation_level="d",
-                    response_priority=3,
+                    routing_role="observe_only",
                 )
                 for cid in observer_ids
             ],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="directed_at_player",
             spawn=[],
@@ -1976,7 +1986,7 @@ class TestSessionLockManager:
 
 class TestFilterPicksForDispatch:
     def test_remote_npc_pick_passes_through(self):
-        from app.engine.turn_loop import _filter_picks_for_dispatch
+        from app.engine.turn_loop import _filter_routed_agents_for_dispatch
 
         ckpt = _ckpt({"alice": "1"})
         watcher = CharacterRecord(
@@ -1987,13 +1997,13 @@ class TestFilterPicksForDispatch:
         )
         ckpt.characters.append(watcher)
 
-        assert _filter_picks_for_dispatch(ckpt, ["watcher"]) == ["watcher"]
+        assert _filter_routed_agents_for_dispatch(ckpt, ["watcher"]) == ["watcher"]
 
     def test_human_pick_filtered(self):
-        from app.engine.turn_loop import _filter_picks_for_dispatch
+        from app.engine.turn_loop import _filter_routed_agents_for_dispatch
 
         ckpt = _ckpt({"alice": "1", "bob": "2"})
-        assert _filter_picks_for_dispatch(ckpt, ["alice", "bob", "pip"]) == [
+        assert _filter_routed_agents_for_dispatch(ckpt, ["alice", "bob", "pip"]) == [
             "pip"
         ]
 
@@ -2003,7 +2013,7 @@ class TestSchemaValidators:
         with pytest.raises(ValueError, match="empty"):
             _router_out(requires_responders=True, required_responders=[])
 
-    def test_picks_not_in_observers_preserved_for_frontier(self):
+    def test_next_output_observers_drive_frontier_targets(self):
         out = EventRouterOutput(
             event_id="",
             decision_rationale="test fixture",
@@ -2015,20 +2025,24 @@ class TestSchemaValidators:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=3,
-                )
+                    routing_role="observe_only",
+                ),
+                ObserverEntry(
+                    character_id="pip",
+                    observation_level="d",
+                    routing_role="next_output",
+                ),
             ],
-            event_kind="directed_at_player",
+            event_kind="beat_continues",
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=["alice", "pip"],
             spawn=[],
             dormant=[],
             cull=[],
         )
-        assert out.agent_responder_picks == ["alice", "pip"]
+        assert out.next_output_character_ids == ["pip"]
 
-    def test_observation_harvest_picks_do_not_need_to_observe(self):
+    def test_observation_harvest_uses_perception_enrichment_targets(self):
         out = EventRouterOutput(
             event_id="",
             decision_rationale="test fixture",
@@ -2042,44 +2056,48 @@ class TestSchemaValidators:
                 ObserverEntry(
                     character_id="alice",
                     observation_level="d",
-                    response_priority=1,
-                )
+                    routing_role="observe_only",
+                ),
+                ObserverEntry(
+                    character_id="pip",
+                    observation_level="f",
+                    routing_role="perception_enrichment",
+                ),
             ],
             event_kind="observation_harvest",
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=["pip"],
             spawn=[],
             dormant=[],
             cull=[],
         )
-        assert out.agent_responder_picks == ["pip"]
+        assert out.perception_enrichment_character_ids == ["pip"]
 
-    def test_non_observer_agent_picks_are_preserved_for_frontier_routing(self):
-        out = _router_out(agent_picks=["pip"], ends_beat=False)
+    def test_legacy_agent_responder_picks_field_is_rejected(self):
+        out = _router_out(agent_ids=["pip"], ends_beat=False)
         data = out.model_dump()
         data["agent_responder_picks"] = ["pip", "offstage_npc"]
-        rebuilt = EventRouterOutput.model_validate(data)
-        assert rebuilt.agent_responder_picks == ["pip", "offstage_npc"]
+        with pytest.raises(ValueError, match="Extra inputs"):
+            EventRouterOutput.model_validate(data)
 
     def test_frontier_projection_uses_runtime_frame_semantics(self):
-        out = _router_out(agent_picks=["pip"], ends_beat=False)
+        out = _router_out(agent_ids=["pip"], ends_beat=False)
         assert frontier_from_router_output(
             out,
             player_ids={"alice"},
-            agent_picks=["pip"],
+            agent_ids=["pip"],
         ).frontier_targets[0].frame == "foreground"
         assert frontier_from_router_output(
             out,
             player_ids=set(),
-            agent_picks=["pip"],
+            agent_ids=["pip"],
         ).frontier_targets[0].frame == "private"
 
         offstage = _router_out(ends_beat=False)
         assert frontier_from_router_output(
             offstage,
             player_ids={"alice"},
-            agent_picks=["offstage_npc"],
+            agent_ids=["offstage_npc"],
         ).frontier_targets[0].frame == "background"
 
     def test_unknown_event_kind_coerced_to_terminal_kind(self):
@@ -2090,9 +2108,12 @@ class TestSchemaValidators:
         assert rebuilt.event_kind == "directed_at_player"
 
     def test_observation_harvest_is_terminal(self):
-        out = _router_out(ends_beat=True, agent_picks=["pip"])
+        out = _router_out(ends_beat=True, agent_ids=["pip"])
         data = out.model_dump()
         data["event_kind"] = "observation_harvest"
+        for observer in data["observers"]:
+            if observer["character_id"] == "pip":
+                observer["routing_role"] = "perception_enrichment"
         rebuilt = EventRouterOutput.model_validate(data)
         assert rebuilt.ends_beat is True
 

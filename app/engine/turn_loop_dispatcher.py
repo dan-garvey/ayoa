@@ -344,7 +344,7 @@ def _build_scene_liveness_block(
     This is not a scheduler and does not create events by itself. It exposes
     authored off-scene pressure on fresh player turns so the router can decide
     whether any non-human character output is worth requesting via
-    `agent_responder_picks`.
+    `routing_role`.
     """
     if not acting_character_id:
         return ""
@@ -493,8 +493,13 @@ def _router_history_record(
         header += " end=true"
     if result.requires_responders:
         header += f" requires={_compact_id_list(result.required_responders)}"
-    if result.agent_responder_picks:
-        header += f" picks={_compact_id_list(result.agent_responder_picks)}"
+    if result.next_output_character_ids:
+        header += f" next={_compact_id_list(result.next_output_character_ids)}"
+    if result.perception_enrichment_character_ids:
+        header += (
+            " enrich="
+            f"{_compact_id_list(result.perception_enrichment_character_ids)}"
+        )
 
     lines = [header]
 
@@ -513,7 +518,8 @@ def _router_history_record(
 
     if result.observers:
         observer_bits = [
-            f"{observer.character_id}:{observer.observation_level}{observer.response_priority}"
+            f"{observer.character_id}:{observer.observation_level}:"
+            f"{observer.routing_role}"
             for observer in result.observers
             if observer.character_id
         ]

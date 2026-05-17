@@ -62,7 +62,7 @@ def _loot_event() -> DndEventRouterOutput:
             {
                 "character_id": "alice",
                 "observation_level": "d",
-                "response_priority": 1,
+                "routing_role": "observe_only",
             }
         ],
         spawn=[],
@@ -96,7 +96,6 @@ def _loot_event() -> DndEventRouterOutput:
         },
         requires_responders=False,
         required_responders=[],
-        agent_responder_picks=[],
         ends_beat=True,
         ends_beat_reason="state_change",
     )

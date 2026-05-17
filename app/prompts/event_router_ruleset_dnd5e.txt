@@ -46,6 +46,15 @@ For `dnd_combat_end`, set `requires_responders=false`,
 
 For every mode except `dnd_combat_start`, set `combatant_spawns=[]`.
 
+### D&D Observer Routing Extension
+
+In D&D mode, `observers[].routing_role` also allows `dnd_reaction`.
+Use `dnd_reaction` only for a direct observer in active combat who should
+receive a player-facing reaction prompt before combat advances. This is a
+ruleset-specific routing role, not a generic narrative response. Use
+`observe_only` for combatants who merely see the event, and leave ordinary
+NPC follow-up pressure as `next_output` only outside initiative-locked combat.
+
 ### D&D Loot Offers
 
 `loot_offer` represents visible items or coins a player character may choose to

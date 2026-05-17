@@ -80,12 +80,11 @@ ROUTER_OUTPUT_EXAMPLE = {
     "event_kind": "directed_at_player",
     "requires_responders": False,
     "required_responders": [],
-    "agent_responder_picks": [],
     "observers": [
         {
             "character_id": "guard_17",
             "observation_level": "d",
-            "response_priority": 5,
+            "routing_role": "observe_only",
         }
     ],
     "spawn": [],
@@ -387,7 +386,7 @@ class TestEventRouterOutput:
         r = EventRouterOutput(**ROUTER_OUTPUT_EXAMPLE)
         assert len(r.observers) == 1
         assert r.observers[0].character_id == "guard_17"
-        assert r.observers[0].response_priority == 5
+        assert r.observers[0].routing_role == "observe_only"
         assert r.observers[0].observation_level == "d"
 
     def test_round_trip(self):
@@ -400,6 +399,21 @@ class TestEventRouterOutput:
         assert "event_kind" in props
         assert "ends_beat" not in props
         assert "ends_beat_reason" not in props
+        assert "agent_responder_picks" not in props
+
+    def test_generic_observer_rejects_dnd_reaction_role(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "observers": [
+                {
+                    "character_id": "guard_17",
+                    "observation_level": "d",
+                    "routing_role": "dnd_reaction",
+                }
+            ],
+        }
+        with pytest.raises(ValidationError):
+            EventRouterOutput(**data)
 
     def test_rejects_extra_fields_on_observer(self):
         bad_observer = {**ROUTER_OUTPUT_EXAMPLE["observers"][0], "secret": "leaked"}
@@ -442,7 +456,7 @@ class TestEventRouterOutput:
                 {
                     "character_id": "mika_aoyama",
                     "observation_level": "d",
-                    "response_priority": 2,
+                    "routing_role": "observe_only",
                 },
             ],
         }
@@ -559,6 +573,24 @@ class TestDndEventRouterOutput:
         walk(schema)
         assert missing == []
 
+    def test_dnd_observer_routing_extends_generic_enum(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "cat_i",
+            "combatant_ids": [],
+            "observers": [
+                {
+                    "character_id": "guard_17",
+                    "observation_level": "d",
+                    "routing_role": "dnd_reaction",
+                }
+            ],
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.observers[0].routing_role == "dnd_reaction"
+
     def test_combat_start_clamps_cat_ii_fields(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
@@ -644,7 +676,7 @@ class TestDndEventRouterOutput:
                 {
                     "character_id": "mika_aoyama",
                     "observation_level": "d",
-                    "response_priority": 2,
+                    "routing_role": "observe_only",
                 },
             ],
         }

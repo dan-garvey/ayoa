@@ -346,7 +346,7 @@ def build_player_characters_block(
     surface every `is_playable=True` character here — under playable-2
     semantics, an unbound playable character is an agent NPC and
     belongs in the NPC roster, not the protagonists block. The router
-    treats a name in this block as "human, never dispatch via picks";
+    treats a name in this block as "human, never dispatch as an agent";
     listing unbound playables here would forbid the cascade from
     reaching the very characters the agents are supposed to drive.
 

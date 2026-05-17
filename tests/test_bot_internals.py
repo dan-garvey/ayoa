@@ -1284,7 +1284,6 @@ class TestApplyRosterUpdatesPurgesCulled:
             observers=[],
             requires_responders=False,
             required_responders=[],
-            agent_responder_picks=[],
             ends_beat=True,
             ends_beat_reason="",
             spawn=[],
