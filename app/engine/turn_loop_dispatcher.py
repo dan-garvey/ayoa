@@ -333,6 +333,94 @@ def _build_open_commitments_block(checkpoint: CheckpointFile) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _build_scene_liveness_block(
+    checkpoint: CheckpointFile,
+    acting_character_id: str,
+    *,
+    max_entries: int = 10,
+) -> str:
+    """Compact off-scene routing cues for router-owned liveness.
+
+    This is not a scheduler and does not create events by itself. It exposes
+    authored off-scene pressure on fresh player turns so the router can decide
+    whether any non-human character output is worth requesting via
+    `agent_responder_picks`.
+    """
+    if not acting_character_id:
+        return ""
+
+    from app.engine.context_builder import collect_player_ids
+
+    player_ids = collect_player_ids(checkpoint)
+    acting_char = next(
+        (
+            char for char in checkpoint.characters
+            if char.character_id == acting_character_id
+        ),
+        None,
+    )
+    acting_location = acting_char.location if acting_char is not None else ""
+    leading_at = int(checkpoint.session.leading_at_s)
+    entries: list[tuple[tuple[int, str], str]] = []
+    for char in checkpoint.characters:
+        if char.character_id in player_ids:
+            continue
+        if char.character_id == acting_character_id:
+            continue
+        if char.status.value != "active":
+            continue
+        if acting_location and char.location == acting_location:
+            continue
+        state = char.private_state
+        if not state.intentions_enabled:
+            continue
+        objectives = [
+            _compact_router_history_text(obj)
+            for obj in state.current_objectives
+            if obj.strip()
+        ][:2]
+        cues = [
+            _compact_router_history_text(cue)
+            for cue in state.tick_cues
+            if cue.strip()
+        ][:3]
+        if not objectives and not cues:
+            continue
+        last_turn = char.last_agent_turn_at_s
+        since = (
+            max(0, leading_at - int(last_turn))
+            if last_turn is not None else leading_at
+        )
+        last_text = (
+            f"last output {_format_seconds(since)} ago"
+            if last_turn is not None else "last output never"
+        )
+        parts = [
+            f"- {char.character_id} @ {char.location or 'unknown location'}",
+            last_text,
+        ]
+        if objectives:
+            parts.append("objectives: " + "; ".join(objectives))
+        if cues:
+            parts.append("cues: " + "; ".join(cues))
+        entries.append(((-since, char.character_id), "; ".join(parts)))
+
+    if not entries:
+        return ""
+
+    entries.sort(key=lambda item: item[0])
+    lines = [
+        "## Scene Liveness",
+        (
+            "Off-scene routing candidates, not facts. Request output only "
+            "when their pressure matters now."
+        ),
+    ]
+    lines.extend(text for _, text in entries[:max_entries])
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def _build_commitment_revision_block(
     checkpoint: CheckpointFile,
     acting_character_id: str,
@@ -591,6 +679,8 @@ def _build_router_context(
     acting_character_id: str,
     *,
     resolve_actor_fallback: bool = True,
+    include_scene_liveness: bool = True,
+    include_state_deltas: bool = True,
 ) -> dict[str, str]:
     """Collect every context variable the event_router template needs
     aside from the two intention-block slots the caller populates
@@ -631,13 +721,23 @@ def _build_router_context(
         "since_last_turn_block": since_last_turn_block,
         "relative_time_block": _build_relative_time_block(ckpt),
         "open_commitments_block": _build_open_commitments_block(ckpt),
+        "scene_liveness_block": (
+            _build_scene_liveness_block(ckpt, acting_id)
+            if include_scene_liveness else ""
+        ),
         "commitment_revision_block": _build_commitment_revision_block(
             ckpt,
             acting_id,
         ),
-        "world_facts_delta_block": _build_world_facts_delta(ckpt),
+        "world_facts_delta_block": (
+            _build_world_facts_delta(ckpt)
+            if include_state_deltas else ""
+        ),
         "initial_roster_block": _build_initial_roster_block(ckpt),
-        "state_changes_block": _build_state_changes_block(ckpt),
+        "state_changes_block": (
+            _build_state_changes_block(ckpt)
+            if include_state_deltas else ""
+        ),
     }
 
 
@@ -691,7 +791,11 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(ckpt, actor_id)
+            ctx = _build_router_context(
+                ckpt,
+                actor_id,
+                include_scene_liveness=cat_ii_event is None,
+            )
             dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
             if cat_ii_event is None:
@@ -840,7 +944,11 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(ckpt, actor_id)
+            ctx = _build_router_context(
+                ckpt,
+                actor_id,
+                include_scene_liveness=False,
+            )
             continuation_block = format_router_continuation_block(
                 prior_rationale=prior_result.decision_rationale,
             )
@@ -905,11 +1013,11 @@ class LLMDispatcher:
         frontier_results: list[RouterFrontierResult],
         prior_result: EventRouterOutput,
     ) -> EventRouterOutput | None:
-        """Bundle completed frontier target prose into one router call.
+        """Bundle returned character prose into one router call.
 
         Agent parentheticals are already stripped by the agent adapter. The
-        router receives only public result text and chooses the next frontier
-        group through its normal output fields.
+        router receives only public result text and chooses the next response
+        or player-facing boundary through its normal output fields.
         """
         if not frontier_results:
             return None
@@ -923,6 +1031,8 @@ class LLMDispatcher:
                 ckpt,
                 "",
                 resolve_actor_fallback=False,
+                include_scene_liveness=False,
+                include_state_deltas=False,
             )
 
             frontier_block = format_frontier_results_block([
@@ -947,15 +1057,21 @@ class LLMDispatcher:
                 "frontier_results_block": frontier_block,
             }
 
-            messages = self.prompt_mgr.render_conversation(
+            base_messages = self.prompt_mgr.render_messages(
                 "event_router",
-                history=ckpt.session_conversation,
                 **template_vars,
             )
+            messages = [base_messages[0]]
+            for item in ckpt.session_conversation:
+                messages.append({"role": item.role, "content": item.content})
+            messages.append({
+                "role": "user",
+                "content": frontier_block.strip(),
+            })
 
             logger.info(
-                "LLMDispatcher.route_frontier_results: %d frontier "
-                "result(s) bundled into one router call",
+                "LLMDispatcher.route_frontier_results: %d character "
+                "output(s) routed",
                 len(frontier_results),
             )
 
@@ -974,26 +1090,17 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
-        actor_id = ""
-        source_event_ids = _compact_id_list(list(dict.fromkeys(
-            item.source_event_id for item in frontier_results
-        )))
         _normalize_router_result_for_history(
             ckpt,
-            actor_id=actor_id,
+            actor_id="",
             result=result,
             frontier_mode=True,
         )
         _append_router_history_record(
             ckpt.session_conversation,
-            acting_character_id=actor_id,
+            acting_character_id="",
             result=result,
             mode="frontier",
-            user_prompt=(
-                f"frontier_after={prior_result.event_id} "
-                f"source_events={source_event_ids} "
-                f"results={len(frontier_results)}"
-            ),
         )
         return result
 

@@ -429,34 +429,6 @@ class CharacterAgent:
         )
         return text
 
-    async def tick(
-        self,
-        character: CharacterRecord,
-        checkpoint: CheckpointFile,
-        acting_character_id: str = "",
-    ) -> CharacterAgentOutput:
-        """Compatibility wrapper for a committed background agent turn."""
-        return await self.turn(
-            character=character,
-            checkpoint=checkpoint,
-            acting_character_id=acting_character_id,
-            frame="background",
-        )
-
-    async def draft_tick(
-        self,
-        character: CharacterRecord,
-        checkpoint: CheckpointFile,
-        acting_character_id: str = "",
-    ) -> CharacterAgentTurnDraft:
-        """Compatibility wrapper for an uncommitted background agent turn."""
-        return await self.draft_turn(
-            character=character,
-            checkpoint=checkpoint,
-            acting_character_id=acting_character_id,
-            frame="background",
-        )
-
     async def draft_turn(
         self,
         character: CharacterRecord,

@@ -1,7 +1,6 @@
 from app.engine.turn_loop_contracts import (
     SWEPT_RESPONDERS_SUBHEADER,
     ROUTER_CONTINUATION_HEADER,
-    ROUTER_FRONTIER_RESULTS_HEADER,
     format_agent_turn_body,
     format_agent_on_stage_body,
     format_cat_ii_resolution_block,
@@ -63,9 +62,9 @@ class TestRouterContinuationBlock:
 
 
 class TestFrontierResultsBlock:
-    """Frontier helper. The block must render the frontier header, name
-    each completed target with character id/frame/result kind, and forward
-    only public_text. Agent parentheticals stay in the agent's own history.
+    """Frontier helper. The block must render only character-id-prefixed
+    public text. Agent parentheticals, source ids, frames, and result kinds stay
+    out of the router's current input.
     """
 
     def test_empty_list_returns_empty_string(self):
@@ -88,20 +87,22 @@ class TestFrontierResultsBlock:
                 "She copies a passage.",
             ),
         ])
-        assert ROUTER_FRONTIER_RESULTS_HEADER in block
-        assert "2 selected frontier target(s)" in block
-        assert "after evt_prior" in block
-        assert "regent" in block
-        assert "background" in block
+        assert block == (
+            "regent: He paces the long table.\n"
+            "scribe: She copies a passage.\n"
+        )
+        assert "agent_turn" not in block
+        assert "background" not in block
+        assert "foreground" not in block
+        assert "evt_prior" not in block
         assert "He paces the long table." in block
-        assert "foreground" in block
         assert "She copies a passage." in block
 
     def test_blank_public_text_falls_back_to_silent_marker(self):
         block = format_frontier_results_block([
             ("agent_turn", "mute", "background", "evt_prior", ""),
         ])
-        assert "(no public action)" in block
+        assert block == "mute: (no public action)\n"
 
 
 class TestAgentModeContract:

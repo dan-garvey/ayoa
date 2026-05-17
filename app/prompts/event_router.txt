@@ -34,14 +34,14 @@ Hidden facts:
 The current user message has one shape. Choose that contract before doing anything else:
 
 - `## Cat II Resolution`: a contested action is already open and all required responder intentions have been collected. Compose the resolved canonical event only. Do not classify a fresh intention, open another contest, or pick follow-up NPCs.
-- `## Frontier Results`: every selected target in the current frontier group has completed. Compose the next canonical event from those public results, then decide whether to render to players or select the next frontier group.
 - `## Continuation Required`: the beat is still open but no NPC was selected for the next in-beat intention. Create a grounded event that gives the active moment forward motion. This is not a new action by the acting character.
 - Fully parenthesized input, such as `(begin)`, `(defer)`, `(query: what do I know about her?)`, `(skip to morning)`, or `(fade to black)`: use the out-of-character contract.
+- One or more lines shaped `character_id: public text`: returned character output. These lines are not canonical facts yet. Compose one canonical event from their public surface, do not infer private parentheticals, do not open Cat II, then choose whether to render or request more character outputs.
 - Anything else: fresh actor intention.
 
 ### Field Semantics
 
-`effective_at_s` is the event's start time in seconds from the session's relative clock. Use the acting character's clock as the floor for fresh actions. For simultaneous remote fresh actions, use the local actor's clock rather than forcing every scene to the session-leading time. For `## Frontier Results`, use the session leading time as the floor unless the listed public results clearly belong earlier in an already-open overlapping moment. `duration_s` is how many seconds the event takes from start to finish.
+`effective_at_s` is the event's start time in seconds from the session's relative clock. Use the acting character's clock as the floor for fresh actions. For simultaneous remote fresh actions, use the local actor's clock rather than forcing every scene to the session-leading time. `duration_s` is how many seconds the event takes from start to finish.
 
 `observable_facts` is the ordered list of concrete surface material produced by the event, grouped by who can perceive it. Each item is a visibility packet:
 - `text`: one or more contiguous sensory facts, spoken lines, gestures, or ambient details
@@ -57,6 +57,8 @@ Every fact's timing must fit inside the event: `at_offset_s >= 0`, packet `durat
 Use character ids for non-self-referential character references inside `observable_facts.text`. If the sentence names the acting character as the subject, normal self-reference is allowed: "alice raises her shield," not "alice raises alice's shield." If a pronoun would refer to a different character, use that character's id instead: "alice reaches for bob's wrist," not "alice reaches for his wrist." If quoted dialogue contains a pronoun for someone other than the speaker, replace that pronoun with the character id in square brackets: "alice says, 'I saw [bob] leave,'" not "alice says, 'I saw him leave.'" Leave self-reference in dialogue alone: "alice says, 'I lost my blade.'" Leave non-character pronouns for objects, places, weather, or abstract ideas alone when no character is referenced.
 
 Use `audience: "all_observers"` only when every observer of this event can perceive the packet through the same unrestricted perceptual frame. Use `audience: "only"` for quiet, occluded, near-body, whispered, under-table, line-of-sight, mediated, remote, supernatural, watched-recording, or otherwise scoped packets. If your rationale says "only nearby characters noticed it," encode exact `visible_to` ids.
+
+For mediated communication, never give source-side visual details to an audio-only recipient. Split the event into separate packets: source-side body/place/action facts for characters or feeds that can see them, and audio-only wording/sound facts for listeners who only receive the channel.
 
 What must appear in `observable_facts`:
 - Dialogue, quoted in single quotes, with any supplied tone or vocal framing preserved except for bracketed character-name substitutions replacing pronouns.
@@ -77,7 +79,7 @@ Observation levels:
 
 For NPCs, omit observers who receive no packet and have no meaningful perception this event. If an NPC does receive a packet but has little reason to react, include them with priority 1. Human-bound characters are different: if they have any plausible perception, include them in `observers` even when they do not need to react. Humans never appear in `agent_responder_picks`.
 
-`agent_responder_picks` is the ordered list of NPC ids that should produce the next frontier turn before control is returned to players. These may be foreground NPC observers reacting to the current event, or private/background NPCs whose off-stage beat is now worth advancing. Do not include humans. Exceptions:
+`agent_responder_picks` is the ordered list of non-human character ids whose public output may be needed before control returns to players. Put the single strongest next responder first. Later ids are ordered fallback or owed-response candidates, not simultaneous scene responses; after each response is canonicalized, reassess who is still needed. Picks may react to the current event or advance off-stage pressure worth checking now. Do not include humans. Exceptions:
 - `observation_harvest`: picks are visual targets whose current loadouts should enrich the acting character's look; they are not response actors.
 - `query_response`: picks are private perception-enrichment targets; they are not response actors and do not observe the private query fact unless a real in-fiction event reaches them.
 
@@ -166,7 +168,7 @@ Opening and arrival beats may establish neutral visible placement and ambient su
 
 5. Route perception.
 
-Determine who has live access to the event. Use exact scoped packets for mediated or partial perception: audio-only observers get words and audible cues; visual-only observers get body/action cues; monitors get what their feed captures; distant listeners get only what carries. Do not treat a stored recording as perception unless someone is watching or listening live; reviewing it later can be its own event.
+Determine who has live access to the event. Use exact scoped packets for mediated or partial perception: audio-only observers get words and audible cues, not the speaker's posture, room, gaze, or body position; visual-only observers get body/action cues; monitors get what their feed captures; distant listeners get only what carries. Do not treat a stored recording as perception unless someone is watching or listening live; reviewing it later can be its own event.
 
 Dormant characters do not observe. Human-bound characters with any plausible perception do observe, at the level matching their actual access.
 
@@ -182,18 +184,18 @@ Most active moments should have 0-2 NPCs at priority 3+. If a character has resp
 
 7. Choose `agent_responder_picks`.
 
-Addressed NPCs are owed a turn before the beat closes. If the player's intention addressed NPCs by name, asked them a question, answered their question, or otherwise pointed the action at them, keep those NPCs in `agent_responder_picks` until each has produced an adjudicated event or chosen silence.
+Addressed NPCs are owed a response before the beat closes. If the player's intention addressed NPCs by name, asked them a question, answered their question, or otherwise pointed the action at them, keep those NPCs in `agent_responder_picks` until each has produced an adjudicated event or chosen silence.
 
 Other NPCs may also be picked when the event creates real pressure on them. NPC-to-NPC pressure counts: praise, insult, contradiction, exposure, implication, accusation, alliance, or changed standing can make the touched NPC the strongest next pick even if the player spoke last. Interrupting a direct exchange is a social move; use it when the interrupter would plausibly pay that cost.
 
-If `event_kind="beat_continues"`, include every NPC that should get a turn in the next frontier group. Use more than one pick when multiple NPCs are owed simultaneous attention or when a short private/background exchange is worth resolving as a group. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface to players. Do not burn turns on every NPC just because they exist, and do not over-advance private branches compared with the player-facing table. For terminal event kinds, picks are usually empty except for special target meanings in `observation_harvest` and `query_response`.
+If `event_kind="beat_continues"`, put the next needed character first in `agent_responder_picks`. Use more than one pick only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface to players. Do not burn outputs on every NPC just because they exist, and do not over-advance private branches compared with the player-facing table. For terminal event kinds, picks are usually empty except for special target meanings in `observation_harvest` and `query_response`.
 
 8. Choose `event_kind`.
 
-End the beat only when the latest event leaves the acting human with a concrete next affordance and no more meaningful NPC beat remains. A concrete affordance is a person addressing them with a meaningful choice or pressure, clear destination with stakes, object or cue to investigate, visible obstacle, changed condition, explicit absence that matters, signal, message, arrival, or decision point. Procedural compliance is not an affordance: "sit there," "follow the attendant," "sign this," "take this chit," or "wait until called" are not valid player-facing boundaries unless paired with a new fact, pressure, dilemma, or actionable opportunity.
+End the beat only when the latest event leaves the acting human with a concrete next affordance and no more meaningful character output remains. A concrete affordance is a person addressing them with a meaningful choice or pressure, clear destination with stakes, object or cue to investigate, visible obstacle, changed condition, explicit absence that matters, signal, message, arrival, or decision point. Procedural compliance is not an affordance: "sit there," "follow the attendant," "sign this," "take this chit," or "wait until called" are not valid player-facing boundaries unless paired with a new fact, pressure, dilemma, or actionable opportunity.
 
-Use `beat_continues` when another frontier group should complete before player rendering. Use these terminal event kinds when the beat should render, suspend, or hand off:
-- `directed_at_player`: an NPC speaks to, asks, demands, offers, attacks, touches, blocks, hands over something, or otherwise acts on a player character in a way that clearly asks for player response. Use only after all addressed NPCs owed this beat have had their turn.
+Use `beat_continues` when you need more character output before player rendering. Use these terminal event kinds when the beat should render, suspend, or hand off:
+- `directed_at_player`: an NPC speaks to, asks, demands, offers, attacks, touches, blocks, hands over something, or otherwise acts on a player character in a way that clearly asks for player response. Use only after all addressed NPCs owed this beat have had their response.
 - `state_change`: a player-relevant condition changes and the next meaningful move belongs to a player.
 - `cascade_exhausted`: no NPC has pressure to act further; the exchange has naturally settled.
 - `ambient_pause`: an ambient closer after a complete exchange or genuine changed condition. Quiet may frame the close, but quiet is not the cue. The pause must leave a specific person, object, route, obstacle, signal, message, arrival, absence, or changed condition the player can act on.
@@ -203,10 +205,10 @@ Use `beat_continues` when another frontier group should complete before player r
 - `cat_ii_resolution`: resolved contested action.
 
 Keep the beat going when:
-- one more meaningful NPC beat would make the exchange land better
-- an addressed NPC has not yet had their turn
+- one more meaningful character response would make the exchange land better
+- an addressed NPC has not yet responded
 - NPCs are processing pressure among themselves with no player-facing outcome yet
-- the latest NPC beat is only nonverbal attention, a glance, posture change, eating, waiting, silence, or choosing not to intervene
+- the latest character output is only nonverbal attention, a glance, posture change, eating, waiting, silence, or choosing not to intervene
 - the acting human is lost, waiting for direction, scanning for a cue, or otherwise lacks a concrete next affordance
 
 Ambient quiet is not an affordance by itself. The room settling, background murmur, camera hum, curtains moving, distant footsteps, general doorways, or a generic visible space do not give the player a next action unless newly singled out as a specific actionable cue.
@@ -215,11 +217,11 @@ Do not close a beat on an NPC merely watching, privately assessing, or withholdi
 
 After several chained events, prefer a natural boundary over another marginal reaction. Repeated `(defer)` is an exception signal: the player is telling you the beat has been ending too quickly. Do not answer repeated defers with one thin NPC line, one generic cue, or one small movement increment and then immediately return control again.
 
-`decision_rationale` is diagnostic, not in-fiction prose. When you choose a terminal event kind, explain why the beat ends here instead of continuing to one more NPC beat, why the selected event kind is correct, why no other present NPC has enough immediate pressure to act now, and what concrete affordance the acting human has. For `ambient_pause`, name the exact playable surface left by the pause.
+`decision_rationale` is diagnostic, not in-fiction prose. When you choose a terminal event kind, explain why the beat ends here instead of continuing to one more character response, why the selected event kind is correct, why no other present NPC has enough immediate pressure to act now, and what concrete affordance the acting human has. For `ambient_pause`, name the exact playable surface left by the pause.
 
 ### Calibration Examples
 
-- Player addresses two NPCs at once: "I introduce myself to both of you." If Ashara answers first, do not end the beat just because her answer is directed at the player. Rashid is still owed a turn. Use `event_kind="beat_continues"` and keep Rashid in `agent_responder_picks` until he speaks or chooses silence.
+- Player addresses two NPCs at once: "I introduce myself to both of you." If Ashara answers first, do not end the beat just because her answer is directed at the player. Rashid is still owed a response. Use `event_kind="beat_continues"` and keep Rashid in `agent_responder_picks` until he speaks or chooses silence.
 
 - Player speaks, but NPC-to-NPC pressure becomes the live issue. If Rashid compliments Ashara, insults Thessaly, contradicts Caelindra, exposes Seraphel, or otherwise changes another NPC's standing, consider the touched NPC before handing the beat back. The player can watch one NPC answer another; the exchange does not have to orbit the player.
 
@@ -248,20 +250,6 @@ The initiator's original intention and every collected responder intention are a
 Nested Cat II is forbidden. If a responder's action would be contested in isolation, fold it into this resolution. One Cat II resolves to one adjudicated canonical event.
 
 If the resolution input lists swept responders, they are present but did not visibly intervene. Represent them with one short visible non-action if relevant: rooted, still, caught flat-footed, frozen mid-gesture, mouth opening without words. Do not write "away," "timed out," "absent," or any meta framing. Do not use cognitive or interior explanations.
-
-#### Frontier Results
-
-For `## Frontier Results`, compose one canonical event from the listed completed target outputs. The listed text is public surface only; agent private parentheticals are not present and must not be inferred.
-
-Output invariants:
-- `requires_responders=false`
-- `required_responders=[]`
-- do not open Cat II from frontier results
-- if the frontier should continue, set `event_kind="beat_continues"` and put the next NPC group in `agent_responder_picks`
-- if players should receive the accumulated beat now, use the appropriate terminal event kind
-- observers list only characters who actually perceive the composed event through co-location or an established live channel
-
-Preserve verbatim dialogue and visible actions from the listed public prose. Group packets by exact audience. Background/private results can remain unseen by player characters unless an established channel carries them; foreground results may include player observers when their characters perceive the event.
 
 #### Continuation Required
 
@@ -413,5 +401,5 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 </turn_context>
 
 <input>
-{world_facts_delta_block}{initial_roster_block}{state_changes_block}{since_last_turn_block}{cat_ii_resolution_block}{frontier_results_block}{intention_block}
+{world_facts_delta_block}{initial_roster_block}{state_changes_block}{since_last_turn_block}{scene_liveness_block}{cat_ii_resolution_block}{frontier_results_block}{intention_block}
 </input>

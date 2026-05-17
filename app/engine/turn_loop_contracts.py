@@ -11,7 +11,6 @@ PARTIAL_MODE_MARKER = (
 )
 CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
 SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
-ROUTER_FRONTIER_RESULTS_HEADER = "## Frontier Results"
 ROUTER_CONTINUATION_HEADER = "## Continuation Required"
 
 # v11 unified-agent turn marker. The agent template (`agent.txt`) is a
@@ -88,31 +87,22 @@ def format_cat_ii_resolution_block(
 def format_frontier_results_block(
     entries: list[tuple[str, str, str, str, str]],
 ) -> str:
-    """Bundle completed frontier target outputs into one router input.
+    """Bundle returned character outputs into one router input.
 
     Each entry is
     `(result_kind, character_id, frame, source_event_id, public_text)`.
+    Only the authoring character id and public text belong in the prompt.
     Agent parentheticals MUST be stripped before this helper is called.
     Empty list returns "" so the dispatcher can skip payload-less router
     calls.
     """
     if not entries:
         return ""
-    lines = [ROUTER_FRONTIER_RESULTS_HEADER, ""]
-    lines.append(
-        f"{len(entries)} selected frontier target(s) completed. Compose "
-        "one canonical event from these public results, then decide "
-        "whether the frontier should continue or render to players."
-    )
-    lines.append("")
-    for result_kind, char_id, frame, source_event_id, public_text in entries:
+    lines = []
+    for _result_kind, char_id, _frame, _source_event_id, public_text in entries:
         text = (public_text or "").strip() or "(no public action)"
-        source = (source_event_id or "").strip() or "unknown"
-        lines.append(
-            f"- {result_kind} {char_id} [{frame}] after {source}: {text}"
-        )
-    lines.append("")
-    return "\n".join(lines)
+        lines.append(f"{char_id}: {text}")
+    return "\n".join(lines) + "\n"
 
 
 def format_router_continuation_block(*, prior_rationale: str = "") -> str:
@@ -239,7 +229,7 @@ def format_agent_turn_body(*, frame: str, location_context: str = "") -> str:
 
     `frame` is a routing label for the character, not hidden engine
     mechanics. Foreground turns react to pending observations. Private and
-    background turns advance one objective from the character's current
+    background frames advance one objective from the character's current
     location without assuming a player is watching.
     """
     frame = (frame or "foreground").strip().lower()

@@ -19,8 +19,8 @@ def append_turn_to_conversation(
 ) -> None:
     """Append one (user, assistant) exchange to a rolling conversation.
 
-    Every engine role (event_router, narrator, character_agent both in
-    respond + tick) persists its turn the same way: capture the user
+    Every engine role (event_router, narrator, character_agent turn/perceive)
+    persists its exchange the same way: capture the user
     message before the LLM call wrapped it with cache_control, then
     re-serialize the raw assistant content blocks from the response and
     append both. Keeping the pattern in one place means any future
@@ -317,8 +317,8 @@ def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
     NOTE: `CharacterRecord.is_playable` is INTENTIONALLY excluded from
     this set. Under the playable-2 semantics an `is_playable=True`
     character runs as an agent NPC until a human binds them — they
-    DO get cascaded to via the router, DO get picked for background turns, and
-    DO show up in the agent fan-out. Only an explicit binding
+    DO get cascaded to via the router, DO get picked for background responses,
+    and DO show up in the agent fan-out. Only an explicit binding
     transfers them to "human-controlled" status. The pristine-roster
     fallback the function used to apply (treating every is_player slot
     as already-claimed) caused the playtest's "NPC routing blocked on

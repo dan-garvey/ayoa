@@ -724,12 +724,13 @@ class TestBeatCascade:
         assert len(fake.frontier_calls) == 1
         assert len(fake.agent_calls) == 1
 
-    def test_cat_i_waits_for_all_agent_picks_before_frontier_route(self):
+    def test_cat_i_dispatches_only_first_agent_pick_before_router_roundtrip(
+        self,
+    ):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
         fake.queue_route(_router_out(agent_picks=["pip", "bob"], ends_beat=False))
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_agent("Bob studies the latch")
         fake.queue_route(_router_out(ends_beat=True))
 
         result = asyncio.run(run_beat(
@@ -742,15 +743,42 @@ class TestBeatCascade:
         assert result.events_closed == 2
         assert [call["character_id"] for call in fake.agent_calls] == [
             "pip",
-            "bob",
         ]
         assert len(fake.frontier_calls) == 1
         frontier_results = fake.frontier_calls[0]["frontier_results"]
         assert [item.character_id for item in frontier_results] == [
             "pip",
-            "bob",
         ]
         assert all(item.result_kind == "agent_turn" for item in frontier_results)
+
+    def test_router_can_continue_to_next_agent_pick_after_canonicalizing_first(
+        self,
+    ):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(agent_picks=["pip", "bob"], ends_beat=False))
+        fake.queue_agent("Pip polishes the bell")
+        fake.queue_route(_router_out(agent_picks=["bob"], ends_beat=False))
+        fake.queue_agent("Bob studies the latch")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="wait",
+        ))
+
+        assert result.events_closed == 3
+        assert [call["character_id"] for call in fake.agent_calls] == [
+            "pip",
+            "bob",
+        ]
+        assert len(fake.frontier_calls) == 2
+        assert [
+            call["frontier_results"][0].character_id
+            for call in fake.frontier_calls
+        ] == ["pip", "bob"]
 
     def test_false_endbeat_with_no_picks_routes_continuation(self):
         ckpt = _ckpt({"alice": "1"})

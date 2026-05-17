@@ -20,7 +20,7 @@ from app.schemas.dnd_monsters import DndCombatantSpawn
 
 EventKind = Literal[
     # The beat should continue after this event by collecting the next
-    # router-selected frontier group.
+    # router-selected character output.
     "beat_continues",
     "directed_at_player",
     "state_change",
@@ -354,12 +354,12 @@ class EventRouterOutput(BaseModel):
         vs Cat II (contested). Cat II events open and collect responder
         intentions before canonicalization closes.
       - `event_kind`: the router's pacing and dispatch signal. The engine
-        derives beat closure from this field: `beat_continues` collects the
-        next frontier group, while terminal event kinds render, suspend, or
-        hand off to adapter-owned flows.
-      - `agent_responder_picks`: NPCs the router wants in the next frontier
-        group. Addressed NPCs (those the player named, asked, or answered)
-        are mandatory until each has had a turn this beat.
+        derives beat closure from this field: `beat_continues` requests the
+        next ordered character output, while terminal event kinds render,
+        suspend, or hand off to adapter-owned flows.
+      - `agent_responder_picks`: ordered non-human response candidates.
+        Addressed NPCs (those the player named, asked, or answered) are
+        mandatory until each has responded or chosen silence this beat.
 
     ## Schema-shape policy: no Pydantic defaults
 
@@ -420,13 +420,13 @@ class EventRouterOutput(BaseModel):
     # intercepter / defender / counter-actor. Empty for Cat I.
     required_responders: list[str]
 
-    # ---- v11: router-selected frontier group -----------------------------
-    # Router-selected NPC agents to dispatch as the next frontier group.
+    # ---- v11: router-selected response candidates ------------------------
+    # Router-selected NPC agents to dispatch sequentially.
     # Humans are NEVER in this list; humans only enter via /act, gated by
     # active_act_slot. Empty when the router thinks no NPC turn is warranted.
     # Addressed NPCs (those the player named, asked, or answered this beat)
-    # are mandatory and must remain in the picks across frontier calls until
-    # each has fired.
+    # are mandatory and should remain in ordered picks across router calls
+    # until each has fired.
     agent_responder_picks: list[str]
 
     # ---- Observation and character lifecycle outputs --------------------
@@ -523,7 +523,7 @@ class EventRouterOutput(BaseModel):
         - `required_responders` must be unique; duplicates corrupt the
           collection set semantics in `cat_ii_is_ready`.
         - `agent_responder_picks` may name observer NPCs or off-stage
-          NPCs the router wants in the next frontier group. The engine
+          NPCs the router wants as ordered response candidates. The engine
           applies hard safety filters before dispatch; the schema does
           not clamp picks to observers.
         """

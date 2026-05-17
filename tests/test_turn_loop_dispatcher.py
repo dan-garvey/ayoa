@@ -12,12 +12,11 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
     ROUTER_CONTINUATION_HEADER,
-    ROUTER_FRONTIER_RESULTS_HEADER,
 )
 from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
     DndEventRouterOutput,
@@ -177,6 +176,75 @@ class TestRouterContext:
         assert "Alice searches the cabinet." in ctx["open_commitments_block"]
         assert "evt_noise" in ctx["commitment_revision_block"]
 
+    def test_scene_liveness_surfaces_offscene_router_candidates(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.leading_at_s = 120
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.location = "archive"
+        pip.last_agent_turn_at_s = 60
+        pip.private_state = PrivateState(
+            intentions_enabled=True,
+            current_objectives=["deliver the sealed writ"],
+            tick_cues=["the bell tolls twice"],
+        )
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        block = ctx["scene_liveness_block"]
+        assert "## Scene Liveness" in block
+        assert "pip @ archive" in block
+        assert "last output 60s ago" in block
+        assert "deliver the sealed writ" in block
+        assert "the bell tolls twice" in block
+
+    def test_scene_liveness_omits_on_scene_and_human_characters(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1", "bob": "discord_2"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.location = "gatehouse"
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.location = "gatehouse"
+        pip.private_state = PrivateState(
+            intentions_enabled=True,
+            current_objectives=["interrupt the gatehouse scene"],
+            tick_cues=["on-scene cue"],
+        )
+        bob = CharacterRecord(
+            character_id="bob",
+            name="Bob",
+            public_sheet=PublicSheet(role="player"),
+            location="archive",
+            is_playable=True,
+            private_state=PrivateState(
+                intentions_enabled=True,
+                current_objectives=["human objective"],
+                tick_cues=["human cue"],
+            ),
+        )
+        ckpt.characters.append(bob)
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert ctx["scene_liveness_block"] == ""
+
+    def test_scene_liveness_suppressed_for_character_output_context(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.location = "archive"
+        pip.private_state = PrivateState(
+            intentions_enabled=True,
+            current_objectives=["deliver the sealed writ"],
+            tick_cues=["the bell tolls twice"],
+        )
+
+        ctx = _build_router_context(
+            ckpt,
+            "",
+            resolve_actor_fallback=False,
+            include_scene_liveness=False,
+        )
+
+        assert ctx["scene_liveness_block"] == ""
+
 
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
@@ -225,6 +293,32 @@ class TestRouteIntention:
         intention_index = user_content.index("I leave the shop.")
         assert update_index < intention_index
         assert ckpt.session.pending_router_state_changes == []
+
+    def test_fresh_intention_includes_scene_liveness_candidates(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.location = "archive"
+        pip.private_state = PrivateState(
+            intentions_enabled=True,
+            current_objectives=["deliver the sealed writ"],
+            tick_cues=["the bell tolls twice"],
+        )
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="examine the lock",
+        ))
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert "## Scene Liveness" in user_content
+        assert "pip @ archive" in user_content
+        assert "deliver the sealed writ" in user_content
 
     def test_npc_cascade_emits_intends_framing(
         self, prompt_mgr, mock_client,
@@ -688,17 +782,26 @@ class TestRouteFrontierResults:
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        assert ROUTER_FRONTIER_RESULTS_HEADER in user_content
-        assert "pip" in user_content
+        assert user_content == (
+            "pip: He paces the threshold.\n"
+            "wraith_42: It descends the stair."
+        )
+        assert "pip: He paces the threshold." in user_content
         assert "Pip" not in user_content
         assert "He paces the threshold" in user_content
-        assert "foreground" in user_content
-        assert "wraith_42" in user_content
+        assert "wraith_42: It descends the stair." in user_content
         assert "Wraith" not in user_content
         assert "It descends the stair" in user_content
-        assert "background" in user_content
-        assert "after evt_prior" in user_content
-        assert "## Acting Character\nalice" not in user_content
+        assert "foreground" not in user_content
+        assert "background" not in user_content
+        assert "evt_prior" not in user_content
+        assert "agent_turn" not in user_content
+        assert "## Frontier Results" not in user_content
+        assert "<turn_context>" not in user_content
+        assert "## Acting Character" not in user_content
+        assert "## Player Characters" not in user_content
+        assert "<input>" not in user_content
+        assert "## Scene Liveness" not in user_content
         assert "**alice** (acting this turn)" not in user_content
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
@@ -730,6 +833,39 @@ class TestRouteFrontierResults:
         )
         assert "A bell rings for Alice." not in user_content
         assert alice.pending_observations == ["A bell rings for Alice."]
+
+    def test_frontier_results_do_not_drain_next_fresh_turn_deltas(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.world_state.facts = ["The keep predates the road."]
+        ckpt.session.pending_router_state_changes = ["Spawned: Sera"]
+        before_state_changes = list(ckpt.session.pending_router_state_changes)
+        before_surfaced = list(ckpt.session.surfaced_world_facts)
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
+            ckpt=ckpt,
+            frontier_results=[
+                RouterFrontierResult(
+                    result_kind="agent_turn",
+                    character_id="pip",
+                    frame="foreground",
+                    public_text="He paces the threshold.",
+                    source_event_id="evt_prior",
+                ),
+            ],
+            prior_result=_router_output(),
+        ))
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert user_content == "pip: He paces the threshold."
+        assert "Spawned: Sera" not in user_content
+        assert "The keep predates the road." not in user_content
+        assert ckpt.session.pending_router_state_changes == before_state_changes
+        assert ckpt.session.surfaced_world_facts == before_surfaced
 
     def test_frontier_router_failure_restores_queues(
         self, prompt_mgr, mock_client,

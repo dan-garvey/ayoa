@@ -122,8 +122,8 @@ class PrivateStateExtraction(BaseModel):
     # evolution is carried in the agent's rolling conversation history.
     current_objectives: list[str]
     secrets: list[str]
-    # Marks this character as significant enough to warrant background turns
-    # — they'll pursue their objectives while the player isn't watching.
+    # Marks this character as significant enough to warrant background
+    # responses — they'll pursue objectives while the player isn't watching.
     # Set true for antagonists, rivals, faction leaders; false for
     # background/incidental characters.
     intentions_enabled: bool

@@ -29,8 +29,10 @@ class RouterFrontierTarget(BaseModel):
     """One engine task selected from a router output.
 
     This is not an LLM output model yet. It is the runtime contract that
-    lets the turn loop wait for every selected target in a frontier group
-    before submitting the group's public results back to the router.
+    lets the turn loop project the router's ordered picks into dispatchable
+    work. Same-scene agent turns are consumed sequentially: one public result
+    is sent back to the router, canonicalized, and only then can another
+    picked character respond with updated context.
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -1164,33 +1164,26 @@ async def _agent_intention_for_dispatch(
     return None
 
 
-async def _collect_agent_frontier_results(
+async def _collect_agent_frontier_result(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
-    targets: list[RouterFrontierTarget],
-) -> list[RouterFrontierResult]:
-    if not targets:
-        return []
-
-    async def _one(target: RouterFrontierTarget) -> RouterFrontierResult | None:
-        text = await _agent_intention_for_dispatch(
-            dispatcher,
-            ckpt,
-            target.character_id,
-            frame=target.frame,
-        )
-        if text is None:
-            return None
-        return RouterFrontierResult(
-            result_kind="agent_turn",
-            character_id=target.character_id,
-            frame=target.frame,
-            public_text=text,
-            source_event_id=target.source_event_id,
-        )
-
-    results = await asyncio.gather(*(_one(target) for target in targets))
-    return [result for result in results if result is not None]
+    target: RouterFrontierTarget,
+) -> RouterFrontierResult | None:
+    text = await _agent_intention_for_dispatch(
+        dispatcher,
+        ckpt,
+        target.character_id,
+        frame=target.frame,
+    )
+    if text is None:
+        return None
+    return RouterFrontierResult(
+        result_kind="agent_turn",
+        character_id=target.character_id,
+        frame=target.frame,
+        public_text=text,
+        source_event_id=target.source_event_id,
+    )
 
 
 async def _append_harvest_fragments(
@@ -2024,7 +2017,7 @@ class Dispatcher(Protocol):
         frontier_results: list[RouterFrontierResult],
         prior_result: EventRouterOutput,
     ) -> EventRouterOutput | None:
-        """Route a completed frontier group back into one canonical event."""
+        """Route returned character output back into one canonical event."""
         ...
 
     async def route_combat_action(
@@ -2223,18 +2216,8 @@ async def run_beat(
         if not picks:
             await _queue_router_continuation(prior_result)
             return True
-        remaining = max_agent_cascades - agent_cascade_attempts
-        if remaining <= 0:
+        if agent_cascade_attempts >= max_agent_cascades:
             return False
-        if len(picks) > remaining:
-            logger.warning(
-                "Frontier pick group truncated by cascade cap: "
-                "selected=%d remaining_budget=%d",
-                len(picks),
-                remaining,
-            )
-            picks = picks[:remaining]
-        agent_cascade_attempts += len(picks)
 
         from app.engine.context_builder import collect_player_ids
 
@@ -2248,29 +2231,39 @@ async def run_beat(
             for target in frontier.frontier_targets
             if target.target_kind == "agent_turn"
         ]
-        frontier_results = await _collect_agent_frontier_results(
-            dispatcher,
-            ckpt,
-            agent_targets,
-        )
-        if not frontier_results:
+        if not agent_targets:
             await _queue_router_continuation(prior_result)
             return True
-        routed = await dispatcher.route_frontier_results(
-            ckpt=ckpt,
-            frontier_results=frontier_results,
-            prior_result=prior_result,
-        )
-        if routed is None:
-            await _queue_router_continuation(prior_result)
+
+        for target in agent_targets:
+            if agent_cascade_attempts >= max_agent_cascades:
+                return False
+            agent_cascade_attempts += 1
+            frontier_result = await _collect_agent_frontier_result(
+                dispatcher,
+                ckpt,
+                target,
+            )
+            if frontier_result is None:
+                continue
+            routed = await dispatcher.route_frontier_results(
+                ckpt=ckpt,
+                frontier_results=[frontier_result],
+                prior_result=prior_result,
+            )
+            if routed is None:
+                await _queue_router_continuation(prior_result)
+                return True
+            pending_result = routed
+            pending_result_mode = "frontier"
+            _log_router_rationale(
+                pending_result,
+                actor_id,
+                kind="frontier",
+            )
             return True
-        pending_result = routed
-        pending_result_mode = "frontier"
-        _log_router_rationale(
-            pending_result,
-            actor_id,
-            kind="frontier",
-        )
+
+        await _queue_router_continuation(prior_result)
         return True
 
     async def _pause_for_pending_rolls() -> BeatResult:
@@ -2634,7 +2627,7 @@ async def run_beat(
                         acting_player_input=intention,
                         suppress_reaction_prompts=suppress_reaction_prompts,
                     )
-                # Keep cascading via the router-selected frontier group.
+                # Keep cascading via the router-selected response candidate.
                 picks = _filter_picks_for_dispatch(
                     ckpt, result.agent_responder_picks,
                     event=result,
@@ -2841,7 +2834,7 @@ async def run_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
-        # Dispatch the next router-selected frontier group. Agents only:
+        # Dispatch the next router-selected response candidate. Agents only:
         # humans do not continue a beat unless they /act fresh. NPC
         # location and perception relevance are owned by the router; the
         # engine applies only hard safety filters.

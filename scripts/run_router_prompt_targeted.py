@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import sys
 import traceback
 from dataclasses import dataclass
@@ -599,18 +600,19 @@ async def _mediated_pod(dispatcher: LLMDispatcher) -> CaseResult:
         actor_id="dan",
         intention=text,
     )
+    visual_leak_pattern = re.compile(r"\b(?:facing|wall)\b|\bpod[-\s]+a\b")
     all_observer_visual = [
         fact.text
         for fact in result.canonical_event.observable_facts
         if fact.audience == "all_observers"
-        and any(term in fact.text.lower() for term in ["facing", "wall", "pod a"])
+        and visual_leak_pattern.search(fact.text.lower())
     ]
     britney_visual_leak = [
         fact.text
         for fact in result.canonical_event.observable_facts
         if fact.audience == "only"
         and "britney" in fact.visible_to
-        and any(term in fact.text.lower() for term in ["facing", "wall", "pod a"])
+        and visual_leak_pattern.search(fact.text.lower())
     ]
     checks = [
         _check(
@@ -708,7 +710,6 @@ async def _frontier_private_talkback(dispatcher: LLMDispatcher) -> CaseResult:
     ckpt = _ckpt(session_id="targeted_frontier_private_talkback")
     result = await dispatcher.route_frontier_results(
         ckpt=ckpt,
-        acting_character_id="dan",
         prior_result=EventRouterOutput.model_validate(
             {
                 "event_id": "evt_prior",
@@ -750,9 +751,13 @@ async def _frontier_private_talkback(dispatcher: LLMDispatcher) -> CaseResult:
     facts = _fact_text(result).lower()
     checks = [
         _check(
-            "kind_private_frontier",
-            result.event_kind in {"state_change", "cascade_exhausted"},
-            f"kind={result.event_kind}",
+            "private_frontier_routes_or_settles",
+            result.event_kind in {"state_change", "cascade_exhausted"}
+            or (
+                result.event_kind == "beat_continues"
+                and "dante" in result.agent_responder_picks
+            ),
+            f"kind={result.event_kind} picks={result.agent_responder_picks}",
         ),
         _check(
             "talkback_target_observes",

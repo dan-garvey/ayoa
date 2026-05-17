@@ -140,6 +140,7 @@ class TestPromptManagerWithRealTemplates:
                 "## Commitment Revision\n"
                 "- Trigger event id: evt_unique_revision\n"
             ),
+            scene_liveness_block="",
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
@@ -247,6 +248,7 @@ class TestPromptManagerWithRealTemplates:
                 "## Commitment Revision\n"
                 "- Trigger event id: evt_unique_revision\n"
             ),
+            scene_liveness_block="",
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
@@ -291,6 +293,10 @@ class TestPromptManagerWithRealTemplates:
                 "## Commitment Revision\n"
                 "- Trigger event id: evt_unique_revision\n"
             ),
+            scene_liveness_block=(
+                "## Scene Liveness\n"
+                "- unique_liveness_marker @ archive; cues: bell tolls.\n"
+            ),
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
@@ -308,6 +314,7 @@ class TestPromptManagerWithRealTemplates:
         assert "Unique clock marker" not in system
         assert "commit_unique_marker" not in system
         assert "evt_unique_revision" not in system
+        assert "unique_liveness_marker" not in system
 
         assert "Aldric UniqueActor" not in user
         assert "aldric_unique_actor" in user
@@ -316,6 +323,7 @@ class TestPromptManagerWithRealTemplates:
         assert "Unique clock marker" in user
         assert "commit_unique_marker" in user
         assert "evt_unique_revision" in user
+        assert "unique_liveness_marker" in user
 
     def test_narrator_keeps_pov_context_out_of_system_prefix(self):
         """Narrator cache efficiency depends on POV-specific render inputs
@@ -396,6 +404,7 @@ class TestPromptManagerWithRealTemplates:
             relative_time_block="",
             open_commitments_block="",
             commitment_revision_block="",
+            scene_liveness_block="",
             ruleset_router_addon="",
             ruleset_output_schema_fields="",
             cat_ii_resolution_block="",
