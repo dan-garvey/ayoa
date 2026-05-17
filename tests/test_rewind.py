@@ -97,12 +97,6 @@ def _make_ckpt(
             turn_index=turn_index,
             player_character_id=actor_id,
             character_bindings={actor_id: "12345"},
-            # Pre-populate surfaced_world_facts to match the facts
-            # list, so the on-load backfill in checkpoint_manager
-            # (which fires when surfaced is empty AND facts is not)
-            # is a no-op. Lets the round-trip equality test be a
-            # true round-trip.
-            surfaced_world_facts=list(facts),
         ),
         world_state=WorldState(
             facts=facts,

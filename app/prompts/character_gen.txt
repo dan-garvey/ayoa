@@ -26,13 +26,7 @@ Generate a new character who fits naturally into the established setting and has
 6. Keep backstory concise but specific — a few sentences that explain who they are.
 7. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
 8. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
-9. `router_summary` is a one or two sentence identity-and-intent line for the router. Write it as third-person ledger prose: role and immediate situation, where they appeared if known, and what they're trying to do right now. NOT in-character voice. NOT a backstory paragraph. NOT a restatement of `goals` (those are existential drives; this is the immediate situational read). Do NOT lead with the character's name; mention the location when it sharpens the picture. Keep it tight (one or two sentences) — the router only needs enough to deploy this character.
-
-<examples>
-<example>
-router_summary: "Nervous stablehand at the courtyard, stays close to the gate because he expects the captain back any moment and doesn't want to be found loitering elsewhere."
-</example>
-</examples>
+9. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
 </instructions>
 
 <output_schema>
@@ -51,7 +45,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "current_objectives": ["string — 1-3 actionable pursuits they're working on right now"],
   "secrets": ["string — private truths; empty array if none"],
   "intentions_enabled": true or false,
-  "router_summary": "string — one or two sentences in third-person ledger prose: identity + location + immediate intent for the router to use on its next call"
+  "router_summary": "string — emit an empty string for this prompt"
 }}
 
 **Every field in this schema is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**

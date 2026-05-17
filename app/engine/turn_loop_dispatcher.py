@@ -27,7 +27,6 @@ from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
     build_player_characters_block,
     build_setting_summary,
-    clear_character_inbox,
     resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
@@ -40,7 +39,7 @@ from app.engine.dnd_cat_ii import (
 from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.turn_loop_contracts import (
     format_cat_ii_resolution_block,
-    format_frontier_results_block,
+    format_agent_output_entry,
     format_human_initiator_intention,
     format_npc_cascade_intention,
     format_router_continuation_block,
@@ -50,7 +49,6 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.router_frontier import RouterFrontierResult
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
 logger = logging.getLogger(__name__)
@@ -110,39 +108,20 @@ def _build_world_rules(checkpoint: CheckpointFile) -> str:
     return "\n".join(parts)
 
 
-def _build_world_facts_delta(checkpoint: CheckpointFile) -> str:
-    """Render only world facts the router hasn't seen on a prior turn.
-
-    Pre-Commit-3 the per-turn user message carried the full
-    `world_state.facts` list every turn (~tens to hundreds of tokens).
-    The list is essentially immutable post-import — re-feeding it
-    every turn was pure context bloat. Now we surface each fact ONCE,
-    on whichever turn it was added (turn 1 for importer-seeded facts,
-    later for any rare runtime additions), then track surfacing in
-    `session.surfaced_world_facts`.
-
-    Returns "" when nothing is new (the most common case from turn 2
-    onward), in which case the template's ## World Facts header
-    suppresses entirely. MUTATES `session.surfaced_world_facts` to
-    include any newly-surfaced entries — this is intentional and
-    atomic with the router LLM call (the caller persists the
-    checkpoint after `route_intention` returns).
-
-    Returns the full block including header when non-empty, so the
-    template can splice with `{world_facts_delta_block}` and a missing
-    delta cleanly disappears with no dangling header.
-    """
-    facts = checkpoint.world_state.facts or []
-    surfaced = set(checkpoint.session.surfaced_world_facts)
-    delta = [f for f in facts if f not in surfaced]
-    if not delta:
-        return ""
-    checkpoint.session.surfaced_world_facts = list(surfaced.union(delta))
-    body = "\n".join(f"- {fact}" for fact in delta)
-    return (
-        "## World Facts (Common Knowledge — new entries)\n"
-        f"{body}\n\n"
-    )
+def _build_router_world_lore(checkpoint: CheckpointFile) -> str:
+    """Stable common-knowledge world context for the router system prefix."""
+    parts: list[str] = []
+    facts = [fact for fact in (checkpoint.world_state.facts or []) if fact]
+    if facts:
+        parts.append(
+            "Key world facts:\n"
+            + "\n".join(f"- {fact}" for fact in facts)
+        )
+    if checkpoint.world_state.lore:
+        parts.append(checkpoint.world_state.lore)
+    if not parts:
+        return "No detailed lore available."
+    return "\n\n".join(parts)
 
 
 def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
@@ -212,39 +191,37 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     return header + "\n\n".join(entries) + "\n"
 
 
-def _build_state_changes_block(checkpoint: CheckpointFile) -> str:
-    """Drain the queue of engine-applied changes the router didn't author.
+def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:
+    """Drain non-router engine mutations for the next fresh router call.
 
-    Pre-Commit-3 there was no dedicated channel for "the engine did
-    something the router needs to know about" — spawn outcomes were
-    invisible to the router (it learned about new characters only when
-    they showed up in `character_registry` on a later turn), and
-    /takeover / /join changes never reached the router at all.
+    Exhaustive current producers:
+    - player loot claim: character inventory changed from a D&D loot offer
+    - player loot currency split: party inventories changed from a D&D loot offer
+    - D&D sheet attached: character mechanics/ruleset state changed externally
+    - player binding changed: /join bound a human to a character
+    - player binding removed: /leave returned a character to AI control
+    - custom player character created by frontend takeover/create flow
+    - existing character replaced/overwritten by player character creation
 
-    This block is non-empty whenever `pending_router_state_changes`
-    has entries. The queue is populated by:
-      - Spawn flow (Commit 4): the LLM-generated `router_summary` for
-        each new character lands as one line per spawn.
-      - /takeover and /join: a one-line note when a player binds to or
-        un-binds from a character.
-      - Operator/exotic mutations: anything outside the router's
-        own decision loop that flips world state.
-
-    DRAINS the queue as a side effect — atomic with the router LLM
-    call (the caller persists the checkpoint after `route_intention`
-    returns).
+    Explicitly excluded:
+    - router-authored spawn/dormant/cull/location/commitment changes
+    - spawned-character summaries; spawn materialization failure is fatal
+    - combat deaths/effect expirations when emitted as canonical facts
+    - D&D Cat II/combat resolver outputs, which are compact router history
+    - clocks/session leading time derived from canonical event timing
+    - XP awards unless they become intentionally visible to fiction
     """
-    queued = checkpoint.session.pending_router_state_changes or []
+    queued = checkpoint.session.pending_engine_state_updates or []
     if not queued:
         return ""
-    checkpoint.session.pending_router_state_changes = []
+    checkpoint.session.pending_engine_state_updates = []
     body = "\n".join(f"- {entry}" for entry in queued)
     return (
-        "## State Changes Since Your Last Call\n"
-        "These are things the engine applied that you did NOT author "
-        "in a prior turn (spawn LLM outcomes, player /takeover or "
-        "/join, exotic state mutations). Folded into your model of "
-        "the world for this turn's adjudication.\n\n"
+        "## Engine State Updates\n"
+        "Durable state changed outside router-authored canonical events. "
+        "Fold these updates into the next adjudication without replaying "
+        "them as new visible action unless the current intention makes "
+        "that visibility relevant.\n\n"
         f"{body}\n"
     )
 
@@ -256,108 +233,12 @@ def _build_hidden_facts(checkpoint: CheckpointFile) -> str:
     return "\n".join(f"- {fact}" for fact in facts)
 
 
-def _build_since_last_turn_block(acting_char) -> str:
-    """Markdown block listing silent observations for the acting
-    character. Rendered in the router's user message; the router
-    weaves any visible items into observable_facts so the narrator
-    can surface them. Returns empty string when the character has
-    nothing queued.
-
-    Pre-Commit-2 this also rendered `incoming_directives`, a
-    structured inter-agent message bus. Directives are gone;
-    cross-character communication now flows through normal event prose
-    (a courier walks in and speaks) plus local or explicitly mediated
-    perception inbox entries populated by `broadcast_event`.
-    """
-    if acting_char is None:
-        return ""
-    if not acting_char.pending_observations:
-        return ""
-
-    lines = [
-        "## Arrived For You Since Last Turn",
-        "Weave visible items into observable_facts so the narrator can surface them.",
-    ]
-    for obs in acting_char.pending_observations:
-        lines.append(f"- {obs}")
-    lines.append("")
-    return "\n".join(lines) + "\n"
-
-
-def _format_seconds(seconds: int) -> str:
-    return f"{max(0, seconds)}s"
-
-
-def _build_relative_time_block(checkpoint: CheckpointFile) -> str:
-    lines = [
-        "## Relative Time",
-        f"Session leading time: {_format_seconds(checkpoint.session.leading_at_s)}.",
-        "Character clocks:",
-    ]
-    for char in checkpoint.characters:
-        if char.status.value != "active":
-            continue
-        location = char.location or "unknown location"
-        lines.append(
-            f"- {char.character_id} at "
-            f"{_format_seconds(char.clock_at_s)}; location: {location}"
-        )
-    lines.append("")
-    return "\n".join(lines) + "\n"
-
-
-def _build_open_commitments_block(checkpoint: CheckpointFile) -> str:
-    commitments = checkpoint.session.open_commitments or []
-    if not commitments:
-        return ""
-    lines = [
-        "## Open Commitments",
-        "Private routing state for interruptible ongoing activities. Do not "
-        "copy these records into observable facts unless a visible event "
-        "actually reveals them.",
-    ]
-    for commitment in commitments:
-        actors = (
-            ", ".join(commitment.actor_ids)
-            if commitment.actor_ids else "unknown actor"
-        )
-        location = commitment.location_label or "unknown location"
-        lines.append(
-            f"- {commitment.commitment_id}: {actors}; "
-            f"started {_format_seconds(commitment.started_at_s)}; "
-            f"expected by {_format_seconds(commitment.expected_end_s)}; "
-            f"hard limit {_format_seconds(commitment.max_end_s)}; "
-            f"location: {location}; activity: {commitment.description or 'ongoing'}"
-        )
-    lines.append("")
-    return "\n".join(lines) + "\n"
-
-
-def _build_commitment_revision_block(
-    checkpoint: CheckpointFile,
-    acting_character_id: str,
-) -> str:
-    prompt = checkpoint.session.pending_commitment_revisions.get(
-        acting_character_id
+def _build_router_input_block(*blocks: str) -> str:
+    return "\n\n".join(
+        block.strip()
+        for block in blocks
+        if block and block.strip()
     )
-    if prompt is None:
-        return ""
-    lines = [
-        "## Commitment Revision",
-        "The acting character has an open commitment whose scene changed "
-        "before it resolved. Treat this input as their chance to revise that "
-        "commitment. If the input is `(continue)`, keep the commitment going "
-        "only if the new visible situation still permits it.",
-        f"- Commitment id: {prompt.commitment_id}",
-        f"- Trigger event id: {prompt.trigger_event_id}",
-        f"- Observed at: {_format_seconds(prompt.observed_at_s)}",
-    ]
-    if prompt.previous_description:
-        lines.append(f"- Previous activity: {prompt.previous_description}")
-    if prompt.reason:
-        lines.append(f"- Revision reason: {prompt.reason}")
-    lines.append("")
-    return "\n".join(lines) + "\n"
 
 
 def _compact_router_history_text(text: str) -> str:
@@ -566,7 +447,7 @@ def _normalize_router_result_for_history(
     actor_id: str,
     result: EventRouterOutput,
     cat_ii_event: OpenCatIIEvent | None = None,
-    frontier_mode: bool = False,
+    agent_output_mode: bool = False,
 ) -> None:
     if actor_id:
         actor = next(
@@ -585,11 +466,18 @@ def _normalize_router_result_for_history(
         )
         if opening is not None:
             result.effective_at_s = opening.effective_at_s
-    if frontier_mode:
+    if agent_output_mode:
         result.effective_at_s = max(
             result.effective_at_s,
             ckpt.session.leading_at_s,
         )
+
+
+def _roll_transaction_actor_id(ckpt: CheckpointFile, event_id: str) -> str:
+    for transaction in ckpt.session.cat_ii_roll_transactions:
+        if transaction.event_id == event_id:
+            return transaction.actor_id
+    return ""
 
 
 def _build_router_context(
@@ -597,37 +485,24 @@ def _build_router_context(
     acting_character_id: str,
     *,
     resolve_actor_fallback: bool = True,
-    include_state_deltas: bool = True,
+    include_engine_state_updates: bool = True,
 ) -> dict[str, str]:
     """Collect every context variable the event_router template needs
-    aside from the two intention-block slots the caller populates
-    themselves.
+    aside from the current router input block.
 
     Returns a dict ready to splat into `prompt_mgr.render_messages`
-    after merging in `{intention_block}` and `{cat_ii_resolution_block}`.
+    after merging in `{router_input_block}`.
     """
     if resolve_actor_fallback:
-        acting_id, acting_char, _acting_name = resolve_acting_character(
+        acting_id, _acting_char, _acting_name = resolve_acting_character(
             ckpt, acting_character_id,
         )
     else:
         acting_id = acting_character_id
-        acting_char = next(
-            (
-                c for c in ckpt.characters
-                if c.character_id == acting_character_id
-            ),
-            None,
-        )
-    since_last_turn_block = _build_since_last_turn_block(acting_char)
-    # After the router sees these silent observations, they must not
-    # re-deliver on the next turn — drain the inbox here.
-    if acting_char is not None:
-        clear_character_inbox(acting_char)
 
     return {
         "setting_summary": build_setting_summary(ckpt),
-        "world_lore": ckpt.world_state.lore or "No detailed lore available.",
+        "world_lore": _build_router_world_lore(ckpt),
         "world_rules": _build_world_rules(ckpt),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": _build_hidden_facts(ckpt),
@@ -635,21 +510,10 @@ def _build_router_context(
         "player_characters_block": build_player_characters_block(
             ckpt, acting_id,
         ),
-        "since_last_turn_block": since_last_turn_block,
-        "relative_time_block": _build_relative_time_block(ckpt),
-        "open_commitments_block": _build_open_commitments_block(ckpt),
-        "commitment_revision_block": _build_commitment_revision_block(
-            ckpt,
-            acting_id,
-        ),
-        "world_facts_delta_block": (
-            _build_world_facts_delta(ckpt)
-            if include_state_deltas else ""
-        ),
         "initial_roster_block": _build_initial_roster_block(ckpt),
-        "state_changes_block": (
-            _build_state_changes_block(ckpt)
-            if include_state_deltas else ""
+        "engine_state_updates_block": (
+            _build_engine_state_updates_block(ckpt)
+            if include_engine_state_updates else ""
         ),
     }
 
@@ -687,21 +551,26 @@ class LLMDispatcher:
                 "using dnd_cat_ii_router",
                 actor_id, cat_ii_event.event_id,
             )
-            return await self._dnd_cat_ii.resolve_cat_ii(
+            result = await self._dnd_cat_ii.resolve_cat_ii(
                 ckpt=ckpt,
                 cat_ii_event=cat_ii_event,
             )
+            _normalize_router_result_for_history(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+                cat_ii_event=cat_ii_event,
+            )
+            _append_router_history_record(
+                ckpt.session_conversation,
+                acting_character_id=actor_id,
+                result=result,
+                mode="cat_ii_resolution",
+            )
+            return result
 
-        # Snapshot context-trim session fields BEFORE
-        # `_build_router_context` mutates them, so we can restore on
-        # exception and avoid silently losing queued state-change /
-        # world-fact entries on a failed router call.
-        # Flagged by the
-        # Commit-4 reviewers (same pattern the now-deleted legacy
-        # EventRouter.run had to handle).
-        saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
-        saved_state_changes = list(
-            ckpt.session.pending_router_state_changes
+        saved_engine_updates = list(
+            ckpt.session.pending_engine_state_updates
         )
         try:
             ctx = _build_router_context(
@@ -736,15 +605,19 @@ class LLMDispatcher:
                 )
                 intention_block = ""
 
+            router_input_block = _build_router_input_block(
+                ctx.pop("initial_roster_block", ""),
+                ctx.pop("engine_state_updates_block", ""),
+                cat_ii_resolution_block,
+                intention_block,
+            )
             template_vars = {
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
                     dnd_fresh=dnd_fresh,
                 ),
-                "intention_block": intention_block,
-                "cat_ii_resolution_block": cat_ii_resolution_block,
-                "frontier_results_block": "",
+                "router_input_block": router_input_block,
             }
 
             # Use render_conversation so the rolling router ledger rides
@@ -774,8 +647,7 @@ class LLMDispatcher:
                 compact=True,
             )
         except Exception:
-            ckpt.session.surfaced_world_facts = saved_surfaced_facts
-            ckpt.session.pending_router_state_changes = saved_state_changes
+            ckpt.session.pending_engine_state_updates = saved_engine_updates
             raise
 
         result: EventRouterOutput = response.parsed
@@ -814,11 +686,23 @@ class LLMDispatcher:
             "LLMDispatcher.route_combat_action: actor=%s using dnd_combat_router",
             actor_id,
         )
-        return await self._dnd_combat.resolve_combat_action(
+        result = await self._dnd_combat.resolve_combat_action(
             ckpt=ckpt,
             actor_id=actor_id,
             intention=intention,
         )
+        _normalize_router_result_for_history(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+        _append_router_history_record(
+            ckpt.session_conversation,
+            acting_character_id=actor_id,
+            result=result,
+            mode="dnd_combat_action",
+        )
+        return result
 
     async def continue_combat_transaction(
         self,
@@ -833,10 +717,23 @@ class LLMDispatcher:
         logger.info(
             "LLMDispatcher.continue_combat_transaction: event=%s", event_id,
         )
-        return await self._dnd_combat.continue_combat_transaction(
+        result = await self._dnd_combat.continue_combat_transaction(
             ckpt=ckpt,
             event_id=event_id,
         )
+        actor_id = _roll_transaction_actor_id(ckpt, event_id)
+        _normalize_router_result_for_history(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+        _append_router_history_record(
+            ckpt.session_conversation,
+            acting_character_id=actor_id,
+            result=result,
+            mode="dnd_combat_action",
+        )
+        return result
 
     # ------------------------------------------------------------------
     # route_continuation
@@ -851,9 +748,8 @@ class LLMDispatcher:
     ) -> EventRouterOutput:
         """Ask the router to advance an open beat with no next-output target."""
 
-        saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
-        saved_state_changes = list(
-            ckpt.session.pending_router_state_changes
+        saved_engine_updates = list(
+            ckpt.session.pending_engine_state_updates
         )
         try:
             ctx = _build_router_context(
@@ -864,15 +760,18 @@ class LLMDispatcher:
                 prior_rationale=prior_result.decision_rationale,
             )
 
+            router_input_block = _build_router_input_block(
+                ctx.pop("initial_roster_block", ""),
+                ctx.pop("engine_state_updates_block", ""),
+                continuation_block,
+            )
             template_vars = {
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
                     dnd_fresh=False,
                 ),
-                "intention_block": continuation_block,
-                "cat_ii_resolution_block": "",
-                "frontier_results_block": "",
+                "router_input_block": router_input_block,
             }
 
             messages = self.prompt_mgr.render_conversation(
@@ -895,8 +794,7 @@ class LLMDispatcher:
                 compact=True,
             )
         except Exception:
-            ckpt.session.surfaced_world_facts = saved_surfaced_facts
-            ckpt.session.pending_router_state_changes = saved_state_changes
+            ckpt.session.pending_engine_state_updates = saved_engine_updates
             raise
 
         result: EventRouterOutput = response.parsed
@@ -914,103 +812,80 @@ class LLMDispatcher:
         return result
 
     # ------------------------------------------------------------------
-    # route_frontier_results
+    # route_agent_output
     # ------------------------------------------------------------------
 
-    async def route_frontier_results(
+    async def route_agent_output(
         self,
         *,
         ckpt: CheckpointFile,
-        frontier_results: list[RouterFrontierResult],
+        character_id: str,
+        public_text: str,
         prior_result: EventRouterOutput,
-    ) -> EventRouterOutput | None:
-        """Bundle returned character prose into one router call.
+    ) -> EventRouterOutput:
+        """Route one returned character output into one canonical event.
 
         Agent parentheticals are already stripped by the agent adapter. The
         router receives only public result text and chooses the next response
         or player-facing boundary through its normal output fields.
         """
-        if not frontier_results:
-            return None
-
-        saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
-        saved_state_changes = list(
-            ckpt.session.pending_router_state_changes
+        ctx = _build_router_context(
+            ckpt,
+            character_id,
+            resolve_actor_fallback=False,
+            include_engine_state_updates=False,
         )
-        try:
-            ctx = _build_router_context(
-                ckpt,
-                "",
-                resolve_actor_fallback=False,
-                include_state_deltas=False,
-            )
 
-            frontier_block = format_frontier_results_block([
-                (
-                    item.result_kind,
-                    item.character_id,
-                    item.frame,
-                    item.source_event_id,
-                    item.public_text,
-                )
-                for item in frontier_results
-            ])
+        agent_output = format_agent_output_entry(character_id, public_text)
 
-            template_vars = {
-                **ctx,
-                **_router_ruleset_template_vars(
-                    self.prompt_mgr,
-                    dnd_fresh=False,
-                ),
-                "intention_block": "",
-                "cat_ii_resolution_block": "",
-                "frontier_results_block": frontier_block,
-            }
+        template_vars = {
+            **ctx,
+            **_router_ruleset_template_vars(
+                self.prompt_mgr,
+                dnd_fresh=False,
+            ),
+            "router_input_block": agent_output,
+        }
 
-            base_messages = self.prompt_mgr.render_messages(
-                "event_router",
-                **template_vars,
-            )
-            messages = [base_messages[0]]
-            for item in ckpt.session_conversation:
-                messages.append({"role": item.role, "content": item.content})
-            messages.append({
-                "role": "user",
-                "content": frontier_block.strip(),
-            })
+        base_messages = self.prompt_mgr.render_messages(
+            "event_router",
+            **template_vars,
+        )
+        messages = [base_messages[0]]
+        for item in ckpt.session_conversation:
+            messages.append({"role": item.role, "content": item.content})
+        messages.append({
+            "role": "user",
+            "content": agent_output,
+        })
 
-            logger.info(
-                "LLMDispatcher.route_frontier_results: %d character "
-                "output(s) routed",
-                len(frontier_results),
-            )
+        logger.info(
+            "LLMDispatcher.route_agent_output: character=%s",
+            character_id,
+        )
 
-            response = await self.client.complete(
-                role="event_router",
-                messages=messages,
-                response_model=EventRouterOutput,
-                temperature=0.35,
-                max_tokens=5000,
-                cache=True,
-                compact=True,
-            )
-        except Exception:
-            ckpt.session.surfaced_world_facts = saved_surfaced_facts
-            ckpt.session.pending_router_state_changes = saved_state_changes
-            raise
+        response = await self.client.complete(
+            role="event_router",
+            messages=messages,
+            response_model=EventRouterOutput,
+            temperature=0.35,
+            max_tokens=5000,
+            cache=True,
+            compact=True,
+        )
 
         result: EventRouterOutput = response.parsed
         _normalize_router_result_for_history(
             ckpt,
             actor_id="",
             result=result,
-            frontier_mode=True,
+            agent_output_mode=True,
         )
         _append_router_history_record(
             ckpt.session_conversation,
-            acting_character_id="",
+            acting_character_id=character_id,
             result=result,
-            mode="frontier",
+            mode="agent_output",
         )
         return result
 

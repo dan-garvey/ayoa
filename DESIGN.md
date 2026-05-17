@@ -62,7 +62,7 @@ been collapsed. The current loop is:
 3. The turn loop broadcasts the canonical event to human render buffers
    and NPC observation inboxes.
 4. If the router keeps the beat live, the turn loop projects the router
-   output into frontier targets. Current runtime dispatches one NPC target
+   output into dispatch targets. Current runtime dispatches one NPC target
    at a time and routes that public result back through the router before
    another same-scene target can act. Human render targets are inferred from
    terminal router events and observing player-bound characters.
@@ -163,8 +163,8 @@ role. It decides:
 * spawns, dormancy, and culls
 
 The router also handles router-shaped special entries: `(begin)`, `(arrive)`,
-`(query: ...)`, continuation rescue, Cat II resolution blocks, and frontier
-result groups. These are different user-message framings over the same
+`(query: ...)`, continuation rescue, Cat II resolution blocks, and committed
+agent outputs. These are different user-message framings over the same
 `EventRouterOutput` schema, not separate adjudication engines.
 
 ### 4.5 Agents Author Intentions, Not State
@@ -270,7 +270,7 @@ When the D&D adapter is active (`ruleset_id == "dnd5e_basic"`), several
 combat-aware branches splice into this flow: a `(defer)` from a
 combatant with an open reaction window resolves as a reaction
 acknowledgement; `_handle_combat_after_beat` advances initiative state
-after the beat closes; router-selected frontier turns exclude combatants with
+after the beat closes; router-selected agent turns exclude combatants with
 pending reaction prompts so they must answer their reaction window first; and
 `_run_automated_combat_turns_locked` drives
 NPC combatant turns inline before the player's response returns. The
@@ -308,32 +308,30 @@ Important state:
 * `route_intention()` calls the `event_router` prompt
 * `route_continuation()` asks the router to repair an open beat with no
   dispatchable NPC pick
-* `route_frontier_results()` bundles completed frontier target outputs into
-  one router call
+* `route_agent_output()` routes one committed agent output back through the
+  normal router contract
 * `agent_intend()` calls `CharacterAgent.turn()`
 * `harvest_perceptions()` calls `CharacterAgent.perceive()` in parallel
 * `narrator_compose()` calls `compose_pov_render()`
 
-It also owns the router context-trimming calls that surface initial
-rosters, world-fact deltas, and pending state changes.
+It also owns router input shaping: initial roster on the first router call,
+the current submitted input, and optional external engine state updates.
 
-The dispatcher snapshots and restores context-trim queues around router calls
-so a failed router completion does not silently drain `world_facts_delta` or
-`pending_router_state_changes`.
+The dispatcher snapshots and restores pending engine updates around fresh
+router calls so a failed router completion does not silently drain them.
 
 ### 5.5 Event Router
 
 The event router prompt and `EventRouterOutput` schema replace both the
 old narrator adjudication phase and the old discriminator role. The
-router emits one structured object per routed intention or frontier result.
+router emits one structured object per routed intention or agent output.
 
 Current router call shapes:
 
-* fresh human or NPC intention (`## Intention`)
+* fresh human or NPC intention
 * Cat II final adjudication (`## Cat II Resolution`)
-* frontier result fan-in (`## Frontier Results`; currently one public agent
-  result per same-scene cascade step)
 * continuation rescue (`## Continuation Required`)
+* one committed agent output as `<character_id>: <public text>`
 * OOC directives such as `(begin)`, `(arrive)`, `(defer)`, and
   `(query: ...)`
 
@@ -413,12 +411,11 @@ The character manager applies router-directed roster mutations:
 
 * status changes: active, dormant, culled
 * LLM-backed spawns from `SpawnRequest`
-* spawn summaries queued into `pending_router_state_changes`
 
 It also purges live bookkeeping when characters are culled or leave: active
-act slots, open Cat II responder state, render buffers, and stale queued spawn
-state-change lines. Movement is not a roster side effect; arrivals,
-departures, and transfers must be written as `observable_facts`.
+act slots, open Cat II responder state, and render buffers. Movement is not a
+roster side effect; arrivals, departures, and transfers must be written as
+`observable_facts`.
 
 ### 5.9 Story Importer
 
@@ -444,7 +441,7 @@ partials, strips HTML comments, splits system/user sections on
 `<<<USER>>>`, and renders rolling conversations.
 
 `turn_loop_contracts.py` owns exact prompt-code markers such as
-`## Cat II Resolution`, `## Frontier Results`, `## Continuation Required`,
+`## Cat II Resolution`, `## Continuation Required`,
 `## AGENT-TURN`, `## PERCEPTION`, and the partial-render marker.
 When code branches on a prompt mode, the marker should live there rather than
 as an ad hoc string in the prompt or caller.
@@ -591,11 +588,11 @@ After `run_beat()` returns, the orchestrator applies each closed event's:
 Movement is expressed in `observable_facts`. There is no separate router
 movement side-effect.
 
-### 6.7 Router-Selected Frontier Turns
+### 6.7 Router-Selected Agent Turns
 
 The router owns the decision about who gets the next turn. When it emits
 `event_kind="beat_continues"` or `event_kind="public_fact"`, observers with
-`routing_role="next_output"` name the NPCs eligible for the next frontier
+`routing_role="next_output"` name the NPCs eligible for the next routed-agent
 target. The turn loop dispatches one valid routed agent, strips private
 parentheticals, routes that single public result back through the router, and
 then lets the router decide whether another target is still needed.
@@ -606,7 +603,7 @@ The same surface covers foreground responses, private branches, and background
 turns. Human-bound characters do not dispatch as agents;
 their visible facts accumulate in render buffers and are flushed by the
 narrator when a terminal router event targets that POV. Conceptually, a
-player-bound character is still a frontier participant, but their immediate
+player-bound character is still a participant, but their immediate
 output is a renderer result rather than an agent inbox result. The current
 schema derives that renderer target from terminal event kind plus observers
 rather than from an explicit router target field.
@@ -790,11 +787,10 @@ Router context:
 * system prompt contains stable role contract, schema contract, setting,
   world lore/rules, hidden lore, and hidden facts
 * initial NPC roster appears only on the first router call
-* world facts are surfaced once through a delta tracker
 * importer-seeded NPC goals/objectives are surfaced in the initial roster
 * router-authored context relies on router history
-* external engine changes surface through `pending_router_state_changes`
-* actor inbox entries surface through "Arrived For You Since Last Turn"
+* external engine changes surface once through `pending_engine_state_updates`
+* actor inbox entries surface only when building that character's agent turn
 
 Agent context:
 
@@ -817,26 +813,27 @@ Narrator context:
 
 The router may emit `spawn` requests for meaningful recurring
 characters. `CharacterManager.spawn_characters()` renders the `character_gen`
-prompt to create the record, then queues a compact router summary into
-`pending_router_state_changes` so the next router call knows what the
-engine added.
+prompt to create the record. The spawn request itself is already stored in
+compact router history, so no follow-up spawn summary is queued into the next
+router input.
 
 This is story-time NPC authoring. The router decides that the world needs a
 new actor and provides a `SpawnRequest` with a target `character_id` and seed
-facts such as role, location, or objectives. The character manager deduplicates
-within the router batch, caps distinct spawns per turn, skips ids that already
-exist, renders the prompt with setting/lore/rules/location/existing roster
-context, and expects the shared `AuthoredCharacter` flat schema.
+facts such as role, location, or objectives. The character manager rejects
+duplicate ids, over-cap spawn batches, existing ids, and generation failures
+instead of silently dropping requested spawns. It renders the prompt with
+setting/lore/rules/location/existing roster context and expects the shared
+`AuthoredCharacter` flat schema.
 
 The generated `CharacterRecord` is appended to the roster. Its
-`router_summary` is not stored on the record; it becomes a single
-`pending_router_state_changes` line. If the router or caller supplied a
-location, that location overrides the LLM-authored location. Fresh NPCs also
-receive a small pending observation of their own location so their first
-dispatch has a concrete self-position.
+`router_summary` is not stored on the record and is ignored for router-authored
+NPC spawns. If the router or caller supplied a location, that location
+overrides the LLM-authored location. Fresh NPCs also receive a small pending
+observation of their own location so their first dispatch has a concrete
+self-position.
 
 Implementation detail: the spawn path renders `character_gen.txt`, but the
-LLM call currently uses `role="agent"` rather than the configured
+LLM call currently uses `role="agent_convenience"` rather than the configured
 `character_gen` role. Treat `character_gen` as a prompt/template name, not an
 active model role, unless that code path is changed.
 
@@ -942,7 +939,7 @@ compatibility but is not a live Discord streaming feature.
 `character_id → canonical_event_id` for combatants whose reaction
 window is open. It is `{}` outside D&D combat. The Discord bot uses
 it to render an immediate reaction UI; the orchestrator uses it to
-keep those combatants out of router-selected frontier turns until reactions
+keep those combatants out of router-selected agent turns until reactions
 resolve. See §15.
 
 ## 13. Checkpoint Schema
@@ -1233,7 +1230,7 @@ Hooks in `Orchestrator.process_turn` and `run_beat`:
   transaction was cancelled before the player submits the roll, the slot is
   cleared and the response is a stale-roll notice rather than a 500;
 * combatants with pending `reaction_prompts` are excluded from router-selected
-  frontier turns until they answer their reaction window.
+  agent turns until they answer their reaction window.
 
 All hooks are no-ops outside `dnd5e_basic`.
 
@@ -1307,9 +1304,8 @@ LLM failures:
 * transient API errors are retried with exponential backoff and jitter
 * permanent schema/prompt errors raise
 * a router or narrator failure aborts the turn before checkpoint commit
-* individual frontier agent failures are logged and omitted from that frontier
-  group
-* a failed frontier-result router call aborts before checkpoint commit
+* empty agent outputs are omitted from the current routed-agent pass
+* a failed agent-output router call aborts before checkpoint commit
 
 Structured output:
 
@@ -1372,7 +1368,7 @@ tests cover the live contracts rather than preserving dead architecture.
 
 The remaining subsections in this chapter are open architectural
 concerns: real, known sharp edges that are not solved. Read the
-relevant entry before redesigning frontier routing, the rolling
+relevant entry before redesigning router-selected agent routing, the rolling
 agent conversations, or anything that times the world (turn counters,
 contextual transitions, parallel play).
 
@@ -1407,9 +1403,9 @@ confirm the gate's semantics are coherent across parallel beats. If
 the answer is unclear, surface the problem on a TODO instead of adding
 a brittle global counter.
 
-### 18.2 Frontier cascade latency on the live action path
+### 18.2 Routed-agent cascade latency on the live action path
 
-Router-selected frontier work runs on the live action path. Same-scene agent
+Router-selected agent work runs on the live action path. Same-scene agent
 turns are sequential: one target produces public output, the router
 canonicalizes it, and only then can another target in that scene act with the
 updated context. This matches live table pacing better than parallel NPC
@@ -1418,7 +1414,7 @@ fan-out, because later speakers know what earlier speakers just said or did.
 This should not be framed as "returning player control" as a special runtime
 ontology. A human-bound character is a participant whose immediate output is
 rendering visible facts to that player's POV rather than appending an inbox
-entry or asking an agent model for an intention. Some live frontier work
+entry or asking an agent model for an intention. Some live routed-agent work
 belongs to scenes with no player currently present; it still needs bounded
 liveness and a clear target, not player-control language.
 
@@ -1619,7 +1615,7 @@ The current engine is healthy when:
    to checkpoint state.
 10. `/query` answers through the router/narrator path without leaking
     knowledge outside the querying POV.
-11. Router-selected private/background frontier turns can advance eligible
+11. Router-selected private/background agent turns can advance eligible
     NPCs and land their public results as router-canonicalized events.
 12. `/rewind` removes later checkpoints and cleans up tracked Discord
     turn messages.

@@ -103,9 +103,6 @@ class DndCombatResolver:
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
         transaction.updated_at = cat._utcnow_iso()
-        cat._queue_router_state_change(
-            ckpt, result, label="D&D combat resolved",
-        )
         return result
 
     async def _plan_rolls(self, packet: str) -> RollPlan:

@@ -6,7 +6,7 @@ its private intent. The engine parses that into the two fields below at
 `CharacterAgent.turn`/`respond`/`draft_turn` time:
 
 - `public_text`: everything before the trailing parenthetical. This is
-  what flows downstream to the router frontier result block.
+  what flows downstream to the router as `character_id: public_text`.
 - `intent`: contents of the trailing parenthetical. Used for
   logging and as a parsed handle on what the model put in the
   parens; NOT mirrored anywhere on the character record. For committed

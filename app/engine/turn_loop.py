@@ -83,10 +83,9 @@ from app.schemas.events import (
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.router_frontier import (
-    RouterFrontierResult,
-    RouterFrontierTarget,
-    frontier_from_router_output,
+from app.schemas.router_targets import (
+    RouterOutputTarget,
+    targets_from_router_output,
 )
 from app.schemas.state import (
     CommitmentRevisionPrompt,
@@ -793,7 +792,7 @@ def _filter_routed_agents_for_dispatch(
 
     The hard filters here are runtime safety constraints, not pacing:
     humans, inactive characters, disabled-agent records, pinned actors,
-    and active combatants cannot be advanced by router-picked frontier
+    and active combatants cannot be advanced by router-picked agent output
     turns.
 
     Returns the filtered list preserving router order.
@@ -1170,31 +1169,6 @@ async def _agent_intention_for_dispatch(
     return None
 
 
-async def _collect_agent_frontier_result(
-    dispatcher: Dispatcher,
-    ckpt: CheckpointFile,
-    target: RouterFrontierTarget,
-    *,
-    local_context: str = "",
-) -> RouterFrontierResult | None:
-    text = await _agent_intention_for_dispatch(
-        dispatcher,
-        ckpt,
-        target.character_id,
-        frame=target.frame,
-        local_context=local_context,
-    )
-    if text is None:
-        return None
-    return RouterFrontierResult(
-        result_kind="agent_turn",
-        character_id=target.character_id,
-        frame=target.frame,
-        public_text=text,
-        source_event_id=target.source_event_id,
-    )
-
-
 async def _append_harvest_fragments(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
@@ -1523,9 +1497,9 @@ def _character_location(ckpt: CheckpointFile, character_id: str) -> str:
     return ""
 
 
-def _frontier_target_needs_local_context(
+def _router_target_needs_local_context(
     prior_result: EventRouterOutput,
-    target: RouterFrontierTarget,
+    target: RouterOutputTarget,
 ) -> bool:
     if target.frame != "background":
         return False
@@ -1537,7 +1511,7 @@ def _frontier_target_needs_local_context(
     )
 
 
-def _frontier_local_context(
+def _router_target_local_context(
     ckpt: CheckpointFile,
     character_id: str,
 ) -> str:
@@ -2063,14 +2037,15 @@ class Dispatcher(Protocol):
         no dispatchable next actor despite `ends_beat=false`."""
         ...
 
-    async def route_frontier_results(
+    async def route_agent_output(
         self,
         *,
         ckpt: CheckpointFile,
-        frontier_results: list[RouterFrontierResult],
+        character_id: str,
+        public_text: str,
         prior_result: EventRouterOutput,
-    ) -> EventRouterOutput | None:
-        """Route returned character output back into one canonical event."""
+    ) -> EventRouterOutput:
+        """Route one returned character output back into one canonical event."""
         ...
 
     async def route_combat_action(
@@ -2240,12 +2215,14 @@ async def run_beat(
     continuation_rescue_used = False
     pending_result: EventRouterOutput | None = None
     pending_result_mode: str | None = None
+    pending_result_actor_id: str = ""
     suppress_reaction_prompts = combat_reaction_event_id is not None
 
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
     ) -> None:
         nonlocal continuation_rescue_used, pending_result, pending_result_mode
+        nonlocal pending_result_actor_id
         if continuation_rescue_used:
             raise RuntimeError(
                 "Router kept beat open without a dispatchable continuation: "
@@ -2260,16 +2237,18 @@ async def run_beat(
             prior_result=prior_result,
         )
         pending_result_mode = "continuation"
+        pending_result_actor_id = actor_id
         _log_router_rationale(
             pending_result, actor_id, kind="continuation",
         )
 
-    async def _queue_router_frontier(
+    async def _queue_router_agent_output(
         prior_result: EventRouterOutput,
         character_ids: list[str],
     ) -> bool:
         nonlocal agent_cascade_attempts, background_thread_attempts
         nonlocal pending_result, pending_result_mode
+        nonlocal pending_result_actor_id
         if not character_ids:
             await _queue_router_continuation(prior_result)
             return True
@@ -2278,14 +2257,14 @@ async def run_beat(
 
         from app.engine.context_builder import collect_player_ids
 
-        frontier = frontier_from_router_output(
+        projection = targets_from_router_output(
             prior_result,
             player_ids=collect_player_ids(ckpt),
             agent_ids=character_ids,
         )
         agent_targets = [
             target
-            for target in frontier.frontier_targets
+            for target in projection.targets
             if target.target_kind == "agent_turn"
         ]
         if not agent_targets:
@@ -2303,32 +2282,32 @@ async def run_beat(
                 background_thread_attempts += 1
             agent_cascade_attempts += 1
             local_context = (
-                _frontier_local_context(ckpt, target.character_id)
-                if _frontier_target_needs_local_context(prior_result, target)
+                _router_target_local_context(ckpt, target.character_id)
+                if _router_target_needs_local_context(prior_result, target)
                 else ""
             )
-            frontier_result = await _collect_agent_frontier_result(
+            agent_output = await _agent_intention_for_dispatch(
                 dispatcher,
                 ckpt,
-                target,
+                target.character_id,
+                frame=target.frame,
                 local_context=local_context,
             )
-            if frontier_result is None:
+            if agent_output is None:
                 continue
-            routed = await dispatcher.route_frontier_results(
+            routed = await dispatcher.route_agent_output(
                 ckpt=ckpt,
-                frontier_results=[frontier_result],
+                character_id=target.character_id,
+                public_text=agent_output,
                 prior_result=prior_result,
             )
-            if routed is None:
-                await _queue_router_continuation(prior_result)
-                return True
             pending_result = routed
-            pending_result_mode = "frontier"
+            pending_result_mode = "agent_output"
+            pending_result_actor_id = target.character_id
             _log_router_rationale(
                 pending_result,
-                actor_id,
-                kind="frontier",
+                target.character_id,
+                kind="agent_output",
             )
             return True
 
@@ -2536,7 +2515,7 @@ async def run_beat(
             )
             result_actor_id = current_actor
             result_is_continuation = False
-            result_is_frontier = False
+            result_is_agent_output = False
             _log_router_rationale(
                 result, current_actor, kind="route",
             )
@@ -2545,13 +2524,14 @@ async def run_beat(
             pending_result = None
             mode = pending_result_mode or "continuation"
             pending_result_mode = None
-            result_actor_id = ""
+            result_actor_id = pending_result_actor_id
+            pending_result_actor_id = ""
             result_is_continuation = mode == "continuation"
-            result_is_frontier = mode == "frontier"
+            result_is_agent_output = mode == "agent_output"
 
         interaction_mode = _dnd_interaction_mode(result)
         if interaction_mode == "dnd_combat_start":
-            if result_is_continuation or result_is_frontier:
+            if result_is_continuation or result_is_agent_output:
                 raise RuntimeError(
                     "Router non-intention mode tried to start D&D combat; "
                     "only a fresh intention can start initiative."
@@ -2625,11 +2605,11 @@ async def run_beat(
             )
 
         if result.requires_responders:
-            if result_is_frontier:
+            if result_is_agent_output:
                 raise RuntimeError(
-                    "Router frontier result opened Cat II; frontier mode "
+                    "Router agent-output result opened Cat II; agent-output mode "
                     "must compose a closed group event or select another "
-                    "frontier target."
+                    "agent output target."
                 )
             suppressed_actor_id = result_actor_id or current_actor or actor_id
             required = [
@@ -2703,7 +2683,7 @@ async def run_beat(
                     ckpt, result.next_output_character_ids,
                     event=result,
                 )
-                queued = await _queue_router_frontier(result, routed_ids)
+                queued = await _queue_router_agent_output(result, routed_ids)
                 if not queued:
                     return await _end_for_cascade_cap()
                 continue
@@ -2855,8 +2835,8 @@ async def run_beat(
                     ckpt, result,
                     acting_character_id=result_actor_id or current_actor,
                     mode=(
-                        "frontier"
-                        if result_is_frontier
+                        "agent_output"
+                        if result_is_agent_output
                         else "continuation"
                         if result_is_continuation
                         else "intention"
@@ -2881,8 +2861,8 @@ async def run_beat(
                         ckpt, result,
                         acting_character_id=result_actor_id or current_actor,
                         mode=(
-                            "frontier"
-                            if result_is_frontier
+                            "agent_output"
+                            if result_is_agent_output
                             else
                             "continuation"
                             if result_is_continuation
@@ -2900,7 +2880,7 @@ async def run_beat(
                 event=result,
             )
             if routed_ids:
-                queued = await _queue_router_frontier(result, routed_ids)
+                queued = await _queue_router_agent_output(result, routed_ids)
                 if not queued:
                     return await _end_for_cascade_cap()
                 continue
@@ -2928,7 +2908,7 @@ async def run_beat(
             ckpt, result.next_output_character_ids,
             event=result,
         )
-        queued = await _queue_router_frontier(result, routed_ids)
+        queued = await _queue_router_agent_output(result, routed_ids)
         if not queued:
             return await _end_for_cascade_cap()
 

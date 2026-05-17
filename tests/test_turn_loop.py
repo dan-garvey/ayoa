@@ -45,7 +45,7 @@ from app.schemas.events import (
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.router_frontier import frontier_from_router_output
+from app.schemas.router_targets import targets_from_router_output
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
@@ -166,7 +166,7 @@ class FakeDispatcher:
     def __init__(self):
         self.route_calls: list[dict] = []
         self.continuation_calls: list[dict] = []
-        self.frontier_calls: list[dict] = []
+        self.agent_output_calls: list[dict] = []
         self.agent_calls: list[dict] = []
         self.narrator_calls: list[dict] = []
         self.harvest_calls: list[dict] = []
@@ -197,8 +197,8 @@ class FakeDispatcher:
         self.continuation_calls.append(kw)
         return self._route_responses.pop(0)
 
-    async def route_frontier_results(self, **kw) -> EventRouterOutput | None:
-        self.frontier_calls.append(kw)
+    async def route_agent_output(self, **kw) -> EventRouterOutput:
+        self.agent_output_calls.append(kw)
         return self._route_responses.pop(0)
 
     async def route_combat_action(self, **kw) -> EventRouterOutput:
@@ -697,10 +697,11 @@ class TestBeatCascade:
         assert result.events_closed == 2
         assert fake.agent_calls[0]["character_id"] == "pip"
         assert fake.agent_calls[0]["frame"] == "foreground"
-        assert len(fake.frontier_calls) == 1
-        frontier_results = fake.frontier_calls[0]["frontier_results"]
-        assert [item.character_id for item in frontier_results] == ["pip"]
-        assert frontier_results[0].source_event_id == prior.event_id
+        assert len(fake.agent_output_calls) == 1
+        agent_output = fake.agent_output_calls[0]
+        assert agent_output["character_id"] == "pip"
+        assert agent_output["public_text"] == "Pip polishes the bell"
+        assert agent_output["prior_result"] is prior
 
     def test_public_fact_observe_only_delivers_inbox_without_cascade(self):
         ckpt = _ckpt({"alice": "1"})
@@ -728,7 +729,7 @@ class TestBeatCascade:
             "Official criers announce the cohort has been summoned."
         ]
         assert fake.agent_calls == []
-        assert fake.frontier_calls == []
+        assert fake.agent_output_calls == []
         assert fake.continuation_calls == []
 
     def test_public_fact_next_output_dispatches_background_turn(self):
@@ -756,9 +757,9 @@ class TestBeatCascade:
         assert fake.agent_calls[0]["frame"] == "background"
         assert "Location: gatehouse" in fake.agent_calls[0]["local_context"]
         assert "Alice (alice)" in fake.agent_calls[0]["local_context"]
-        frontier_results = fake.frontier_calls[0]["frontier_results"]
-        assert frontier_results[0].frame == "background"
-        assert frontier_results[0].source_event_id == prior.event_id
+        agent_output = fake.agent_output_calls[0]
+        assert agent_output["character_id"] == "pip"
+        assert agent_output["prior_result"] is prior
 
     def test_background_thread_cap_limits_public_fact_cascades(self):
         ckpt = _ckpt({"alice": "1"})
@@ -786,7 +787,7 @@ class TestBeatCascade:
         assert result.ended_reason == "cascade_cap"
         assert result.events_closed == 5
         assert len(fake.agent_calls) == 4
-        assert len(fake.frontier_calls) == 4
+        assert len(fake.agent_output_calls) == 4
 
     def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
         ckpt = _ckpt({})
@@ -804,8 +805,8 @@ class TestBeatCascade:
 
         assert fake.agent_calls[0]["character_id"] == "pip"
         assert fake.agent_calls[0]["frame"] == "private"
-        frontier_results = fake.frontier_calls[0]["frontier_results"]
-        assert frontier_results[0].frame == "private"
+        agent_output = fake.agent_output_calls[0]
+        assert agent_output["character_id"] == "pip"
 
     def test_agent_cascade_cap_forces_beat_end(self):
         ckpt = _ckpt({"alice": "1"})
@@ -825,7 +826,7 @@ class TestBeatCascade:
         assert result.ended_reason == "cascade_cap"
         assert result.events_closed == 2
         assert len(fake.route_calls) == 1
-        assert len(fake.frontier_calls) == 1
+        assert len(fake.agent_output_calls) == 1
         assert len(fake.agent_calls) == 1
 
     def test_cat_i_dispatches_only_first_agent_pick_before_router_roundtrip(
@@ -848,12 +849,9 @@ class TestBeatCascade:
         assert [call["character_id"] for call in fake.agent_calls] == [
             "pip",
         ]
-        assert len(fake.frontier_calls) == 1
-        frontier_results = fake.frontier_calls[0]["frontier_results"]
-        assert [item.character_id for item in frontier_results] == [
-            "pip",
-        ]
-        assert all(item.result_kind == "agent_turn" for item in frontier_results)
+        assert len(fake.agent_output_calls) == 1
+        assert fake.agent_output_calls[0]["character_id"] == "pip"
+        assert fake.agent_output_calls[0]["public_text"] == "Pip polishes the bell"
 
     def test_router_can_continue_to_next_agent_pick_after_canonicalizing_first(
         self,
@@ -878,10 +876,10 @@ class TestBeatCascade:
             "pip",
             "bob",
         ]
-        assert len(fake.frontier_calls) == 2
+        assert len(fake.agent_output_calls) == 2
         assert [
-            call["frontier_results"][0].character_id
-            for call in fake.frontier_calls
+            call["character_id"]
+            for call in fake.agent_output_calls
         ] == ["pip", "bob"]
 
     def test_false_endbeat_with_no_next_output_routes_continuation(self):
@@ -2108,7 +2106,7 @@ class TestSchemaValidators:
         with pytest.raises(ValueError, match="empty"):
             _router_out(requires_responders=True, required_responders=[])
 
-    def test_next_output_observers_drive_frontier_targets(self):
+    def test_next_output_observers_drive_router_targets(self):
         out = EventRouterOutput(
             event_id="",
             decision_rationale="test fixture",
@@ -2180,36 +2178,36 @@ class TestSchemaValidators:
         with pytest.raises(ValueError, match="Extra inputs"):
             EventRouterOutput.model_validate(data)
 
-    def test_frontier_projection_uses_runtime_frame_semantics(self):
+    def test_router_target_projection_uses_runtime_frame_semantics(self):
         out = _router_out(agent_ids=["pip"], ends_beat=False)
-        assert frontier_from_router_output(
+        assert targets_from_router_output(
             out,
             player_ids={"alice"},
             agent_ids=["pip"],
-        ).frontier_targets[0].frame == "foreground"
-        assert frontier_from_router_output(
+        ).targets[0].frame == "foreground"
+        assert targets_from_router_output(
             out,
             player_ids=set(),
             agent_ids=["pip"],
-        ).frontier_targets[0].frame == "private"
+        ).targets[0].frame == "private"
 
         offstage = _router_out(ends_beat=False)
-        assert frontier_from_router_output(
+        assert targets_from_router_output(
             offstage,
             player_ids={"alice"},
             agent_ids=["offstage_npc"],
-        ).frontier_targets[0].frame == "background"
+        ).targets[0].frame == "background"
 
         public_fact = _router_out(
             event_kind="public_fact",
             agent_ids=["pip"],
             observer_ids=["alice", "pip"],
         )
-        assert frontier_from_router_output(
+        assert targets_from_router_output(
             public_fact,
             player_ids={"alice"},
             agent_ids=["pip"],
-        ).frontier_targets[0].frame == "background"
+        ).targets[0].frame == "background"
 
         departing = _router_out(
             agent_ids=["pip"],
@@ -2219,11 +2217,11 @@ class TestSchemaValidators:
                 {"character_id": "pip", "location_label": "archive"}
             ],
         )
-        assert frontier_from_router_output(
+        assert targets_from_router_output(
             departing,
             player_ids={"alice"},
             agent_ids=["pip"],
-        ).frontier_targets[0].frame == "background"
+        ).targets[0].frame == "background"
 
     def test_unknown_event_kind_coerced_to_terminal_kind(self):
         out = _router_out(ends_beat=True)

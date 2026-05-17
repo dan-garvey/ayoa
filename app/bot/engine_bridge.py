@@ -1209,7 +1209,7 @@ class EngineBridge:
                     result=result,
                 )
                 if router_update:
-                    ckpt.session.pending_router_state_changes.append(
+                    ckpt.session.pending_engine_state_updates.append(
                         router_update,
                     )
                 self.checkpoint_mgr.save(ckpt)
@@ -1256,7 +1256,7 @@ class EngineBridge:
                     result=result,
                 )
                 if router_update:
-                    ckpt.session.pending_router_state_changes.append(
+                    ckpt.session.pending_engine_state_updates.append(
                         router_update,
                     )
                 self.checkpoint_mgr.save(ckpt)
@@ -1368,7 +1368,7 @@ class EngineBridge:
             )
             class_line = ", ".join(summary.classes) or "unknown class"
             imported = summary.imported_name or "unnamed D&D character"
-            ckpt.session.pending_router_state_changes.append(
+            ckpt.session.pending_engine_state_updates.append(
                 f"D&D sheet attached: {target.character_id} now has "
                 f"imported D&D mechanics "
                 f"from {imported}; {class_line}, level {summary.total_level}, "
@@ -1624,7 +1624,7 @@ class EngineBridge:
             )
 
         ckpt.session.character_bindings[character_id] = uid
-        ckpt.session.pending_router_state_changes.append(
+        ckpt.session.pending_engine_state_updates.append(
             f"Player binding: {character_id} is now "
             f"driven by a human player. Treat them as a protagonist; "
             f"the narrator may pivot POV to them."
@@ -1657,7 +1657,7 @@ class EngineBridge:
             purge_character_state(ckpt, freed)
             del ckpt.session.character_bindings[freed]
             dnd_inventory.remove_character_from_loot_offers(ckpt, freed)
-            ckpt.session.pending_router_state_changes.append(
+            ckpt.session.pending_engine_state_updates.append(
                 f"Player binding: {freed} returned to "
                 f"AI control. Their character agent will resume producing "
                 f"intentions on cascade."
@@ -1744,14 +1744,14 @@ class EngineBridge:
             # summary anymore (it owns the in-fiction line; we own the
             # binding metadata). Tag stays compact to minimize echo
             # surface in router short-circuit prose.
-            ckpt.session.pending_router_state_changes.append(
+            ckpt.session.pending_engine_state_updates.append(
                 f"Custom player character created: {new_id} — "
                 f"{summary} [player-bound]"
             )
         else:
             role = new_char.public_sheet.role or "unknown role"
             loc = new_char.location or "unknown"
-            ckpt.session.pending_router_state_changes.append(
+            ckpt.session.pending_engine_state_updates.append(
                 f"Custom player character created: {new_id}, "
                 f"role={role}, location={loc}, bound to a "
                 f"human player."
@@ -1836,7 +1836,7 @@ class EngineBridge:
             "and immediate on-ramp from the premise; surface that on-ramp "
             "as in-fiction observable_facts to the NPCs who would know"
         )
-        ckpt.session.pending_router_state_changes.append(
+        ckpt.session.pending_engine_state_updates.append(
             f"Custom player character created: {new_id} — "
             f"{'; '.join(bits)}. [player-bound]"
         )
@@ -1963,13 +1963,13 @@ class EngineBridge:
         # SAME id as the prior NPC.
         summary = _normalize_router_summary(out.character.router_summary or "")
         if summary:
-            ckpt.session.pending_router_state_changes.append(
+            ckpt.session.pending_engine_state_updates.append(
                 f"Character replacement: id {target_character_id} "
                 f"identity overwritten — {summary} "
                 f"[player-bound, replaced prior occupant of this id]"
             )
         else:
-            ckpt.session.pending_router_state_changes.append(
+            ckpt.session.pending_engine_state_updates.append(
                 f"Character replacement: identity of {target_character_id} "
                 f"has been overwritten — "
                 f"role={target.public_sheet.role or 'unknown role'}, bound "

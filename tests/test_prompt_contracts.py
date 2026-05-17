@@ -3,8 +3,8 @@ from app.engine.turn_loop_contracts import (
     ROUTER_CONTINUATION_HEADER,
     format_agent_turn_body,
     format_agent_on_stage_body,
+    format_agent_output_entry,
     format_cat_ii_resolution_block,
-    format_frontier_results_block,
     format_human_initiator_intention,
     format_npc_cascade_intention,
     format_router_continuation_block,
@@ -61,48 +61,18 @@ class TestRouterContinuationBlock:
         assert "Router left the beat open." in block
 
 
-class TestFrontierResultsBlock:
-    """Frontier helper. The block must render only character-id-prefixed
-    public text. Agent parentheticals, source ids, frames, and result kinds stay
-    out of the router's current input.
-    """
+class TestAgentOutputEntry:
+    """Agent-output router input is only `character_id: public text`."""
 
-    def test_empty_list_returns_empty_string(self):
-        assert format_frontier_results_block([]) == ""
-
-    def test_renders_header_and_per_entry_lines(self):
-        block = format_frontier_results_block([
-            (
-                "agent_turn",
-                "regent",
-                "background",
-                "evt_prior",
-                "He paces the long table.",
-            ),
-            (
-                "agent_turn",
-                "scribe",
-                "foreground",
-                "evt_prior",
-                "She copies a passage.",
-            ),
-        ])
-        assert block == (
-            "regent: He paces the long table.\n"
-            "scribe: She copies a passage.\n"
+    def test_renders_character_id_and_public_text_only(self):
+        entry = format_agent_output_entry(
+            "regent",
+            "He paces the long table.",
         )
-        assert "agent_turn" not in block
-        assert "background" not in block
-        assert "foreground" not in block
-        assert "evt_prior" not in block
-        assert "He paces the long table." in block
-        assert "She copies a passage." in block
+        assert entry == "regent: He paces the long table."
 
     def test_blank_public_text_falls_back_to_silent_marker(self):
-        block = format_frontier_results_block([
-            ("agent_turn", "mute", "background", "evt_prior", ""),
-        ])
-        assert block == "mute: (no public action)\n"
+        assert format_agent_output_entry("mute", "") == "mute: (no public action)"
 
 
 class TestAgentModeContract:

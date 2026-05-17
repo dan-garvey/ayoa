@@ -426,8 +426,8 @@ class TestLootRouterSync:
 
         assert result.message.startswith("Claimed Potion of Healing.")
         reloaded = mock_bridge.load_latest("loot_sync")
-        assert len(reloaded.session.pending_router_state_changes) == 1
-        update = reloaded.session.pending_router_state_changes[0]
+        assert len(reloaded.session.pending_engine_state_updates) == 1
+        update = reloaded.session.pending_engine_state_updates[0]
         assert "Inventory update before the next action" in update
         assert "alice took Potion of Healing and 8 sp from iron chest" in update
         assert "explicit player continuity" in update
@@ -469,7 +469,7 @@ class TestLootRouterSync:
 
         assert result.message.startswith("Declined the loot offer")
         reloaded = mock_bridge.load_latest("loot_decline")
-        assert reloaded.session.pending_router_state_changes == []
+        assert reloaded.session.pending_engine_state_updates == []
 
 
 class TestRewindMetadata:

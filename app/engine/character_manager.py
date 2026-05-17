@@ -24,112 +24,19 @@ logger = logging.getLogger(__name__)
 MAX_SPAWNS_PER_TURN = 3
 
 
-# Per-line cap for state-change entries, applied to the LLM-authored
-# `router_summary` after newline normalization. Chosen to fit a tight
-# 1-2 sentence ledger line (the prompt says one or two sentences) plus
-# generous slack; entries longer than this are usually a sign the LLM
-# regressed into multi-paragraph backstory and would balloon the next
-# router prompt.
+# Per-line cap for LLM-authored player-character summaries after newline
+# normalization. Chosen to fit a tight 1-2 sentence ledger line plus generous
+# slack; entries longer than this are usually a sign the LLM regressed into
+# multi-paragraph backstory.
 ROUTER_SUMMARY_MAX_CHARS = 600
 
 
 def _normalize_router_summary(summary: str) -> str:
-    """Sanitize an LLM-authored `router_summary` for safe interpolation
-    into `_build_state_changes_block`'s bullet list.
-
-    The block renders each queued entry as a single markdown bullet
-    (`- {entry}`), so an entry containing a literal newline would split
-    the bullet across multiple lines and shatter the list for the
-    router prompt. Collapse all whitespace runs to single spaces, and
-    cap at `ROUTER_SUMMARY_MAX_CHARS` to defend against a regressed
-    spawn LLM dumping a backstory paragraph into the field.
-    """
+    """Sanitize an LLM-authored one-line character summary."""
     s = " ".join(summary.split()).strip()
     if len(s) > ROUTER_SUMMARY_MAX_CHARS:
         s = s[: ROUTER_SUMMARY_MAX_CHARS - 1].rstrip() + "…"
     return s
-
-
-def _drop_pending_spawn_line(
-    checkpoint: CheckpointFile, character_id: str,
-) -> bool:
-    """Strip any queued `pending_router_state_changes` line that
-    references `character_id` as a freshly-spawned character.
-
-    Called when a character is culled before the queue drains. Without
-    this, the next router call would see "Spawned: X — ..."
-    for a character who no longer exists on the roster — a ghost
-    instruction that confuses adjudication and may prompt the router
-    to re-spawn or hallucinate them.
-
-    Matches both the current id-only form and the older name/id form so
-    mixed live checkpoints remain cleanup-safe. Returns True if any line
-    was removed.
-    """
-    queue = checkpoint.session.pending_router_state_changes or []
-    new_needle = f"Spawned: {character_id}"
-    old_needle = f"(id: {character_id})"
-    kept = [
-        line for line in queue
-        if new_needle not in line and old_needle not in line
-    ]
-    if len(kept) == len(queue):
-        return False
-    removed = len(queue) - len(kept)
-    checkpoint.session.pending_router_state_changes = kept
-    logger.info(
-        "Dropped %d pending state-change line(s) for culled character %s "
-        "before they could surface to the router.",
-        removed, character_id,
-    )
-    return True
-
-
-def _push_spawn_state_change(
-    checkpoint: CheckpointFile,
-    char: CharacterRecord,
-    router_summary: str,
-) -> None:
-    """Surface a freshly-spawned character to the next router call.
-
-    Writes one line to `session.pending_router_state_changes`. The next
-    router call's "## State Changes Since Your Last Call" block drains
-    the queue and surfaces it once; subsequent calls see this character
-    only via router history.
-
-    Prefers the LLM-authored `router_summary` from the spawn-generation
-    prompt (Commit 4) — the model has full context on who the spawn
-    is and writes a tight identity-and-intent line in third-person
-    ledger prose. The summary is normalized (whitespace collapsed,
-    over-long entries truncated) before interpolation. Falls back to
-    a mechanical name+role+location+objectives line ONLY if the
-    summary is missing or whitespace-only, which should not happen
-    with v3+ of `character_gen` but guards the pipeline if a future
-    prompt regression drops the field.
-    """
-    cleaned = _normalize_router_summary(router_summary or "")
-    if cleaned:
-        checkpoint.session.pending_router_state_changes.append(
-            f"Spawned: {char.character_id} — {cleaned}"
-        )
-        return
-
-    role = char.public_sheet.role or "unknown role"
-    loc = char.location or "unknown"
-    objs = [o for o in (char.private_state.current_objectives or []) if o]
-    parts = [
-        f"Spawned: {char.character_id}",
-        f"role={role}",
-        f"location={loc}",
-    ]
-    if objs:
-        parts.append("objectives=" + "; ".join(objs))
-    checkpoint.session.pending_router_state_changes.append(", ".join(parts))
-    logger.warning(
-        "Spawn for %s landed without router_summary; surfaced mechanical "
-        "fallback line. Check character_gen prompt rendering.",
-        char.character_id,
-    )
 
 
 def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
@@ -217,11 +124,6 @@ class CharacterManager:
             # Purge v11 bookkeeping even if the character record is
             # already missing — cull + purge must be idempotent.
             purge_character_state(checkpoint, char_id)
-            # Commit-4b: also strip any not-yet-drained "Spawned: ..."
-            # state-change line for this id, so the next router call
-            # doesn't see a ghost spawn for a character who was killed
-            # off in the same beat. Safe no-op if no line is queued.
-            _drop_pending_spawn_line(checkpoint, char_id)
 
     async def spawn_characters(
         self,
@@ -235,76 +137,68 @@ class CharacterManager:
         `acting_actor_location` is the location label of whoever's action
         triggered these spawns — initiator location for Cat I, post-beat
         actor location for the in-beat path, or a background actor's location
-        for private/background frontier spawns.
+        for private/background routed-agent spawns.
         It's the fallback when the router omits `seed.location`, so a new
         character materializes near the action rather than at some
         unrelated default.
 
         Returns the list of newly created and registered characters.
 
-        v11-r7i: dedups within the batch (the router can emit two
-        SpawnRequests with the same character_id when a single beat
-        implies multiple instances of the same role — a v11 playtest
-        spawned three `production_runner`s in one turn). Without
-        dedup, the second-and-later entries overwrite the first via
-        `checkpoint.characters.append` of the same id, leaving the
-        roster with two records sharing one id and the rest of the
-        engine confused about which one the canonical event refers to.
+        Every requested spawn must materialize exactly once. If the router
+        emits duplicate ids, exceeds the per-turn cap, targets an existing
+        id, or character generation fails, the beat is invalid and should
+        fail loudly instead of hiding the mismatch from the next router call.
         """
         if not self.client or not self.prompt_manager:
-            logger.warning("CharacterManager has no LLM client; skipping spawns")
-            return []
-
-        # Order is load-bearing: dedup BEFORE the per-turn cap.
-        # Otherwise a router output of `[runner, runner, runner,
-        # unique_villain]` would slice the first three (all dups),
-        # collapse to a single `runner`, and silently drop
-        # `unique_villain` despite us having only spawned one
-        # character. By deduping first we count each distinct id once,
-        # then cap on distinct ids — the unique villain survives, the
-        # extra runners get logged-and-dropped.
-        seen_ids: set[str] = set()
-        deduped: list[SpawnRequest] = []
-        for r in spawn_requests:
-            if r.character_id in seen_ids:
-                logger.warning(
-                    "Dropped duplicate spawn for %s within the same router "
-                    "batch — the router emitted multiple SpawnRequests with "
-                    "this id; keeping the first.",
-                    r.character_id,
-                )
-                continue
-            seen_ids.add(r.character_id)
-            deduped.append(r)
-
-        requests = deduped[:MAX_SPAWNS_PER_TURN]
-        if len(deduped) > MAX_SPAWNS_PER_TURN:
-            logger.warning(
-                "Capping distinct spawns from %d to %d (dropped: %s)",
-                len(deduped), MAX_SPAWNS_PER_TURN,
-                [r.character_id for r in deduped[MAX_SPAWNS_PER_TURN:]],
+            raise RuntimeError(
+                "Router requested character spawn, but CharacterManager has "
+                "no LLM client/prompt manager."
             )
 
-        requests = [
-            r for r in requests
-            if self.get_character(checkpoint, r.character_id) is None
-        ]
+        seen_ids: set[str] = set()
+        duplicate_ids: list[str] = []
+        for r in spawn_requests:
+            if r.character_id in seen_ids:
+                duplicate_ids.append(r.character_id)
+                continue
+            seen_ids.add(r.character_id)
+        if duplicate_ids:
+            raise ValueError(
+                "Router requested duplicate character spawns: "
+                + ", ".join(sorted(set(duplicate_ids)))
+            )
 
-        if not requests:
+        if len(spawn_requests) > MAX_SPAWNS_PER_TURN:
+            raise ValueError(
+                "Router requested "
+                f"{len(spawn_requests)} character spawns; max per turn is "
+                f"{MAX_SPAWNS_PER_TURN}."
+            )
+
+        existing_ids = [
+            r.character_id
+            for r in spawn_requests
+            if self.get_character(checkpoint, r.character_id) is not None
+        ]
+        if existing_ids:
+            raise ValueError(
+                "Router requested character spawns for existing ids: "
+                + ", ".join(existing_ids)
+            )
+
+        if not spawn_requests:
             return []
 
         spawned = []
-        for req in requests:
-            try:
-                char, router_summary = await self._spawn_one(
-                    checkpoint, req, default_location=acting_actor_location,
-                )
-                checkpoint.characters.append(char)
-                spawned.append(char)
-                logger.info("Spawned character: %s (%s)", char.name, char.character_id)
-                _push_spawn_state_change(checkpoint, char, router_summary)
-            except Exception as e:
-                logger.warning("Failed to spawn %s: %s", req.character_id, e)
+        for req in spawn_requests:
+            char, _router_summary = await self._spawn_one(
+                checkpoint, req, default_location=acting_actor_location,
+            )
+            checkpoint.characters.append(char)
+            spawned.append(char)
+            logger.info(
+                "Spawned character: %s (%s)", char.name, char.character_id,
+            )
 
         return spawned
 
@@ -315,10 +209,9 @@ class CharacterManager:
         """Generate a single character via LLM.
 
         Returns the freshly-built CharacterRecord plus the LLM-authored
-        `router_summary` (one or two sentences for the next router
-        call's State Changes block). The summary is NOT persisted on
-        the record — it's an author-time scratch field consumed by
-        `_push_spawn_state_change` and otherwise discarded.
+        `router_summary`. Router-authored spawns are already present in
+        compact router history, so the summary is not queued into the next
+        router input.
 
         Spawn-location resolution chain:
           1. router-supplied `req.seed["location"]`

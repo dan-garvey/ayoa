@@ -319,7 +319,7 @@ class TestCreatePlayerCharacterSimple:
         assert loaded.session.character_bindings.get("akari_tanaka") == "42"
 
         # Router needs a heads-up about the new arrival.
-        changes = loaded.session.pending_router_state_changes
+        changes = loaded.session.pending_engine_state_updates
         arrival_change = next(
             line for line in changes
             if "akari_tanaka" in line and "[player-bound]" in line

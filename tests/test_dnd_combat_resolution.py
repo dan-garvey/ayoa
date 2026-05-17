@@ -253,9 +253,7 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     assert transaction.damage_records[0].adjustments == []
     assert transaction.damage_records[0].applied is True
     assert any("damage_for=attack_alice" in line for line in transaction.ledger_lines)
-    assert ckpt.session.pending_router_state_changes[0].startswith(
-        "D&D combat resolved:"
-    )
+    assert ckpt.session.pending_engine_state_updates == []
     assert ckpt.session_conversation == []
 
 

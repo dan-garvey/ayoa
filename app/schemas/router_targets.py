@@ -6,26 +6,20 @@ from pydantic import BaseModel, ConfigDict
 
 from app.schemas.event_router import EventKind, EventRouterOutput
 
-FrontierTargetKind = Literal[
+RouterTargetKind = Literal[
     "agent_turn",
     "player_render",
     "perception_harvest",
 ]
 
-FrontierFrame = Literal[
+RouterTargetFrame = Literal[
     "foreground",
     "private",
     "background",
 ]
 
-FrontierResultKind = Literal[
-    "agent_turn",
-    "player_render",
-    "perception_harvest",
-]
 
-
-class RouterFrontierTarget(BaseModel):
+class RouterOutputTarget(BaseModel):
     """One engine task selected from a router output.
 
     This is not an LLM output model yet. It is the runtime contract that
@@ -37,26 +31,14 @@ class RouterFrontierTarget(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    target_kind: FrontierTargetKind
+    target_kind: RouterTargetKind
     character_id: str
-    frame: FrontierFrame
+    frame: RouterTargetFrame
     source_event_id: str
 
 
-class RouterFrontierResult(BaseModel):
-    """Sanitized completion payload for one frontier target."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    result_kind: FrontierResultKind
-    character_id: str
-    frame: FrontierFrame
-    public_text: str
-    source_event_id: str
-
-
-class RouterFrontierOutput(BaseModel):
-    """Runtime projection of the current router output into frontier work."""
+class RouterTargetProjection(BaseModel):
+    """Runtime projection of the current router output into dispatch work."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -64,19 +46,19 @@ class RouterFrontierOutput(BaseModel):
     event_kind: EventKind
     target_audience: list[str]
     perception_harvest_targets: list[str]
-    frontier_targets: list[RouterFrontierTarget]
+    targets: list[RouterOutputTarget]
 
 
 def event_kind_from_router_output(result: EventRouterOutput) -> EventKind:
     return result.event_kind
 
 
-def frontier_frame_for_pick(
+def router_frame_for_pick(
     result: EventRouterOutput,
     *,
     player_ids: set[str],
     character_id: str,
-) -> FrontierFrame:
+) -> RouterTargetFrame:
     if result.event_kind == "public_fact":
         return "background"
     if any(
@@ -92,21 +74,21 @@ def frontier_frame_for_pick(
     return "private"
 
 
-def frontier_from_router_output(
+def targets_from_router_output(
     result: EventRouterOutput,
     *,
     player_ids: set[str],
     agent_ids: list[str],
     perception_targets: list[str] | None = None,
-) -> RouterFrontierOutput:
-    """Build a frontier projection from the router's routing roles."""
+) -> RouterTargetProjection:
+    """Build a target projection from the router's routing roles."""
 
     event_kind = event_kind_from_router_output(result)
     perception_targets = list(perception_targets or [])
-    targets: list[RouterFrontierTarget] = []
+    targets: list[RouterOutputTarget] = []
     if perception_targets:
         targets.extend(
-            RouterFrontierTarget(
+            RouterOutputTarget(
                 target_kind="perception_harvest",
                 character_id=cid,
                 frame="foreground",
@@ -116,10 +98,10 @@ def frontier_from_router_output(
         )
     elif not result.ends_beat or result.event_kind == "public_fact":
         targets.extend(
-            RouterFrontierTarget(
+            RouterOutputTarget(
                 target_kind="agent_turn",
                 character_id=cid,
-                frame=frontier_frame_for_pick(
+                frame=router_frame_for_pick(
                     result,
                     player_ids=player_ids,
                     character_id=cid,
@@ -135,10 +117,10 @@ def frontier_from_router_output(
         if result.ends_beat and observer.character_id in player_ids
     ]
 
-    return RouterFrontierOutput(
+    return RouterTargetProjection(
         events=[result],
         event_kind=event_kind,
         target_audience=list(dict.fromkeys(target_audience)),
         perception_harvest_targets=list(dict.fromkeys(perception_targets)),
-        frontier_targets=targets,
+        targets=targets,
     )

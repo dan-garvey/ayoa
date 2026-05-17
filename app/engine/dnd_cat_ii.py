@@ -163,9 +163,6 @@ class DndCatIIResolver:
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
         transaction.updated_at = _utcnow_iso()
-        _queue_router_state_change(
-            ckpt, result, label="D&D Cat II resolved",
-        )
         return result
 
     async def _plan_rolls(self, packet: str) -> RollPlan:
@@ -1841,22 +1838,6 @@ def _apply_condition_delta(
             conditions = [c for c in conditions if c != delta.condition]
         setattr(combatant, "conditions", conditions)
         return
-
-
-def _queue_router_state_change(
-    ckpt: CheckpointFile,
-    routed: EventRouterOutput,
-    *,
-    label: str,
-) -> None:
-    facts = [
-        fact.text for fact in routed.canonical_event.observable_facts
-        if fact.text
-    ]
-    if facts:
-        ckpt.session.pending_router_state_changes.append(
-            f"{label}: " + " / ".join(facts)
-        )
 
 
 def _find_transaction(

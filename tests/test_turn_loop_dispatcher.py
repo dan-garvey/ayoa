@@ -25,10 +25,8 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.router_frontier import RouterFrontierResult
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
-    CommitmentRevisionPrompt,
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
@@ -129,17 +127,17 @@ class TestRouterContext:
         assert "scene_graph" not in ctx
         assert "scene_context_block" not in ctx
 
-    def test_pending_observations_surface_once_then_drain(self):
+    def test_router_context_does_not_consume_pending_observations(self):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         alice = next(c for c in ckpt.characters if c.character_id == "alice")
         alice.pending_observations = ["A bell rings."]
 
         ctx = _build_router_context(ckpt, "alice")
 
-        assert "A bell rings." in ctx["since_last_turn_block"]
-        assert alice.pending_observations == []
+        assert "since_last_turn_block" not in ctx
+        assert alice.pending_observations == ["A bell rings."]
 
-    def test_relative_time_and_commitments_are_user_tail_context(self):
+    def test_router_context_omits_derived_router_state(self):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         alice = next(c for c in ckpt.characters if c.character_id == "alice")
         alice.clock_at_s = 12
@@ -155,25 +153,12 @@ class TestRouterContext:
                 location_label="gatehouse",
             )
         ]
-        ckpt.session.pending_commitment_revisions["alice"] = (
-            CommitmentRevisionPrompt(
-                character_id="alice",
-                commitment_id="commit_search",
-                trigger_event_id="evt_noise",
-                observed_at_s=20,
-                reason="the cabinet changed",
-                previous_description="Alice searches the cabinet.",
-            )
-        )
 
         ctx = _build_router_context(ckpt, "alice")
 
-        assert "Session leading time: 30s" in ctx["relative_time_block"]
-        assert "alice at 12s" in ctx["relative_time_block"]
-        assert "Alice (id: alice)" not in ctx["relative_time_block"]
-        assert "commit_search" in ctx["open_commitments_block"]
-        assert "Alice searches the cabinet." in ctx["open_commitments_block"]
-        assert "evt_noise" in ctx["commitment_revision_block"]
+        assert "relative_time_block" not in ctx
+        assert "open_commitments_block" not in ctx
+        assert "commitment_revision_block" not in ctx
 
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
@@ -202,7 +187,7 @@ class TestRouteIntention:
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.pending_router_state_changes = [
+        ckpt.session.pending_engine_state_updates = [
             "Inventory update before the next action: alice took 8 sp.",
         ]
         mock_client.complete.return_value = _llm_response(_router_output())
@@ -221,7 +206,7 @@ class TestRouteIntention:
         )
         intention_index = user_content.index("I leave the shop.")
         assert update_index < intention_index
-        assert ckpt.session.pending_router_state_changes == []
+        assert ckpt.session.pending_engine_state_updates == []
 
     def test_fresh_intention_omits_private_liveness_tick_cues(
         self, prompt_mgr, mock_client,
@@ -265,7 +250,7 @@ class TestRouteIntention:
         assert "Pip attempts:" not in user_content
         assert "## Intention" not in user_content
 
-    def test_router_history_omits_volatile_commitment_context(
+    def test_router_input_omits_derived_commitment_context(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
@@ -289,8 +274,8 @@ class TestRouteIntention:
         )
         stored = ckpt.session_conversation[-1]
         stored_text = stored.content
-        assert "## Open Commitments" in live_user
-        assert "commit_search" in live_user
+        assert "## Open Commitments" not in live_user
+        assert "commit_search" not in live_user
         assert stored.role == "assistant"
         assert isinstance(stored_text, str)
         assert stored_text.startswith("prior_event evt_")
@@ -529,7 +514,7 @@ class TestRouteIntention:
         assert "AFK-swept" not in user_content
         assert "attempts:" not in user_content
 
-    def test_cat_ii_dnd_mode_uses_event_router_without_history_append(
+    def test_cat_ii_dnd_mode_appends_compact_router_history(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
@@ -576,7 +561,45 @@ class TestRouteIntention:
         assert "## Cat II Resolution" not in _last_user_content(
             mock_client.complete.await_args_list[0].kwargs["messages"]
         )
-        assert ckpt.session_conversation == []
+        assert len(ckpt.session_conversation) == 1
+        assert "mode=cat_ii_resolution" in ckpt.session_conversation[0].content
+        assert "Pip steps aside before Alice hits him." in (
+            ckpt.session_conversation[0].content
+        )
+
+    def test_dnd_combat_action_appends_compact_router_history(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        result = _router_output()
+        result.canonical_event.observable_facts = [
+            ObservableFact.all("Alice cuts across Pip's guard."),
+        ]
+
+        class FakeCombatResolver:
+            async def resolve_combat_action(self, **kwargs):
+                assert kwargs["actor_id"] == "alice"
+                return result
+
+        monkeypatch.setattr(
+            "app.engine.turn_loop_dispatcher.dnd_combat_router_enabled",
+            lambda checkpoint: True,
+        )
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        dispatcher._dnd_combat = FakeCombatResolver()
+
+        out = asyncio.run(dispatcher.route_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I strike Pip.",
+        ))
+
+        assert out is result
+        assert len(ckpt.session_conversation) == 1
+        assert "mode=dnd_combat_action" in ckpt.session_conversation[0].content
+        assert "Alice cuts across Pip's guard." in (
+            ckpt.session_conversation[0].content
+        )
 
     def test_session_conversation_passed_as_history(
         self, prompt_mgr, mock_client, monkeypatch,
@@ -636,17 +659,14 @@ class TestRouteIntention:
         assert "Alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
 
-    def test_failed_router_call_restores_drained_queues(
+    def test_failed_router_call_restores_engine_state_updates(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.pending_router_state_changes = [
-            "Spawned: sera_01",
+        ckpt.session.pending_engine_state_updates = [
+            "Inventory update before the next action: alice took 8 sp.",
         ]
-        ckpt.world_state.facts = ["The keep predates the road."]
-        ckpt.session.surfaced_world_facts = []
-        before_state_changes = list(ckpt.session.pending_router_state_changes)
-        before_surfaced = list(ckpt.session.surfaced_world_facts)
+        before_updates = list(ckpt.session.pending_engine_state_updates)
         mock_client.complete.side_effect = RuntimeError("transient API failure")
 
         with pytest.raises(RuntimeError):
@@ -656,65 +676,31 @@ class TestRouteIntention:
                 intention="examine the lock",
             ))
 
-        assert ckpt.session.pending_router_state_changes == before_state_changes
-        assert ckpt.session.surfaced_world_facts == before_surfaced
+        assert ckpt.session.pending_engine_state_updates == before_updates
         assert ckpt.session_conversation == []
 
 
-class TestRouteFrontierResults:
-    def test_empty_frontier_results_returns_none_without_llm_call(
-        self, prompt_mgr, mock_client,
-    ):
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        result = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
-            ckpt=ckpt,
-            frontier_results=[],
-            prior_result=_router_output(),
-        ))
-        assert result is None
-        mock_client.complete.assert_not_called()
-        assert ckpt.session_conversation == []
-
-    def test_bundles_frontier_results_in_user_message(
+class TestRouteAgentOutput:
+    def test_routes_agent_output_in_bare_user_message(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
             ckpt=ckpt,
-            frontier_results=[
-                RouterFrontierResult(
-                    result_kind="agent_turn",
-                    character_id="pip",
-                    frame="foreground",
-                    public_text="He paces the threshold.",
-                    source_event_id="evt_prior",
-                ),
-                RouterFrontierResult(
-                    result_kind="agent_turn",
-                    character_id="wraith_42",
-                    frame="background",
-                    public_text="It descends the stair.",
-                    source_event_id="evt_prior",
-                ),
-            ],
+            character_id="pip",
+            public_text="He paces the threshold.",
             prior_result=_router_output(),
         ))
 
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        assert user_content == (
-            "pip: He paces the threshold.\n"
-            "wraith_42: It descends the stair."
-        )
+        assert user_content == "pip: He paces the threshold."
         assert "pip: He paces the threshold." in user_content
         assert "Pip" not in user_content
         assert "He paces the threshold" in user_content
-        assert "wraith_42: It descends the stair." in user_content
-        assert "Wraith" not in user_content
-        assert "It descends the stair" in user_content
         assert "foreground" not in user_content
         assert "background" not in user_content
         assert "evt_prior" not in user_content
@@ -727,8 +713,9 @@ class TestRouteFrontierResults:
         assert "**alice** (acting this turn)" not in user_content
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
+        assert "source=pip mode=agent_output" in ckpt.session_conversation[-1].content
 
-    def test_frontier_results_do_not_drain_original_actor_context(
+    def test_agent_output_does_not_drain_original_actor_context(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
@@ -736,17 +723,10 @@ class TestRouteFrontierResults:
         alice.pending_observations = ["A bell rings for Alice."]
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
             ckpt=ckpt,
-            frontier_results=[
-                RouterFrontierResult(
-                    result_kind="agent_turn",
-                    character_id="pip",
-                    frame="foreground",
-                    public_text="He paces the threshold.",
-                    source_event_id="evt_prior",
-                ),
-            ],
+            character_id="pip",
+            public_text="He paces the threshold.",
             prior_result=_router_output(),
         ))
 
@@ -756,27 +736,20 @@ class TestRouteFrontierResults:
         assert "A bell rings for Alice." not in user_content
         assert alice.pending_observations == ["A bell rings for Alice."]
 
-    def test_frontier_results_do_not_drain_next_fresh_turn_deltas(
+    def test_agent_output_does_not_drain_next_fresh_engine_updates(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.world_state.facts = ["The keep predates the road."]
-        ckpt.session.pending_router_state_changes = ["Spawned: Sera"]
-        before_state_changes = list(ckpt.session.pending_router_state_changes)
-        before_surfaced = list(ckpt.session.surfaced_world_facts)
+        ckpt.session.pending_engine_state_updates = [
+            "Inventory update before the next action: alice took 8 sp.",
+        ]
+        before_updates = list(ckpt.session.pending_engine_state_updates)
         mock_client.complete.return_value = _llm_response(_router_output())
 
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
             ckpt=ckpt,
-            frontier_results=[
-                RouterFrontierResult(
-                    result_kind="agent_turn",
-                    character_id="pip",
-                    frame="foreground",
-                    public_text="He paces the threshold.",
-                    source_event_id="evt_prior",
-                ),
-            ],
+            character_id="pip",
+            public_text="He paces the threshold.",
             prior_result=_router_output(),
         ))
 
@@ -784,38 +757,28 @@ class TestRouteFrontierResults:
             mock_client.complete.await_args.kwargs["messages"]
         )
         assert user_content == "pip: He paces the threshold."
-        assert "Spawned: Sera" not in user_content
-        assert "The keep predates the road." not in user_content
-        assert ckpt.session.pending_router_state_changes == before_state_changes
-        assert ckpt.session.surfaced_world_facts == before_surfaced
+        assert "Inventory update before the next action" not in user_content
+        assert ckpt.session.pending_engine_state_updates == before_updates
 
-    def test_frontier_router_failure_restores_queues(
+    def test_agent_output_failure_leaves_engine_updates_untouched(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.pending_router_state_changes = ["Spawned: Sera"]
-        ckpt.world_state.facts = ["The keep predates the road."]
-        before_state_changes = list(ckpt.session.pending_router_state_changes)
-        before_surfaced = list(ckpt.session.surfaced_world_facts)
-        mock_client.complete.side_effect = RuntimeError("frontier API hiccup")
+        ckpt.session.pending_engine_state_updates = [
+            "Inventory update before the next action: alice took 8 sp.",
+        ]
+        before_updates = list(ckpt.session.pending_engine_state_updates)
+        mock_client.complete.side_effect = RuntimeError("agent output API hiccup")
 
         with pytest.raises(RuntimeError):
-            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
                 ckpt=ckpt,
-                frontier_results=[
-                    RouterFrontierResult(
-                        result_kind="agent_turn",
-                        character_id="pip",
-                        frame="foreground",
-                        public_text="He paces.",
-                        source_event_id="evt_prior",
-                    )
-                ],
+                character_id="pip",
+                public_text="He paces.",
                 prior_result=_router_output(),
             ))
 
-        assert ckpt.session.pending_router_state_changes == before_state_changes
-        assert ckpt.session.surfaced_world_facts == before_surfaced
+        assert ckpt.session.pending_engine_state_updates == before_updates
         assert ckpt.session_conversation == []
 
 

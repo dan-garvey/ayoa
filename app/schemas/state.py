@@ -530,24 +530,12 @@ class SessionState(BaseModel):
     # Durable relative story clock. Per-character clocks live on
     # CharacterRecord; this is the maximum known checkpoint time.
     leading_at_s: int = 0
-    # Commit-3 (router-trim): which `world_state.facts` entries have
-    # already been surfaced to the router in some prior turn's user
-    # message. The per-turn user message now carries
-    # `world_facts_delta` — only facts NOT in this set — instead of
-    # the full list. Updated by the router-context builder at consume
-    # time (atomic with the router LLM call). Importer-seeded facts
-    # land here on turn 1 and are never re-surfaced; the rare runtime-
-    # added fact lands on whatever turn it was added.
-    surfaced_world_facts: list[str] = Field(default_factory=list)
-    # Commit-3 (router-trim): one-shot lines describing things the
-    # engine applied that the router did NOT itself author — spawn
-    # outcomes (Commit 4 will populate router_summary into these),
-    # /takeover and /join changes, exotic state mutations the operator
-    # injected. Drained into the next router call's "## State Changes
-    # Since Your Last Call" block, then cleared. Empty in the common
-    # case (back-to-back on-stage routing in the same beat with no
-    # external mutation).
-    pending_router_state_changes: list[str] = Field(default_factory=list)
+    # One-shot lines for durable state mutations the engine performed outside
+    # router-authored canonical events. Drained into an optional
+    # engine_state_updates block on the next fresh router call. Router-authored
+    # spawn/dormant/cull/location/commitment/time changes belong in compact
+    # router history instead, not here.
+    pending_engine_state_updates: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     config: SessionConfig = Field(default_factory=SessionConfig)
 
@@ -566,8 +554,8 @@ class SessionState(BaseModel):
     # D&D-adapter pending loot/reward choices. Generic narrative sessions leave
     # this empty; item/currency claims mutate character mechanics overlays.
     dnd_inventory_offers: list[DndLootOffer] = Field(default_factory=list)
-    # Private long-action state. These records are surfaced only to the router
-    # as routing context, never to narrator renders as facts.
+    # Private long-action state. These records are derived from router-authored
+    # canonical events and are not narrator-visible facts.
     open_commitments: list[OpenCommitment] = Field(default_factory=list)
     # Non-blocking player revision prompts created when a visible event changes
     # the scene around an open commitment.

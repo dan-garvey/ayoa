@@ -125,17 +125,18 @@ class TestCharacterSpawn:
         assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
 
     @pytest.mark.asyncio
-    async def test_skip_existing_character(self, mock_client, sample_checkpoint):
+    async def test_existing_character_spawn_raises(
+        self, mock_client, sample_checkpoint,
+    ):
         mock_client.complete = AsyncMock()
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 
-        # guard_17 already exists
-        spawned = await mgr.spawn_characters(
-            sample_checkpoint,
-            [SpawnRequest(character_id="guard_17", seed={"role": "guard"})],
-        )
+        with pytest.raises(ValueError, match="existing ids"):
+            await mgr.spawn_characters(
+                sample_checkpoint,
+                [SpawnRequest(character_id="guard_17", seed={"role": "guard"})],
+            )
 
-        assert len(spawned) == 0
         mock_client.complete.assert_not_called()
 
     @pytest.mark.asyncio
@@ -158,35 +159,26 @@ class TestCharacterSpawn:
             SpawnRequest(character_id=f"npc_{i}", seed={"role": f"npc{i}"})
             for i in range(5)
         ]
-        spawned = await mgr.spawn_characters(sample_checkpoint, requests)
+        with pytest.raises(ValueError, match="max per turn"):
+            await mgr.spawn_characters(sample_checkpoint, requests)
 
-        # Capped at MAX_SPAWNS_PER_TURN = 3
-        assert len(spawned) == 3
+        mock_client.complete.assert_not_called()
 
     def test_spawn_without_client(self, sample_checkpoint):
         mgr = CharacterManager()
         import asyncio
-        spawned = asyncio.run(
-            mgr.spawn_characters(
-                sample_checkpoint,
-                [SpawnRequest(character_id="test", seed={})],
+        with pytest.raises(RuntimeError, match="no LLM client"):
+            asyncio.run(
+                mgr.spawn_characters(
+                    sample_checkpoint,
+                    [SpawnRequest(character_id="test", seed={})],
+                )
             )
-        )
-        assert len(spawned) == 0
 
     @pytest.mark.asyncio
-    async def test_spawn_writes_router_summary_then_drains(
+    async def test_router_spawn_does_not_queue_engine_update(
         self, mock_client, sample_checkpoint,
     ):
-        """Commit 4: spawn flow produces a router_summary that lands in
-        `pending_router_state_changes` exactly once.
-
-        Verifies the full wiring: the LLM-authored summary makes it
-        through `_spawn_one`, `_push_spawn_state_change` formats it
-        as a "Spawned: ..." line, and the subsequent router-context
-        builder drains the queue (one-shot semantics).
-        """
-        from app.engine.turn_loop_dispatcher import _build_state_changes_block
         from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
         authored = AuthoredCharacter(
@@ -210,158 +202,25 @@ class TestCharacterSpawn:
             sample_checkpoint,
             [SpawnRequest(character_id="sera_01", seed={"role": "cartographer"})],
         )
+
         assert len(spawned) == 1
+        assert sample_checkpoint.session.pending_engine_state_updates == []
 
-        queue = sample_checkpoint.session.pending_router_state_changes
-        assert len(queue) == 1
-        line = queue[0]
-        assert "Spawned: sera_01" in line
-        assert "sera_01" in line
-        assert "Exiled cartographer" in line
-        assert "steward" in line
-
-        block = _build_state_changes_block(sample_checkpoint)
-        assert "## State Changes Since Your Last Call" in block
-        assert "Spawned: sera_01" in block
-        assert sample_checkpoint.session.pending_router_state_changes == []
-
-        block_again = _build_state_changes_block(sample_checkpoint)
-        assert block_again == ""
-
-    @pytest.mark.asyncio
-    async def test_spawn_falls_back_when_router_summary_blank(
-        self, mock_client, sample_checkpoint,
-    ):
-        """Commit 4 fallback: if the LLM regresses and emits an empty
-        `router_summary`, the engine writes the mechanical
-        name+role+location+objectives line so the spawn still surfaces.
-        """
-        from app.schemas.takeover import AuthoredCharacter
-        mock_client.complete = AsyncMock()
-        authored = AuthoredCharacter(
-            name="Anon",
-            location="courtyard",
-            role="messenger",
-            appearance="", faction="", backstory="",
-            personality="",
-            known_context="",
-            goals=[], current_objectives=["deliver the writ"],
-            secrets=[], intentions_enabled=False,
-            router_summary="   ",
-        )
-        mock_client.complete.return_value = _llm_response(authored)
-
-        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
-        await mgr.spawn_characters(
-            sample_checkpoint,
-            [SpawnRequest(character_id="anon_01", seed={"role": "messenger"})],
-        )
-        queue = sample_checkpoint.session.pending_router_state_changes
-        assert len(queue) == 1
-        line = queue[0]
-        assert "Spawned: anon_01" in line
-        assert "role=messenger" in line
-        assert "objectives=deliver the writ" in line
-
-    @pytest.mark.asyncio
-    async def test_spawn_summary_normalizes_newlines_and_truncates(
-        self, mock_client, sample_checkpoint,
-    ):
-        """Commit 4b: a router_summary with embedded newlines or
-        gigantic length is normalized so it can't shatter the next
-        router prompt's bullet list or balloon the user message.
-        """
+    def test_router_summary_normalizes_newlines_and_truncates(self):
         from app.engine.character_manager import (
             ROUTER_SUMMARY_MAX_CHARS,
             _normalize_router_summary,
         )
-        from app.schemas.takeover import AuthoredCharacter
-        mock_client.complete = AsyncMock()
+
         long_summary = (
             "First line.\nSecond line with extra   whitespace.\n\n"
             + ("padding " * 200)
         )
-        authored = AuthoredCharacter(
-            name="Verbose Visitor",
-            location="courtyard", role="bard",
-            appearance="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False,
-            router_summary=long_summary,
-        )
-        mock_client.complete.return_value = _llm_response(authored)
-
-        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
-        await mgr.spawn_characters(
-            sample_checkpoint,
-            [SpawnRequest(character_id="verb_01", seed={"role": "bard"})],
-        )
-        queue = sample_checkpoint.session.pending_router_state_changes
-        assert len(queue) == 1
-        line = queue[0]
-        assert "\n" not in line
-        prefix_overhead = len("Spawned: verb_01 — ")
-        assert len(line) <= prefix_overhead + ROUTER_SUMMARY_MAX_CHARS
-
         cleaned = _normalize_router_summary(long_summary)
+
         assert "\n" not in cleaned
         assert len(cleaned) <= ROUTER_SUMMARY_MAX_CHARS
         assert "  " not in cleaned
-
-    @pytest.mark.asyncio
-    async def test_cull_drops_pending_spawn_line(
-        self, mock_client, sample_checkpoint,
-    ):
-        """Commit 4b: spawning a character and then culling them in the
-        same beat must NOT leave a "Spawned: ..." ghost line in the
-        next router call's State Changes block.
-        """
-        from app.schemas.takeover import AuthoredCharacter
-        mock_client.complete = AsyncMock()
-        authored = AuthoredCharacter(
-            name="Doomed",
-            location="courtyard", role="messenger",
-            appearance="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False,
-            router_summary="Messenger who arrived with bad news.",
-        )
-        mock_client.complete.return_value = _llm_response(authored)
-        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
-
-        await mgr.spawn_characters(
-            sample_checkpoint,
-            [SpawnRequest(character_id="doomed_01", seed={"role": "messenger"})],
-        )
-        assert any(
-            "doomed_01" in line
-            for line in sample_checkpoint.session.pending_router_state_changes
-        )
-
-        cull_routed = EventRouterOutput(
-            event_id="",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=[],
-            ),
-            observers=[],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="",
-            spawn=[],
-            dormant=[],
-            cull=["doomed_01"],
-        )
-        mgr.apply_roster_updates(sample_checkpoint, cull_routed)
-
-        assert all(
-            "doomed_01" not in line
-            for line in sample_checkpoint.session.pending_router_state_changes
-        )
 
     @pytest.mark.asyncio
     async def test_spawn_seeds_location_in_pending_observations(
@@ -400,80 +259,51 @@ class TestCharacterSpawn:
         ]
 
     @pytest.mark.asyncio
-    async def test_spawn_dedups_within_batch(
+    async def test_duplicate_spawn_ids_raise(
         self, mock_client, sample_checkpoint,
     ):
-        """v11-r7i: a single router call can emit multiple SpawnRequests
-        sharing one character_id (regression observed in dating_villa
-        playtest where the router emitted three `production_runner`
-        spawns in one turn). Engine must keep the first and silently
-        drop the rest, otherwise `checkpoint.characters.append` of
-        the same id would leave the roster with duplicate records
-        sharing one id and the canonical event ambiguous."""
-        from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
-        authored = AuthoredCharacter(
-            name="Production Runner",
-            location="courtyard", role="runner",
-            appearance="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False,
-            router_summary="A runner.",
-        )
-        mock_client.complete.return_value = _llm_response(authored)
-
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
-        spawned = await mgr.spawn_characters(
-            sample_checkpoint,
-            [
-                SpawnRequest(character_id="runner_01", seed={"role": "runner"}),
-                SpawnRequest(character_id="runner_01", seed={"role": "runner"}),
-                SpawnRequest(character_id="runner_01", seed={"role": "runner"}),
-            ],
-        )
-        assert len(spawned) == 1
-        assert mock_client.complete.call_count == 1
-        ids = [c.character_id for c in sample_checkpoint.characters]
-        assert ids.count("runner_01") == 1
+
+        with pytest.raises(ValueError, match="duplicate character spawns"):
+            await mgr.spawn_characters(
+                sample_checkpoint,
+                [
+                    SpawnRequest(
+                        character_id="runner_01",
+                        seed={"role": "runner"},
+                    ),
+                    SpawnRequest(
+                        character_id="runner_01",
+                        seed={"role": "runner"},
+                    ),
+                ],
+            )
+
+        mock_client.complete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_spawn_dedup_runs_before_cap(
+    async def test_spawn_duplicate_ids_raise_before_cap(
         self, mock_client, sample_checkpoint,
     ):
-        """Dedup MUST run before MAX_SPAWNS_PER_TURN truncation, not
-        after. Otherwise an LLM that spams `[runner, runner, runner,
-        unique_villain]` gets sliced to `[runner, runner, runner]`
-        first, then collapsed to `[runner]` — the unique villain is
-        silently dropped despite us spawning only 1 actual character.
-        Correct order: dedup → 2 distinct ids → both spawn."""
-        from app.schemas.takeover import AuthoredCharacter
         mock_client.complete = AsyncMock()
-        # Generic authored body; we only care about call count + ids.
-        authored = AuthoredCharacter(
-            name="X", location="courtyard", role="r",
-            appearance="", faction="", backstory="",
-            personality="", known_context="",
-            goals=[], current_objectives=[], secrets=[],
-            intentions_enabled=False, router_summary="x",
-        )
-        mock_client.complete.return_value = _llm_response(authored)
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 
-        spawned = await mgr.spawn_characters(
-            sample_checkpoint,
-            [
-                SpawnRequest(character_id="runner_01", seed={"role": "r"}),
-                SpawnRequest(character_id="runner_01", seed={"role": "r"}),
-                SpawnRequest(character_id="runner_01", seed={"role": "r"}),
-                SpawnRequest(character_id="unique_villain", seed={"role": "v"}),
-            ],
-        )
-        ids = sorted(c.character_id for c in spawned)
-        assert ids == ["runner_01", "unique_villain"], (
-            "unique_villain must survive dedup-then-cap; "
-            "got " + repr(ids)
-        )
+        with pytest.raises(ValueError, match="duplicate character spawns"):
+            await mgr.spawn_characters(
+                sample_checkpoint,
+                [
+                    SpawnRequest(character_id="runner_01", seed={"role": "r"}),
+                    SpawnRequest(character_id="runner_01", seed={"role": "r"}),
+                    SpawnRequest(character_id="runner_01", seed={"role": "r"}),
+                    SpawnRequest(
+                        character_id="unique_villain",
+                        seed={"role": "v"},
+                    ),
+                ],
+            )
+
+        mock_client.complete.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_spawn_uses_acting_actor_location_when_seed_omits(

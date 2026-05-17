@@ -84,25 +84,15 @@ def format_cat_ii_resolution_block(
     return "\n".join(lines)
 
 
-def format_frontier_results_block(
-    entries: list[tuple[str, str, str, str, str]],
-) -> str:
-    """Bundle returned character outputs into one router input.
+def format_agent_output_entry(character_id: str, public_text: str) -> str:
+    """Router input for one committed agent output.
 
-    Each entry is
-    `(result_kind, character_id, frame, source_event_id, public_text)`.
-    Only the authoring character id and public text belong in the prompt.
-    Agent parentheticals MUST be stripped before this helper is called.
-    Empty list returns "" so the dispatcher can skip payload-less router
-    calls.
+    Runtime dispatch metadata such as frame and source event id shapes the
+    agent call before this point; the router only needs the authoring
+    character id and public surface text.
     """
-    if not entries:
-        return ""
-    lines = []
-    for _result_kind, char_id, _frame, _source_event_id, public_text in entries:
-        text = (public_text or "").strip() or "(no public action)"
-        lines.append(f"{char_id}: {text}")
-    return "\n".join(lines) + "\n"
+    text = (public_text or "").strip() or "(no public action)"
+    return f"{character_id}: {text}"
 
 
 def format_router_continuation_block(*, prior_rationale: str = "") -> str:

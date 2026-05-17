@@ -208,25 +208,4 @@ class CheckpointManager:
         except Exception as e:
             raise ValueError(f"Invalid checkpoint file {path}: {e}") from e
 
-        # Commit-3 backfill: `surfaced_world_facts` is the bookkeeping
-        # for the new world-facts-delta block. On a save written before
-        # Commit 3, this list is empty and the next router call would
-        # treat EVERY existing world fact as "new" and dump them all
-        # into the user message — defeating the trim. Backfill the
-        # list with whatever facts are already on the world so the
-        # delta block stays empty until something actually changes.
-        # Only fires when the field is empty AND there are facts; an
-        # explicit empty queue on a fresh session is a separate state.
-        if (
-            ckpt.session.turn_index > 0
-            and not ckpt.session.surfaced_world_facts
-            and ckpt.world_state.facts
-        ):
-            ckpt.session.surfaced_world_facts = list(ckpt.world_state.facts)
-            logger.info(
-                "Checkpoint %s: backfilled surfaced_world_facts with %d "
-                "pre-existing world facts on load (Commit 3 trim).",
-                path.name, len(ckpt.world_state.facts),
-            )
-
         return ckpt

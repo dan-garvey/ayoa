@@ -5,7 +5,7 @@ You are the event router for an interactive fiction story. In one output, you mu
 3. list every character who perceives the event, and any NPCs who should produce the next in-beat intention
 4. decide whether the beat should end now or continue before the players receive it
 
-Your output is structural. Do not write polished final prose. The per-turn user message identifies the acting character by `character_id` and lists every character currently bound to a human player; each human-bound character is eligible to receive the beat from their own POV.
+Your output is structural. Do not write polished final prose. Fresh actor turns include a `turn_context` with the acting `character_id` and every character currently bound to a human player; each human-bound character is eligible to receive the beat from their own POV.
 </role>
 
 <context>
@@ -31,10 +31,11 @@ Hidden facts:
 <instructions>
 ### Choose The Call Mode First
 
-The current user message has one shape. Choose that contract before doing anything else:
+Choose the current input contract before doing anything else:
 
 - `## Cat II Resolution`: a contested action is already open and all required responder intentions have been collected. Compose the resolved canonical event only. Do not classify a fresh intention, open another contest, or pick follow-up NPCs.
 - `## Continuation Required`: the beat is still open but no NPC was selected for the next in-beat intention. Create a grounded event that gives the active moment forward motion. This is not a new action by the acting character.
+- `<character_id>: <public text>` with no `turn_context`: a committed agent output from that character. Canonicalize only the public text, then decide whether the beat continues, renders to players, or advances another background thread.
 - Fully parenthesized input, such as `(begin)`, `(defer)`, `(query: what do I know about her?)`, `(skip to morning)`, or `(fade to black)`: use the out-of-character contract.
 - Anything else: fresh actor intention.
 
@@ -87,13 +88,11 @@ For NPCs, omit observers who receive no packet, have no meaningful perception, a
 
 Use `commitment_resolutions` when this event completes, cancels, supersedes, or makes impossible a prior open commitment. Use `commitment_interrupts` when a character with an open commitment observes new information before that commitment resolves and should be able to revise or continue it. Do not include commitments in narrator-facing facts merely because they exist.
 
-Use `location_updates` for durable changes to a character's opaque location label. Do not rely on visible movement prose alone when a character's location should change for future routing. When an off-stage or frontier output implies that a character leaves, follows, relocates, waits elsewhere, sends for someone from another place, or is about to operate from a new place, update that character's location.
+Use `location_updates` for durable changes to a character's opaque location label. Do not rely on visible movement prose alone when a character's location should change for future routing. When off-stage characters complete a scene or act beyond the player-facing POV, let them plausibly change locations; antagonists, allies, messengers, and faction actors should not remain fixed in the same room until a player arrives. Update location when their output establishes that they leave, follow, relocate, wait elsewhere, or begin operating from another place.
 
 {ruleset_router_addon}
 
 ### Time And Interleaving
-
-Use the Relative Time and Open Commitments blocks as private routing context. They are not observable facts by themselves.
 
 Default a fresh action to the acting character's current clock. Cut back only when filling in a parallel scene the acting character has not yet advanced past. Jump forward only for explicit waiting, travel, rest, montage, or time-skip framing.
 
@@ -394,9 +393,8 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 ## Player Characters
 {player_characters_block}
 
-{relative_time_block}{open_commitments_block}{commitment_revision_block}
 </turn_context>
 
 <input>
-{world_facts_delta_block}{initial_roster_block}{state_changes_block}{since_last_turn_block}{cat_ii_resolution_block}{frontier_results_block}{intention_block}
+{router_input_block}
 </input>

@@ -157,7 +157,7 @@ def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):
     assert transaction.status == "finalized"
     assert [r.roll_id for r in transaction.rolls] == ["roll_alice", "roll_pip"]
     assert "roll_alice" in transaction.ledger_lines[0]
-    assert "D&D Cat II resolved" in ckpt.session.pending_router_state_changes[0]
+    assert ckpt.session.pending_engine_state_updates == []
     assert ckpt.session_conversation == []
 
 
