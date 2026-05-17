@@ -333,94 +333,6 @@ def _build_open_commitments_block(checkpoint: CheckpointFile) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _build_scene_liveness_block(
-    checkpoint: CheckpointFile,
-    acting_character_id: str,
-    *,
-    max_entries: int = 10,
-) -> str:
-    """Compact off-scene routing cues for router-owned liveness.
-
-    This is not a scheduler and does not create events by itself. It exposes
-    authored off-scene pressure on fresh player turns so the router can decide
-    whether any non-human character output is worth requesting via
-    `routing_role`.
-    """
-    if not acting_character_id:
-        return ""
-
-    from app.engine.context_builder import collect_player_ids
-
-    player_ids = collect_player_ids(checkpoint)
-    acting_char = next(
-        (
-            char for char in checkpoint.characters
-            if char.character_id == acting_character_id
-        ),
-        None,
-    )
-    acting_location = acting_char.location if acting_char is not None else ""
-    leading_at = int(checkpoint.session.leading_at_s)
-    entries: list[tuple[tuple[int, str], str]] = []
-    for char in checkpoint.characters:
-        if char.character_id in player_ids:
-            continue
-        if char.character_id == acting_character_id:
-            continue
-        if char.status.value != "active":
-            continue
-        if acting_location and char.location == acting_location:
-            continue
-        state = char.private_state
-        if not state.intentions_enabled:
-            continue
-        objectives = [
-            _compact_router_history_text(obj)
-            for obj in state.current_objectives
-            if obj.strip()
-        ][:2]
-        cues = [
-            _compact_router_history_text(cue)
-            for cue in state.tick_cues
-            if cue.strip()
-        ][:3]
-        if not objectives and not cues:
-            continue
-        last_turn = char.last_agent_turn_at_s
-        since = (
-            max(0, leading_at - int(last_turn))
-            if last_turn is not None else leading_at
-        )
-        last_text = (
-            f"last output {_format_seconds(since)} ago"
-            if last_turn is not None else "last output never"
-        )
-        parts = [
-            f"- {char.character_id} @ {char.location or 'unknown location'}",
-            last_text,
-        ]
-        if objectives:
-            parts.append("objectives: " + "; ".join(objectives))
-        if cues:
-            parts.append("cues: " + "; ".join(cues))
-        entries.append(((-since, char.character_id), "; ".join(parts)))
-
-    if not entries:
-        return ""
-
-    entries.sort(key=lambda item: item[0])
-    lines = [
-        "## Scene Liveness",
-        (
-            "Off-scene routing candidates, not facts. Request output only "
-            "when their pressure matters now."
-        ),
-    ]
-    lines.extend(text for _, text in entries[:max_entries])
-    lines.append("")
-    return "\n".join(lines) + "\n"
-
-
 def _build_commitment_revision_block(
     checkpoint: CheckpointFile,
     acting_character_id: str,
@@ -685,7 +597,6 @@ def _build_router_context(
     acting_character_id: str,
     *,
     resolve_actor_fallback: bool = True,
-    include_scene_liveness: bool = True,
     include_state_deltas: bool = True,
 ) -> dict[str, str]:
     """Collect every context variable the event_router template needs
@@ -727,10 +638,6 @@ def _build_router_context(
         "since_last_turn_block": since_last_turn_block,
         "relative_time_block": _build_relative_time_block(ckpt),
         "open_commitments_block": _build_open_commitments_block(ckpt),
-        "scene_liveness_block": (
-            _build_scene_liveness_block(ckpt, acting_id)
-            if include_scene_liveness else ""
-        ),
         "commitment_revision_block": _build_commitment_revision_block(
             ckpt,
             acting_id,
@@ -800,7 +707,6 @@ class LLMDispatcher:
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
-                include_scene_liveness=cat_ii_event is None,
             )
             dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
@@ -943,7 +849,7 @@ class LLMDispatcher:
         actor_id: str,
         prior_result: EventRouterOutput,
     ) -> EventRouterOutput:
-        """Ask the router to advance an open beat with no next pick."""
+        """Ask the router to advance an open beat with no next-output target."""
 
         saved_surfaced_facts = list(ckpt.session.surfaced_world_facts)
         saved_state_changes = list(
@@ -953,7 +859,6 @@ class LLMDispatcher:
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
-                include_scene_liveness=False,
             )
             continuation_block = format_router_continuation_block(
                 prior_rationale=prior_result.decision_rationale,
@@ -1037,7 +942,6 @@ class LLMDispatcher:
                 ckpt,
                 "",
                 resolve_actor_fallback=False,
-                include_scene_liveness=False,
                 include_state_deltas=False,
             )
 

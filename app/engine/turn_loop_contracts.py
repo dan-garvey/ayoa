@@ -110,7 +110,7 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
 
     This is not a new character intention. It is a router-only recovery
     mode used after the prior router output used `event_kind=beat_continues` but
-    left no dispatchable NPC pick. The next router output must either
+    left no dispatchable next-output target. The next router output must either
     create a concrete human-facing beat boundary or supply a real NPC
     continuation.
     """

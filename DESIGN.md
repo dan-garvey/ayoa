@@ -1582,7 +1582,7 @@ Open questions:
 * should delivery happen on the next player intention, on a cache timeout, or
   on a separate background refresh cadence?
 * does delayed public delivery create normal `pending_observations`, a
-  separate public-news inbox, or a scene-liveness target for the router to
+  separate public-news inbox, or a router-routed background target to
   adjudicate?
 * what provenance survives delivery so an agent can distinguish direct memory
   from rumor, broadcast, report, feed, or inferred aftermath?

@@ -16,7 +16,7 @@ from app.engine.turn_loop_contracts import (
 from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
+from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
     DndEventRouterOutput,
@@ -175,76 +175,6 @@ class TestRouterContext:
         assert "Alice searches the cabinet." in ctx["open_commitments_block"]
         assert "evt_noise" in ctx["commitment_revision_block"]
 
-    def test_scene_liveness_surfaces_offscene_router_candidates(self):
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        ckpt.session.leading_at_s = 120
-        pip = next(c for c in ckpt.characters if c.character_id == "pip")
-        pip.location = "archive"
-        pip.last_agent_turn_at_s = 60
-        pip.private_state = PrivateState(
-            intentions_enabled=True,
-            current_objectives=["deliver the sealed writ"],
-            tick_cues=["the bell tolls twice"],
-        )
-
-        ctx = _build_router_context(ckpt, "alice")
-
-        block = ctx["scene_liveness_block"]
-        assert "## Scene Liveness" in block
-        assert "pip @ archive" in block
-        assert "last output 60s ago" in block
-        assert "deliver the sealed writ" in block
-        assert "the bell tolls twice" in block
-
-    def test_scene_liveness_omits_on_scene_and_human_characters(self):
-        ckpt = _ckpt(bindings={"alice": "discord_1", "bob": "discord_2"})
-        alice = next(c for c in ckpt.characters if c.character_id == "alice")
-        alice.location = "gatehouse"
-        pip = next(c for c in ckpt.characters if c.character_id == "pip")
-        pip.location = "gatehouse"
-        pip.private_state = PrivateState(
-            intentions_enabled=True,
-            current_objectives=["interrupt the gatehouse scene"],
-            tick_cues=["on-scene cue"],
-        )
-        bob = CharacterRecord(
-            character_id="bob",
-            name="Bob",
-            public_sheet=PublicSheet(role="player"),
-            location="archive",
-            is_playable=True,
-            private_state=PrivateState(
-                intentions_enabled=True,
-                current_objectives=["human objective"],
-                tick_cues=["human cue"],
-            ),
-        )
-        ckpt.characters.append(bob)
-
-        ctx = _build_router_context(ckpt, "alice")
-
-        assert ctx["scene_liveness_block"] == ""
-
-    def test_scene_liveness_suppressed_for_character_output_context(self):
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        pip = next(c for c in ckpt.characters if c.character_id == "pip")
-        pip.location = "archive"
-        pip.private_state = PrivateState(
-            intentions_enabled=True,
-            current_objectives=["deliver the sealed writ"],
-            tick_cues=["the bell tolls twice"],
-        )
-
-        ctx = _build_router_context(
-            ckpt,
-            "",
-            resolve_actor_fallback=False,
-            include_scene_liveness=False,
-        )
-
-        assert ctx["scene_liveness_block"] == ""
-
-
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
         self, prompt_mgr, mock_client,
@@ -293,17 +223,13 @@ class TestRouteIntention:
         assert update_index < intention_index
         assert ckpt.session.pending_router_state_changes == []
 
-    def test_fresh_intention_includes_scene_liveness_candidates(
+    def test_fresh_intention_omits_private_liveness_tick_cues(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         pip.location = "archive"
-        pip.private_state = PrivateState(
-            intentions_enabled=True,
-            current_objectives=["deliver the sealed writ"],
-            tick_cues=["the bell tolls twice"],
-        )
+        pip.private_state.tick_cues = ["the bell tolls twice"]
         mock_client.complete.return_value = _llm_response(_router_output())
 
         asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
@@ -315,9 +241,7 @@ class TestRouteIntention:
         user_content = _last_user_content(
             mock_client.complete.await_args.kwargs["messages"]
         )
-        assert "## Scene Liveness" in user_content
-        assert "pip @ archive" in user_content
-        assert "deliver the sealed writ" in user_content
+        assert "the bell tolls twice" not in user_content
 
     def test_npc_cascade_emits_intends_framing(
         self, prompt_mgr, mock_client,
@@ -800,7 +724,6 @@ class TestRouteFrontierResults:
         assert "## Acting Character" not in user_content
         assert "## Player Characters" not in user_content
         assert "<input>" not in user_content
-        assert "## Scene Liveness" not in user_content
         assert "**alice** (acting this turn)" not in user_content
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content

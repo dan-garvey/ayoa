@@ -178,6 +178,16 @@ Other NPCs may also be routed when the event creates real pressure on them. NPC-
 
 If `event_kind="beat_continues"`, at least one observer should usually have `routing_role="next_output"`. Use more than one `next_output` only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface. Do not burn outputs on every character just because they exist, and do not over-advance private branches compared with the visible table. For terminal event kinds, use `observe_only` unless this is `observation_harvest`, `query_response`, or a ruleset-specific routing role.
 
+### Off-Screen Thread Liveness
+
+At every routing step, keep the wider story alive. In addition to resolving the current visible pressure, look across prior events, established NPC objectives, open commitments, and delayed consequences for off-screen threads that should advance now. If background pressure exists, select at least one such thread before ending the beat by marking a suitable off-screen NPC with `routing_role="next_output"`. Track no more than 4 concurrent off-screen threads in the current beat; use one next-output character per thread at a time, then reassess after each output is canonicalized.
+
+Do not tunnel on the same one or two off-screen agents. Rotate attention among active NPCs, factions, hazards, obligations, messages, pursuers, rivals, and delayed consequences when history gives them live pressure. Prefer threads whose next move can later surface as a concrete consequence, arrival, clue, interruption, rumor, changed location, or new constraint.
+
+A background thread should be a tight beat, not a hidden chapter. Advance one meaningful move per selected thread. Do not spend outputs on every active NPC, do not advance private branches just because they exist, and do not let background motion overwhelm the visible table. If no off-screen thread has established pressure, choose the strongest visible next output or end on a real affordance.
+
+Off-screen output still obeys visibility. If the off-screen event is private to its scene, scope facts to the characters who can perceive it. If its consequence reaches a player-facing scene, make that transfer an observable event: a message, arrival, sound, report, object, environmental change, or other concrete surface.
+
 7. Choose `event_kind`.
 
 End the beat only when the latest event leaves the acting human with a concrete next affordance and no more meaningful character output remains. A concrete affordance is a person addressing them with a meaningful choice or pressure, clear destination with stakes, object or cue to investigate, visible obstacle, changed condition, explicit absence that matters, signal, message, arrival, or decision point. Procedural compliance is not an affordance: "sit there," "follow the attendant," "sign this," "take this chit," or "wait until called" are not valid player-facing boundaries unless paired with a new fact, pressure, dilemma, or actionable opportunity.
@@ -387,5 +397,5 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 </turn_context>
 
 <input>
-{world_facts_delta_block}{initial_roster_block}{state_changes_block}{since_last_turn_block}{scene_liveness_block}{cat_ii_resolution_block}{frontier_results_block}{intention_block}
+{world_facts_delta_block}{initial_roster_block}{state_changes_block}{since_last_turn_block}{cat_ii_resolution_block}{frontier_results_block}{intention_block}
 </input>
