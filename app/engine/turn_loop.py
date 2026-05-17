@@ -85,6 +85,7 @@ from app.schemas.events import (
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.router_frontier import (
     RouterFrontierResult,
+    RouterFrontierTarget,
     frontier_from_router_output,
 )
 from app.schemas.state import (
@@ -1163,51 +1164,32 @@ async def _agent_intention_for_dispatch(
     return None
 
 
-def _frontier_frame_for_pick(
-    ckpt: CheckpointFile,
-    result: EventRouterOutput,
-    character_id: str,
-) -> str:
-    observer_ids = {observer.character_id for observer in result.observers}
-    if character_id not in observer_ids:
-        return "background"
-    from app.engine.context_builder import collect_player_ids
-
-    return (
-        "foreground"
-        if observer_ids.intersection(collect_player_ids(ckpt))
-        else "private"
-    )
-
-
 async def _collect_agent_frontier_results(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
-    prior_result: EventRouterOutput,
-    picks: list[str],
+    targets: list[RouterFrontierTarget],
 ) -> list[RouterFrontierResult]:
-    if not picks:
+    if not targets:
         return []
 
-    async def _one(character_id: str) -> RouterFrontierResult | None:
-        frame = _frontier_frame_for_pick(ckpt, prior_result, character_id)
+    async def _one(target: RouterFrontierTarget) -> RouterFrontierResult | None:
         text = await _agent_intention_for_dispatch(
             dispatcher,
             ckpt,
-            character_id,
-            frame=frame,
+            target.character_id,
+            frame=target.frame,
         )
         if text is None:
             return None
         return RouterFrontierResult(
             result_kind="agent_turn",
-            character_id=character_id,
-            frame=frame,
+            character_id=target.character_id,
+            frame=target.frame,
             public_text=text,
-            source_event_id=prior_result.event_id,
+            source_event_id=target.source_event_id,
         )
 
-    results = await asyncio.gather(*(_one(pick) for pick in picks))
+    results = await asyncio.gather(*(_one(target) for target in targets))
     return [result for result in results if result is not None]
 
 
@@ -2041,7 +2023,6 @@ class Dispatcher(Protocol):
         ckpt: CheckpointFile,
         frontier_results: list[RouterFrontierResult],
         prior_result: EventRouterOutput,
-        acting_character_id: str = "",
     ) -> EventRouterOutput | None:
         """Route a completed frontier group back into one canonical event."""
         ...
@@ -2263,14 +2244,13 @@ async def run_beat(
             agent_picks=picks,
         )
         agent_targets = [
-            target.character_id
+            target
             for target in frontier.frontier_targets
             if target.target_kind == "agent_turn"
         ]
         frontier_results = await _collect_agent_frontier_results(
             dispatcher,
             ckpt,
-            prior_result,
             agent_targets,
         )
         if not frontier_results:
@@ -2280,7 +2260,6 @@ async def run_beat(
             ckpt=ckpt,
             frontier_results=frontier_results,
             prior_result=prior_result,
-            acting_character_id=actor_id,
         )
         if routed is None:
             await _queue_router_continuation(prior_result)

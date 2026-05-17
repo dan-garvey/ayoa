@@ -44,6 +44,7 @@ from app.schemas.events import (
     visible_fact_texts,
 )
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.router_frontier import frontier_from_router_output
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
@@ -663,7 +664,8 @@ class TestBeatCascade:
     def test_cat_i_cascades_through_agent_pick(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_picks=["pip"], ends_beat=False))
+        prior = _router_out(agent_picks=["pip"], ends_beat=False)
+        fake.queue_route(prior)
         fake.queue_agent("Pip polishes the bell")
         fake.queue_route(_router_out(ends_beat=True))
 
@@ -680,6 +682,7 @@ class TestBeatCascade:
         assert len(fake.frontier_calls) == 1
         frontier_results = fake.frontier_calls[0]["frontier_results"]
         assert [item.character_id for item in frontier_results] == ["pip"]
+        assert frontier_results[0].source_event_id == prior.event_id
 
     def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
         ckpt = _ckpt({})
@@ -2030,6 +2033,26 @@ class TestSchemaValidators:
         data["agent_responder_picks"] = ["pip", "offstage_npc"]
         rebuilt = EventRouterOutput.model_validate(data)
         assert rebuilt.agent_responder_picks == ["pip", "offstage_npc"]
+
+    def test_frontier_projection_uses_runtime_frame_semantics(self):
+        out = _router_out(agent_picks=["pip"], ends_beat=False)
+        assert frontier_from_router_output(
+            out,
+            player_ids={"alice"},
+            agent_picks=["pip"],
+        ).frontier_targets[0].frame == "foreground"
+        assert frontier_from_router_output(
+            out,
+            player_ids=set(),
+            agent_picks=["pip"],
+        ).frontier_targets[0].frame == "private"
+
+        offstage = _router_out(ends_beat=False)
+        assert frontier_from_router_output(
+            offstage,
+            player_ids={"alice"},
+            agent_picks=["offstage_npc"],
+        ).frontier_targets[0].frame == "background"
 
     def test_unknown_event_kind_coerced_to_terminal_kind(self):
         out = _router_out(ends_beat=True)

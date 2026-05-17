@@ -683,7 +683,6 @@ class TestRouteFrontierResults:
                 ),
             ],
             prior_result=_router_output(),
-            acting_character_id="alice",
         ))
 
         user_content = _last_user_content(
@@ -698,8 +697,39 @@ class TestRouteFrontierResults:
         assert "Wraith" not in user_content
         assert "It descends the stair" in user_content
         assert "background" in user_content
+        assert "after evt_prior" in user_content
+        assert "## Acting Character\nalice" not in user_content
+        assert "**alice** (acting this turn)" not in user_content
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
+
+    def test_frontier_results_do_not_drain_original_actor_context(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.pending_observations = ["A bell rings for Alice."]
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_frontier_results(
+            ckpt=ckpt,
+            frontier_results=[
+                RouterFrontierResult(
+                    result_kind="agent_turn",
+                    character_id="pip",
+                    frame="foreground",
+                    public_text="He paces the threshold.",
+                    source_event_id="evt_prior",
+                ),
+            ],
+            prior_result=_router_output(),
+        ))
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert "A bell rings for Alice." not in user_content
+        assert alice.pending_observations == ["A bell rings for Alice."]
 
     def test_frontier_router_failure_restores_queues(
         self, prompt_mgr, mock_client,
@@ -724,7 +754,6 @@ class TestRouteFrontierResults:
                     )
                 ],
                 prior_result=_router_output(),
-                acting_character_id="alice",
             ))
 
         assert ckpt.session.pending_router_state_changes == before_state_changes

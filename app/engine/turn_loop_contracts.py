@@ -86,11 +86,12 @@ def format_cat_ii_resolution_block(
 
 
 def format_frontier_results_block(
-    entries: list[tuple[str, str, str, str]],
+    entries: list[tuple[str, str, str, str, str]],
 ) -> str:
     """Bundle completed frontier target outputs into one router input.
 
-    Each entry is `(result_kind, character_id, frame, public_text)`.
+    Each entry is
+    `(result_kind, character_id, frame, source_event_id, public_text)`.
     Agent parentheticals MUST be stripped before this helper is called.
     Empty list returns "" so the dispatcher can skip payload-less router
     calls.
@@ -104,9 +105,12 @@ def format_frontier_results_block(
         "whether the frontier should continue or render to players."
     )
     lines.append("")
-    for result_kind, char_id, frame, public_text in entries:
+    for result_kind, char_id, frame, source_event_id, public_text in entries:
         text = (public_text or "").strip() or "(no public action)"
-        lines.append(f"- {result_kind} {char_id} [{frame}]: {text}")
+        source = (source_event_id or "").strip() or "unknown"
+        lines.append(
+            f"- {result_kind} {char_id} [{frame}] after {source}: {text}"
+        )
     lines.append("")
     return "\n".join(lines)
 

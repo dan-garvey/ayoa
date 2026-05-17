@@ -397,7 +397,7 @@ def _router_history_record(
     """
     header = (
         f"prior_event {result.event_id} @{result.effective_at_s}"
-        f"+{result.duration_s} source={acting_character_id} mode={mode}"
+        f"+{result.duration_s} source={acting_character_id or '-'} mode={mode}"
     )
     if result.ends_beat_reason:
         header += f" end={result.ends_beat_reason}"
@@ -589,6 +589,8 @@ def _normalize_router_result_for_history(
 def _build_router_context(
     ckpt: CheckpointFile,
     acting_character_id: str,
+    *,
+    resolve_actor_fallback: bool = True,
 ) -> dict[str, str]:
     """Collect every context variable the event_router template needs
     aside from the two intention-block slots the caller populates
@@ -597,9 +599,19 @@ def _build_router_context(
     Returns a dict ready to splat into `prompt_mgr.render_messages`
     after merging in `{intention_block}` and `{cat_ii_resolution_block}`.
     """
-    acting_id, acting_char, _acting_name = resolve_acting_character(
-        ckpt, acting_character_id,
-    )
+    if resolve_actor_fallback:
+        acting_id, acting_char, _acting_name = resolve_acting_character(
+            ckpt, acting_character_id,
+        )
+    else:
+        acting_id = acting_character_id
+        acting_char = next(
+            (
+                c for c in ckpt.characters
+                if c.character_id == acting_character_id
+            ),
+            None,
+        )
     since_last_turn_block = _build_since_last_turn_block(acting_char)
     # After the router sees these silent observations, they must not
     # re-deliver on the next turn — drain the inbox here.
@@ -892,7 +904,6 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         frontier_results: list[RouterFrontierResult],
         prior_result: EventRouterOutput,
-        acting_character_id: str = "",
     ) -> EventRouterOutput | None:
         """Bundle completed frontier target prose into one router call.
 
@@ -908,13 +919,18 @@ class LLMDispatcher:
             ckpt.session.pending_router_state_changes
         )
         try:
-            ctx = _build_router_context(ckpt, acting_character_id)
+            ctx = _build_router_context(
+                ckpt,
+                "",
+                resolve_actor_fallback=False,
+            )
 
             frontier_block = format_frontier_results_block([
                 (
                     item.result_kind,
                     item.character_id,
                     item.frame,
+                    item.source_event_id,
                     item.public_text,
                 )
                 for item in frontier_results
@@ -958,7 +974,10 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
-        actor_id = acting_character_id
+        actor_id = ""
+        source_event_ids = _compact_id_list(list(dict.fromkeys(
+            item.source_event_id for item in frontier_results
+        )))
         _normalize_router_result_for_history(
             ckpt,
             actor_id=actor_id,
@@ -972,6 +991,7 @@ class LLMDispatcher:
             mode="frontier",
             user_prompt=(
                 f"frontier_after={prior_result.event_id} "
+                f"source_events={source_event_ids} "
                 f"results={len(frontier_results)}"
             ),
         )

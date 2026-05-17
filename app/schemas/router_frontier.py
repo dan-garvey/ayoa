@@ -70,6 +70,20 @@ def event_kind_from_router_output(result: EventRouterOutput) -> EventKind:
     return result.event_kind
 
 
+def frontier_frame_for_pick(
+    result: EventRouterOutput,
+    *,
+    player_ids: set[str],
+    character_id: str,
+) -> FrontierFrame:
+    observer_ids = {observer.character_id for observer in result.observers}
+    if character_id not in observer_ids:
+        return "background"
+    if observer_ids.intersection(player_ids):
+        return "foreground"
+    return "private"
+
+
 def frontier_from_router_output(
     result: EventRouterOutput,
     *,
@@ -93,12 +107,15 @@ def frontier_from_router_output(
             for cid in perception_targets
         )
     elif not result.ends_beat:
-        observer_ids = {observer.character_id for observer in result.observers}
         targets.extend(
             RouterFrontierTarget(
                 target_kind="agent_turn",
                 character_id=cid,
-                frame="foreground" if cid in observer_ids else "background",
+                frame=frontier_frame_for_pick(
+                    result,
+                    player_ids=player_ids,
+                    character_id=cid,
+                ),
                 source_event_id=result.event_id,
             )
             for cid in agent_picks

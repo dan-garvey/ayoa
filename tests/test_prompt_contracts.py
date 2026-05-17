@@ -73,11 +73,24 @@ class TestFrontierResultsBlock:
 
     def test_renders_header_and_per_entry_lines(self):
         block = format_frontier_results_block([
-            ("agent_turn", "regent", "background", "He paces the long table."),
-            ("agent_turn", "scribe", "foreground", "She copies a passage."),
+            (
+                "agent_turn",
+                "regent",
+                "background",
+                "evt_prior",
+                "He paces the long table.",
+            ),
+            (
+                "agent_turn",
+                "scribe",
+                "foreground",
+                "evt_prior",
+                "She copies a passage.",
+            ),
         ])
         assert ROUTER_FRONTIER_RESULTS_HEADER in block
         assert "2 selected frontier target(s)" in block
+        assert "after evt_prior" in block
         assert "regent" in block
         assert "background" in block
         assert "He paces the long table." in block
@@ -86,7 +99,7 @@ class TestFrontierResultsBlock:
 
     def test_blank_public_text_falls_back_to_silent_marker(self):
         block = format_frontier_results_block([
-            ("agent_turn", "mute", "background", ""),
+            ("agent_turn", "mute", "background", "evt_prior", ""),
         ])
         assert "(no public action)" in block
 
