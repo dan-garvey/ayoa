@@ -49,6 +49,7 @@ from app.schemas.router_targets import targets_from_router_output
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
+    DndRouterObservedFact,
     OpenCommitment,
     RenderBufferEntry,
     SessionState,
@@ -1248,6 +1249,13 @@ class TestCatIIBeat:
         )
         ckpt.session.active_combat = DndCombatState(
             turn_index=0,
+            router_observed_facts=[
+                DndRouterObservedFact(
+                    fact="Bob secured Pip's surrender without killing him.",
+                    salience="notable",
+                    reason="This mercy should carry into the post-combat scene.",
+                ),
+            ],
             combatants=[
                 DndCombatantState(
                     combatant_id="bob",
@@ -1281,6 +1289,11 @@ class TestCatIIBeat:
         assert ended is True
         assert ckpt.session.active_combat is None
         assert ckpt.session.active_act_slots == {}
+        assert ckpt.session.pending_engine_state_updates == [
+            "Combat continuity [notable]: Bob secured Pip's surrender without "
+            "killing him. Reason: This mercy should carry into the post-combat "
+            "scene."
+        ]
         event = out
         assert "alice" not in {observer.character_id for observer in event.observers}
         facts = [fact.text for fact in event.canonical_event.observable_facts]

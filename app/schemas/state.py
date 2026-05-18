@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.dnd_spatial import DndBattleMapState
@@ -12,6 +12,7 @@ from app.schemas.dnd_spatial import DndBattleMapState
 class ModelConfig(BaseModel):
     event_router: str = "gpt-5.2"
     narrator: str = "gpt-5.2"
+    dnd_combat_manager: str = "gpt-5.1"
     discriminator: str = "gpt-5.2"
     agent_default: str = "claude-opus-4-6"
     agent_standard: str = "claude-haiku-4-5"
@@ -423,6 +424,27 @@ class DndCombatantState(BaseModel):
         return data
 
 
+class DndRouterObservedFact(BaseModel):
+    """Narrative continuity from active D&D combat worth surfacing later."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fact: str
+    salience: str = "notable"
+    reason: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndRouterObservedFact":
+        self.fact = self.fact.strip()
+        self.salience = self.salience.strip().lower() or "notable"
+        self.reason = self.reason.strip()
+        if not self.fact:
+            raise ValueError("router observed fact requires fact")
+        if not self.reason:
+            raise ValueError("router observed fact requires reason")
+        return self
+
+
 class DndCombatState(BaseModel):
     """Active D&D combat state stored directly on SessionState."""
 
@@ -448,6 +470,10 @@ class DndCombatState(BaseModel):
     # Adapter-owned tactical map for active D&D combat. Generic narrative
     # location state remains an opaque label and has no topology.
     battle_map: DndBattleMapState | None = None
+    # Combat-manager selected narrative continuity to carry back to generic
+    # routing when active initiative ends. Routine damage, ammo, and unnamed
+    # defeat bookkeeping stay out of this list.
+    router_observed_facts: list[DndRouterObservedFact] = Field(default_factory=list)
 
 
 class RenderBufferEntry(BaseModel):

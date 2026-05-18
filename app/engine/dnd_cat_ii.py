@@ -106,7 +106,7 @@ def dnd_cat_ii_router_enabled(ckpt: CheckpointFile) -> bool:
     return ckpt.session.config.settings.ruleset_id == DND5E_BASIC_RULESET_ID
 
 
-def dnd_combat_router_enabled(ckpt: CheckpointFile) -> bool:
+def dnd_combat_manager_enabled(ckpt: CheckpointFile) -> bool:
     combat = getattr(ckpt.session, "active_combat", None)
     return (
         ckpt.session.config.settings.ruleset_id == DND5E_BASIC_RULESET_ID
@@ -219,6 +219,7 @@ def _end_combat_after_adjudication(
         combat,
         f"Combat ended from D&D combat adjudication: {result.event_id}.",
     )
+    dnd_combat.queue_router_observed_fact_updates(ckpt.session, combat)
     dnd_combat.end_combat(ckpt.session, characters=ckpt.characters)
     result.canonical_event.observable_facts.append(ObservableFact.all(
         "D&D combat ends."

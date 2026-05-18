@@ -1003,7 +1003,7 @@ D&D 5e adapter (rendered only when `ruleset_id == "dnd5e_basic"`; see §15):
   character-agent calls when D&D combat is active.
 * `dnd_cat_ii_router.txt` — separate router prompt for D&D-flavored
   Cat II final adjudication.
-* `dnd_combat_router.txt` — per-turn D&D combat resolver prompt.
+* `dnd_combat_manager.txt` — per-turn D&D initiative-scene manager prompt.
 
 Prompt rules:
 
@@ -1130,6 +1130,14 @@ adjudication.
   and visible area templates. It is advisory context for D&D combat routing
   and status surfaces; it does not change generic `world_state.locations`
   or `CharacterRecord.location`.
+* `DndCombatState.router_observed_facts` stores combat-manager selected
+  continuity facts until initiative ends. Each item is only `fact`,
+  `salience`, and `reason`; subject ids and event ids stay out of the
+  model-facing contract. Combat-end paths queue these as compact
+  `pending_engine_state_updates` so the next generic router call sees
+  narrative continuity without replaying every combat turn. The same
+  combat-end bridge also queues code-owned player lifecycle facts such as
+  death or unresolved unconsciousness.
 * `SessionState.cat_ii_roll_transactions` carries checkpoint-durable
   D&D roll plans, pending player rolls, completed roll results, and
   dice ledgers. Each transaction is tagged
@@ -1155,29 +1163,35 @@ adjudication.
 * `app/prompts/dnd_cat_ii_router.txt` — Cat II-flavored router prompt
   used by `DndCatIIResolver`. Two phases: PLAN_ROLLS emits a
   `RollPlan`; FINALIZE_OUTCOME emits a `RulesAdjudication`.
-* `app/prompts/dnd_combat_router.txt` — per-turn combat router prompt
-  used by `DndCombatResolver`. Same two-phase shape and shared
-  `RollPlan` / `RulesAdjudication` schemas as the Cat II prompt, but
-  the user packet is the combat-state snapshot (round, current
-  combatant, all combatants with AC/HP/conditions/defeat state/death
-  saves/active effects, optional battle-map/spatial advisories, the
-  actor's available actions with
-  `id`/`name`/`attack_bonus`/`damage`, and the house rules) rather
-  than a Cat II opening context.
+* `app/prompts/dnd_combat_manager.txt` — per-turn initiative-scene manager
+  prompt used by `DndCombatResolver` through the `dnd_combat_manager` LLM
+  role. Same two-phase shape and shared `RollPlan` base as the Cat II prompt,
+  but FINALIZE_OUTCOME uses `DndCombatManagerAdjudication`, which extends the
+  ordinary rules adjudication with lean `router_observed_facts`:
+  `fact`, `salience`, and `reason`. The user packet is the combat-state
+  snapshot (round, current combatant, all combatants with AC/HP/conditions/
+  defeat state/death saves/active effects, optional battle-map/spatial
+  advisories, the actor's available actions with
+  `id`/`name`/`attack_bonus`/`damage`, and the house rules) rather than a
+  Cat II opening context. The manager handles any initiative turn, including
+  speech, surrender, rescue, aid, and other non-attack actions.
 
 ### 15.5 Orchestrator Hooks
 
 Hooks in `Orchestrator.process_turn` and `run_beat`:
 
 * fresh `/act` from a combatant in active D&D combat routes via
-  `LLMDispatcher.route_combat_action` instead of the generic
-  `route_intention`. The check is
+  `LLMDispatcher.route_combat_action` and the separate
+  `dnd_combat_manager` role instead of the generic `route_intention`.
+  The check is
   `_character_in_dnd_active_combat(ckpt, actor_id)` —
   `ruleset_id == "dnd5e_basic"` AND the actor is listed in
   `session.active_combat.combatants`. Combat-reaction `/act`s gated
   by a `combat_reaction` slot follow the same fork after the slot
   cleanup, so reactions get the same house rules and structured roll
-  planning as turns;
+  planning as turns. Ongoing combat turns do not append compact router
+  history; only the final combat event is recorded after
+  `session.active_combat` clears;
 * when the D&D addon router emits `interaction_mode="dnd_combat_start"` from
   a fresh non-combat action, the engine validates participants, rolls
   initiative, creates `session.active_combat`, syncs all combatants into the
@@ -1269,8 +1283,9 @@ effect-backed conditions synchronized.
 
 Deferred D&D adapter cleanup:
 
-* unify `dnd_combat_router` and `dnd_cat_ii_router` into one mode-driven
-  D&D router prompt once the combat/Cat II boundaries settle
+* decide whether the Cat II D&D resolver should eventually move off the
+  generic `event_router` role as well, or remain a router-owned contested
+  action path
 * trim vestigial or diagnostic-only structured fields such as
   `state_deltas`, `PlannedRoll.effect_id`, and effect `source_type`/
   `source_id` fields in a dedicated schema-compatibility pass
@@ -1557,7 +1572,7 @@ D&D combat now has a v1 adapter-owned tactical grid for active combat:
 router-seeded map state, participant tokens, visible terrain/areas,
 advisory distances, line-of-sight, cover context, and router-authored
 spatial deltas. It is intentionally advisory; code persists and
-summarizes map state, while the D&D combat router still decides action
+summarizes map state, while the D&D combat manager still decides action
 legality and outcome. Future work may add manual map authoring, image
 rendering, strict movement/path validation, elevation, hidden tokens,
 lighting, and richer area-template geometry.

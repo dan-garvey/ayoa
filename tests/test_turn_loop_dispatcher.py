@@ -27,6 +27,7 @@ from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
+    DndCombatState,
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
@@ -567,10 +568,11 @@ class TestRouteIntention:
             ckpt.session_conversation[0].content
         )
 
-    def test_dnd_combat_action_appends_compact_router_history(
+    def test_dnd_combat_action_skips_router_history_while_active(
         self, prompt_mgr, mock_client, monkeypatch,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.active_combat = DndCombatState(combat_id="combat")
         result = _router_output()
         result.canonical_event.observable_facts = [
             ObservableFact.all("Alice cuts across Pip's guard."),
@@ -582,7 +584,7 @@ class TestRouteIntention:
                 return result
 
         monkeypatch.setattr(
-            "app.engine.turn_loop_dispatcher.dnd_combat_router_enabled",
+            "app.engine.turn_loop_dispatcher.dnd_combat_manager_enabled",
             lambda checkpoint: True,
         )
         dispatcher = LLMDispatcher(mock_client, prompt_mgr)
@@ -595,9 +597,42 @@ class TestRouteIntention:
         ))
 
         assert out is result
+        assert ckpt.session_conversation == []
+
+    def test_dnd_combat_end_appends_compact_router_history(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.active_combat = DndCombatState(combat_id="combat")
+        result = _router_output()
+        result.canonical_event.observable_facts = [
+            ObservableFact.all("Alice accepts Pip's surrender."),
+            ObservableFact.all("D&D combat ends."),
+        ]
+
+        class FakeCombatResolver:
+            async def resolve_combat_action(self, **kwargs):
+                assert kwargs["actor_id"] == "alice"
+                kwargs["ckpt"].session.active_combat = None
+                return result
+
+        monkeypatch.setattr(
+            "app.engine.turn_loop_dispatcher.dnd_combat_manager_enabled",
+            lambda checkpoint: True,
+        )
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        dispatcher._dnd_combat = FakeCombatResolver()
+
+        out = asyncio.run(dispatcher.route_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I accept Pip's surrender.",
+        ))
+
+        assert out is result
         assert len(ckpt.session_conversation) == 1
-        assert "mode=dnd_combat_action" in ckpt.session_conversation[0].content
-        assert "Alice cuts across Pip's guard." in (
+        assert "mode=dnd_combat_end" in ckpt.session_conversation[0].content
+        assert "Alice accepts Pip's surrender." in (
             ckpt.session_conversation[0].content
         )
 

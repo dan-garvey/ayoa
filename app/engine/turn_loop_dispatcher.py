@@ -34,7 +34,7 @@ from app.engine.dnd_cat_ii import (
     DND5E_BASIC_RULESET_ID,
     DndCatIIResolver,
     dnd_cat_ii_router_enabled,
-    dnd_combat_router_enabled,
+    dnd_combat_manager_enabled,
 )
 from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.turn_loop_contracts import (
@@ -206,8 +206,10 @@ def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:
     Explicitly excluded:
     - router-authored spawn/dormant/cull/location/commitment changes
     - spawned-character summaries; spawn materialization failure is fatal
-    - combat deaths/effect expirations when emitted as canonical facts
-    - D&D Cat II/combat resolver outputs, which are compact router history
+    - combat deaths/effect expirations when they are already emitted through
+      compact history or post-combat continuity updates
+    - D&D Cat II resolver outputs, which are compact router history
+    - routine D&D combat-manager outputs while initiative remains active
     - clocks/session leading time derived from canonical event timing
     - XP awards unless they become intentionally visible to fiction
     """
@@ -683,10 +685,10 @@ class LLMDispatcher:
         intention: str,
     ) -> EventRouterOutput:
         """Resolve one active D&D combat turn through the ruleset adapter."""
-        if not dnd_combat_router_enabled(ckpt):
+        if not dnd_combat_manager_enabled(ckpt):
             raise RuntimeError("D&D combat routing requested outside active D&D combat.")
         logger.info(
-            "LLMDispatcher.route_combat_action: actor=%s using dnd_combat_router",
+            "LLMDispatcher.route_combat_action: actor=%s using dnd_combat_manager",
             actor_id,
         )
         result = await self._dnd_combat.resolve_combat_action(
@@ -699,12 +701,13 @@ class LLMDispatcher:
             result=result,
             clock_anchor_character_id=actor_id,
         )
-        _append_router_history_record(
-            ckpt.session_conversation,
-            acting_character_id=actor_id,
-            result=result,
-            mode="dnd_combat_action",
-        )
+        if ckpt.session.active_combat is None:
+            _append_router_history_record(
+                ckpt.session_conversation,
+                acting_character_id=actor_id,
+                result=result,
+                mode="dnd_combat_end",
+            )
         return result
 
     async def continue_combat_transaction(
@@ -713,7 +716,7 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         event_id: str,
     ) -> EventRouterOutput:
-        if not dnd_combat_router_enabled(ckpt):
+        if not dnd_combat_manager_enabled(ckpt):
             raise RuntimeError(
                 "D&D combat roll continuation requested outside active D&D combat."
             )
@@ -730,12 +733,13 @@ class LLMDispatcher:
             result=result,
             clock_anchor_character_id=actor_id,
         )
-        _append_router_history_record(
-            ckpt.session_conversation,
-            acting_character_id=actor_id,
-            result=result,
-            mode="dnd_combat_action",
-        )
+        if ckpt.session.active_combat is None:
+            _append_router_history_record(
+                ckpt.session_conversation,
+                acting_character_id=actor_id,
+                result=result,
+                mode="dnd_combat_end",
+            )
         return result
 
     # ------------------------------------------------------------------

@@ -22,7 +22,7 @@ from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
 )
-from app.schemas.dnd_cat_ii import RulesAdjudication
+from app.schemas.dnd_cat_ii import DndCombatManagerAdjudication, RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
@@ -834,6 +834,30 @@ class TestDndRulesAdjudication:
             "duration_rounds",
             "reason",
         }
+
+    def test_combat_manager_observed_facts_are_lean(self):
+        schema = DndCombatManagerAdjudication.model_json_schema()
+        observed_fact = schema["$defs"]["DndRouterObservedFact"]
+
+        assert "router_observed_facts" in schema["properties"]
+        assert observed_fact["additionalProperties"] is False
+        assert set(observed_fact["properties"]) == {"fact", "salience", "reason"}
+
+    def test_generic_rules_adjudication_rejects_combat_manager_facts(self):
+        with pytest.raises(ValidationError):
+            RulesAdjudication(
+                feasible=True,
+                combat_status="ongoing",
+                mechanical_summary="Resolved.",
+                visible_outcome_facts=["Alice waits."],
+                state_deltas=[],
+                combat_state_deltas=[],
+                effect_deltas=[],
+                spatial_deltas=[],
+                rules_notes=[],
+                fallback_reason="",
+                router_observed_facts=[],
+            )
 
 
 class TestCharacterAgentOutput:

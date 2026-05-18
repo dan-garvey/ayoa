@@ -7,13 +7,16 @@ from app.engine import dnd_cat_ii as cat
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import (
+    DndCombatManagerAdjudication,
+    RollPlan,
+)
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.state import CatIIRollTransaction
 
 
 class DndCombatResolver:
-    """Router-owned D&D combat turn resolver.
+    """D&D initiative-scene turn resolver.
 
     Combat shares Cat II's dice transaction ledger, but this module owns the
     active-combat flow so generic Cat II resolution stays smaller.
@@ -90,6 +93,10 @@ class DndCombatResolver:
             ckpt,
             adjudication.spatial_deltas,
         )
+        cat.dnd_combat.record_router_observed_facts(
+            ckpt.session.active_combat,
+            getattr(adjudication, "router_observed_facts", []),
+        )
         adjudication.rules_notes.extend(effect_notes)
         adjudication.rules_notes.extend(spatial_notes)
         cat._sync_combat_effects(ckpt)
@@ -107,13 +114,13 @@ class DndCombatResolver:
 
     async def _plan_rolls(self, packet: str) -> RollPlan:
         messages = self.prompt_mgr.render_messages(
-            "dnd_combat_router",
+            "dnd_combat_manager",
             phase="PLAN_ROLLS",
             combat_action_packet=packet,
             roll_ledger_block="No rolls have been made yet.",
         )
         response = await self.client.complete(
-            role="event_router",
+            role="dnd_combat_manager",
             messages=messages,
             response_model=RollPlan,
             temperature=0.2,
@@ -127,17 +134,17 @@ class DndCombatResolver:
         self,
         packet: str,
         ledger_lines: list[str],
-    ) -> RulesAdjudication:
+    ) -> DndCombatManagerAdjudication:
         messages = self.prompt_mgr.render_messages(
-            "dnd_combat_router",
+            "dnd_combat_manager",
             phase="FINALIZE_OUTCOME",
             combat_action_packet=packet,
             roll_ledger_block="\n".join(ledger_lines) or "No rolls were made.",
         )
         response = await self.client.complete(
-            role="event_router",
+            role="dnd_combat_manager",
             messages=messages,
-            response_model=RulesAdjudication,
+            response_model=DndCombatManagerAdjudication,
             temperature=0.2,
             max_tokens=3000,
             cache=True,

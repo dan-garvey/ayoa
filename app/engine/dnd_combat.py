@@ -11,6 +11,7 @@ from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
     DndExperienceAwardDisplay,
+    DndRouterObservedFact,
     DndRuntimeEffect,
     SessionState,
 )
@@ -72,6 +73,133 @@ def end_combat(
     _clear_combat_slots(session)
     session.active_combat = None
     return combat
+
+
+def record_router_observed_facts(
+    combat: DndCombatState | SessionState | None,
+    facts: Iterable[DndRouterObservedFact | dict[str, Any]],
+) -> int:
+    """Accumulate combat-manager continuity facts until initiative ends."""
+    active = combat.active_combat if isinstance(combat, SessionState) else combat
+    if active is None:
+        return 0
+
+    existing = {
+        _compact_line(fact.fact).casefold()
+        for fact in active.router_observed_facts
+        if _compact_line(fact.fact)
+    }
+    added = 0
+    for item in facts:
+        observed = (
+            item
+            if isinstance(item, DndRouterObservedFact)
+            else DndRouterObservedFact.model_validate(item)
+        )
+        key = _compact_line(observed.fact).casefold()
+        if not key or key in existing:
+            continue
+        active.router_observed_facts.append(observed)
+        existing.add(key)
+        added += 1
+    return added
+
+
+def queue_router_observed_fact_updates(
+    session: SessionState,
+    combat: DndCombatState | None = None,
+) -> int:
+    """Move accumulated combat continuity into the next generic routing input."""
+    active = combat or session.active_combat
+    if active is None:
+        return 0
+
+    queued = 0
+    seen: set[str] = set()
+    for fact in active.router_observed_facts:
+        queued += _queue_router_update(
+            session,
+            fact=fact.fact,
+            salience=fact.salience,
+            reason=fact.reason,
+            seen=seen,
+        )
+    for fact, salience, reason in _player_lifecycle_router_updates(
+        session,
+        active,
+    ):
+        queued += _queue_router_update(
+            session,
+            fact=fact,
+            salience=salience,
+            reason=reason,
+            seen=seen,
+        )
+    active.router_observed_facts = []
+    return queued
+
+
+def _queue_router_update(
+    session: SessionState,
+    *,
+    fact: str,
+    salience: str,
+    reason: str,
+    seen: set[str],
+) -> int:
+    text = _compact_line(fact)
+    why = _compact_line(reason)
+    if not text or not why:
+        return 0
+    key = text.casefold()
+    if key in seen:
+        return 0
+    seen.add(key)
+    label = _compact_line(salience) or "notable"
+    session.pending_engine_state_updates.append(
+        f"Combat continuity [{label}]: {text} Reason: {why}"
+    )
+    return 1
+
+
+def _player_lifecycle_router_updates(
+    session: SessionState,
+    combat: DndCombatState,
+) -> list[tuple[str, str, str]]:
+    updates: list[tuple[str, str, str]] = []
+    bound_ids = set(session.character_bindings or {})
+    for combatant in combat.combatants:
+        if not (
+            combatant.player_controlled
+            or combatant.character_id in bound_ids
+            or combatant.combatant_id in bound_ids
+        ):
+            continue
+        name = _combatant_label(combatant)
+        state = _defeat_state(combatant)
+        if state == "dead":
+            updates.append((
+                f"{name} died during the combat.",
+                "major",
+                "Character death is durable post-combat state.",
+            ))
+        elif state == "stable":
+            updates.append((
+                f"{name} is unconscious but stable when combat ends.",
+                "major",
+                "A player-controlled character remains incapacitated after combat.",
+            ))
+        elif state == "down":
+            updates.append((
+                f"{name} is unconscious and still in danger when combat ends.",
+                "major",
+                "A player-controlled character remains unresolved after combat.",
+            ))
+    return updates
+
+
+def _compact_line(text: str) -> str:
+    return " ".join(str(text or "").split())
 
 
 def build_combatants(

@@ -2628,6 +2628,9 @@ class EngineBridge:
             drain_facts = getattr(module, "drain_pending_visible_facts", None)
             if callable(drain_facts):
                 pending_facts = list(drain_facts(combat))
+            queue_observed = getattr(module, "queue_router_observed_fact_updates", None)
+            if callable(queue_observed):
+                queue_observed(ckpt.session, combat)
         if getattr(module, "combat_end", None) is not None:
             module.combat_end(ckpt)
         elif getattr(module, "end_combat", None) is not None:

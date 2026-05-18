@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.dnd_spatial import DndSpatialDelta
-from app.schemas.state import DndEffectRecurringSave
+from app.schemas.state import DndEffectRecurringSave, DndRouterObservedFact
 
 
 AbilityId = Literal["str", "dex", "con", "int", "wis", "cha"]
@@ -281,3 +281,9 @@ class RulesAdjudication(BaseModel):
         if not self.visible_outcome_facts:
             raise ValueError("Rules adjudication requires a visible outcome fact")
         return self
+
+
+class DndCombatManagerAdjudication(RulesAdjudication):
+    """Per-turn D&D initiative adjudication with post-combat continuity facts."""
+
+    router_observed_facts: list[DndRouterObservedFact] = Field(default_factory=list)

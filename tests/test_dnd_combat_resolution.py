@@ -9,7 +9,12 @@ from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.dnd_cat_ii import PlannedRoll, RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import (
+    DndCombatManagerAdjudication,
+    PlannedRoll,
+    RollPlan,
+    RulesAdjudication,
+)
 from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
 from app.schemas.state import (
     DndCombatantState,
@@ -255,6 +260,16 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     assert any("damage_for=attack_alice" in line for line in transaction.ledger_lines)
     assert ckpt.session.pending_engine_state_updates == []
     assert ckpt.session_conversation == []
+    assert [
+        call.args[0] for call in prompt_mgr.render_messages.call_args_list
+    ] == ["dnd_combat_manager", "dnd_combat_manager"]
+    assert [
+        call.kwargs["role"] for call in client.complete.await_args_list
+    ] == ["dnd_combat_manager", "dnd_combat_manager"]
+    assert (
+        client.complete.await_args_list[1].kwargs["response_model"]
+        is DndCombatManagerAdjudication
+    )
 
 
 def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
@@ -1061,6 +1076,61 @@ def test_combat_resolver_can_end_combat_from_adjudication():
     assert any("D&D combat ends" in fact for fact in facts)
 
 
+def test_combat_end_queues_router_observed_continuity():
+    ckpt = _ckpt()
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="Alice spares Bob.",
+        )),
+        _llm_response(DndCombatManagerAdjudication(
+            feasible=True,
+            combat_status="ended",
+            mechanical_summary="Alice accepts Bob's surrender.",
+            visible_outcome_facts=["Alice accepts Bob's surrender."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+            router_observed_facts=[
+                {
+                    "fact": "Alice publicly spared Bob after he surrendered.",
+                    "salience": "major",
+                    "reason": (
+                        "This mercy changes how survivors are likely to treat "
+                        "Alice after initiative ends."
+                    ),
+                },
+            ],
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I spare Bob if he yields.",
+        )
+    )
+
+    assert ckpt.session.active_combat is None
+    assert ckpt.session.pending_engine_state_updates == [
+        "Combat continuity [major]: Alice publicly spared Bob after he surrendered. "
+        "Reason: This mercy changes how survivors are likely to treat Alice after "
+        "initiative ends."
+    ]
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert "Alice accepts Bob's surrender." in facts
+    assert "D&D combat ends." in facts
+
+
 def test_combat_end_includes_queued_death_fact(monkeypatch):
     ckpt = _ckpt()
     ckpt.session.character_bindings["bob"] = "2"
@@ -1132,6 +1202,10 @@ def test_combat_end_includes_queued_death_fact(monkeypatch):
     assert "charlie" not in {observer.character_id for observer in routed.observers}
     assert ckpt.session.active_combat is None
     assert ckpt.session.active_act_slots == {}
+    assert ckpt.session.pending_engine_state_updates == [
+        "Combat continuity [major]: Bob died during the combat. Reason: "
+        "Character death is durable post-combat state."
+    ]
 
 
 def test_combat_damage_waits_for_successful_finalization(monkeypatch):

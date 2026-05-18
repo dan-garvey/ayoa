@@ -24,6 +24,7 @@ _VALID_OPENAI_REASONING_SUMMARIES = {
 }
 _ROUTER_MODEL = "gpt-5.2"
 _NARRATOR_MODEL = "gpt-5.2"
+_COMBAT_MANAGER_MODEL = "gpt-5.1"
 _AGENT_MODEL = "claude-opus-4-6"
 _STANDARD_AGENT_MODEL = "claude-haiku-4-5"
 _CONVENIENCE_AGENT_MODEL = "claude-sonnet-4-6"
@@ -33,6 +34,7 @@ _ROLE_ENV_ALIASES = {
     "agent_standard": ("AGENT_STANDARD", "STANDARD_AGENT"),
     "agent_convenience": ("AGENT_CONVENIENCE", "CONVENIENCE_AGENT"),
     "character_gen": ("CHARACTER_GEN", "AGENT"),
+    "dnd_combat_manager": ("DND_COMBAT_MANAGER", "COMBAT_MANAGER"),
     "event_router": ("ROUTER",),
     "narrator": ("NARRATOR",),
 }
@@ -160,6 +162,7 @@ class LLMConfig(BaseModel):
     role_models: dict[str, str] = Field(default_factory=lambda: {
         "event_router": _ROUTER_MODEL,
         "narrator": _NARRATOR_MODEL,
+        "dnd_combat_manager": _COMBAT_MANAGER_MODEL,
         "agent": _AGENT_MODEL,
         "agent_standard": _STANDARD_AGENT_MODEL,
         "agent_convenience": _CONVENIENCE_AGENT_MODEL,
@@ -209,6 +212,7 @@ class LLMConfig(BaseModel):
     openai_reasoning_efforts: dict[str, str] = Field(default_factory=lambda: {
         "event_router": "medium",
         "narrator": "medium",
+        "dnd_combat_manager": "medium",
         "agent": "medium",
         "character_gen": "medium",
     })

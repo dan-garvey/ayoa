@@ -15,6 +15,7 @@ def runtime_model_config(config: LLMConfig) -> ModelConfig:
     return ModelConfig(
         event_router=_runtime_model_label(config, "event_router"),
         narrator=_runtime_model_label(config, "narrator"),
+        dnd_combat_manager=_runtime_model_label(config, "dnd_combat_manager"),
         discriminator=_runtime_model_label(config, "event_router"),
         agent_default=_runtime_model_label(config, "agent"),
         agent_standard=_runtime_model_label(config, "agent_standard"),
