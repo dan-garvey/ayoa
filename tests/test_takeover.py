@@ -492,6 +492,11 @@ class TestReplaceWithCustom:
         ckpt.character_conversations["rival_1"] = [
             ConversationMessage(role="user", content="prior turn context"),
         ]
+        ckpt.session.visual_introductions = {
+            "alice": ["rival_1", "witness"],
+            "rival_1": ["alice"],
+            "bob": ["rival_1"],
+        }
         _seed(bridge, ckpt)
 
         authored = _authored(
@@ -548,6 +553,9 @@ class TestReplaceWithCustom:
 
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
         assert loaded.session.character_bindings.get("rival_1") == "5"
+        assert loaded.session.visual_introductions == {
+            "alice": ["witness"],
+        }
         # Rolling conversation cleared
         assert "rival_1" not in loaded.character_conversations
 

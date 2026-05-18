@@ -48,6 +48,7 @@ from app.engine.story_importer import (
     run_preservation_analysis_continuation,
 )
 from app.engine.turn_loop import broadcast_event, flush_combat_visible_facts
+from app.engine.visual_context import forget_visual_introductions_for_character
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import (
@@ -1953,6 +1954,7 @@ class EngineBridge:
         # current_objectives as-is — those are the "circumstances" the
         # player inherits.
         target.is_playable = True
+        forget_visual_introductions_for_character(ckpt, target_character_id)
 
         # Drop rolling character conversation — the voice has changed.
         # The agent's prior parentheticals (their interior continuity)

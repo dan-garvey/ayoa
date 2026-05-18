@@ -130,6 +130,24 @@ def mark_visual_introductions(
         seen.add(character_id)
 
 
+def forget_visual_introductions_for_character(
+    ckpt: CheckpointFile,
+    character_id: str,
+) -> None:
+    """Clear first-meeting ledger entries tied to a replaced character id."""
+    character_id = (character_id or "").strip()
+    if not character_id:
+        return
+
+    ckpt.session.visual_introductions.pop(character_id, None)
+    for viewer_id, character_ids in list(ckpt.session.visual_introductions.items()):
+        filtered = [cid for cid in character_ids if cid != character_id]
+        if filtered:
+            ckpt.session.visual_introductions[viewer_id] = filtered
+        else:
+            ckpt.session.visual_introductions.pop(viewer_id, None)
+
+
 def _plan_visual_introductions(
     ckpt: CheckpointFile,
     *,
