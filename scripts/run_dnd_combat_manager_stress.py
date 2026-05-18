@@ -1185,24 +1185,6 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": wrong,
             })
-    save_actor_mismatches = [
-        request for request in requests
-        if request.get("kind") == "saving_throw"
-        and request.get("target_id")
-        and request.get("actor_id") != request.get("target_id")
-    ]
-    if save_actor_mismatches:
-        findings.append({
-            "name": "saving_throw_actor_mismatch",
-            "severity": "critical",
-            "detail": {
-                "note": (
-                    "The engine rolls saving_throw modifiers from actor_id, "
-                    "so actor_id must be the saving creature."
-                ),
-                "roll_requests": save_actor_mismatches,
-            },
-        })
     opportunity_from = str(expectations.get("must_include_opportunity_from") or "")
     if opportunity_from:
         if not any(
@@ -1245,14 +1227,26 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
         })
     cover_save_targets = expectations.get("cover_should_matter_for_dex_save_targets")
     for target_id in cover_save_targets or []:
-        target_reasons = " ".join(
-            str(request.get("reason") or "").lower()
-            for request in requests
+        target_save_requests = [
+            request for request in requests
             if request.get("target_id") == target_id
             and request.get("kind") == "saving_throw"
+        ]
+        target_reasons = " ".join(
+            str(request.get("reason") or "").lower()
+            for request in target_save_requests
         )
         if not target_reasons:
             continue
+        if not any(
+            int(request.get("modifier_bonus", 0) or 0) > 0
+            for request in target_save_requests
+        ):
+            findings.append({
+                "name": "dex_save_cover_bonus_missing",
+                "severity": "high",
+                "detail": {"target_id": target_id},
+            })
         if "cover" not in target_reasons:
             findings.append({
                 "name": "dex_save_cover_not_considered",
@@ -1278,8 +1272,8 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "detail": {
                     "save_targets": sorted(save_targets),
                     "note": (
-                        "The current adapter rolls saving throws but has no "
-                        "structured save-damage damage_records path."
+                        "Save-damage spells should produce structured "
+                        "damage_records through the engine damage path."
                     ),
                 },
             })

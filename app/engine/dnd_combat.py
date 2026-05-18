@@ -408,6 +408,8 @@ def sync_combat_effects_to_characters(
 def start_effect(
     combat: DndCombatState | SessionState,
     effect: DndRuntimeEffect,
+    *,
+    replace_concentration: bool = True,
 ) -> DndRuntimeEffect:
     active = _active_from(combat)
     _prepare_runtime_effect(effect)
@@ -422,7 +424,7 @@ def start_effect(
         return effect
     if not effect.target_id:
         effect.target_id = target.character_id or target.combatant_id
-    if effect.concentration and effect.originator_id:
+    if replace_concentration and effect.concentration and effect.originator_id:
         end_concentration_effects(
             active,
             effect.originator_id,

@@ -194,3 +194,81 @@ def test_area_duration_expires_on_turn_advance():
 
     assert combat.battle_map.areas == []
     assert "Area expired: Fog Cloud." in combat.audit_lines
+
+
+def test_area_targeting_advisory_ranks_cone_by_enemy_targets():
+    combat = DndCombatState(
+        combatants=[
+            _combatant("caster"),
+            _combatant("enemy_a"),
+            _combatant("enemy_b"),
+            _combatant("enemy_c"),
+            _combatant("ally"),
+        ],
+        battle_map=DndBattleMapState(
+            present=True,
+            map_name="Hall",
+            width=8,
+            height=5,
+            tokens=[
+                DndBattleMapToken(
+                    token_id="caster",
+                    character_id="caster",
+                    label="Caster",
+                    x=1,
+                    y=2,
+                ),
+                DndBattleMapToken(
+                    token_id="enemy_a",
+                    character_id="enemy_a",
+                    label="Enemy A",
+                    x=2,
+                    y=2,
+                ),
+                DndBattleMapToken(
+                    token_id="enemy_b",
+                    character_id="enemy_b",
+                    label="Enemy B",
+                    x=3,
+                    y=2,
+                ),
+                DndBattleMapToken(
+                    token_id="enemy_c",
+                    character_id="enemy_c",
+                    label="Enemy C",
+                    x=3,
+                    y=3,
+                ),
+                DndBattleMapToken(
+                    token_id="ally",
+                    character_id="ally",
+                    label="Ally",
+                    x=0,
+                    y=2,
+                ),
+            ],
+        ),
+    )
+
+    [advisory] = dnd_spatial.area_targeting_advisories(
+        combat,
+        "caster",
+        [{
+            "action_id": "cone_of_cold",
+            "name": "Cone of Cold",
+            "shape": "cone",
+            "length_ft": 15,
+        }],
+        relationships_by_id={
+            "enemy_a": "enemy",
+            "enemy_b": "enemy",
+            "enemy_c": "enemy",
+            "ally": "ally",
+            "caster": "self",
+        },
+    )
+
+    top = advisory["candidates"][0]
+    assert top["direction"] == "E"
+    assert set(top["enemy_targets"]) == {"enemy_a", "enemy_b", "enemy_c"}
+    assert top["ally_targets"] == []

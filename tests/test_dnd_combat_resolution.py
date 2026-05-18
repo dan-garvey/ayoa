@@ -283,6 +283,196 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     )
 
 
+def test_combat_saving_throw_uses_target_modifier_and_cover_bonus(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.session.character_bindings["bob"] = "2"
+    ckpt.characters[1].mechanics["ability_scores"]["dex"] = 18
+    values = iter([4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="save_bob_spell",
+                    actor_id="alice",
+                    kind="saving_throw",
+                    ability="dex",
+                    skill="",
+                    dc=13,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Bob dodges Alice's spell.",
+                    action_id="spell",
+                    target_id="bob",
+                    modifier_bonus=5,
+                    modifier_bonus_reason="three-quarters cover",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Bob rolls a Dexterity save.",
+            visible_outcome_facts=["Bob ducks behind the slit as the spell hits."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast a spell at Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    roll = transaction.rolls[0]
+    assert roll.actor_id == "bob"
+    assert roll.actor_control == "player"
+    assert roll.modifier == 9
+    assert "save_bob_spell: bob saving_throw from alice" in transaction.ledger_lines[0]
+    assert "modifier bonus +5 (three-quarters cover)" in transaction.ledger_lines[0]
+
+
+def test_combat_save_damage_rolls_once_and_applies_per_target(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        spellcasting={
+            "profiles": [{
+                "id": "class_1",
+                "name": "Wizard",
+                "ability": "int",
+                "spell_save_dc": 10,
+            }],
+            "spells": [{
+                "id": "fireball",
+                "name": "Fireball",
+                "level": 3,
+                "save": {"ability": "dex", "dc": 10},
+                "damage": [{"formula": "2d6 fire"}],
+                "target": {"text": "20-foot-radius sphere"},
+            }],
+        },
+    )
+    ckpt.characters.append(_character("charlie", "Charlie"))
+    ckpt.session.active_combat.combatants.append(
+        DndCombatantState(
+            combatant_id="charlie",
+            character_id="charlie",
+            name="Charlie",
+            armor_class=12,
+            hit_points_current=13,
+            hit_points_max=13,
+        )
+    )
+    values = iter([14, 4, 2, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="save_bob_fireball",
+                    actor_id="alice",
+                    kind="saving_throw",
+                    ability="dex",
+                    skill="",
+                    dc=10,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Bob saves against Alice's Fireball.",
+                    action_id="fireball",
+                    target_id="bob",
+                    damage_on_save_success="half",
+                ),
+                PlannedRoll(
+                    roll_id="save_charlie_fireball",
+                    actor_id="alice",
+                    kind="saving_throw",
+                    ability="dex",
+                    skill="",
+                    dc=10,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Charlie saves against Alice's Fireball.",
+                    action_id="fireball",
+                    target_id="charlie",
+                    damage_on_save_success="half",
+                ),
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice's Fireball detonates.",
+            visible_outcome_facts=["Alice's Fireball catches Bob and Charlie."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Fireball on Bob and Charlie.",
+        )
+    )
+
+    bob = next(c for c in ckpt.session.active_combat.combatants if c.character_id == "bob")
+    charlie = next(
+        c for c in ckpt.session.active_combat.combatants
+        if c.character_id == "charlie"
+    )
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert bob.hit_points_current == 10
+    assert charlie.hit_points_current == 6
+    assert len(transaction.damage_records) == 2
+    assert {damage.raw_amount for damage in transaction.damage_records} == {7}
+    assert {
+        (damage.roll_id, damage.target_id, damage.amount, damage.applied)
+        for damage in transaction.damage_records
+    } == {
+        ("save_bob_fireball", "bob", 3, True),
+        ("save_charlie_fireball", "charlie", 7, True),
+    }
+    assert sum(
+        1 for line in transaction.ledger_lines
+        if line.startswith("damage_for=")
+    ) == 2
+
+
 def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
     ckpt = _ckpt()
     ckpt.session.active_combat.battle_map = DndBattleMapState(
@@ -1844,9 +2034,43 @@ def test_combat_packet_exposes_current_actor_spellcasting():
                     "damage": [],
                     "healing": [],
                     "consumes": [{"resource_id": "spell_slot_2", "amount": 1}],
+                },
+                {
+                    "id": "cone_of_cold",
+                    "name": "Cone of Cold",
+                    "level": 5,
+                    "prepared": True,
+                    "always_prepared": False,
+                    "target": {"text": "60-foot cone"},
+                    "save": {"ability": "con", "dc": 13},
+                    "damage": [{"formula": "8d8 cold"}],
+                    "healing": [],
+                    "consumes": [{"resource_id": "spell_slot_5", "amount": 1}],
                 }
             ],
         },
+    )
+    ckpt.session.active_combat.battle_map = DndBattleMapState(
+        present=True,
+        map_name="Hall",
+        width=8,
+        height=5,
+        tokens=[
+            DndBattleMapToken(
+                token_id="alice",
+                character_id="alice",
+                label="Alice",
+                x=1,
+                y=2,
+            ),
+            DndBattleMapToken(
+                token_id="bob",
+                character_id="bob",
+                label="Bob",
+                x=3,
+                y=2,
+            ),
+        ],
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
@@ -1887,6 +2111,8 @@ def test_combat_packet_exposes_current_actor_spellcasting():
     assert '"spell_save_dc": 13' in first_packet
     assert '"duration": {' in first_packet
     assert '"slots": {' in first_packet
+    assert '"area_targeting_advisories": [' in first_packet
+    assert '"action_id": "cone_of_cold"' in first_packet
 
 
 def test_combat_resolver_starts_sustained_effect_from_adjudication(monkeypatch):
@@ -1976,6 +2202,100 @@ def test_combat_resolver_starts_sustained_effect_from_adjudication(monkeypatch):
     assert "paralyzed" in bob.conditions
     stored = ckpt.characters[1].mechanics["dnd5e_runtime"]["active_effects"]
     assert stored[0]["effect_id"] == "eff_hold"
+
+
+def test_combat_resolver_batches_same_spell_concentration_effects():
+    ckpt = _ckpt()
+    ckpt.characters.append(_character("charlie", "Charlie"))
+    ckpt.session.active_combat.combatants.append(
+        DndCombatantState(
+            combatant_id="charlie",
+            character_id="charlie",
+            name="Charlie",
+            armor_class=12,
+            hit_points_current=13,
+            hit_points_max=13,
+        )
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="No roll.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice starts one concentration spell.",
+            visible_outcome_facts=["Alice's pattern catches Bob and Charlie."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[
+                {
+                    "operation": "start",
+                    "target_id": "bob",
+                    "effect_id": "hypnotic_pattern:alice:bob",
+                    "name": "Hypnotic Pattern - Bob",
+                    "slug": "hypnotic_pattern",
+                    "source_type": "spell",
+                    "source_id": "hypnotic_pattern",
+                    "originator_id": "alice",
+                    "conditions": ["charmed", "incapacitated"],
+                    "concentration": True,
+                    "duration_kind": "rounds",
+                    "duration_amount": 10,
+                    "remaining_rounds": 10,
+                    "reason": "failed initial save",
+                },
+                {
+                    "operation": "start",
+                    "target_id": "charlie",
+                    "effect_id": "hypnotic_pattern:alice:charlie",
+                    "name": "Hypnotic Pattern - Charlie",
+                    "slug": "hypnotic_pattern",
+                    "source_type": "spell",
+                    "source_id": "hypnotic_pattern",
+                    "originator_id": "alice",
+                    "conditions": ["charmed", "incapacitated"],
+                    "concentration": True,
+                    "duration_kind": "rounds",
+                    "duration_amount": 10,
+                    "remaining_rounds": 10,
+                    "reason": "failed initial save",
+                },
+            ],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Hypnotic Pattern.",
+        )
+    )
+
+    bob = next(c for c in ckpt.session.active_combat.combatants if c.character_id == "bob")
+    charlie = next(
+        c for c in ckpt.session.active_combat.combatants
+        if c.character_id == "charlie"
+    )
+    assert [effect.effect_id for effect in bob.active_effects] == [
+        "hypnotic_pattern:alice:bob"
+    ]
+    assert [effect.effect_id for effect in charlie.active_effects] == [
+        "hypnotic_pattern:alice:charlie"
+    ]
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert not any("concentration shifts to a new effect" in fact for fact in facts)
 
 
 def test_combat_resolver_notes_skipped_effect_delta_for_missing_target():

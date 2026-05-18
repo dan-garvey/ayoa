@@ -25,6 +25,7 @@ DamageAdjustmentKind = Literal[
     "double",
 ]
 DamageAdjustmentScope = Literal["component", "attack_total"]
+SaveDamageOutcome = Literal["none", "half", "full"]
 
 
 class PlannedDamageAdjustment(BaseModel):
@@ -81,11 +82,16 @@ class PlannedRoll(BaseModel):
     reason: str
     # Optional adapter metadata. Empty outside D&D combat. `action_id`
     # names the attack/action profile to use for to-hit and damage lookup;
-    # `target_id` names the intended target for AC/damage application.
+    # `target_id` names the intended target for AC, saving throws, and damage
+    # application. For saving throws, actor_id remains the source/caster while
+    # target_id is the creature rolling against dc.
     # `effect_id` links code-owned follow-up saves to a sustained effect.
     action_id: str
     target_id: str
     effect_id: str = ""
+    modifier_bonus: int = 0
+    modifier_bonus_reason: str = ""
+    damage_on_save_success: SaveDamageOutcome = "none"
     damage_adjustments: list[PlannedDamageAdjustment]
 
     @model_validator(mode="before")
@@ -96,6 +102,9 @@ class PlannedRoll(BaseModel):
             data.setdefault("action_id", "")
             data.setdefault("target_id", "")
             data.setdefault("effect_id", "")
+            data.setdefault("modifier_bonus", 0)
+            data.setdefault("modifier_bonus_reason", "")
+            data.setdefault("damage_on_save_success", "none")
             data.setdefault("damage_adjustments", [])
         return data
 
@@ -109,12 +118,19 @@ class PlannedRoll(BaseModel):
         self.action_id = self.action_id.strip().lower()
         self.target_id = self.target_id.strip()
         self.effect_id = self.effect_id.strip()
+        self.modifier_bonus_reason = self.modifier_bonus_reason.strip()
+        self.damage_on_save_success = (
+            self.damage_on_save_success.strip().lower()  # type: ignore[assignment]
+            or "none"
+        )
         if not self.roll_id:
             raise ValueError("roll_id is required")
         if not self.actor_id:
             raise ValueError("actor_id is required")
         if self.dc < 0:
             self.dc = 0
+        if self.damage_on_save_success not in {"none", "half", "full"}:
+            self.damage_on_save_success = "none"
         return self
 
 

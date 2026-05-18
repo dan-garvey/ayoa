@@ -293,19 +293,7 @@ def _create_transaction(
     now = _utcnow_iso()
     rolls: list[CatIIRollRecord] = []
     for request in plan.roll_requests:
-        actor_control = "player" if request.actor_id in bindings else "agent"
-        modifier = _roll_modifier_for_request(by_id.get(request.actor_id), request)
-        rolls.append(
-            CatIIRollRecord(
-                roll_id=request.roll_id,
-                actor_id=request.actor_id,
-                actor_control=actor_control,
-                request=request.model_dump(),
-                modifier=modifier,
-                label=_roll_label(request, by_id.get(request.actor_id)),
-                reason=request.reason,
-            )
-        )
+        rolls.append(_roll_record_for_request(ckpt, request, bindings, by_id))
 
     transaction = CatIIRollTransaction(
         transaction_id=f"rolltxn_{uuid.uuid4().hex[:12]}",
@@ -338,19 +326,7 @@ def _create_combat_transaction(
     now = _utcnow_iso()
     rolls: list[CatIIRollRecord] = []
     for request in plan.roll_requests:
-        actor_control = "player" if request.actor_id in bindings else "agent"
-        modifier = _roll_modifier_for_request(by_id.get(request.actor_id), request)
-        rolls.append(
-            CatIIRollRecord(
-                roll_id=request.roll_id,
-                actor_id=request.actor_id,
-                actor_control=actor_control,
-                request=request.model_dump(),
-                modifier=modifier,
-                label=_roll_label(request, by_id.get(request.actor_id)),
-                reason=request.reason,
-            )
-        )
+        rolls.append(_roll_record_for_request(ckpt, request, bindings, by_id))
 
     transaction = CatIIRollTransaction(
         transaction_id=f"rolltxn_{uuid.uuid4().hex[:12]}",
@@ -370,6 +346,43 @@ def _create_combat_transaction(
     )
     ckpt.session.cat_ii_roll_transactions.append(transaction)
     return transaction
+
+
+def _roll_record_for_request(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+    bindings: dict[str, str],
+    by_id: dict[str, object],
+) -> CatIIRollRecord:
+    roller_id = _roller_id_for_request(request)
+    character = _character_for_roll(ckpt, request, by_id)
+    actor_control = "player" if roller_id in bindings else "agent"
+    return CatIIRollRecord(
+        roll_id=request.roll_id,
+        actor_id=roller_id,
+        actor_control=actor_control,
+        request=request.model_dump(),
+        modifier=_roll_modifier_for_request(character, request),
+        label=_roll_label(request, by_id.get(request.actor_id)),
+        reason=request.reason,
+    )
+
+
+def _roller_id_for_request(request: PlannedRoll) -> str:
+    if request.kind == "saving_throw" and request.target_id:
+        return request.target_id
+    return request.actor_id
+
+
+def _character_for_roll(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+    by_id: dict[str, object],
+) -> object | None:
+    roller_id = _roller_id_for_request(request)
+    if request.kind == "saving_throw" and request.target_id:
+        return _character_for_combat_target(ckpt, request.target_id)
+    return by_id.get(roller_id)
 
 
 def _execute_available_rolls(
@@ -410,7 +423,9 @@ def _execute_roll_record(
     record.result = result.model_dump()
     record.completed_by_user_id = completed_by_user_id
     record.completed_at = _utcnow_iso()
-    transaction.ledger_lines.append(_format_ledger_line(request, result))
+    transaction.ledger_lines.append(
+        _format_ledger_line(request, result, roller_id=record.actor_id)
+    )
 
 
 def _execute_combat_damage_rolls(
@@ -420,10 +435,23 @@ def _execute_combat_damage_rolls(
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
         return
+    save_damage_cache: dict[
+        tuple[str, str, str],
+        list[CatIIRollDamageComponentRecord],
+    ] = {}
     for record in transaction.rolls:
         if record.status != "completed":
             continue
         request = PlannedRoll.model_validate(record.request)
+        if request.kind == "saving_throw" and request.target_id:
+            _execute_save_damage_roll(
+                ckpt,
+                transaction,
+                record=record,
+                request=request,
+                shared_damage_cache=save_damage_cache,
+            )
+            continue
         if request.kind != "attack_roll" or not request.target_id:
             continue
         marker = f"damage_for={record.roll_id}"
@@ -503,6 +531,190 @@ def _execute_combat_damage_rolls(
                 applied=False,
             )
         )
+
+
+def _execute_save_damage_roll(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    *,
+    record: CatIIRollRecord,
+    request: PlannedRoll,
+    shared_damage_cache: dict[
+        tuple[str, str, str],
+        list[CatIIRollDamageComponentRecord],
+    ],
+) -> None:
+    if any(damage.roll_id == record.roll_id for damage in transaction.damage_records):
+        return
+    damage_profile = _damage_profile_for_spell(ckpt, request)
+    if not damage_profile.components:
+        return
+    result = record.result or {}
+    if request.dc <= 0:
+        return
+    save_succeeded = _int_value(result.get("total"), 0) >= request.dc
+    raw_components = _shared_save_damage_components(
+        request=request,
+        record=record,
+        damage_profile=damage_profile,
+        shared_damage_cache=shared_damage_cache,
+    )
+    if not raw_components:
+        return
+    components = _save_damage_components_for_target(
+        ckpt,
+        request,
+        raw_components=raw_components,
+        save_succeeded=save_succeeded,
+    )
+    raw_amount = sum(component.raw_amount for component in components)
+    final_amount = sum(component.amount for component in components)
+    adjustments = [
+        adjustment
+        for component in components
+        for adjustment in component.adjustments
+    ]
+    marker = f"damage_for={record.roll_id}"
+    _append_ledger_line_once(
+        transaction,
+        _damage_ledger_line(
+            marker,
+            actor_id=request.actor_id,
+            target_id=request.target_id,
+            components=components,
+            raw_total=raw_amount,
+            final_total=final_amount,
+            attack_adjustments=[],
+        ),
+    )
+    transaction.damage_records.append(
+        CatIIRollDamageRecord(
+            roll_id=record.roll_id,
+            target_id=request.target_id,
+            raw_amount=raw_amount,
+            amount=final_amount,
+            damage_type=damage_profile.damage_type,
+            adjustments=adjustments,
+            components=components,
+            expression=" + ".join(component.expression for component in components),
+            detail="; ".join(component.detail for component in components),
+            applied=False,
+        )
+    )
+
+
+def _shared_save_damage_components(
+    *,
+    request: PlannedRoll,
+    record: CatIIRollRecord,
+    damage_profile: _DamageProfile,
+    shared_damage_cache: dict[
+        tuple[str, str, str],
+        list[CatIIRollDamageComponentRecord],
+    ],
+) -> list[CatIIRollDamageComponentRecord]:
+    key = (
+        request.actor_id,
+        request.action_id or request.effect_id,
+        damage_profile.expression,
+    )
+    if key in shared_damage_cache:
+        return shared_damage_cache[key]
+    components: list[CatIIRollDamageComponentRecord] = []
+    for index, component in enumerate(damage_profile.components, start=1):
+        damage = dice.roll_expression(
+            dice.RollRequest(
+                roll_id=f"damage_{record.roll_id}_{index}",
+                expression=component.expression,
+                actor_id=request.actor_id,
+                reason=f"Damage for {record.reason}",
+            )
+        )
+        components.append(
+            CatIIRollDamageComponentRecord(
+                expression=damage.expression,
+                detail=damage.detail,
+                damage_type=component.damage_type,
+                raw_amount=damage.total,
+                amount=damage.total,
+                adjustments=[],
+            )
+        )
+    shared_damage_cache[key] = components
+    return components
+
+
+def _save_damage_components_for_target(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+    *,
+    raw_components: list[CatIIRollDamageComponentRecord],
+    save_succeeded: bool,
+) -> list[CatIIRollDamageComponentRecord]:
+    components: list[CatIIRollDamageComponentRecord] = []
+    for component in raw_components:
+        amount = component.raw_amount
+        adjustments: list[CatIIRollDamageAdjustmentRecord] = []
+        if save_succeeded:
+            amount, save_adjustment = _apply_save_success_damage_outcome(
+                request,
+                amount,
+                damage_type=component.damage_type,
+            )
+            adjustments.extend(save_adjustment)
+        final_amount, defense_adjustments = _adjust_damage_amount(
+            ckpt,
+            request,
+            raw_amount=amount,
+            damage_type=component.damage_type,
+        )
+        adjustments.extend(defense_adjustments)
+        components.append(
+            CatIIRollDamageComponentRecord(
+                expression=component.expression,
+                detail=component.detail,
+                damage_type=component.damage_type,
+                raw_amount=component.raw_amount,
+                amount=final_amount,
+                adjustments=adjustments,
+            )
+        )
+    return components
+
+
+def _apply_save_success_damage_outcome(
+    request: PlannedRoll,
+    amount: int,
+    *,
+    damage_type: str,
+) -> tuple[int, list[CatIIRollDamageAdjustmentRecord]]:
+    outcome = request.damage_on_save_success
+    if outcome == "full":
+        return amount, []
+    if outcome == "half":
+        reduced = amount // 2
+        return reduced, [
+            CatIIRollDamageAdjustmentRecord(
+                source="engine",
+                kind="halve",
+                damage_type=damage_type,
+                amount_before=amount,
+                amount_after=reduced,
+                reason="successful saving throw",
+            )
+        ]
+    if outcome == "none":
+        return 0, [
+            CatIIRollDamageAdjustmentRecord(
+                source="engine",
+                kind="save_success",
+                damage_type=damage_type,
+                amount_before=amount,
+                amount_after=0,
+                reason="successful saving throw",
+            )
+        ]
+    return amount, []
 
 
 def _append_ledger_line_once(
@@ -661,7 +873,9 @@ def _roll_modifier_for_request(
                     update={"reason": "", "skill": ""}
                 )
                 return mechanics.roll_modifier(character, strict_request)
-    return mechanics.roll_modifier(character, request)
+    return mechanics.roll_modifier(character, request) + int(
+        request.modifier_bonus or 0
+    )
 
 
 def _damage_profile_for_action(
@@ -683,6 +897,73 @@ def _damage_profile_for_action(
     if action is None:
         return _DamageProfile()
     return _action_damage_profile(action)
+
+
+def _damage_profile_for_spell(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> _DamageProfile:
+    character = _character_for_combat_target(ckpt, request.actor_id)
+    if character is None:
+        return _DamageProfile()
+    spell = _find_spell(character, request.action_id, reason=request.reason)
+    if spell is None:
+        return _DamageProfile()
+    return _spell_damage_profile(spell)
+
+
+def _find_spell(
+    character: object,
+    spell_key: str,
+    *,
+    reason: str = "",
+) -> dict[str, object] | None:
+    spellcasting = _character_spellcasting(character)
+    wanted = _normalize_action_text(spell_key)
+    reason_text = _normalize_action_text(reason)
+    first_damaging_spell: dict[str, object] | None = None
+    damaging_spell_count = 0
+    reason_matches: list[dict[str, object]] = []
+    for spell in spellcasting.get("spells") or []:
+        if not isinstance(spell, dict):
+            continue
+        if _spell_damage_profile(spell).expression:
+            damaging_spell_count += 1
+            if first_damaging_spell is None:
+                first_damaging_spell = spell
+        names = {
+            _normalize_action_text(spell.get("id") or ""),
+            _normalize_action_text(spell.get("name") or ""),
+        }
+        names = {name for name in names if name}
+        if wanted and wanted in names:
+            return spell
+        if reason_text and any(
+            _contains_action_name(reason_text, name) for name in names
+        ):
+            reason_matches.append(spell)
+    if wanted:
+        return None
+    if len(reason_matches) == 1:
+        return reason_matches[0]
+    if not wanted and damaging_spell_count == 1:
+        return first_damaging_spell
+    return None
+
+
+def _spell_damage_profile(spell: dict[str, object]) -> _DamageProfile:
+    return _damage_component_profile(spell.get("damage"))
+
+
+def _character_spellcasting(character: object | None) -> dict[str, object]:
+    if character is None:
+        return {}
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    spellcasting = statblock.get("spellcasting") if isinstance(statblock, dict) else {}
+    return spellcasting if isinstance(spellcasting, dict) else {}
 
 
 def _find_action(
@@ -1215,6 +1496,13 @@ def _unique_text(values) -> list[str]:
     return out
 
 
+def _int_value(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _join_damage_types(values) -> str:
     return ", ".join(_unique_text(values))
 
@@ -1353,7 +1641,19 @@ def _build_combat_packet(
             ),
         })
 
-    spatial_context = dnd_spatial.combat_packet_context(combat, actor_id)
+    relationships_by_id = {}
+    for participant in participants:
+        relationship = str(participant.get("relationship_to_current_actor") or "")
+        for key in ("combatant_id", "character_id", "name"):
+            value = str(participant.get(key) or "")
+            if value and relationship:
+                relationships_by_id[value] = relationship
+    spatial_context = dnd_spatial.combat_packet_context(
+        combat,
+        actor_id,
+        area_templates=_combat_area_templates(actor_char),
+        relationships_by_id=relationships_by_id,
+    )
     payload = {
         "ruleset_id": ckpt.session.config.settings.ruleset_id,
         "player_roll_mode": ckpt.session.config.settings.player_roll_mode,
@@ -1529,6 +1829,139 @@ def _combat_spell_summaries(character: object | None) -> list[dict[str, object]]
             "consumes": _resource_summaries(spell.get("consumes")),
         })
     return spells
+
+
+def _combat_area_templates(character: object | None) -> list[dict[str, object]]:
+    templates: list[dict[str, object]] = []
+    for spell in _raw_spells_for_character(character):
+        action_id = str(spell.get("id") or "").strip()
+        name = str(spell.get("name") or "").strip()
+        text = " ".join(
+            str(part or "")
+            for part in (
+                name,
+                _text_field(spell.get("target")),
+                _text_field(spell.get("range")),
+                " ".join(_formula_summaries(spell.get("damage"))),
+            )
+        )
+        template = _area_template_from_text(
+            action_id=action_id,
+            name=name,
+            text=text,
+        )
+        if template:
+            templates.append(template)
+    for action in _combat_actions_for_character(character):
+        action_id = str(action.get("id") or "").strip()
+        name = str(action.get("name") or "").strip()
+        text = " ".join(
+            str(part or "")
+            for part in (
+                name,
+                str(action.get("notes") or ""),
+                str(action.get("target") or ""),
+                str(action.get("range") or ""),
+            )
+        )
+        template = _area_template_from_text(
+            action_id=action_id,
+            name=name,
+            text=text,
+        )
+        if template:
+            templates.append(template)
+    return templates
+
+
+def _raw_spells_for_character(character: object | None) -> list[dict[str, object]]:
+    spellcasting = _character_spellcasting(character)
+    return [
+        spell for spell in spellcasting.get("spells") or []
+        if isinstance(spell, dict)
+    ]
+
+
+def _text_field(value: object) -> str:
+    if isinstance(value, dict):
+        return str(value.get("text") or "")
+    return str(value or "")
+
+
+def _area_template_from_text(
+    *,
+    action_id: str,
+    name: str,
+    text: str,
+) -> dict[str, object]:
+    normalized = text.lower()
+    line_match = re.search(
+        r"(\d+)\s*-?\s*foot(?:\s|-)*long[^.;,]*[, ]+"
+        r"(\d+)\s*-?\s*foot(?:\s|-)*wide[^.;]*\bline\b",
+        normalized,
+    )
+    if line_match is None:
+        line_match = re.search(
+            r"(\d+)\s*-?\s*foot[^.;]*\bline\b",
+            normalized,
+        )
+    if line_match is not None:
+        width_ft = (
+            int(line_match.group(2)) if line_match.lastindex
+            and line_match.lastindex >= 2 else 5
+        )
+        return {
+            "action_id": action_id,
+            "name": name,
+            "shape": "line",
+            "length_ft": int(line_match.group(1)),
+            "width_ft": width_ft,
+        }
+    cone_match = re.search(r"(\d+)\s*-?\s*foot[^.;]*\bcone\b", normalized)
+    if cone_match is not None:
+        return {
+            "action_id": action_id,
+            "name": name,
+            "shape": "cone",
+            "length_ft": int(cone_match.group(1)),
+        }
+    radius_match = re.search(
+        r"(\d+)\s*-?\s*foot(?:\s|-)*radius[^.;]*\b(sphere|circle|burst)\b",
+        normalized,
+    )
+    if radius_match is None:
+        radius_match = re.search(
+            r"(\d+)\s*-?\s*foot(?:\s|-)*radius",
+            normalized,
+        )
+    if radius_match is not None:
+        return {
+            "action_id": action_id,
+            "name": name,
+            "shape": "circle",
+            "radius_ft": int(radius_match.group(1)),
+        }
+    cube_match = re.search(r"(\d+)\s*-?\s*foot[^.;]*\bcube\b", normalized)
+    if cube_match is not None:
+        amount = int(cube_match.group(1))
+        return {
+            "action_id": action_id,
+            "name": name,
+            "shape": "square",
+            "width_ft": amount,
+            "height_ft": amount,
+        }
+    square_match = re.search(r"(\d+)\s*-?\s*foot[^.;]*\bsquare\b", normalized)
+    if square_match is not None:
+        amount = int(square_match.group(1))
+        return {
+            "action_id": action_id,
+            "name": name,
+            "shape": "square",
+            "width_ft": amount,
+            "height_ft": amount,
+        }
+    return {}
 
 
 def _formula_summaries(value: object) -> list[str]:
@@ -1751,13 +2184,40 @@ def _apply_combat_effect_deltas(
     if combat is None:
         return []
     notes: list[str] = []
+    started_concentration_groups: set[tuple[str, str]] = set()
+    active_group_by_originator: dict[str, tuple[str, str]] = {}
     for delta in deltas:
         if delta.operation == "start":
             effect = _runtime_effect_from_delta(
                 delta,
                 default_originator_id=default_originator_id,
             )
-            dnd_combat.start_effect(ckpt.session, effect)
+            replace_concentration = True
+            if effect.concentration and effect.originator_id:
+                group_key = _concentration_group_key(effect)
+                if group_key not in started_concentration_groups:
+                    previous_group = active_group_by_originator.get(
+                        effect.originator_id
+                    )
+                    if previous_group is not None and previous_group != group_key:
+                        notes.append(
+                            "Multiple concentration effect groups started for "
+                            f"{effect.originator_id}; only the last group can "
+                            "remain active."
+                        )
+                    dnd_combat.end_concentration_effects(
+                        ckpt.session,
+                        effect.originator_id,
+                        reason="new concentration",
+                    )
+                    started_concentration_groups.add(group_key)
+                    active_group_by_originator[effect.originator_id] = group_key
+                replace_concentration = False
+            dnd_combat.start_effect(
+                ckpt.session,
+                effect,
+                replace_concentration=replace_concentration,
+            )
             if not _combat_effect_instance_exists(combat, effect):
                 notes.append(
                     "Effect start skipped for "
@@ -1810,6 +2270,16 @@ def _apply_combat_effect_deltas(
                     f"{_effect_delta_selector(delta)}."
                 )
     return notes
+
+
+def _concentration_group_key(effect: DndRuntimeEffect) -> tuple[str, str]:
+    source = (
+        effect.source_id.strip()
+        or effect.effect_id.strip()
+        or effect.slug.strip()
+        or effect.name.strip().lower()
+    )
+    return effect.originator_id.strip(), source
 
 
 def _combat_effect_instance_exists(
@@ -1964,17 +2434,34 @@ def _release_roll_slot(
 def _format_ledger_line(
     request: PlannedRoll,
     result: dice.RollResult,
+    *,
+    roller_id: str = "",
 ) -> str:
     dc_part = f", DC {request.dc}" if request.dc else ""
     opposed_part = (
         f", opposed by {request.opposed_by}" if request.opposed_by else ""
     )
+    modifier_part = (
+        f", modifier bonus {request.modifier_bonus:+d}"
+        f" ({request.modifier_bonus_reason})"
+        if request.modifier_bonus and request.modifier_bonus_reason
+        else (
+            f", modifier bonus {request.modifier_bonus:+d}"
+            if request.modifier_bonus else ""
+        )
+    )
+    roller = roller_id or request.actor_id
+    source_part = (
+        f" from {request.actor_id}"
+        if request.kind == "saving_throw" and request.actor_id != roller
+        else ""
+    )
     return (
-        f"{result.roll_id}: {request.actor_id} {request.kind} "
+        f"{result.roll_id}: {roller} {request.kind}{source_part} "
         f"({request.ability}"
         f"{', ' + request.skill if request.skill else ''}) "
         f"rolled {result.detail} = {result.total}"
-        f"{dc_part}{opposed_part}; reason: {request.reason}"
+        f"{dc_part}{opposed_part}{modifier_part}; reason: {request.reason}"
     )
 
 

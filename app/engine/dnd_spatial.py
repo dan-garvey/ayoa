@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Iterable
 
 from app.engine.dnd_combat_access import obj_get as _obj_get
@@ -140,16 +141,29 @@ def normalize_battle_map_seed(
     )
 
 
-def combat_packet_context(combat: Any, actor_id: str) -> dict[str, Any]:
+def combat_packet_context(
+    combat: Any,
+    actor_id: str,
+    *,
+    area_templates: Iterable[dict[str, Any]] | None = None,
+    relationships_by_id: dict[str, str] | None = None,
+) -> dict[str, Any]:
     battle_map = _battle_map(combat)
     if battle_map is None:
         return {
             "battle_map": {},
             "spatial_advisories": [],
+            "area_targeting_advisories": [],
         }
     return {
         "battle_map": battle_map.model_dump(),
         "spatial_advisories": spatial_advisories(combat, actor_id),
+        "area_targeting_advisories": area_targeting_advisories(
+            combat,
+            actor_id,
+            area_templates or [],
+            relationships_by_id=relationships_by_id or {},
+        ),
     }
 
 
@@ -176,6 +190,46 @@ def spatial_advisories(combat: Any, actor_id: str) -> list[dict[str, Any]]:
             "within_30_ft": distance_ft <= 30,
             "line_of_sight": "clear" if line_of_sight else "blocked",
             "cover": cover,
+        })
+    return advisories
+
+
+def area_targeting_advisories(
+    combat: Any,
+    actor_id: str,
+    templates: Iterable[dict[str, Any]],
+    *,
+    relationships_by_id: dict[str, str] | None = None,
+    max_templates: int = 6,
+    max_candidates: int = 5,
+) -> list[dict[str, Any]]:
+    battle_map = _battle_map(combat)
+    if battle_map is None:
+        return []
+    actor_token = _token_for(battle_map, actor_id)
+    if actor_token is None:
+        return []
+    relationships = relationships_by_id or {}
+    advisories: list[dict[str, Any]] = []
+    for template in list(templates)[:max_templates]:
+        shape = str(template.get("shape") or "").strip().lower()
+        if shape not in {"cone", "line", "circle", "sphere", "square", "cube"}:
+            continue
+        normalized = _normalize_area_template(template, battle_map.square_size_ft)
+        candidates = _area_candidates(
+            battle_map,
+            actor_token,
+            normalized,
+            relationships,
+        )
+        if not candidates:
+            continue
+        advisories.append({
+            "action_id": str(template.get("action_id") or ""),
+            "name": str(template.get("name") or ""),
+            "shape": normalized["shape"],
+            "size": normalized["size"],
+            "candidates": candidates[:max_candidates],
         })
     return advisories
 
@@ -383,6 +437,320 @@ def render_battle_map_summary(
         if advisory_text:
             lines.append("From you: " + "; ".join(advisory_text) + ".")
     return lines[:max_lines]
+
+
+def _normalize_area_template(
+    template: dict[str, Any],
+    square_size_ft: int,
+) -> dict[str, Any]:
+    square = max(1, int(square_size_ft or 5))
+    shape = str(template.get("shape") or "").strip().lower()
+    if shape == "sphere":
+        shape = "circle"
+    if shape == "cube":
+        shape = "square"
+    return {
+        "shape": shape,
+        "length_squares": _ft_to_squares(template.get("length_ft"), square),
+        "radius_squares": _ft_to_squares(template.get("radius_ft"), square),
+        "width_squares": max(1, _ft_to_squares(template.get("width_ft"), square)),
+        "height_squares": max(1, _ft_to_squares(template.get("height_ft"), square)),
+        "size": {
+            key: value
+            for key, value in {
+                "length_ft": template.get("length_ft"),
+                "radius_ft": template.get("radius_ft"),
+                "width_ft": template.get("width_ft"),
+                "height_ft": template.get("height_ft"),
+            }.items()
+            if value
+        },
+    }
+
+
+def _ft_to_squares(value: Any, square_size_ft: int) -> int:
+    try:
+        amount = int(value or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        return 0
+    return max(1, math.ceil(amount / max(1, square_size_ft)))
+
+
+def _area_candidates(
+    battle_map: DndBattleMapState,
+    actor_token: DndBattleMapToken,
+    template: dict[str, Any],
+    relationships: dict[str, str],
+) -> list[dict[str, Any]]:
+    shape = template["shape"]
+    candidates: list[dict[str, Any]] = []
+    if shape in {"cone", "line"}:
+        length = int(template.get("length_squares") or 0)
+        if length <= 0:
+            return []
+        width = int(template.get("width_squares") or 1)
+        for label, dx, dy in _DIRECTIONS:
+            affected, blocked = _directional_area_targets(
+                battle_map,
+                actor_token,
+                shape=shape,
+                direction=(dx, dy),
+                length_squares=length,
+                width_squares=width,
+            )
+            candidates.append(_ranked_area_candidate(
+                affected,
+                blocked,
+                relationships,
+                origin={"token_id": _token_identity(actor_token)},
+                direction=label,
+            ))
+    elif shape == "circle":
+        radius = int(template.get("radius_squares") or 0)
+        if radius <= 0:
+            return []
+        for x, y in _candidate_centers(battle_map):
+            affected, blocked = _centered_area_targets(
+                battle_map,
+                actor_token,
+                center=(x, y),
+                radius_squares=radius,
+            )
+            candidates.append(_ranked_area_candidate(
+                affected,
+                blocked,
+                relationships,
+                origin={"x": x, "y": y},
+                direction="",
+            ))
+    elif shape == "square":
+        width = int(template.get("width_squares") or 1)
+        height = int(template.get("height_squares") or width)
+        for x, y in _candidate_square_origins(battle_map, width, height):
+            affected, blocked = _square_area_targets(
+                battle_map,
+                actor_token,
+                origin=(x, y),
+                width=width,
+                height=height,
+            )
+            candidates.append(_ranked_area_candidate(
+                affected,
+                blocked,
+                relationships,
+                origin={"x": x, "y": y},
+                direction="",
+            ))
+    candidates = [candidate for candidate in candidates if candidate["affected"]]
+    candidates.sort(
+        key=lambda item: (
+            item["score"],
+            len(item["enemy_targets"]),
+            -len(item["ally_targets"]),
+            -len(item["unknown_targets"]),
+        ),
+        reverse=True,
+    )
+    return _dedupe_candidates(candidates)
+
+
+_DIRECTIONS = (
+    ("N", 0.0, -1.0),
+    ("NE", 1.0, -1.0),
+    ("E", 1.0, 0.0),
+    ("SE", 1.0, 1.0),
+    ("S", 0.0, 1.0),
+    ("SW", -1.0, 1.0),
+    ("W", -1.0, 0.0),
+    ("NW", -1.0, -1.0),
+)
+
+
+def _directional_area_targets(
+    battle_map: DndBattleMapState,
+    actor_token: DndBattleMapToken,
+    *,
+    shape: str,
+    direction: tuple[float, float],
+    length_squares: int,
+    width_squares: int,
+) -> tuple[list[DndBattleMapToken], list[DndBattleMapToken]]:
+    dx, dy = _unit(direction)
+    ax, ay = _token_center(actor_token)
+    affected: list[DndBattleMapToken] = []
+    blocked: list[DndBattleMapToken] = []
+    for token in battle_map.tokens:
+        if token is actor_token:
+            continue
+        tx, ty = _token_center(token)
+        vx = tx - ax
+        vy = ty - ay
+        projection = vx * dx + vy * dy
+        if projection <= 0 or projection > length_squares:
+            continue
+        perpendicular = abs(vx * dy - vy * dx)
+        if shape == "line":
+            if perpendicular > max(0.5, width_squares / 2):
+                continue
+        elif perpendicular > max(0.5, projection):
+            continue
+        if _cover_between(battle_map, actor_token, token) == "total":
+            blocked.append(token)
+            continue
+        affected.append(token)
+    return affected, blocked
+
+
+def _centered_area_targets(
+    battle_map: DndBattleMapState,
+    actor_token: DndBattleMapToken,
+    *,
+    center: tuple[int, int],
+    radius_squares: int,
+) -> tuple[list[DndBattleMapToken], list[DndBattleMapToken]]:
+    cx, cy = center
+    affected: list[DndBattleMapToken] = []
+    blocked: list[DndBattleMapToken] = []
+    for token in battle_map.tokens:
+        if token is actor_token:
+            continue
+        tx, ty = _token_center(token)
+        if max(abs(tx - cx), abs(ty - cy)) > radius_squares:
+            continue
+        if _cover_between(battle_map, actor_token, token) == "total":
+            blocked.append(token)
+            continue
+        affected.append(token)
+    return affected, blocked
+
+
+def _square_area_targets(
+    battle_map: DndBattleMapState,
+    actor_token: DndBattleMapToken,
+    *,
+    origin: tuple[int, int],
+    width: int,
+    height: int,
+) -> tuple[list[DndBattleMapToken], list[DndBattleMapToken]]:
+    ox, oy = origin
+    affected: list[DndBattleMapToken] = []
+    blocked: list[DndBattleMapToken] = []
+    for token in battle_map.tokens:
+        if token is actor_token:
+            continue
+        tx, ty = _token_center(token)
+        if not (ox <= tx < ox + width and oy <= ty < oy + height):
+            continue
+        if _cover_between(battle_map, actor_token, token) == "total":
+            blocked.append(token)
+            continue
+        affected.append(token)
+    return affected, blocked
+
+
+def _ranked_area_candidate(
+    affected: list[DndBattleMapToken],
+    blocked: list[DndBattleMapToken],
+    relationships: dict[str, str],
+    *,
+    origin: dict[str, Any],
+    direction: str,
+) -> dict[str, Any]:
+    enemy_targets: list[str] = []
+    ally_targets: list[str] = []
+    unknown_targets: list[str] = []
+    for token in affected:
+        identity = _token_identity(token)
+        relationship = _token_relationship(token, relationships)
+        if relationship == "enemy":
+            enemy_targets.append(identity)
+        elif relationship in {"ally", "self"}:
+            ally_targets.append(identity)
+        else:
+            unknown_targets.append(identity)
+    blocked_targets = [_token_identity(token) for token in blocked]
+    score = (
+        100 * len(enemy_targets)
+        - 80 * len(ally_targets)
+        - 10 * len(unknown_targets)
+        - 20 * len(blocked_targets)
+    )
+    return {
+        "origin": origin,
+        "direction": direction,
+        "affected": [_token_identity(token) for token in affected],
+        "enemy_targets": enemy_targets,
+        "ally_targets": ally_targets,
+        "unknown_targets": unknown_targets,
+        "blocked_by_total_cover": blocked_targets,
+        "score": score,
+    }
+
+
+def _token_relationship(
+    token: DndBattleMapToken,
+    relationships: dict[str, str],
+) -> str:
+    for key in (token.token_id, token.character_id, token.label):
+        relationship = relationships.get(str(key or ""))
+        if relationship:
+            return relationship
+    return "unknown"
+
+
+def _dedupe_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, ...]] = set()
+    for candidate in candidates:
+        key = tuple(candidate["affected"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(candidate)
+    return out
+
+
+def _candidate_centers(battle_map: DndBattleMapState) -> list[tuple[int, int]]:
+    centers = {
+        (int(round(x)), int(round(y)))
+        for x, y in (_token_center(token) for token in battle_map.tokens)
+    }
+    return [
+        (x, y)
+        for x, y in sorted(centers)
+        if 0 <= x < battle_map.width and 0 <= y < battle_map.height
+    ]
+
+
+def _candidate_square_origins(
+    battle_map: DndBattleMapState,
+    width: int,
+    height: int,
+) -> list[tuple[int, int]]:
+    origins: set[tuple[int, int]] = set()
+    for token in battle_map.tokens:
+        cx, cy = _token_center(token)
+        for x in range(math.floor(cx) - width + 1, math.floor(cx) + 1):
+            for y in range(math.floor(cy) - height + 1, math.floor(cy) + 1):
+                if 0 <= x <= max(0, battle_map.width - width) and 0 <= y <= max(0, battle_map.height - height):
+                    origins.add((x, y))
+    return sorted(origins)
+
+
+def _unit(direction: tuple[float, float]) -> tuple[float, float]:
+    dx, dy = direction
+    magnitude = math.hypot(dx, dy)
+    if magnitude <= 0:
+        return 0.0, 0.0
+    return dx / magnitude, dy / magnitude
+
+
+def _token_center(token: DndBattleMapToken) -> tuple[float, float]:
+    size = max(1, token.size_squares)
+    offset = (size - 1) / 2
+    return token.x + offset, token.y + offset
 
 
 def _battle_map(combat: Any) -> DndBattleMapState | None:

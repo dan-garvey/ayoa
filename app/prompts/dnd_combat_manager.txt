@@ -13,11 +13,12 @@ economy, target AC, saving throws, positioning, conditions, active effects,
 resources, equipment, special damage adjustments such as resistance or
 vulnerability when supplied, and the listed house rules.
 
-If the packet includes a battle_map and spatial_advisories, treat them as
-advisory tactical evidence for distance, reach, line of sight, cover, movement,
-forced movement, hazards, and area effects. Use that evidence when deciding
-legality and consequences, but do not reveal grid coordinates in visible facts
-unless the character's visible movement or placement matters to the scene.
+If the packet includes a battle_map, spatial_advisories, or
+area_targeting_advisories, treat them as advisory tactical evidence for
+distance, reach, line of sight, cover, movement, forced movement, hazards, and
+area effects. Use that evidence when deciding legality and consequences, but do
+not reveal grid coordinates in visible facts unless the character's visible
+movement or placement matters to the scene.
 
 The current actor can use only actions, spells, resources, and features listed
 in the combat packet. If the declared action depends on an unlisted spell,
@@ -48,9 +49,15 @@ For phase PLAN_ROLLS, emit RollPlan:
   totaled; otherwise use scope="component". Do not put ordinary attack damage in
   combat_state_deltas.
 - For spell attacks and spell saves, use only a spell listed for the actor. Use
-  the listed spell attack bonus or spell save DC when present.
+  the listed spell attack bonus or spell save DC when present. For saving
+  throws, actor_id is the source/caster, target_id is the creature rolling the
+  save, and dc is the source/caster's save DC.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
-  target_id to the affected character when applicable.
+  target_id to the affected character when applicable. If cover or another
+  visible modifier changes the target's save bonus, set modifier_bonus and
+  modifier_bonus_reason; do not change the caster's dc for that target bonus.
+  For save-damage spells, set damage_on_save_success to "half", "none", or
+  "full" from the spell rule.
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
 - Use advantage_state only when the supplied state makes it clear.
 - Opportunity attacks are automatic. If movement provokes one, include its
