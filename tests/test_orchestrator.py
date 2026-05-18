@@ -228,7 +228,7 @@ class TestCharacterSpawn:
     ):
         """A freshly-spawned NPC's `pending_observations` must
         carry a `[your own action] <Name> at <location>.` seed. Same
-        shape the importer writes for author-seeded NPCs at session
+        shape the story seed writes for author-seeded NPCs at session
         start. Without this seed, the spawn's first agent dispatch
         arrives with no location signal once the on-stage agent body's
         historical `## Scene` block is gone (also r10) — the inbox is

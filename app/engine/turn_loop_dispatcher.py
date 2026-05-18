@@ -141,7 +141,7 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     1 aren't blind. Returns "" on every turn after the first.
 
     NOTE: this block does NOT carry per-NPC interior beyond
-    importer-seeded goals/objectives. An agent's freshest interior
+    seed-authored goals/objectives. An agent's freshest interior
     (the trailing parenthetical from its last committed turn)
     lives in that agent's own rolling history and is deliberately
     NOT mirrored to the router — the router decides who acts based on

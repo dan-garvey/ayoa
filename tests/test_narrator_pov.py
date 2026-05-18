@@ -759,7 +759,7 @@ class TestFormatVisibleEventsBlock:
         assert out.index("First visible beat.") < out.index("Second visible beat.")
 
 # NOTE: The `TestOpeningVerbatimRender` class lived here in v8 and earlier.
-# It exercised a now-removed verbatim shortcut that rendered the importer's
+# It exercised a now-removed verbatim shortcut that rendered an authored
 # `opening_narrative` byte-for-byte on the first `(begin)` turn. The whole
 # `opening_narrative` field was removed in v9 — the router now composes the
 # opening dynamically from world_state and the narrator renders it like any

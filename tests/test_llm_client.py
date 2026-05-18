@@ -744,8 +744,8 @@ class TestLLMClientComplete:
         actionable ValueError BEFORE the structured-output parser tries
         to validate the truncated JSON, otherwise callers see an opaque
         pydantic 'EOF while parsing a string' error that gives no hint
-        about the real cause. This was the bug that made the importer
-        truncation regression in v5/v6 hard to diagnose.
+        about the real cause. This was first caught on the old story
+        importer truncation regression in v5/v6.
 
         This test exercises the RAW-content path (non-structured) where
         stop_reason is observable on the final message before any
@@ -771,12 +771,11 @@ class TestLLMClientComplete:
         stream.get_final_message() returns, so we never get to inspect
         stop_reason on the final message. The client must catch the
         pydantic 'Invalid JSON: EOF while parsing a string' shape and
-        re-raise with an actionable max_tokens message. Otherwise the
-        importer surfaces an opaque pydantic error that doesn't
-        identify truncation as the cause.
+        re-raise with an actionable max_tokens message instead of an
+        opaque pydantic error that doesn't identify truncation as the cause.
 
-        Reproduces the actual hollowstone v6 import failure shape (EOF
-        at column 265,192 of the structured-output JSON body).
+        Reproduces the old hollowstone v6 importer failure shape (EOF at
+        column 265,192 of the structured-output JSON body).
         """
         import pydantic as p
 
@@ -867,10 +866,10 @@ class TestLLMClientRetry:
         the BASE APIStatusError class — NOT InternalServerError, even
         though the body says 'Internal server error'. The retry path
         must catch this shape; otherwise a single transient kills a
-        long-running batch like the importer.
+        long-running structured-output batch.
 
         Reproduces the shape from req_011CaKVv9PMiXwBZ2Eoay6jd which
-        hit the importer Call 1 on a fresh v6 attempt."""
+        hit the old importer Call 1 on a fresh v6 attempt."""
         import anthropic as anth
 
         sse_body = {

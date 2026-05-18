@@ -62,12 +62,13 @@ class CharacterVisuals(BaseModel):
 
 
 class PrivateState(BaseModel):
-    # Existential drives — who this character is at core. Importer seeds
-    # from character nature/personality. Rarely changes during play.
+    # Existential drives — who this character is at core. Synthetic story
+    # authors seed these from character nature/personality. Rarely changes
+    # during play.
     goals: list[str] = Field(default_factory=list)
     # Actionable pursuits — what this character is trying to DO right now.
-    # Importer seeds 1-3 arc-level objectives per character at import
-    # time. PRE-Commit-1 the agent's structured output rewrote this list
+    # Synthetic story authors seed 1-3 arc-level objectives per character.
+    # PRE-Commit-1 the agent's structured output rewrote this list
     # every turn (`private_updates.current_objectives`); Commit 1 dropped
     # structured agent output entirely, so this field is now author-time
     # state only — it seeds the agent's identity prompt and is otherwise
@@ -77,8 +78,9 @@ class PrivateState(BaseModel):
     current_objectives: list[str] = Field(default_factory=list)
     secrets: list[str] = Field(default_factory=list)
     # Flag for "this character is significant enough to act off-screen."
-    # Importer sets true for antagonists, rivals, faction leaders — anyone
-    # whose goals should keep moving while the player isn't watching.
+    # Synthetic story authors set true for antagonists, rivals, faction
+    # leaders — anyone whose goals should keep moving while the player isn't
+    # watching.
     intentions_enabled: bool = False
     # Author-authored routing cues for private/background turn selection.
     # Legacy field name kept for checkpoint continuity; prompts should treat
@@ -100,7 +102,7 @@ class CharacterRecord(BaseModel):
     # passed since the character last had a chance to act.
     last_agent_turn_at_s: int | None = None
     # True if this character is REASONABLY PLAYABLE BY A HUMAN — i.e.,
-    # the author/importer marked them as a slot a player can claim via
+    # the author marked them as a slot a player can claim via
     # /join. They run as agent NPCs by default and only stop being
     # agent-controlled when the engine binds a human to them
     # (`session.character_bindings[character_id] = user_id`). Multi-
@@ -146,10 +148,10 @@ class CharacterRecord(BaseModel):
     personality: str = ""
     # Per-character world knowledge envelope: the filtered slice of world
     # lore/facts this character plausibly knows, plus their in-world sense
-    # of what's going on. Populated at import time (and at spawn time for
-    # router-created characters) by an LLM pass that sees the omniscient
-    # world plus this character's role/faction/backstory/secrets. Left as
-    # a single freeform field on purpose — the LLM picks whatever shape
+    # of what's going on. Seeded in synthetic story checkpoints (and at
+    # spawn time for router-created characters) from the omniscient world
+    # plus this character's role/faction/backstory/secrets. Left as a
+    # single freeform field on purpose so each character gets the shape that
     # best conveys what THIS character takes for granted.
     known_context: str = ""
     # Optional rules/content adapter state. Narrative-only sessions leave

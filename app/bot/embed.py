@@ -80,14 +80,12 @@ def _truncate_title(title: str) -> str:
 
 
 def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
-    """Player-facing briefing on /story start: short truck-kun primer +
-    a single nudge to /join.
+    """Player-facing briefing on /story start: short primer plus a single
+    nudge to /join.
 
-    The primer (1–2 paragraphs, second-person, spoiler-free) is generated
-    by the importer's Call 5 and stored on `CheckpointFile.player_primer`.
-    Pre-v8 checkpoints have an empty primer; we fall back to a stub
-    composed from the public setting fields so older saves still render
-    something usable.
+    Synthetic story seeds author `CheckpointFile.player_primer` directly.
+    Empty hand-built checkpoints fall back to a stub composed from public
+    setting fields so they still render something usable.
 
     No facts list, no genre/era/tone breakdown, no roster preview — those
     used to leak proper nouns the player hadn't earned and turned the
@@ -99,10 +97,7 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
 
     story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
     title = f"Welcome · {story_title}"
-    importer_tag = ckpt.importer_version or "v0"
-    coverage = ckpt.import_analysis.coverage_rating if ckpt.import_analysis else ""
-    coverage_tag = f" · coverage {coverage}" if coverage and coverage != "unknown" else ""
-    footer = f"{story_id} · importer {importer_tag}{coverage_tag} · /join to claim a character"
+    footer = f"{story_id} · /join to claim a character"
 
     primer = (ckpt.player_primer or "").strip()
     if not primer:

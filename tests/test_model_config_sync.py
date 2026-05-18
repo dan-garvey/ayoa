@@ -124,7 +124,7 @@ def test_load_story_into_session_rejects_stale_schema(tmp_path: Path):
         bridge.load_story_into_session("session_1", story_id)
     except ValueError as exc:
         assert "schema_version" in str(exc)
-        assert "Re-import" in str(exc)
+        assert "Regenerate" in str(exc)
     else:
         raise AssertionError("stale story schema should be rejected")
     assert not (tmp_path / "sessions" / "session_1" / "ckpt_0000.json").exists()

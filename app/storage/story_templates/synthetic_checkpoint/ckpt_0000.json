@@ -1,0 +1,89 @@
+{
+  "schema_version": "4.0",
+  "session": {
+    "session_id": "synthetic_checkpoint_template",
+    "story_id": "synthetic_checkpoint_template",
+    "turn_index": 0,
+    "player_name": "",
+    "player_character_id": "",
+    "character_bindings": {},
+    "leading_at_s": 0,
+    "visual_introductions": {},
+    "pending_engine_state_updates": [],
+    "created_at": "2026-05-18T00:00:00Z",
+    "config": {
+      "models": {
+        "event_router": "openai:gpt-5.2",
+        "narrator": "openai:gpt-5.2",
+        "dnd_combat_manager": "openai:gpt-5.1",
+        "discriminator": "openai:gpt-5.2",
+        "agent_default": "anthropic:claude-opus-4-6",
+        "agent_standard": "anthropic:claude-haiku-4-5",
+        "agent_convenience": "anthropic:claude-sonnet-4-6"
+      },
+      "narrative_rules": "",
+      "settings": {
+        "max_events_per_beat": 40,
+        "max_agent_cascades_per_beat": 35,
+        "cat_ii_human_timeout_seconds": 86400,
+        "ruleset_id": "narrative",
+        "player_roll_mode": "auto"
+      }
+    },
+    "active_act_slots": {},
+    "open_cat_ii_events": [],
+    "cat_ii_roll_transactions": [],
+    "active_combat": null,
+    "dnd_inventory_offers": [],
+    "open_commitments": [],
+    "pending_commitment_revisions": {},
+    "render_buffers": {},
+    "pending_narrator_render": null,
+    "pending_intentions": []
+  },
+  "player_primer": "",
+  "world_state": {
+    "facts": [],
+    "physics_ruleset": {
+      "strength_limits": "human_baseline",
+      "magic_enabled": false
+    },
+    "global_flags": {},
+    "setting": {
+      "genre": "",
+      "era": "",
+      "tone": "",
+      "premise": ""
+    },
+    "lore": "",
+    "hidden_lore": "",
+    "hidden_facts": [],
+    "known_characters": []
+  },
+  "characters": [],
+  "session_conversation": [],
+  "narrator_conversations": {},
+  "character_conversations": {},
+  "canonical_events": [],
+  "transcript": [],
+  "visibility_log": [],
+  "config": {
+    "models": {
+      "event_router": "openai:gpt-5.2",
+      "narrator": "openai:gpt-5.2",
+      "dnd_combat_manager": "openai:gpt-5.1",
+      "discriminator": "openai:gpt-5.2",
+      "agent_default": "anthropic:claude-opus-4-6",
+      "agent_standard": "anthropic:claude-haiku-4-5",
+      "agent_convenience": "anthropic:claude-sonnet-4-6"
+    },
+    "narrative_rules": "",
+    "settings": {
+      "max_events_per_beat": 40,
+      "max_agent_cascades_per_beat": 35,
+      "cat_ii_human_timeout_seconds": 86400,
+      "ruleset_id": "narrative",
+      "player_roll_mode": "auto"
+    }
+  }
+}

@@ -85,8 +85,7 @@ def extract_json(text: str) -> str:
     """Extract a JSON object or array from free-form text.
 
     Handles markdown fenced code blocks and surrounding prose. Used by callers
-    that want raw dict/list output without going through a Pydantic model
-    (e.g., the story importer).
+    that want raw dict/list output without going through a Pydantic model.
     """
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", text, re.DOTALL)
     if match:
@@ -477,8 +476,7 @@ class LLMClient:
                    message even when there's only one user turn (normally breakpoint
                    on user tail is only added when len(messages) > 1). Use when a
                    caller expects a follow-up call to read
-                   [system, user1, assistant1] as a cached prefix — e.g. the
-                   two-call importer pattern.
+                   [system, user1, assistant1] as a cached prefix.
             compact: If True, request server-side context compaction (beta). The
                      request is honored only when `config.enable_anthropic_compaction`
                      is also true and the selected model supports the beta. The API

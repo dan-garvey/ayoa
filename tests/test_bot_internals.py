@@ -2,8 +2,6 @@
 flagged as having no coverage. Covers:
 
 - F3.9: best-effort parsing of DISCORD_ADMIN_USER_IDS (_is_admin).
-- F3.8: EngineBridge.import_story invokes on_analysis_complete with the
-  right (analysis, error) tuple in both success and failure paths.
 - briefing copy: render_briefing must not mention `/describe` (legacy
   command renamed in the join-overhaul) and must point at `/join`.
 - POV-thread cascade: `_post_actor_render` falls thread → DM → none.
@@ -19,14 +17,14 @@ import asyncio
 import logging
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge, RetryRenderResult
 from app.schemas.characters import CharacterRecord
-from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
+from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 from app.schemas.state import (
@@ -96,36 +94,10 @@ class TestAdminEnvParsing:
         assert len(bad_warnings) == 1
 
 
-# ---- F3.8: import_story callback --------------------------------------------
-
-
 @pytest.fixture
 def mock_bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
-
-
-def _minimal_ckpt(story_id: str) -> CheckpointFile:
-    return CheckpointFile(
-        session=SessionState(session_id=story_id, story_id=story_id),
-        world_state=WorldState(),
-        characters=[],
-    )
-
-
-def _minimal_import_result(story_id: str):
-    """Match the shape `run_import_two_call` returns: checkpoint +
-    priming_messages + assistant_text, so the test can mock the importer
-    path without importing the private result class."""
-    from app.engine.story_importer import _CombinedImportResult
-    return _CombinedImportResult(
-        checkpoint=_minimal_ckpt(story_id),
-        priming_messages=[
-            {"role": "system", "content": "fake system"},
-            {"role": "user", "content": "fake user"},
-        ],
-        assistant_text='{"fake": "assistant echo"}',
-    )
 
 
 class TestEngineBridgeQuery:
@@ -653,43 +625,6 @@ class TestQueryCommandDelivery:
         assert captured["turn_index"] == 1
         assert captured["character_id"] == "alice"
 
-    def test_duplicate_story_import_guidance_matches_delete_contract(self):
-        class FakeTree:
-            def __init__(self):
-                self.commands = {}
-                self.groups = {}
-
-            def command(self, *, name, **_kwargs):
-                def _decorator(fn):
-                    self.commands[name] = fn
-                    return fn
-
-                return _decorator
-
-            def add_command(self, group, **_kwargs):
-                self.groups[group.name] = group
-
-        engine = MagicMock()
-        engine.list_story_ids.return_value = ["dupe_story"]
-        smap = MagicMock()
-        tree = FakeTree()
-        bot_commands.register(tree, engine, smap, None)
-
-        inter = MagicMock()
-        inter.response.send_message = AsyncMock()
-        attachment = MagicMock()
-        attachment.size = 10
-        attachment.filename = "dupe_story.txt"
-        attachment.content_type = "text/plain"
-
-        story_import = tree.groups["story"].get_command("import")
-        asyncio.run(story_import.callback(inter, attachment, "dupe_story"))
-
-        message = inter.response.send_message.await_args.args[0]
-        assert "/story delete`" in message
-        assert "/story delete dupe_story" not in message
-
-
 class TestXpAwardCommandPermissions:
     def test_session_owner_cannot_award_xp_without_admin_env(self, monkeypatch):
         class FakeTree:
@@ -996,115 +931,6 @@ class TestTurnResponseDelivery:
 
         assert "ongoing activity was interrupted" in captured["intro_content"]
         assert "/act (continue)" in captured["intro_content"]
-
-
-class TestImportAnalysisCallback:
-    """EngineBridge.import_story fires on_analysis_complete with
-    (analysis, None) on success and (None, exception) on failure.
-
-    Both paths mock out run_import and run_preservation_analysis so the
-    test doesn't touch the LLM. The callback is awaited by the
-    background task that the bridge schedules; we use asyncio.Event
-    plumbing to wait for it deterministically."""
-
-    def _run(self, coro):
-        return asyncio.run(coro)
-
-    def test_callback_fires_with_analysis_on_success(self, mock_bridge):
-        story_id = "cb_success"
-        analysis = ImportAnalysis(
-            source_chars=100,
-            source_words=20,
-            output_chars=80,
-            output_words=15,
-            coverage_rating="high",
-            dropped_topics=[],
-            compressed_topics=[],
-            preservation_notes="fine",
-            duration_s=1.0,
-            model="claude-sonnet-4-6",
-        )
-
-        received: dict = {}
-        done = asyncio.Event()
-
-        async def _cb(a, e):
-            received["analysis"] = a
-            received["err"] = e
-            done.set()
-
-        async def run():
-            with patch(
-                "app.bot.engine_bridge.run_import_two_call",
-                new=AsyncMock(return_value=_minimal_import_result(story_id)),
-            ), patch(
-                "app.bot.engine_bridge.run_preservation_analysis_continuation",
-                new=AsyncMock(return_value=analysis),
-            ):
-                await mock_bridge.import_story(
-                    "source text here", story_id,
-                    on_analysis_complete=_cb,
-                )
-                # Background task is scheduled but not awaited — wait for
-                # the callback to fire.
-                await asyncio.wait_for(done.wait(), timeout=2.0)
-
-        self._run(run())
-        assert received["err"] is None
-        assert received["analysis"] is analysis
-
-    def test_callback_fires_with_error_on_failure(self, mock_bridge):
-        story_id = "cb_failure"
-        boom = RuntimeError("analysis exploded")
-
-        received: dict = {}
-        done = asyncio.Event()
-
-        async def _cb(a, e):
-            received["analysis"] = a
-            received["err"] = e
-            done.set()
-
-        async def run():
-            with patch(
-                "app.bot.engine_bridge.run_import_two_call",
-                new=AsyncMock(return_value=_minimal_import_result(story_id)),
-            ), patch(
-                "app.bot.engine_bridge.run_preservation_analysis_continuation",
-                new=AsyncMock(side_effect=boom),
-            ):
-                await mock_bridge.import_story(
-                    "source text here", story_id,
-                    on_analysis_complete=_cb,
-                )
-                await asyncio.wait_for(done.wait(), timeout=2.0)
-
-        self._run(run())
-        assert received["analysis"] is None
-        assert received["err"] is boom
-
-    def test_no_callback_is_fine(self, mock_bridge):
-        """Omitting the callback is the CLI/legacy path — shouldn't error."""
-        story_id = "no_cb"
-        analysis = ImportAnalysis(
-            coverage_rating="high", duration_s=0.0,
-        )
-
-        async def run():
-            with patch(
-                "app.bot.engine_bridge.run_import_two_call",
-                new=AsyncMock(return_value=_minimal_import_result(story_id)),
-            ), patch(
-                "app.bot.engine_bridge.run_preservation_analysis_continuation",
-                new=AsyncMock(return_value=analysis),
-            ):
-                ckpt = await mock_bridge.import_story("src", story_id)
-                # Give the background task a moment to complete; success
-                # path just logs.
-                await asyncio.sleep(0.05)
-                assert ckpt.session.story_id == story_id
-
-        self._run(run())
 
 
 # ---- v11-A5: sweep hook + purge wire-up --------------------------------------

@@ -146,7 +146,7 @@ def resolve_location_for_character(
     Returns "" when the character has no resolvable location:
       - no character_id is given (legacy callers without an actor binding),
       - the character isn't in the roster (pristine tests, mid-spawn races),
-      - the character's `location` is unset (importer placed nobody there,
+      - the character's `location` is unset (the story seed placed nobody there,
         or a character_gen pass left it blank).
 
     Callers must handle the empty-string case. There is no global
@@ -171,7 +171,7 @@ def build_setting_summary(checkpoint: CheckpointFile) -> str:
     `event_router.txt`, `narrator_phase2.txt`, `takeover.txt`,
     and `character_gen.txt`.
 
-    Empty fields are skipped — a story whose importer left, say, `era`
+    Empty fields are skipped — a story whose seed left, say, `era`
     blank does not get a `Era: ` line. Pre-r7j the takeover and spawn
     paths emitted those empty lines unconditionally and the router /
     narrator paths skipped them; v11-r7j harmonizes on the conditional

@@ -987,9 +987,20 @@ class TestCheckpointFile:
         assert ckpt.schema_version == "4.0"  # relative-time hard break
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
-        # Pre-versioning / hand-built checkpoints have empty importer_version;
-        # the importer stamps it on build.
-        assert ckpt.importer_version == ""
+        assert not hasattr(ckpt, "importer_version")
+        assert not hasattr(ckpt, "import_analysis")
+
+    def test_legacy_import_metadata_ignored(self):
+        legacy_payload = {
+            "schema_version": "4.0",
+            "importer_version": "v11",
+            "import_analysis": {"coverage_rating": "high"},
+            "session": {"session_id": "legacy"},
+        }
+        ckpt = CheckpointFile(**legacy_payload)
+        assert ckpt.session.session_id == "legacy"
+        assert not hasattr(ckpt, "importer_version")
+        assert not hasattr(ckpt, "import_analysis")
 
     def test_legacy_prompt_versions_field_ignored(self):
         # Older checkpoints stamped a `prompt_versions` dict (when
@@ -1039,9 +1050,9 @@ class TestCheckpointFile:
         }
 
     def test_player_primer_round_trip(self):
-        """Importer Call 5 stamps a 1-2 paragraph world primer onto the
-        checkpoint; render_briefing reads it directly. Round-trip
-        through JSON to make sure the field survives save → load."""
+        """Synthetic story seeds stamp a 1-2 paragraph world primer onto
+        the checkpoint; render_briefing reads it directly. Round-trip
+        through JSON to make sure the field survives save/load."""
         primer = (
             "You're a contestant on a sun-bleached dating show. Cameras "
             "everywhere; a dozen rivals; one rose left. Last thing you "

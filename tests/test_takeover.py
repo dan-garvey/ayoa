@@ -150,10 +150,9 @@ class TestTakeoverPlain:
     def test_takeover_of_non_playable_succeeds_with_warning(
         self, bridge: EngineBridge, caplog,
     ):
-        """If a user takes over a character the importer didn't mark
+        """If a user takes over a character the story seed didn't mark
         playable, the binding still applies (explicit user intent wins)
-        but the bridge logs a warning so the operator can fix the
-        importer authoring."""
+        but the bridge logs a warning so the operator can fix the seed."""
         ckpt = _make_checkpoint(
             characters=[
                 CharacterRecord(

@@ -84,7 +84,7 @@ class TestAgentModeContract:
         Observe This Turn`, `## Other Characters' Responses This
         Turn` — were all removed because the agent already learns
         the same information through their `pending_observations`
-        inbox (location seeded at importer/spawn, perception pushed by
+        inbox (location seeded at story creation/spawn, perception pushed by
         `broadcast_event`). Pin the empty-body shape so a future
         edit that re-adds a per-turn block here is loud."""
         body = format_agent_on_stage_body()

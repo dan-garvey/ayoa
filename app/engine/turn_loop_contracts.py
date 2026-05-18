@@ -146,7 +146,7 @@ def format_agent_on_stage_body() -> str:
 
     - **`## Scene`** was a per-turn restatement of where the character
       is standing and a co-located roster. Initial location now lands
-      via the importer / spawn helper, which pushes
+      via the story seed / spawn helper, which pushes
       `[your own action] <Name> at <Location Label>.` into
       `pending_observations` once at character creation. The agent
       reads this through their inbox (the block above this one), so

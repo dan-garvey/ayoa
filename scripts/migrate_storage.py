@@ -34,7 +34,7 @@ from app.bot.engine_bridge import migrate_legacy_saves
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--legacy-dir", required=True, help="Path to legacy saves/ directory")
-    parser.add_argument("--stories-dir", required=True, help="Target dir for story imports")
+    parser.add_argument("--stories-dir", required=True, help="Target dir for story seeds")
     parser.add_argument("--sessions-dir", required=True, help="Target dir for player sessions")
     parser.add_argument("--dry-run", action="store_true", help="Classify without moving")
     args = parser.parse_args()

@@ -2,7 +2,7 @@
 
 Responsibilities:
 - Holds the shared Orchestrator, LLMClient, CheckpointManager, PromptManager.
-- Creates a fresh session from an imported story seed (copies ckpt_0000 into the
+- Creates a fresh session from a story seed (copies ckpt_0000 into the
   session dir; no auto-binding — players pick a character via /join).
 - Runs turns behind a per-session asyncio.Lock so concurrent /act commands
   on the same channel serialize cleanly.
@@ -18,7 +18,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterable
+from typing import Any, Callable, Iterable
 
 from app.engine.character_agent import _extract_parenthetical
 from app.engine.character_manager import _normalize_router_summary
@@ -43,10 +43,6 @@ from app.engine.settings import (
     list_settings_view,
     set_setting,
 )
-from app.engine.story_importer import (
-    run_import_two_call,
-    run_preservation_analysis_continuation,
-)
 from app.engine.turn_loop import broadcast_event, flush_combat_visible_facts
 from app.engine.visual_context import forget_visual_introductions_for_character
 from app.llm.client import LLMClient
@@ -57,7 +53,7 @@ from app.schemas.characters import (
     CharacterVisuals,
     PublicSheet,
 )
-from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
+from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
@@ -384,12 +380,11 @@ logger = logging.getLogger(__name__)
 class EngineBridge:
     """Shared engine state for all Discord interactions.
 
-    Stories (imported master prompts, story seed ckpt_0000 only) live under
+    Stories (synthetic story seed ckpt_0000 files) live under
     `stories_dir`. Player sessions (one dir per session_id, ckpt_NNNN
     grows with turn_index) live under `sessions_dir`. Keeping them in
-    separate namespaces means creating a new session from a story
-    doesn't drag the story's `import_analysis` along — that stays on
-    the story's canonical source.
+    separate namespaces means creating a new session from a story does not
+    mutate the canonical source seed.
 
     `saves_dir` is accepted for backward compatibility; when set, it
     becomes the parent of both stories_dir and sessions_dir unless those
@@ -451,116 +446,6 @@ class EngineBridge:
             raise FileNotFoundError(f"Story '{story_id}' not found at {path}")
         return CheckpointFile.model_validate_json(path.read_text())
 
-    async def import_story(
-        self,
-        source_text: str,
-        story_id: str,
-        on_analysis_complete: Callable[
-            [ImportAnalysis | None, Exception | None], Awaitable[None]
-        ] | None = None,
-    ) -> CheckpointFile:
-        """Run the import pipeline and save the resulting ckpt_0000.json
-        under saves/<story_id>/. Fires preservation analysis as a
-        background task that patches the checkpoint when it completes.
-
-        `on_analysis_complete`, if provided, is awaited after the analysis
-        pass finishes (or fails). The callback receives `(analysis, error)`
-        where exactly one is non-None. The bot uses this to DM the user
-        who ran /story import with the coverage outcome — close the loop
-        so the user knows analysis finished without polling the file.
-
-        Refuses to overwrite an existing story — caller should delete first
-        or pick a different story_id. Raises FileExistsError in that case.
-        """
-        dst_dir = self.stories_dir / story_id
-        dst_ckpt = dst_dir / "ckpt_0000.json"
-        if dst_ckpt.exists():
-            raise FileExistsError(
-                f"Story '{story_id}' already exists at {dst_ckpt}. "
-                f"Delete it first or pick a different story_id."
-            )
-
-        result = await run_import_two_call(self.client, source_text, story_id)
-        checkpoint = result.checkpoint
-        sync_checkpoint_runtime_models(checkpoint, self.client.config)
-
-        dst_dir.mkdir(parents=True, exist_ok=True)
-        dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
-        logger.info("Imported story %s → %s", story_id, dst_ckpt)
-
-        # Fire preservation analysis in the background as a CONTINUATION
-        # of the two-call import: the analysis call replays the full
-        # Call-1 + Call-2 conversation as cached prefix (cache_user_tail
-        # on each call's user turn), so the analysis only pays fresh
-        # tokens for the Call-2 assistant echo + the analysis question.
-        asyncio.create_task(
-            self._background_preservation_analysis(
-                source_text, story_id, dst_ckpt,
-                priming_messages=result.priming_messages,
-                assistant_text=result.assistant_text,
-                on_complete=on_analysis_complete,
-            )
-        )
-        return checkpoint
-
-    async def _background_preservation_analysis(
-        self,
-        source_text: str,
-        story_id: str,
-        dst_ckpt: Path,
-        priming_messages: list[dict[str, str]],
-        assistant_text: str,
-        on_complete: Callable[
-            [ImportAnalysis | None, Exception | None], Awaitable[None]
-        ] | None = None,
-    ) -> None:
-        """Run preservation analysis as a continuation of the combined-
-        import call and patch the checkpoint on disk. Any analysis error
-        is caught and surfaced to `on_complete` so the frontend can notify
-        the user — best-effort metadata should not crash the task loop."""
-        analysis: ImportAnalysis | None = None
-        err: Exception | None = None
-        try:
-            checkpoint = CheckpointFile.model_validate_json(dst_ckpt.read_text())
-            analysis = await run_preservation_analysis_continuation(
-                self.client,
-                priming_messages=priming_messages,
-                assistant_text=assistant_text,
-                source_text=source_text,
-                checkpoint=checkpoint,
-            )
-            # Re-read before patching in case other writes happened — ckpt_0000
-            # is pristine source, typically untouched after the initial write,
-            # but be safe anyway.
-            checkpoint = CheckpointFile.model_validate_json(dst_ckpt.read_text())
-            checkpoint.import_analysis = analysis
-            dst_ckpt.write_text(checkpoint.model_dump_json(indent=2))
-            logger.info(
-                "Preservation analysis for %s patched to disk: coverage=%s, "
-                "source=%dw, output=%dw, dropped=%d, compressed=%d",
-                story_id, analysis.coverage_rating,
-                analysis.source_words, analysis.output_words,
-                len(analysis.dropped_topics), len(analysis.compressed_topics),
-            )
-        except Exception as e:
-            err = e
-            logger.exception(
-                "Preservation analysis failed for %s (non-fatal)", story_id,
-            )
-
-        if on_complete is not None:
-            try:
-                await on_complete(analysis, err)
-            except Exception:
-                logger.exception(
-                    "on_analysis_complete callback raised for %s", story_id,
-                )
-
-    # Story imports are treated as permanent: delete_story is gone. Each
-    # import costs real dollars and produces an artifact that's cheaper to
-    # keep around than to recreate. Operators who genuinely need to remove
-    # a story should rm the directory by hand.
-
     # ---- session primitives --------------------------------------------------
 
     def list_session_ids(self) -> list[str]:
@@ -592,10 +477,9 @@ class EngineBridge:
         story_id: str,
     ) -> CheckpointFile:
         """Copy a story seed ckpt_0000 into the named session dir,
-        rewriting session_id and stripping import_analysis. No
-        personalize, no auto-bind — the player picks characters via
-        /join after. Refuses if the session already has
-        a story loaded (run /story delete first)."""
+        rewriting session_id. No personalize, no auto-bind — the player
+        picks characters via /join after. Refuses if the session already
+        has a story loaded (run /story delete first)."""
         src = self.stories_dir / story_id / "ckpt_0000.json"
         if not src.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {src}")
@@ -619,10 +503,11 @@ class EngineBridge:
         if version != CURRENT_SCHEMA_VERSION:
             raise ValueError(
                 f"Story '{story_id}' has schema_version={version!r}, "
-                f"expected {CURRENT_SCHEMA_VERSION!r}. Re-import or "
-                f"regenerate the story before starting a new session."
+                f"expected {CURRENT_SCHEMA_VERSION!r}. Regenerate the story "
+                f"before starting a new session."
             )
         data["session"]["session_id"] = session_id
+        data.pop("importer_version", None)
         data.pop("import_analysis", None)
         ckpt = CheckpointFile.model_validate(data)
         sync_checkpoint_runtime_models(ckpt, self.client.config)
@@ -1684,13 +1569,13 @@ class EngineBridge:
 
         Name, appearance, identity, everything else stays as-authored.
         This is the default `/join` path — the user becomes the
-        character as the importer wrote them. Refuses if already
+        character as the story seed wrote them. Refuses if already
         claimed, culled, or nonexistent (via `bind_user`).
 
         Under playable-2 semantics the binding IS the takeover —
         `is_playable` is an authoring-time flag describing which slots
         a human can step into, not a runtime flag toggled by binding.
-        We log a warning if the importer didn't mark this character
+        We log a warning if the story seed did not mark this character
         playable but a player is taking them over anyway (most likely
         a custom override via /character path); the binding still
         applies because explicit user intent wins.
@@ -1703,9 +1588,9 @@ class EngineBridge:
             raise ValueError(f"No character '{character_id}' in this session.")
         if not target.is_playable:
             logger.warning(
-                "takeover: %s (%s) was not marked is_playable=true at import "
-                "time, but user %s bound to them anyway. Binding stands; the "
-                "importer probably should have flagged them playable.",
+                "takeover: %s (%s) was not marked is_playable=true in the "
+                "story seed, but user %s bound to them anyway. Binding stands; "
+                "the seed probably should have flagged them playable.",
                 target.name, character_id, user_id,
             )
         return ckpt
@@ -2076,7 +1961,7 @@ class EngineBridge:
         - `world_state.hidden_lore` / `hidden_facts` — engine-wide secrets.
           Most characters don't know most of these; dumping them spoils
           the plot. If a specific character genuinely knows a specific
-          secret, it belongs in `private_state.secrets` at import time.
+          secret, it belongs in `private_state.secrets` in the story seed.
         """
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         char = next(
@@ -3510,7 +3395,7 @@ def migrate_legacy_saves(
             if len(ckpts) > 1 or turn > 0 or has_transcript:
                 kind = "session"
         except Exception:
-            kind = "session"  # safer to treat unknown as session (don't overwrite a story import)
+            kind = "session"  # safer to treat unknown as session
         target = (stories_dir if kind == "story" else sessions_dir) / child.name
         logger.info(
             "%s %s → %s/%s",

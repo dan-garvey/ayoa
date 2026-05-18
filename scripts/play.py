@@ -1251,7 +1251,10 @@ class CLIState:
     def cmd_story_list(self, arg: str) -> None:
         ids = self.engine.list_story_ids()
         if not ids:
-            print("no stories imported — run scripts/import_story.py first")
+            print(
+                "no stories available — add a synthetic checkpoint under "
+                "app/storage/stories/<story_id>/ckpt_0000.json first"
+            )
             return
         for sid in ids:
             print(f"  {sid}")

@@ -8,7 +8,6 @@ Commands:
     /story list                           — list available stories
     /story start <story_id>               — load a story into the current session
     /story info <story_id>                — show briefing for a source story
-    /story import <attachment> [id]       — import a master prompt
     /story delete                         — unload the story from this session
     /join                                 — pick a character via interactive menu
                                             (pre-play: enters the lobby; post-play: arrives mid-story)
@@ -73,10 +72,6 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 
 logger = logging.getLogger(__name__)
-
-# Attachments above this are rejected in /story import to bound token cost.
-# Real master prompts are ~100KB; this leaves headroom.
-MAX_IMPORT_BYTES = 500_000
 
 # D&D Beyond browser exports are larger than story prompts because they
 # include source data for spells, actions, and inventory. The attachment
@@ -174,12 +169,6 @@ def _is_admin(user_id: int) -> bool:
             )
         _ADMIN_CACHE = (raw, frozenset(admin_ids))
     return user_id in _ADMIN_CACHE[1]
-
-
-def _sanitize_story_id(raw: str) -> str:
-    """Lowercase + replace non-alnum with underscores; strip leading/trailing _."""
-    slug = re.sub(r"[^a-z0-9_]+", "_", raw.lower()).strip("_")
-    return slug
 
 
 def _session_channel_id(inter: discord.Interaction) -> int:
@@ -3120,7 +3109,8 @@ def register(
         ids = engine.list_story_ids()
         if not ids:
             await inter.response.send_message(
-                "No stories imported. Run `scripts/import_story.py <prompt.txt>` first.",
+                "No stories available. Add a synthetic checkpoint under "
+                "`app/storage/stories/<story_id>/ckpt_0000.json` first.",
                 ephemeral=True,
             )
             return
@@ -3227,7 +3217,8 @@ def register(
         if not story_id:
             if not story_ids:
                 await inter.response.send_message(
-                    "No stories imported. Run `/story import` first.",
+                    "No stories available. Add a synthetic checkpoint under "
+                    "`app/storage/stories/<story_id>/ckpt_0000.json` first.",
                     ephemeral=True,
                 )
                 return
@@ -3408,160 +3399,6 @@ def register(
             ),
             ephemeral=True,
         )
-
-    # ---- /story import ------------------------------------------------------
-
-    @story_group.command(
-        name="import",
-        description="Import a master prompt attachment as a new story.",
-    )
-    @app_commands.describe(
-        attachment="A .txt, .md, or .markdown file containing the master prompt.",
-        story_id="Optional override for the story id (default: derived from filename).",
-    )
-    async def _import(
-        inter: discord.Interaction,
-        attachment: discord.Attachment,
-        story_id: str | None = None,
-    ):
-        # Size + type guardrails.
-        if attachment.size > MAX_IMPORT_BYTES:
-            await inter.response.send_message(
-                f"Attachment too large ({attachment.size} bytes). "
-                f"Max is {MAX_IMPORT_BYTES} bytes (~500KB).",
-                ephemeral=True,
-            )
-            return
-        fname = (attachment.filename or "").lower()
-        if not fname.endswith((".txt", ".md", ".markdown")):
-            await inter.response.send_message(
-                "Only `.txt`, `.md`, or `.markdown` attachments are supported.",
-                ephemeral=True,
-            )
-            return
-        # Content-type check when Discord populates it — catches binaries
-        # renamed to .txt. Some clients omit content_type entirely, so
-        # missing is allowed; the extension check is the primary guard
-        # and the UTF-8 decode below is the final defense.
-        content_type = (attachment.content_type or "").lower().split(";")[0].strip()
-        if content_type and not content_type.startswith("text/"):
-            await inter.response.send_message(
-                f"Attachment content_type `{content_type}` isn't a text type. "
-                f"Upload the raw master prompt as a text file, not a rendered "
-                f"document or archive.",
-                ephemeral=True,
-            )
-            return
-
-        # Derive story_id if not given.
-        if not story_id:
-            base = os.path.splitext(attachment.filename)[0]
-            story_id = _sanitize_story_id(base)
-        else:
-            story_id = _sanitize_story_id(story_id)
-        if not story_id:
-            await inter.response.send_message(
-                "Could not derive a story_id. Pass `story_id` explicitly.",
-                ephemeral=True,
-            )
-            return
-
-        if story_id in engine.list_story_ids():
-            await inter.response.send_message(
-                f"A story with id `{story_id}` already exists. "
-                "Pick a different id, or unload the current session's story "
-                "with `/story delete` before starting a replacement.",
-                ephemeral=True,
-            )
-            return
-
-        await inter.response.defer(thinking=True, ephemeral=True)
-
-        # Download attachment and import. 3 sequential LLM calls take 3–8
-        # minutes; Discord's followup window is 15 min so we're comfortable.
-        try:
-            raw = await attachment.read()
-            source_text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            await inter.followup.send(
-                embed=render_error(
-                    "Attachment is not valid UTF-8. Save the file as plain text."
-                )
-            )
-            return
-        except Exception as e:
-            logger.exception("attachment download failed")
-            await inter.followup.send(
-                embed=render_error(f"Attachment download failed: `{e}`")
-            )
-            return
-
-        logger.info(
-            "Importing story %s from attachment %r (%d bytes) by %s",
-            story_id, attachment.filename, attachment.size, inter.user.display_name,
-        )
-        start = time.monotonic()
-
-        # Notify the invoker when the background preservation analysis
-        # finishes so they don't have to poll the file to know it's
-        # done. Posted as an ephemeral followup on the original import
-        # interaction — the 15-minute followup window covers typical
-        # analysis latency. Closures capture `inter` + story_id by
-        # reference; Discord keeps the webhook alive for the window.
-        async def _notify(analysis, err):
-            try:
-                if err is not None:
-                    await inter.followup.send(
-                        f"Preservation analysis for `{story_id}` failed: "
-                        f"`{type(err).__name__}: {err}` — the import itself "
-                        f"succeeded, only the coverage audit is missing.",
-                        ephemeral=True,
-                    )
-                    return
-                if analysis is None:
-                    return
-                summary = (
-                    f"Preservation analysis for `{story_id}` is complete — "
-                    f"coverage **{analysis.coverage_rating}**, "
-                    f"{len(analysis.dropped_topics)} dropped topic(s), "
-                    f"{len(analysis.compressed_topics)} compressed. "
-                    f"Run `/story info {story_id}` for the full picture."
-                )
-                await inter.followup.send(summary, ephemeral=True)
-            except Exception:
-                logger.exception("analysis-complete notify failed")
-
-        try:
-            ckpt = await engine.import_story(
-                source_text, story_id,
-                on_analysis_complete=_notify,
-            )
-        except FileExistsError as e:
-            await inter.followup.send(embed=render_error(str(e)))
-            return
-        except Exception as e:
-            logger.exception("import_story failed")
-            await inter.followup.send(
-                embed=render_error(f"Import failed: `{type(e).__name__}: {e}`")
-            )
-            return
-
-        elapsed = time.monotonic() - start
-        logger.info(
-            "Imported %s in %.1fs: %d characters",
-            story_id, elapsed,
-            len(ckpt.characters),
-        )
-
-        # No briefing here — the player_primer is shown on /story start
-        # and the actual opening prose is rendered when the first player
-        # types /begin (composed by the router, voiced by the narrator).
-        intro = (
-            f"Imported **{story_id}** in {int(elapsed)}s — "
-            f"{len(ckpt.characters)} characters, "
-            f"Start with `/session start name:<save>` then `/story start story_id:{story_id}`."
-        )
-        await inter.followup.send(content=intro)
 
     # ---- /story delete -----------------------------------------------------
 

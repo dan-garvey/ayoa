@@ -24,7 +24,7 @@
 
 * `app/engine/` — turn pipeline: orchestrator, event-router dispatch,
   narrator, character agents, character manager, context builders,
-  story importer, settings, prompt manager, turn-loop contracts.
+  settings, prompt manager, turn-loop contracts.
 * `app/schemas/` — Pydantic data models (checkpoint, session state,
   characters, events, agents, requests, responses, conversation, etc.).
 * `app/llm/` — multi-provider LLM client wrapper (Anthropic + OpenAI),
@@ -38,12 +38,13 @@
 * `app/bot/` — Discord frontend: slash commands, `EngineBridge`,
   `SessionMap`, embed rendering, `__main__` startup.
 * `app/storage/sessions/` — per-session checkpoint directories.
-* `app/storage/stories/` — story templates produced by the importer.
+* `app/storage/stories/` — synthetic story seed checkpoints.
+* `app/storage/story_templates/` — authoring templates and notes for
+  coding agents creating synthetic story seeds.
   An older flat `app/storage/saves/` layout is auto-migrated on
   `EngineBridge` construction.
 * `scripts/play.py` — interactive terminal REPL frontend, supports
   multi-character play.
-* `scripts/import_story.py` — CLI wrapper for the importer pipeline.
 * `tests/` — pytest tests.
 
 ## 1. Status
@@ -226,7 +227,7 @@ templates. The full current adapter surface lives in §15.
 Generic narrative engine commands:
 
 * `/session start|resume|list|end`
-* `/story list|info|start|characters|import|delete`
+* `/story list|info|start|characters|delete`
 * `/join`, `/begin`, `/leave`, `/character`, `/describe`
 * `/act`, `/defer`, `/query`, `/status`, `/settings list|set`
 * `/rewind`, `/clear`, `/abort_beat`
@@ -417,21 +418,21 @@ act slots, open Cat II responder state, and render buffers. Movement is not a
 roster side effect; arrivals, departures, and transfers must be written as
 `observable_facts`.
 
-### 5.9 Story Importer
+### 5.9 Synthetic Story Seeds
 
-`story_importer.py` turns a master prompt into a v11 checkpoint. The active
-entry point is still named `run_import_two_call` for caller compatibility, but
-the current path is a multi-call extraction pipeline:
+Story authoring now starts from a checkpoint template instead of an LLM
+importer. A coding agent fills a synthetic `ckpt_0000.json`, validates it
+against `CheckpointFile`, and places it under
+`app/storage/stories/<story_id>/ckpt_0000.json`.
 
-* public world: setting, public lore/facts, physics, narrative rules
-* hidden world: hidden lore/facts
-* characters: roster, backstories, personalities, goals, secrets
-* knowledge envelopes: per-character `known_context`
-* player primer
-* optional preservation analysis continuation
+The authoring template lives at
+`app/storage/story_templates/synthetic_checkpoint/ckpt_0000.json`, with
+design notes beside it. The template is intentionally outside
+`app/storage/stories/` so it does not appear in `/story list`.
 
-Opening prose is not extracted. The first playable scene is composed later by
-the router on `(begin)` and rendered through the normal narrator path.
+Opening prose is not authored in the checkpoint. The first playable scene is
+composed later by the router on `(begin)` and rendered through the normal
+narrator path.
 
 ### 5.10 Context Builder And Prompt Manager
 
@@ -787,7 +788,7 @@ Router context:
 * system prompt contains stable role contract, schema contract, setting,
   world lore/rules, hidden lore, and hidden facts
 * initial NPC roster appears only on the first router call
-* importer-seeded NPC goals/objectives are surfaced in the initial roster
+* seed-authored NPC goals/objectives are surfaced in the initial roster
 * router-authored context relies on router history
 * external engine changes surface once through `pending_engine_state_updates`
 * actor inbox entries surface only when building that character's agent turn
@@ -944,15 +945,13 @@ resolve. See §15.
 
 ## 13. Checkpoint Schema
 
-Current checkpoints use schema version `3.0`.
+Current checkpoints use schema version `4.0`.
 
 Top-level shape:
 
 ```json
 {
-  "schema_version": "3.0",
-  "importer_version": "string",
-  "import_analysis": null,
+  "schema_version": "4.0",
   "session": {},
   "player_primer": "string",
   "world_state": {},
@@ -1348,7 +1347,6 @@ The system exposes:
 * canonical event logs
 * per-character rolling conversations
 * per-POV narrator conversations
-* import preservation analysis
 * tracked Discord turn-message refs
 
 The router `decision_rationale` field is temporary diagnostic overhead.
@@ -1360,8 +1358,8 @@ field, and log plumbing together.
 Known stale or transitional areas:
 
 * some code comments still reference older architecture names or call counts,
-  especially around the early v11 turn-loop skeleton, importer call naming,
-  and hidden-context comments
+  especially around the early v11 turn-loop skeleton and hidden-context
+  comments
 * `SessionConfig.models.discriminator` remains for compatibility even
   though the active LLM config no longer calls a discriminator role
 * `character_gen` remains a configured model role, but the live spawn path
@@ -1505,7 +1503,7 @@ Rules:
    read.
 
 Past failures have included a global location field that was set at
-import and never updated, and a `TurnResponse.debug` field with no
+authoring time and never updated, and a `TurnResponse.debug` field with no
 orchestrator writer at all. Both wasted reviewer time; one silently
 misled a 31-turn playtest summary.
 
@@ -1533,7 +1531,7 @@ Possible directions, none chosen:
   high-level intents the router threads into adjudication;
 * a persistent story-arc object on the checkpoint with explicit
   tension/pacing/reveal targets the router consults;
-* an importer-time arc skeleton (acts, reveals, beats-to-trigger)
+* a synthetic story-arc skeleton (acts, reveals, beats-to-trigger)
   that runtime advances against;
 * a periodic "casting director" pass that proposes new spawns based
   on roster gaps the LLM identifies.
