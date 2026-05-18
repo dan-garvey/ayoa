@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "ayoa",
+  "project_id": "07a25bae-def2-4a5c-80d5-0d80a01c9984"
+}

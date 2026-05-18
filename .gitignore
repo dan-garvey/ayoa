@@ -20,3 +20,8 @@ logs/
 playtest_*_console.txt
 playtest_*_logs.txt
 tests/test_unblessed_summon_checkpoint.py
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
