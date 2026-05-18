@@ -29,7 +29,7 @@ from app.engine.turn_loop import (
     sweep_stale_cat_ii_pins,
     _end_dnd_combat_from_router_signal,
 )
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
@@ -1664,6 +1664,41 @@ class TestBroadcastEvent:
         broadcast_event(ckpt, event, actor_id="alice")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == ["Alice sets down a glass."]
+
+    def test_npc_observer_gets_first_meeting_loadout_once(self):
+        ckpt = _ckpt()
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.visuals = CharacterVisuals(
+            default_loadout="Blue travel cloak, rain-dark hair, silver pin.",
+        )
+        event = self._event(observer_ids=["pip"])
+
+        broadcast_event(ckpt, event, actor_id="alice")
+        broadcast_event(ckpt, event, actor_id="alice")
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert pip.pending_observations == [
+            "Alice sets down a glass.",
+            (
+                "First visible impressions:\n"
+                "- Alice: Blue travel cloak, rain-dark hair, silver pin."
+            ),
+            "Alice sets down a glass.",
+        ]
+        assert ckpt.session.visual_introductions["pip"] == ["alice"]
+
+    def test_indirect_observation_does_not_add_first_meeting_loadout(self):
+        ckpt = _ckpt()
+        alice = next(c for c in ckpt.characters if c.character_id == "alice")
+        alice.visuals = CharacterVisuals(default_loadout="Blue travel cloak.")
+        event = self._event(observer_ids=["pip"])
+        event.observers[0].observation_level = "i"
+
+        broadcast_event(ckpt, event, actor_id="alice")
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        assert pip.pending_observations == ["Alice sets down a glass."]
+        assert ckpt.session.visual_introductions == {}
 
     def test_npc_observer_sees_names_when_router_fact_uses_ids(self):
         ckpt = _ckpt()

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
 
 
 ABILITY_BY_DDB_ID = {
@@ -196,6 +196,7 @@ def character_record_from_snapshot(
 ) -> CharacterRecord:
     identity = snapshot.get("identity") or {}
     char_id = character_id or _slug(identity.get("name") or "dnd_character")
+    appearance = identity.get("appearance", "")
     return CharacterRecord(
         character_id=char_id,
         name=identity.get("name") or char_id,
@@ -203,9 +204,10 @@ def character_record_from_snapshot(
         is_playable=is_playable,
         public_sheet=PublicSheet(
             role=_role(identity),
-            appearance=identity.get("appearance", ""),
+            appearance=appearance,
             faction="",
         ),
+        visuals=CharacterVisuals(default_loadout=appearance),
         backstory=identity.get("backstory", ""),
         personality=identity.get("personality", ""),
         mechanics=mechanics_from_snapshot(snapshot),

@@ -8,6 +8,7 @@ from app.schemas.characters import (
     CharacterAgentTier,
     CharacterDescriptions,
     CharacterRecord,
+    CharacterVisuals,
     PublicSheet,
 )
 from app.schemas.dnd_monsters import (
@@ -90,6 +91,7 @@ def character_from_combatant_spawn(
         agent_tier=CharacterAgentTier.utility,
         public_sheet=PublicSheet(role=role),
         descriptions=CharacterDescriptions(public=visible_description),
+        visuals=CharacterVisuals(default_loadout=visible_description),
         mechanics=mechanics_from_statblock(
             statblock,
             monster_key=spawn.monster_key,

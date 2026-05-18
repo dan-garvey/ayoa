@@ -114,6 +114,12 @@ class CharacterDescriptionsExtraction(BaseModel):
     private: str
 
 
+class CharacterVisualsExtraction(BaseModel):
+    # Stable first-look exterior surfaced once when a viewpoint first
+    # meaningfully sees this character.
+    default_loadout: str
+
+
 class PrivateStateExtraction(BaseModel):
     # Existential drives — who they are at core. Stable across the story.
     goals: list[str]
@@ -148,6 +154,7 @@ class CharacterExtraction(BaseModel):
     is_playable: bool
     public_sheet: PublicSheetExtraction
     descriptions: CharacterDescriptionsExtraction
+    visuals: CharacterVisualsExtraction
     private_state: PrivateStateExtraction
     backstory: str
     # personality absorbs narrative_notes (portrayal direction) and the

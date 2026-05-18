@@ -530,6 +530,10 @@ class SessionState(BaseModel):
     # Durable relative story clock. Per-character clocks live on
     # CharacterRecord; this is the maximum known checkpoint time.
     leading_at_s: int = 0
+    # Viewer character_id -> character_ids whose stable first-look loadout has
+    # already been delivered to that viewer. Overflow targets stay absent so
+    # future focused events can introduce them naturally.
+    visual_introductions: dict[str, list[str]] = Field(default_factory=dict)
     # One-shot lines for durable state mutations the engine performed outside
     # router-authored canonical events. Drained into an optional
     # engine_state_updates block on the next fresh router call. Router-authored

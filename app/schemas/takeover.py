@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.characters import (
     CharacterRecord,
+    CharacterVisuals,
     PrivateState,
     PublicSheet,
 )
@@ -76,6 +77,7 @@ class AuthoredCharacter(BaseModel):
     location: str
     role: str
     appearance: str
+    default_loadout: str
     faction: str
     backstory: str
     # personality now absorbs traits + voice + portrayal notes: "a
@@ -116,6 +118,9 @@ class AuthoredCharacter(BaseModel):
                 role=self.role,
                 appearance=self.appearance,
                 faction=self.faction,
+            ),
+            visuals=CharacterVisuals(
+                default_loadout=self.default_loadout or self.appearance,
             ),
             private_state=PrivateState(
                 goals=list(self.goals),

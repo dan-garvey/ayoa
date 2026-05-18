@@ -10,6 +10,7 @@ from app.schemas.state import (
 )
 from app.schemas.characters import (
     CharacterAgentTier, CharacterDescriptions, CharacterRecord,
+    CharacterVisuals,
     CharacterStatus, PublicSheet, PrivateState,
 )
 from app.schemas.events import (
@@ -218,6 +219,7 @@ class TestCharacterRecord:
         assert cr.agent_tier == CharacterAgentTier.premium
         assert cr.last_agent_turn_at_s is None
         assert cr.public_sheet.role == "guard captain"
+        assert cr.visuals.default_loadout == ""
         assert "maintain order" in cr.private_state.goals
 
     def test_round_trip(self):
@@ -244,6 +246,12 @@ class TestCharacterRecord:
                 public="Ashara is House vel Kothren's heir-designate.",
                 private="Ashara's family is tied to the human collapse.",
             ),
+            visuals=CharacterVisuals(
+                default_loadout=(
+                    "House vel Kothren riding coat, horn jewelry, and a "
+                    "relaxed duelist's stance."
+                ),
+            ),
             agent_tier=CharacterAgentTier.utility,
             private_state=PrivateState(
                 goals=["become the greatest demon seat-holder", "lift demon restrictions"],
@@ -259,6 +267,7 @@ class TestCharacterRecord:
         assert cr.agent_tier == CharacterAgentTier.utility
         assert cr.descriptions.public.startswith("Ashara is House")
         assert "human collapse" in cr.descriptions.private
+        assert "duelist" in cr.visuals.default_loadout
 
     def test_legacy_agent_tiers_still_load(self):
         plot = CharacterRecord(**{**CHARACTER_EXAMPLE, "agent_tier": "plot"})
@@ -986,9 +995,24 @@ class TestCheckpointFile:
         assert ckpt.characters == []
         assert ckpt.transcript == []
         assert ckpt.visibility_log == []
+        assert ckpt.session.visual_introductions == {}
         # ux-primer-4: Pre-v8 (and freshly hand-built) checkpoints have
         # no player primer — render_briefing falls back to a stub.
         assert ckpt.player_primer == ""
+
+    def test_visual_introductions_round_trip(self):
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="visual-ledger",
+                visual_introductions={"alice": ["pip", "sora"]},
+            ),
+        )
+
+        rebuilt = CheckpointFile(**ckpt.model_dump())
+
+        assert rebuilt.session.visual_introductions == {
+            "alice": ["pip", "sora"],
+        }
 
     def test_player_primer_round_trip(self):
         """Importer Call 5 stamps a 1-2 paragraph world primer onto the

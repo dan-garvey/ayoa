@@ -17,6 +17,7 @@ from app.schemas.import_extraction import (
     CharacterKnowledgeEnvelope,
     CharacterKnowledgeListExtraction,
     CharacterListExtraction,
+    CharacterVisualsExtraction,
     PrivateStateExtraction,
     PublicSheetExtraction,
     SettingExtraction,
@@ -61,6 +62,7 @@ def _roster() -> CharacterListExtraction:
                 public="Emeric Hale is the publicly recognized Regent of Mirenza.",
                 private="Emeric knows the Aetheri conspiracy and keeps it hidden.",
             ),
+            visuals=CharacterVisualsExtraction(default_loadout="Regent's black coat."),
             private_state=PrivateStateExtraction(
                 goals=["preserve Mirenza"],
                 current_objectives=[],
@@ -84,6 +86,7 @@ def _roster() -> CharacterListExtraction:
                 public="Lira Fontaine is a court liaison assigned to foreign guests.",
                 private="Lira privately longs to leave Mirenza.",
             ),
+            visuals=CharacterVisualsExtraction(default_loadout="Court liaison blue sash."),
             private_state=PrivateStateExtraction(
                 goals=["see the world outside"],
                 current_objectives=[],
@@ -260,6 +263,7 @@ class TestLocationSeedPush:
                     public="Emeric Hale is the publicly recognized Regent of Mirenza.",
                     private="Emeric is the private keeper of sealed intelligence.",
                 ),
+                visuals=CharacterVisualsExtraction(default_loadout="Regent's black coat."),
                 private_state=PrivateStateExtraction(
                     goals=[], current_objectives=[], secrets=[],
                     intentions_enabled=False,
@@ -280,6 +284,7 @@ class TestLocationSeedPush:
                     public="Lira Fontaine is a court liaison assigned to guests.",
                     private="Lira privately doubts the court's isolation.",
                 ),
+                visuals=CharacterVisualsExtraction(default_loadout="Court liaison blue sash."),
                 private_state=PrivateStateExtraction(
                     goals=[], current_objectives=[], secrets=[],
                     intentions_enabled=False,

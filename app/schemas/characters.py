@@ -53,6 +53,14 @@ class CharacterDescriptions(BaseModel):
     private: str = ""
 
 
+class CharacterVisuals(BaseModel):
+    # Stable player-safe first-look exterior. This is separate from
+    # `public_sheet.appearance` because it is runtime context: the engine may
+    # surface it once when a viewpoint first meaningfully sees this character.
+    # Keep it free of secrets, motives, concealed traits, and author-only notes.
+    default_loadout: str = ""
+
+
 class PrivateState(BaseModel):
     # Existential drives — who this character is at core. Importer seeds
     # from character nature/personality. Rarely changes during play.
@@ -109,6 +117,7 @@ class CharacterRecord(BaseModel):
     agent_tier: CharacterAgentTier = CharacterAgentTier.premium
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
     descriptions: CharacterDescriptions = Field(default_factory=CharacterDescriptions)
+    visuals: CharacterVisuals = Field(default_factory=CharacterVisuals)
     private_state: PrivateState = Field(default_factory=PrivateState)
     # Staging area for observations the character perceived silently
     # (turns where they didn't respond). Flushed into the next agent

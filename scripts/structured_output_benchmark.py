@@ -63,6 +63,7 @@ USER_PROMPT = """Produce a character matching this JSON schema (ALL fields requi
   "location": "string — starting location label",
   "role": "string — role or occupation",
   "appearance": "string — physical description",
+  "default_loadout": "string — player-safe first-look exterior others can notice",
   "faction": "string — affiliation or empty string",
   "backstory": "string — their background",
   "personality": "string — one prose block covering inner world, voice, and how to play them",

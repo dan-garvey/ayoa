@@ -99,6 +99,7 @@ from app.schemas.characters import (
     CharacterDescriptions,
     CharacterRecord,
     CharacterStatus,
+    CharacterVisuals,
     PrivateState,
     PublicSheet,
 )
@@ -415,6 +416,14 @@ depth as the source describes them.
   - `appearance`: every physical detail the source gives. Height, build,
     hair, eyes, clothing, bearing, signatures. Full.
   - `faction`: faction/house/group affiliation.
+
+- **visuals**:
+  - `default_loadout`: player-safe first-look exterior the viewpoint can notice
+    when first meaningfully seeing this character. Focus on clothing, grooming,
+    visible marks, silhouette, carried items, and bearing. Do not include
+    secrets, concealed traits, motives, or facts that require private knowledge.
+    This should usually be shorter and more immediately visual than
+    `public_sheet.appearance`.
 
 - **descriptions**:
   - `public`: 1-2 sentences the player-facing narrator may safely use as a
@@ -855,6 +864,9 @@ def build_checkpoint(
                 public=cd.descriptions.public,
                 private=cd.descriptions.private,
             ),
+            visuals=CharacterVisuals(
+                default_loadout=cd.visuals.default_loadout,
+            ),
             private_state=PrivateState(
                 goals=cd.private_state.goals,
                 current_objectives=cd.private_state.current_objectives,
@@ -1002,6 +1014,8 @@ def _serialize_checkpoint_for_analysis(ckpt: CheckpointFile) -> str:
                 char_lines.append(f"Faction: {c.public_sheet.faction}")
             if c.public_sheet.appearance:
                 char_lines.append(f"Appearance: {c.public_sheet.appearance}")
+            if c.visuals.default_loadout:
+                char_lines.append(f"Default Loadout: {c.visuals.default_loadout}")
             if c.backstory:
                 char_lines.append(f"Backstory: {c.backstory}")
             if c.personality:

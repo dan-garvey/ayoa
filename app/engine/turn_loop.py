@@ -74,6 +74,12 @@ from app.engine.dnd_combat_access import (
     obj_set as _obj_set,
 )
 from app.engine.text_safety import strip_terminal_control
+from app.engine.visual_context import (
+    AGENT_FIRST_MEETING_CAP,
+    format_visual_introductions,
+    mark_visual_introductions,
+    plan_event_visual_introductions,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
@@ -1396,6 +1402,23 @@ def broadcast_event(
 
         payload = replace_character_ids_with_names(payload, ckpt)
         recipient.pending_observations.append(payload)
+        intro_plan = plan_event_visual_introductions(
+            ckpt,
+            viewer_id=o.character_id,
+            event=event,
+            observation_level=obs_level_by_char.get(o.character_id, "direct"),
+            priority_target_ids=[actor_id],
+            max_loadouts=AGENT_FIRST_MEETING_CAP,
+        )
+        intro_block = format_visual_introductions(intro_plan.loadouts)
+        if intro_block:
+            recipient.pending_observations.append(intro_block)
+        if intro_plan.mark_character_ids:
+            mark_visual_introductions(
+                ckpt,
+                o.character_id,
+                intro_plan.mark_character_ids,
+            )
 
     return visible_humans
 
@@ -3020,6 +3043,10 @@ async def _end_beat(
             h: len(ckpt.narrator_conversations.get(h, []))
             for h, _buf in targets
         }
+        visual_intro_snapshot = {
+            viewer_id: list(character_ids)
+            for viewer_id, character_ids in ckpt.session.visual_introductions.items()
+        }
         results = await asyncio.gather(
             *(_render_one(h, buf) for h, buf in targets),
             return_exceptions=True,
@@ -3033,6 +3060,7 @@ async def _end_beat(
                 history = ckpt.narrator_conversations.get(h)
                 if history is not None:
                     del history[length:]
+            ckpt.session.visual_introductions = visual_intro_snapshot
             if callable(persist_pending):
                 persist_pending(ckpt)
             raise errors[0]

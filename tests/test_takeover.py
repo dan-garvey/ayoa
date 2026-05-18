@@ -70,7 +70,8 @@ def _authored(**overrides):
     override only the ones they care about; the rest default to empty."""
     from app.schemas.takeover import AuthoredCharacter
     defaults = dict(
-        name="default", location="", role="", appearance="", faction="",
+        name="default", location="", role="", appearance="",
+        default_loadout="", faction="",
         backstory="", personality="", known_context="",
         goals=[], current_objectives=[], secrets=[], intentions_enabled=False,
         router_summary="",
@@ -221,6 +222,7 @@ class TestCreateCustomCharacter:
         authored = _authored(
             name="Tessa",
             role="scout",
+            default_loadout="Weathered green cloak and hill-road boots.",
             backstory="Trained in the hills.",
             personality="Wary, quick on her feet.",
             goals=["find the informant"],
@@ -237,6 +239,9 @@ class TestCreateCustomCharacter:
 
         assert new_char.name == "Tessa"
         assert new_char.character_id == "tessa"
+        assert new_char.visuals.default_loadout == (
+            "Weathered green cloak and hill-road boots."
+        )
         # Bot-authored player slots are marked is_playable=True so the
         # roster reflects "this is a human-authored character" even
         # before binding is recorded.
@@ -250,6 +255,7 @@ class TestCreateCustomCharacter:
         tessa = next(c for c in loaded.characters if c.character_id == "tessa")
         assert tessa.is_playable is True
         assert tessa.private_state.goals == ["find the informant"]
+        assert tessa.visuals.default_loadout.startswith("Weathered green cloak")
 
     @pytest.mark.asyncio
     async def test_disambiguates_existing_id(self, bridge: EngineBridge):
@@ -311,6 +317,7 @@ class TestCreatePlayerCharacterSimple:
         # rather than guessing.
         assert new_char.location == ""
         assert new_char.public_sheet.appearance.startswith("short, dark hair")
+        assert new_char.visuals.default_loadout.startswith("short, dark hair")
         assert "freak storm" in new_char.backstory
 
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
@@ -342,6 +349,9 @@ class TestCreatePlayerCharacterSimple:
             appearance="freckles, red braid, satchel of seed packets",
         )
         assert new_char.backstory == ""
+        assert new_char.visuals.default_loadout == (
+            "freckles, red braid, satchel of seed packets"
+        )
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
         assert loaded.session.character_bindings.get("mira") == "7"
 
@@ -488,6 +498,7 @@ class TestReplaceWithCustom:
             name="Brooding Rival",
             location="somewhere_else",  # ignored — location preserved
             role="brooder",
+            default_loadout="Black officer's coat and a hard, steady stare.",
             faction="loners",
             backstory="A new, grim history.",
             personality="Cold and calculating. Speaks in long silences.",
@@ -517,6 +528,9 @@ class TestReplaceWithCustom:
         assert updated.name == "Brooding Rival"
         assert updated.public_sheet.role == "brooder"
         assert updated.public_sheet.faction == "loners"
+        assert updated.visuals.default_loadout == (
+            "Black officer's coat and a hard, steady stare."
+        )
         assert updated.backstory == "A new, grim history."
         assert updated.personality == "Cold and calculating. Speaks in long silences."
         assert updated.known_context == "Knows the new truth."

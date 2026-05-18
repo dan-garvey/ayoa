@@ -102,7 +102,7 @@ class TestCharacterSpawn:
             name="Tom the Stablehand",
             location="courtyard",
             role="stablehand",
-            appearance="", faction="", backstory="",
+            appearance="", default_loadout="", faction="", backstory="",
             personality="Nervous, avoids eye contact.",
             known_context="", goals=[], current_objectives=[],
             secrets=[], intentions_enabled=False,
@@ -145,7 +145,7 @@ class TestCharacterSpawn:
         mock_client.complete = AsyncMock()
         authored = AuthoredCharacter(
             name="NPC", location="courtyard",
-            role="", appearance="", faction="", backstory="",
+            role="", appearance="", default_loadout="", faction="", backstory="",
             personality="", known_context="",
             goals=[], current_objectives=[], secrets=[],
             intentions_enabled=False,
@@ -185,7 +185,7 @@ class TestCharacterSpawn:
             name="Sera the Cartographer",
             location="courtyard",
             role="cartographer",
-            appearance="", faction="", backstory="",
+            appearance="", default_loadout="", faction="", backstory="",
             personality="Quiet, watchful.",
             known_context="",
             goals=[], current_objectives=[],
@@ -239,7 +239,7 @@ class TestCharacterSpawn:
             name="Tom the Stablehand",
             location="courtyard",
             role="stablehand",
-            appearance="", faction="", backstory="",
+            appearance="", default_loadout="", faction="", backstory="",
             personality="", known_context="",
             goals=[], current_objectives=[], secrets=[],
             intentions_enabled=False,
@@ -322,7 +322,7 @@ class TestCharacterSpawn:
             name="Courier",
             location="ignored_by_engine",
             role="messenger",
-            appearance="", faction="", backstory="",
+            appearance="", default_loadout="", faction="", backstory="",
             personality="", known_context="",
             goals=[], current_objectives=[], secrets=[],
             intentions_enabled=False,
@@ -351,7 +351,7 @@ class TestCharacterSpawn:
         mock_client.complete = AsyncMock()
         authored = AuthoredCharacter(
             name="Steward", location="ignored_by_engine", role="steward",
-            appearance="", faction="", backstory="",
+            appearance="", default_loadout="", faction="", backstory="",
             personality="", known_context="",
             goals=[], current_objectives=[], secrets=[],
             intentions_enabled=False, router_summary="Steward.",

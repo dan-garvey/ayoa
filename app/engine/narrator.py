@@ -22,6 +22,11 @@ from app.engine.context_builder import (
     replace_character_ids_with_names,
 )
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
+from app.engine.visual_context import (
+    format_visual_introductions,
+    mark_visual_introductions,
+    plan_render_visual_introductions,
+)
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
@@ -208,6 +213,16 @@ async def compose_pov_render(
     visible_events_block = _format_visible_events_block(
         resolved, pov_character_id, ckpt,
     )
+    visual_intro_plan = plan_render_visual_introductions(
+        ckpt,
+        viewer_id=pov_character_id,
+        resolved=resolved,
+    )
+    visual_intro_block = format_visual_introductions(
+        visual_intro_plan.loadouts,
+    )
+    if visual_intro_block:
+        visible_events_block = f"{visible_events_block}\n\n{visual_intro_block}"
     pov_knowledge_block = build_narrator_pov_knowledge_block(
         ckpt, pov_character_id, visible_events_block,
     )
@@ -257,6 +272,12 @@ async def compose_pov_render(
     )
     result: NarratorFinalOutput = response.parsed
     if result is not None:
+        if visual_intro_plan.mark_character_ids:
+            mark_visual_introductions(
+                ckpt,
+                pov_character_id,
+                visual_intro_plan.mark_character_ids,
+            )
         result.final_text = _strip_unmatched_trailing_closers(result.final_text)
         response.parsed = result
         # Persist sanitized structured text into the narrator rolling history.

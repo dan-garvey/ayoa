@@ -21,12 +21,13 @@ Generate a new character who fits naturally into the established setting and has
 1. Create a character who fits the world's genre, era, and tone naturally.
 2. Their role and reason for presence should be grounded in the world logic.
 3. Include concrete physical appearance details, but keep them selective: 1-2 memorable details beat a full catalog.
-4. Goals are **existential drives** — who this character is at their core. Stable across the story. Do NOT put pursuable tasks here.
-5. Current objectives are **actionable pursuits** — 1-3 concrete things this character is trying to accomplish right now, with a target and time horizon. Seed these from the Spawn Request's `objectives` (if provided) or infer from the reason the character is appearing.
-6. Keep backstory concise but specific — a few sentences that explain who they are.
-7. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
-8. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
-9. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
+4. `default_loadout` is the first-look exterior others can notice: clothing, grooming, carried items, visible marks, silhouette, and bearing. It must be player-safe and must not include secrets, concealed traits, motives, or private knowledge.
+5. Goals are **existential drives** — who this character is at their core. Stable across the story. Do NOT put pursuable tasks here.
+6. Current objectives are **actionable pursuits** — 1-3 concrete things this character is trying to accomplish right now, with a target and time horizon. Seed these from the Spawn Request's `objectives` (if provided) or infer from the reason the character is appearing.
+7. Keep backstory concise but specific — a few sentences that explain who they are.
+8. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
+9. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
+10. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
 </instructions>
 
 <output_schema>
@@ -37,6 +38,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "location": "string — location label where they appear; copy from the Spawn Request when supplied",
   "role": "string — role or occupation",
   "appearance": "string — physical description",
+  "default_loadout": "string — player-safe first-look exterior: clothing, grooming, carried items, visible marks, silhouette, bearing",
   "faction": "string — faction or group affiliation; empty string if none",
   "backstory": "string — brief background",
   "personality": "string — one prose block covering who they are, how they speak, how they carry themselves, and how to play them under pressure. Includes trait adjectives, verbal style, and any situational tells if they are genuinely distinctive.",

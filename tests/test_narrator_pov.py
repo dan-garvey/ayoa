@@ -22,7 +22,12 @@ from app.engine.narrator import compose_pov_render
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient, LLMResponse
-from app.schemas.characters import CharacterDescriptions, CharacterRecord, PublicSheet
+from app.schemas.characters import (
+    CharacterDescriptions,
+    CharacterRecord,
+    CharacterVisuals,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
@@ -468,6 +473,88 @@ class TestComposePovRender:
         assert len(alice_hist) == 1
         assert alice_hist[0].role == "assistant"
         assert PARTIAL_MODE_MARKER not in json.dumps(alice_hist[0].content)
+
+    @pytest.mark.asyncio
+    async def test_first_meeting_loadout_is_user_tail_only_and_marks_pair(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.visuals = CharacterVisuals(
+            default_loadout="Patched red coat, brass buttons, ink-dark braid.",
+        )
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(event_id="evt_beta", observation_level="direct"),
+            ],
+            partial_mode=False,
+        )
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_content = messages[0]["content"]
+        user_content = messages[-1]["content"]
+        assert "First visible impressions" not in system_content
+        assert "Patched red coat" not in system_content
+        assert "First visible impressions" in user_content
+        assert "Pip: Patched red coat" in user_content
+        assert ckpt.session.visual_introductions["alice"] == ["pip"]
+
+    @pytest.mark.asyncio
+    async def test_harvested_loadout_marks_without_default_duplicate(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.visuals = CharacterVisuals(default_loadout="Default red coat.")
+        ckpt.canonical_events.append(EventRouterOutput(
+            event_id="evt_query_loadout",
+            decision_rationale="(test fixture)",
+            canonical_event=CanonicalEvent(
+                world_adjudication=WorldAdjudication(feasible=True),
+                observable_facts=[
+                    ObservableFact.all("[loadout — Pip] Pip wears a blue cloak."),
+                ],
+            ),
+            observers=[
+                ObserverEntry(
+                    character_id="alice",
+                    observation_level="d",
+                    routing_role="observe_only",
+                ),
+            ],
+            requires_responders=False,
+            required_responders=[],
+            ends_beat=True,
+            ends_beat_reason="query_response",
+            spawn=[],
+            dormant=[],
+            cull=[],
+        ))
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_query_loadout",
+                    observation_level="direct",
+                ),
+            ],
+            partial_mode=False,
+        )
+
+        user_content = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
+        assert "Pip wears a blue cloak." in user_content
+        assert "Default red coat" not in user_content
+        assert "First visible impressions" not in user_content
+        assert ckpt.session.visual_introductions["alice"] == ["pip"]
 
     @pytest.mark.asyncio
     async def test_missing_event_id_is_warned_and_skipped(

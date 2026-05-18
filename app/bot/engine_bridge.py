@@ -50,7 +50,12 @@ from app.engine.story_importer import (
 from app.engine.turn_loop import broadcast_event, flush_combat_visible_facts
 from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
-from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
+from app.schemas.characters import (
+    CharacterRecord,
+    CharacterStatus,
+    CharacterVisuals,
+    PublicSheet,
+)
 from app.schemas.checkpoint import CheckpointFile, ImportAnalysis
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
@@ -869,6 +874,7 @@ class EngineBridge:
             target.name = name.strip()
         if appearance is not None:
             target.public_sheet.appearance = appearance.strip()
+            target.visuals.default_loadout = appearance.strip()
         self.checkpoint_mgr.save(ckpt)
         return ckpt
 
@@ -1818,6 +1824,7 @@ class EngineBridge:
             location="",  # router places via (arrive) directive
             is_playable=True,
             public_sheet=PublicSheet(appearance=appearance),
+            visuals=CharacterVisuals(default_loadout=appearance),
             backstory=backstory,
         )
         ckpt.characters.append(new_char)
@@ -1932,6 +1939,9 @@ class EngineBridge:
             role=authored.role,
             appearance=authored.appearance,
             faction=authored.faction,
+        )
+        target.visuals = CharacterVisuals(
+            default_loadout=authored.default_loadout or authored.appearance,
         )
         target.backstory = authored.backstory
         target.personality = authored.personality
