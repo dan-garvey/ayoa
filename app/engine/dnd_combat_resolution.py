@@ -15,8 +15,8 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.state import CatIIRollTransaction
 
 
-COMBAT_MANAGER_PLAN_MAX_TOKENS = 5000
-COMBAT_MANAGER_FINALIZE_MAX_TOKENS = 6000
+COMBAT_MANAGER_PLAN_MAX_TOKENS = 10000
+COMBAT_MANAGER_FINALIZE_MAX_TOKENS = 12000
 
 
 class DndCombatResolver:

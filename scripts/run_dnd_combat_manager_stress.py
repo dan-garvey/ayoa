@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import json
 import logging
+import re
 import sys
 import time
 import traceback
@@ -52,6 +53,7 @@ from app.schemas.dnd_spatial import (
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
+    DndRuntimeEffect,
     PhysicsRuleset,
     SessionConfig,
     SessionState,
@@ -146,6 +148,8 @@ class CharacterSpec:
     actions: list[dict[str, Any]] = field(default_factory=list)
     spellcasting: dict[str, Any] = field(default_factory=dict)
     reaction_available: bool = True
+    conditions: list[str] = field(default_factory=list)
+    active_effects: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -159,6 +163,7 @@ class Scenario:
     terrain: list[DndTerrainZone] = field(default_factory=list)
     areas: list[DndAreaTemplate] = field(default_factory=list)
     expectations: dict[str, Any] = field(default_factory=dict)
+    category: str = "active"
 
 
 def _action(
@@ -322,7 +327,7 @@ def _mechanics(spec: CharacterSpec) -> dict[str, Any]:
             "max": spec.hp,
             "temporary": 0,
         },
-        "conditions": [],
+        "conditions": list(spec.conditions),
         "resources": {},
         "dnd5e_sheet": {
             "statblock": {
@@ -330,6 +335,9 @@ def _mechanics(spec: CharacterSpec) -> dict[str, Any]:
                 "spellcasting": spec.spellcasting,
                 "defenses": {},
             }
+        },
+        "dnd5e_runtime": {
+            "active_effects": list(spec.active_effects),
         },
         "raw": {},
     }
@@ -428,6 +436,11 @@ def _checkpoint(config: LLMConfig, scenario: Scenario) -> CheckpointFile:
             hit_points_current=spec.hp,
             hit_points_max=spec.hp,
             reaction_available=spec.reaction_available,
+            conditions=list(spec.conditions),
+            active_effects=[
+                DndRuntimeEffect.model_validate(effect)
+                for effect in spec.active_effects
+            ],
             initiative_total=10 if spec.character_id == scenario.actor_id else 5,
         )
         for spec in scenario.characters
@@ -460,12 +473,55 @@ def _scenarios() -> list[Scenario]:
         damage="1d8+3 slashing",
         range_text="5 ft",
     )
+    shortbow = _action(
+        "shortbow",
+        "Shortbow",
+        bonus=7,
+        damage="1d6+4 piercing",
+        range_text="80/320 ft",
+        notes="Ranged weapon attack.",
+    )
+    dagger = _action(
+        "dagger",
+        "Dagger",
+        bonus=7,
+        damage="1d4+4 piercing",
+        range_text="5 ft or thrown 20/60 ft",
+        notes="Finesse melee weapon attack.",
+    )
     claws = _action(
         "claws",
         "Claws",
         bonus=5,
         damage="1d6+3 slashing",
         range_text="5 ft",
+    )
+    thunderwave = _spell(
+        "thunderwave",
+        "Thunderwave",
+        level=1,
+        save_ability="con",
+        dc=15,
+        damage="2d8 thunder",
+        range_text="Self",
+        target_text=(
+            "15-foot cube originating from the caster; creatures take half "
+            "damage on a successful Constitution save and are pushed 10 feet "
+            "away from the caster on a failed save"
+        ),
+        consumes_level=1,
+    )
+    magic_missile = _spell(
+        "magic_missile",
+        "Magic Missile",
+        level=1,
+        damage="3 darts, each 1d4+1 force",
+        range_text="120 ft",
+        target_text=(
+            "Three darts hit chosen visible creatures; when readied, the spell "
+            "is cast now and held for a perceivable trigger"
+        ),
+        consumes_level=1,
     )
     fireball = _spell(
         "fireball",
@@ -589,6 +645,7 @@ def _scenarios() -> list[Scenario]:
                 "must_include_roll_targets": ["hob_sentinel"],
                 "must_include_opportunity_from": "hob_sentinel",
             },
+            category="known_good",
         ),
         Scenario(
             name="fireball_around_corner_friendly_fire",
@@ -872,6 +929,7 @@ def _scenarios() -> list[Scenario]:
                 "forbid_damage_records": True,
                 "friendly_fire_targets": ["pc_aria"],
             },
+            category="known_good",
         ),
         Scenario(
             name="web_area_creation_and_restrain",
@@ -943,6 +1001,300 @@ def _scenarios() -> list[Scenario]:
                 "expected_save_ability": "dex",
                 "require_spatial_delta_kind": "add_area",
                 "require_effect_delta_if_failed": True,
+            },
+        ),
+        Scenario(
+            name="thunderwave_forced_movement_no_opportunity",
+            summary=(
+                "Thunderwave can push an enemy out of adjacent melee reach. "
+                "The push is forced movement, so it should not generate "
+                "opportunity attacks from nearby creatures."
+            ),
+            actor_id="pc_storm",
+            intention=(
+                "I cast Thunderwave so the orc raider is blasted west out of "
+                "Bram's reach. Do not spare the raider if the push works."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_storm",
+                    "Nera Storm-Sage",
+                    "adventurers",
+                    ac=14,
+                    hp=27,
+                    playable=True,
+                    abilities={"int": 18, "con": 14},
+                    spellcasting=_spellcasting(
+                        save_dc=15,
+                        spells=[thunderwave],
+                    ),
+                ),
+                CharacterSpec(
+                    "pc_guard",
+                    "Bram Flint",
+                    "adventurers",
+                    ac=17,
+                    hp=38,
+                    playable=True,
+                    abilities={"str": 16},
+                    actions=[longsword],
+                ),
+                CharacterSpec(
+                    "orc_raider",
+                    "Orc Raider",
+                    "iron_orcs",
+                    ac=13,
+                    hp=24,
+                    abilities={"con": 12, "str": 16},
+                    actions=[claws],
+                ),
+            ],
+            tokens=[
+                ("pc_storm", 3, 4),
+                ("orc_raider", 4, 4),
+                ("pc_guard", 5, 4),
+            ],
+            areas=[
+                _area(
+                    "thunderwave_cube",
+                    "Thunderwave cube",
+                    shape="square",
+                    x=2,
+                    y=3,
+                    width=3,
+                    height=3,
+                    notes=(
+                        "15-foot cube originating from Nera and angled to "
+                        "catch the orc without catching Bram."
+                    ),
+                )
+            ],
+            expectations={
+                "forbid_attack_rolls": True,
+                "forbid_opportunity_from": ["pc_guard", "pc_storm"],
+                "must_include_save_targets": ["orc_raider"],
+                "expected_save_ability": "con",
+                "expected_save_damage_spell": True,
+                "require_spatial_delta_if_failed": "move_token",
+            },
+        ),
+        Scenario(
+            name="grapple_shove_contested_no_attack_roll",
+            summary=(
+                "A brawler tries to shove a guard prone and then grab him. "
+                "Grapple and shove are special melee attacks resolved with "
+                "contested Strength checks rather than attack rolls."
+            ),
+            actor_id="pc_brawler",
+            intention=(
+                "I use my Attack action to shove the Stone Guard prone, then "
+                "grapple him with my free hand if I can."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_brawler",
+                    "Kessa Irongrip",
+                    "adventurers",
+                    ac=15,
+                    hp=42,
+                    playable=True,
+                    abilities={"str": 18, "dex": 12},
+                ),
+                CharacterSpec(
+                    "stone_guard",
+                    "Stone Guard",
+                    "stone_watch",
+                    ac=16,
+                    hp=38,
+                    abilities={"str": 16, "dex": 10},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("pc_brawler", 4, 4),
+                ("stone_guard", 5, 4),
+            ],
+            expectations={
+                "forbid_attack_rolls": True,
+                "must_include_any_roll_kinds": ["ability_check", "skill_check"],
+                "require_opposed_rolls": True,
+                "forbid_damage_records": True,
+                "condition_fact_requires_delta": [{
+                    "target_id": "stone_guard",
+                    "condition": "prone",
+                }],
+            },
+        ),
+        Scenario(
+            name="ready_spell_breaks_existing_concentration",
+            summary=(
+                "A wizard already concentrating on Web readies Magic Missile. "
+                "Readying a spell requires concentration immediately, so the "
+                "existing Web concentration should end even though no missile "
+                "is released yet."
+            ),
+            actor_id="pc_evoker",
+            intention=(
+                "I ready Magic Missile for the instant the cult captain opens "
+                "the bronze door. I keep the spell held until that trigger."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_evoker",
+                    "Mira Evoker",
+                    "adventurers",
+                    ac=13,
+                    hp=28,
+                    playable=True,
+                    abilities={"int": 18, "dex": 14},
+                    spellcasting=_spellcasting(
+                        slots={
+                            "1": {"current": 3, "max": 4},
+                            "2": {"current": 1, "max": 3},
+                        },
+                        spells=[magic_missile, web],
+                    ),
+                ),
+                CharacterSpec(
+                    "cult_a",
+                    "Restrained Cultist",
+                    "ash_cult",
+                    ac=12,
+                    hp=18,
+                    active_effects=[{
+                        "effect_id": "web_existing_cult_a",
+                        "name": "Web",
+                        "slug": "web",
+                        "source_type": "spell",
+                        "source_id": "web",
+                        "originator_id": "pc_evoker",
+                        "target_id": "cult_a",
+                        "conditions": ["restrained"],
+                        "concentration": True,
+                        "duration_kind": "hours",
+                        "duration_amount": 1,
+                        "remaining_rounds": 9,
+                        "duration_text": "Concentration, up to 1 hour",
+                        "break_triggers": ["concentration"],
+                    }],
+                    conditions=["restrained"],
+                ),
+                CharacterSpec("cult_captain", "Cult Captain", "ash_cult", ac=15, hp=34),
+            ],
+            tokens=[
+                ("pc_evoker", 2, 5),
+                ("cult_a", 7, 4),
+                ("cult_captain", 9, 5),
+            ],
+            expectations={
+                "forbid_rolls": True,
+                "forbid_damage_records": True,
+                "forbid_hp_change": True,
+                "require_effect_end_slug": ["web"],
+            },
+        ),
+        Scenario(
+            name="ranged_attack_in_melee_disadvantage",
+            summary=(
+                "An archer fires at a distant target while a hostile enemy is "
+                "within 5 feet. Ranged attacks made in close combat should "
+                "carry disadvantage."
+            ),
+            actor_id="pc_archer",
+            intention=(
+                "I ignore the wolf snapping beside me and shoot the cult "
+                "marksman across the room with my shortbow."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_archer",
+                    "Tamsin Vale",
+                    "adventurers",
+                    ac=15,
+                    hp=29,
+                    playable=True,
+                    abilities={"dex": 18},
+                    actions=[shortbow],
+                ),
+                CharacterSpec(
+                    "wolf",
+                    "Iron Wolf",
+                    "iron_orcs",
+                    ac=13,
+                    hp=18,
+                    actions=[claws],
+                ),
+                CharacterSpec("cult_marksman", "Cult Marksman", "ash_cult", ac=14, hp=20),
+            ],
+            tokens=[
+                ("pc_archer", 4, 4),
+                ("wolf", 4, 5),
+                ("cult_marksman", 9, 4),
+            ],
+            expectations={
+                "must_include_roll_targets": ["cult_marksman"],
+                "expected_advantage_by_target": {
+                    "cult_marksman": "disadvantage",
+                },
+                "forbid_attack_modifier_bonus": True,
+            },
+        ),
+        Scenario(
+            name="invisible_attacker_advantage_and_breaks_effect",
+            summary=(
+                "An invisible attacker strikes from hiding. The attack should "
+                "have advantage, and the Invisibility effect should end because "
+                "the effect says it breaks when the target attacks."
+            ),
+            actor_id="pc_rogue",
+            intention=(
+                "Still invisible, I step in and stab the necromancer with my "
+                "dagger. I am attacking now, so the invisibility should drop."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_rogue",
+                    "Rook",
+                    "adventurers",
+                    ac=15,
+                    hp=26,
+                    playable=True,
+                    abilities={"dex": 18},
+                    actions=[dagger],
+                    conditions=["invisible"],
+                    active_effects=[{
+                        "effect_id": "invisibility_rook",
+                        "name": "Invisibility",
+                        "slug": "invisibility",
+                        "source_type": "spell",
+                        "source_id": "invisibility",
+                        "originator_id": "pc_evoker",
+                        "target_id": "pc_rogue",
+                        "conditions": ["invisible"],
+                        "concentration": True,
+                        "duration_kind": "hours",
+                        "duration_amount": 1,
+                        "remaining_rounds": 7,
+                        "duration_text": (
+                            "Concentration, up to 1 hour; ends when the "
+                            "target attacks or casts a spell"
+                        ),
+                        "break_triggers": ["attacks", "casts_spell"],
+                    }],
+                ),
+                CharacterSpec("necromancer", "Necromancer", "bone_cabal", ac=13, hp=30),
+            ],
+            tokens=[
+                ("pc_rogue", 5, 4),
+                ("necromancer", 6, 4),
+            ],
+            expectations={
+                "must_include_roll_targets": ["necromancer"],
+                "expected_advantage_by_target": {
+                    "necromancer": "advantage",
+                },
+                "forbid_attack_modifier_bonus": True,
+                "require_effect_end_slug": ["invisibility"],
             },
         ),
     ]
@@ -1018,6 +1370,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
             result_payload = {
                 "index": index,
                 "name": scenario.name,
+                "category": scenario.category,
                 "summary": scenario.summary,
                 "actor_id": scenario.actor_id,
                 "intention": scenario.intention,
@@ -1123,6 +1476,11 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
         for request in requests
         if request.get("kind") == "saving_throw"
     }
+    request_kinds = {
+        str(request.get("kind") or "")
+        for request in requests
+        if str(request.get("kind") or "")
+    }
     attack_requests = [
         request for request in requests if request.get("kind") == "attack_roll"
     ]
@@ -1139,6 +1497,28 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": {"key": key},
             })
+    if expectations.get("forbid_rolls") and requests:
+        findings.append({
+            "name": "unexpected_rolls_requested",
+            "severity": "high",
+            "detail": requests,
+        })
+    missing_kinds = sorted(
+        set(expectations.get("must_include_roll_kinds") or []) - request_kinds
+    )
+    if missing_kinds:
+        findings.append({
+            "name": "missing_required_roll_kinds",
+            "severity": "high",
+            "detail": missing_kinds,
+        })
+    any_kinds = set(expectations.get("must_include_any_roll_kinds") or [])
+    if any_kinds and not any_kinds.intersection(request_kinds):
+        findings.append({
+            "name": "missing_any_required_roll_kind",
+            "severity": "high",
+            "detail": sorted(any_kinds),
+        })
     missing_targets = sorted(
         set(expectations.get("must_include_roll_targets") or []) - request_targets
     )
@@ -1172,6 +1552,52 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "high",
             "detail": attack_requests,
         })
+    if expectations.get("forbid_attack_modifier_bonus"):
+        bad_attack_modifiers = [
+            request for request in attack_requests
+            if int(request.get("modifier_bonus", 0) or 0) != 0
+        ]
+        if bad_attack_modifiers:
+            findings.append({
+                "name": "attack_roll_modifier_bonus_misused",
+                "severity": "medium",
+                "detail": bad_attack_modifiers,
+            })
+    expected_advantage = expectations.get("expected_advantage_by_target") or {}
+    for target_id, expected_state in expected_advantage.items():
+        target_requests = [
+            request for request in requests
+            if request.get("target_id") == target_id
+        ]
+        if not target_requests:
+            findings.append({
+                "name": "missing_advantage_checked_target",
+                "severity": "high",
+                "detail": {"target_id": target_id, "expected": expected_state},
+            })
+            continue
+        if not any(
+            request.get("advantage_state") == expected_state
+            for request in target_requests
+        ):
+            findings.append({
+                "name": "wrong_advantage_state",
+                "severity": "high",
+                "detail": {
+                    "target_id": target_id,
+                    "expected": expected_state,
+                    "actual": [
+                        request.get("advantage_state")
+                        for request in target_requests
+                    ],
+                },
+            })
+    if expectations.get("require_opposed_rolls") and not _has_opposed_rolls(requests):
+        findings.append({
+            "name": "missing_opposed_roll_structure",
+            "severity": "high",
+            "detail": requests,
+        })
     expected_ability = str(expectations.get("expected_save_ability") or "")
     if expected_ability:
         wrong = [
@@ -1199,6 +1625,22 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": opportunity_from,
             })
+    forbidden_opportunity_from = expectations.get("forbid_opportunity_from") or []
+    if isinstance(forbidden_opportunity_from, str):
+        forbidden_opportunity_from = [forbidden_opportunity_from]
+    illegal_opportunity_requests = [
+        request for request in requests
+        if request.get("actor_id") in set(forbidden_opportunity_from)
+        and "opportunity" in (
+            f"{request.get('roll_id', '')} {request.get('reason', '')}".lower()
+        )
+    ]
+    if illegal_opportunity_requests:
+        findings.append({
+            "name": "forbidden_opportunity_attack",
+            "severity": "high",
+            "detail": illegal_opportunity_requests,
+        })
     reason_terms = expectations.get("target_reason_contains") or {}
     for target_id, terms in reason_terms.items():
         target_reasons = " ".join(
@@ -1233,7 +1675,10 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             and request.get("kind") == "saving_throw"
         ]
         target_reasons = " ".join(
-            str(request.get("reason") or "").lower()
+            (
+                f"{request.get('reason', '')} "
+                f"{request.get('modifier_bonus_reason', '')}"
+            ).lower()
             for request in target_save_requests
         )
         if not target_reasons:
@@ -1283,6 +1728,25 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "high",
             "detail": _damage_records(result),
         })
+    if expectations.get("forbid_hp_change"):
+        changed = {
+            cid: {
+                "before": (result.get("before_hp") or {}).get(cid),
+                "after": (result.get("after_hp") or {}).get(cid),
+            }
+            for cid in sorted(
+                set((result.get("before_hp") or {}).keys())
+                | set((result.get("after_hp") or {}).keys())
+            )
+            if (result.get("before_hp") or {}).get(cid)
+            != (result.get("after_hp") or {}).get(cid)
+        }
+        if changed:
+            findings.append({
+                "name": "unexpected_hp_change",
+                "severity": "high",
+                "detail": changed,
+            })
     visible_text = " ".join(str(fact) for fact in (result.get("event") or {}).get("facts") or [])
     if "concentration shifts to a new effect" in visible_text.lower():
         findings.append({
@@ -1293,6 +1757,25 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "earlier effects to be ended as if concentration shifted."
             ),
         })
+    for rule in expectations.get("condition_fact_requires_delta") or []:
+        condition = str(rule.get("condition") or "").strip().lower()
+        target_id = str(rule.get("target_id") or "").strip()
+        if not condition or condition not in visible_text.lower():
+            continue
+        if not any(
+            delta.get("kind") == "condition_add"
+            and delta.get("target_id") == target_id
+            and str(delta.get("condition") or "").strip().lower() == condition
+            for delta in adjudication.get("combat_state_deltas") or []
+        ):
+            findings.append({
+                "name": "condition_fact_missing_state_delta",
+                "severity": "high",
+                "detail": {
+                    "target_id": target_id,
+                    "condition": condition,
+                },
+            })
     required_spatial = str(expectations.get("require_spatial_delta_kind") or "")
     if required_spatial:
         if not any(
@@ -1303,6 +1786,33 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": "missing_required_spatial_delta",
                 "severity": "high",
                 "detail": required_spatial,
+            })
+    required_spatial_if_failed = str(
+        expectations.get("require_spatial_delta_if_failed") or ""
+    )
+    if required_spatial_if_failed and _failed_save_targets(result):
+        if not any(
+            delta.get("kind") == required_spatial_if_failed
+            for delta in adjudication.get("spatial_deltas") or []
+        ):
+            findings.append({
+                "name": "failed_save_missing_spatial_delta",
+                "severity": "high",
+                "detail": required_spatial_if_failed,
+            })
+    required_effect_ends = expectations.get("require_effect_end_slug") or []
+    if isinstance(required_effect_ends, str):
+        required_effect_ends = [required_effect_ends]
+    for required_slug in required_effect_ends:
+        if not any(
+            delta.get("operation") == "end"
+            and _effect_delta_contains(delta, str(required_slug))
+            for delta in adjudication.get("effect_deltas") or []
+        ):
+            findings.append({
+                "name": "missing_required_effect_end",
+                "severity": "high",
+                "detail": required_slug,
             })
     if expectations.get("require_effect_delta_if_failed"):
         failed_targets = _failed_save_targets(result)
@@ -1321,19 +1831,62 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
+def _has_opposed_rolls(requests: list[dict[str, Any]]) -> bool:
+    contest_requests = [
+        request for request in requests
+        if request.get("kind") in {"ability_check", "skill_check"}
+    ]
+    if any(str(request.get("opposed_by") or "").strip() for request in contest_requests):
+        return True
+    actors = {
+        str(request.get("actor_id") or "")
+        for request in contest_requests
+        if str(request.get("actor_id") or "")
+    }
+    return len(contest_requests) >= 2 and len(actors) >= 2
+
+
+def _effect_delta_contains(delta: dict[str, Any], expected: str) -> bool:
+    expected = expected.strip().lower()
+    if not expected:
+        return False
+    haystack = " ".join(
+        str(delta.get(key) or "").strip().lower()
+        for key in ("effect_id", "name", "slug", "source_id", "reason")
+    )
+    return expected in haystack
+
+
 def _failed_save_targets(result: dict[str, Any]) -> set[str]:
     failed: set[str] = set()
+    requests_by_roll_id = {
+        str(request.get("roll_id") or ""): request
+        for request in _roll_requests(result)
+        if request.get("kind") == "saving_throw"
+    }
     for line in ((result.get("capture") or {}).get("roll_ledger") or []):
         lower = str(line).lower()
         if "saving_throw" not in lower:
             continue
-        if "fail" not in lower and "failure" not in lower:
-            continue
-        for request in _roll_requests(result):
-            if str(request.get("roll_id") or "") in line:
-                target_id = str(request.get("target_id") or "")
-                if target_id:
-                    failed.add(target_id)
+        for roll_id, request in requests_by_roll_id.items():
+            if roll_id not in line:
+                continue
+            target_id = str(request.get("target_id") or "")
+            if not target_id:
+                continue
+            if "fail" in lower or "failure" in lower:
+                failed.add(target_id)
+                continue
+            match = re.search(r"=\s*(\d+),\s*DC\s*(\d+)", line)
+            if match:
+                total = int(match.group(1))
+                dc = int(match.group(2))
+            else:
+                total_match = re.search(r"total\s+(\d+)", lower)
+                total = int(total_match.group(1)) if total_match else 0
+                dc = int(request.get("dc", 0) or 0)
+            if dc and total < dc:
+                failed.add(target_id)
     return failed
 
 
@@ -1479,7 +2032,10 @@ def _markdown(report: dict[str, Any]) -> str:
     ])
     for scenario in report.get("scenarios") or []:
         lines.extend([
-            f"### {scenario.get('index')}. {scenario.get('name')}",
+            (
+                f"### {scenario.get('index')}. {scenario.get('name')} "
+                f"({scenario.get('category', 'active')})"
+            ),
             "",
             scenario.get("summary") or "",
             "",
@@ -1517,7 +2073,19 @@ async def main() -> None:
         "--scenarios",
         nargs="*",
         default=[],
-        help="Optional scenario names. Defaults to the full progressive suite.",
+        help=(
+            "Optional scenario names. Explicit names run even if they are "
+            "known-good baselines."
+        ),
+    )
+    parser.add_argument(
+        "--suite",
+        choices=("active", "known-good", "all"),
+        default="active",
+        help=(
+            "Scenario group to run when --scenarios is omitted. Defaults to "
+            "active stress cases; known-good baselines are collapsed out."
+        ),
     )
     parser.add_argument(
         "--max-scenarios",
@@ -1525,14 +2093,33 @@ async def main() -> None:
         default=0,
         help="Run only the first N selected scenarios.",
     )
+    parser.add_argument(
+        "--list-scenarios",
+        action="store_true",
+        help="List scenario names and categories without calling the model.",
+    )
     args = parser.parse_args()
     scenarios = _scenarios()
+    if args.list_scenarios:
+        for scenario in scenarios:
+            print(f"{scenario.name}\t{scenario.category}")
+        return
     if args.scenarios:
         wanted = set(args.scenarios)
         scenarios = [scenario for scenario in scenarios if scenario.name in wanted]
         missing = wanted - {scenario.name for scenario in scenarios}
         if missing:
             raise SystemExit("Unknown scenario(s): " + ", ".join(sorted(missing)))
+    elif args.suite == "active":
+        scenarios = [
+            scenario for scenario in scenarios
+            if scenario.category == "active"
+        ]
+    elif args.suite == "known-good":
+        scenarios = [
+            scenario for scenario in scenarios
+            if scenario.category == "known_good"
+        ]
     if args.max_scenarios:
         scenarios = scenarios[: args.max_scenarios]
     if not scenarios:
