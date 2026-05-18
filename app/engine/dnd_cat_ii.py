@@ -1314,9 +1314,6 @@ def _build_combat_packet(
             "relationship_to_current_actor": relationship,
             "enemy_to_current_actor": relationship == "enemy",
             "current": combatant is current,
-            "reaction_available": bool(
-                getattr(combatant, "reaction_available", True)
-            ),
             "armor_class": int(getattr(combatant, "armor_class", 10) or 10),
             "hit_points": {
                 "current": int(
@@ -1367,6 +1364,7 @@ def _build_combat_packet(
         "intention": intention,
         "house_rules": [
             "Opportunity attacks are automatic for players and NPCs.",
+            "Automatic opportunity attacks do not require or spend combat reactions.",
             "Player opportunity attacks do not consume optional reaction prompts.",
             "Open optional player reaction prompts only for meaningful choices.",
             "Agents do not need roll details; expose dice only through player UI.",

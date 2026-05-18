@@ -488,7 +488,11 @@ def test_combat_packet_marks_current_actor_relationships():
     assert by_id["eve"]["relationship_to_current_actor"] == "ally"
     assert by_id["eve"]["enemy_to_current_actor"] is False
     assert by_id["eve"]["faction"] == "ash_cult"
-    assert by_id["eve"]["reaction_available"] is True
+    assert "reaction_available" not in by_id["eve"]
+    assert (
+        "Automatic opportunity attacks do not require or spend combat reactions."
+        in packet["house_rules"]
+    )
 
 
 def test_combat_resolver_observes_target_dropped_by_same_event(monkeypatch):
