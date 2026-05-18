@@ -1,5 +1,6 @@
 from app.engine.visual_context import (
     mark_visual_introductions,
+    plan_event_visual_introductions,
     plan_render_visual_introductions,
 )
 from app.schemas.characters import (
@@ -119,6 +120,52 @@ def test_first_meeting_plan_uses_explicit_loadout_not_raw_appearance():
         ckpt,
         viewer_id="alice",
         resolved=[(RenderBufferEntry(event_id=event.event_id), event)],
+        max_loadouts=3,
+    )
+
+    assert plan.loadouts == []
+    assert plan.mark_character_ids == []
+
+
+def test_agent_event_plan_uses_speaker_not_quoted_mentions():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            CharacterRecord(character_id="bob", name="Bob"),
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    event = _event("Alice says, 'Pip is coming later.'")
+
+    plan = plan_event_visual_introductions(
+        ckpt,
+        viewer_id="bob",
+        event=event,
+        observation_level="direct",
+        max_loadouts=3,
+    )
+
+    assert [intro.character_id for intro in plan.loadouts] == ["alice"]
+    assert plan.mark_character_ids == ["alice"]
+
+
+def test_agent_event_plan_ignores_plain_name_mentions():
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        characters=[
+            CharacterRecord(character_id="bob", name="Bob"),
+            _character("alice", "Alice", CharacterAgentTier.standard),
+            _character("pip", "Pip", CharacterAgentTier.standard),
+        ],
+    )
+    event = _event("Alice points toward Pip's empty chair.")
+
+    plan = plan_event_visual_introductions(
+        ckpt,
+        viewer_id="bob",
+        event=event,
+        observation_level="direct",
         max_loadouts=3,
     )
 

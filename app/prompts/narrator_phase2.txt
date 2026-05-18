@@ -43,7 +43,7 @@ Observation clarity:
 - Partly heard or noticed: keep it muted and incomplete. Do not quote speech verbatim. Do not describe facial expressions or gestures the viewpoint could not confirm.
 - Inferred from aftermath: no dialogue, no paraphrased contents, no specific unseen action. Render only surface aftermath.
 
-When appearance details are supplied for people the viewpoint is looking over, weave them as visible appearance only. Do not copy source tags or explain that a look was requested.
+When appearance details are supplied for people the viewpoint is looking over, weave them as visible appearance only. Do not copy source tags or explain that a look was requested. Ignore first visible impressions for any person the visible facts clearly present only as a voice, message, quoted mention, remote feed, or otherwise not physically visible to this viewpoint.
 
 Use dramatic economy. Combine multiple beats into one continuous scene rather than listing them. Center the latest or most player-facing beat; earlier beats should orient the reader only as needed. Drop repeated ambient baselines unless they changed or became actionable.
 

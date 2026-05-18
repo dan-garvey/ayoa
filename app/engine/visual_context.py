@@ -14,6 +14,11 @@ AGENT_FIRST_MEETING_CAP = 4
 NARRATOR_FIRST_MEETING_CAP = 6
 
 _LOADOUT_TAG_RE = re.compile(r"^\[loadout\s+[—–-]\s*([^\]]+)\]", re.IGNORECASE)
+_SPEECH_VERB_RE = (
+    r"says|said|asks|asked|replies|replied|whispers|whispered|"
+    r"shouts|shouted|speaks|spoke|calls|called|murmurs|murmured|"
+    r"mutters|muttered|tells|told"
+)
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,30 @@ def _mentioned_character_ids(
     return mentioned
 
 
+def _speaking_character_ids(
+    ckpt: CheckpointFile,
+    visible_texts: Iterable[str],
+) -> set[str]:
+    texts = [t for t in visible_texts if t and t.strip()]
+    if not texts:
+        return set()
+    speaking: set[str] = set()
+    for character in _known_characters(ckpt):
+        probes = [character.character_id, character.name]
+        for probe in probes:
+            if not probe:
+                continue
+            pattern = re.compile(
+                rf"(?<![A-Za-z0-9_]){re.escape(probe)}(?![A-Za-z0-9_])"
+                rf"(?=[^.?!\n]{{0,120}}\b(?:{_SPEECH_VERB_RE})\b)",
+                re.IGNORECASE,
+            )
+            if any(pattern.search(text) for text in texts):
+                speaking.add(character.character_id)
+                break
+    return speaking
+
+
 def _loadout_tag_character_ids(
     ckpt: CheckpointFile,
     visible_texts: Iterable[str],
@@ -153,6 +182,7 @@ def _plan_visual_introductions(
     *,
     viewer_id: str,
     visible_texts: Iterable[str],
+    candidate_ids: Iterable[str] | None = None,
     priority_target_ids: Iterable[str] = (),
     max_loadouts: int,
 ) -> VisualIntroductionPlan:
@@ -167,8 +197,12 @@ def _plan_visual_introductions(
     priority_index = {
         cid: index for index, cid in enumerate(priority_ids)
     }
-    candidate_ids = _mentioned_character_ids(ckpt, texts) | tagged_ids
-    candidate_ids.discard(viewer_id)
+    candidate_set = (
+        set(candidate_ids)
+        if candidate_ids is not None
+        else _mentioned_character_ids(ckpt, texts)
+    ) | tagged_ids
+    candidate_set.discard(viewer_id)
 
     mark_ids: list[str] = []
     loadout_candidates: list[tuple[tuple[int, int, int], VisualIntroduction]] = []
@@ -176,7 +210,7 @@ def _plan_visual_introductions(
         character.character_id: index
         for index, character in enumerate(ckpt.characters)
     }
-    for character_id in candidate_ids:
+    for character_id in candidate_set:
         character = by_id.get(character_id)
         if character is None or character_id in introduced:
             continue
@@ -231,6 +265,7 @@ def plan_event_visual_introductions(
         ckpt,
         viewer_id=viewer_id,
         visible_texts=texts,
+        candidate_ids=_speaking_character_ids(ckpt, texts),
         priority_target_ids=priority_target_ids,
         max_loadouts=max_loadouts,
     )

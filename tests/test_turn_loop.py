@@ -1671,19 +1671,22 @@ class TestBroadcastEvent:
         alice.visuals = CharacterVisuals(
             default_loadout="Blue travel cloak, rain-dark hair, silver pin.",
         )
-        event = self._event(observer_ids=["pip"])
+        event = self._event(
+            observer_ids=["pip"],
+            facts=[ObservableFact.all("Alice says, 'Here.'")],
+        )
 
         broadcast_event(ckpt, event, actor_id="alice")
         broadcast_event(ckpt, event, actor_id="alice")
 
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == [
-            "Alice sets down a glass.",
+            "Alice says, 'Here.'",
             (
                 "First visible impressions:\n"
                 "- Alice: Blue travel cloak, rain-dark hair, silver pin."
             ),
-            "Alice sets down a glass.",
+            "Alice says, 'Here.'",
         ]
         assert ckpt.session.visual_introductions["pip"] == ["alice"]
 
