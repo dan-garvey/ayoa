@@ -240,6 +240,13 @@ def format_agent_turn_body(
             "React in real time to what reached you. If nothing needs "
             "your action, silence is a valid beat.",
         ])
+        cleaned_local_context = (local_context or "").strip()
+        if cleaned_local_context:
+            lines.extend([
+                "",
+                "## Local Context",
+                cleaned_local_context,
+            ])
         return "\n".join(lines)
 
     location = (

@@ -15,6 +15,10 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.state import CatIIRollTransaction
 
 
+COMBAT_MANAGER_PLAN_MAX_TOKENS = 5000
+COMBAT_MANAGER_FINALIZE_MAX_TOKENS = 6000
+
+
 class DndCombatResolver:
     """D&D initiative-scene turn resolver.
 
@@ -124,7 +128,7 @@ class DndCombatResolver:
             messages=messages,
             response_model=RollPlan,
             temperature=0.2,
-            max_tokens=2500,
+            max_tokens=COMBAT_MANAGER_PLAN_MAX_TOKENS,
             cache=True,
             compact=False,
         )
@@ -146,7 +150,7 @@ class DndCombatResolver:
             messages=messages,
             response_model=DndCombatManagerAdjudication,
             temperature=0.2,
-            max_tokens=3000,
+            max_tokens=COMBAT_MANAGER_FINALIZE_MAX_TOKENS,
             cache=True,
             compact=False,
         )

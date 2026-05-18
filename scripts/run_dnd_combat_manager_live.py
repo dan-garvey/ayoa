@@ -3,9 +3,10 @@
 
 The harness avoids a live generic router. It builds a checkpoint with two
 human-bound player characters, one LLM-driven monster, and three canned dummy
-monsters, then applies a dummy router `dnd_combat_start` output with a simple
+monsters, then applies a dummy router `dnd_combat_start` output with a tactical
 battle map. Active initiative turns are resolved by the real
-`dnd_combat_manager` role.
+`dnd_combat_manager` role, while the agent monster's exact prompt input and
+output are captured for QA.
 
 Outputs:
   app/storage/playtest_reports/dnd_combat_manager_live_<timestamp>/report.json
@@ -82,20 +83,36 @@ AGENT_MONSTER_ID = "ashbound_warcaller"
 DUMMY_MONSTER_IDS = ("ember_grunt_a", "ember_grunt_b", "ember_grunt_c")
 ALL_COMBATANT_IDS = (*PLAYER_IDS, AGENT_MONSTER_ID, *DUMMY_MONSTER_IDS)
 
-PLAYER_ACTIONS = {
+ACTION_SCRIPTS = {
     "pc_aria": (
-        "I advance to hold the centerline and strike the Ashbound Warcaller "
-        "with my longsword."
+        "I skirt the cracked brazier to engage the Ashbound Warcaller and "
+        "strike with my longsword, keeping the fallen pillar between me and "
+        "Grunt B if I can.",
+        "If Grunt A is still beside me, I shove it toward the cracked brazier; "
+        "otherwise I strike the Warcaller with my longsword.",
     ),
     "pc_bram": (
-        "I duck behind the broken low wall and shoot the Ashbound Warcaller "
-        "with my shortbow."
+        "I drop behind the broken low wall, shoot Grunt C with my shortbow, "
+        "then stay in cover.",
+        "If I am restrained or netted, I cut myself free with my dagger; "
+        "otherwise I shoot the Warcaller and keep the low wall between me and "
+        "Grunt B.",
     ),
-}
-DUMMY_ACTIONS = {
-    "ember_grunt_a": "I rush Aria and claw at her shield arm.",
-    "ember_grunt_b": "I circle toward Bram and jab him with my spear.",
-    "ember_grunt_c": "I throw a hooked net toward Bram from the rubble.",
+    "ember_grunt_a": (
+        "I dart around the fallen pillar to claw Aria and keep her boxed in.",
+        "I claw at Aria again, trying to keep her near the cracked brazier.",
+    ),
+    "ember_grunt_b": (
+        "I move to the low-wall gap and jab Bram with my spear from the east "
+        "side.",
+        "I stay on Bram and jab again unless he drops, then I block the gap.",
+    ),
+    "ember_grunt_c": (
+        "I move fifteen feet toward Bram through the rubble and throw the "
+        "hooked net.",
+        "If Bram is netted, I draw my handaxe and close; otherwise I throw "
+        "the net again if I am within range.",
+    ),
 }
 
 
@@ -246,7 +263,11 @@ def _characters() -> list[CharacterRecord]:
                     {
                         "id": "longsword",
                         "name": "Longsword",
-                        "attack": {"bonus": 5, "damage": "1d8+3 slashing"},
+                        "attack": {
+                            "bonus": 5,
+                            "damage": "1d8+3 slashing",
+                            "range": "5 ft",
+                        },
                     }
                 ],
             ),
@@ -267,12 +288,20 @@ def _characters() -> list[CharacterRecord]:
                     {
                         "id": "shortbow",
                         "name": "Shortbow",
-                        "attack": {"bonus": 5, "damage": "1d6+3 piercing"},
+                        "attack": {
+                            "bonus": 5,
+                            "damage": "1d6+3 piercing",
+                            "range": "80/320 ft",
+                        },
                     },
                     {
                         "id": "dagger",
                         "name": "Dagger",
-                        "attack": {"bonus": 5, "damage": "1d4+3 piercing"},
+                        "attack": {
+                            "bonus": 5,
+                            "damage": "1d4+3 piercing",
+                            "range": "5 ft melee or 20/60 ft thrown",
+                        },
                     },
                 ],
             ),
@@ -297,12 +326,21 @@ def _characters() -> list[CharacterRecord]:
                     {
                         "id": "ember_staff",
                         "name": "Ember Staff",
-                        "attack": {"bonus": 4, "damage": "1d8+2 bludgeoning"},
+                        "attack": {
+                            "bonus": 4,
+                            "damage": "1d8+2 bludgeoning",
+                            "range": "5 ft",
+                        },
                     },
                     {
                         "id": "cinder_bolt",
                         "name": "Cinder Bolt",
-                        "attack": {"bonus": 4, "damage": "1d6+2 fire"},
+                        "attack": {
+                            "bonus": 4,
+                            "damage": "1d6+2 fire",
+                            "range": "60 ft",
+                        },
+                        "notes": "Ranged spell attack; no rally or ally-buff feature.",
                     },
                 ],
             ),
@@ -322,7 +360,11 @@ def _characters() -> list[CharacterRecord]:
                     {
                         "id": "claws",
                         "name": "Claws",
-                        "attack": {"bonus": 4, "damage": "1d6+2 slashing"},
+                        "attack": {
+                            "bonus": 4,
+                            "damage": "1d6+2 slashing",
+                            "range": "5 ft",
+                        },
                     }
                 ],
             ),
@@ -342,7 +384,11 @@ def _characters() -> list[CharacterRecord]:
                     {
                         "id": "spear",
                         "name": "Spear",
-                        "attack": {"bonus": 3, "damage": "1d6+1 piercing"},
+                        "attack": {
+                            "bonus": 3,
+                            "damage": "1d6+1 piercing",
+                            "range": "5 ft melee or 20/60 ft thrown",
+                        },
                     }
                 ],
             ),
@@ -362,12 +408,21 @@ def _characters() -> list[CharacterRecord]:
                     {
                         "id": "hooked_net",
                         "name": "Hooked Net",
-                        "attack": {"bonus": 4, "damage": "0 bludgeoning"},
+                        "attack": {
+                            "bonus": 4,
+                            "damage": "0 bludgeoning",
+                            "range": "5/15 ft",
+                        },
+                        "notes": "On a hit, restrains the target until freed.",
                     },
                     {
                         "id": "handaxe",
                         "name": "Handaxe",
-                        "attack": {"bonus": 4, "damage": "1d6+2 slashing"},
+                        "attack": {
+                            "bonus": 4,
+                            "damage": "1d6+2 slashing",
+                            "range": "5 ft melee or 20/60 ft thrown",
+                        },
                     },
                 ],
             ),
@@ -396,6 +451,9 @@ def _checkpoint(config: LLMConfig) -> CheckpointFile:
                 "Two adventurers have cornered an ash cult warband inside a "
                 "small ruined shrine.",
                 "A low broken wall divides the west side from the shrine floor.",
+                "A fallen pillar blocks part of the central sightline.",
+                "A cracked brazier smolders hot enough to make forced movement "
+                "dangerous.",
                 "All six combatants are visible at the start of initiative.",
             ],
             physics_ruleset=PhysicsRuleset(
@@ -409,9 +467,10 @@ def _checkpoint(config: LLMConfig) -> CheckpointFile:
                 premise="Live harness for the separated D&D combat manager.",
             ),
             lore=(
-                "The ember shrine is ten squares by eight. A broken waist-high "
-                "wall offers cover on the west side; a cracked brazier smolders "
-                "in the center."
+                "The ember shrine is twelve squares by ten. A waist-high wall "
+                "offers cover on the west side, a fallen pillar blocks the "
+                "center, rubble slows the eastern lane, and a cracked brazier "
+                "smolders hot in the middle."
             ),
         ),
         characters=_characters(),
@@ -424,8 +483,8 @@ def _battle_map_seed() -> DndBattleMapState:
     return DndBattleMapState(
         present=True,
         map_name="Ember Shrine",
-        width=10,
-        height=8,
+        width=12,
+        height=10,
         square_size_ft=5,
         tokens=[
             DndBattleMapToken(
@@ -433,7 +492,7 @@ def _battle_map_seed() -> DndBattleMapState:
                 character_id="pc_aria",
                 label="Aria",
                 x=1,
-                y=3,
+                y=4,
                 size_squares=1,
             ),
             DndBattleMapToken(
@@ -441,39 +500,39 @@ def _battle_map_seed() -> DndBattleMapState:
                 character_id="pc_bram",
                 label="Bram",
                 x=1,
-                y=5,
+                y=7,
                 size_squares=1,
             ),
             DndBattleMapToken(
                 token_id=AGENT_MONSTER_ID,
                 character_id=AGENT_MONSTER_ID,
                 label="Warcaller",
-                x=6,
-                y=3,
+                x=8,
+                y=4,
                 size_squares=1,
             ),
             DndBattleMapToken(
                 token_id="ember_grunt_a",
                 character_id="ember_grunt_a",
                 label="Grunt A",
-                x=5,
-                y=2,
+                x=7,
+                y=3,
                 size_squares=1,
             ),
             DndBattleMapToken(
                 token_id="ember_grunt_b",
                 character_id="ember_grunt_b",
                 label="Grunt B",
-                x=6,
-                y=5,
+                x=8,
+                y=7,
                 size_squares=1,
             ),
             DndBattleMapToken(
                 token_id="ember_grunt_c",
                 character_id="ember_grunt_c",
                 label="Grunt C",
-                x=8,
-                y=4,
+                x=10,
+                y=5,
                 size_squares=1,
             ),
         ],
@@ -482,8 +541,8 @@ def _battle_map_seed() -> DndBattleMapState:
                 zone_id="low_wall",
                 label="Broken low wall",
                 x=2,
-                y=4,
-                width=3,
+                y=6,
+                width=4,
                 height=1,
                 blocks_movement=False,
                 blocks_line_of_sight=False,
@@ -491,20 +550,44 @@ def _battle_map_seed() -> DndBattleMapState:
                 notes="Waist-high stone; enough for half cover.",
             ),
             DndTerrainZone(
-                zone_id="brazier",
-                label="Cracked brazier",
+                zone_id="fallen_pillar",
+                label="Fallen stone pillar",
                 x=5,
-                y=4,
+                y=3,
+                width=1,
+                height=4,
+                blocks_movement=True,
+                blocks_line_of_sight=True,
+                cover="total",
+                notes="Collapsed stone; blocks movement and line of sight.",
+            ),
+            DndTerrainZone(
+                zone_id="cracked_brazier",
+                label="Cracked brazier",
+                x=6,
+                y=5,
                 width=1,
                 height=1,
                 blocks_movement=True,
                 blocks_line_of_sight=False,
                 cover="none",
-                notes="Difficult to pass through; still smoldering.",
+                notes="Hot enough that forced contact may hurt.",
+            ),
+            DndTerrainZone(
+                zone_id="rubble",
+                label="Rubble",
+                x=9,
+                y=6,
+                width=2,
+                height=2,
+                blocks_movement=False,
+                blocks_line_of_sight=False,
+                cover="half",
+                notes="Broken masonry; treat as difficult footing.",
             ),
         ],
         areas=[],
-        notes="Simple v1 tactical map for live combat-manager testing.",
+        notes="Complex v2 tactical map for live combat-manager testing.",
     )
 
 
@@ -599,7 +682,9 @@ async def _agent_monster_intention(
         frame="foreground",
         local_context=(
             "It is your initiative turn. Choose one concrete combat action "
-            "using your listed combat options or a short command to your grunts."
+            "using your listed combat options. Include intended movement and "
+            "target in character-facing prose. Do not invent named features "
+            "that are not listed, and do not use markdown action labels."
         ),
     )
     public_text = output.public_text.strip()
@@ -619,16 +704,18 @@ def _character_by_id(ckpt: CheckpointFile, character_id: str) -> CharacterRecord
 
 async def _next_intention(
     actor_id: str,
+    action_index: int,
     agent: CharacterAgent,
     ckpt: CheckpointFile,
 ) -> tuple[str, str, dict[str, Any]]:
-    if actor_id in PLAYER_ACTIONS:
-        return PLAYER_ACTIONS[actor_id], "player_canned", {}
     if actor_id == AGENT_MONSTER_ID:
         intention, detail = await _agent_monster_intention(agent, ckpt)
         return intention, "agent_llm", detail
-    if actor_id in DUMMY_ACTIONS:
-        return DUMMY_ACTIONS[actor_id], "dummy_canned", {}
+    script = ACTION_SCRIPTS.get(actor_id)
+    if script:
+        index = min(action_index, len(script) - 1)
+        source = "player_canned" if actor_id in PLAYER_IDS else "dummy_canned"
+        return script[index], source, {"script_index": index}
     return "(defer)", "fallback", {"reason": "No scripted action for actor."}
 
 
@@ -654,10 +741,13 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
     async def _recording_complete(*call_args, **kwargs):
         role = kwargs.get("role") or (call_args[0] if call_args else "")
         response_model = kwargs.get("response_model")
+        messages = kwargs.get("messages") or []
         entry: dict[str, Any] = {
             "role": str(role),
             "response_model": response_model.__name__ if response_model else "",
         }
+        if str(role) in {"agent", "agent_standard", "agent_convenience"}:
+            entry["messages"] = _message_capture(messages)
         started = time.perf_counter()
         try:
             response = await real_complete(*call_args, **kwargs)
@@ -681,6 +771,7 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
     agent = CharacterAgent(client, prompt_mgr)
 
     turns: list[dict[str, Any]] = []
+    actor_turn_counts: dict[str, int] = {}
     error = ""
     start_output: DndEventRouterOutput | None = None
     try:
@@ -689,13 +780,16 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
             if ckpt.session.active_combat is None:
                 break
             actor_id = _current_actor_id(ckpt)
+            action_index = actor_turn_counts.get(actor_id, 0)
             call_start = len(role_calls)
             capture_start = len(resolver.captures)
             intention, source, source_detail = await _next_intention(
                 actor_id,
+                action_index,
                 agent,
                 ckpt,
             )
+            actor_turn_counts[actor_id] = action_index + 1
             result = await dispatcher.route_combat_action(
                 ckpt=ckpt,
                 actor_id=actor_id,
@@ -720,6 +814,7 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
             turns.append({
                 "turn_number": turn_number,
                 "actor_id": actor_id,
+                "actor_action_index": action_index,
                 "source": source,
                 "source_detail": source_detail,
                 "intention": intention,
@@ -746,6 +841,7 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "run_dir": str(RUN_DIR),
         "final_checkpoint_path": str(FINAL_CHECKPOINT_PATH),
+        "max_turns": max_turns,
         "roles": {
             "agent": _role_label(config, "agent"),
             "dnd_combat_manager": _role_label(config, "dnd_combat_manager"),
@@ -779,6 +875,7 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
         "error": error,
     }
     report["checks"] = _checks(report)
+    report["quality_findings"] = _quality_findings(report)
     JSON_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
     MD_PATH.write_text(_markdown(report), encoding="utf-8")
     return report
@@ -803,6 +900,19 @@ def _event_summary(event: Any) -> dict[str, Any]:
             for observer in getattr(event, "observers", [])
         ],
     }
+
+
+def _message_capture(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    captured: list[dict[str, Any]] = []
+    for index, message in enumerate(messages):
+        content = str(message.get("content") or "")
+        captured.append({
+            "index": index,
+            "role": str(message.get("role") or ""),
+            "chars": len(content),
+            "content": content,
+        })
+    return captured
 
 
 def _capture_dump(capture: CombatCapture | None) -> dict[str, Any]:
@@ -830,6 +940,7 @@ def _combat_summary(ckpt: CheckpointFile) -> dict[str, Any]:
 def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
     turns = report.get("turns") or []
     role_calls = report.get("role_calls") or []
+    max_turns = int(report.get("max_turns") or 0)
     acted_by_source: dict[str, set[str]] = {
         "player_canned": set(),
         "agent_llm": set(),
@@ -841,6 +952,16 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
             acted_by_source[source].add(str(turn.get("actor_id", "")))
     active = bool((report.get("final_combat") or {}).get("active"))
     conversation_len = len(report.get("session_conversation") or [])
+    agent_calls = _agent_role_calls(report)
+    agent_user_text = "\n\n".join(
+        str((call.get("messages") or [{}])[-1].get("content") or "")
+        for call in agent_calls
+        if call.get("messages")
+    )
+    agent_turns = [
+        turn for turn in turns if turn.get("source") == "agent_llm"
+    ]
+    expected_agent_turns = 2 if max_turns >= 9 else (1 if max_turns >= 3 else 0)
     return [
         _check("no_harness_error", not report.get("error"), report.get("error")),
         _check(
@@ -849,8 +970,9 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
             report.get("dummy_router_start"),
         ),
         _check(
-            "simple_battle_map_seeded",
-            len((report.get("initial_map") or {}).get("tokens") or []) == 6,
+            "complex_battle_map_seeded",
+            len((report.get("initial_map") or {}).get("tokens") or []) == 6
+            and len((report.get("initial_map") or {}).get("terrain") or []) >= 4,
             report.get("initial_map"),
         ),
         _check(
@@ -862,6 +984,38 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
             "agent_monster_used_llm",
             acted_by_source["agent_llm"] == {AGENT_MONSTER_ID},
             sorted(acted_by_source["agent_llm"]),
+        ),
+        _check(
+            "agent_turn_count_matches_scenario",
+            len(agent_turns) >= expected_agent_turns,
+            {"expected_at_least": expected_agent_turns, "actual": len(agent_turns)},
+        ),
+        _check(
+            "agent_prompt_captured_for_qa",
+            bool(agent_calls and agent_user_text),
+            agent_calls,
+        ),
+        _check(
+            "agent_receives_combat_map_actions_and_context",
+            all(
+                needle in agent_user_text
+                for needle in (
+                    "## D&D Combat",
+                    "Available combat actions:",
+                    "Cinder Bolt",
+                    "## Tactical Map",
+                    "## Local Context",
+                )
+            ),
+            agent_user_text,
+        ),
+        _check(
+            "agent_private_intent_parsed",
+            all(
+                str((turn.get("source_detail") or {}).get("private_intent") or "")
+                for turn in agent_turns
+            ),
+            [turn.get("source_detail") for turn in agent_turns],
         ),
         _check(
             "three_dummy_monsters_acted",
@@ -891,6 +1045,86 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _check(name: str, passed: bool, detail: Any = "") -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "detail": detail}
+
+
+def _agent_role_calls(report: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        call for call in report.get("role_calls") or []
+        if call.get("role") in {"agent", "agent_standard", "agent_convenience"}
+    ]
+
+
+def _quality_findings(report: dict[str, Any]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    observed: list[dict[str, Any]] = []
+    for turn in report.get("turns") or []:
+        adjudication = (turn.get("capture") or {}).get("adjudication") or {}
+        for fact in adjudication.get("router_observed_facts") or []:
+            observed.append({
+                "turn_number": turn.get("turn_number"),
+                "actor_id": turn.get("actor_id"),
+                "fact": fact,
+            })
+    if observed:
+        findings.append({
+            "name": "review_router_observed_facts",
+            "severity": "medium",
+            "detail": observed,
+        })
+
+    for turn in report.get("turns") or []:
+        if turn.get("source") != "agent_llm":
+            continue
+        public_text = str(
+            (turn.get("source_detail") or {}).get("public_text") or ""
+        )
+        if any(
+            label in public_text
+            for label in ("**Action:**", "**Bonus Action:**", "**Movement:**")
+        ):
+            findings.append({
+                "name": "agent_output_uses_mechanical_markdown",
+                "severity": "low",
+                "detail": {
+                    "turn_number": turn.get("turn_number"),
+                    "actor_id": turn.get("actor_id"),
+                    "public_text": public_text,
+                },
+            })
+
+    for turn in report.get("turns") or []:
+        roll_plan = (turn.get("capture") or {}).get("roll_plan") or {}
+        packet = (turn.get("capture") or {}).get("packet") or {}
+        ac_by_id = {
+            item.get("character_id"): item.get("armor_class")
+            for item in packet.get("combatants") or []
+        }
+        for request in roll_plan.get("roll_requests") or []:
+            if request.get("kind") != "attack_roll":
+                continue
+            target_id = request.get("target_id")
+            dc = request.get("dc")
+            base_ac = ac_by_id.get(target_id)
+            reason = str(request.get("reason") or "").lower()
+            if (
+                isinstance(dc, int)
+                and isinstance(base_ac, int)
+                and dc != base_ac
+                and "cover" not in reason
+            ):
+                findings.append({
+                    "name": "attack_dc_differs_without_cover_reason",
+                    "severity": "high",
+                    "detail": {
+                        "turn_number": turn.get("turn_number"),
+                        "actor_id": turn.get("actor_id"),
+                        "target_id": target_id,
+                        "dc": dc,
+                        "base_ac": base_ac,
+                        "reason": request.get("reason"),
+                    },
+                })
+    return findings
 
 
 def _usage_totals(calls: list[dict[str, Any]]) -> dict[str, int]:
@@ -942,6 +1176,19 @@ def _markdown(report: dict[str, Any]) -> str:
         lines.append(f"- {mark}: `{check['name']}`")
     lines.extend([
         "",
+        "## Quality Findings",
+        "",
+    ])
+    if report.get("quality_findings"):
+        for finding in report["quality_findings"]:
+            lines.append(
+                f"- {finding.get('severity', 'info').upper()}: "
+                f"`{finding.get('name')}`"
+            )
+    else:
+        lines.append("- None.")
+    lines.extend([
+        "",
         "## Usage",
         "",
         "```json",
@@ -975,6 +1222,31 @@ def _markdown(report: dict[str, Any]) -> str:
         lines.extend(["", "Roll ledger:"])
         for item in (turn.get("capture") or {}).get("roll_ledger") or []:
             lines.append(f"- {item}")
+        if turn.get("source") == "agent_llm":
+            detail = turn.get("source_detail") or {}
+            lines.extend([
+                "",
+                "Agent QA:",
+                f"- Public text: {detail.get('public_text', '')}",
+                f"- Private intent: {detail.get('private_intent', '')}",
+            ])
+            for call in turn.get("role_calls") or []:
+                if call.get("role") not in {
+                    "agent",
+                    "agent_standard",
+                    "agent_convenience",
+                }:
+                    continue
+                messages = call.get("messages") or []
+                user_text = (
+                    messages[-1].get("content", "") if messages else ""
+                )
+                lines.extend([
+                    "- Agent received:",
+                    "```text",
+                    user_text,
+                    "```",
+                ])
         lines.append("")
     if report.get("error"):
         lines.extend(["## Error", "", "```text", report["error"], "```", ""])
@@ -983,7 +1255,7 @@ def _markdown(report: dict[str, Any]) -> str:
 
 async def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-turns", type=int, default=6)
+    parser.add_argument("--max-turns", type=int, default=9)
     args = parser.parse_args()
     if args.max_turns < 1:
         raise SystemExit("--max-turns must be positive")

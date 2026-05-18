@@ -185,6 +185,42 @@ def _combat_state_line(combatant: Any) -> str:
     return f"Your combat state: {'; '.join(parts)}."
 
 
+def _combat_action_lines(character: CharacterRecord) -> list[str]:
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    actions = statblock.get("actions") or []
+    lines: list[str] = []
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+        action_id = str(action.get("id") or "").strip()
+        name = str(action.get("name") or action_id or "Unnamed action").strip()
+        attack = action.get("attack") or {}
+        if not isinstance(attack, dict):
+            attack = {}
+        parts = [name]
+        if action_id:
+            parts.append(f"id {action_id}")
+        bonus = attack.get("bonus", "")
+        if bonus != "":
+            parts.append(f"attack +{bonus}")
+        damage = str(attack.get("damage") or action.get("damage") or "").strip()
+        if damage:
+            parts.append(f"damage {damage}")
+        range_text = str(
+            attack.get("range") or action.get("range") or ""
+        ).strip()
+        if range_text:
+            parts.append(f"range {range_text}")
+        notes = str(action.get("notes") or "").strip()
+        if notes:
+            parts.append(notes)
+        lines.append("- " + "; ".join(parts))
+    return lines
+
+
 def _join_mode_blocks(*blocks: str) -> str:
     return "\n\n".join(block.strip() for block in blocks if block.strip())
 
@@ -327,6 +363,10 @@ class CharacterAgent:
                     "Before initiative, you declared this pending intent: "
                     f"{pending_action}"
                 )
+            action_lines = _combat_action_lines(character)
+            if action_lines:
+                lines.append("Available combat actions:")
+                lines.extend(action_lines)
         map_lines = dnd_spatial.render_battle_map_summary(
             combat,
             actor_id=character.character_id,

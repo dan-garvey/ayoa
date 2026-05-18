@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine import dice
-from app.engine.dnd_combat_resolution import DndCombatResolver
+from app.engine.dnd_combat_resolution import (
+    COMBAT_MANAGER_FINALIZE_MAX_TOKENS,
+    COMBAT_MANAGER_PLAN_MAX_TOKENS,
+    DndCombatResolver,
+)
 from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
@@ -266,6 +270,12 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     assert [
         call.kwargs["role"] for call in client.complete.await_args_list
     ] == ["dnd_combat_manager", "dnd_combat_manager"]
+    assert client.complete.await_args_list[0].kwargs["max_tokens"] == (
+        COMBAT_MANAGER_PLAN_MAX_TOKENS
+    )
+    assert client.complete.await_args_list[1].kwargs["max_tokens"] == (
+        COMBAT_MANAGER_FINALIZE_MAX_TOKENS
+    )
     assert (
         client.complete.await_args_list[1].kwargs["response_model"]
         is DndCombatManagerAdjudication
@@ -1384,7 +1394,12 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
             {
                 "id": "shortbow",
                 "name": "Shortbow",
-                "attack": {"bonus": 7, "damage": "1d6+4 piercing"},
+                "attack": {
+                    "bonus": 7,
+                    "damage": "1d6+4 piercing",
+                    "range": "80/320 ft",
+                },
+                "notes": "Ranged weapon attack.",
             },
         ],
     )
@@ -1445,9 +1460,51 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
     ]
     assert '"id": "shortbow"' in first_packet
     assert '"damage": "1d6+4 piercing"' in first_packet
+    assert '"range": "80/320 ft"' in first_packet
+    assert '"notes": "Ranged weapon attack."' in first_packet
     transaction = ckpt.session.cat_ii_roll_transactions[0]
     assert transaction.rolls[0].modifier == 7
     assert transaction.damage_records[0].expression == "1d6+4"
+
+
+def test_attack_ledger_reports_effective_dc_when_cover_changes_threshold(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    values = iter([14, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    request = PlannedRoll(
+        roll_id="attack_alice_cover",
+        actor_id="alice",
+        kind="attack_roll",
+        ability="str",
+        skill="",
+        dc=14,
+        opposed_by="",
+        advantage_state="normal",
+        reason="Bob has half cover from the low wall.",
+        action_id="blade",
+        target_id="bob",
+    )
+    client, prompt_mgr = _basic_attack_mocks(request)
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I attack Bob through cover.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert any(
+        "vs effective DC 14 (base AC 12)" in line
+        for line in transaction.ledger_lines
+    )
 
 
 def test_runtime_inventory_weapon_becomes_combat_action(monkeypatch):

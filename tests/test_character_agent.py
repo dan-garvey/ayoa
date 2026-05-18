@@ -482,6 +482,23 @@ class TestCharacterAgent:
         sample_checkpoint, sample_agent_text,
     ):
         sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
+        guard_character.mechanics = {
+            "dnd5e_sheet": {
+                "statblock": {
+                    "actions": [
+                        {
+                            "id": "blade",
+                            "name": "Blade",
+                            "attack": {
+                                "bonus": 5,
+                                "damage": "1d8+3 slashing",
+                                "range": "5 ft",
+                            },
+                        }
+                    ]
+                }
+            }
+        }
         sample_checkpoint.session.active_combat = DndCombatState(
             round_number=2,
             turn_index=0,
@@ -556,6 +573,8 @@ class TestCharacterAgent:
             "AC 16; HP 22/31; conditions: grappled; effects: Bless"
             in user_text
         )
+        assert "Available combat actions:" in user_text
+        assert "Blade; id blade; attack +5; damage 1d8+3 slashing; range 5 ft" in user_text
         assert "Before initiative, you declared this pending intent: I cut down the raider." in user_text
         assert "## Tactical Map" in user_text
         assert "Gatehouse" in user_text
@@ -574,6 +593,35 @@ class TestCharacterAgent:
         assert "## D&D Combat" in persisted_user
         assert "## Tactical Map" not in persisted_user
         assert "Gatehouse" not in persisted_user
+
+    @pytest.mark.asyncio
+    async def test_foreground_local_context_is_live_only_not_saved(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.turn(
+            guard_character,
+            sample_checkpoint,
+            frame="foreground",
+            local_context=(
+                "Immediate combat instruction: choose one listed action and "
+                "name a target."
+            ),
+        )
+
+        live_user = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
+        assert "## Local Context" in live_user
+        assert "choose one listed action" in live_user
+
+        saved_user = sample_checkpoint.character_conversations[
+            "guard_17"
+        ][0].content
+        assert "## Local Context" not in saved_user
+        assert "choose one listed action" not in saved_user
+        assert "## Turn Frame\nforeground" in saved_user
 
     @pytest.mark.asyncio
     async def test_pending_observations_carry_in_scene_perception(

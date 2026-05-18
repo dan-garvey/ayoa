@@ -30,10 +30,15 @@ For phase PLAN_ROLLS, emit RollPlan:
   needed. If no dice matter, set needs_rolls=false, roll_requests=[], and
   explain no_roll_reason.
 - For attack rolls, set kind="attack_roll", target_id to the target character
-  id, dc to the target AC when known, and action_id to the best matching id
-  from the actor's actions list. Use skill="" unless no action_id exists.
-  The action_id and target_id are the mechanical references for hit and damage
-  resolution, so choose them deliberately.
+  id, dc to the final hit threshold, and action_id to the best matching id from
+  the actor's actions list. The final hit threshold is the target's listed
+  armor_class unless the target, from the attacker's current or declared origin,
+  has cover or another supplied rule that changes the hit threshold. Do not give
+  the target a cover bonus merely because the attacker moved behind cover; cover
+  helps the creature being attacked. If dc differs from the target armor_class,
+  state the concrete reason in the roll reason. Use skill="" unless no action_id
+  exists. The action_id and target_id are the mechanical references for hit and
+  damage resolution, so choose them deliberately.
 - For attack damage with situational resistance, immunity, or vulnerability
   that is visible in this packet and not already part of durable character
   mechanics, add damage_adjustments with kind, a non-empty damage_type, and
@@ -101,12 +106,17 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - router_observed_facts is a short list of narrative continuity facts worth
   carrying beyond initiative. Use [] for routine attacks, routine misses,
   damage totals, ammunition/spell-slot bookkeeping, unnamed creature defeat, or
-  tactical repositioning with no lasting narrative weight.
+  tactical repositioning with no lasting narrative weight. Also use [] for
+  facts already recoverable from active combat state, the battle map, visible
+  outcome facts, or ordinary turn history.
 - Add a router_observed_facts item when this turn changes the story beyond
   ordinary combat accounting: a dramatic rescue, betrayal, surrender,
   negotiation concession, protected objective, public vow, important
   relationship shift, revealed allegiance, irreversible scene change, or a
   choice that should frame play after initiative ends.
+- During ongoing combat, router_observed_facts should usually be []. Failed
+  unlisted features, ordinary commands, threats, tactical squeezes, cover, range,
+  and position advantages are not enough by themselves.
 - Each router_observed_facts item has fact, salience, and reason. fact is the
   concise continuity claim. salience is a simple label such as major, notable,
   or minor. reason explains why this fact should matter later.

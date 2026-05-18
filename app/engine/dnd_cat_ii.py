@@ -435,10 +435,15 @@ def _execute_combat_damage_rolls(
         result = record.result or {}
         hit = _attack_hits(combat, request, result)
         target_ac = _target_ac(combat, request.target_id)
+        defense = (
+            f"effective DC {request.dc} (base AC {target_ac})"
+            if request.dc and request.dc != target_ac
+            else f"AC {target_ac}"
+        )
         _append_ledger_line_once(
             transaction,
             f"{record.roll_id}: attack total {result.get('total', 0)} "
-            f"vs AC {target_ac} -> {'hit' if hit else 'miss'}",
+            f"vs {defense} -> {'hit' if hit else 'miss'}",
         )
         if not hit:
             continue
@@ -1392,6 +1397,8 @@ def _combat_action_summaries(character: object | None) -> list[dict[str, object]
             "attack_bonus": attack.get("bonus", ""),
             "damage": _action_damage_summary(action),
             "damage_type": damage_profile.damage_type,
+            "range": str(attack.get("range") or action.get("range") or ""),
+            "notes": str(action.get("notes") or ""),
         })
     return actions
 
