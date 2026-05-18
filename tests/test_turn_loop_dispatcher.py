@@ -691,7 +691,6 @@ class TestRouteAgentOutput:
             ckpt=ckpt,
             character_id="pip",
             public_text="He paces the threshold.",
-            prior_result=_router_output(),
         ))
 
         user_content = _last_user_content(
@@ -715,6 +714,31 @@ class TestRouteAgentOutput:
         assert "## Cat II Resolution" not in user_content
         assert "source=pip mode=agent_output" in ckpt.session_conversation[-1].content
 
+    def test_agent_output_time_is_floored_to_session_edge(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        ckpt.session.leading_at_s = 30
+        pip.clock_at_s = 90
+        routed = _router_output()
+        routed.effective_at_s = 0
+        mock_client.complete.return_value = _llm_response(routed)
+
+        result = asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
+                ckpt=ckpt,
+                character_id="pip",
+                public_text="He paces the threshold.",
+            )
+        )
+
+        assert result.effective_at_s == 30
+        assert (
+            "source=pip mode=agent_output"
+            in ckpt.session_conversation[-1].content
+        )
+
     def test_agent_output_does_not_drain_original_actor_context(
         self, prompt_mgr, mock_client,
     ):
@@ -727,7 +751,6 @@ class TestRouteAgentOutput:
             ckpt=ckpt,
             character_id="pip",
             public_text="He paces the threshold.",
-            prior_result=_router_output(),
         ))
 
         user_content = _last_user_content(
@@ -750,7 +773,6 @@ class TestRouteAgentOutput:
             ckpt=ckpt,
             character_id="pip",
             public_text="He paces the threshold.",
-            prior_result=_router_output(),
         ))
 
         user_content = _last_user_content(
@@ -775,7 +797,6 @@ class TestRouteAgentOutput:
                 ckpt=ckpt,
                 character_id="pip",
                 public_text="He paces.",
-                prior_result=_router_output(),
             ))
 
         assert ckpt.session.pending_engine_state_updates == before_updates

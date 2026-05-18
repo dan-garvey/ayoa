@@ -444,14 +444,17 @@ def refresh_router_history_record(
 def _normalize_router_result_for_history(
     ckpt: CheckpointFile,
     *,
-    actor_id: str,
     result: EventRouterOutput,
+    clock_anchor_character_id: str = "",
     cat_ii_event: OpenCatIIEvent | None = None,
-    agent_output_mode: bool = False,
+    minimum_effective_at_s: int | None = None,
 ) -> None:
-    if actor_id:
+    if clock_anchor_character_id:
         actor = next(
-            (c for c in ckpt.characters if c.character_id == actor_id),
+            (
+                c for c in ckpt.characters
+                if c.character_id == clock_anchor_character_id
+            ),
             None,
         )
         if actor is not None and cat_ii_event is None:
@@ -466,10 +469,10 @@ def _normalize_router_result_for_history(
         )
         if opening is not None:
             result.effective_at_s = opening.effective_at_s
-    if agent_output_mode:
+    if minimum_effective_at_s is not None:
         result.effective_at_s = max(
             result.effective_at_s,
-            ckpt.session.leading_at_s,
+            minimum_effective_at_s,
         )
 
 
@@ -557,8 +560,8 @@ class LLMDispatcher:
             )
             _normalize_router_result_for_history(
                 ckpt,
-                actor_id=actor_id,
                 result=result,
+                clock_anchor_character_id=actor_id,
                 cat_ii_event=cat_ii_event,
             )
             _append_router_history_record(
@@ -653,8 +656,8 @@ class LLMDispatcher:
         result: EventRouterOutput = response.parsed
         _normalize_router_result_for_history(
             ckpt,
-            actor_id=actor_id,
             result=result,
+            clock_anchor_character_id=actor_id,
             cat_ii_event=cat_ii_event,
         )
         # Persist only compact canonical memory. The current turn's raw
@@ -693,8 +696,8 @@ class LLMDispatcher:
         )
         _normalize_router_result_for_history(
             ckpt,
-            actor_id=actor_id,
             result=result,
+            clock_anchor_character_id=actor_id,
         )
         _append_router_history_record(
             ckpt.session_conversation,
@@ -724,8 +727,8 @@ class LLMDispatcher:
         actor_id = _roll_transaction_actor_id(ckpt, event_id)
         _normalize_router_result_for_history(
             ckpt,
-            actor_id=actor_id,
             result=result,
+            clock_anchor_character_id=actor_id,
         )
         _append_router_history_record(
             ckpt.session_conversation,
@@ -800,8 +803,8 @@ class LLMDispatcher:
         result: EventRouterOutput = response.parsed
         _normalize_router_result_for_history(
             ckpt,
-            actor_id=actor_id,
             result=result,
+            clock_anchor_character_id=actor_id,
         )
         _append_router_history_record(
             ckpt.session_conversation,
@@ -821,7 +824,6 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         character_id: str,
         public_text: str,
-        prior_result: EventRouterOutput,
     ) -> EventRouterOutput:
         """Route one returned character output into one canonical event.
 
@@ -877,9 +879,8 @@ class LLMDispatcher:
         result: EventRouterOutput = response.parsed
         _normalize_router_result_for_history(
             ckpt,
-            actor_id="",
             result=result,
-            agent_output_mode=True,
+            minimum_effective_at_s=ckpt.session.leading_at_s,
         )
         _append_router_history_record(
             ckpt.session_conversation,

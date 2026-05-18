@@ -2043,7 +2043,6 @@ class Dispatcher(Protocol):
         ckpt: CheckpointFile,
         character_id: str,
         public_text: str,
-        prior_result: EventRouterOutput,
     ) -> EventRouterOutput:
         """Route one returned character output back into one canonical event."""
         ...
@@ -2299,7 +2298,6 @@ async def run_beat(
                 ckpt=ckpt,
                 character_id=target.character_id,
                 public_text=agent_output,
-                prior_result=prior_result,
             )
             pending_result = routed
             pending_result_mode = "agent_output"

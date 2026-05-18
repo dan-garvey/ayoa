@@ -701,7 +701,7 @@ class TestBeatCascade:
         agent_output = fake.agent_output_calls[0]
         assert agent_output["character_id"] == "pip"
         assert agent_output["public_text"] == "Pip polishes the bell"
-        assert agent_output["prior_result"] is prior
+        assert "prior_result" not in agent_output
 
     def test_public_fact_observe_only_delivers_inbox_without_cascade(self):
         ckpt = _ckpt({"alice": "1"})
@@ -759,7 +759,7 @@ class TestBeatCascade:
         assert "Alice (alice)" in fake.agent_calls[0]["local_context"]
         agent_output = fake.agent_output_calls[0]
         assert agent_output["character_id"] == "pip"
-        assert agent_output["prior_result"] is prior
+        assert "prior_result" not in agent_output
 
     def test_background_thread_cap_limits_public_fact_cascades(self):
         ckpt = _ckpt({"alice": "1"})
