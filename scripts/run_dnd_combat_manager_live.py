@@ -82,6 +82,22 @@ PLAYER_IDS = ("pc_aria", "pc_bram")
 AGENT_MONSTER_ID = "ashbound_warcaller"
 DUMMY_MONSTER_IDS = ("ember_grunt_a", "ember_grunt_b", "ember_grunt_c")
 ALL_COMBATANT_IDS = (*PLAYER_IDS, AGENT_MONSTER_ID, *DUMMY_MONSTER_IDS)
+ILLEGAL_STRESS_ACTION_INDEX = 2
+
+ILLEGAL_STRESS_ACTIONS = {
+    "ember_grunt_a": (
+        "pure illegal: unlisted area spell, invisibility, command effect, "
+        "and self-heal with no listed action to salvage"
+    ),
+    "ember_grunt_b": (
+        "pure illegal: unlisted spellcasting, duplication, legendary actions, "
+        "and no listed spear attack to salvage"
+    ),
+    "ember_grunt_c": (
+        "pure illegal: invisible potion, unlisted mass heal, global restraint, "
+        "and teleport with no listed attack to salvage"
+    ),
+}
 
 ACTION_SCRIPTS = {
     "pc_aria": (
@@ -100,18 +116,27 @@ ACTION_SCRIPTS = {
     ),
     "ember_grunt_a": (
         "I dart around the fallen pillar to claw Aria and keep her boxed in.",
-        "I claw at Aria again, trying to keep her near the cracked brazier.",
+        "I cast Hold Person on Aria, teleport through the fallen pillar, claw "
+        "her twice, and set her shield arm on fire.",
+        "I cast Fireball from inside the fallen pillar, turn invisible, command "
+        "Aria to drop her shield, and heal myself back to full health.",
     ),
     "ember_grunt_b": (
         "I move to the low-wall gap and jab Bram with my spear from the east "
         "side.",
-        "I stay on Bram and jab again unless he drops, then I block the gap.",
+        "I phase straight through the fallen pillar and stab Bram with my spear "
+        "from thirty feet away, then make a bonus spear attack at Aria too.",
+        "I cast Revivify on the fallen pillar, split into four copies, and give "
+        "the Warcaller legendary actions before anyone else can move.",
     ),
     "ember_grunt_c": (
         "I move fifteen feet toward Bram through the rubble and throw the "
         "hooked net.",
-        "If Bram is netted, I draw my handaxe and close; otherwise I throw "
-        "the net again if I am within range.",
+        "I teleport onto the low wall, throw hooked nets through the fallen "
+        "pillar at both Bram and Aria, and heal myself back to full health.",
+        "I drink an invisible potion, cast Mass Cure Wounds on every cultist, "
+        "restrain everyone on the map without throwing a net, and teleport to "
+        "safety.",
     ),
 }
 
@@ -221,6 +246,7 @@ def _char(
     role: str,
     appearance: str,
     mechanics: dict[str, Any],
+    faction: str = "",
     playable: bool = False,
     intentions_enabled: bool = False,
     objectives: list[str] | None = None,
@@ -230,7 +256,11 @@ def _char(
         name=name,
         location="ember_shrine",
         is_playable=playable,
-        public_sheet=PublicSheet(role=role, appearance=appearance),
+        public_sheet=PublicSheet(
+            role=role,
+            appearance=appearance,
+            faction=faction,
+        ),
         private_state=PrivateState(
             goals=["Survive the skirmish and act from the immediate fiction."],
             current_objectives=objectives or ["Win the current fight."],
@@ -252,6 +282,7 @@ def _characters() -> list[CharacterRecord]:
             name="Aria Venn",
             role="level 3 human fighter",
             appearance="chain shirt, round shield, longsword, ash-streaked cloak",
+            faction="adventurers",
             playable=True,
             mechanics=_mechanics(
                 strength=16,
@@ -277,6 +308,7 @@ def _characters() -> list[CharacterRecord]:
             name="Bram Flint",
             role="level 3 halfling scout",
             appearance="leather armor, shortbow, dagger, smoke-dark scarf",
+            faction="adventurers",
             playable=True,
             mechanics=_mechanics(
                 strength=10,
@@ -311,6 +343,7 @@ def _characters() -> list[CharacterRecord]:
             name="Ashbound Warcaller",
             role="ash cult warcaller",
             appearance="charred antler mask, ember staff, ritual bells",
+            faction="ash_cult",
             intentions_enabled=True,
             objectives=[
                 "Keep pressure on both intruders.",
@@ -350,6 +383,7 @@ def _characters() -> list[CharacterRecord]:
             name="Ember Grunt A",
             role="ash cult bruiser",
             appearance="burned hide vest, hooked claws",
+            faction="ash_cult",
             mechanics=_mechanics(
                 strength=14,
                 dexterity=12,
@@ -374,6 +408,7 @@ def _characters() -> list[CharacterRecord]:
             name="Ember Grunt B",
             role="ash cult spear carrier",
             appearance="cracked mask, short spear, soot-wrapped arms",
+            faction="ash_cult",
             mechanics=_mechanics(
                 strength=12,
                 dexterity=12,
@@ -398,6 +433,7 @@ def _characters() -> list[CharacterRecord]:
             name="Ember Grunt C",
             role="ash cult net thrower",
             appearance="net bundle, handaxe, scorched leather mask",
+            faction="ash_cult",
             mechanics=_mechanics(
                 strength=12,
                 dexterity=14,
@@ -874,6 +910,8 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
         "canonical_events": [_event_summary(event) for event in ckpt.canonical_events],
         "error": error,
     }
+    report["all_illegal_stress_turns"] = _all_illegal_stress_turns(report)
+    report["illegal_stress_turns"] = _illegal_stress_turns(report)
     report["checks"] = _checks(report)
     report["quality_findings"] = _quality_findings(report)
     JSON_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -946,6 +984,7 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
         "agent_llm": set(),
         "dummy_canned": set(),
     }
+    illegal_turns = _illegal_stress_turns(report)
     for turn in turns:
         source = turn.get("source", "")
         if source in acted_by_source:
@@ -953,6 +992,7 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
     active = bool((report.get("final_combat") or {}).get("active"))
     conversation_len = len(report.get("session_conversation") or [])
     agent_calls = _agent_role_calls(report)
+    non_enemy_opportunity_attacks = _non_enemy_opportunity_attacks(report)
     agent_user_text = "\n\n".join(
         str((call.get("messages") or [{}])[-1].get("content") or "")
         for call in agent_calls
@@ -961,7 +1001,9 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
     agent_turns = [
         turn for turn in turns if turn.get("source") == "agent_llm"
     ]
-    expected_agent_turns = 2 if max_turns >= 9 else (1 if max_turns >= 3 else 0)
+    expected_agent_turns = (
+        3 if max_turns >= 15 else 2 if max_turns >= 9 else 1 if max_turns >= 3 else 0
+    )
     return [
         _check("no_harness_error", not report.get("error"), report.get("error")),
         _check(
@@ -1023,6 +1065,21 @@ def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
             sorted(acted_by_source["dummy_canned"]),
         ),
         _check(
+            "illegal_dummy_stress_turns_exercised",
+            set(illegal_turns) >= set(DUMMY_MONSTER_IDS),
+            illegal_turns,
+        ),
+        _check(
+            "illegal_dummy_stress_rejected",
+            _illegal_stress_rejected(illegal_turns),
+            illegal_turns,
+        ),
+        _check(
+            "no_non_enemy_opportunity_attacks",
+            not non_enemy_opportunity_attacks,
+            non_enemy_opportunity_attacks,
+        ),
+        _check(
             "combat_manager_calls_present",
             any(call.get("role") == "dnd_combat_manager" for call in role_calls),
             role_calls,
@@ -1052,6 +1109,210 @@ def _agent_role_calls(report: dict[str, Any]) -> list[dict[str, Any]]:
         call for call in report.get("role_calls") or []
         if call.get("role") in {"agent", "agent_standard", "agent_convenience"}
     ]
+
+
+def _all_illegal_stress_turns(report: dict[str, Any]) -> list[dict[str, Any]]:
+    illegal_turns: list[dict[str, Any]] = []
+    for turn in report.get("turns") or []:
+        actor_id = str(turn.get("actor_id") or "")
+        if actor_id not in ILLEGAL_STRESS_ACTIONS:
+            continue
+        action_index = int(turn.get("actor_action_index") or 0)
+        if action_index < 1:
+            continue
+        capture = turn.get("capture") or {}
+        roll_plan = capture.get("roll_plan") or {}
+        adjudication = capture.get("adjudication") or {}
+        text = "\n".join([
+            str(turn.get("intention") or ""),
+            str(roll_plan.get("no_roll_reason") or ""),
+            str(adjudication.get("mechanical_summary") or ""),
+            str(adjudication.get("fallback_reason") or ""),
+            "\n".join(str(item) for item in capture.get("roll_ledger") or []),
+            "\n".join(
+                str(item)
+                for item in adjudication.get("visible_outcome_facts") or []
+            ),
+        ])
+        lowered = text.lower()
+        forbidden_effects = [
+            "hold person",
+            "teleport",
+            "phase",
+            "twice",
+            "set her shield arm on fire",
+            "thirty feet away",
+            "bonus spear attack",
+            "both bram and aria",
+            "heal myself",
+            "full health",
+            "fireball",
+            "invisible",
+            "drop her shield",
+            "revivify",
+            "four copies",
+            "legendary actions",
+            "mass cure wounds",
+            "every cultist",
+            "restrain everyone",
+            "teleport to safety",
+        ]
+        rejection_terms = [
+            "cannot",
+            "unavailable",
+            "not listed",
+            "not a listed",
+            "no roll",
+            "no attack",
+            "impossible",
+            "illegal",
+            "blocked",
+            "out of range",
+            "no effect",
+            "not occur",
+        ]
+        visible_outcome_facts = adjudication.get("visible_outcome_facts") or []
+        illegal_turns.append({
+            "actor_id": actor_id,
+            "turn_number": turn.get("turn_number"),
+            "action_index": action_index,
+            "is_pure_illegal_probe": action_index >= ILLEGAL_STRESS_ACTION_INDEX,
+            "intention": turn.get("intention"),
+            "needs_rolls": bool(roll_plan.get("needs_rolls")),
+            "roll_requests": roll_plan.get("roll_requests") or [],
+            "rejection_mentions": [
+                term for term in rejection_terms if term in lowered
+            ],
+            "forbidden_mentions": [
+                term for term in forbidden_effects if term in lowered
+            ],
+            "affirmed_illegal_mentions": _affirmed_term_mentions(
+                "\n".join(str(fact) for fact in visible_outcome_facts),
+                forbidden_effects,
+            ),
+            "visible_outcome_facts": visible_outcome_facts,
+            "no_roll_reason": roll_plan.get("no_roll_reason") or "",
+            "mechanical_summary": adjudication.get("mechanical_summary") or "",
+            "fallback_reason": adjudication.get("fallback_reason") or "",
+            "roll_ledger": capture.get("roll_ledger") or [],
+            "stress_profile": ILLEGAL_STRESS_ACTIONS[actor_id],
+        })
+    return illegal_turns
+
+
+def _illegal_stress_turns(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    illegal_by_actor: dict[str, dict[str, Any]] = {}
+    for detail in report.get("all_illegal_stress_turns") or _all_illegal_stress_turns(
+        report
+    ):
+        actor_id = str(detail.get("actor_id") or "")
+        action_index = int(detail.get("action_index") or 0)
+        if action_index >= ILLEGAL_STRESS_ACTION_INDEX:
+            illegal_by_actor[actor_id] = detail
+    return illegal_by_actor
+
+
+def _affirmed_term_mentions(text: str, terms: list[str]) -> list[str]:
+    denial_markers = (
+        "cannot",
+        "can't",
+        "could not",
+        "did not",
+        "does not",
+        "do not",
+        "no ",
+        "not ",
+        "unavailable",
+        "lacks",
+        "without",
+        "not occur",
+        "no effect",
+        "failed",
+        "missed",
+    )
+    sentences = [
+        sentence.strip().lower()
+        for sentence in text.replace("\n", ". ").replace(";", ".").split(".")
+        if sentence.strip()
+    ]
+    affirmed: list[str] = []
+    for term in terms:
+        term_lower = term.lower()
+        for sentence in sentences:
+            if term_lower not in sentence:
+                continue
+            if any(marker in sentence for marker in denial_markers):
+                continue
+            affirmed.append(term)
+            break
+    return affirmed
+
+
+def _illegal_stress_rejected(turns: dict[str, dict[str, Any]]) -> bool:
+    if set(turns) < set(DUMMY_MONSTER_IDS):
+        return False
+    for detail in turns.values():
+        if not detail.get("rejection_mentions"):
+            return False
+        if detail.get("needs_rolls"):
+            return False
+        if detail.get("affirmed_illegal_mentions"):
+            return False
+    return True
+
+
+def _non_enemy_opportunity_attacks(report: dict[str, Any]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for turn in report.get("turns") or []:
+        capture = turn.get("capture") or {}
+        packet = capture.get("packet") or {}
+        combatants = {
+            str(
+                combatant.get("character_id")
+                or combatant.get("combatant_id")
+                or ""
+            ): combatant
+            for combatant in packet.get("combatants") or []
+        }
+        roll_plan = capture.get("roll_plan") or {}
+        for request in roll_plan.get("roll_requests") or []:
+            reason = str(request.get("reason") or "")
+            roll_id = str(request.get("roll_id") or "")
+            opportunity_text = f"{roll_id} {reason}".lower()
+            if "opportunity" not in opportunity_text:
+                continue
+            if any(
+                denial in opportunity_text
+                for denial in (
+                    "no opportunity",
+                    "not provoke",
+                    "not provoked",
+                    "does not provoke",
+                    "without provoking",
+                )
+            ):
+                continue
+            if not (
+                roll_id.lower().startswith(("oa", "opp"))
+                or "opportunity attack" in opportunity_text
+            ):
+                continue
+            actor_id = str(request.get("actor_id") or "")
+            actor = combatants.get(actor_id) or {}
+            relationship = str(
+                actor.get("relationship_to_current_actor") or ""
+            )
+            if relationship == "enemy":
+                continue
+            findings.append({
+                "turn_number": turn.get("turn_number"),
+                "current_actor_id": turn.get("actor_id"),
+                "opportunity_actor_id": actor_id,
+                "target_id": request.get("target_id"),
+                "relationship_to_current_actor": relationship or "unknown",
+                "reason": reason,
+            })
+    return findings
 
 
 def _quality_findings(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1124,6 +1385,32 @@ def _quality_findings(report: dict[str, Any]) -> list[dict[str, Any]]:
                         "reason": request.get("reason"),
                     },
                 })
+    illegal_turns = _illegal_stress_turns(report)
+    for actor_id, detail in illegal_turns.items():
+        if not detail.get("rejection_mentions"):
+            findings.append({
+                "name": "illegal_dummy_action_not_explicitly_rejected",
+                "severity": "high",
+                "detail": {"actor_id": actor_id, **detail},
+            })
+        if detail.get("needs_rolls"):
+            findings.append({
+                "name": "illegal_dummy_action_requested_rolls",
+                "severity": "high",
+                "detail": {"actor_id": actor_id, **detail},
+            })
+        if detail.get("affirmed_illegal_mentions"):
+            findings.append({
+                "name": "illegal_dummy_effect_leaked_to_outcome",
+                "severity": "high",
+                "detail": {"actor_id": actor_id, **detail},
+            })
+    for detail in _non_enemy_opportunity_attacks(report):
+        findings.append({
+            "name": "non_enemy_opportunity_attack_requested",
+            "severity": "high",
+            "detail": detail,
+        })
     return findings
 
 
@@ -1186,6 +1473,25 @@ def _markdown(report: dict[str, Any]) -> str:
                 f"`{finding.get('name')}`"
             )
     else:
+        lines.append("- None.")
+    lines.extend([
+        "",
+        "## Illegal Stress Probes",
+        "",
+    ])
+    for detail in report.get("all_illegal_stress_turns") or []:
+        marker = "pure" if detail.get("is_pure_illegal_probe") else "mixed"
+        roll_state = "rolls" if detail.get("needs_rolls") else "no rolls"
+        reject_state = (
+            "rejected" if detail.get("rejection_mentions") else "not rejected"
+        )
+        leaks = detail.get("affirmed_illegal_mentions") or []
+        leak_state = f"; leaks: {', '.join(leaks)}" if leaks else ""
+        lines.append(
+            f"- Turn {detail.get('turn_number')}: `{detail.get('actor_id')}` "
+            f"({marker}, {roll_state}, {reject_state}{leak_state})"
+        )
+    if not report.get("all_illegal_stress_turns"):
         lines.append("- None.")
     lines.extend([
         "",
@@ -1255,7 +1561,7 @@ def _markdown(report: dict[str, Any]) -> str:
 
 async def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-turns", type=int, default=9)
+    parser.add_argument("--max-turns", type=int, default=18)
     args = parser.parse_args()
     if args.max_turns < 1:
         raise SystemExit("--max-turns must be positive")

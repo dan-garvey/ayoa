@@ -51,6 +51,7 @@ def _character(
     actions: list[dict] | None = None,
     defenses: dict | None = None,
     spellcasting: dict | None = None,
+    faction: str = "",
 ) -> CharacterRecord:
     if actions is None:
         actions = []
@@ -63,7 +64,7 @@ def _character(
     return CharacterRecord(
         character_id=character_id,
         name=name,
-        public_sheet=PublicSheet(role="combatant"),
+        public_sheet=PublicSheet(role="combatant", faction=faction),
         mechanics={
             "ruleset_id": "dnd5e_basic",
             "ability_scores": {
@@ -426,6 +427,68 @@ def test_combat_packet_trims_non_actor_inventory_resources_and_raw():
     assert "inventory" not in by_id["bob"]["mechanics"]
     assert "raw" not in by_id["bob"]["mechanics"]
     assert by_id["bob"]["mechanics"]["defenses"] == {}
+
+
+def test_combat_packet_marks_current_actor_relationships():
+    ckpt = _ckpt()
+    ckpt.characters[1] = _character("bob", "Bob", faction="ash_cult")
+    ckpt.characters.append(_character("eve", "Eve", faction="ash_cult"))
+    ckpt.session.active_combat.turn_index = 1
+    ckpt.session.active_combat.combatants[1].name = "Bob"
+    ckpt.session.active_combat.combatants.append(DndCombatantState(
+        combatant_id="eve",
+        character_id="eve",
+        name="Eve",
+        armor_class=12,
+        hit_points_current=13,
+        hit_points_max=13,
+    ))
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="No roll needed.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            mechanical_summary="Bob waits.",
+            visible_outcome_facts=["Bob waits."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+        ckpt=ckpt,
+        actor_id="bob",
+        intention="I wait.",
+    ))
+
+    packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[0].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    by_id = {
+        combatant["character_id"]: combatant
+        for combatant in packet["combatants"]
+    }
+    assert by_id["bob"]["relationship_to_current_actor"] == "self"
+    assert by_id["alice"]["relationship_to_current_actor"] == "enemy"
+    assert by_id["alice"]["enemy_to_current_actor"] is True
+    assert by_id["eve"]["relationship_to_current_actor"] == "ally"
+    assert by_id["eve"]["enemy_to_current_actor"] is False
+    assert by_id["eve"]["faction"] == "ash_cult"
+    assert by_id["eve"]["reaction_available"] is True
 
 
 def test_combat_resolver_observes_target_dropped_by_same_event(monkeypatch):

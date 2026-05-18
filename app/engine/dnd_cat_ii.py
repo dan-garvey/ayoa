@@ -1279,6 +1279,9 @@ def _build_combat_packet(
     by_id = {c.character_id: c for c in ckpt.characters}
     bindings = ckpt.session.character_bindings or {}
     current = _current_combatant(combat)
+    actor_char = by_id.get(actor_id)
+    actor_is_player = actor_id in bindings
+    actor_faction = _combat_public_faction(actor_char)
     participants = []
     for combatant in _combatants(combat):
         cid = str(
@@ -1287,11 +1290,33 @@ def _build_combat_packet(
             or ""
         )
         char = by_id.get(cid)
+        relationship = _relationship_to_current_actor(
+            actor_id=actor_id,
+            actor_is_player=actor_is_player,
+            actor_faction=actor_faction,
+            character_id=cid,
+            character=char,
+            bindings=bindings,
+        )
         participants.append({
             "combatant_id": str(getattr(combatant, "combatant_id", "") or cid),
             "character_id": cid,
+            "name": str(
+                getattr(combatant, "name", "")
+                or getattr(char, "name", "")
+                or ""
+            ),
+            "role": str(
+                getattr(getattr(char, "public_sheet", None), "role", "") or ""
+            ),
+            "faction": _combat_public_faction(char),
             "player_controlled": cid in bindings,
+            "relationship_to_current_actor": relationship,
+            "enemy_to_current_actor": relationship == "enemy",
             "current": combatant is current,
+            "reaction_available": bool(
+                getattr(combatant, "reaction_available", True)
+            ),
             "armor_class": int(getattr(combatant, "armor_class", 10) or 10),
             "hit_points": {
                 "current": int(
@@ -1350,6 +1375,36 @@ def _build_combat_packet(
         **spatial_context,
     }
     return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _combat_public_faction(character: object | None) -> str:
+    public_sheet = getattr(character, "public_sheet", None)
+    return str(getattr(public_sheet, "faction", "") or "")
+
+
+def _relationship_to_current_actor(
+    *,
+    actor_id: str,
+    actor_is_player: bool,
+    actor_faction: str,
+    character_id: str,
+    character: object | None,
+    bindings: dict[str, str],
+) -> str:
+    if character_id == actor_id:
+        return "self"
+    character_is_player = character_id in bindings
+    if character_is_player != actor_is_player:
+        return "enemy"
+    character_faction = _combat_public_faction(character)
+    if (
+        not character_is_player
+        and actor_faction
+        and character_faction
+        and actor_faction != character_faction
+    ):
+        return "unknown"
+    return "ally"
 
 
 def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:

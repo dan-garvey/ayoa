@@ -55,7 +55,10 @@ For phase PLAN_ROLLS, emit RollPlan:
 - Use advantage_state only when the supplied state makes it clear.
 - Opportunity attacks are automatic. If movement provokes one, include its
   attack roll in roll_requests; do not request an optional reaction prompt for
-  it.
+  it. Opportunity attacks only come from enemy creatures with legal reach and
+  an available reaction. Use relationship_to_current_actor,
+  enemy_to_current_actor, and reaction_available in the combatants list; never
+  roll an opportunity attack from an ally, neutral/unknown creature, or self.
 
 For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - Use the roll ledger exactly as supplied. Ledger totals are authoritative for
