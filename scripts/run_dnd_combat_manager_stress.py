@@ -68,6 +68,7 @@ RUN_DIR = REPORT_DIR / f"dnd_combat_manager_stress_{TS}"
 JSON_PATH = RUN_DIR / "report.json"
 MD_PATH = RUN_DIR / "report.md"
 LOG_PATH = RUN_DIR / "run.log"
+RAW_CALLS_PATH = RUN_DIR / "raw_calls.jsonl"
 
 
 @dataclass
@@ -1308,6 +1309,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
         raise SystemExit("Missing API key(s) for: " + ", ".join(missing))
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
+    RAW_CALLS_PATH.write_text("", encoding="utf-8")
     logging.basicConfig(
         filename=LOG_PATH,
         level=logging.INFO,
@@ -1318,14 +1320,20 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
     prompt_mgr = PromptManager(str(REPO_ROOT / "app/prompts"))
     resolver = CapturingDndCombatResolver(client, prompt_mgr)
     role_calls: list[dict[str, Any]] = []
+    active_call_context: dict[str, Any] = {}
+    raw_call_index = 0
     real_complete = client.complete
 
     async def _recording_complete(*call_args, **kwargs):
+        nonlocal raw_call_index
         role = kwargs.get("role") or (call_args[0] if call_args else "")
         response_model = kwargs.get("response_model")
+        raw_call_index += 1
+        call_index = raw_call_index
         entry: dict[str, Any] = {
             "role": str(role),
             "response_model": response_model.__name__ if response_model else "",
+            "raw_call_index": call_index,
         }
         started = time.perf_counter()
         try:
@@ -1334,11 +1342,39 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
             entry["elapsed_s"] = round(time.perf_counter() - started, 3)
             entry["error"] = repr(exc)
             role_calls.append(entry)
+            _append_raw_call({
+                "call_index": call_index,
+                "scenario": dict(active_call_context),
+                "phase": _phase_label(response_model),
+                "role": str(role),
+                "response_model": entry["response_model"],
+                "elapsed_s": entry["elapsed_s"],
+                "error": repr(exc),
+            })
             raise
         entry["elapsed_s"] = round(time.perf_counter() - started, 3)
         entry["model"] = getattr(response, "model", "") or ""
         entry["usage"] = dict(getattr(response, "usage", {}) or {})
         role_calls.append(entry)
+        _append_raw_call({
+            "call_index": call_index,
+            "scenario": dict(active_call_context),
+            "phase": _phase_label(response_model),
+            "role": str(role),
+            "response_model": entry["response_model"],
+            "elapsed_s": entry["elapsed_s"],
+            "model": entry["model"],
+            "usage": entry["usage"],
+            "content": getattr(response, "content", "") or "",
+            "parsed": _jsonable(getattr(response, "parsed", None)),
+            "reasoning_summaries": list(
+                getattr(response, "reasoning_summaries", []) or []
+            ),
+            "assistant_content": _jsonable(
+                getattr(response, "assistant_content", None)
+            ),
+            "raw_response": _jsonable(getattr(response, "raw_response", None)),
+        })
         return response
 
     client.complete = _recording_complete  # type: ignore[method-assign]
@@ -1347,6 +1383,13 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
     error = ""
     try:
         for index, scenario in enumerate(selected, start=1):
+            active_call_context = {
+                "index": index,
+                "name": scenario.name,
+                "category": scenario.category,
+                "actor_id": scenario.actor_id,
+                "intention": scenario.intention,
+            }
             call_start = len(role_calls)
             capture_start = len(resolver.captures)
             ckpt = _checkpoint(config, scenario)
@@ -1396,6 +1439,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
             "dnd_combat_manager": _role_label(config, "dnd_combat_manager"),
         },
         "scenario_count": len(selected),
+        "raw_calls_path": str(RAW_CALLS_PATH),
         "scenarios": scenario_results,
         "role_calls": role_calls,
         "usage_totals": _usage_totals(role_calls),
@@ -1433,6 +1477,40 @@ def _capture_dump(capture: CombatCapture | None) -> dict[str, Any]:
         "roll_ledger": capture.roll_ledger,
         "adjudication": capture.adjudication,
     }
+
+
+def _append_raw_call(payload: dict[str, Any]) -> None:
+    with RAW_CALLS_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _phase_label(response_model: object) -> str:
+    name = getattr(response_model, "__name__", "")
+    if name == "RollPlan":
+        return "plan_rolls"
+    if name == "DndCombatManagerAdjudication":
+        return "finalize_outcome"
+    return str(name or "unstructured")
+
+
+def _jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_jsonable(item) for item in value]
+    if hasattr(value, "model_dump"):
+        try:
+            return _jsonable(value.model_dump(mode="json"))
+        except Exception:
+            pass
+    if hasattr(value, "to_dict"):
+        try:
+            return _jsonable(value.to_dict())
+        except Exception:
+            pass
+    return repr(value)
 
 
 def _hp_by_id(ckpt: CheckpointFile) -> dict[str, int]:
@@ -1929,6 +2007,7 @@ def _checks(results: list[dict[str, Any]], error: str) -> list[dict[str, Any]]:
         for call in result.get("role_calls") or []
         if call.get("role") == "dnd_combat_manager"
     ]
+    cache_check_required = len(results) > 1
     return [
         _check("no_harness_error", not error, error),
         _check(
@@ -1947,15 +2026,18 @@ def _checks(results: list[dict[str, Any]], error: str) -> list[dict[str, Any]]:
         ),
         _check(
             "progressive_cache_reads_observed",
-            any(
+            not cache_check_required or any(
                 int((call.get("usage") or {}).get("cache_read_input_tokens", 0) or 0)
                 > 0
                 for call in calls[1:]
             ),
-            [
-                (call.get("usage") or {}).get("cache_read_input_tokens", 0)
-                for call in calls
-            ],
+            (
+                "not required for a single-scenario run"
+                if not cache_check_required else [
+                    (call.get("usage") or {}).get("cache_read_input_tokens", 0)
+                    for call in calls
+                ]
+            ),
         ),
     ]
 
@@ -2002,6 +2084,7 @@ def _markdown(report: dict[str, Any]) -> str:
         "",
         f"Generated: `{report['generated_at']}`",
         f"Run dir: `{report['run_dir']}`",
+        f"Raw calls: `{report.get('raw_calls_path', '')}`",
         f"Combat manager: `{report['roles']['dnd_combat_manager']}`",
         "",
         "## Checks",
@@ -2128,6 +2211,7 @@ async def main() -> None:
     report = await _run_harness(scenarios)
     print(JSON_PATH)
     print(MD_PATH)
+    print(RAW_CALLS_PATH)
     for check in report["checks"]:
         status = "PASS" if check["passed"] else "FAIL"
         print(f"{status}: {check['name']}")
