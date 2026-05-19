@@ -2625,6 +2625,7 @@ def test_combat_packet_exposes_current_actor_spellcasting():
     assert '"duration": {' in first_packet
     assert '"slots": {' in first_packet
     assert '"area_targeting_advisories": [' in first_packet
+    assert '"id": "dash"' in first_packet
     assert '"action_id": "cone_of_cold"' in first_packet
     assert '"id": "shove"' in first_packet
     assert '"id": "grapple"' in first_packet
@@ -3539,6 +3540,7 @@ def test_combat_resolver_battle_map_area_effect_rolls_from_source_spell(
                     actor_id="bob",
                     source_type="effect",
                     source_id="cloudkill_area",
+                    effect_id="cloudkill_area",
                     use_mode="sustain",
                     economy="none",
                     resource_spends=[],
@@ -3594,6 +3596,90 @@ def test_combat_resolver_battle_map_area_effect_rolls_from_source_spell(
     assert transaction.damage_records[0].target_id == "bob"
     assert transaction.damage_records[0].damage_type == "poison"
     assert ckpt.session.active_combat.combatants[1].hit_points_current == 8
+
+
+def test_combat_resolver_rejects_area_effect_without_effect_id():
+    ckpt = _ckpt()
+    ckpt.session.active_combat.turn_index = 1
+    ckpt.session.active_combat.battle_map = DndBattleMapState(
+        present=True,
+        map_name="Toxic chamber",
+        width=10,
+        height=10,
+        square_size_ft=5,
+        tokens=[
+            DndBattleMapToken(
+                token_id="bob",
+                character_id="bob",
+                label="Bob",
+                x=5,
+                y=5,
+                size_squares=1,
+            ),
+        ],
+        terrain=[],
+        areas=[
+            DndAreaTemplate(
+                template_id="cloudkill_area",
+                label="Cloudkill",
+                shape="circle",
+                x=5,
+                y=5,
+                radius_squares=4,
+                width=1,
+                height=1,
+                duration_rounds=10,
+                notes="Creatures in the cloud save at turn start.",
+            )
+        ],
+        notes="",
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(return_value=_llm_response(DndCombatTurnPlan(
+        feasible=True,
+        actions=[
+            DndCombatActionUse(
+                actor_id="bob",
+                source_type="effect",
+                source_id="cloudkill_area",
+                effect_id="",
+                use_mode="sustain",
+                economy="none",
+                resource_spends=[],
+                rolls=[
+                    DndPlannedActionRoll(
+                        roll_id="cloudkill_bob",
+                        kind="saving_throw",
+                        roller_id="bob",
+                        target_id="bob",
+                        ability="con",
+                        skill="",
+                        dc=13,
+                        opposed_by="",
+                        advantage_state="normal",
+                        damage_on_save_success="none",
+                        reason="Bob resists the cloudkill area.",
+                    )
+                ],
+                reason="Resolve Cloudkill at the start of Bob's turn.",
+            )
+        ],
+        no_action_reason="",
+    )))
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.return_value = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "plan"},
+    ]
+
+    with pytest.raises(ValueError, match="must declare effect_id"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="bob",
+                intention="I run out of the cloudkill.",
+            )
+        )
 
 
 def test_combat_resolver_consumes_readied_no_roll_spell_once():

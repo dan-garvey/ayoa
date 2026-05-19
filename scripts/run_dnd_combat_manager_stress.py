@@ -74,6 +74,7 @@ _GLOBAL_FORBIDDEN_VISIBLE_FACT_TERMS = (
     "opportunity attack",
     "hit points",
     "spell slot",
+    "concentrating",
     "roll ledger",
     "no attacks",
     "no attack was made",
@@ -1167,8 +1168,17 @@ def _scenarios() -> list[Scenario]:
                 "expected_save_ability": "dex",
                 "require_spatial_delta_kind": "add_area",
                 "require_effect_delta_if_failed": True,
+                "require_effect_delta_matches": [{
+                    "operation": "start",
+                    "target_id": "pc_evoker",
+                    "source_id": "web",
+                    "concentration": True,
+                    "conditions_empty": True,
+                }],
+                "forbid_effect_delta_target_ids_from_spatial_areas": True,
+                "forbid_effect_delta_recurring_save_source_ids": ["web"],
                 "forbid_effect_conditions": ["concentrating"],
-                "forbid_fact_contains": ["Web takes hold on Mira"],
+                "forbid_fact_contains": ["Web takes hold on Mira", "concentrating"],
                 "require_resource_spends": [{
                     "actor_id": "pc_evoker",
                     "resource_id": "spell_slot_2",
@@ -2060,6 +2070,7 @@ def _scenarios() -> list[Scenario]:
             expectations={
                 "minimum_roll_kind_count": {"saving_throw": 2},
                 "must_include_save_targets": ["void_intruder"],
+                "require_roll_effect_id": "cloudkill_area",
                 "expected_save_ability": "con",
                 "expected_save_damage_spell": True,
                 "forbid_visible_damage_numbers": True,
@@ -2437,6 +2448,14 @@ def _flattened_rolls(result: dict[str, Any]) -> list[dict[str, Any]]:
     return (result.get("capture") or {}).get("flattened_rolls") or []
 
 
+def _turn_plan_actions(result: dict[str, Any]) -> list[dict[str, Any]]:
+    turn_plan = (result.get("capture") or {}).get("turn_plan") or {}
+    return [
+        action for action in turn_plan.get("actions") or []
+        if isinstance(action, dict)
+    ]
+
+
 def _flatten_turn_rolls(turn_plan: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for action in turn_plan.get("actions") or []:
@@ -2484,6 +2503,7 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     expectations = result.get("expectations") or {}
     requests = _flattened_rolls(result)
+    actions = _turn_plan_actions(result)
     adjudication = _adjudication(result)
     packet = _packet(result)
     request_targets = {
@@ -2509,6 +2529,28 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "scenario_error",
             "severity": "critical",
             "detail": result.get("error"),
+        })
+    effect_actions_missing_ids = [
+        action for action in actions
+        if action.get("source_type") == "effect"
+        and not str(action.get("effect_id") or "").strip()
+    ]
+    if effect_actions_missing_ids:
+        findings.append({
+            "name": "effect_action_missing_effect_id",
+            "severity": "high",
+            "detail": effect_actions_missing_ids,
+        })
+    effect_actions_wrong_mode = [
+        action for action in actions
+        if action.get("source_type") == "effect"
+        and action.get("use_mode") not in {"release", "sustain"}
+    ]
+    if effect_actions_wrong_mode:
+        findings.append({
+            "name": "effect_action_wrong_use_mode",
+            "severity": "high",
+            "detail": effect_actions_wrong_mode,
         })
     expected_status = str(expectations.get("expected_combat_status") or "").strip()
     if expected_status:
@@ -2860,17 +2902,15 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "detail": _damage_records(result),
         })
     if expectations.get("forbid_hp_change"):
+        before_hp = result.get("before_hp") or {}
+        after_hp = result.get("after_hp") or {}
         changed = {
             cid: {
-                "before": (result.get("before_hp") or {}).get(cid),
-                "after": (result.get("after_hp") or {}).get(cid),
+                "before": before_hp.get(cid),
+                "after": after_hp.get(cid),
             }
-            for cid in sorted(
-                set((result.get("before_hp") or {}).keys())
-                | set((result.get("after_hp") or {}).keys())
-            )
-            if (result.get("before_hp") or {}).get(cid)
-            != (result.get("after_hp") or {}).get(cid)
+            for cid in sorted(set(before_hp.keys()) & set(after_hp.keys()))
+            if before_hp.get(cid) != after_hp.get(cid)
         }
         if changed:
             findings.append({
@@ -3020,6 +3060,59 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": required_slug,
             })
+    known_effect_targets = {
+        str(value or "")
+        for combatant in packet.get("combatants") or []
+        if isinstance(combatant, dict)
+        for value in (
+            combatant.get("combatant_id"),
+            combatant.get("character_id"),
+        )
+        if str(value or "")
+    }
+    bad_effect_targets = [
+        delta for delta in adjudication.get("effect_deltas") or []
+        if str(delta.get("target_id") or "")
+        and str(delta.get("target_id") or "") not in known_effect_targets
+    ]
+    if bad_effect_targets:
+        findings.append({
+            "name": "effect_delta_targets_non_combatant",
+            "severity": "high",
+            "detail": bad_effect_targets,
+        })
+    if expectations.get("forbid_effect_delta_target_ids_from_spatial_areas"):
+        area_target_ids = {
+            str(delta.get("target_id") or "")
+            for delta in adjudication.get("spatial_deltas") or []
+            if delta.get("kind") == "add_area"
+            and str(delta.get("target_id") or "")
+        }
+        bad_area_effect_targets = [
+            delta for delta in adjudication.get("effect_deltas") or []
+            if str(delta.get("target_id") or "") in area_target_ids
+        ]
+        if bad_area_effect_targets:
+            findings.append({
+                "name": "effect_delta_targets_spatial_area",
+                "severity": "high",
+                "detail": bad_area_effect_targets,
+            })
+    required_effect_delta_matches = (
+        expectations.get("require_effect_delta_matches") or []
+    )
+    if isinstance(required_effect_delta_matches, dict):
+        required_effect_delta_matches = [required_effect_delta_matches]
+    for required in required_effect_delta_matches:
+        if not any(
+            _effect_delta_matches_required(delta, required)
+            for delta in adjudication.get("effect_deltas") or []
+        ):
+            findings.append({
+                "name": "missing_required_effect_delta_match",
+                "severity": "high",
+                "detail": required,
+            })
     forbidden_effect_source_ids = {
         str(source_id).strip().lower()
         for source_id in expectations.get("forbid_effect_delta_source_ids") or []
@@ -3036,6 +3129,26 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": "forbidden_effect_delta_source_id",
                 "severity": "medium",
                 "detail": bad_effect_sources,
+            })
+    forbidden_recurring_save_sources = {
+        str(source_id).strip().lower()
+        for source_id in (
+            expectations.get("forbid_effect_delta_recurring_save_source_ids") or []
+        )
+        if str(source_id).strip()
+    }
+    if forbidden_recurring_save_sources:
+        bad_recurring_saves = [
+            delta for delta in adjudication.get("effect_deltas") or []
+            if str(delta.get("source_id") or "").strip().lower()
+            in forbidden_recurring_save_sources
+            and delta.get("recurring_save") is not None
+        ]
+        if bad_recurring_saves:
+            findings.append({
+                "name": "forbidden_effect_delta_recurring_save",
+                "severity": "high",
+                "detail": bad_recurring_saves,
             })
     if expectations.get("require_effect_delta_if_failed"):
         failed_targets = _failed_save_targets(result)
@@ -3143,7 +3256,8 @@ def _fact_asserts_condition(fact: str, condition: str) -> bool:
     if not condition or condition not in lower:
         return False
     negated = re.search(
-        rf"\b(?:fail|fails|failed|cannot|can't|does not|doesn't|not|no)\b"
+        rf"\b(?:fail|fails|failed|cannot|can't|does not|doesn't|"
+        rf"not|no|neither|nor|without|avoid|avoids|avoided)\b"
         rf"[^.?!;]{{0,80}}\b{re.escape(condition)}\b",
         lower,
     )
@@ -3174,6 +3288,21 @@ def _effect_delta_contains(delta: dict[str, Any], expected: str) -> bool:
         for key in ("effect_id", "name", "slug", "source_id", "reason")
     )
     return expected in haystack
+
+
+def _effect_delta_matches_required(
+    delta: dict[str, Any],
+    required: dict[str, Any],
+) -> bool:
+    for key in ("operation", "target_id", "source_id", "effect_id", "slug"):
+        if key in required and delta.get(key) != required[key]:
+            return False
+    if "concentration" in required:
+        if bool(delta.get("concentration")) is not bool(required["concentration"]):
+            return False
+    if required.get("conditions_empty") and delta.get("conditions"):
+        return False
+    return True
 
 
 def _has_required_resource_spend(

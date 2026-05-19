@@ -66,6 +66,16 @@ _DAMAGE_TYPES = {
 }
 _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
     {
+        "id": "dash",
+        "name": "Dash",
+        "range": "self",
+        "notes": (
+            "Universal D&D combat action. The actor uses their action to gain "
+            "extra movement for the current turn. Dash requires no roll and "
+            "deals no damage."
+        ),
+    },
+    {
         "id": "shove",
         "name": "Shove",
         "range": "5 ft",
@@ -627,11 +637,7 @@ def _battle_map_area_source_for_action(
     battle_map = getattr(combat, "battle_map", None) if combat is not None else None
     if battle_map is None:
         return None
-    wanted = {
-        _normalize_action_text(action.effect_id),
-        _normalize_action_text(action.source_id),
-    }
-    wanted = {value for value in wanted if value}
+    wanted = _normalize_action_text(action.effect_id)
     if not wanted:
         return None
     for area in list(getattr(battle_map, "areas", []) or []):
@@ -640,7 +646,7 @@ def _battle_map_area_source_for_action(
             _normalize_action_text(getattr(area, "label", "") or ""),
         }
         area_keys = {value for value in area_keys if value}
-        if not wanted.intersection(area_keys):
+        if wanted not in area_keys:
             continue
         template_id = str(getattr(area, "template_id", "") or "")
         label = str(getattr(area, "label", "") or "")
@@ -698,6 +704,19 @@ def _validate_combat_action_source(
 ) -> None:
     if action.source_type in {"movement", "object", "speech"}:
         return
+    if action.source_type == "effect" and not action.effect_id:
+        raise ValueError(
+            "D&D combat effect actions must declare effect_id. Use the active "
+            "effect_id for runtime effects or the battle-map area template_id "
+            f"for persistent areas: actor={action.actor_id!r} "
+            f"source_id={action.source_id!r}."
+        )
+    if action.source_type == "effect" and action.use_mode not in {"release", "sustain"}:
+        raise ValueError(
+            "D&D combat effect actions must use release or sustain: "
+            f"actor={action.actor_id!r} source_id={action.source_id!r} "
+            f"effect_id={action.effect_id!r} use_mode={action.use_mode!r}."
+        )
     if not action.source_id and not action.effect_id:
         raise ValueError(
             f"D&D combat action from {action.actor_id!r} is missing source_id."

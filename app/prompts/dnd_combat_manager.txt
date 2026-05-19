@@ -38,7 +38,10 @@ For phase PLAN_TURN, emit an action-first turn plan:
   scorching_ray, magic_missile, shove, grapple, disarm, or a listed weapon or
   feature id. effect_id identifies an existing active effect instance when
   source_type="effect" or when a readied or ongoing effect is released or
-  sustained.
+  sustained. For an existing battle_map area, use source_type="effect",
+  source_id set to that area's template_id, effect_id set to the same
+  template_id, use_mode="sustain", and economy="none". Never leave effect_id
+  empty when source_type="effect".
 - resource_spends is the only place to declare consumed slots, pact slots,
   limited features, charges, or similar resources. Do not rely on finalization
   prose, effect names, or roll labels to imply a resource spend.
@@ -101,6 +104,12 @@ For phase PLAN_TURN, emit an action-first turn plan:
   released effect. The held action was already readied, so release never spends
   the spell slot or other casting resource again. Use damage_roll for held
   damage that needs no attack roll or saving throw.
+- Existing battle_map areas may impose start-of-turn or entry effects. If an
+  actor starts in or enters such an area, include one source_type="effect"
+  action for that area with source_id and effect_id set to the area's
+  template_id, use_mode="sustain", economy="none", resource_spends=[], and the
+  required saves or damage rolls. Cloudkill and Sickening Radiance start-of-turn
+  saves are examples of this pattern.
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
 - Use advantage_state only when the supplied state makes it clear.
 - Opportunity attacks are automatic. If movement provokes one, include a
@@ -164,7 +173,9 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   or put them in rules_notes. For non-damaging actions such as disarm, shove,
   grapple, or narrative utility actions, narrate only the visible item,
   movement, condition, or positioning result; do not add a visible fact saying
-  neither side was hurt or that the action dealt no damage.
+  neither side was hurt or that the action dealt no damage. Do not state that a
+  character is concentrating as a visible fact; put concentration bookkeeping in
+  effect_deltas, mechanical_summary, or rules_notes.
 - Use explicit names for non-self-referential character references. If the
   sentence names the acting character as the subject, normal self-reference is
   allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a
@@ -205,6 +216,16 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   otherwise conditions failed-save creatures, use spatial_deltas for the area
   and one effect_delta start per affected creature for the sourced condition.
   Do not represent a sustained spell condition only as a combat_state_delta.
+  If the spell requires concentration, also emit a concentration-only
+  effect_delta on the caster with conditions=[], concentration=true, and the
+  spell source_id. Do not emit effect_deltas whose target_id is a battle-map
+  area id; areas are persisted only through spatial_deltas. When a
+  concentration area later ends, remove the area with spatial_deltas and end any
+  sourced creature conditions with effect_deltas.
+- Web-specific rule: Web's initial area save is a Dexterity save in PLAN_TURN.
+  A creature restrained by Web does not get an automatic recurring Dexterity
+  save. Its restrained effect should have recurring_save=null; escaping Web is
+  a later action that uses a Strength check against the spell save DC.
 - If action economy or legality makes a declared second action unavailable,
   visible facts should say the character cannot also do that part this turn, not
   that the character attempted it and failed.
