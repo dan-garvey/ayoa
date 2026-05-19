@@ -87,6 +87,8 @@ class DndCombatResolver:
         packet = json.dumps(transaction.context, indent=2, sort_keys=True)
         adjudication = await self._finalize(packet, transaction.ledger_lines)
         cat._apply_combat_damage_records(ckpt, transaction)
+        cat._prepare_combat_resource_spends(ckpt, transaction, adjudication)
+        cat._apply_combat_resource_spends(ckpt, transaction)
         cat._apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
         effect_notes = cat._apply_combat_effect_deltas(
             ckpt,

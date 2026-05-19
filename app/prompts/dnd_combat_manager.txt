@@ -58,6 +58,9 @@ For phase PLAN_ROLLS, emit RollPlan:
   modifier_bonus_reason; do not change the caster's dc for that target bonus.
   For save-damage spells, set damage_on_save_success to "half", "none", or
   "full" from the spell rule.
+- Leave effect_id empty for initial spell saves and other immediate saves. Use
+  effect_id only when the roll is a follow-up save/check for an already
+  sustained effect in the packet.
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
 - Use advantage_state only when the supplied state makes it clear.
 - Opportunity attacks are automatic. If movement provokes one, include its
@@ -76,8 +79,10 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - Set combat_status="ended" only when active hostilities clearly stop through
   defeat, surrender, flight, or mutual de-escalation. Otherwise set "ongoing".
 - visible_outcome_facts are public, concrete facts of this turn's resolved
-  action. Do not reveal roll formulas, totals, rules notes, or hidden intent in
-  visible facts.
+  action. Do not reveal roll formulas, totals, damage numbers, rules notes, or
+  hidden intent in visible facts. Once the ledger has resolved the result, state
+  what visibly happened; avoid unresolved alternatives such as "stagger or
+  collapse."
 - Use explicit names for non-self-referential character references. If the
   sentence names the acting character as the subject, normal self-reference is
   allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a
@@ -92,12 +97,18 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   duration, concentration, break_triggers, and recurring saves. break_triggers
   are reminders for future turns; if the current action matches one, emit an
   explicit end effect_delta.
+- Do not put "concentrating" in effect_delta conditions. Use concentration=true
+  for concentration bookkeeping. Concentration-only self effects should have no
+  conditions and should not imply the spell "takes hold" on the caster.
 - If the current action breaks an existing effect, emit an explicit end
   effect_delta for that effect. Do not imply effect endings through any
   separate action-label field.
 - For a save-ends spell such as Hold Person, put the initial saving throw in
   PLAN_ROLLS. If the spell takes hold, emit an effect_delta with the condition,
   concentration=true when applicable, and recurring_save timing/DC.
+- If action economy or legality makes a declared second action unavailable,
+  visible facts should say the character cannot also do that part this turn, not
+  that the character attempted it and failed.
 - Keep state_deltas empty for ordinary combat turns; structured combat changes
   belong in combat_state_deltas, effect_deltas, or spatial_deltas.
 - Use spatial_deltas for tactical map changes: movement, forced movement,

@@ -253,6 +253,27 @@ class CatIIRollDamageRecord(BaseModel):
         return data
 
 
+class CatIIRollResourceSpendRecord(BaseModel):
+    """One deterministic resource spend attached to a D&D roll transaction."""
+
+    actor_id: str = ""
+    resource_id: str = ""
+    source_id: str = ""
+    amount: int = 0
+    applied: bool = False
+    reason: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CatIIRollResourceSpendRecord":
+        self.actor_id = self.actor_id.strip()
+        self.resource_id = self.resource_id.strip()
+        self.source_id = self.source_id.strip()
+        self.reason = self.reason.strip()
+        if self.amount < 0:
+            self.amount = 0
+        return self
+
+
 class CatIIRollTransaction(BaseModel):
     """Checkpoint-persistent D&D Cat II roll transaction.
 
@@ -274,6 +295,9 @@ class CatIIRollTransaction(BaseModel):
     rolls: list[CatIIRollRecord] = Field(default_factory=list)
     ledger_lines: list[str] = Field(default_factory=list)
     damage_records: list[CatIIRollDamageRecord] = Field(default_factory=list)
+    resource_spends: list[CatIIRollResourceSpendRecord] = Field(
+        default_factory=list
+    )
     final_event_id: str = ""
     created_at: str = ""
     updated_at: str = ""

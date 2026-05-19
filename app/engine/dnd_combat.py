@@ -455,10 +455,11 @@ def start_effect(
         target,
         ended_conditions=_effect_conditions(replaced_on_target),
     )
-    _append_pending_visible_fact(
-        active,
-        _effect_started_fact(effect, target),
-    )
+    if _should_emit_effect_started_fact(effect, target):
+        _append_pending_visible_fact(
+            active,
+            _effect_started_fact(effect, target),
+        )
     append_audit_line(
         active,
         f"Effect started on {_combatant_label(target)}: "
@@ -1285,6 +1286,10 @@ def _effect_public_summary(effect: DndRuntimeEffect) -> dict[str, Any]:
 
 
 def _prepare_runtime_effect(effect: DndRuntimeEffect) -> None:
+    effect.conditions = [
+        condition for condition in effect.conditions
+        if _condition_key(condition) != "concentrating"
+    ]
     if not effect.effect_id:
         effect.effect_id = _new_effect_id()
     if not effect.slug:
@@ -1295,6 +1300,24 @@ def _prepare_runtime_effect(effect: DndRuntimeEffect) -> None:
         effect.remaining_rounds = max(0, effect.duration_amount * 10)
     elif effect.duration_kind == "rounds" and not effect.remaining_rounds:
         effect.remaining_rounds = max(0, effect.duration_amount)
+
+
+def _should_emit_effect_started_fact(
+    effect: DndRuntimeEffect,
+    combatant: DndCombatantState,
+) -> bool:
+    if not effect.concentration:
+        return True
+    if effect.conditions or effect.recurring_save is not None:
+        return True
+    originator_id = effect.originator_id.strip()
+    if not originator_id:
+        return True
+    target_ids = {
+        str(getattr(combatant, "combatant_id", "") or ""),
+        str(getattr(combatant, "character_id", "") or ""),
+    }
+    return originator_id not in target_ids
 
 
 def _effect_start_target(
@@ -1468,7 +1491,7 @@ def _effect_reason_phrase(
 
 def _plain_effect_reason(reason: str) -> str:
     text = str(reason or "").replace("_", " ").strip()
-    return " ".join(text.split())
+    return " ".join(text.split()).rstrip(".")
 
 
 def _recurring_save_end_reason(ability: str, success: bool) -> str:

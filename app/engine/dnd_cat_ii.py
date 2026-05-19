@@ -37,6 +37,7 @@ from app.schemas.state import (
     CatIIRollDamageComponentRecord,
     CatIIRollDamageRecord,
     CatIIRollRecord,
+    CatIIRollResourceSpendRecord,
     CatIIRollTransaction,
     DndRuntimeEffect,
     OpenCatIIEvent,
@@ -811,6 +812,226 @@ def _apply_combat_damage_records(
             characters=ckpt.characters,
         )
         damage.applied = True
+
+
+def _prepare_combat_resource_spends(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> None:
+    if not adjudication.feasible:
+        return
+    actor_id = transaction.actor_id.strip()
+    if not actor_id:
+        return
+    existing = {
+        (spend.actor_id, spend.resource_id, spend.source_id)
+        for spend in transaction.resource_spends
+    }
+    for source_id in _resource_spend_source_ids(transaction, adjudication):
+        for consume in _source_consumes_for_actor(ckpt, actor_id, source_id):
+            resource_id = str(consume.get("resource_id") or "").strip()
+            amount = _int_value(consume.get("amount"), 1)
+            if not resource_id or amount <= 0:
+                continue
+            key = (actor_id, resource_id, source_id)
+            if key in existing:
+                continue
+            transaction.resource_spends.append(
+                CatIIRollResourceSpendRecord(
+                    actor_id=actor_id,
+                    resource_id=resource_id,
+                    source_id=source_id,
+                    amount=amount,
+                    reason=f"{source_id} consumes {resource_id}",
+                )
+            )
+            existing.add(key)
+
+
+def _apply_combat_resource_spends(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+) -> None:
+    for spend in transaction.resource_spends:
+        if spend.applied:
+            continue
+        if spend.amount <= 0:
+            spend.applied = True
+            continue
+        spent = _spend_character_resource(
+            ckpt,
+            spend.actor_id,
+            spend.resource_id,
+            spend.amount,
+        )
+        marker = (
+            f"resource_spend={spend.actor_id}:{spend.source_id}:"
+            f"{spend.resource_id}"
+        )
+        if spent:
+            _append_ledger_line_once(
+                transaction,
+                f"{marker}: spent {spend.amount} {spend.resource_id}",
+            )
+        else:
+            _append_ledger_line_once(
+                transaction,
+                f"{marker}: no code-readable resource pool for spend",
+            )
+        spend.applied = True
+
+
+def _resource_spend_source_ids(
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> list[str]:
+    actor_id = transaction.actor_id.strip()
+    source_ids: list[str] = []
+    for record in transaction.rolls:
+        if record.status != "completed":
+            continue
+        request = PlannedRoll.model_validate(record.request)
+        if request.actor_id != actor_id:
+            continue
+        source_id = request.action_id.strip()
+        if source_id:
+            source_ids.append(source_id)
+    for delta in getattr(adjudication, "effect_deltas", []) or []:
+        if delta.operation != "start":
+            continue
+        originator_id = delta.originator_id.strip() or actor_id
+        if originator_id != actor_id:
+            continue
+        source_id = (
+            delta.source_id.strip()
+            or delta.slug.strip()
+            or delta.name.strip()
+            or delta.effect_id.strip()
+        )
+        if source_id:
+            source_ids.append(source_id)
+    return _unique_text(source_ids)
+
+
+def _source_consumes_for_actor(
+    ckpt: CheckpointFile,
+    actor_id: str,
+    source_id: str,
+) -> list[dict[str, object]]:
+    character = _character_for_combat_target(ckpt, actor_id)
+    if character is None:
+        return []
+    for action in _combat_actions_for_character(character):
+        if _source_matches(action, source_id):
+            return _resource_summaries(action.get("consumes"))
+    for spell in _raw_spells_for_character(character):
+        if _source_matches(spell, source_id):
+            return _resource_summaries(spell.get("consumes"))
+    return []
+
+
+def _source_matches(source: dict[str, object], source_id: str) -> bool:
+    wanted = _normalize_action_text(source_id)
+    if not wanted:
+        return False
+    names = _action_names(source)
+    if wanted in names:
+        return True
+    return any(
+        _contains_action_name(wanted, name) or _contains_action_name(name, wanted)
+        for name in names
+    )
+
+
+def _spend_character_resource(
+    ckpt: CheckpointFile,
+    actor_id: str,
+    resource_id: str,
+    amount: int,
+) -> bool:
+    character = _character_for_combat_target(ckpt, actor_id)
+    if character is None:
+        return False
+    mechanics_state = getattr(character, "mechanics", None)
+    if not isinstance(mechanics_state, dict):
+        return False
+    spent = _spend_resource_pool(
+        mechanics_state.get("resources"),
+        resource_id,
+        amount,
+    )
+    if _spend_spellcasting_resource(mechanics_state, resource_id, amount):
+        spent = True
+    return spent
+
+
+def _spend_resource_pool(pool: object, resource_id: str, amount: int) -> bool:
+    if isinstance(pool, list):
+        for item in pool:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("id") or "").strip() != resource_id:
+                continue
+            return _decrement_current(item, amount)
+        return False
+    if not isinstance(pool, dict):
+        return False
+    direct = pool.get(resource_id)
+    if isinstance(direct, dict):
+        return _decrement_current(direct, amount)
+    if isinstance(direct, int):
+        pool[resource_id] = max(0, direct - amount)
+        return True
+    if resource_id.startswith("spell_slot_"):
+        level = resource_id.removeprefix("spell_slot_")
+        slots = pool.get("spell_slots")
+        if isinstance(slots, dict):
+            entry = slots.get(level)
+            if isinstance(entry, dict):
+                return _decrement_current(entry, amount)
+            if isinstance(entry, int):
+                slots[level] = max(0, entry - amount)
+                return True
+    return False
+
+
+def _spend_spellcasting_resource(
+    mechanics_state: dict[str, object],
+    resource_id: str,
+    amount: int,
+) -> bool:
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    if not isinstance(statblock, dict):
+        return False
+    spellcasting = statblock.get("spellcasting") or {}
+    if not isinstance(spellcasting, dict):
+        return False
+    if resource_id.startswith("spell_slot_"):
+        level = resource_id.removeprefix("spell_slot_")
+        slots = spellcasting.get("slots")
+        if isinstance(slots, dict):
+            entry = slots.get(level)
+            if isinstance(entry, dict):
+                return _decrement_current(entry, amount)
+            if isinstance(entry, int):
+                slots[level] = max(0, entry - amount)
+                return True
+    if resource_id == "pact_slot":
+        pact = spellcasting.get("pact_slots")
+        if isinstance(pact, dict):
+            return _decrement_current(pact, amount)
+    return False
+
+
+def _decrement_current(target: dict[str, object], amount: int) -> bool:
+    if "current" not in target:
+        return False
+    current = _int_value(target.get("current"), 0)
+    target["current"] = max(0, current - amount)
+    return True
 
 
 def _attack_hits(

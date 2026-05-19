@@ -720,9 +720,19 @@ def _scenarios() -> list[Scenario]:
             ],
             expectations={
                 "forbid_attack_rolls": True,
+                "forbid_initial_save_effect_id": True,
+                "forbid_visible_damage_numbers": True,
+                "forbid_ambiguous_visible_outcomes": True,
                 "must_include_save_targets": ["pc_aria", "cult_a", "cult_b"],
                 "must_exclude_roll_targets": ["cult_far"],
                 "expected_save_damage_spell": True,
+                "require_resource_spends": [{
+                    "actor_id": "pc_evoker",
+                    "resource_id": "spell_slot_3",
+                    "source_id": "fireball",
+                    "amount": 1,
+                    "applied": True,
+                }],
             },
         ),
         Scenario(
@@ -796,11 +806,20 @@ def _scenarios() -> list[Scenario]:
             ],
             expectations={
                 "forbid_attack_rolls": True,
+                "forbid_initial_save_effect_id": True,
+                "forbid_visible_damage_numbers": True,
                 "must_include_save_targets": ["pc_aria", "pc_bram", "ash_acolyte"],
                 "must_exclude_roll_targets": ["pc_rogue"],
                 "expected_save_damage_spell": True,
                 "cover_should_matter_for_dex_save_targets": ["pc_bram"],
                 "friendly_fire_targets": ["ash_acolyte"],
+                "require_resource_spends": [{
+                    "actor_id": "ash_pyro",
+                    "resource_id": "spell_slot_1",
+                    "source_id": "burning_hands",
+                    "amount": 1,
+                    "applied": True,
+                }],
             },
         ),
         Scenario(
@@ -864,11 +883,23 @@ def _scenarios() -> list[Scenario]:
             ],
             expectations={
                 "forbid_attack_rolls": True,
+                "forbid_initial_save_effect_id": True,
+                "forbid_visible_damage_numbers": True,
                 "must_include_save_targets": ["slit_guard", "brute"],
                 "must_exclude_roll_targets": ["pc_aria"],
                 "expected_save_damage_spell": True,
-                "cover_should_matter_for_dex_save_targets": ["slit_guard"],
-                "target_reason_contains": {"slit_guard": ["cover"]},
+                "cover_should_matter_for_dex_save_targets": ["slit_guard", "brute"],
+                "target_reason_contains": {
+                    "slit_guard": ["cover"],
+                    "brute": ["cover"],
+                },
+                "require_resource_spends": [{
+                    "actor_id": "pc_evoker",
+                    "resource_id": "spell_slot_3",
+                    "source_id": "lightning_bolt",
+                    "amount": 1,
+                    "applied": True,
+                }],
             },
         ),
         Scenario(
@@ -926,6 +957,7 @@ def _scenarios() -> list[Scenario]:
             expectations={
                 "must_include_save_targets": ["pc_aria", "cult_a", "cult_b"],
                 "must_exclude_roll_targets": ["cult_outside"],
+                "forbid_initial_save_effect_id": True,
                 "expected_save_ability": "wis",
                 "forbid_damage_records": True,
                 "friendly_fire_targets": ["pc_aria"],
@@ -999,9 +1031,19 @@ def _scenarios() -> list[Scenario]:
             expectations={
                 "must_include_save_targets": ["cult_a", "cult_b"],
                 "must_exclude_roll_targets": ["pc_aria", "cult_edge"],
+                "forbid_initial_save_effect_id": True,
                 "expected_save_ability": "dex",
                 "require_spatial_delta_kind": "add_area",
                 "require_effect_delta_if_failed": True,
+                "forbid_effect_conditions": ["concentrating"],
+                "forbid_fact_contains": ["Web takes hold on Mira"],
+                "require_resource_spends": [{
+                    "actor_id": "pc_evoker",
+                    "resource_id": "spell_slot_2",
+                    "source_id": "web",
+                    "amount": 1,
+                    "applied": True,
+                }],
             },
         ),
         Scenario(
@@ -1013,7 +1055,7 @@ def _scenarios() -> list[Scenario]:
             ),
             actor_id="pc_storm",
             intention=(
-                "I cast Thunderwave so the orc raider is blasted west out of "
+                "I cast Thunderwave so the orc raider is blasted east out of "
                 "Bram's reach. Do not spare the raider if the push works."
             ),
             characters=[
@@ -1073,10 +1115,24 @@ def _scenarios() -> list[Scenario]:
             expectations={
                 "forbid_attack_rolls": True,
                 "forbid_opportunity_from": ["pc_guard", "pc_storm"],
+                "forbid_initial_save_effect_id": True,
+                "forbid_visible_damage_numbers": True,
                 "must_include_save_targets": ["orc_raider"],
                 "expected_save_ability": "con",
                 "expected_save_damage_spell": True,
                 "require_spatial_delta_if_failed": "move_token",
+                "expected_move_if_failed": {
+                    "target_id": "orc_raider",
+                    "x": 6,
+                    "y": 4,
+                },
+                "require_resource_spends": [{
+                    "actor_id": "pc_storm",
+                    "resource_id": "spell_slot_1",
+                    "source_id": "thunderwave",
+                    "amount": 1,
+                    "applied": True,
+                }],
             },
         ),
         Scenario(
@@ -1120,6 +1176,7 @@ def _scenarios() -> list[Scenario]:
                 "must_include_any_roll_kinds": ["ability_check", "skill_check"],
                 "require_opposed_rolls": True,
                 "forbid_damage_records": True,
+                "forbid_fact_contains": ["does not manage to secure a grapple"],
                 "condition_fact_requires_delta": [{
                     "target_id": "stone_guard",
                     "condition": "prone",
@@ -1192,6 +1249,15 @@ def _scenarios() -> list[Scenario]:
                 "forbid_damage_records": True,
                 "forbid_hp_change": True,
                 "require_effect_end_slug": ["web"],
+                "forbid_effect_conditions": ["concentrating"],
+                "forbid_fact_contains": ["Magic Missile takes hold on Mira"],
+                "require_resource_spends": [{
+                    "actor_id": "pc_evoker",
+                    "resource_id": "spell_slot_1",
+                    "source_id": "magic_missile",
+                    "amount": 1,
+                    "applied": True,
+                }],
             },
         ),
         Scenario(
@@ -1422,6 +1488,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
                 "capture": _capture_dump(capture),
                 "before_hp": before_hp,
                 "after_hp": _hp_by_id(ckpt),
+                "resource_spends": _resource_spends(ckpt),
                 "role_calls": role_calls[call_start:],
                 "error": scenario_error,
             }
@@ -1523,6 +1590,14 @@ def _hp_by_id(ckpt: CheckpointFile) -> dict[str, int]:
     }
 
 
+def _resource_spends(ckpt: CheckpointFile) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for transaction in ckpt.session.cat_ii_roll_transactions:
+        for spend in transaction.resource_spends:
+            out.append(spend.model_dump(mode="json"))
+    return out
+
+
 def _roll_requests(result: dict[str, Any]) -> list[dict[str, Any]]:
     return (
         ((result.get("capture") or {}).get("roll_plan") or {}).get("roll_requests")
@@ -1536,6 +1611,21 @@ def _adjudication(result: dict[str, Any]) -> dict[str, Any]:
 
 def _packet(result: dict[str, Any]) -> dict[str, Any]:
     return (result.get("capture") or {}).get("packet") or {}
+
+
+def _visible_facts(result: dict[str, Any]) -> list[str]:
+    adjudication = _adjudication(result)
+    facts = [
+        str(fact)
+        for fact in adjudication.get("visible_outcome_facts") or []
+        if str(fact).strip()
+    ]
+    facts.extend(
+        str(fact)
+        for fact in ((result.get("event") or {}).get("facts") or [])
+        if str(fact).strip()
+    )
+    return facts
 
 
 def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1630,6 +1720,18 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "high",
             "detail": attack_requests,
         })
+    if expectations.get("forbid_initial_save_effect_id"):
+        bad_effect_save_ids = [
+            request for request in requests
+            if request.get("kind") == "saving_throw"
+            and str(request.get("effect_id") or "").strip()
+        ]
+        if bad_effect_save_ids:
+            findings.append({
+                "name": "initial_save_effect_id_present",
+                "severity": "medium",
+                "detail": bad_effect_save_ids,
+            })
     if expectations.get("forbid_attack_modifier_bonus"):
         bad_attack_modifiers = [
             request for request in attack_requests
@@ -1722,7 +1824,10 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
     reason_terms = expectations.get("target_reason_contains") or {}
     for target_id, terms in reason_terms.items():
         target_reasons = " ".join(
-            str(request.get("reason") or "").lower()
+            (
+                f"{request.get('reason', '')} "
+                f"{request.get('modifier_bonus_reason', '')}"
+            ).lower()
             for request in requests
             if request.get("target_id") == target_id
         )
@@ -1878,6 +1983,28 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": required_spatial_if_failed,
             })
+    expected_move_if_failed = expectations.get("expected_move_if_failed") or {}
+    if expected_move_if_failed and _failed_save_targets(result):
+        target_id = str(expected_move_if_failed.get("target_id") or "")
+        expected_x = expected_move_if_failed.get("x")
+        expected_y = expected_move_if_failed.get("y")
+        matching_moves = [
+            delta for delta in adjudication.get("spatial_deltas") or []
+            if delta.get("kind") == "move_token"
+            and str(delta.get("target_id") or "") == target_id
+        ]
+        if not any(
+            delta.get("x") == expected_x and delta.get("y") == expected_y
+            for delta in matching_moves
+        ):
+            findings.append({
+                "name": "wrong_forced_movement_destination",
+                "severity": "high",
+                "detail": {
+                    "expected": expected_move_if_failed,
+                    "actual": matching_moves,
+                },
+            })
     required_effect_ends = expectations.get("require_effect_end_slug") or []
     if isinstance(required_effect_ends, str):
         required_effect_ends = [required_effect_ends]
@@ -1906,6 +2033,89 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": missing_effects,
             })
+    forbidden_conditions = expectations.get("forbid_effect_conditions") or []
+    if isinstance(forbidden_conditions, str):
+        forbidden_conditions = [forbidden_conditions]
+    forbidden_condition_keys = {
+        str(item).strip().lower() for item in forbidden_conditions
+    }
+    if forbidden_condition_keys:
+        bad_effect_conditions = [
+            delta for delta in adjudication.get("effect_deltas") or []
+            if forbidden_condition_keys.intersection(
+                str(condition).strip().lower()
+                for condition in delta.get("conditions") or []
+            )
+        ]
+        if bad_effect_conditions:
+            findings.append({
+                "name": "forbidden_effect_condition",
+                "severity": "medium",
+                "detail": bad_effect_conditions,
+            })
+    forbidden_fact_terms = expectations.get("forbid_fact_contains") or []
+    if isinstance(forbidden_fact_terms, str):
+        forbidden_fact_terms = [forbidden_fact_terms]
+    for term in forbidden_fact_terms:
+        text = str(term).strip().lower()
+        if not text:
+            continue
+        matches = [
+            fact for fact in _visible_facts(result)
+            if text in fact.lower()
+        ]
+        if matches:
+            findings.append({
+                "name": "forbidden_visible_fact",
+                "severity": "medium",
+                "detail": {"term": term, "facts": matches},
+            })
+    if expectations.get("forbid_visible_damage_numbers"):
+        damage_number_pattern = re.compile(
+            r"\b\d+\s+(?:acid|bludgeoning|cold|fire|force|lightning|"
+            r"necrotic|piercing|poison|psychic|radiant|slashing|thunder)"
+            r"\s+damage\b|\b(?:takes?|deals?)\s+\d+\s+damage\b",
+            re.IGNORECASE,
+        )
+        bad_facts = [
+            fact for fact in _visible_facts(result)
+            if damage_number_pattern.search(fact)
+        ]
+        if bad_facts:
+            findings.append({
+                "name": "visible_damage_number",
+                "severity": "medium",
+                "detail": bad_facts,
+            })
+    ambiguous_terms = []
+    if expectations.get("forbid_ambiguous_visible_outcomes"):
+        ambiguous_terms.extend(["stagger or", "or collapse", "falls or", "drops or"])
+    ambiguous_terms.extend(expectations.get("forbid_ambiguous_terms") or [])
+    bad_ambiguous = [
+        {"term": term, "fact": fact}
+        for term in ambiguous_terms
+        for fact in _visible_facts(result)
+        if str(term).lower() in fact.lower()
+    ]
+    if bad_ambiguous:
+        findings.append({
+            "name": "ambiguous_visible_outcome",
+            "severity": "medium",
+            "detail": bad_ambiguous,
+        })
+    required_spends = expectations.get("require_resource_spends") or []
+    if isinstance(required_spends, dict):
+        required_spends = [required_spends]
+    missing_spends = [
+        required for required in required_spends
+        if not _has_required_resource_spend(result, required)
+    ]
+    if missing_spends:
+        findings.append({
+            "name": "missing_resource_spend",
+            "severity": "high",
+            "detail": missing_spends,
+        })
     return findings
 
 
@@ -1933,6 +2143,20 @@ def _effect_delta_contains(delta: dict[str, Any], expected: str) -> bool:
         for key in ("effect_id", "name", "slug", "source_id", "reason")
     )
     return expected in haystack
+
+
+def _has_required_resource_spend(
+    result: dict[str, Any],
+    required: dict[str, Any],
+) -> bool:
+    for spend in result.get("resource_spends") or []:
+        if any(
+            key in required and spend.get(key) != required[key]
+            for key in ("actor_id", "resource_id", "source_id", "amount", "applied")
+        ):
+            continue
+        return True
+    return False
 
 
 def _failed_save_targets(result: dict[str, Any]) -> set[str]:

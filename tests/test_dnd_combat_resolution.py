@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.engine import dice
+from app.engine import dice, dnd_cat_ii as cat, dnd_combat
 from app.engine.dnd_combat_resolution import (
     COMBAT_MANAGER_FINALIZE_MAX_TOKENS,
     COMBAT_MANAGER_PLAN_MAX_TOKENS,
@@ -86,6 +86,37 @@ def _character(
             },
         },
     )
+
+
+def _spell(
+    spell_id: str,
+    name: str,
+    *,
+    level: int,
+    save_ability: str = "",
+    dc: int = 0,
+    damage: str = "",
+    consumes_level: int | None = None,
+    concentration: bool = False,
+) -> dict:
+    consumes = []
+    if consumes_level is not None:
+        consumes.append({
+            "resource_id": f"spell_slot_{consumes_level}",
+            "amount": 1,
+        })
+    return {
+        "id": spell_id,
+        "name": name,
+        "level": level,
+        "prepared": True,
+        "always_prepared": False,
+        "concentration": concentration,
+        "save": {"ability": save_ability, "dc": dc} if save_ability else {},
+        "damage": [{"formula": damage}] if damage else [],
+        "healing": [],
+        "consumes": consumes,
+    }
 
 
 def _ckpt() -> CheckpointFile:
@@ -2113,6 +2144,265 @@ def test_combat_packet_exposes_current_actor_spellcasting():
     assert '"slots": {' in first_packet
     assert '"area_targeting_advisories": [' in first_packet
     assert '"action_id": "cone_of_cold"' in first_packet
+
+
+def test_concentration_only_self_effect_does_not_publish_condition_fact():
+    ckpt = _ckpt()
+    alice = ckpt.session.active_combat.combatants[0]
+
+    effect = DndRuntimeEffect(
+        effect_id="web_concentration",
+        name="Web",
+        slug="web",
+        source_type="spell",
+        source_id="web",
+        originator_id="alice",
+        target_id="alice",
+        conditions=["concentrating"],
+        concentration=True,
+        duration_kind="hours",
+        duration_amount=1,
+        remaining_rounds=10,
+    )
+    dnd_combat.start_effect(ckpt.session, effect, replace_concentration=False)
+
+    assert alice.active_effects[0].effect_id == "web_concentration"
+    assert alice.active_effects[0].conditions == []
+    assert "concentrating" not in alice.conditions
+    assert dnd_combat.drain_pending_visible_facts(ckpt.session.active_combat) == []
+
+    dnd_combat.start_effect(
+        ckpt.session,
+        DndRuntimeEffect(
+            effect_id="web_restrained",
+            name="Web",
+            slug="web",
+            source_type="spell",
+            source_id="web",
+            originator_id="alice",
+            target_id="bob",
+            conditions=["restrained"],
+            concentration=True,
+            duration_kind="hours",
+            duration_amount=1,
+            remaining_rounds=10,
+            metadata={"reason": "failed initial save."},
+        ),
+        replace_concentration=False,
+    )
+    assert dnd_combat.drain_pending_visible_facts(ckpt.session.active_combat) == [
+        "Web takes hold on Bob after the initial save fails."
+    ]
+
+
+def test_combat_resolver_consumes_spell_slot_once_for_multi_target_save_spell(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.characters.append(_character("charlie", "Charlie"))
+    ckpt.session.active_combat.combatants.append(
+        DndCombatantState(
+            combatant_id="charlie",
+            character_id="charlie",
+            name="Charlie",
+            armor_class=12,
+            hit_points_current=13,
+            hit_points_max=13,
+        )
+    )
+    ckpt.characters[0].mechanics["resources"] = [
+        {
+            "id": "spell_slot_1",
+            "name": "Level 1 Spell Slot",
+            "current": 1,
+            "max": 1,
+        }
+    ]
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_save_dc": 13,
+        }],
+        "slots": {"1": {"current": 1, "max": 1}},
+        "spells": [
+            _spell(
+                "burning_hands",
+                "Burning Hands",
+                level=1,
+                save_ability="dex",
+                dc=13,
+                damage="3d6 fire",
+                consumes_level=1,
+            )
+        ],
+    }
+    monkeypatch.setattr(dice.d20.expression.random, "randrange", lambda _: 4)
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="save_bob_fire",
+                    actor_id="alice",
+                    kind="saving_throw",
+                    ability="dex",
+                    skill="",
+                    dc=13,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Bob resists Burning Hands.",
+                    action_id="burning_hands",
+                    target_id="bob",
+                    effect_id="",
+                    damage_on_save_success="half",
+                ),
+                PlannedRoll(
+                    roll_id="save_charlie_fire",
+                    actor_id="alice",
+                    kind="saving_throw",
+                    ability="dex",
+                    skill="",
+                    dc=13,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Charlie resists Burning Hands.",
+                    action_id="burning_hands",
+                    target_id="charlie",
+                    effect_id="",
+                    damage_on_save_success="half",
+                ),
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice's fire catches Bob and Charlie.",
+            visible_outcome_facts=["Alice's fire washes over Bob and Charlie."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Burning Hands at Bob and Charlie.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [
+        (spend.resource_id, spend.source_id, spend.amount, spend.applied)
+        for spend in transaction.resource_spends
+    ] == [("spell_slot_1", "burning_hands", 1, True)]
+    resources = ckpt.characters[0].mechanics["resources"]
+    assert resources[0]["current"] == 0
+    slots = ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]
+    assert slots["1"]["current"] == 0
+
+
+def test_combat_resolver_consumes_readied_no_roll_spell_once():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["resources"] = {
+        "spell_slot_1": {"current": 3, "max": 4}
+    }
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_attack_bonus": 5,
+        }],
+        "slots": {"1": {"current": 3, "max": 4}},
+        "spells": [
+            _spell(
+                "magic_missile",
+                "Magic Missile",
+                level=1,
+                damage="3 darts, each 1d4+1 force",
+                consumes_level=1,
+            )
+        ],
+    }
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="Readying the spell needs no roll.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice readies Magic Missile.",
+            visible_outcome_facts=["Alice readies a spell for Bob's move."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[{
+                "operation": "start",
+                "target_id": "alice",
+                "effect_id": "ready_magic_missile",
+                "name": "Readied Magic Missile",
+                "slug": "readied_spell",
+                "source_type": "spell",
+                "source_id": "magic_missile",
+                "originator_id": "alice",
+                "conditions": ["concentrating"],
+                "concentration": True,
+                "duration_kind": "rounds",
+                "duration_amount": 1,
+                "remaining_rounds": 1,
+                "duration_text": "until the trigger or start of next turn",
+                "break_triggers": ["trigger occurs", "concentration ends"],
+                "reason": "spell readied",
+            }],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I ready Magic Missile for Bob's move.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [
+        (spend.resource_id, spend.source_id, spend.amount, spend.applied)
+        for spend in transaction.resource_spends
+    ] == [("spell_slot_1", "magic_missile", 1, True)]
+    assert ckpt.characters[0].mechanics["resources"]["spell_slot_1"]["current"] == 2
+    slots = ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]
+    assert slots["1"]["current"] == 2
+    cat._apply_combat_resource_spends(ckpt, transaction)
+    assert ckpt.characters[0].mechanics["resources"]["spell_slot_1"]["current"] == 2
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert not any("Magic Missile takes hold on Alice" in fact for fact in facts)
+    assert ckpt.session.active_combat.combatants[0].active_effects[0].conditions == []
 
 
 def test_combat_resolver_starts_sustained_effect_from_adjudication(monkeypatch):
