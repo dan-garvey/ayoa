@@ -9,7 +9,7 @@ from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
-    RollPlan,
+    DndCombatTurnPlan,
 )
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.state import CatIIRollTransaction
@@ -39,7 +39,7 @@ class DndCombatResolver:
     ) -> EventRouterOutput:
         packet = cat._build_combat_packet(ckpt, actor_id, intention)
         event_id = f"cmb_{uuid.uuid4().hex[:12]}"
-        plan = await self._plan_rolls(packet)
+        plan = await self._plan_turn(packet)
         transaction = cat._create_combat_transaction(
             ckpt=ckpt,
             event_id=event_id,
@@ -84,12 +84,15 @@ class DndCombatResolver:
             raise cat.DndCatIIRollsPending(transaction)
 
         cat._execute_combat_damage_rolls(ckpt, transaction)
+        cat._apply_combat_resource_spends(ckpt, transaction)
         packet = json.dumps(transaction.context, indent=2, sort_keys=True)
-        adjudication = await self._finalize(packet, transaction.ledger_lines)
+        adjudication = await self._finalize(
+            packet,
+            transaction.ledger_lines,
+            cat.planned_actions_block(transaction),
+        )
         cat._validate_and_apply_readied_releases(ckpt, transaction, adjudication)
         cat._apply_combat_damage_records(ckpt, transaction)
-        cat._prepare_combat_resource_spends(ckpt, transaction, adjudication)
-        cat._apply_combat_resource_spends(ckpt, transaction)
         cat._apply_combat_state_deltas(
             ckpt,
             adjudication.combat_state_deltas,
@@ -124,17 +127,18 @@ class DndCombatResolver:
         transaction.updated_at = cat._utcnow_iso()
         return result
 
-    async def _plan_rolls(self, packet: str) -> RollPlan:
+    async def _plan_turn(self, packet: str) -> DndCombatTurnPlan:
         messages = self.prompt_mgr.render_messages(
             "dnd_combat_manager",
-            phase="PLAN_ROLLS",
+            phase="PLAN_TURN",
             combat_action_packet=packet,
             roll_ledger_block="No rolls have been made yet.",
+            planned_actions_block="No planned actions yet.",
         )
         response = await self.client.complete(
             role="dnd_combat_manager",
             messages=messages,
-            response_model=RollPlan,
+            response_model=DndCombatTurnPlan,
             temperature=0.2,
             max_tokens=COMBAT_MANAGER_PLAN_MAX_TOKENS,
             cache=True,
@@ -146,12 +150,14 @@ class DndCombatResolver:
         self,
         packet: str,
         ledger_lines: list[str],
+        planned_actions_block: str,
     ) -> DndCombatManagerAdjudication:
         messages = self.prompt_mgr.render_messages(
             "dnd_combat_manager",
             phase="FINALIZE_OUTCOME",
             combat_action_packet=packet,
             roll_ledger_block="\n".join(ledger_lines) or "No rolls were made.",
+            planned_actions_block=planned_actions_block,
         )
         response = await self.client.complete(
             role="dnd_combat_manager",

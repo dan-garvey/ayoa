@@ -42,7 +42,7 @@ from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
-    RollPlan,
+    DndCombatTurnPlan,
 )
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
@@ -89,7 +89,7 @@ class CombatCapture:
     actor_id: str
     intention: str
     packet: str = ""
-    roll_plan: dict[str, Any] = field(default_factory=dict)
+    turn_plan: dict[str, Any] = field(default_factory=dict)
     roll_ledger: list[str] = field(default_factory=list)
     adjudication: dict[str, Any] = field(default_factory=dict)
 
@@ -122,13 +122,13 @@ class CapturingDndCombatResolver(DndCombatResolver):
             self._active_intention = ""
             self._active_capture = None
 
-    async def _plan_rolls(self, packet: str) -> RollPlan:
-        plan = await super()._plan_rolls(packet)
+    async def _plan_turn(self, packet: str) -> DndCombatTurnPlan:
+        plan = await super()._plan_turn(packet)
         self._active_capture = CombatCapture(
             actor_id=self._active_actor_id,
             intention=self._active_intention,
             packet=packet,
-            roll_plan=plan.model_dump(mode="json"),
+            turn_plan=plan.model_dump(mode="json"),
         )
         return plan
 
@@ -136,8 +136,13 @@ class CapturingDndCombatResolver(DndCombatResolver):
         self,
         packet: str,
         ledger_lines: list[str],
+        planned_actions_block: str,
     ) -> DndCombatManagerAdjudication:
-        adjudication = await super()._finalize(packet, ledger_lines)
+        adjudication = await super()._finalize(
+            packet,
+            ledger_lines,
+            planned_actions_block,
+        )
         capture = self._active_capture or CombatCapture(
             actor_id=self._active_actor_id,
             intention=self._active_intention,
@@ -2327,7 +2332,8 @@ def _capture_dump(capture: CombatCapture | None) -> dict[str, Any]:
         "actor_id": capture.actor_id,
         "intention": capture.intention,
         "packet": json.loads(capture.packet) if capture.packet else {},
-        "roll_plan": capture.roll_plan,
+        "turn_plan": capture.turn_plan,
+        "flattened_rolls": _flatten_turn_rolls(capture.turn_plan),
         "roll_ledger": capture.roll_ledger,
         "adjudication": capture.adjudication,
     }
@@ -2340,8 +2346,8 @@ def _append_raw_call(payload: dict[str, Any]) -> None:
 
 def _phase_label(response_model: object) -> str:
     name = getattr(response_model, "__name__", "")
-    if name == "RollPlan":
-        return "plan_rolls"
+    if name == "DndCombatTurnPlan":
+        return "plan_turn"
     if name == "DndCombatManagerAdjudication":
         return "finalize_outcome"
     return str(name or "unstructured")
@@ -2383,7 +2389,7 @@ def _cache_watch_for_call(
     watch: dict[str, Any] = {
         "cache_read_input_tokens": cache_read,
     }
-    if phase == "plan_rolls":
+    if phase == "plan_turn":
         plan_cache_reads_by_scenario[scenario_key] = cache_read
         return watch
     if phase != "finalize_outcome":
@@ -2427,11 +2433,28 @@ def _resource_spends(ckpt: CheckpointFile) -> list[dict[str, Any]]:
     return out
 
 
-def _roll_requests(result: dict[str, Any]) -> list[dict[str, Any]]:
-    return (
-        ((result.get("capture") or {}).get("roll_plan") or {}).get("roll_requests")
-        or []
-    )
+def _flattened_rolls(result: dict[str, Any]) -> list[dict[str, Any]]:
+    return (result.get("capture") or {}).get("flattened_rolls") or []
+
+
+def _flatten_turn_rolls(turn_plan: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for action in turn_plan.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        for roll in action.get("rolls") or []:
+            if not isinstance(roll, dict):
+                continue
+            flattened = dict(roll)
+            flattened["actor_id"] = action.get("actor_id", "")
+            flattened["action_id"] = action.get("source_id", "")
+            flattened["source_type"] = action.get("source_type", "")
+            flattened["source_id"] = action.get("source_id", "")
+            flattened["effect_id"] = action.get("effect_id", "")
+            flattened["economy"] = action.get("economy", "")
+            flattened["use_mode"] = action.get("use_mode", "")
+            out.append(flattened)
+    return out
 
 
 def _adjudication(result: dict[str, Any]) -> dict[str, Any]:
@@ -2460,7 +2483,7 @@ def _visible_facts(result: dict[str, Any]) -> list[str]:
 def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     expectations = result.get("expectations") or {}
-    requests = _roll_requests(result)
+    requests = _flattened_rolls(result)
     adjudication = _adjudication(result)
     packet = _packet(result)
     request_targets = {
@@ -3171,7 +3194,7 @@ def _failed_save_targets(result: dict[str, Any]) -> set[str]:
     failed: set[str] = set()
     requests_by_roll_id = {
         str(request.get("roll_id") or ""): request
-        for request in _roll_requests(result)
+        for request in _flattened_rolls(result)
         if request.get("kind") == "saving_throw"
     }
     for line in ((result.get("capture") or {}).get("roll_ledger") or []):
@@ -3465,11 +3488,11 @@ def _markdown(report: dict[str, Any]) -> str:
         lines.extend(["", "Facts:"])
         for fact in ((scenario.get("event") or {}).get("facts") or []):
             lines.append(f"- {fact}")
-        lines.extend(["", "Roll plan:"])
-        roll_plan = (scenario.get("capture") or {}).get("roll_plan") or {}
+        lines.extend(["", "Turn plan:"])
+        turn_plan = (scenario.get("capture") or {}).get("turn_plan") or {}
         lines.extend([
             "```json",
-            json.dumps(roll_plan, indent=2),
+            json.dumps(turn_plan, indent=2),
             "```",
             "",
         ])

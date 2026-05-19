@@ -27,6 +27,36 @@ DamageAdjustmentKind = Literal[
 ]
 DamageAdjustmentScope = Literal["component", "attack_total"]
 SaveDamageOutcome = Literal["none", "half", "full"]
+DndCombatSourceType = Literal[
+    "spell",
+    "action",
+    "feature",
+    "item",
+    "effect",
+    "movement",
+    "object",
+    "speech",
+]
+DndCombatUseMode = Literal[
+    "cast",
+    "activate",
+    "attack",
+    "release",
+    "sustain",
+    "move",
+    "interact",
+    "speak",
+]
+DndCombatEconomy = Literal[
+    "action",
+    "bonus_action",
+    "reaction",
+    "free",
+    "object_interaction",
+    "movement",
+    "none",
+]
+DndTargetingMode = Literal["none", "self", "targets", "point", "area"]
 
 
 class PlannedDamageAdjustment(BaseModel):
@@ -141,6 +171,192 @@ class RollPlan(BaseModel):
     needs_rolls: bool
     roll_requests: list[PlannedRoll]
     no_roll_reason: str
+
+
+class DndCombatCasting(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cast_level: int = 0
+    ritual: bool = False
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndCombatCasting":
+        if self.cast_level < 0:
+            self.cast_level = 0
+        return self
+
+
+class DndPlannedResourceSpend(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_id: str
+    amount: int = 1
+    reason: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndPlannedResourceSpend":
+        self.resource_id = self.resource_id.strip()
+        self.reason = self.reason.strip()
+        if not self.resource_id:
+            raise ValueError("resource_id is required")
+        if self.amount < 0:
+            self.amount = 0
+        return self
+
+
+class DndPlannedTargeting(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: DndTargetingMode = "none"
+    target_ids: list[str] = Field(default_factory=list)
+    included_target_ids: list[str] = Field(default_factory=list)
+    excluded_target_ids: list[str] = Field(default_factory=list)
+    shape: str = ""
+    origin_x: int = 0
+    origin_y: int = 0
+    direction: str = ""
+    radius_squares: int = 0
+    width: int = 0
+    height: int = 0
+    length_squares: int = 0
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndPlannedTargeting":
+        self.target_ids = [value.strip() for value in self.target_ids if value.strip()]
+        self.included_target_ids = [
+            value.strip() for value in self.included_target_ids if value.strip()
+        ]
+        self.excluded_target_ids = [
+            value.strip() for value in self.excluded_target_ids if value.strip()
+        ]
+        self.shape = self.shape.strip().lower()
+        self.direction = self.direction.strip().lower()
+        if self.radius_squares < 0:
+            self.radius_squares = 0
+        if self.width < 0:
+            self.width = 0
+        if self.height < 0:
+            self.height = 0
+        if self.length_squares < 0:
+            self.length_squares = 0
+        return self
+
+
+class DndPlannedActionRoll(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    roll_id: str
+    kind: RollKind
+    roller_id: str
+    target_id: str
+    ability: AbilityId
+    skill: str
+    dc: int
+    opposed_by: str
+    advantage_state: AdvantageState
+    modifier_bonus: int = 0
+    modifier_bonus_reason: str = ""
+    damage_on_save_success: SaveDamageOutcome = "none"
+    damage_adjustments: list[PlannedDamageAdjustment] = Field(default_factory=list)
+    reason: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_roll_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("target_id", "")
+            data.setdefault("skill", "")
+            data.setdefault("dc", 0)
+            data.setdefault("opposed_by", "")
+            data.setdefault("modifier_bonus", 0)
+            data.setdefault("modifier_bonus_reason", "")
+            data.setdefault("damage_on_save_success", "none")
+            data.setdefault("damage_adjustments", [])
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndPlannedActionRoll":
+        self.roll_id = self.roll_id.strip()
+        self.roller_id = self.roller_id.strip()
+        self.target_id = self.target_id.strip()
+        self.skill = self.skill.strip().lower()
+        self.opposed_by = self.opposed_by.strip()
+        self.modifier_bonus_reason = self.modifier_bonus_reason.strip()
+        self.damage_on_save_success = (
+            self.damage_on_save_success.strip().lower()  # type: ignore[assignment]
+            or "none"
+        )
+        self.reason = self.reason.strip()
+        if not self.roll_id:
+            raise ValueError("roll_id is required")
+        if not self.roller_id:
+            raise ValueError("roller_id is required")
+        if self.dc < 0:
+            self.dc = 0
+        if self.damage_on_save_success not in {"none", "half", "full"}:
+            self.damage_on_save_success = "none"
+        return self
+
+
+class DndCombatActionUse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    actor_id: str
+    source_type: DndCombatSourceType
+    source_id: str
+    effect_id: str = ""
+    use_mode: DndCombatUseMode
+    economy: DndCombatEconomy
+    casting: DndCombatCasting = Field(default_factory=DndCombatCasting)
+    resource_spends: list[DndPlannedResourceSpend] = Field(default_factory=list)
+    targeting: DndPlannedTargeting = Field(default_factory=DndPlannedTargeting)
+    rolls: list[DndPlannedActionRoll] = Field(default_factory=list)
+    reason: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_action_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("effect_id", "")
+            data.setdefault("casting", {})
+            data.setdefault("resource_spends", [])
+            data.setdefault("targeting", {})
+            data.setdefault("rolls", [])
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndCombatActionUse":
+        self.actor_id = self.actor_id.strip()
+        self.source_id = self.source_id.strip().lower()
+        self.effect_id = self.effect_id.strip()
+        self.reason = self.reason.strip()
+        if not self.actor_id:
+            raise ValueError("actor_id is required")
+        return self
+
+
+class DndCombatTurnPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    feasible: bool
+    actions: list[DndCombatActionUse]
+    no_action_reason: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_plan_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("actions", [])
+            data.setdefault("no_action_reason", "")
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndCombatTurnPlan":
+        self.no_action_reason = self.no_action_reason.strip()
+        return self
 
 
 CombatStateDeltaKind = Literal[

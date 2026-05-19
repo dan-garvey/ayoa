@@ -26,40 +26,59 @@ feature, item, or limited resource, request no rolls and treat that part of the
 intention as unavailable. In FINALIZE_OUTCOME, make the visible outcome explicit:
 the character tries, but cannot use the unavailable option and no effect occurs.
 
-For phase PLAN_ROLLS, emit RollPlan:
-- If dice matter before outcome, set needs_rolls=true and list the d20 rolls
-  needed. If no dice matter, set needs_rolls=false, roll_requests=[], and
-  explain no_roll_reason.
-- For attack rolls, set kind="attack_roll", target_id to the target character
-  id, dc to the final hit threshold, and action_id to the best matching id from
-  the actor's actions list. The final hit threshold is the target's listed
-  armor_class unless the target, from the attacker's current or declared origin,
-  has cover or another supplied rule that changes the hit threshold. Do not give
-  the target a cover bonus merely because the attacker moved behind cover; cover
-  helps the creature being attacked. If dc differs from the target armor_class,
-  state the concrete reason in the roll reason. Use skill="" unless no action_id
-  exists. The action_id and target_id are the mechanical references for hit and
-  damage resolution, so choose them deliberately.
+For phase PLAN_TURN, emit an action-first turn plan:
+- First decide what source or sources the actor uses this turn. Then, for each
+  source use, declare actor_id, source_type, source_id, effect_id when an
+  existing effect is being released or sustained, use_mode, economy, casting,
+  resource_spends, targeting, rolls, and reason.
+- Do not omit an action just because it needs no rolls. Misty Step, movement,
+  speech, object interactions, readied setup, and other no-roll choices still
+  belong in actions with rolls=[].
+- source_id is the listed rules source id, such as misty_step, burning_hands,
+  scorching_ray, magic_missile, shove, grapple, disarm, or a listed weapon or
+  feature id. effect_id identifies an existing active effect instance when
+  source_type="effect" or when a readied or ongoing effect is released or
+  sustained.
+- resource_spends is the only place to declare consumed slots, pact slots,
+  limited features, charges, or similar resources. Do not rely on finalization
+  prose, effect names, or roll labels to imply a resource spend.
+- For spells cast with spell slots, set casting.cast_level to the slot level and
+  include a matching resource_spends item, such as resource_id="spell_slot_3",
+  amount=1. Cantrips, rituals with casting.ritual=true, special no-slot uses,
+  releases of already readied spells, speech, movement, and object interactions
+  use resource_spends=[].
+- For pact magic, use resource_id="pact_slot" when the listed resource is a pact
+  slot. For upcast slot spells, casting.cast_level must match the slot spent.
+- For attack rolls, put the roll under the action that caused it. Set
+  kind="attack_roll", roller_id to the attacking creature, target_id to the
+  target character id, and dc to the final hit threshold. The final hit
+  threshold is the target's listed armor_class unless the target, from the
+  attacker's current or declared origin, has cover or another supplied rule that
+  changes the hit threshold. Do not give the target a cover bonus merely because
+  the attacker moved behind cover; cover helps the creature being attacked. If
+  dc differs from the target armor_class, state the concrete reason in the roll
+  reason.
 - For attack damage with situational resistance, immunity, or vulnerability
   that is visible in this packet and not already part of durable character
-  mechanics, add damage_adjustments with kind, a non-empty damage_type, and
-  reason. Use halve or double for effects that change damage without being
-  damage-type resistance or vulnerability. Use scope="attack_total" only when
-  the adjustment changes the whole attack after all damage components are
-  totaled; otherwise use scope="component". Do not put ordinary attack damage in
-  combat_state_deltas.
+  mechanics, add damage_adjustments to that roll with kind, a non-empty
+  damage_type, and reason. Use halve or double for effects that change damage
+  without being damage-type resistance or vulnerability. Use
+  scope="attack_total" only when the adjustment changes the whole attack after
+  all damage components are totaled; otherwise use scope="component". Do not put
+  ordinary attack damage in combat_state_deltas.
 - For spell attacks and spell saves, use only a spell listed for the actor. Use
   the listed spell attack bonus or spell save DC when present. For saving
-  throws, actor_id is the source/caster, target_id is the creature rolling the
-  save, and dc is the source/caster's save DC.
-- For no-attack/no-save damage from a listed action or spell, use
-  kind="damage_roll". Set actor_id to the damage source, target_id to the
-  damaged creature, action_id to the listed action/spell id, and ability="str"
-  as a required placeholder. Magic Missile should use one damage_roll per dart
-  so each dart has its own target and damage record.
-- Roll request reasons are player-facing dice/adjudication labels. Keep them
-  short and rule-relevant, and do not include grid coordinates unless the
-  coordinate itself is necessary to explain legality or targeting.
+  throws, put the roll under the spell action, set roller_id to the creature
+  rolling the save, target_id to that same creature, and dc to the caster's save
+  DC.
+- For no-attack/no-save damage from a listed action, spell, or released effect,
+  use kind="damage_roll". Set roller_id to the damage source, target_id to the
+  damaged creature, and ability="str" as a required placeholder. Magic Missile
+  should use one damage_roll per dart so each dart has its own target and damage
+  record.
+- Roll reasons are player-facing dice/adjudication labels. Keep them short and
+  rule-relevant, and do not include grid coordinates unless the coordinate
+  itself is necessary to explain legality or targeting.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
   target_id to the affected character when applicable. If cover or another
   visible modifier changes the target's save bonus, set modifier_bonus and
@@ -72,26 +91,47 @@ For phase PLAN_ROLLS, emit RollPlan:
   cover, and mention the cover in modifier_bonus_reason. Total cover normally
   excludes the target unless the spell text explicitly says it spreads around
   that obstruction.
-- Leave effect_id empty for initial spell saves and other immediate saves. Use
-  effect_id only when the roll is a follow-up save/check for an already
-  sustained effect in the packet.
 - Active effects may include readied_action. If the current intention visibly
-  satisfies that readied trigger, include the release roll(s) in roll_requests
-  from readied_action.readying_actor_id and set effect_id to the held effect_id.
-  The held action was already readied, so release rolls do not spend the spell
-  slot or other casting resource again. Use damage_roll for held damage that
-  needs no attack roll or saving throw.
+  satisfies that readied trigger, include one source_type="effect" action with
+  use_mode="release", effect_id set to the held effect_id, actor_id set to
+  readied_action.readying_actor_id, resource_spends=[], and rolls for the
+  released effect. The held action was already readied, so release never spends
+  the spell slot or other casting resource again. Use damage_roll for held
+  damage that needs no attack roll or saving throw.
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
 - Use advantage_state only when the supplied state makes it clear.
-- Opportunity attacks are automatic. If movement provokes one, include its
-  attack roll in roll_requests; do not request an optional reaction prompt for
-  it. Opportunity attacks only come from enemy creatures with legal reach and
-  triggering movement. They do not require or spend ordinary reaction
+- Opportunity attacks are automatic. If movement provokes one, include a
+  separate action for the enemy creature making the opportunity attack, with its
+  attack roll nested under that action; do not request an optional reaction
+  prompt for it. Opportunity attacks only come from enemy creatures with legal
+  reach and triggering movement. They do not require or spend ordinary reaction
   availability. Use relationship_to_current_actor and enemy_to_current_actor in
   the combatants list; never roll an opportunity attack from an ally,
   neutral/unknown creature, or self.
 
+Action examples:
+- Misty Step: one spell action with source_id="misty_step", use_mode="cast",
+  economy="bonus_action", casting.cast_level=2,
+  resource_spends=[{{"resource_id": "spell_slot_2", "amount": 1,
+  "reason": "cast Misty Step"}}], and rolls=[].
+- Burning Hands or Cone of Cold: one spell action with one slot spend and one
+  saving_throw roll per affected target.
+- Scorching Ray: one spell action with one slot spend and one attack_roll per
+  ray.
+- Magic Missile: one spell action with one slot spend and one damage_roll per
+  dart.
+- Readied Magic Missile setup: one spell action with one slot spend, rolls=[],
+  and finalization starts the held effect.
+- Readied Magic Missile release: one effect action with use_mode="release",
+  effect_id set to the held effect, resource_spends=[], damage_rolls for the
+  darts, and finalization ends the held effect.
+- Shove, Disarm, or Grapple: one action use with contested rolls and
+  resource_spends=[].
+
 For phase FINALIZE_OUTCOME, emit the adjudication fields:
+- Use the Planned Actions block as the authoritative source-use, resource,
+  economy, targeting, and roll plan for this turn. Do not reconstruct source,
+  resource, or targeting decisions from prose.
 - Use the roll ledger exactly as supplied. Ledger totals are authoritative for
   dice, hit/miss results, damage arithmetic, and any special damage adjustment
   recorded there. If the ledger says an attack or damage_roll applied damage,
@@ -155,7 +195,7 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   character's reaction, but the held spell or feature is not cast again and
   should not create a second resource spend.
 - For a save-ends spell such as Hold Person, put the initial saving throw in
-  PLAN_ROLLS. If the spell takes hold, emit an effect_delta with the condition,
+  PLAN_TURN. If the spell takes hold, emit an effect_delta with the condition,
   concentration=true when applicable, and recurring_save timing/DC.
 - For a spell area that persists and also restrains, charms, paralyzes, or
   otherwise conditions failed-save creatures, use spatial_deltas for the area
@@ -212,6 +252,9 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 
 ## Combat Action Packet
 {combat_action_packet}
+
+## Planned Actions
+{planned_actions_block}
 
 ## Roll Ledger
 {roll_ledger_block}

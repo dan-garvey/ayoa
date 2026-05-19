@@ -9,7 +9,16 @@ from app.engine.dnd_cat_ii import (
 from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.dnd_cat_ii import PlannedRoll, RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import (
+    DndCombatActionUse,
+    DndCombatCasting,
+    DndCombatTurnPlan,
+    DndPlannedActionRoll,
+    DndPlannedResourceSpend,
+    PlannedRoll,
+    RollPlan,
+    RulesAdjudication,
+)
 from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
 
 
@@ -99,6 +108,88 @@ def _open_event() -> OpenCatIIEvent:
             "Alice lunges toward Pip at the doorway.",
         ],
     )
+
+
+def test_dnd_combat_turn_plan_accepts_nested_no_roll_action():
+    plan = DndCombatTurnPlan(
+        feasible=True,
+        actions=[
+            DndCombatActionUse(
+                actor_id="alice",
+                source_type="spell",
+                source_id="misty_step",
+                use_mode="cast",
+                economy="bonus_action",
+                casting=DndCombatCasting(cast_level=2),
+                resource_spends=[
+                    DndPlannedResourceSpend(
+                        resource_id="spell_slot_2",
+                        amount=1,
+                        reason="cast Misty Step",
+                    )
+                ],
+                rolls=[],
+                reason="Alice teleports.",
+            )
+        ],
+        no_action_reason="",
+    )
+
+    dumped = plan.model_dump()
+    assert dumped["actions"][0]["source_id"] == "misty_step"
+    assert dumped["actions"][0]["rolls"] == []
+    assert dumped["actions"][0]["resource_spends"][0]["resource_id"] == (
+        "spell_slot_2"
+    )
+
+
+def test_dnd_combat_turn_plan_accepts_nested_multi_roll_spell_action():
+    plan = DndCombatTurnPlan(
+        feasible=True,
+        actions=[
+            DndCombatActionUse(
+                actor_id="alice",
+                source_type="spell",
+                source_id="scorching_ray",
+                use_mode="cast",
+                economy="action",
+                casting=DndCombatCasting(cast_level=2),
+                resource_spends=[
+                    DndPlannedResourceSpend(resource_id="spell_slot_2")
+                ],
+                rolls=[
+                    DndPlannedActionRoll(
+                        roll_id="ray_1",
+                        kind="attack_roll",
+                        roller_id="alice",
+                        target_id="pip",
+                        ability="int",
+                        skill="",
+                        dc=13,
+                        opposed_by="",
+                        advantage_state="normal",
+                        reason="first ray",
+                    ),
+                    DndPlannedActionRoll(
+                        roll_id="ray_2",
+                        kind="attack_roll",
+                        roller_id="alice",
+                        target_id="pip",
+                        ability="int",
+                        skill="",
+                        dc=13,
+                        opposed_by="",
+                        advantage_state="normal",
+                        reason="second ray",
+                    ),
+                ],
+                reason="Alice casts Scorching Ray.",
+            )
+        ],
+        no_action_reason="",
+    )
+
+    assert [roll.roll_id for roll in plan.actions[0].rolls] == ["ray_1", "ray_2"]
 
 
 def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):

@@ -15,6 +15,7 @@ from app.llm.client import (
 from app.llm.config import LLMConfig
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
+    DndCombatTurnPlan,
     RollPlan,
     RulesAdjudication,
 )
@@ -613,7 +614,12 @@ class TestLLMClientComplete:
     def test_openai_structured_schema_requires_every_object_property(self):
         """OpenAI strict JSON Schema rejects Pydantic default fields unless
         they are still listed as required in the provider-facing schema."""
-        for model in (RollPlan, RulesAdjudication, DndCombatManagerAdjudication):
+        for model in (
+            RollPlan,
+            DndCombatTurnPlan,
+            RulesAdjudication,
+            DndCombatManagerAdjudication,
+        ):
             schema = _openai_strict_json_schema(model)
             failures = []
             defaults = []

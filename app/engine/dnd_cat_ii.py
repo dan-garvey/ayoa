@@ -27,6 +27,9 @@ from app.schemas.event_router import (
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.dnd_cat_ii import (
     CombatStateDelta,
+    DndCombatActionUse,
+    DndCombatTurnPlan,
+    DndPlannedActionRoll,
     EffectDelta,
     PlannedRoll,
     RollPlan,
@@ -82,6 +85,17 @@ _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
             "Strength (Athletics) contested by the target's Strength "
             "(Athletics) or Dexterity (Acrobatics). On success, the target is "
             "grappled. Deals no damage."
+        ),
+    },
+    {
+        "id": "disarm",
+        "name": "Disarm",
+        "range": "5 ft",
+        "notes": (
+            "Optional D&D special attack. Resolve as the attacker's attack "
+            "roll contested by the target's Strength (Athletics) or "
+            "Dexterity (Acrobatics). On success, the target drops a held item. "
+            "Deals no damage."
         ),
     },
 )
@@ -344,14 +358,17 @@ def _create_combat_transaction(
     actor_id: str,
     intention: str,
     packet: dict,
-    plan: RollPlan,
+    plan: DndCombatTurnPlan,
 ) -> CatIIRollTransaction:
+    _validate_combat_turn_plan(ckpt, current_actor_id=actor_id, plan=plan)
     bindings = ckpt.session.character_bindings or {}
     by_id = {c.character_id: c for c in ckpt.characters}
     now = _utcnow_iso()
     rolls: list[CatIIRollRecord] = []
-    for request in plan.roll_requests:
+    for request in _combat_roll_requests_from_plan(plan):
         rolls.append(_roll_record_for_request(ckpt, request, bindings, by_id))
+    resource_spends = _combat_resource_spend_records_from_plan(plan)
+    has_rolls = bool(rolls)
 
     transaction = CatIIRollTransaction(
         transaction_id=f"rolltxn_{uuid.uuid4().hex[:12]}",
@@ -360,17 +377,479 @@ def _create_combat_transaction(
         actor_id=actor_id,
         intention=intention,
         ruleset_id=ckpt.session.config.settings.ruleset_id,
-        status="planned" if plan.needs_rolls else "ready_to_finalize",
+        status="planned" if has_rolls else "ready_to_finalize",
         plan=plan.model_dump(),
         context=packet,
-        no_roll_reason=plan.no_roll_reason,
+        no_roll_reason=plan.no_action_reason,
         rolls=rolls,
-        ledger_lines=[] if plan.needs_rolls else _no_roll_ledger(plan),
+        ledger_lines=[] if has_rolls else _combat_no_roll_ledger(plan),
+        resource_spends=resource_spends,
         created_at=now,
         updated_at=now,
     )
     ckpt.session.cat_ii_roll_transactions.append(transaction)
     return transaction
+
+
+def _combat_roll_requests_from_plan(
+    plan: DndCombatTurnPlan,
+) -> list[PlannedRoll]:
+    requests: list[PlannedRoll] = []
+    for action in plan.actions:
+        for roll in action.rolls:
+            requests.append(_planned_roll_from_action(action, roll))
+    return requests
+
+
+def _planned_roll_from_action(
+    action: DndCombatActionUse,
+    roll: DndPlannedActionRoll,
+) -> PlannedRoll:
+    actor_id = (
+        action.actor_id
+        if roll.kind == "saving_throw" and roll.target_id
+        else roll.roller_id or action.actor_id
+    )
+    return PlannedRoll(
+        roll_id=roll.roll_id,
+        actor_id=actor_id,
+        kind=roll.kind,
+        ability=roll.ability,
+        skill=roll.skill,
+        dc=roll.dc,
+        opposed_by=roll.opposed_by,
+        advantage_state=roll.advantage_state,
+        reason=roll.reason,
+        action_id=action.source_id,
+        target_id=roll.target_id,
+        effect_id=action.effect_id,
+        modifier_bonus=roll.modifier_bonus,
+        modifier_bonus_reason=roll.modifier_bonus_reason,
+        damage_on_save_success=roll.damage_on_save_success,
+        damage_adjustments=list(roll.damage_adjustments),
+    )
+
+
+def _combat_resource_spend_records_from_plan(
+    plan: DndCombatTurnPlan,
+) -> list[CatIIRollResourceSpendRecord]:
+    records: list[CatIIRollResourceSpendRecord] = []
+    seen: set[tuple[str, str, str]] = set()
+    for action in plan.actions:
+        for spend in action.resource_spends:
+            key = (action.actor_id, spend.resource_id, action.source_id)
+            if key in seen:
+                continue
+            records.append(CatIIRollResourceSpendRecord(
+                actor_id=action.actor_id,
+                resource_id=spend.resource_id,
+                source_id=action.source_id,
+                amount=spend.amount,
+                reason=spend.reason or action.reason,
+            ))
+            seen.add(key)
+    return records
+
+
+def _combat_no_roll_ledger(plan: DndCombatTurnPlan) -> list[str]:
+    lines: list[str] = []
+    for action in plan.actions:
+        source = action.source_id or action.effect_id or action.source_type
+        lines.append(
+            "Planned action without rolls: "
+            f"{action.actor_id} {action.use_mode} {source} "
+            f"({action.economy}); reason: {action.reason}"
+        )
+    reason = plan.no_action_reason.strip()
+    if reason:
+        lines.append(f"No rolls: {reason}")
+    return lines
+
+
+def planned_actions_block(transaction: CatIIRollTransaction) -> str:
+    actions = (transaction.plan or {}).get("actions") or []
+    if not actions:
+        reason = str(transaction.no_roll_reason or "").strip()
+        return f"No planned actions. {reason}".strip()
+    return json.dumps(actions, indent=2, sort_keys=True)
+
+
+def _validate_combat_turn_plan(
+    ckpt: CheckpointFile,
+    *,
+    current_actor_id: str,
+    plan: DndCombatTurnPlan,
+) -> None:
+    for action in plan.actions:
+        _validate_combat_action_actor(
+            ckpt,
+            current_actor_id=current_actor_id,
+            action=action,
+        )
+        source = _combat_action_source(ckpt, action)
+        _validate_combat_action_source(action, source)
+        _validate_combat_action_resource_spends(ckpt, action, source)
+
+
+def _validate_combat_action_actor(
+    ckpt: CheckpointFile,
+    *,
+    current_actor_id: str,
+    action: DndCombatActionUse,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if _combat_target_ids_overlap(combat, current_actor_id, action.actor_id):
+        return
+    if _is_readied_release_action(ckpt, action):
+        return
+    if _looks_like_opportunity_action(action):
+        return
+    raise ValueError(
+        "D&D combat action actor must be the current actor unless it is a "
+        "legal readied release, reaction, or opportunity attack: "
+        f"current_actor={current_actor_id!r} action_actor={action.actor_id!r}."
+    )
+
+
+def _looks_like_opportunity_action(action: DndCombatActionUse) -> bool:
+    text = " ".join(
+        str(part or "")
+        for part in (action.source_id, action.use_mode, action.reason)
+    ).lower()
+    return (
+        action.source_type == "action"
+        and action.use_mode == "attack"
+        and action.economy in {"reaction", "none"}
+        and "opportunity" in text
+    )
+
+
+def _is_readied_release_action(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+) -> bool:
+    if action.use_mode != "release" or not action.effect_id:
+        return False
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return False
+    found = _find_readied_effect(combat, action.effect_id)
+    if found is None:
+        return False
+    _, effect = found
+    readying_actor_id = _readied_effect_actor_id(effect)
+    return not readying_actor_id or _combat_target_ids_overlap(
+        combat,
+        readying_actor_id,
+        action.actor_id,
+    )
+
+
+def _combat_action_source(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+) -> dict[str, object] | None:
+    if action.source_type in {"movement", "object", "speech"}:
+        return {}
+    character = _character_for_combat_target(ckpt, action.actor_id)
+    if action.source_type == "spell":
+        if character is None:
+            return None
+        return _find_spell(character, action.source_id, reason=action.reason)
+    if action.source_type == "action":
+        if character is None:
+            return None
+        return _find_action(
+            {"actions": _combat_actions_for_character(character)},
+            action.source_id,
+            reason=action.reason,
+        )
+    if action.source_type == "effect":
+        return _effect_source_for_action(ckpt, action)
+    if character is None:
+        return None
+    return _generic_character_source(character, action.source_id)
+
+
+def _effect_source_for_action(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+) -> dict[str, object] | None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return None
+    wanted = {
+        _normalize_action_text(action.effect_id),
+        _normalize_action_text(action.source_id),
+    }
+    wanted = {value for value in wanted if value}
+    for combatant in _combatants(combat):
+        ids = _combatant_identity_set(combatant)
+        for effect in list(getattr(combatant, "active_effects", []) or []):
+            effect_keys = {
+                _normalize_action_text(getattr(effect, "effect_id", "") or ""),
+                _normalize_action_text(getattr(effect, "source_id", "") or ""),
+                _normalize_action_text(getattr(effect, "slug", "") or ""),
+                _normalize_action_text(getattr(effect, "name", "") or ""),
+            }
+            effect_keys = {value for value in effect_keys if value}
+            actor_matches = (
+                action.actor_id in ids
+                or action.actor_id == str(getattr(effect, "originator_id", "") or "")
+                or action.actor_id == str(getattr(effect, "target_id", "") or "")
+            )
+            if actor_matches and wanted.intersection(effect_keys):
+                return {
+                    "id": str(getattr(effect, "source_id", "") or ""),
+                    "name": str(getattr(effect, "name", "") or ""),
+                    "effect_id": str(getattr(effect, "effect_id", "") or ""),
+                    "source_id": str(getattr(effect, "source_id", "") or ""),
+                    "slug": str(getattr(effect, "slug", "") or ""),
+                }
+    return None
+
+
+def _generic_character_source(
+    character: object,
+    source_id: str,
+) -> dict[str, object] | None:
+    wanted = _normalize_action_text(source_id)
+    if not wanted:
+        return None
+    mechanics_state = getattr(character, "mechanics", None) or {}
+    if not isinstance(mechanics_state, dict):
+        return None
+    return _find_source_in_value(mechanics_state, wanted)
+
+
+def _find_source_in_value(
+    value: object,
+    wanted: str,
+) -> dict[str, object] | None:
+    if isinstance(value, dict):
+        names = {
+            _normalize_action_text(value.get("id") or ""),
+            _normalize_action_text(value.get("name") or ""),
+            _normalize_action_text(value.get("slug") or ""),
+        }
+        if wanted in {name for name in names if name}:
+            return value
+        for item in value.values():
+            found = _find_source_in_value(item, wanted)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _find_source_in_value(item, wanted)
+            if found is not None:
+                return found
+    return None
+
+
+def _validate_combat_action_source(
+    action: DndCombatActionUse,
+    source: dict[str, object] | None,
+) -> None:
+    if action.source_type in {"movement", "object", "speech"}:
+        return
+    if not action.source_id and not action.effect_id:
+        raise ValueError(
+            f"D&D combat action from {action.actor_id!r} is missing source_id."
+        )
+    if source is None:
+        source_key = action.source_id or action.effect_id
+        raise ValueError(
+            "D&D combat action source is not available on the actor: "
+            f"actor={action.actor_id!r} source_type={action.source_type!r} "
+            f"source_id={source_key!r}."
+        )
+
+
+def _validate_combat_action_resource_spends(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+    source: dict[str, object] | None,
+) -> None:
+    if _is_readied_release_action(ckpt, action) and action.resource_spends:
+        raise ValueError(
+            "Readied spell release must not declare a spell-slot or source "
+            f"resource spend: effect_id={action.effect_id!r}."
+        )
+    for spend in action.resource_spends:
+        _validate_resource_exists_and_available(ckpt, action, spend)
+        _validate_resource_matches_source(action, source, spend)
+    if _combat_action_requires_resource_spend(action, source):
+        if not action.resource_spends:
+            raise ValueError(
+                "D&D combat action consumes a resource and must declare "
+                "resource_spends explicitly: "
+                f"actor={action.actor_id!r} source={action.source_id!r}."
+            )
+
+
+def _validate_resource_exists_and_available(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+    spend: object,
+) -> None:
+    resource_id = str(getattr(spend, "resource_id", "") or "").strip()
+    amount = _int_value(getattr(spend, "amount", 0), 0)
+    if amount <= 0:
+        raise ValueError(
+            f"D&D combat resource spend amount must be positive: {resource_id!r}."
+        )
+    currents = _resource_currents_for_actor(ckpt, action.actor_id, resource_id)
+    if not currents:
+        raise ValueError(
+            "D&D combat resource spend references an unavailable resource: "
+            f"actor={action.actor_id!r} resource={resource_id!r}."
+        )
+    if max(currents) < amount:
+        raise ValueError(
+            "D&D combat resource spend exceeds the available resource: "
+            f"actor={action.actor_id!r} resource={resource_id!r} "
+            f"amount={amount} available={max(currents)}."
+        )
+
+
+def _validate_resource_matches_source(
+    action: DndCombatActionUse,
+    source: dict[str, object] | None,
+    spend: object,
+) -> None:
+    resource_id = str(getattr(spend, "resource_id", "") or "").strip()
+    consumes = _resource_summaries((source or {}).get("consumes"))
+    if action.source_type == "spell" and resource_id.startswith("spell_slot_"):
+        slot_level = _int_value(resource_id.removeprefix("spell_slot_"), 0)
+        if action.casting.cast_level <= 0:
+            raise ValueError(
+                "Spell-slot spends must declare casting.cast_level: "
+                f"source={action.source_id!r} resource={resource_id!r}."
+            )
+        if slot_level != action.casting.cast_level:
+            raise ValueError(
+                "Spell-slot spend must match casting.cast_level: "
+                f"source={action.source_id!r} cast_level="
+                f"{action.casting.cast_level} resource={resource_id!r}."
+            )
+        spell_level = _int_value((source or {}).get("level"), 0)
+        if spell_level and slot_level < spell_level:
+            raise ValueError(
+                "Spell-slot spend cannot cast below the spell's level: "
+                f"source={action.source_id!r} spell_level={spell_level} "
+                f"cast_level={slot_level}."
+            )
+    if not consumes:
+        return
+    allowed = {
+        str(item.get("resource_id") or "").strip()
+        for item in consumes
+        if str(item.get("resource_id") or "").strip()
+    }
+    if resource_id in allowed:
+        return
+    if resource_id.startswith("spell_slot_") and any(
+        item.startswith("spell_slot_") for item in allowed
+    ):
+        return
+    if resource_id == "pact_slot" and "pact_slot" in allowed:
+        return
+    raise ValueError(
+        "D&D combat resource spend does not match the planned source: "
+        f"source={action.source_id!r} resource={resource_id!r}."
+    )
+
+
+def _combat_action_requires_resource_spend(
+    action: DndCombatActionUse,
+    source: dict[str, object] | None,
+) -> bool:
+    if action.use_mode == "release":
+        return False
+    if action.source_type == "spell" and action.casting.ritual:
+        return False
+    return bool(_resource_summaries((source or {}).get("consumes")))
+
+
+def _resource_currents_for_actor(
+    ckpt: CheckpointFile,
+    actor_id: str,
+    resource_id: str,
+) -> list[int]:
+    character = _character_for_combat_target(ckpt, actor_id)
+    if character is None:
+        return []
+    mechanics_state = getattr(character, "mechanics", None)
+    if not isinstance(mechanics_state, dict):
+        return []
+    values: list[int] = []
+    values.extend(_resource_currents_from_pool(
+        mechanics_state.get("resources"),
+        resource_id,
+    ))
+    statblock = (
+        (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
+    )
+    if isinstance(statblock, dict):
+        spellcasting = statblock.get("spellcasting") or {}
+        if isinstance(spellcasting, dict):
+            values.extend(_spellcasting_resource_currents(
+                spellcasting,
+                resource_id,
+            ))
+    return values
+
+
+def _resource_currents_from_pool(
+    pool: object,
+    resource_id: str,
+) -> list[int]:
+    values: list[int] = []
+    if isinstance(pool, list):
+        for item in pool:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("id") or "").strip() == resource_id:
+                values.append(_int_value(item.get("current"), 0))
+        return values
+    if not isinstance(pool, dict):
+        return values
+    direct = pool.get(resource_id)
+    if isinstance(direct, dict):
+        values.append(_int_value(direct.get("current"), 0))
+    elif isinstance(direct, int):
+        values.append(direct)
+    if resource_id.startswith("spell_slot_"):
+        level = resource_id.removeprefix("spell_slot_")
+        slots = pool.get("spell_slots")
+        if isinstance(slots, dict):
+            entry = slots.get(level)
+            if isinstance(entry, dict):
+                values.append(_int_value(entry.get("current"), 0))
+            elif isinstance(entry, int):
+                values.append(entry)
+    return values
+
+
+def _spellcasting_resource_currents(
+    spellcasting: dict[str, object],
+    resource_id: str,
+) -> list[int]:
+    values: list[int] = []
+    if resource_id.startswith("spell_slot_"):
+        level = resource_id.removeprefix("spell_slot_")
+        slots = spellcasting.get("slots")
+        if isinstance(slots, dict):
+            entry = slots.get(level)
+            if isinstance(entry, dict):
+                values.append(_int_value(entry.get("current"), 0))
+            elif isinstance(entry, int):
+                values.append(entry)
+    if resource_id == "pact_slot":
+        pact = spellcasting.get("pact_slots")
+        if isinstance(pact, dict):
+            values.append(_int_value(pact.get("current"), 0))
+    return values
 
 
 def _roll_record_for_request(
@@ -532,9 +1011,9 @@ def _execute_combat_damage_rolls(
         )
         if not hit:
             continue
-        damage_profile = _damage_profile_for_action(ckpt, request)
+        damage_profile = _damage_profile_for_direct_damage(ckpt, request)
         if not damage_profile.components:
-            if _known_non_damage_action(ckpt, request):
+            if _known_non_damage_source(ckpt, request):
                 _append_ledger_line_once(
                     transaction,
                     f"{record.roll_id}: {request.action_id or request.skill} "
@@ -1035,41 +1514,6 @@ def _apply_combat_damage_records(
         damage.applied = True
 
 
-def _prepare_combat_resource_spends(
-    ckpt: CheckpointFile,
-    transaction: CatIIRollTransaction,
-    adjudication: RulesAdjudication,
-) -> None:
-    if not adjudication.feasible:
-        return
-    actor_id = transaction.actor_id.strip()
-    if not actor_id:
-        return
-    existing = {
-        (spend.actor_id, spend.resource_id, spend.source_id)
-        for spend in transaction.resource_spends
-    }
-    for source_id in _resource_spend_source_ids(ckpt, transaction, adjudication):
-        for consume in _source_consumes_for_actor(ckpt, actor_id, source_id):
-            resource_id = str(consume.get("resource_id") or "").strip()
-            amount = _int_value(consume.get("amount"), 1)
-            if not resource_id or amount <= 0:
-                continue
-            key = (actor_id, resource_id, source_id)
-            if key in existing:
-                continue
-            transaction.resource_spends.append(
-                CatIIRollResourceSpendRecord(
-                    actor_id=actor_id,
-                    resource_id=resource_id,
-                    source_id=source_id,
-                    amount=amount,
-                    reason=f"{source_id} consumes {resource_id}",
-                )
-            )
-            existing.add(key)
-
-
 def _apply_combat_resource_spends(
     ckpt: CheckpointFile,
     transaction: CatIIRollTransaction,
@@ -1101,121 +1545,6 @@ def _apply_combat_resource_spends(
                 f"{marker}: no code-readable resource pool for spend",
             )
         spend.applied = True
-
-
-def _resource_spend_source_ids(
-    ckpt: CheckpointFile,
-    transaction: CatIIRollTransaction,
-    adjudication: RulesAdjudication,
-) -> list[str]:
-    actor_id = transaction.actor_id.strip()
-    source_ids: list[str] = []
-    for record in transaction.rolls:
-        if record.status != "completed":
-            continue
-        request = PlannedRoll.model_validate(record.request)
-        if request.actor_id != actor_id:
-            continue
-        source_id = request.action_id.strip()
-        if source_id:
-            source_ids.append(source_id)
-    for delta in getattr(adjudication, "effect_deltas", []) or []:
-        if delta.operation != "start":
-            continue
-        originator_id = delta.originator_id.strip() or actor_id
-        if originator_id != actor_id:
-            continue
-        source_id = (
-            delta.source_id.strip()
-            or delta.slug.strip()
-            or delta.name.strip()
-            or delta.effect_id.strip()
-        )
-        if source_id:
-            source_ids.append(source_id)
-    source_ids.extend(
-        _declared_resource_spend_source_ids(ckpt, transaction, adjudication)
-    )
-    return _unique_text(source_ids)
-
-
-def _declared_resource_spend_source_ids(
-    ckpt: CheckpointFile,
-    transaction: CatIIRollTransaction,
-    adjudication: RulesAdjudication,
-) -> list[str]:
-    actor_id = transaction.actor_id.strip()
-    if not actor_id:
-        return []
-    text = _normalize_action_text(" ".join(
-        str(part or "")
-        for part in (
-            (transaction.context or {}).get("intention"),
-            adjudication.mechanical_summary,
-            " ".join(adjudication.visible_outcome_facts or []),
-            " ".join(adjudication.rules_notes or []),
-            adjudication.fallback_reason,
-        )
-    ))
-    if not text:
-        return []
-    matches: list[str] = []
-    for source in _consuming_sources_for_actor(ckpt, actor_id):
-        names = _action_names(source)
-        if not names:
-            continue
-        if any(_contains_action_name(text, name) for name in names):
-            source_id = str(source.get("id") or source.get("name") or "").strip()
-            if source_id:
-                matches.append(source_id)
-    return matches
-
-
-def _consuming_sources_for_actor(
-    ckpt: CheckpointFile,
-    actor_id: str,
-) -> list[dict[str, object]]:
-    character = _character_for_combat_target(ckpt, actor_id)
-    if character is None:
-        return []
-    out: list[dict[str, object]] = []
-    for action in _combat_actions_for_character(character):
-        if _resource_summaries(action.get("consumes")):
-            out.append(action)
-    for spell in _raw_spells_for_character(character):
-        if _resource_summaries(spell.get("consumes")):
-            out.append(spell)
-    return out
-
-
-def _source_consumes_for_actor(
-    ckpt: CheckpointFile,
-    actor_id: str,
-    source_id: str,
-) -> list[dict[str, object]]:
-    character = _character_for_combat_target(ckpt, actor_id)
-    if character is None:
-        return []
-    for action in _combat_actions_for_character(character):
-        if _source_matches(action, source_id):
-            return _resource_summaries(action.get("consumes"))
-    for spell in _raw_spells_for_character(character):
-        if _source_matches(spell, source_id):
-            return _resource_summaries(spell.get("consumes"))
-    return []
-
-
-def _source_matches(source: dict[str, object], source_id: str) -> bool:
-    wanted = _normalize_action_text(source_id)
-    if not wanted:
-        return False
-    names = _action_names(source)
-    if wanted in names:
-        return True
-    return any(
-        _contains_action_name(wanted, name) or _contains_action_name(name, wanted)
-        for name in names
-    )
 
 
 def _spend_character_resource(
@@ -1359,6 +1688,11 @@ def _roll_modifier_for_request(
             (mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {}
         )
         if isinstance(statblock, dict):
+            spell = _find_spell(character, request.action_id, reason=request.reason)
+            if spell is not None:
+                bonus = _spell_attack_bonus(character, spell)
+                if bonus is not None:
+                    return bonus + int(request.modifier_bonus or 0)
             actions = _combat_actions_for_character(character)
             action = _find_action(
                 {"actions": actions},
@@ -1389,10 +1723,13 @@ def _damage_profile_for_action(
     return _action_damage_profile(action)
 
 
-def _known_non_damage_action(
+def _known_non_damage_source(
     ckpt: CheckpointFile,
     request: PlannedRoll,
 ) -> bool:
+    spell = _spell_for_request(ckpt, request)
+    if spell is not None:
+        return not _spell_damage_profile(spell).components
     action = _action_for_request(ckpt, request)
     return action is not None and not _action_damage_profile(action).components
 
@@ -1419,13 +1756,20 @@ def _damage_profile_for_spell(
     ckpt: CheckpointFile,
     request: PlannedRoll,
 ) -> _DamageProfile:
-    character = _character_for_combat_target(ckpt, request.actor_id)
-    if character is None:
-        return _DamageProfile()
-    spell = _find_spell(character, request.action_id, reason=request.reason)
+    spell = _spell_for_request(ckpt, request)
     if spell is None:
         return _DamageProfile()
     return _spell_damage_profile(spell)
+
+
+def _spell_for_request(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> dict[str, object] | None:
+    character = _character_for_combat_target(ckpt, request.actor_id)
+    if character is None:
+        return None
+    return _find_spell(character, request.action_id, reason=request.reason)
 
 
 def _damage_profile_for_direct_damage(
@@ -1549,6 +1893,32 @@ def _action_attack_bonus(action: dict[str, object]) -> int | None:
         return int(bonus)
     except (TypeError, ValueError):
         return None
+
+
+def _spell_attack_bonus(
+    character: object,
+    spell: dict[str, object],
+) -> int | None:
+    attack = spell.get("attack") or {}
+    if isinstance(attack, dict):
+        bonus = attack.get("bonus")
+        if bonus not in {None, ""}:
+            try:
+                return int(bonus)
+            except (TypeError, ValueError):
+                pass
+    spellcasting = _character_spellcasting(character)
+    for profile in spellcasting.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        bonus = profile.get("spell_attack_bonus")
+        if bonus in {None, ""}:
+            continue
+        try:
+            return int(bonus)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _attack_action_count(statblock: dict[str, object]) -> int:
@@ -3408,6 +3778,11 @@ def _roll_label(
     character: object | None = None,
 ) -> str:
     if request.kind == "attack_roll" and request.action_id:
+        if character is not None:
+            spell = _find_spell(character, request.action_id, reason=request.reason)
+            if spell is not None:
+                name = str(spell.get("name") or "").strip()
+                return f"Spell Attack ({name or request.action_id.replace('_', ' ').title()})"
         action = _find_action(
             {"actions": _combat_actions_for_character(character)},
             request.action_id,

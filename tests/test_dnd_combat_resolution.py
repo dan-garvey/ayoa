@@ -14,9 +14,13 @@ from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import (
+    DndCombatActionUse,
+    DndCombatCasting,
     DndCombatManagerAdjudication,
+    DndCombatTurnPlan,
+    DndPlannedActionRoll,
+    DndPlannedResourceSpend,
     PlannedRoll,
-    RollPlan,
     RulesAdjudication,
 )
 from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
@@ -39,6 +43,174 @@ def _llm_response(parsed) -> LLMResponse:
         raw_response=raw,
         content="{}",
         model="gpt-5.2",
+    )
+
+
+_SPELL_SOURCE_IDS = {
+    "acid_splash",
+    "burning_hands",
+    "call_lightning",
+    "cone_of_cold",
+    "fireball",
+    "fire_bolt",
+    "guiding_bolt",
+    "hold_person",
+    "magic_missile",
+    "misty_step",
+    "scorching_ray",
+}
+
+
+def _turn_plan(
+    *,
+    needs_rolls: bool,
+    roll_requests: list[PlannedRoll],
+    no_roll_reason: str,
+    actor_id: str = "alice",
+) -> DndCombatTurnPlan:
+    _ = needs_rolls
+    actions_by_key: dict[tuple[str, str, str, str], DndCombatActionUse] = {}
+    if not roll_requests:
+        return DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id=actor_id,
+                    source_type="speech",
+                    source_id="",
+                    use_mode="speak",
+                    economy="free",
+                    rolls=[],
+                    reason=no_roll_reason or "No roll needed.",
+                )
+            ],
+            no_action_reason=no_roll_reason,
+        )
+    for request in roll_requests:
+        action = _action_from_planned_roll(request)
+        key = (
+            action.actor_id,
+            action.source_type,
+            action.source_id,
+            action.effect_id,
+        )
+        if key not in actions_by_key:
+            actions_by_key[key] = action
+        actions_by_key[key].rolls.append(_action_roll_from_planned_roll(request))
+    return DndCombatTurnPlan(
+        feasible=True,
+        actions=list(actions_by_key.values()),
+        no_action_reason=no_roll_reason,
+    )
+
+
+def _action_from_planned_roll(request: PlannedRoll) -> DndCombatActionUse:
+    source_id = request.action_id
+    source_type = "action"
+    use_mode = "attack" if request.kind == "attack_roll" else "activate"
+    economy = "action"
+    actor_id = request.actor_id
+    if request.effect_id:
+        source_type = "effect"
+        use_mode = "release"
+        economy = "reaction"
+    elif source_id == "spell":
+        source_type = "speech"
+    elif source_id in _SPELL_SOURCE_IDS:
+        source_type = "spell"
+        use_mode = "cast"
+    elif not source_id and request.kind == "saving_throw":
+        source_type = "speech"
+        source_id = (
+            "hold_person"
+            if "hold person" in request.reason.lower()
+            else "spell"
+        )
+        actor_id = "alice"
+    elif not source_id and request.kind == "attack_roll":
+        reason_text = request.reason.lower()
+        if "shortbow" in reason_text:
+            source_id = "shortbow"
+        elif "longsword" in reason_text:
+            source_id = "longsword"
+        else:
+            source_id = "blade"
+    if "opportunity" in request.reason.lower():
+        economy = "none"
+    return DndCombatActionUse(
+        actor_id=actor_id,
+        source_type=source_type,
+        source_id=source_id,
+        effect_id=request.effect_id,
+        use_mode=use_mode,
+        economy=economy,
+        rolls=[],
+        reason=request.reason,
+    )
+
+
+def _action_roll_from_planned_roll(request: PlannedRoll) -> DndPlannedActionRoll:
+    roller_id = (
+        request.target_id
+        if request.kind == "saving_throw" and request.target_id
+        else request.actor_id
+    )
+    return DndPlannedActionRoll(
+        roll_id=request.roll_id,
+        kind=request.kind,
+        roller_id=roller_id,
+        target_id=request.target_id,
+        ability=request.ability,
+        skill=request.skill,
+        dc=request.dc,
+        opposed_by=request.opposed_by,
+        advantage_state=request.advantage_state,
+        modifier_bonus=request.modifier_bonus,
+        modifier_bonus_reason=request.modifier_bonus_reason,
+        damage_on_save_success=request.damage_on_save_success,
+        damage_adjustments=list(request.damage_adjustments),
+        reason=request.reason,
+    )
+
+
+def _spell_turn_plan(
+    *,
+    source_id: str,
+    cast_level: int,
+    resource_id: str,
+    roll_requests: list[PlannedRoll] | None = None,
+    economy: str = "action",
+    reason: str = "",
+) -> DndCombatTurnPlan:
+    spends = (
+        [
+            DndPlannedResourceSpend(
+                resource_id=resource_id,
+                amount=1,
+                reason=reason or f"cast {source_id}",
+            )
+        ]
+        if resource_id else []
+    )
+    return DndCombatTurnPlan(
+        feasible=True,
+        actions=[
+            DndCombatActionUse(
+                actor_id="alice",
+                source_type="spell",
+                source_id=source_id,
+                use_mode="cast",
+                economy=economy,
+                casting=DndCombatCasting(cast_level=cast_level),
+                resource_spends=spends,
+                rolls=[
+                    _action_roll_from_planned_roll(request)
+                    for request in roll_requests or []
+                ],
+                reason=reason or f"cast {source_id}",
+            )
+        ],
+        no_action_reason="",
     )
 
 
@@ -93,6 +265,7 @@ def _spell(
     name: str,
     *,
     level: int,
+    attack_bonus: int | None = None,
     save_ability: str = "",
     dc: int = 0,
     damage: str = "",
@@ -112,6 +285,7 @@ def _spell(
         "prepared": True,
         "always_prepared": False,
         "concentration": concentration,
+        "attack": {"bonus": attack_bonus} if attack_bonus is not None else {},
         "save": {"ability": save_ability, "dc": dc} if save_ability else {},
         "damage": [{"formula": damage}] if damage else [],
         "healing": [],
@@ -236,7 +410,7 @@ def _planned_attack(
 def _basic_attack_mocks(request: PlannedRoll) -> tuple[MagicMock, MagicMock]:
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[request],
             no_roll_reason="",
@@ -282,7 +456,7 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -348,6 +522,8 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     assert [
         call.args[0] for call in prompt_mgr.render_messages.call_args_list
     ] == ["dnd_combat_manager", "dnd_combat_manager"]
+    assert prompt_mgr.render_messages.call_args_list[0].kwargs["phase"] == "PLAN_TURN"
+    assert "planned_actions_block" in prompt_mgr.render_messages.call_args_list[1].kwargs
     assert [
         call.kwargs["role"] for call in client.complete.await_args_list
     ] == ["dnd_combat_manager", "dnd_combat_manager"]
@@ -375,7 +551,7 @@ def test_combat_saving_throw_uses_target_modifier_and_cover_bonus(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -471,7 +647,7 @@ def test_combat_save_damage_rolls_once_and_applies_per_target(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -565,7 +741,7 @@ def test_damage_engine_owns_defeat_condition_deltas(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[_planned_attack()],
             no_roll_reason="",
@@ -639,7 +815,7 @@ def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="No roll.",
@@ -710,7 +886,7 @@ def test_combat_packet_trims_non_actor_inventory_resources_and_raw():
     }
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="No roll needed.",
@@ -772,10 +948,11 @@ def test_combat_packet_marks_current_actor_relationships():
     ))
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="No roll needed.",
+            actor_id="bob",
         )),
         _llm_response(RulesAdjudication(
             feasible=True,
@@ -1022,7 +1199,7 @@ def test_falling_collision_split_damage_applies_to_falling_actor(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -1109,7 +1286,7 @@ def test_failed_falling_collision_save_rolls_split_damage(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -1611,7 +1788,7 @@ def test_combat_resolver_can_end_combat_from_adjudication():
     ckpt = _ckpt()
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="Bob surrenders.",
@@ -1651,7 +1828,7 @@ def test_combat_end_queues_router_observed_continuity():
     ckpt = _ckpt()
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="Alice spares Bob.",
@@ -1722,7 +1899,7 @@ def test_combat_end_includes_queued_death_fact(monkeypatch):
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -1790,7 +1967,7 @@ def test_combat_damage_waits_for_successful_finalization(monkeypatch):
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -1845,7 +2022,7 @@ def test_combat_damage_retry_applies_persisted_damage_once(monkeypatch):
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -1973,7 +2150,7 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -2103,7 +2280,7 @@ def test_runtime_inventory_weapon_becomes_combat_action(monkeypatch):
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 _planned_attack(
@@ -2167,7 +2344,7 @@ def test_combat_packet_exposes_defenses_and_effect_break_triggers():
     ))
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="probe",
@@ -2236,26 +2413,19 @@ def test_invalid_action_id_does_not_fall_back_to_reason_weapon(monkeypatch):
         reason="Alice attacks Bob with a shortbow.",
     ))
 
-    asyncio.run(
-        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I shoot Bob with my shortbow.",
+    with pytest.raises(ValueError, match="source is not available"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I shoot Bob with my shortbow.",
+            )
         )
-    )
-
-    bob = ckpt.session.active_combat.combatants[1]
-    transaction = ckpt.session.cat_ii_roll_transactions[0]
-    assert transaction.rolls[0].modifier == 0
-    assert transaction.damage_records == []
-    assert bob.hit_points_current == 13
-    assert any(
-        "no code-readable damage expression for alice action blade" in line
-        for line in transaction.ledger_lines
-    )
+    assert ckpt.session.cat_ii_roll_transactions == []
+    assert ckpt.session.active_combat.combatants[1].hit_points_current == 13
 
 
-def test_missing_action_id_with_ambiguous_reason_does_not_pick_first_weapon(
+def test_missing_action_source_fails_before_dice(
     monkeypatch,
 ):
     ckpt = _ckpt()
@@ -2286,23 +2456,16 @@ def test_missing_action_id_with_ambiguous_reason_does_not_pick_first_weapon(
         reason="Alice attacks Bob with a weapon.",
     ))
 
-    asyncio.run(
-        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="I attack Bob with a weapon.",
+    with pytest.raises(ValueError, match="source is not available"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I attack Bob with a weapon.",
+            )
         )
-    )
-
-    bob = ckpt.session.active_combat.combatants[1]
-    transaction = ckpt.session.cat_ii_roll_transactions[0]
-    assert transaction.rolls[0].modifier == 0
-    assert transaction.damage_records == []
-    assert bob.hit_points_current == 13
-    assert any(
-        "no code-readable damage expression for alice action" in line
-        for line in transaction.ledger_lines
-    )
+    assert ckpt.session.cat_ii_roll_transactions == []
+    assert ckpt.session.active_combat.combatants[1].hit_points_current == 13
 
 
 def test_known_no_damage_attack_action_does_not_emit_damage_marker(monkeypatch):
@@ -2420,7 +2583,7 @@ def test_combat_packet_exposes_current_actor_spellcasting():
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="probe",
@@ -2558,8 +2721,10 @@ def test_combat_resolver_consumes_spell_slot_once_for_multi_target_save_spell(
     monkeypatch.setattr(dice.d20.expression.random, "randrange", lambda _: 4)
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
-            needs_rolls=True,
+        _llm_response(_spell_turn_plan(
+            source_id="burning_hands",
+            cast_level=1,
+            resource_id="spell_slot_1",
             roll_requests=[
                 PlannedRoll(
                     roll_id="save_bob_fire",
@@ -2592,7 +2757,7 @@ def test_combat_resolver_consumes_spell_slot_once_for_multi_target_save_spell(
                     damage_on_save_success="half",
                 ),
             ],
-            no_roll_reason="",
+            reason="Alice casts Burning Hands.",
         )),
         _llm_response(RulesAdjudication(
             feasible=True,
@@ -2653,10 +2818,12 @@ def test_combat_resolver_consumes_no_roll_spell_named_in_intention():
     }
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
-            needs_rolls=False,
-            roll_requests=[],
-            no_roll_reason="Misty Step needs no roll.",
+        _llm_response(_spell_turn_plan(
+            source_id="misty_step",
+            cast_level=2,
+            resource_id="spell_slot_2",
+            economy="bonus_action",
+            reason="Misty Step needs no roll.",
         )),
         _llm_response(RulesAdjudication(
             feasible=True,
@@ -2696,6 +2863,594 @@ def test_combat_resolver_consumes_no_roll_spell_named_in_intention():
     assert slots["2"]["current"] == 1
 
 
+def test_combat_resolver_spell_attack_spends_slot_and_uses_spell_damage(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_attack_bonus": 6,
+        }],
+        "slots": {"2": {"current": 1, "max": 1}},
+        "spells": [
+            _spell(
+                "scorching_ray",
+                "Scorching Ray",
+                level=2,
+                attack_bonus=6,
+                damage="2d6 fire",
+                consumes_level=2,
+            )
+        ],
+    }
+    values = iter([9, 2, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(_spell_turn_plan(
+            source_id="scorching_ray",
+            cast_level=2,
+            resource_id="spell_slot_2",
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="ray_1",
+                    actor_id="alice",
+                    kind="attack_roll",
+                    ability="int",
+                    skill="",
+                    dc=12,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Alice hurls a ray at Bob.",
+                    action_id="scorching_ray",
+                    target_id="bob",
+                )
+            ],
+            reason="Alice casts Scorching Ray.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="The ray hits.",
+            visible_outcome_facts=["Alice's ray scorches Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Scorching Ray at Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.rolls[0].modifier == 6
+    assert transaction.damage_records[0].damage_type == "fire"
+    assert transaction.resource_spends[0].source_id == "scorching_ray"
+    assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]["2"]["current"] == 0
+
+
+def test_combat_resolver_magic_missile_spends_one_slot_for_many_damage_rolls(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{"id": "class_1", "name": "Wizard", "ability": "int"}],
+        "slots": {"1": {"current": 1, "max": 1}},
+        "spells": [
+            _spell(
+                "magic_missile",
+                "Magic Missile",
+                level=1,
+                damage="3 darts, each 1d4+1 force",
+                consumes_level=1,
+            )
+        ],
+    }
+    values = iter([0, 1, 2])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(_spell_turn_plan(
+            source_id="magic_missile",
+            cast_level=1,
+            resource_id="spell_slot_1",
+            roll_requests=[
+                PlannedRoll(
+                    roll_id=f"dart_{index}",
+                    actor_id="alice",
+                    kind="damage_roll",
+                    ability="str",
+                    skill="",
+                    dc=0,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason=f"Magic Missile dart {index} hits Bob.",
+                    action_id="magic_missile",
+                    target_id="bob",
+                )
+                for index in range(1, 4)
+            ],
+            reason="Alice casts Magic Missile.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="The darts hit.",
+            visible_outcome_facts=["Alice's missiles strike Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Magic Missile at Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [damage.amount for damage in transaction.damage_records] == [2, 3, 4]
+    assert [
+        (spend.resource_id, spend.source_id, spend.amount, spend.applied)
+        for spend in transaction.resource_spends
+    ] == [("spell_slot_1", "magic_missile", 1, True)]
+    assert ckpt.session.active_combat.combatants[1].hit_points_current == 4
+
+
+def test_combat_resolver_cantrip_attack_spends_no_slot(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_attack_bonus": 5,
+        }],
+        "slots": {"1": {"current": 1, "max": 1}},
+        "spells": [
+            _spell(
+                "fire_bolt",
+                "Fire Bolt",
+                level=0,
+                attack_bonus=5,
+                damage="1d10 fire",
+            )
+        ],
+    }
+    values = iter([9, 4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="alice",
+                    source_type="spell",
+                    source_id="fire_bolt",
+                    use_mode="cast",
+                    economy="action",
+                    resource_spends=[],
+                    rolls=[
+                        DndPlannedActionRoll(
+                            roll_id="fire_bolt_attack",
+                            kind="attack_roll",
+                            roller_id="alice",
+                            target_id="bob",
+                            ability="int",
+                            skill="",
+                            dc=12,
+                            opposed_by="",
+                            advantage_state="normal",
+                            reason="Alice casts Fire Bolt at Bob.",
+                        )
+                    ],
+                    reason="cantrip attack",
+                )
+            ],
+            no_action_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="The cantrip hits.",
+            visible_outcome_facts=["Alice's fire bolt strikes Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Fire Bolt at Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.resource_spends == []
+    assert transaction.damage_records[0].damage_type == "fire"
+    assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]["1"]["current"] == 1
+
+
+def test_combat_resolver_ritual_spell_spends_no_slot():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{"id": "class_1", "name": "Wizard", "ability": "int"}],
+        "slots": {"1": {"current": 1, "max": 1}},
+        "spells": [
+            _spell("alarm", "Alarm", level=1, consumes_level=1)
+        ],
+    }
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="alice",
+                    source_type="spell",
+                    source_id="alarm",
+                    use_mode="cast",
+                    economy="action",
+                    casting=DndCombatCasting(cast_level=1, ritual=True),
+                    resource_spends=[],
+                    rolls=[],
+                    reason="Alice casts Alarm as a ritual.",
+                )
+            ],
+            no_action_reason="Alarm needs no roll.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice sets the ward.",
+            visible_outcome_facts=["Alice completes a quiet warding rite."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Alarm as a ritual.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.resource_spends == []
+    assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]["1"]["current"] == 1
+
+
+def test_combat_resolver_pact_slot_spell_spends_pact_slot():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{"id": "pact", "name": "Warlock", "ability": "cha"}],
+        "pact_slots": {"current": 1, "max": 1, "level": 2},
+        "spells": [{
+            **_spell("hex", "Hex", level=1, concentration=True),
+            "consumes": [{"resource_id": "pact_slot", "amount": 1}],
+        }],
+    }
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(_spell_turn_plan(
+            source_id="hex",
+            cast_level=0,
+            resource_id="pact_slot",
+            reason="Alice casts Hex.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice curses Bob.",
+            visible_outcome_facts=["Alice marks Bob with a curse."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Hex on Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [
+        (spend.resource_id, spend.source_id, spend.applied)
+        for spend in transaction.resource_spends
+    ] == [("pact_slot", "hex", True)]
+    assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["pact_slots"]["current"] == 0
+
+
+def test_combat_resolver_rejects_invalid_or_missing_resource_spends():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{"id": "class_1", "name": "Wizard", "ability": "int"}],
+        "slots": {"2": {"current": 0, "max": 1}},
+        "spells": [
+            _spell("misty_step", "Misty Step", level=2, consumes_level=2)
+        ],
+    }
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.return_value = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "plan"},
+    ]
+    client = MagicMock()
+    client.complete = AsyncMock(return_value=_llm_response(_spell_turn_plan(
+        source_id="misty_step",
+        cast_level=2,
+        resource_id="spell_slot_2",
+        economy="bonus_action",
+        reason="Alice casts Misty Step.",
+    )))
+
+    with pytest.raises(ValueError, match="exceeds the available resource"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I cast Misty Step.",
+            )
+        )
+
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"][
+        "slots"
+    ]["2"]["current"] = 1
+    client.complete = AsyncMock(return_value=_llm_response(DndCombatTurnPlan(
+        feasible=True,
+        actions=[
+            DndCombatActionUse(
+                actor_id="alice",
+                source_type="spell",
+                source_id="misty_step",
+                use_mode="cast",
+                economy="bonus_action",
+                casting=DndCombatCasting(cast_level=2),
+                resource_spends=[],
+                rolls=[],
+                reason="Alice casts Misty Step.",
+            )
+        ],
+        no_action_reason="",
+    )))
+
+    with pytest.raises(ValueError, match="must declare resource_spends"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I cast Misty Step.",
+            )
+        )
+
+
+def test_combat_resolver_rejects_upcast_slot_mismatch():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{"id": "class_1", "name": "Wizard", "ability": "int"}],
+        "slots": {"3": {"current": 1, "max": 1}},
+        "spells": [
+            _spell("burning_hands", "Burning Hands", level=1, consumes_level=1)
+        ],
+    }
+    client = MagicMock()
+    client.complete = AsyncMock(return_value=_llm_response(_spell_turn_plan(
+        source_id="burning_hands",
+        cast_level=2,
+        resource_id="spell_slot_3",
+        reason="Alice upcasts Burning Hands.",
+    )))
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.return_value = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "plan"},
+    ]
+
+    with pytest.raises(ValueError, match="must match casting.cast_level"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I cast Burning Hands with a third-level slot.",
+            )
+        )
+
+
+def test_combat_resolver_ongoing_effect_rolls_without_original_slot(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Druid",
+            "ability": "wis",
+            "spell_save_dc": 13,
+        }],
+        "slots": {"3": {"current": 0, "max": 1}},
+        "spells": [
+            _spell(
+                "call_lightning",
+                "Call Lightning",
+                level=3,
+                save_ability="dex",
+                dc=13,
+                damage="3d10 lightning",
+                consumes_level=3,
+                concentration=True,
+            )
+        ],
+    }
+    alice = ckpt.session.active_combat.combatants[0]
+    alice.active_effects.append(DndRuntimeEffect(
+        effect_id="eff_call_lightning",
+        name="Call Lightning",
+        slug="call_lightning",
+        source_type="spell",
+        source_id="call_lightning",
+        originator_id="alice",
+        target_id="alice",
+        concentration=True,
+        duration_kind="minutes",
+        duration_amount=10,
+        remaining_rounds=10,
+    ))
+    values = iter([4, 0, 1, 2])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="alice",
+                    source_type="effect",
+                    source_id="call_lightning",
+                    effect_id="eff_call_lightning",
+                    use_mode="sustain",
+                    economy="action",
+                    resource_spends=[],
+                    rolls=[
+                        DndPlannedActionRoll(
+                            roll_id="call_lightning_bob",
+                            kind="saving_throw",
+                            roller_id="bob",
+                            target_id="bob",
+                            ability="dex",
+                            skill="",
+                            dc=13,
+                            opposed_by="",
+                            advantage_state="normal",
+                            damage_on_save_success="half",
+                            reason="Bob dodges the called lightning.",
+                        )
+                    ],
+                    reason="Alice calls lightning down again.",
+                )
+            ],
+            no_action_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="The storm bolt lands.",
+            visible_outcome_facts=["Lightning crashes into Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I call lightning down on Bob again.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.resource_spends == []
+    assert transaction.damage_records[0].damage_type == "lightning"
+    assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]["3"]["current"] == 0
+
+
 def test_combat_resolver_consumes_readied_no_roll_spell_once():
     ckpt = _ckpt()
     ckpt.characters[0].mechanics["resources"] = {
@@ -2721,10 +3476,11 @@ def test_combat_resolver_consumes_readied_no_roll_spell_once():
     }
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
-            needs_rolls=False,
-            roll_requests=[],
-            no_roll_reason="Readying the spell needs no roll.",
+        _llm_response(_spell_turn_plan(
+            source_id="magic_missile",
+            cast_level=1,
+            resource_id="spell_slot_1",
+            reason="Readying the spell needs no roll.",
         )),
         _llm_response(RulesAdjudication(
             feasible=True,
@@ -2811,7 +3567,7 @@ def test_combat_resolver_releases_readied_damage_rolls(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -2892,7 +3648,7 @@ def test_readied_release_requires_explicit_effect_end(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -2954,7 +3710,7 @@ def test_combat_resolver_starts_sustained_effect_from_adjudication(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -3048,7 +3804,7 @@ def test_combat_resolver_batches_same_spell_concentration_effects():
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="No roll.",
@@ -3131,7 +3887,7 @@ def test_combat_resolver_notes_skipped_effect_delta_for_missing_target():
     ckpt = _ckpt()
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=False,
             roll_requests=[],
             no_roll_reason="No roll needed.",
@@ -3234,7 +3990,7 @@ def test_combat_resolver_explicit_effect_delta_breaks_existing_effect(monkeypatc
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(
@@ -3312,7 +4068,7 @@ def test_combat_resolver_executes_opportunity_attack_roll(monkeypatch):
 
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(RollPlan(
+        _llm_response(_turn_plan(
             needs_rolls=True,
             roll_requests=[
                 PlannedRoll(

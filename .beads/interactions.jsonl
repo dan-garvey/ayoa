@@ -1,0 +1,1 @@
+{"id":"int-d0238611","kind":"field_change","created_at":"2026-05-19T18:05:28.699793044Z","actor":"dan","issue_id":"ayoa-0gs","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Implemented structured D&D combat action-use planning"}}

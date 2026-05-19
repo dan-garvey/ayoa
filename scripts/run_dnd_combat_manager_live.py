@@ -52,7 +52,7 @@ from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
-    RollPlan,
+    DndCombatTurnPlan,
 )
 from app.schemas.dnd_spatial import (
     DndBattleMapState,
@@ -146,7 +146,7 @@ class CombatCapture:
     actor_id: str
     intention: str
     packet: str = ""
-    roll_plan: dict[str, Any] | None = None
+    turn_plan: dict[str, Any] | None = None
     roll_ledger: list[str] | None = None
     adjudication: dict[str, Any] | None = None
 
@@ -179,13 +179,13 @@ class CapturingDndCombatResolver(DndCombatResolver):
             self._active_intention = ""
             self._active_capture = None
 
-    async def _plan_rolls(self, packet: str) -> RollPlan:
-        plan = await super()._plan_rolls(packet)
+    async def _plan_turn(self, packet: str) -> DndCombatTurnPlan:
+        plan = await super()._plan_turn(packet)
         self._active_capture = CombatCapture(
             actor_id=self._active_actor_id,
             intention=self._active_intention,
             packet=packet,
-            roll_plan=plan.model_dump(mode="json"),
+            turn_plan=plan.model_dump(mode="json"),
         )
         return plan
 
@@ -193,8 +193,13 @@ class CapturingDndCombatResolver(DndCombatResolver):
         self,
         packet: str,
         ledger_lines: list[str],
+        planned_actions_block: str,
     ) -> DndCombatManagerAdjudication:
-        adjudication = await super()._finalize(packet, ledger_lines)
+        adjudication = await super()._finalize(
+            packet,
+            ledger_lines,
+            planned_actions_block,
+        )
         capture = self._active_capture or CombatCapture(
             actor_id=self._active_actor_id,
             intention=self._active_intention,
@@ -960,10 +965,31 @@ def _capture_dump(capture: CombatCapture | None) -> dict[str, Any]:
         "actor_id": capture.actor_id,
         "intention": capture.intention,
         "packet": json.loads(capture.packet) if capture.packet else {},
-        "roll_plan": capture.roll_plan or {},
+        "turn_plan": capture.turn_plan or {},
+        "flattened_rolls": _flatten_turn_rolls(capture.turn_plan or {}),
         "roll_ledger": capture.roll_ledger or [],
         "adjudication": capture.adjudication or {},
     }
+
+
+def _flatten_turn_rolls(turn_plan: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for action in turn_plan.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        for roll in action.get("rolls") or []:
+            if not isinstance(roll, dict):
+                continue
+            flattened = dict(roll)
+            flattened["actor_id"] = action.get("actor_id", "")
+            flattened["action_id"] = action.get("source_id", "")
+            flattened["source_type"] = action.get("source_type", "")
+            flattened["source_id"] = action.get("source_id", "")
+            flattened["effect_id"] = action.get("effect_id", "")
+            flattened["economy"] = action.get("economy", "")
+            flattened["use_mode"] = action.get("use_mode", "")
+            out.append(flattened)
+    return out
 
 
 def _combat_summary(ckpt: CheckpointFile) -> dict[str, Any]:
@@ -1121,11 +1147,11 @@ def _all_illegal_stress_turns(report: dict[str, Any]) -> list[dict[str, Any]]:
         if action_index < 1:
             continue
         capture = turn.get("capture") or {}
-        roll_plan = capture.get("roll_plan") or {}
+        turn_plan = capture.get("turn_plan") or {}
         adjudication = capture.get("adjudication") or {}
         text = "\n".join([
             str(turn.get("intention") or ""),
-            str(roll_plan.get("no_roll_reason") or ""),
+            str(turn_plan.get("no_action_reason") or ""),
             str(adjudication.get("mechanical_summary") or ""),
             str(adjudication.get("fallback_reason") or ""),
             "\n".join(str(item) for item in capture.get("roll_ledger") or []),
@@ -1178,8 +1204,8 @@ def _all_illegal_stress_turns(report: dict[str, Any]) -> list[dict[str, Any]]:
             "action_index": action_index,
             "is_pure_illegal_probe": action_index >= ILLEGAL_STRESS_ACTION_INDEX,
             "intention": turn.get("intention"),
-            "needs_rolls": bool(roll_plan.get("needs_rolls")),
-            "roll_requests": roll_plan.get("roll_requests") or [],
+            "needs_rolls": bool(capture.get("flattened_rolls") or []),
+            "flattened_rolls": capture.get("flattened_rolls") or [],
             "rejection_mentions": [
                 term for term in rejection_terms if term in lowered
             ],
@@ -1191,7 +1217,7 @@ def _all_illegal_stress_turns(report: dict[str, Any]) -> list[dict[str, Any]]:
                 forbidden_effects,
             ),
             "visible_outcome_facts": visible_outcome_facts,
-            "no_roll_reason": roll_plan.get("no_roll_reason") or "",
+            "no_action_reason": turn_plan.get("no_action_reason") or "",
             "mechanical_summary": adjudication.get("mechanical_summary") or "",
             "fallback_reason": adjudication.get("fallback_reason") or "",
             "roll_ledger": capture.get("roll_ledger") or [],
@@ -1274,8 +1300,7 @@ def _non_enemy_opportunity_attacks(report: dict[str, Any]) -> list[dict[str, Any
             ): combatant
             for combatant in packet.get("combatants") or []
         }
-        roll_plan = capture.get("roll_plan") or {}
-        for request in roll_plan.get("roll_requests") or []:
+        for request in capture.get("flattened_rolls") or []:
             reason = str(request.get("reason") or "")
             roll_id = str(request.get("roll_id") or "")
             opportunity_text = f"{roll_id} {reason}".lower()
@@ -1354,13 +1379,13 @@ def _quality_findings(report: dict[str, Any]) -> list[dict[str, Any]]:
             })
 
     for turn in report.get("turns") or []:
-        roll_plan = (turn.get("capture") or {}).get("roll_plan") or {}
-        packet = (turn.get("capture") or {}).get("packet") or {}
+        capture = turn.get("capture") or {}
+        packet = capture.get("packet") or {}
         ac_by_id = {
             item.get("character_id"): item.get("armor_class")
             for item in packet.get("combatants") or []
         }
-        for request in roll_plan.get("roll_requests") or []:
+        for request in capture.get("flattened_rolls") or []:
             if request.get("kind") != "attack_roll":
                 continue
             target_id = request.get("target_id")

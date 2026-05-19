@@ -140,6 +140,19 @@ class TestPromptManagerWithRealTemplates:
         assert "PLAN_ROLLS" in result
         assert "alice" in result
 
+    def test_dnd_combat_manager_renders_action_turn_plan(self):
+        mgr = PromptManager(prompts_dir="app/prompts")
+        result = mgr.render(
+            "dnd_combat_manager",
+            phase="PLAN_TURN",
+            combat_action_packet='{"current_turn": {"actor_id": "alice"}}',
+            planned_actions_block="No planned actions yet.",
+            roll_ledger_block="No rolls have been made yet.",
+        )
+        assert "PLAN_TURN" in result
+        assert "Planned Actions" in result
+        assert "alice" in result
+
     def test_agent_renders(self):
         # v11: unified on-stage + tick template. The mode-specific
         # body lives in `mode_block` (caller-assembled string from
