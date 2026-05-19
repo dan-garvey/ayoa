@@ -2469,11 +2469,11 @@ def test_combat_resolver_consumes_readied_no_roll_spell_once():
                 "originator_id": "alice",
                 "conditions": ["concentrating"],
                 "concentration": True,
-                "duration_kind": "rounds",
-                "duration_amount": 1,
-                "remaining_rounds": 1,
-                "duration_text": "until the trigger or start of next turn",
-                "break_triggers": ["trigger occurs", "concentration ends"],
+                "duration_kind": "until_removed",
+                "duration_amount": 0,
+                "remaining_rounds": 0,
+                "duration_text": "",
+                "break_triggers": [],
                 "reason": "spell readied",
             }],
             rules_notes=[],
@@ -2510,6 +2510,15 @@ def test_combat_resolver_consumes_readied_no_roll_spell_once():
     assert not any("Magic Missile takes hold on Alice" in fact for fact in facts)
     readied_effect = ckpt.session.active_combat.combatants[0].active_effects[0]
     assert readied_effect.conditions == []
+    assert readied_effect.duration_kind == "rounds"
+    assert readied_effect.duration_amount == 1
+    assert readied_effect.remaining_rounds == 1
+    assert "start of the readying actor's next turn" in readied_effect.duration_text
+    assert readied_effect.break_triggers == [
+        "concentration ends",
+        "start of readying actor's next turn",
+        "trigger occurs",
+    ]
     assert readied_effect.metadata["readied_action"]["source_id"] == "magic_missile"
     assert readied_effect.metadata["readied_action"]["readying_actor_id"] == "alice"
     assert "Bob's move" in readied_effect.metadata["readied_action"]["trigger_text"]

@@ -490,6 +490,32 @@ def _scenarios() -> list[Scenario]:
         range_text="5 ft or thrown 20/60 ft",
         notes="Finesse melee weapon attack.",
     )
+    disarm = _action(
+        "disarm",
+        "Disarm",
+        bonus=6,
+        damage="",
+        range_text="5 ft",
+        notes=(
+            "DMG optional action: make a weapon attack contested by the "
+            "target's Strength (Athletics) or Dexterity (Acrobatics). On a "
+            "win, the target drops one held item. This action deals no damage."
+        ),
+    )
+    falling_collision = _action(
+        "falling_collision",
+        "Falling Collision",
+        bonus=0,
+        damage="4d6 bludgeoning",
+        range_text="vertical fall",
+        notes=(
+            "Xanathar optional falling onto a creature: if the falling creature "
+            "enters another creature's space and neither is Tiny, the lower "
+            "creature makes a DC 15 Dexterity saving throw. On a failed save, "
+            "the fall impacts that creature, the falling damage is divided "
+            "evenly between the two creatures, and both creatures end prone."
+        ),
+    )
     claws = _action(
         "claws",
         "Claws",
@@ -1456,6 +1482,291 @@ def _scenarios() -> list[Scenario]:
                 "require_effect_end_slug": ["invisibility"],
             },
         ),
+        Scenario(
+            name="dmg_optional_disarm_no_damage",
+            summary=(
+                "DMG optional Disarm is enabled for this scenario. Disarm uses "
+                "a weapon attack contested by the target's Athletics or "
+                "Acrobatics; success makes the target drop the named item and "
+                "deals no weapon damage."
+            ),
+            actor_id="pc_duelist",
+            intention=(
+                "I hook my blade around the watch captain's ember saber and "
+                "disarm him. I am not trying to cut him, just knock the saber "
+                "out of his hand."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_duelist",
+                    "Seren Duelist",
+                    "adventurers",
+                    ac=16,
+                    hp=34,
+                    playable=True,
+                    abilities={"str": 16, "dex": 14},
+                    actions=[disarm, longsword],
+                ),
+                CharacterSpec(
+                    "watch_captain",
+                    "Watch Captain",
+                    "watch",
+                    ac=16,
+                    hp=40,
+                    abilities={"str": 14, "dex": 12},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("pc_duelist", 4, 4),
+                ("watch_captain", 5, 4),
+            ],
+            expectations={
+                "must_include_any_roll_kinds": [
+                    "attack_roll",
+                    "ability_check",
+                    "skill_check",
+                ],
+                "must_include_roll_targets": ["watch_captain"],
+                "require_opposed_rolls": True,
+                "forbid_damage_records": True,
+                "forbid_hp_change": True,
+                "forbid_visible_damage_numbers": True,
+                "forbid_fact_contains": [
+                    "cuts",
+                    "slashes",
+                    "wounds",
+                    "dealt no damage",
+                ],
+            },
+        ),
+        Scenario(
+            name="xgte_falling_onto_creature_split_damage",
+            summary=(
+                "Xanathar's falling-onto-a-creature optional rule is enabled. "
+                "A falling creature entering another non-Tiny creature's space "
+                "forces a DC 15 Dexterity save by the lower creature; on a "
+                "failed save the falling damage is split evenly and both end "
+                "prone."
+            ),
+            actor_id="pc_monk",
+            intention=(
+                "I drop from the broken balcony directly onto the ogre below, "
+                "using my body as the impact. If he fails to get out of the "
+                "way, we split the fall and both hit the ground."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_monk",
+                    "Taro Windstep",
+                    "adventurers",
+                    ac=17,
+                    hp=38,
+                    playable=True,
+                    abilities={"dex": 18, "str": 12},
+                    actions=[falling_collision],
+                ),
+                CharacterSpec(
+                    "ogre",
+                    "Ogre Below",
+                    "ogres",
+                    ac=11,
+                    hp=59,
+                    abilities={"dex": 8, "str": 19},
+                    actions=[claws],
+                ),
+            ],
+            tokens=[
+                ("pc_monk", 5, 4),
+                ("ogre", 5, 5),
+            ],
+            terrain=[
+                _wall(
+                    "broken_balcony",
+                    "Broken balcony",
+                    x=4,
+                    y=3,
+                    width=3,
+                    height=1,
+                    cover="none",
+                    blocks_movement=False,
+                    blocks_los=False,
+                    notes=(
+                        "The monk begins forty feet above the ogre and can "
+                        "fall into the ogre's space this turn."
+                    ),
+                )
+            ],
+            expectations={
+                "must_include_roll_kinds": ["saving_throw"],
+                "must_include_save_targets": ["ogre"],
+                "expected_save_ability": "dex",
+                "require_hp_decrease_if_failed": ["pc_monk", "ogre"],
+                "condition_fact_requires_delta": [
+                    {"target_id": "pc_monk", "condition": "prone"},
+                    {"target_id": "ogre", "condition": "prone"},
+                ],
+                "forbid_visible_damage_numbers": True,
+                "forbid_fact_contains": ["DC 15", "4d6", "falling damage"],
+            },
+        ),
+        Scenario(
+            name="xgte_simultaneous_start_effects_before_movement",
+            summary=(
+                "Xanathar's simultaneous-effects timing is in force. At the "
+                "start of the current actor's turn, Cloudkill and Sickening "
+                "Radiance both affect the actor before movement; resolve both "
+                "Constitution saves before the actor leaves the overlapping "
+                "areas."
+            ),
+            actor_id="void_intruder",
+            intention=(
+                "I sprint out of the overlapping green fog and star-bright "
+                "radiance toward the hatch before either effect can finish me."
+            ),
+            characters=[
+                CharacterSpec(
+                    "void_intruder",
+                    "Void Intruder",
+                    "raiders",
+                    ac=14,
+                    hp=36,
+                    abilities={"con": 14, "dex": 14},
+                    actions=[dagger],
+                ),
+                CharacterSpec(
+                    "cloud_mage",
+                    "Cloud Mage",
+                    "adventurers",
+                    ac=12,
+                    hp=22,
+                    playable=True,
+                    abilities={"con": 12, "int": 18},
+                ),
+                CharacterSpec(
+                    "radiance_cleric",
+                    "Radiance Cleric",
+                    "adventurers",
+                    ac=18,
+                    hp=30,
+                    playable=True,
+                    abilities={"con": 14, "wis": 18},
+                ),
+            ],
+            tokens=[
+                ("void_intruder", 6, 5),
+                ("cloud_mage", 2, 5),
+                ("radiance_cleric", 3, 6),
+            ],
+            areas=[
+                _area(
+                    "cloudkill_area",
+                    "Cloudkill",
+                    shape="circle",
+                    x=5,
+                    y=5,
+                    radius_squares=4,
+                    notes=(
+                        "Source cloud_mage; DC 15 Constitution save at the "
+                        "start of a creature's turn in the area; poison damage "
+                        "on a failure."
+                    ),
+                ),
+                _area(
+                    "sickening_radiance_area",
+                    "Sickening Radiance",
+                    shape="circle",
+                    x=6,
+                    y=5,
+                    radius_squares=6,
+                    notes=(
+                        "Source radiance_cleric; DC 15 Constitution save when "
+                        "a creature starts its turn in the area; radiant damage "
+                        "and one level of exhaustion on a failure."
+                    ),
+                ),
+            ],
+            expectations={
+                "minimum_roll_kind_count": {"saving_throw": 2},
+                "must_include_save_targets": ["void_intruder"],
+                "expected_save_ability": "con",
+                "expected_save_damage_spell": True,
+                "forbid_visible_damage_numbers": True,
+                "forbid_fact_contains": [
+                    "Constitution save",
+                    "succeeded",
+                    "failed",
+                    "takes radiant damage",
+                    "suffers no poison damage",
+                    "Dash",
+                    "opportunity attack",
+                ],
+            },
+        ),
+        Scenario(
+            name="spelljammer_weightless_shove_drift_no_fall",
+            summary=(
+                "Spelljammer weightlessness is active. A creature shoved off "
+                "the dorsal deck in Wildspace does not fall downward or take "
+                "fall damage; it drifts away within the ship's air envelope "
+                "until it grabs something, is rescued, or leaves the envelope."
+            ),
+            actor_id="pc_spacer",
+            intention=(
+                "I shove the void pirate over the rail and let him drift away "
+                "from the ship. This is Wildspace weightlessness, so I am not "
+                "trying to drop him for fall damage."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_spacer",
+                    "Nix Starhand",
+                    "adventurers",
+                    ac=15,
+                    hp=33,
+                    playable=True,
+                    abilities={"str": 16, "dex": 14},
+                ),
+                CharacterSpec(
+                    "void_pirate",
+                    "Void Pirate",
+                    "raiders",
+                    ac=14,
+                    hp=27,
+                    abilities={"str": 12, "dex": 16},
+                    actions=[dagger],
+                ),
+            ],
+            tokens=[
+                ("pc_spacer", 5, 4),
+                ("void_pirate", 6, 4),
+            ],
+            terrain=[
+                _wall(
+                    "spelljammer_rail",
+                    "Spelljammer rail",
+                    x=7,
+                    y=3,
+                    width=1,
+                    height=3,
+                    cover="half",
+                    blocks_movement=False,
+                    blocks_los=False,
+                    notes=(
+                        "Beyond this rail is Wildspace inside the ship's air "
+                        "envelope. Unsecured creatures drift; they do not fall."
+                    ),
+                )
+            ],
+            expectations={
+                "must_include_any_roll_kinds": ["ability_check", "skill_check"],
+                "require_opposed_rolls": True,
+                "forbid_damage_records": True,
+                "forbid_hp_change": True,
+                "forbid_visible_damage_numbers": True,
+                "forbid_opportunity_from": ["pc_spacer", "void_pirate"],
+            },
+        ),
     ]
 
 
@@ -1479,6 +1790,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
     resolver = CapturingDndCombatResolver(client, prompt_mgr)
     role_calls: list[dict[str, Any]] = []
     active_call_context: dict[str, Any] = {}
+    plan_cache_reads_by_scenario: dict[str, int] = {}
     raw_call_index = 0
     real_complete = client.complete
 
@@ -1486,10 +1798,13 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
         nonlocal raw_call_index
         role = kwargs.get("role") or (call_args[0] if call_args else "")
         response_model = kwargs.get("response_model")
+        phase = _phase_label(response_model)
         raw_call_index += 1
         call_index = raw_call_index
         entry: dict[str, Any] = {
             "role": str(role),
+            "phase": phase,
+            "scenario": dict(active_call_context),
             "response_model": response_model.__name__ if response_model else "",
             "raw_call_index": call_index,
         }
@@ -1503,7 +1818,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
             _append_raw_call({
                 "call_index": call_index,
                 "scenario": dict(active_call_context),
-                "phase": _phase_label(response_model),
+                "phase": phase,
                 "role": str(role),
                 "response_model": entry["response_model"],
                 "elapsed_s": entry["elapsed_s"],
@@ -1513,16 +1828,23 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
         entry["elapsed_s"] = round(time.perf_counter() - started, 3)
         entry["model"] = getattr(response, "model", "") or ""
         entry["usage"] = dict(getattr(response, "usage", {}) or {})
+        entry["cache_watch"] = _cache_watch_for_call(
+            active_call_context,
+            phase=phase,
+            usage=entry["usage"],
+            plan_cache_reads_by_scenario=plan_cache_reads_by_scenario,
+        )
         role_calls.append(entry)
         _append_raw_call({
             "call_index": call_index,
             "scenario": dict(active_call_context),
-            "phase": _phase_label(response_model),
+            "phase": phase,
             "role": str(role),
             "response_model": entry["response_model"],
             "elapsed_s": entry["elapsed_s"],
             "model": entry["model"],
             "usage": entry["usage"],
+            "cache_watch": entry["cache_watch"],
             "content": getattr(response, "content", "") or "",
             "parsed": _jsonable(getattr(response, "parsed", None)),
             "reasoning_summaries": list(
@@ -1604,6 +1926,10 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
         "role_calls": role_calls,
         "usage_totals": _usage_totals(role_calls),
         "quality_findings": _quality_findings(scenario_results),
+        "cache_watch_findings": _cache_watch_findings(role_calls),
+        "router_observed_facts_by_salience": (
+            _router_observed_facts_by_salience(scenario_results)
+        ),
         "checks": _checks(scenario_results, error),
         "error": error,
     }
@@ -1671,6 +1997,38 @@ def _jsonable(value: Any) -> Any:
         except Exception:
             pass
     return repr(value)
+
+
+def _scenario_cache_key(context: dict[str, Any]) -> str:
+    return f"{context.get('index', '')}:{context.get('name', '')}"
+
+
+def _cache_watch_for_call(
+    context: dict[str, Any],
+    *,
+    phase: str,
+    usage: dict[str, Any],
+    plan_cache_reads_by_scenario: dict[str, int],
+) -> dict[str, Any]:
+    scenario_key = _scenario_cache_key(context)
+    cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
+    watch: dict[str, Any] = {
+        "cache_read_input_tokens": cache_read,
+    }
+    if phase == "plan_rolls":
+        plan_cache_reads_by_scenario[scenario_key] = cache_read
+        return watch
+    if phase != "finalize_outcome":
+        return watch
+    plan_cache_read = plan_cache_reads_by_scenario.get(scenario_key)
+    if plan_cache_read is None:
+        return watch
+    watch.update({
+        "scenario_plan_cache_read_input_tokens": plan_cache_read,
+        "finalize_cache_read_delta_from_plan": cache_read - plan_cache_read,
+        "finalize_below_plan_cache_read": cache_read < plan_cache_read,
+    })
+    return watch
 
 
 def _hp_by_id(ckpt: CheckpointFile) -> dict[str, int]:
@@ -2013,14 +2371,16 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             })
     if expectations.get("expected_save_damage_spell"):
-        damage_records = _damage_records(result)
+        applied_damage_records = _applied_damage_records(result)
+        unapplied_damage_records = _unapplied_damage_records(result)
         hp_changed = result.get("before_hp") != result.get("after_hp")
-        if save_targets and not damage_records and not hp_changed:
+        if save_targets and not applied_damage_records and not hp_changed:
             findings.append({
                 "name": "save_damage_has_no_structured_application",
                 "severity": "critical",
                 "detail": {
                     "save_targets": sorted(save_targets),
+                    "unapplied_damage_records": unapplied_damage_records,
                     "note": (
                         "Save-damage spells should produce structured "
                         "damage_records through the engine damage path."
@@ -2061,6 +2421,26 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": "unexpected_hp_change",
                 "severity": "high",
                 "detail": changed,
+            })
+    required_hp_decrease_if_failed = expectations.get("require_hp_decrease_if_failed")
+    if required_hp_decrease_if_failed and _failed_save_targets(result):
+        missing_decreases = []
+        before_hp = result.get("before_hp") or {}
+        after_hp = result.get("after_hp") or {}
+        for cid in required_hp_decrease_if_failed:
+            before = before_hp.get(cid)
+            after = after_hp.get(cid)
+            if before is None or after is None or after >= before:
+                missing_decreases.append({
+                    "character_id": cid,
+                    "before": before,
+                    "after": after,
+                })
+        if missing_decreases:
+            findings.append({
+                "name": "failed_save_missing_expected_hp_decrease",
+                "severity": "high",
+                "detail": missing_decreases,
             })
     if expectations.get("forbid_resource_spends") and result.get("resource_spends"):
         findings.append({
@@ -2369,6 +2749,20 @@ def _damage_records(result: dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
+def _applied_damage_records(result: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        record for record in _damage_records(result)
+        if "no code-readable damage expression" not in record["ledger"].lower()
+    ]
+
+
+def _unapplied_damage_records(result: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        record for record in _damage_records(result)
+        if "no code-readable damage expression" in record["ledger"].lower()
+    ]
+
+
 def _dict_contains_key(value: Any, key: str) -> bool:
     if isinstance(value, dict):
         if key in value:
@@ -2390,6 +2784,59 @@ def _quality_findings(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return findings
 
 
+def _cache_watch_findings(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for call in calls:
+        watch = call.get("cache_watch") or {}
+        if not watch.get("finalize_below_plan_cache_read"):
+            continue
+        findings.append({
+            "call_index": call.get("raw_call_index"),
+            "scenario": ((call.get("scenario") or {}).get("name") or ""),
+            "phase": call.get("phase"),
+            "plan_cache_read_input_tokens": (
+                watch.get("scenario_plan_cache_read_input_tokens")
+            ),
+            "finalize_cache_read_input_tokens": (
+                watch.get("cache_read_input_tokens")
+            ),
+            "delta": watch.get("finalize_cache_read_delta_from_plan"),
+        })
+    return findings
+
+
+_SALIENCE_ORDER = {
+    "major": 0,
+    "notable": 1,
+    "minor": 2,
+}
+
+
+def _router_observed_facts_by_salience(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for result in results:
+        adjudication = _adjudication(result)
+        for fact in adjudication.get("router_observed_facts") or []:
+            if not str(fact.get("fact") or "").strip():
+                continue
+            facts.append({
+                "scenario": result.get("name"),
+                "salience": str(fact.get("salience") or "notable").lower(),
+                "fact": str(fact.get("fact") or "").strip(),
+                "reason": str(fact.get("reason") or "").strip(),
+            })
+    return sorted(
+        facts,
+        key=lambda fact: (
+            _SALIENCE_ORDER.get(str(fact.get("salience") or ""), 99),
+            str(fact.get("scenario") or ""),
+            str(fact.get("fact") or ""),
+        ),
+    )
+
+
 def _checks(results: list[dict[str, Any]], error: str) -> list[dict[str, Any]]:
     calls = [
         call
@@ -2398,6 +2845,7 @@ def _checks(results: list[dict[str, Any]], error: str) -> list[dict[str, Any]]:
         if call.get("role") == "dnd_combat_manager"
     ]
     cache_check_required = len(results) > 1
+    cache_watch_findings = _cache_watch_findings(calls)
     return [
         _check("no_harness_error", not error, error),
         _check(
@@ -2428,6 +2876,11 @@ def _checks(results: list[dict[str, Any]], error: str) -> list[dict[str, Any]]:
                     for call in calls
                 ]
             ),
+        ),
+        _check(
+            "finalize_cache_reads_not_below_plan",
+            not cache_watch_findings,
+            cache_watch_findings,
         ),
     ]
 
@@ -2483,6 +2936,29 @@ def _markdown(report: dict[str, Any]) -> str:
     for check in report.get("checks") or []:
         mark = "PASS" if check["passed"] else "FAIL"
         lines.append(f"- {mark}: `{check['name']}`")
+    lines.extend(["", "## Cache Watch", ""])
+    if report.get("cache_watch_findings"):
+        for finding in report["cache_watch_findings"]:
+            lines.append(
+                "- finalize cache read below same-scenario plan: "
+                f"call `{finding.get('call_index')}` / "
+                f"`{finding.get('scenario')}` "
+                f"({finding.get('finalize_cache_read_input_tokens')} vs "
+                f"{finding.get('plan_cache_read_input_tokens')}; "
+                f"delta {finding.get('delta')})"
+            )
+    else:
+        lines.append("- None.")
+    lines.extend(["", "## Router Observed Facts By Salience", ""])
+    if report.get("router_observed_facts_by_salience"):
+        for fact in report["router_observed_facts_by_salience"]:
+            lines.append(
+                f"- {str(fact.get('salience') or '').upper()}: "
+                f"`{fact.get('scenario')}` - {fact.get('fact')} "
+                f"({fact.get('reason')})"
+            )
+    else:
+        lines.append("- None.")
     lines.extend(["", "## Quality Findings", ""])
     if report.get("quality_findings"):
         for finding in report["quality_findings"]:

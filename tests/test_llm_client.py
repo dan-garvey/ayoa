@@ -13,7 +13,11 @@ from app.llm.client import (
     extract_json,
 )
 from app.llm.config import LLMConfig
-from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import (
+    DndCombatManagerAdjudication,
+    RollPlan,
+    RulesAdjudication,
+)
 from app.schemas.events import CanonicalEvent, ObservableFact
 
 
@@ -609,15 +613,19 @@ class TestLLMClientComplete:
     def test_openai_structured_schema_requires_every_object_property(self):
         """OpenAI strict JSON Schema rejects Pydantic default fields unless
         they are still listed as required in the provider-facing schema."""
-        for model in (RollPlan, RulesAdjudication):
+        for model in (RollPlan, RulesAdjudication, DndCombatManagerAdjudication):
             schema = _openai_strict_json_schema(model)
             failures = []
             defaults = []
+            annotations = []
 
             def walk(node, path=()):
                 if isinstance(node, dict):
                     if "default" in node:
                         defaults.append(path)
+                    for key in ("description", "title"):
+                        if key in node:
+                            annotations.append(path + (key,))
                     properties = node.get("properties")
                     if isinstance(properties, dict):
                         required = set(node.get("required") or [])
@@ -635,6 +643,17 @@ class TestLLMClientComplete:
             walk(schema)
             assert failures == []
             assert defaults == []
+            assert annotations == []
+
+    def test_openai_structured_schema_omits_prompt_irrelevant_internals(self):
+        schema_text = json.dumps(
+            _openai_strict_json_schema(DndCombatManagerAdjudication)
+        ).lower()
+
+        assert "router-authored" not in schema_text
+        assert "event-router" not in schema_text
+        assert "combat engine" not in schema_text
+        assert "structured output schemas" not in schema_text
 
     @pytest.mark.asyncio
     async def test_compact_false_uses_stable_stream(self, client):

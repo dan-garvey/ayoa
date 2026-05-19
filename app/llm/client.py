@@ -55,6 +55,8 @@ def _openai_strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
     def walk(node: Any) -> None:
         if isinstance(node, dict):
             node.pop("default", None)
+            node.pop("description", None)
+            node.pop("title", None)
             properties = node.get("properties")
             if isinstance(properties, dict):
                 node["additionalProperties"] = False

@@ -57,6 +57,9 @@ For phase PLAN_ROLLS, emit RollPlan:
   damaged creature, action_id to the listed action/spell id, and ability="str"
   as a required placeholder. Magic Missile should use one damage_roll per dart
   so each dart has its own target and damage record.
+- Roll request reasons are player-facing dice/adjudication labels. Keep them
+  short and rule-relevant, and do not include grid coordinates unless the
+  coordinate itself is necessary to explain legality or targeting.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
   target_id to the affected character when applicable. If cover or another
   visible modifier changes the target's save bonus, set modifier_bonus and
@@ -100,6 +103,10 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   hidden intent in visible facts. Once the ledger has resolved the result, state
   what visibly happened; avoid unresolved alternatives such as "stagger or
   collapse."
+- Translate mechanics into witnessable fiction in visible_outcome_facts. Put
+  saving throw success/failure, full/half damage, HP totals, resource spends,
+  turn economy, and opportunity-attack bookkeeping in mechanical_summary or
+  rules_notes instead.
 - Use explicit names for non-self-referential character references. If the
   sentence names the acting character as the subject, normal self-reference is
   allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a
@@ -151,7 +158,7 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   fields, and set duration_rounds when the area should expire. For remove_area,
   target_id names the existing area id.
 - router_observed_facts is a short list of narrative continuity facts worth
-  carrying beyond initiative. Use [] for routine attacks, routine misses,
+  preserving after initiative ends. Use [] for routine attacks, routine misses,
   damage totals, ammunition/spell-slot bookkeeping, unnamed creature defeat, or
   tactical repositioning with no lasting narrative weight. Also use [] for
   facts already recoverable from active combat state, the battle map, visible

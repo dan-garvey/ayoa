@@ -2814,6 +2814,23 @@ def _attach_readied_action_metadata(
     }
     metadata["readied_action"] = readied
     effect.metadata = metadata
+    effect.duration_kind = "rounds"
+    effect.duration_amount = 1
+    effect.remaining_rounds = 1
+    effect.duration_text = (
+        effect.duration_text
+        or "until the trigger or the start of the readying actor's next turn"
+    )
+    break_triggers = {
+        trigger.strip().lower()
+        for trigger in effect.break_triggers
+        if trigger.strip()
+    }
+    break_triggers.add("trigger occurs")
+    break_triggers.add("start of readying actor's next turn")
+    if effect.concentration:
+        break_triggers.add("concentration ends")
+    effect.break_triggers = sorted(break_triggers)
 
 
 def _looks_like_readied_effect(
