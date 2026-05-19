@@ -69,6 +69,19 @@ JSON_PATH = RUN_DIR / "report.json"
 MD_PATH = RUN_DIR / "report.md"
 LOG_PATH = RUN_DIR / "run.log"
 RAW_CALLS_PATH = RUN_DIR / "raw_calls.jsonl"
+_GLOBAL_FORBIDDEN_VISIBLE_FACT_TERMS = (
+    "saving throw",
+    "opportunity attack",
+    "hit points",
+    "spell slot",
+    "roll ledger",
+    "no attacks",
+    "no attack was made",
+    "no rolls",
+    "no saving throw",
+    "no damage",
+    "no damage was",
+)
 
 
 @dataclass
@@ -682,6 +695,37 @@ def _scenarios() -> list[Scenario]:
         concentration=True,
         duration_text="Concentration, up to 1 hour",
         consumes_level=2,
+    )
+    cloudkill_area = _spell(
+        "cloudkill_area",
+        "Cloudkill",
+        level=5,
+        save_ability="con",
+        dc=30,
+        damage="5d8 poison",
+        range_text="active area",
+        target_text=(
+            "A creature that starts its turn in the cloud makes a Constitution "
+            "save; poison damage on a failure and no damage on a success"
+        ),
+        concentration=True,
+        duration_text="Concentration, up to 10 minutes",
+    )
+    sickening_radiance_area = _spell(
+        "sickening_radiance_area",
+        "Sickening Radiance",
+        level=4,
+        save_ability="con",
+        dc=30,
+        damage="4d10 radiant",
+        range_text="active area",
+        target_text=(
+            "A creature that starts its turn in the radiance makes a "
+            "Constitution save; radiant damage and one exhaustion level on a "
+            "failure and no damage on a success"
+        ),
+        concentration=True,
+        duration_text="Concentration, up to 10 minutes",
     )
 
     return [
@@ -1613,6 +1657,7 @@ def _scenarios() -> list[Scenario]:
                 ],
                 "router_reason_must_not_contain_any": [
                     "tactic",
+                    "combat option",
                     "subsequent round",
                     "combat capabilities",
                 ],
@@ -1686,10 +1731,16 @@ def _scenarios() -> list[Scenario]:
                 ],
                 "router_reason_must_not_contain_any": [
                     "tactic",
+                    "combat option",
                     "subsequent round",
                     "combat capabilities",
                 ],
                 "require_spatial_delta_kind": "move_token",
+                "forbid_effect_delta_source_ids": ["protective_interposition"],
+                "forbid_fact_contains": [
+                    "takes hold",
+                    "did not make any attack",
+                ],
                 "require_resource_spends": [{
                     "actor_id": "pc_warder",
                     "resource_id": "spell_slot_2",
@@ -1774,6 +1825,7 @@ def _scenarios() -> list[Scenario]:
                 ],
                 "router_reason_must_not_contain_any": [
                     "tactic",
+                    "combat option",
                     "subsequent round",
                     "combat capabilities",
                 ],
@@ -1834,6 +1886,11 @@ def _scenarios() -> list[Scenario]:
                     "slashes",
                     "wounds",
                     "dealt no damage",
+                    "deals no damage",
+                    "no damage is dealt",
+                    "suffers weapon damage",
+                    "suffers damage",
+                    "weapon damage",
                 ],
             },
         ),
@@ -1927,7 +1984,7 @@ def _scenarios() -> list[Scenario]:
                     "Void Intruder",
                     "raiders",
                     ac=14,
-                    hp=36,
+                    hp=120,
                     abilities={"con": 14, "dex": 14},
                     actions=[dagger],
                 ),
@@ -1939,6 +1996,10 @@ def _scenarios() -> list[Scenario]:
                     hp=22,
                     playable=True,
                     abilities={"con": 12, "int": 18},
+                    spellcasting=_spellcasting(
+                        save_dc=30,
+                        spells=[cloudkill_area],
+                    ),
                 ),
                 CharacterSpec(
                     "radiance_cleric",
@@ -1948,6 +2009,11 @@ def _scenarios() -> list[Scenario]:
                     hp=30,
                     playable=True,
                     abilities={"con": 14, "wis": 18},
+                    spellcasting=_spellcasting(
+                        ability="wis",
+                        save_dc=30,
+                        spells=[sickening_radiance_area],
+                    ),
                 ),
             ],
             tokens=[
@@ -1964,9 +2030,10 @@ def _scenarios() -> list[Scenario]:
                     y=5,
                     radius_squares=4,
                     notes=(
-                        "Source cloud_mage; DC 15 Constitution save at the "
-                        "start of a creature's turn in the area; poison damage "
-                        "on a failure."
+                        "Source cloud_mage; action_id cloudkill_area; DC 30 "
+                        "Constitution save at the start of a creature's turn "
+                        "in the area; 5d8 poison damage on a failure and no "
+                        "damage on a success."
                     ),
                 ),
                 _area(
@@ -1977,9 +2044,11 @@ def _scenarios() -> list[Scenario]:
                     y=5,
                     radius_squares=6,
                     notes=(
-                        "Source radiance_cleric; DC 15 Constitution save when "
-                        "a creature starts its turn in the area; radiant damage "
-                        "and one level of exhaustion on a failure."
+                        "Source radiance_cleric; action_id "
+                        "sickening_radiance_area; DC 30 Constitution save "
+                        "when a creature starts its turn in the area; 4d10 "
+                        "radiant damage and one level of exhaustion on a "
+                        "failure and no damage on a success."
                     ),
                 ),
             ],
@@ -1997,6 +2066,8 @@ def _scenarios() -> list[Scenario]:
                     "suffers no poison damage",
                     "Dash",
                     "opportunity attack",
+                    "hit points",
+                    "HP",
                 ],
             },
         ),
@@ -2832,6 +2903,18 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "earlier effects to be ended as if concentration shifted."
             ),
         })
+    global_bad_visible = [
+        {"term": term, "fact": fact}
+        for term in _GLOBAL_FORBIDDEN_VISIBLE_FACT_TERMS
+        for fact in _visible_facts(result)
+        if term in fact.lower()
+    ]
+    if global_bad_visible:
+        findings.append({
+            "name": "global_forbidden_visible_fact",
+            "severity": "medium",
+            "detail": global_bad_visible,
+        })
     for rule in expectations.get("condition_fact_requires_delta") or []:
         condition = str(rule.get("condition") or "").strip().lower()
         target_id = str(rule.get("target_id") or "").strip()
@@ -2913,6 +2996,23 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": "missing_required_effect_end",
                 "severity": "high",
                 "detail": required_slug,
+            })
+    forbidden_effect_source_ids = {
+        str(source_id).strip().lower()
+        for source_id in expectations.get("forbid_effect_delta_source_ids") or []
+        if str(source_id).strip()
+    }
+    if forbidden_effect_source_ids:
+        bad_effect_sources = [
+            delta for delta in adjudication.get("effect_deltas") or []
+            if str(delta.get("source_id") or "").strip().lower()
+            in forbidden_effect_source_ids
+        ]
+        if bad_effect_sources:
+            findings.append({
+                "name": "forbidden_effect_delta_source_id",
+                "severity": "medium",
+                "detail": bad_effect_sources,
             })
     if expectations.get("require_effect_delta_if_failed"):
         failed_targets = _failed_save_targets(result)

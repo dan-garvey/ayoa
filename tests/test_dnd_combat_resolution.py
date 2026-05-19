@@ -1001,6 +1001,173 @@ def test_combat_damage_applies_router_halving(monkeypatch):
     assert damage.adjustments[0].amount_after == 3
 
 
+def test_falling_collision_split_damage_applies_to_falling_actor(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[{
+            "id": "falling_collision",
+            "name": "Falling Collision",
+            "attack": {"bonus": 0, "damage": "4d6 bludgeoning"},
+        }],
+    )
+    ckpt.session.active_combat.combatants[0].hit_points_current = 13
+    ckpt.session.active_combat.combatants[1].hit_points_current = 13
+    values = iter([3, 3, 3, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="fall_damage",
+                    actor_id="alice",
+                    kind="damage_roll",
+                    ability="str",
+                    skill="",
+                    dc=0,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="falling damage divided between Alice and Bob",
+                    action_id="falling_collision",
+                    target_id="bob",
+                    damage_adjustments=[{
+                        "kind": "halve",
+                        "damage_type": "bludgeoning",
+                        "reason": (
+                            "Falling damage is divided evenly between the "
+                            "falling creature and the lower creature."
+                        ),
+                    }],
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice falls onto Bob.",
+            visible_outcome_facts=["Alice crashes into Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I fall onto Bob.",
+        )
+    )
+
+    alice = ckpt.session.active_combat.combatants[0]
+    bob = ckpt.session.active_combat.combatants[1]
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert alice.hit_points_current == 5
+    assert bob.hit_points_current == 5
+    assert [
+        (damage.roll_id, damage.target_id, damage.amount, damage.applied)
+        for damage in transaction.damage_records
+    ] == [
+        ("fall_damage", "bob", 8, True),
+        ("fall_damage_split_alice", "alice", 8, True),
+    ]
+
+
+def test_failed_falling_collision_save_rolls_split_damage(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[{
+            "id": "falling_collision",
+            "name": "Falling Collision",
+            "attack": {"bonus": 0, "damage": "4d6 bludgeoning"},
+        }],
+    )
+    ckpt.session.active_combat.combatants[0].hit_points_current = 13
+    ckpt.session.active_combat.combatants[1].hit_points_current = 13
+    values = iter([0, 3, 3, 3, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="fall_save",
+                    actor_id="alice",
+                    kind="saving_throw",
+                    ability="dex",
+                    skill="",
+                    dc=15,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Bob avoids Alice falling into him.",
+                    action_id="falling_collision",
+                    target_id="bob",
+                    damage_on_save_success="none",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice falls onto Bob.",
+            visible_outcome_facts=["Alice crashes into Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I fall onto Bob.",
+        )
+    )
+
+    alice = ckpt.session.active_combat.combatants[0]
+    bob = ckpt.session.active_combat.combatants[1]
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert alice.hit_points_current == 5
+    assert bob.hit_points_current == 5
+    assert [
+        (damage.roll_id, damage.target_id, damage.amount, damage.applied)
+        for damage in transaction.damage_records
+    ] == [
+        ("fall_save", "bob", 8, True),
+        ("fall_save_split_alice", "alice", 8, True),
+    ]
+
+
 def test_combat_crit_damage_is_doubled_before_resistance(monkeypatch):
     ckpt = _ckpt()
     ckpt.characters[1] = _character(
@@ -2138,6 +2305,48 @@ def test_missing_action_id_with_ambiguous_reason_does_not_pick_first_weapon(
     )
 
 
+def test_known_no_damage_attack_action_does_not_emit_damage_marker(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        actions=[
+            {
+                "id": "disarm",
+                "name": "Disarm",
+                "attack": {"bonus": 5, "damage": ""},
+                "notes": "DMG optional Disarm; deals no damage.",
+            }
+        ],
+    )
+    values = iter([19])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack(
+        action_id="disarm",
+        reason="Alice tries to disarm Bob.",
+    ))
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I disarm Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.damage_records == []
+    assert not any(line.startswith("damage_for=") for line in transaction.ledger_lines)
+    assert any(
+        "disarm has no damage expression; no damage is rolled" in line
+        for line in transaction.ledger_lines
+    )
+
+
 def test_combat_packet_exposes_current_actor_spellcasting():
     ckpt = _ckpt()
     ckpt.characters[0] = _character(
@@ -2250,6 +2459,8 @@ def test_combat_packet_exposes_current_actor_spellcasting():
     assert '"slots": {' in first_packet
     assert '"area_targeting_advisories": [' in first_packet
     assert '"action_id": "cone_of_cold"' in first_packet
+    assert '"id": "shove"' in first_packet
+    assert '"id": "grapple"' in first_packet
 
 
 def test_concentration_only_self_effect_does_not_publish_condition_fact():
@@ -2419,6 +2630,70 @@ def test_combat_resolver_consumes_spell_slot_once_for_multi_target_save_spell(
         "spellcasting"
     ]["slots"]
     assert slots["1"]["current"] == 0
+
+
+def test_combat_resolver_consumes_no_roll_spell_named_in_intention():
+    ckpt = _ckpt()
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_attack_bonus": 5,
+        }],
+        "slots": {"2": {"current": 2, "max": 3}},
+        "spells": [
+            _spell(
+                "misty_step",
+                "Misty Step",
+                level=2,
+                consumes_level=2,
+            )
+        ],
+    }
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="Misty Step needs no roll.",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice casts Misty Step and teleports.",
+            visible_outcome_facts=["Alice vanishes and reappears nearby."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Misty Step to cross the room.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [
+        (spend.resource_id, spend.source_id, spend.amount, spend.applied)
+        for spend in transaction.resource_spends
+    ] == [("spell_slot_2", "misty_step", 1, True)]
+    slots = ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]
+    assert slots["2"]["current"] == 1
 
 
 def test_combat_resolver_consumes_readied_no_roll_spell_once():

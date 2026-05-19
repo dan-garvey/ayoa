@@ -97,16 +97,30 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   recorded there. If the ledger says an attack or damage_roll applied damage,
   treat that HP change as already accounted for.
 - Set combat_status="ended" only when active hostilities clearly stop through
-  defeat, surrender, flight, or mutual de-escalation. Otherwise set "ongoing".
+  defeat, accepted surrender, flight, or mutual de-escalation. A unilateral
+  surrender offer, ransom, threat, or mercy bargain usually leaves combat_status
+  "ongoing" until the opposing side accepts or all hostile sides have clearly
+  stopped acting.
 - visible_outcome_facts are public, concrete facts of this turn's resolved
   action. Do not reveal roll formulas, totals, damage numbers, rules notes, or
   hidden intent in visible facts. Once the ledger has resolved the result, state
   what visibly happened; avoid unresolved alternatives such as "stagger or
   collapse."
 - Translate mechanics into witnessable fiction in visible_outcome_facts. Put
-  saving throw success/failure, full/half damage, HP totals, resource spends,
-  turn economy, and opportunity-attack bookkeeping in mechanical_summary or
-  rules_notes instead.
+  saving throw success/failure, save DCs, full/half damage, HP totals, resource
+  spends, turn economy, and opportunity-attack bookkeeping in mechanical_summary
+  or rules_notes instead. For area saves, describe only visible effects such as
+  poison cloud failing to bite, radiance searing the target, exhaustion taking
+  hold, or the creature escaping the hazard. Do not state remaining hit points,
+  spell slot counts, "no opportunity attacks occur", or similar bookkeeping as
+  visible facts. Do not use "saving throw", "save", or "DC" in visible facts;
+  say what witnesses see instead. Do not include negative bookkeeping such as
+  "no attacks were made", "no rolls were required", "no saving throw was
+  needed", "no damage was applied", or "no damage was dealt"; omit those facts
+  or put them in rules_notes. For non-damaging actions such as disarm, shove,
+  grapple, or narrative utility actions, narrate only the visible item,
+  movement, condition, or positioning result; do not add a visible fact saying
+  neither side was hurt or that the action dealt no damage.
 - Use explicit names for non-self-referential character references. If the
   sentence names the acting character as the subject, normal self-reference is
   allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a
@@ -121,6 +135,15 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   duration, concentration, break_triggers, and recurring saves. break_triggers
   are reminders for future turns; if the current action matches one, emit an
   explicit end effect_delta.
+- Do not use effect_deltas to preserve public vows, protection declarations,
+  relationship changes, objectives, or other narrative-only continuity. Put
+  those in visible_outcome_facts for what happened now and router_observed_facts
+  when they should matter after initiative ends.
+- Do not turn narrative utility actions into effect_deltas merely because their
+  consequences may matter later. If an action's listed notes describe only
+  narrative placement, surrender, betrayal, negotiation, a public vow, or a
+  protection choice with no concrete D&D condition, timed rule, concentration
+  rule, or recurring save, keep it out of effect_deltas.
 - Do not put "concentrating" in effect_delta conditions. Use concentration=true
   for concentration bookkeeping. Concentration-only self effects should have no
   conditions and should not imply the spell "takes hold" on the caster.
@@ -173,7 +196,11 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   and position advantages are not enough by themselves.
 - Each router_observed_facts item has fact, salience, and reason. fact is the
   concise continuity claim. salience is a simple label such as major, notable,
-  or minor. reason explains why this fact should matter later.
+  or minor. reason explains why this fact should matter later in story,
+  relationship, objective, reputation, or scene-continuity terms. Do not justify
+  a router_observed_facts item by citing tactical impact, combat options,
+  threat level, combat capabilities, or later rounds. Do not use the word
+  "tactical" in router_observed_facts.reason.
 - Do not add named-character death bookkeeping merely because HP reached zero;
   defeat and death facts are handled by durable character state. Add only
   broader narrative meaning around sacrifice, murder, or mercy when it changes

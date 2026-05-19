@@ -61,6 +61,30 @@ _DAMAGE_TYPES = {
     "slashing",
     "thunder",
 }
+_STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
+    {
+        "id": "shove",
+        "name": "Shove",
+        "range": "5 ft",
+        "notes": (
+            "Universal D&D special melee attack. Resolve as the shover's "
+            "Strength (Athletics) contested by the target's Strength "
+            "(Athletics) or Dexterity (Acrobatics). On success, the shover "
+            "knocks the target prone or pushes it 5 feet away. Deals no damage."
+        ),
+    },
+    {
+        "id": "grapple",
+        "name": "Grapple",
+        "range": "5 ft",
+        "notes": (
+            "Universal D&D special melee attack. Resolve as the grappler's "
+            "Strength (Athletics) contested by the target's Strength "
+            "(Athletics) or Dexterity (Acrobatics). On success, the target is "
+            "grappled. Deals no damage."
+        ),
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -510,6 +534,13 @@ def _execute_combat_damage_rolls(
             continue
         damage_profile = _damage_profile_for_action(ckpt, request)
         if not damage_profile.components:
+            if _known_non_damage_action(ckpt, request):
+                _append_ledger_line_once(
+                    transaction,
+                    f"{record.roll_id}: {request.action_id or request.skill} "
+                    "has no damage expression; no damage is rolled",
+                )
+                continue
             _append_ledger_line_once(
                 transaction,
                 f"{marker}: no code-readable damage expression for "
@@ -548,21 +579,25 @@ def _execute_combat_damage_rolls(
                 attack_adjustments=attack_adjustments,
             ),
         )
-        transaction.damage_records.append(
-            CatIIRollDamageRecord(
-                roll_id=record.roll_id,
-                target_id=request.target_id,
-                raw_amount=raw_amount,
-                amount=final_amount,
-                damage_type=damage_profile.damage_type,
-                adjustments=adjustments,
-                components=components,
-                expression=" + ".join(
-                    component.expression for component in components
-                ),
-                detail="; ".join(component.detail for component in components),
-                applied=False,
-            )
+        damage_record = CatIIRollDamageRecord(
+            roll_id=record.roll_id,
+            target_id=request.target_id,
+            raw_amount=raw_amount,
+            amount=final_amount,
+            damage_type=damage_profile.damage_type,
+            adjustments=adjustments,
+            components=components,
+            expression=" + ".join(
+                component.expression for component in components
+            ),
+            detail="; ".join(component.detail for component in components),
+            applied=False,
+        )
+        transaction.damage_records.append(damage_record)
+        _append_falling_split_damage_record(
+            transaction,
+            request=request,
+            source_record=damage_record,
         )
 
 
@@ -622,21 +657,97 @@ def _execute_direct_damage_roll(
             attack_adjustments=attack_adjustments,
         ),
     )
-    transaction.damage_records.append(
-        CatIIRollDamageRecord(
-            roll_id=record.roll_id,
-            target_id=request.target_id,
-            raw_amount=raw_amount,
-            amount=final_amount,
-            damage_type=damage_profile.damage_type,
-            adjustments=adjustments,
+    damage_record = CatIIRollDamageRecord(
+        roll_id=record.roll_id,
+        target_id=request.target_id,
+        raw_amount=raw_amount,
+        amount=final_amount,
+        damage_type=damage_profile.damage_type,
+        adjustments=adjustments,
+        components=components,
+        expression=" + ".join(
+            component.expression for component in components
+        ),
+        detail="; ".join(component.detail for component in components),
+        applied=False,
+    )
+    transaction.damage_records.append(damage_record)
+    _append_falling_split_damage_record(
+        transaction,
+        request=request,
+        source_record=damage_record,
+    )
+
+
+def _append_falling_split_damage_record(
+    transaction: CatIIRollTransaction,
+    *,
+    request: PlannedRoll,
+    source_record: CatIIRollDamageRecord,
+) -> None:
+    target_id = request.target_id.strip()
+    actor_id = request.actor_id.strip()
+    if not target_id or not actor_id or target_id == actor_id:
+        return
+    if not _damage_splits_with_actor(request):
+        return
+    split_roll_id = f"{source_record.roll_id}_split_{actor_id}"
+    if any(damage.roll_id == split_roll_id for damage in transaction.damage_records):
+        return
+    components = [
+        component.model_copy(deep=True)
+        for component in source_record.components
+    ]
+    adjustments = [
+        adjustment.model_copy(deep=True)
+        for adjustment in source_record.adjustments
+    ]
+    marker = f"damage_for={split_roll_id}"
+    _append_ledger_line_once(
+        transaction,
+        _damage_ledger_line(
+            marker,
+            actor_id=request.actor_id,
+            target_id=actor_id,
             components=components,
-            expression=" + ".join(
-                component.expression for component in components
-            ),
-            detail="; ".join(component.detail for component in components),
-            applied=False,
+            raw_total=source_record.raw_amount,
+            final_total=source_record.amount,
+            attack_adjustments=[],
+        ),
+    )
+    transaction.damage_records.append(
+        source_record.model_copy(
+            update={
+                "roll_id": split_roll_id,
+                "target_id": actor_id,
+                "components": components,
+                "adjustments": adjustments,
+                "applied": False,
+            },
+            deep=True,
         )
+    )
+
+
+def _damage_splits_with_actor(request: PlannedRoll) -> bool:
+    text = " ".join(
+        str(part or "")
+        for part in (
+            request.action_id,
+            request.skill,
+            request.reason,
+            *(
+                f"{adjustment.kind} {adjustment.reason}"
+                for adjustment in request.damage_adjustments
+            ),
+        )
+    ).lower()
+    if "falling_collision" in text:
+        return True
+    return "falling" in text and (
+        "split" in text
+        or "divided" in text
+        or "falling into creature" in text
     )
 
 
@@ -653,7 +764,7 @@ def _execute_save_damage_roll(
 ) -> None:
     if any(damage.roll_id == record.roll_id for damage in transaction.damage_records):
         return
-    damage_profile = _damage_profile_for_spell(ckpt, request)
+    damage_profile = _damage_profile_for_direct_damage(ckpt, request)
     if not damage_profile.components:
         return
     result = record.result or {}
@@ -694,19 +805,23 @@ def _execute_save_damage_roll(
             attack_adjustments=[],
         ),
     )
-    transaction.damage_records.append(
-        CatIIRollDamageRecord(
-            roll_id=record.roll_id,
-            target_id=request.target_id,
-            raw_amount=raw_amount,
-            amount=final_amount,
-            damage_type=damage_profile.damage_type,
-            adjustments=adjustments,
-            components=components,
-            expression=" + ".join(component.expression for component in components),
-            detail="; ".join(component.detail for component in components),
-            applied=False,
-        )
+    damage_record = CatIIRollDamageRecord(
+        roll_id=record.roll_id,
+        target_id=request.target_id,
+        raw_amount=raw_amount,
+        amount=final_amount,
+        damage_type=damage_profile.damage_type,
+        adjustments=adjustments,
+        components=components,
+        expression=" + ".join(component.expression for component in components),
+        detail="; ".join(component.detail for component in components),
+        applied=False,
+    )
+    transaction.damage_records.append(damage_record)
+    _append_falling_split_damage_record(
+        transaction,
+        request=request,
+        source_record=damage_record,
     )
 
 
@@ -934,7 +1049,7 @@ def _prepare_combat_resource_spends(
         (spend.actor_id, spend.resource_id, spend.source_id)
         for spend in transaction.resource_spends
     }
-    for source_id in _resource_spend_source_ids(transaction, adjudication):
+    for source_id in _resource_spend_source_ids(ckpt, transaction, adjudication):
         for consume in _source_consumes_for_actor(ckpt, actor_id, source_id):
             resource_id = str(consume.get("resource_id") or "").strip()
             amount = _int_value(consume.get("amount"), 1)
@@ -989,6 +1104,7 @@ def _apply_combat_resource_spends(
 
 
 def _resource_spend_source_ids(
+    ckpt: CheckpointFile,
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
 ) -> list[str]:
@@ -1017,7 +1133,59 @@ def _resource_spend_source_ids(
         )
         if source_id:
             source_ids.append(source_id)
+    source_ids.extend(
+        _declared_resource_spend_source_ids(ckpt, transaction, adjudication)
+    )
     return _unique_text(source_ids)
+
+
+def _declared_resource_spend_source_ids(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> list[str]:
+    actor_id = transaction.actor_id.strip()
+    if not actor_id:
+        return []
+    text = _normalize_action_text(" ".join(
+        str(part or "")
+        for part in (
+            (transaction.context or {}).get("intention"),
+            adjudication.mechanical_summary,
+            " ".join(adjudication.visible_outcome_facts or []),
+            " ".join(adjudication.rules_notes or []),
+            adjudication.fallback_reason,
+        )
+    ))
+    if not text:
+        return []
+    matches: list[str] = []
+    for source in _consuming_sources_for_actor(ckpt, actor_id):
+        names = _action_names(source)
+        if not names:
+            continue
+        if any(_contains_action_name(text, name) for name in names):
+            source_id = str(source.get("id") or source.get("name") or "").strip()
+            if source_id:
+                matches.append(source_id)
+    return matches
+
+
+def _consuming_sources_for_actor(
+    ckpt: CheckpointFile,
+    actor_id: str,
+) -> list[dict[str, object]]:
+    character = _character_for_combat_target(ckpt, actor_id)
+    if character is None:
+        return []
+    out: list[dict[str, object]] = []
+    for action in _combat_actions_for_character(character):
+        if _resource_summaries(action.get("consumes")):
+            out.append(action)
+    for spell in _raw_spells_for_character(character):
+        if _resource_summaries(spell.get("consumes")):
+            out.append(spell)
+    return out
 
 
 def _source_consumes_for_actor(
@@ -1172,6 +1340,12 @@ def _combat_actions_for_character(character: object | None) -> list[dict[str, ob
         if isinstance(action, dict)
     ]
     actions.extend(dnd_equipment.runtime_weapon_actions(character))
+    existing_names = {
+        name for action in actions for name in _action_names(action)
+    }
+    for action in _STANDARD_COMBAT_ACTIONS:
+        if _action_names(action).isdisjoint(existing_names):
+            actions.append(dict(action))
     return actions
 
 
@@ -1209,21 +1383,36 @@ def _damage_profile_for_action(
     ckpt: CheckpointFile,
     request: PlannedRoll,
 ) -> _DamageProfile:
+    action = _action_for_request(ckpt, request)
+    if action is None:
+        return _DamageProfile()
+    return _action_damage_profile(action)
+
+
+def _known_non_damage_action(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> bool:
+    action = _action_for_request(ckpt, request)
+    return action is not None and not _action_damage_profile(action).components
+
+
+def _action_for_request(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> dict[str, object] | None:
     action_key = request.action_id or request.skill
     character = next(
         (c for c in ckpt.characters if c.character_id == request.actor_id),
         None,
     )
     if character is None:
-        return _DamageProfile()
-    action = _find_action(
+        return None
+    return _find_action(
         {"actions": _combat_actions_for_character(character)},
         action_key,
         reason=request.reason,
     )
-    if action is None:
-        return _DamageProfile()
-    return _action_damage_profile(action)
 
 
 def _damage_profile_for_spell(
@@ -1699,7 +1888,41 @@ def _damage_adjustment_candidates(
             reason=adjustment.reason or "router-authored adjustment",
             scope=adjustment.scope,
         ))
+    if (
+        scope == "component"
+        and _damage_splits_with_actor(request)
+        and _damage_type_matches(damage_type, "bludgeoning", source="engine")
+        and not _has_router_damage_adjustment(
+            request,
+            kind="halve",
+            damage_type=damage_type,
+            scope=scope,
+        )
+    ):
+        candidates.append(_DamageAdjustmentCandidate(
+            source="engine",
+            kind="halve",
+            damage_type=damage_type or "bludgeoning",
+            reason="falling collision splits damage between the two creatures",
+            scope=scope,
+        ))
     return candidates
+
+
+def _has_router_damage_adjustment(
+    request: PlannedRoll,
+    *,
+    kind: str,
+    damage_type: str,
+    scope: str,
+) -> bool:
+    for adjustment in request.damage_adjustments:
+        if adjustment.scope != scope or adjustment.kind != kind:
+            continue
+        item_type = _normalize_damage_text(adjustment.damage_type)
+        if not item_type or _damage_type_matches(item_type, damage_type, source="router"):
+            return True
+    return False
 
 
 def _target_damage_defense_entries(
