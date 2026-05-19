@@ -188,6 +188,21 @@ def _action(
     }
 
 
+def _utility_action(
+    action_id: str,
+    name: str,
+    *,
+    range_text: str = "",
+    notes: str = "",
+) -> dict[str, Any]:
+    return {
+        "id": action_id,
+        "name": name,
+        "range": range_text,
+        "notes": notes,
+    }
+
+
 def _spell(
     spell_id: str,
     name: str,
@@ -502,6 +517,35 @@ def _scenarios() -> list[Scenario]:
             "win, the target drops one held item. This action deals no damage."
         ),
     )
+    surrender_parley = _utility_action(
+        "surrender_parley",
+        "Surrender Parley",
+        range_text="audible speech",
+        notes=(
+            "The combatant drops weapons, orders allies to stand down, and "
+            "offers a concrete concession in exchange for mercy. No roll is "
+            "needed when the concession is voluntary and clearly stated."
+        ),
+    )
+    protective_interposition = _utility_action(
+        "protective_interposition",
+        "Protective Interposition",
+        range_text="movement or teleport placement",
+        notes=(
+            "The combatant deliberately places themself between a hostile "
+            "creature and a protected objective or noncombatant. This is a "
+            "narrative protection choice, not an attack."
+        ),
+    )
+    reveal_betrayal = _utility_action(
+        "reveal_betrayal",
+        "Reveal Betrayal",
+        range_text="adjacent object interaction and audible speech",
+        notes=(
+            "The combatant publicly reveals a hidden allegiance and completes "
+            "a simple object interaction that changes the scene's stakes."
+        ),
+    )
     falling_collision = _action(
         "falling_collision",
         "Falling Collision",
@@ -549,6 +593,18 @@ def _scenarios() -> list[Scenario]:
             "is cast now and held for a perceivable trigger"
         ),
         consumes_level=1,
+    )
+    misty_step = _spell(
+        "misty_step",
+        "Misty Step",
+        level=2,
+        range_text="Self",
+        target_text=(
+            "Bonus action teleport up to 30 feet to an unoccupied space the "
+            "caster can see"
+        ),
+        duration_text="Instantaneous",
+        consumes_level=2,
     )
     fireball = _spell(
         "fireball",
@@ -1483,6 +1539,247 @@ def _scenarios() -> list[Scenario]:
             },
         ),
         Scenario(
+            name="narrative_surrender_mercy_concession",
+            summary=(
+                "A named watch captain voluntarily surrenders, orders the "
+                "remaining watch to stand down, and offers the prison keys if "
+                "the adventurers spare the wounded guards. This should create "
+                "post-combat narrative continuity, not just tactical state."
+            ),
+            actor_id="watch_captain",
+            intention=(
+                "I drop my ember saber, raise both hands, and surrender to "
+                "Seren. I order the remaining watch to stand down and promise "
+                "to hand over the prison keys if she spares my wounded guards."
+            ),
+            characters=[
+                CharacterSpec(
+                    "watch_captain",
+                    "Watch Captain Ardan",
+                    "watch",
+                    ac=16,
+                    hp=9,
+                    abilities={"str": 14, "cha": 12},
+                    actions=[surrender_parley, longsword],
+                    conditions=["bloodied"],
+                ),
+                CharacterSpec(
+                    "pc_duelist",
+                    "Seren Duelist",
+                    "adventurers",
+                    ac=16,
+                    hp=34,
+                    playable=True,
+                    abilities={"str": 16, "dex": 14},
+                    actions=[longsword],
+                ),
+                CharacterSpec(
+                    "pc_guard",
+                    "Bram Flint",
+                    "adventurers",
+                    ac=17,
+                    hp=38,
+                    playable=True,
+                    abilities={"str": 16},
+                    actions=[longsword],
+                ),
+                CharacterSpec(
+                    "wounded_guard",
+                    "Wounded Watch Guard",
+                    "watch",
+                    ac=14,
+                    hp=3,
+                    abilities={"str": 12},
+                    actions=[longsword],
+                    conditions=["prone", "bloodied"],
+                ),
+            ],
+            tokens=[
+                ("watch_captain", 5, 4),
+                ("pc_duelist", 4, 4),
+                ("pc_guard", 4, 5),
+                ("wounded_guard", 6, 4),
+            ],
+            expectations={
+                "forbid_rolls": True,
+                "expected_combat_status": "ongoing",
+                "minimum_router_observed_facts": 1,
+                "router_fact_must_contain_any": [
+                    "surrender",
+                    "stand down",
+                    "prison keys",
+                    "spares",
+                    "mercy",
+                ],
+                "router_reason_must_not_contain_any": [
+                    "tactic",
+                    "subsequent round",
+                    "combat capabilities",
+                ],
+            },
+        ),
+        Scenario(
+            name="narrative_misty_step_princess_rescue_vow",
+            summary=(
+                "A player uses Misty Step to protect a princess from an "
+                "assassin and makes a public vow while taking the dangerous "
+                "position. This should be a durable rescue/protected-objective "
+                "fact if the action succeeds."
+            ),
+            actor_id="pc_warder",
+            intention=(
+                "I cast Misty Step into the empty space between the assassin "
+                "and Princess Alen, raise my warding blade, and shout that the "
+                "assassin has to go through me first. I am saving the princess, "
+                "not attacking."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_warder",
+                    "Kael Warder",
+                    "adventurers",
+                    ac=15,
+                    hp=31,
+                    playable=True,
+                    abilities={"int": 16, "dex": 14},
+                    actions=[protective_interposition, longsword],
+                    spellcasting=_spellcasting(
+                        slots={"2": {"current": 2, "max": 3}},
+                        spells=[misty_step],
+                    ),
+                ),
+                CharacterSpec(
+                    "princess_alen",
+                    "Princess Alen",
+                    "adventurers",
+                    ac=12,
+                    hp=18,
+                    playable=True,
+                    abilities={"dex": 12, "cha": 16},
+                ),
+                CharacterSpec(
+                    "obsidian_assassin",
+                    "Obsidian Assassin",
+                    "obsidian_court",
+                    ac=15,
+                    hp=33,
+                    abilities={"dex": 18},
+                    actions=[dagger],
+                ),
+            ],
+            tokens=[
+                ("pc_warder", 2, 4),
+                ("obsidian_assassin", 7, 4),
+                ("princess_alen", 9, 4),
+            ],
+            expectations={
+                "forbid_rolls": True,
+                "expected_combat_status": "ongoing",
+                "minimum_router_observed_facts": 1,
+                "router_fact_must_contain_any": [
+                    "Princess Alen",
+                    "princess",
+                    "saved",
+                    "protect",
+                    "vow",
+                    "go through",
+                ],
+                "router_reason_must_not_contain_any": [
+                    "tactic",
+                    "subsequent round",
+                    "combat capabilities",
+                ],
+                "require_spatial_delta_kind": "move_token",
+                "require_resource_spends": [{
+                    "actor_id": "pc_warder",
+                    "resource_id": "spell_slot_2",
+                    "source_id": "misty_step",
+                    "amount": 1,
+                    "applied": True,
+                }],
+            },
+        ),
+        Scenario(
+            name="narrative_revealed_betrayal_unlocks_gate",
+            summary=(
+                "A supposed guide reveals a hidden allegiance to the Obsidian "
+                "Court and unlocks the ritual gate mid-combat. The betrayal "
+                "and opened gate should matter after initiative ends."
+            ),
+            actor_id="guide_valen",
+            intention=(
+                "I stop pretending to help Seren. I show the Obsidian Court "
+                "brand under my glove, announce that I was their agent all "
+                "along, and unlock the ritual gate for the cult captain."
+            ),
+            characters=[
+                CharacterSpec(
+                    "guide_valen",
+                    "Valen the Guide",
+                    "crown_guides",
+                    ac=13,
+                    hp=24,
+                    abilities={"dex": 14, "cha": 16},
+                    actions=[reveal_betrayal, dagger],
+                ),
+                CharacterSpec(
+                    "pc_duelist",
+                    "Seren Duelist",
+                    "adventurers",
+                    ac=16,
+                    hp=34,
+                    playable=True,
+                    abilities={"str": 16, "dex": 14},
+                    actions=[longsword],
+                ),
+                CharacterSpec(
+                    "cult_captain",
+                    "Obsidian Cult Captain",
+                    "obsidian_court",
+                    ac=15,
+                    hp=34,
+                    abilities={"dex": 12},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("guide_valen", 6, 5),
+                ("pc_duelist", 4, 5),
+                ("cult_captain", 8, 5),
+            ],
+            terrain=[
+                _wall(
+                    "ritual_gate",
+                    "Locked ritual gate",
+                    x=7,
+                    y=4,
+                    width=1,
+                    height=3,
+                    notes=(
+                        "A locked ritual gate blocks the cult captain's route "
+                        "until someone next to it opens the mechanism."
+                    ),
+                )
+            ],
+            expectations={
+                "forbid_rolls": True,
+                "expected_combat_status": "ongoing",
+                "minimum_router_observed_facts": 1,
+                "router_fact_must_contain_any": [
+                    "betray",
+                    "Obsidian Court",
+                    "ritual gate",
+                    "unlocked",
+                    "allegiance",
+                ],
+                "router_reason_must_not_contain_any": [
+                    "tactic",
+                    "subsequent round",
+                    "combat capabilities",
+                ],
+            },
+        ),
+        Scenario(
             name="dmg_optional_disarm_no_damage",
             summary=(
                 "DMG optional Disarm is enabled for this scenario. Disarm uses "
@@ -2119,6 +2416,71 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "critical",
             "detail": result.get("error"),
         })
+    expected_status = str(expectations.get("expected_combat_status") or "").strip()
+    if expected_status:
+        actual_status = str(adjudication.get("combat_status") or "").strip()
+        if actual_status != expected_status:
+            findings.append({
+                "name": "wrong_combat_status",
+                "severity": "high",
+                "detail": {
+                    "expected": expected_status,
+                    "actual": actual_status,
+                },
+            })
+    router_facts = [
+        fact for fact in adjudication.get("router_observed_facts") or []
+        if isinstance(fact, dict) and str(fact.get("fact") or "").strip()
+    ]
+    minimum_router_facts = int(
+        expectations.get("minimum_router_observed_facts", 0) or 0
+    )
+    if len(router_facts) < minimum_router_facts:
+        findings.append({
+            "name": "missing_router_observed_facts",
+            "severity": "high",
+            "detail": {
+                "minimum": minimum_router_facts,
+                "actual": router_facts,
+            },
+        })
+    required_router_terms = [
+        str(term).strip().lower()
+        for term in expectations.get("router_fact_must_contain_any") or []
+        if str(term).strip()
+    ]
+    if required_router_terms:
+        fact_text = " ".join(
+            str(fact.get("fact") or "").lower() for fact in router_facts
+        )
+        if not any(term in fact_text for term in required_router_terms):
+            findings.append({
+                "name": "router_observed_fact_missing_expected_terms",
+                "severity": "medium",
+                "detail": {
+                    "expected_any": required_router_terms,
+                    "actual": router_facts,
+                },
+            })
+    forbidden_router_reason_terms = [
+        str(term).strip().lower()
+        for term in expectations.get("router_reason_must_not_contain_any") or []
+        if str(term).strip()
+    ]
+    if forbidden_router_reason_terms:
+        bad_router_reasons = [
+            fact for fact in router_facts
+            if any(
+                term in str(fact.get("reason") or "").lower()
+                for term in forbidden_router_reason_terms
+            )
+        ]
+        if bad_router_reasons:
+            findings.append({
+                "name": "router_observed_fact_has_tactical_reason",
+                "severity": "medium",
+                "detail": bad_router_reasons,
+            })
     for key in expectations.get("packet_forbidden_keys") or []:
         if _dict_contains_key(packet, str(key)):
             findings.append({
