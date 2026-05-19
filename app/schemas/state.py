@@ -12,7 +12,7 @@ from app.schemas.dnd_spatial import DndBattleMapState
 class ModelConfig(BaseModel):
     event_router: str = "gpt-5.2"
     narrator: str = "gpt-5.2"
-    dnd_combat_manager: str = "gpt-5.1"
+    dnd_combat_manager: str = "gpt-5-mini"
     discriminator: str = "gpt-5.2"
     agent_default: str = "claude-opus-4-6"
     agent_standard: str = "claude-haiku-4-5"

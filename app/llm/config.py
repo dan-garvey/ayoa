@@ -24,7 +24,7 @@ _VALID_OPENAI_REASONING_SUMMARIES = {
 }
 _ROUTER_MODEL = "gpt-5.2"
 _NARRATOR_MODEL = "gpt-5.2"
-_COMBAT_MANAGER_MODEL = "gpt-5.1"
+_COMBAT_MANAGER_MODEL = "gpt-5-mini"
 _AGENT_MODEL = "claude-opus-4-6"
 _STANDARD_AGENT_MODEL = "claude-haiku-4-5"
 _CONVENIENCE_AGENT_MODEL = "claude-sonnet-4-6"
