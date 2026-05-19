@@ -19,6 +19,7 @@ from app.schemas.dnd_cat_ii import (
     RollPlan,
     RulesAdjudication,
 )
+from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.events import CanonicalEvent, ObservableFact
 
 
@@ -615,6 +616,8 @@ class TestLLMClientComplete:
         """OpenAI strict JSON Schema rejects Pydantic default fields unless
         they are still listed as required in the provider-facing schema."""
         for model in (
+            EventRouterOutput,
+            DndEventRouterOutput,
             RollPlan,
             DndCombatTurnPlan,
             RulesAdjudication,
@@ -630,7 +633,7 @@ class TestLLMClientComplete:
                     if "default" in node:
                         defaults.append(path)
                     for key in ("description", "title"):
-                        if key in node:
+                        if key in node and (not path or path[-1] != "properties"):
                             annotations.append(path + (key,))
                     properties = node.get("properties")
                     if isinstance(properties, dict):

@@ -52,17 +52,18 @@ def _openai_strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
     """
     schema = copy.deepcopy(model.model_json_schema())
 
-    def walk(node: Any) -> None:
+    def walk(node: Any, *, properties_container: bool = False) -> None:
         if isinstance(node, dict):
-            node.pop("default", None)
-            node.pop("description", None)
-            node.pop("title", None)
-            properties = node.get("properties")
-            if isinstance(properties, dict):
-                node["additionalProperties"] = False
-                node["required"] = list(properties.keys())
-            for value in node.values():
-                walk(value)
+            if not properties_container:
+                node.pop("default", None)
+                node.pop("description", None)
+                node.pop("title", None)
+                properties = node.get("properties")
+                if isinstance(properties, dict):
+                    node["additionalProperties"] = False
+                    node["required"] = list(properties.keys())
+            for key, value in node.items():
+                walk(value, properties_container=(key == "properties"))
         elif isinstance(node, list):
             for value in node:
                 walk(value)

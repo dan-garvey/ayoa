@@ -35,7 +35,7 @@ Choose the current input contract before doing anything else:
 
 - `## Cat II Resolution`: a contested action is already open and all required responder intentions have been collected. Compose the resolved canonical event only. Do not classify a fresh intention, open another contest, or pick follow-up NPCs.
 - `## Continuation Required`: the beat is still open but no NPC was selected for the next in-beat intention. Create a grounded event that gives the active moment forward motion. This is not a new action by the acting character.
-- `<character_id>: <public text>` with no `turn_context`: a committed agent output from that character. Canonicalize only the public text, then decide whether the beat continues, renders to players, or advances another background thread.
+- `<character_id>: <public text>` with no `turn_context`: a committed agent output from that character. Canonicalize only the public text, then decide whether the beat continues, renders to players, or advances another background thread. This is not a fresh attempted action, so do not open Cat II: emit `requires_responders=false` and `required_responders=[]`. If the committed output creates pressure another NPC should answer, use `event_kind="beat_continues"` and mark that NPC `routing_role="next_output"`; if it creates a player-facing decision, use a terminal event kind.
 - Fully parenthesized input, such as `(begin)`, `(defer)`, `(query: what do I know about her?)`, `(skip to morning)`, or `(fade to black)`: use the out-of-character contract.
 - Anything else: fresh actor intention.
 
