@@ -691,7 +691,7 @@ def _scenarios() -> list[Scenario]:
                 ("pc_aria", 6, 6),
                 ("cult_a", 7, 5),
                 ("cult_b", 5, 3),
-                ("cult_far", 11, 9),
+                ("cult_far", 11, 0),
             ],
             terrain=[
                 _wall(
@@ -701,9 +701,10 @@ def _scenarios() -> list[Scenario]:
                     y=3,
                     width=1,
                     height=4,
+                    cover="none",
                     notes=(
-                        "Total cover and blocked sight, but Fireball's spell "
-                        "text says the fire spreads around corners."
+                        "Blocks ordinary sight, but Fireball's spell text says "
+                        "the fire spreads around corners."
                     ),
                 )
             ],
@@ -744,7 +745,7 @@ def _scenarios() -> list[Scenario]:
             ),
             actor_id="ash_pyro",
             intention=(
-                "I fan Burning Hands north-east through the low-wall gap, not "
+                "I fan Burning Hands north through the low-wall gap, not "
                 "caring that the ally acolyte is in the cone."
             ),
             characters=[
@@ -801,7 +802,7 @@ def _scenarios() -> list[Scenario]:
                     y=7,
                     width=3,
                     height=3,
-                    notes="15-foot cone aimed north-east.",
+                    notes="15-foot cone aimed north.",
                 )
             ],
             expectations={
@@ -1000,7 +1001,7 @@ def _scenarios() -> list[Scenario]:
                 ("pc_aria", 4, 4),
                 ("cult_a", 7, 4),
                 ("cult_b", 8, 5),
-                ("cult_edge", 10, 7),
+                ("cult_edge", 11, 9),
             ],
             terrain=[
                 _wall(
@@ -1068,8 +1069,13 @@ def _scenarios() -> list[Scenario]:
                     playable=True,
                     abilities={"int": 18, "con": 14},
                     spellcasting=_spellcasting(
-                        save_dc=15,
-                        spells=[thunderwave],
+                        save_dc=30,
+                        spells=[
+                            {
+                                **thunderwave,
+                                "save": {"ability": "con", "dc": 30},
+                            }
+                        ],
                     ),
                 ),
                 CharacterSpec(
@@ -1095,15 +1101,15 @@ def _scenarios() -> list[Scenario]:
             tokens=[
                 ("pc_storm", 3, 4),
                 ("orc_raider", 4, 4),
-                ("pc_guard", 5, 4),
+                ("pc_guard", 4, 5),
             ],
             areas=[
                 _area(
                     "thunderwave_cube",
                     "Thunderwave cube",
                     shape="square",
-                    x=2,
-                    y=3,
+                    x=4,
+                    y=2,
                     width=3,
                     height=3,
                     notes=(
@@ -1118,6 +1124,7 @@ def _scenarios() -> list[Scenario]:
                 "forbid_initial_save_effect_id": True,
                 "forbid_visible_damage_numbers": True,
                 "must_include_save_targets": ["orc_raider"],
+                "must_fail_save_targets": ["orc_raider"],
                 "expected_save_ability": "con",
                 "expected_save_damage_spell": True,
                 "require_spatial_delta_if_failed": "move_token",
@@ -1258,6 +1265,91 @@ def _scenarios() -> list[Scenario]:
                     "amount": 1,
                     "applied": True,
                 }],
+            },
+        ),
+        Scenario(
+            name="readied_magic_missile_release",
+            summary=(
+                "A cult captain opens the bronze door that a wizard named as a "
+                "readied-spell trigger. The held Magic Missile should release "
+                "from the wizard, spend her reaction, roll direct force damage, "
+                "and end the held effect without spending another slot."
+            ),
+            actor_id="cult_captain",
+            intention=(
+                "I throw open the bronze door and step through, trusting the "
+                "ashes to shield me."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_evoker",
+                    "Mira Evoker",
+                    "adventurers",
+                    ac=13,
+                    hp=28,
+                    playable=True,
+                    abilities={"int": 18, "dex": 14},
+                    spellcasting=_spellcasting(
+                        slots={"1": {"current": 2, "max": 4}},
+                        spells=[magic_missile],
+                    ),
+                    active_effects=[{
+                        "effect_id": "ready_magic_missile",
+                        "name": "Readied Magic Missile",
+                        "slug": "readied_spell",
+                        "source_type": "spell",
+                        "source_id": "magic_missile",
+                        "originator_id": "pc_evoker",
+                        "target_id": "pc_evoker",
+                        "conditions": [],
+                        "concentration": True,
+                        "duration_kind": "rounds",
+                        "duration_amount": 1,
+                        "remaining_rounds": 1,
+                        "duration_text": "until the trigger or start of next turn",
+                        "break_triggers": [
+                            "the cult captain opens the bronze door",
+                            "concentration ends",
+                        ],
+                        "metadata": {
+                            "readied_action": {
+                                "source_id": "magic_missile",
+                                "source_type": "spell",
+                                "readying_actor_id": "pc_evoker",
+                                "trigger_text": (
+                                    "when the cult captain opens the bronze door"
+                                ),
+                                "created_round": 1,
+                                "created_turn_index": 0,
+                                "requires_reaction": True,
+                                "expires_at_start_of_actor_turn": True,
+                            }
+                        },
+                    }],
+                ),
+                CharacterSpec(
+                    "cult_captain",
+                    "Cult Captain",
+                    "ash_cult",
+                    ac=15,
+                    hp=34,
+                    abilities={"dex": 12},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("pc_evoker", 3, 5),
+                ("cult_captain", 8, 5),
+            ],
+            expectations={
+                "must_include_roll_kinds": ["damage_roll"],
+                "minimum_roll_kind_count": {"damage_roll": 1},
+                "must_include_roll_targets": ["cult_captain"],
+                "require_roll_effect_id": "ready_magic_missile",
+                "require_effect_end_slug": ["readied_spell"],
+                "require_reaction_spent": "pc_evoker",
+                "forbid_resource_spends": True,
+                "forbid_visible_damage_numbers": True,
             },
         ),
         Scenario(
@@ -1488,6 +1580,7 @@ async def _run_harness(selected: list[Scenario]) -> dict[str, Any]:
                 "capture": _capture_dump(capture),
                 "before_hp": before_hp,
                 "after_hp": _hp_by_id(ckpt),
+                "after_reactions": _reaction_by_id(ckpt),
                 "resource_spends": _resource_spends(ckpt),
                 "role_calls": role_calls[call_start:],
                 "error": scenario_error,
@@ -1590,6 +1683,16 @@ def _hp_by_id(ckpt: CheckpointFile) -> dict[str, int]:
     }
 
 
+def _reaction_by_id(ckpt: CheckpointFile) -> dict[str, bool]:
+    combat = ckpt.session.active_combat
+    if combat is None:
+        return {}
+    return {
+        combatant.character_id: bool(combatant.reaction_available)
+        for combatant in combat.combatants
+    }
+
+
 def _resource_spends(ckpt: CheckpointFile) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for transaction in ckpt.session.cat_ii_roll_transactions:
@@ -1680,6 +1783,15 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "high",
             "detail": missing_kinds,
         })
+    minimum_kind_counts = expectations.get("minimum_roll_kind_count") or {}
+    for kind, minimum in minimum_kind_counts.items():
+        actual = sum(1 for request in requests if request.get("kind") == kind)
+        if actual < int(minimum):
+            findings.append({
+                "name": "insufficient_required_roll_kind_count",
+                "severity": "high",
+                "detail": {"kind": kind, "minimum": minimum, "actual": actual},
+            })
     any_kinds = set(expectations.get("must_include_any_roll_kinds") or [])
     if any_kinds and not any_kinds.intersection(request_kinds):
         findings.append({
@@ -1704,6 +1816,16 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "missing_required_save_targets",
             "severity": "high",
             "detail": missing_save_targets,
+        })
+    required_effect_id = str(expectations.get("require_roll_effect_id") or "")
+    if required_effect_id and not any(
+        str(request.get("effect_id") or "") == required_effect_id
+        for request in requests
+    ):
+        findings.append({
+            "name": "missing_required_roll_effect_id",
+            "severity": "high",
+            "detail": required_effect_id,
         })
     forbidden_targets = sorted(
         set(expectations.get("must_exclude_roll_targets") or []) & request_targets
@@ -1905,6 +2027,16 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                     ),
                 },
             })
+    required_failed_targets = sorted(
+        set(expectations.get("must_fail_save_targets") or [])
+        - _failed_save_targets(result)
+    )
+    if required_failed_targets:
+        findings.append({
+            "name": "required_save_targets_did_not_fail",
+            "severity": "high",
+            "detail": required_failed_targets,
+        })
     if expectations.get("forbid_damage_records") and _damage_records(result):
         findings.append({
             "name": "unexpected_damage_records",
@@ -1930,6 +2062,24 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "high",
                 "detail": changed,
             })
+    if expectations.get("forbid_resource_spends") and result.get("resource_spends"):
+        findings.append({
+            "name": "unexpected_resource_spends",
+            "severity": "high",
+            "detail": result.get("resource_spends"),
+        })
+    required_reaction_spent = str(expectations.get("require_reaction_spent") or "")
+    if required_reaction_spent:
+        reactions = result.get("after_reactions") or {}
+        if reactions.get(required_reaction_spent) is not False:
+            findings.append({
+                "name": "required_reaction_not_spent",
+                "severity": "high",
+                "detail": {
+                    "character_id": required_reaction_spent,
+                    "after_reactions": reactions,
+                },
+            })
     visible_text = " ".join(str(fact) for fact in (result.get("event") or {}).get("facts") or [])
     if "concentration shifts to a new effect" in visible_text.lower():
         findings.append({
@@ -1943,7 +2093,10 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
     for rule in expectations.get("condition_fact_requires_delta") or []:
         condition = str(rule.get("condition") or "").strip().lower()
         target_id = str(rule.get("target_id") or "").strip()
-        if not condition or condition not in visible_text.lower():
+        if not condition or not any(
+            _fact_asserts_condition(fact, condition)
+            for fact in _visible_facts(result)
+        ):
             continue
         if not any(
             delta.get("kind") == "condition_add"
@@ -2117,6 +2270,19 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "detail": missing_spends,
         })
     return findings
+
+
+def _fact_asserts_condition(fact: str, condition: str) -> bool:
+    lower = " ".join(str(fact or "").lower().split())
+    condition = condition.strip().lower()
+    if not condition or condition not in lower:
+        return False
+    negated = re.search(
+        rf"\b(?:fail|fails|failed|cannot|can't|does not|doesn't|not|no)\b"
+        rf"[^.?!;]{{0,80}}\b{re.escape(condition)}\b",
+        lower,
+    )
+    return negated is None
 
 
 def _has_opposed_rolls(requests: list[dict[str, Any]]) -> bool:

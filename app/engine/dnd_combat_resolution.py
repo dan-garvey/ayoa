@@ -86,14 +86,20 @@ class DndCombatResolver:
         cat._execute_combat_damage_rolls(ckpt, transaction)
         packet = json.dumps(transaction.context, indent=2, sort_keys=True)
         adjudication = await self._finalize(packet, transaction.ledger_lines)
+        cat._validate_and_apply_readied_releases(ckpt, transaction, adjudication)
         cat._apply_combat_damage_records(ckpt, transaction)
         cat._prepare_combat_resource_spends(ckpt, transaction, adjudication)
         cat._apply_combat_resource_spends(ckpt, transaction)
-        cat._apply_combat_state_deltas(ckpt, adjudication.combat_state_deltas)
+        cat._apply_combat_state_deltas(
+            ckpt,
+            adjudication.combat_state_deltas,
+            transaction=transaction,
+        )
         effect_notes = cat._apply_combat_effect_deltas(
             ckpt,
             adjudication.effect_deltas,
             default_originator_id=transaction.actor_id,
+            transaction=transaction,
         )
         spatial_notes = cat._apply_combat_spatial_deltas(
             ckpt,

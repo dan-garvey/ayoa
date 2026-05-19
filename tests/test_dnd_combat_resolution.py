@@ -159,6 +159,55 @@ def _ckpt() -> CheckpointFile:
     return ckpt
 
 
+def _give_alice_readied_magic_missile(ckpt: CheckpointFile) -> None:
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_attack_bonus": 5,
+        }],
+        "slots": {"1": {"current": 2, "max": 4}},
+        "spells": [
+            _spell(
+                "magic_missile",
+                "Magic Missile",
+                level=1,
+                damage="3 darts, each 1d4+1 force",
+                consumes_level=1,
+            )
+        ],
+    }
+    alice = ckpt.session.active_combat.combatants[0]
+    alice.reaction_available = True
+    alice.active_effects.append(DndRuntimeEffect(
+        effect_id="ready_magic_missile",
+        name="Readied Magic Missile",
+        slug="readied_spell",
+        source_type="spell",
+        source_id="magic_missile",
+        originator_id="alice",
+        target_id="alice",
+        concentration=True,
+        duration_kind="rounds",
+        duration_amount=1,
+        remaining_rounds=1,
+        duration_text="until the trigger or start of next turn",
+        metadata={
+            "readied_action": {
+                "source_id": "magic_missile",
+                "source_type": "spell",
+                "readying_actor_id": "alice",
+                "trigger_text": "when Bob opens the door",
+                "created_round": 1,
+                "created_turn_index": 0,
+                "requires_reaction": True,
+                "expires_at_start_of_actor_turn": True,
+            },
+        },
+    ))
+
+
 def _planned_attack(
     *,
     action_id: str = "blade",
@@ -502,6 +551,63 @@ def test_combat_save_damage_rolls_once_and_applies_per_target(monkeypatch):
         1 for line in transaction.ledger_lines
         if line.startswith("damage_for=")
     ) == 2
+
+
+def test_damage_engine_owns_defeat_condition_deltas(monkeypatch):
+    ckpt = _ckpt()
+    bob = ckpt.session.active_combat.combatants[1]
+    bob.hit_points_current = 5
+    values = iter([9, 7])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[_planned_attack()],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice drops Bob with a blade.",
+            visible_outcome_facts=["Alice's blade drops Bob."],
+            state_deltas=[],
+            combat_state_deltas=[{
+                "kind": "condition_add",
+                "target_id": "bob",
+                "amount": 0,
+                "condition": "unconscious",
+                "reason": "Bob reached 0 HP.",
+            }],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+
+    assert bob.hit_points_current == 0
+    assert bob.defeat_state == "defeated"
+    assert "unconscious" not in bob.conditions
+    assert any(
+        "damage engine owns 'unconscious'" in line
+        for line in ckpt.session.active_combat.audit_lines
+    )
 
 
 def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
@@ -2402,7 +2508,156 @@ def test_combat_resolver_consumes_readied_no_roll_spell_once():
     assert ckpt.characters[0].mechanics["resources"]["spell_slot_1"]["current"] == 2
     facts = [fact.text for fact in routed.canonical_event.observable_facts]
     assert not any("Magic Missile takes hold on Alice" in fact for fact in facts)
-    assert ckpt.session.active_combat.combatants[0].active_effects[0].conditions == []
+    readied_effect = ckpt.session.active_combat.combatants[0].active_effects[0]
+    assert readied_effect.conditions == []
+    assert readied_effect.metadata["readied_action"]["source_id"] == "magic_missile"
+    assert readied_effect.metadata["readied_action"]["readying_actor_id"] == "alice"
+    assert "Bob's move" in readied_effect.metadata["readied_action"]["trigger_text"]
+
+
+def test_combat_resolver_releases_readied_damage_rolls(monkeypatch):
+    ckpt = _ckpt()
+    _give_alice_readied_magic_missile(ckpt)
+    ckpt.session.active_combat.turn_index = 1
+    values = iter([0, 0, 0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id=f"magic_missile_{index}",
+                    actor_id="alice",
+                    kind="damage_roll",
+                    ability="str",
+                    skill="",
+                    dc=0,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason=f"Magic Missile dart {index} hits Bob.",
+                    action_id="magic_missile",
+                    target_id="bob",
+                    effect_id="ready_magic_missile",
+                )
+                for index in range(1, 4)
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice releases the held spell as Bob moves.",
+            visible_outcome_facts=[
+                "Alice's held missiles slam into Bob as he opens the door."
+            ],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[{
+                "operation": "end",
+                "target_id": "alice",
+                "effect_id": "ready_magic_missile",
+                "slug": "readied_spell",
+                "reason": "trigger occurred",
+            }],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="bob",
+            intention="I open the door.",
+        )
+    )
+
+    alice = ckpt.session.active_combat.combatants[0]
+    bob = ckpt.session.active_combat.combatants[1]
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert bob.hit_points_current == 7
+    assert alice.active_effects == []
+    assert alice.reaction_available is False
+    assert transaction.resource_spends == []
+    assert [damage.amount for damage in transaction.damage_records] == [2, 2, 2]
+    assert all(damage.applied for damage in transaction.damage_records)
+    assert any("readied_release=ready_magic_missile" in line for line in transaction.ledger_lines)
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert facts == ["Alice's held missiles slam into Bob as he opens the door."]
+
+
+def test_readied_release_requires_explicit_effect_end(monkeypatch):
+    ckpt = _ckpt()
+    _give_alice_readied_magic_missile(ckpt)
+    ckpt.session.active_combat.turn_index = 1
+    values = iter([0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(RollPlan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="magic_missile_1",
+                    actor_id="alice",
+                    kind="damage_roll",
+                    ability="str",
+                    skill="",
+                    dc=0,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Magic Missile dart hits Bob.",
+                    action_id="magic_missile",
+                    target_id="bob",
+                    effect_id="ready_magic_missile",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice releases the held spell.",
+            visible_outcome_facts=["Alice's missile strikes Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    with pytest.raises(ValueError, match="must end the held effect"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="bob",
+                intention="I open the door.",
+            )
+        )
+
+    bob = ckpt.session.active_combat.combatants[1]
+    assert bob.hit_points_current == 13
+    assert ckpt.session.active_combat.combatants[0].reaction_available is True
 
 
 def test_combat_resolver_starts_sustained_effect_from_adjudication(monkeypatch):

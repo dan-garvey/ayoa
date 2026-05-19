@@ -21,6 +21,7 @@ from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.state import (
     CatIIRollTransaction,
     DndCombatantState,
+    DndCombatState,
     DndEffectRecurringSave,
     DndRuntimeEffect,
     SessionState,
@@ -814,6 +815,64 @@ def test_advance_turn_failed_recurring_save_does_not_emit_remains_fact(
     assert "paralyzed" in bob_state.conditions
     assert combat.pending_visible_facts == []
     assert "continues" in combat.audit_lines[-1]
+
+
+def test_advance_turn_expires_readied_action_at_start_of_next_turn():
+    session = SessionState(session_id="s")
+    alice_state = DndCombatantState(
+        combatant_id="alice",
+        character_id="alice",
+        name="Alice",
+        active_effects=[
+            DndRuntimeEffect(
+                effect_id="ready_magic_missile",
+                name="Readied Magic Missile",
+                slug="readied_spell",
+                source_type="spell",
+                source_id="magic_missile",
+                originator_id="alice",
+                target_id="alice",
+                concentration=True,
+                duration_kind="rounds",
+                duration_amount=1,
+                remaining_rounds=1,
+                metadata={
+                    "readied_action": {
+                        "source_id": "magic_missile",
+                        "source_type": "spell",
+                        "readying_actor_id": "alice",
+                        "trigger_text": "when Bob opens the door",
+                        "created_round": 1,
+                        "created_turn_index": 0,
+                        "requires_reaction": True,
+                        "expires_at_start_of_actor_turn": True,
+                    },
+                },
+            )
+        ],
+    )
+    bob_state = DndCombatantState(
+        combatant_id="bob",
+        character_id="bob",
+        name="Bob",
+    )
+    combat = DndCombatState(
+        combat_id="combat",
+        round_number=1,
+        turn_index=1,
+        combatants=[alice_state, bob_state],
+    )
+    session.active_combat = combat
+
+    advance_turn(session)
+
+    assert current_combatant(session).character_id == "alice"
+    assert combat.round_number == 2
+    assert alice_state.active_effects == []
+    assert (
+        "Readied Magic Missile ends on Alice as the readying turn begins."
+        in combat.pending_visible_facts
+    )
 
 
 def test_damage_can_break_concentration(monkeypatch):

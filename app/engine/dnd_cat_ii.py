@@ -394,7 +394,12 @@ def _execute_available_rolls(
     for record in transaction.rolls:
         if record.status != "pending":
             continue
-        if record.actor_control == "player" and player_roll_mode == "interactive":
+        request = PlannedRoll.model_validate(record.request)
+        if (
+            record.actor_control == "player"
+            and player_roll_mode == "interactive"
+            and request.kind != "damage_roll"
+        ):
             continue
         _execute_roll_record(transaction, record, completed_by_user_id="engine")
 
@@ -413,6 +418,25 @@ def _execute_roll_record(
     completed_by_user_id: str,
 ) -> None:
     request = PlannedRoll.model_validate(record.request)
+    if request.kind == "damage_roll":
+        record.status = "completed"
+        record.result = {
+            "roll_id": record.roll_id,
+            "actor_id": record.actor_id,
+            "kind": "damage_roll",
+            "total": 0,
+            "detail": "direct damage roll queued",
+            "crit": "none",
+        }
+        record.completed_by_user_id = completed_by_user_id
+        record.completed_at = _utcnow_iso()
+        transaction.ledger_lines.append(
+            _format_direct_damage_roll_ledger_line(
+                request,
+                roller_id=record.actor_id,
+            )
+        )
+        return
     result = dice.roll_d20_check(
         roll_id=record.roll_id,
         modifier=record.modifier,
@@ -444,6 +468,14 @@ def _execute_combat_damage_rolls(
         if record.status != "completed":
             continue
         request = PlannedRoll.model_validate(record.request)
+        if request.kind == "damage_roll":
+            _execute_direct_damage_roll(
+                ckpt,
+                transaction,
+                record=record,
+                request=request,
+            )
+            continue
         if request.kind == "saving_throw" and request.target_id:
             _execute_save_damage_roll(
                 ckpt,
@@ -532,6 +564,80 @@ def _execute_combat_damage_rolls(
                 applied=False,
             )
         )
+
+
+def _execute_direct_damage_roll(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    *,
+    record: CatIIRollRecord,
+    request: PlannedRoll,
+) -> None:
+    if not request.target_id:
+        _append_ledger_line_once(
+            transaction,
+            f"damage_for={record.roll_id}: skipped; target_id is required",
+        )
+        return
+    if any(damage.roll_id == record.roll_id for damage in transaction.damage_records):
+        return
+    damage_profile = _damage_profile_for_direct_damage(ckpt, request)
+    marker = f"damage_for={record.roll_id}"
+    if not damage_profile.components:
+        _append_ledger_line_once(
+            transaction,
+            f"{marker}: no code-readable damage expression for "
+            f"{request.actor_id} source {request.action_id or request.skill}",
+        )
+        return
+    components = _roll_damage_components(
+        ckpt,
+        request,
+        record=record,
+        damage_profile=damage_profile,
+        crit=False,
+    )
+    raw_amount = sum(component.raw_amount for component in components)
+    component_total = sum(component.amount for component in components)
+    component_adjustments = [
+        adjustment
+        for component in components
+        for adjustment in component.adjustments
+    ]
+    final_amount, attack_adjustments = _adjust_attack_total_amount(
+        request,
+        raw_amount=component_total,
+        components=components,
+    )
+    adjustments = [*component_adjustments, *attack_adjustments]
+    _append_ledger_line_once(
+        transaction,
+        _damage_ledger_line(
+            marker,
+            actor_id=request.actor_id,
+            target_id=request.target_id,
+            components=components,
+            raw_total=raw_amount,
+            final_total=final_amount,
+            attack_adjustments=attack_adjustments,
+        ),
+    )
+    transaction.damage_records.append(
+        CatIIRollDamageRecord(
+            roll_id=record.roll_id,
+            target_id=request.target_id,
+            raw_amount=raw_amount,
+            amount=final_amount,
+            damage_type=damage_profile.damage_type,
+            adjustments=adjustments,
+            components=components,
+            expression=" + ".join(
+                component.expression for component in components
+            ),
+            detail="; ".join(component.detail for component in components),
+            applied=False,
+        )
+    )
 
 
 def _execute_save_damage_roll(
@@ -1133,6 +1239,16 @@ def _damage_profile_for_spell(
     return _spell_damage_profile(spell)
 
 
+def _damage_profile_for_direct_damage(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> _DamageProfile:
+    spell_profile = _damage_profile_for_spell(ckpt, request)
+    if spell_profile.components:
+        return spell_profile
+    return _damage_profile_for_action(ckpt, request)
+
+
 def _find_spell(
     character: object,
     spell_key: str,
@@ -1309,9 +1425,13 @@ def _contains_action_name(haystack: str, needle: str) -> bool:
 
 
 def _clean_damage_expression(raw: str) -> str:
+    text = raw.strip().lower()
+    each_match = re.search(r"\beach\b(.+)", text)
+    if each_match is not None and re.search(r"\d+d\d+", each_match.group(1)):
+        text = each_match.group(1)
     terms = re.findall(
         r"[+-]?\s*(?:\d+d\d+|\d+)",
-        raw.strip().lower(),
+        text,
     )
     if not terms:
         return ""
@@ -1930,7 +2050,7 @@ def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
     effects: list[dict[str, object]] = []
     for effect in list(getattr(combatant, "active_effects", []) or []):
         save = getattr(effect, "recurring_save", None)
-        effects.append({
+        summary = {
             "effect_id": str(getattr(effect, "effect_id", "") or ""),
             "name": str(getattr(effect, "name", "") or ""),
             "slug": str(getattr(effect, "slug", "") or ""),
@@ -1950,7 +2070,24 @@ def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
                 }
                 if save is not None else None
             ),
-        })
+        }
+        metadata = getattr(effect, "metadata", None)
+        readied = (
+            metadata.get("readied_action")
+            if isinstance(metadata, dict) else None
+        )
+        if isinstance(readied, dict):
+            summary["readied_action"] = {
+                "source_id": str(readied.get("source_id") or ""),
+                "source_type": str(readied.get("source_type") or ""),
+                "readying_actor_id": str(readied.get("readying_actor_id") or ""),
+                "trigger_text": str(readied.get("trigger_text") or ""),
+                "requires_reaction": bool(readied.get("requires_reaction", True)),
+                "expires_at_start_of_actor_turn": bool(
+                    readied.get("expires_at_start_of_actor_turn", True)
+                ),
+            }
+        effects.append(summary)
     return effects
 
 
@@ -2289,10 +2426,11 @@ def _compile_combat_router_output(
             ):
                 observer_ids.append(cid)
     observer_ids = _dedupe(observer_ids or [transaction.actor_id])
-    visible_facts = [
-        *adjudication.visible_outcome_facts,
-        *dnd_combat.drain_pending_visible_facts(combat),
-    ]
+    visible_facts = _combat_visible_facts(
+        combat,
+        manager_facts=adjudication.visible_outcome_facts,
+        adjudication=adjudication,
+    )
     notes = "; ".join(adjudication.rules_notes)
     rationale_parts = [
         part for part in (
@@ -2339,6 +2477,50 @@ def _compile_combat_router_output(
     )
 
 
+def _combat_visible_facts(
+    combat: object | None,
+    *,
+    manager_facts: list[str],
+    adjudication: RulesAdjudication,
+) -> list[str]:
+    pending = dnd_combat.drain_pending_visible_facts(combat)
+    if getattr(adjudication, "effect_deltas", None):
+        pending = [
+            fact for fact in pending
+            if not _covered_engine_effect_mutation_fact(fact, manager_facts)
+        ]
+    return [*manager_facts, *pending]
+
+
+def _covered_engine_effect_mutation_fact(
+    fact: str,
+    manager_facts: list[str],
+) -> bool:
+    lower = " ".join(str(fact or "").lower().split())
+    marker = next(
+        (
+            candidate for candidate in (
+                " takes hold on ",
+                " ends on ",
+                " changes on ",
+            )
+            if candidate in lower
+        ),
+        "",
+    )
+    if not marker:
+        return False
+    if "readied" in lower:
+        return True
+    effect_name = lower.split(marker, 1)[0]
+    effect_tokens = [
+        token for token in re.findall(r"[a-z0-9]+", effect_name)
+        if len(token) >= 3 and token not in {"spell", "effect"}
+    ]
+    manager_text = " ".join(str(fact or "").lower() for fact in manager_facts)
+    return any(token in manager_text for token in effect_tokens)
+
+
 def _combat_affected_ids(
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
@@ -2380,9 +2562,20 @@ def _apply_combat_spatial_deltas(
     return notes
 
 
+_DAMAGE_OWNED_CONDITIONS = {
+    "dead",
+    "defeated",
+    "down",
+    "stable",
+    "unconscious",
+}
+
+
 def _apply_combat_state_deltas(
     ckpt: CheckpointFile,
     deltas: list[CombatStateDelta],
+    *,
+    transaction: CatIIRollTransaction | None = None,
 ) -> None:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
@@ -2392,7 +2585,37 @@ def _apply_combat_state_deltas(
             if delta.amount:
                 dnd_combat.apply_healing(ckpt.session, delta.target_id, delta.amount)
         elif delta.kind in {"condition_add", "condition_remove"}:
+            if _damage_engine_owns_condition_delta(combat, delta, transaction):
+                dnd_combat.append_audit_line(
+                    combat,
+                    "Combat state delta skipped; damage engine owns "
+                    f"{delta.condition!r} on {delta.target_id!r}.",
+                )
+                continue
             _apply_condition_delta(ckpt, delta)
+
+
+def _damage_engine_owns_condition_delta(
+    combat: object,
+    delta: CombatStateDelta,
+    transaction: CatIIRollTransaction | None,
+) -> bool:
+    if transaction is None or delta.kind != "condition_add":
+        return False
+    if _condition_delta_key(delta.condition) not in _DAMAGE_OWNED_CONDITIONS:
+        return False
+    damage_targets = [
+        damage.target_id for damage in transaction.damage_records
+        if damage.target_id
+    ]
+    return any(
+        _combat_target_ids_overlap(combat, delta.target_id, target_id)
+        for target_id in damage_targets
+    )
+
+
+def _condition_delta_key(condition: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(condition or "").strip().lower()).strip("_")
 
 
 def _apply_combat_effect_deltas(
@@ -2400,6 +2623,7 @@ def _apply_combat_effect_deltas(
     deltas: list[EffectDelta],
     *,
     default_originator_id: str,
+    transaction: CatIIRollTransaction | None = None,
 ) -> list[str]:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
@@ -2412,6 +2636,12 @@ def _apply_combat_effect_deltas(
             effect = _runtime_effect_from_delta(
                 delta,
                 default_originator_id=default_originator_id,
+            )
+            _attach_readied_action_metadata(
+                ckpt,
+                effect,
+                delta=delta,
+                transaction=transaction,
             )
             replace_concentration = True
             if effect.concentration and effect.originator_id:
@@ -2561,6 +2791,231 @@ def _runtime_effect_from_delta(
     )
 
 
+def _attach_readied_action_metadata(
+    ckpt: CheckpointFile,
+    effect: DndRuntimeEffect,
+    *,
+    delta: EffectDelta,
+    transaction: CatIIRollTransaction | None,
+) -> None:
+    if transaction is None or not _looks_like_readied_effect(delta, transaction):
+        return
+    combat = getattr(ckpt.session, "active_combat", None)
+    metadata = dict(effect.metadata or {})
+    readied = {
+        "source_id": effect.source_id or delta.source_id,
+        "source_type": effect.source_type or delta.source_type or "custom",
+        "readying_actor_id": effect.originator_id or transaction.actor_id,
+        "trigger_text": transaction.intention.strip(),
+        "created_round": int(getattr(combat, "round_number", 0) or 0),
+        "created_turn_index": int(getattr(combat, "turn_index", 0) or 0),
+        "requires_reaction": True,
+        "expires_at_start_of_actor_turn": True,
+    }
+    metadata["readied_action"] = readied
+    effect.metadata = metadata
+
+
+def _looks_like_readied_effect(
+    delta: EffectDelta,
+    transaction: CatIIRollTransaction,
+) -> bool:
+    if delta.operation != "start":
+        return False
+    text = " ".join(
+        str(part or "")
+        for part in (
+            transaction.intention,
+            delta.name,
+            delta.slug,
+            delta.duration_text,
+            delta.reason,
+            " ".join(delta.break_triggers),
+        )
+    ).lower()
+    return re.search(r"\b(readied?|readying|held|holding)\b", text) is not None
+
+
+def _validate_and_apply_readied_releases(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    releases = _readied_release_records(combat, transaction)
+    handled_effect_ids: set[str] = set()
+    for combatant, effect, record, request in releases:
+        effect_key = effect.effect_id or request.effect_id
+        if effect_key in handled_effect_ids:
+            continue
+        readying_actor_id = _readied_effect_actor_id(effect)
+        if readying_actor_id and not _combat_target_ids_overlap(
+            combat,
+            readying_actor_id,
+            request.actor_id,
+        ):
+            raise ValueError(
+                "Readied action release roll actor does not match held effect: "
+                f"effect={effect.effect_id!r} actor={request.actor_id!r}."
+            )
+        if not bool(getattr(combatant, "reaction_available", True)):
+            raise ValueError(
+                "Readied action release requires an available reaction: "
+                f"effect={effect.effect_id!r} actor={request.actor_id!r}."
+            )
+        if not _adjudication_ends_readied_effect(adjudication, effect, combatant):
+            raise ValueError(
+                "Readied action release must end the held effect: "
+                f"effect={effect.effect_id!r} roll={record.roll_id!r}."
+            )
+        combatant.reaction_available = False
+        _append_ledger_line_once(
+            transaction,
+            f"readied_release={effect.effect_id}: "
+            f"{request.actor_id} spends reaction to release {effect.source_id}.",
+        )
+        dnd_combat.append_audit_line(
+            combat,
+            f"Readied action released by {request.actor_id}: "
+            f"{effect.effect_id or effect.source_id}.",
+        )
+        if effect_key:
+            handled_effect_ids.add(effect_key)
+
+
+def _readied_release_records(
+    combat: object,
+    transaction: CatIIRollTransaction,
+) -> list[tuple[object, DndRuntimeEffect, CatIIRollRecord, PlannedRoll]]:
+    releases: list[tuple[object, DndRuntimeEffect, CatIIRollRecord, PlannedRoll]] = []
+    for record in transaction.rolls:
+        if record.status != "completed":
+            continue
+        request = PlannedRoll.model_validate(record.request)
+        if not request.effect_id:
+            continue
+        found = _find_readied_effect(combat, request.effect_id)
+        if found is None:
+            continue
+        combatant, effect = found
+        releases.append((combatant, effect, record, request))
+    return releases
+
+
+def _find_readied_effect(
+    combat: object,
+    effect_id: str,
+) -> tuple[object, DndRuntimeEffect] | None:
+    wanted = effect_id.strip()
+    if not wanted:
+        return None
+    for combatant in _combatants(combat):
+        for effect in list(getattr(combatant, "active_effects", []) or []):
+            if effect.effect_id != wanted:
+                continue
+            if _readied_effect_metadata(effect) is None:
+                continue
+            return combatant, effect
+    return None
+
+
+def _readied_effect_metadata(effect: DndRuntimeEffect) -> dict[str, object] | None:
+    metadata = effect.metadata if isinstance(effect.metadata, dict) else {}
+    readied = metadata.get("readied_action")
+    return readied if isinstance(readied, dict) else None
+
+
+def _readied_effect_actor_id(effect: DndRuntimeEffect) -> str:
+    readied = _readied_effect_metadata(effect) or {}
+    return str(
+        readied.get("readying_actor_id")
+        or effect.originator_id
+        or effect.target_id
+        or ""
+    ).strip()
+
+
+def _adjudication_ends_readied_effect(
+    adjudication: RulesAdjudication,
+    effect: DndRuntimeEffect,
+    combatant: object,
+) -> bool:
+    for delta in getattr(adjudication, "effect_deltas", []) or []:
+        if delta.operation != "end":
+            continue
+        if _effect_delta_matches_runtime_effect(delta, effect, combatant):
+            return True
+    return False
+
+
+def _effect_delta_matches_runtime_effect(
+    delta: EffectDelta,
+    effect: DndRuntimeEffect,
+    combatant: object,
+) -> bool:
+    has_selector = False
+    if delta.effect_id:
+        has_selector = True
+        if delta.effect_id != effect.effect_id:
+            return False
+    if delta.slug:
+        has_selector = True
+        if _slug(delta.slug) != _slug(effect.slug):
+            return False
+    if delta.originator_id:
+        has_selector = True
+        if not _combat_target_ids_overlap(
+            None,
+            delta.originator_id,
+            effect.originator_id,
+        ):
+            return False
+    if delta.target_id:
+        has_selector = True
+        target_ids = _combatant_identity_set(combatant)
+        target_ids.add(effect.target_id)
+        if delta.target_id not in target_ids:
+            return False
+    return has_selector
+
+
+def _combat_target_ids_overlap(
+    combat: object | None,
+    left: str,
+    right: str,
+) -> bool:
+    left_ids = _expanded_combat_target_ids(combat, left)
+    right_ids = _expanded_combat_target_ids(combat, right)
+    return bool(left_ids and right_ids and left_ids.intersection(right_ids))
+
+
+def _expanded_combat_target_ids(
+    combat: object | None,
+    target_id: str,
+) -> set[str]:
+    target = str(target_id or "").strip()
+    if not target:
+        return set()
+    if combat is not None:
+        for combatant in _combatants(combat):
+            ids = _combatant_identity_set(combatant)
+            if target in ids:
+                return ids
+    return {target}
+
+
+def _combatant_identity_set(combatant: object) -> set[str]:
+    return {
+        text for text in (
+            str(getattr(combatant, "combatant_id", "") or "").strip(),
+            str(getattr(combatant, "character_id", "") or "").strip(),
+            str(getattr(combatant, "name", "") or "").strip(),
+        ) if text
+    }
+
+
 def _sync_combat_effects(ckpt: CheckpointFile) -> None:
     dnd_combat.sync_combat_effects_to_characters(
         getattr(ckpt.session, "active_combat", None),
@@ -2686,6 +3141,23 @@ def _format_ledger_line(
     )
 
 
+def _format_direct_damage_roll_ledger_line(
+    request: PlannedRoll,
+    *,
+    roller_id: str = "",
+) -> str:
+    roller = roller_id or request.actor_id
+    source = request.action_id or request.skill or request.effect_id
+    source_part = f" via {source}" if source else ""
+    target_part = f" against {request.target_id}" if request.target_id else ""
+    effect_part = f", effect {request.effect_id}" if request.effect_id else ""
+    reason_part = f"; reason: {request.reason}" if request.reason else ""
+    return (
+        f"{request.roll_id}: {roller} damage_roll"
+        f"{source_part}{target_part}{effect_part}{reason_part}"
+    )
+
+
 def _no_roll_ledger(plan: RollPlan) -> list[str]:
     reason = plan.no_roll_reason.strip()
     return [f"No rolls: {reason}"] if reason else []
@@ -2712,6 +3184,9 @@ def _roll_label(
         return f"{request.ability.upper()} Save"
     if request.kind == "attack_roll":
         return "Attack"
+    if request.kind == "damage_roll":
+        source = request.action_id or request.skill or "damage"
+        return f"Damage ({source.replace('_', ' ').title()})"
     return f"{request.ability.upper()} Check"
 
 

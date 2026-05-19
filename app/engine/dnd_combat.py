@@ -1048,12 +1048,87 @@ def _begin_turn(
     characters: Iterable[CharacterRecord] | None = None,
 ) -> None:
     combatant.reaction_available = True
+    _expire_readied_actions_at_turn_start(combat, combatant)
     _process_recurring_saves(
         combat,
         combatant,
         characters=characters,
         timing="start_of_turn",
     )
+
+
+def _expire_readied_actions_at_turn_start(
+    combat: DndCombatState,
+    combatant: DndCombatantState,
+) -> None:
+    remaining: list[DndRuntimeEffect] = []
+    expired: list[DndRuntimeEffect] = []
+    owner_ids = _combatant_identity_ids(combatant)
+    for effect in combatant.active_effects:
+        readied = _readied_action_metadata(effect)
+        if readied is None:
+            remaining.append(effect)
+            continue
+        readying_actor_id = str(
+            readied.get("readying_actor_id")
+            or effect.originator_id
+            or effect.target_id
+            or ""
+        ).strip()
+        expires = bool(readied.get("expires_at_start_of_actor_turn", True))
+        if (
+            expires
+            and readying_actor_id in owner_ids
+            and not _readied_created_this_turn(combat, readied)
+        ):
+            expired.append(effect)
+        else:
+            remaining.append(effect)
+    if not expired:
+        return
+    combatant.active_effects = remaining
+    _reconcile_effect_conditions(
+        combatant,
+        ended_conditions=[
+            condition for effect in expired for condition in effect.conditions
+        ],
+    )
+    for effect in expired:
+        _append_pending_visible_fact(
+            combat,
+            _effect_ended_fact(effect, combatant, "as the readying turn begins"),
+        )
+        append_audit_line(
+            combat,
+            f"Readied action expired on {_combatant_label(combatant)}: "
+            f"{_effect_display_name(effect)} ({effect.effect_id}).",
+        )
+
+
+def _readied_action_metadata(effect: DndRuntimeEffect) -> dict[str, Any] | None:
+    metadata = effect.metadata if isinstance(effect.metadata, dict) else {}
+    readied = metadata.get("readied_action")
+    return readied if isinstance(readied, dict) else None
+
+
+def _readied_created_this_turn(
+    combat: DndCombatState,
+    readied: dict[str, Any],
+) -> bool:
+    return (
+        _safe_int(readied.get("created_round"), -1) == combat.round_number
+        and _safe_int(readied.get("created_turn_index"), -1) == combat.turn_index
+    )
+
+
+def _combatant_identity_ids(combatant: DndCombatantState) -> set[str]:
+    return {
+        text for text in (
+            combatant.combatant_id,
+            combatant.character_id,
+            combatant.name,
+        ) if str(text or "").strip()
+    }
 
 
 def _end_turn(
@@ -1273,7 +1348,7 @@ def _private_combatant(combatant: DndCombatantState) -> dict[str, Any]:
 
 
 def _effect_public_summary(effect: DndRuntimeEffect) -> dict[str, Any]:
-    return {
+    summary = {
         "effect_id": effect.effect_id,
         "name": effect.name,
         "slug": effect.slug,
@@ -1283,6 +1358,19 @@ def _effect_public_summary(effect: DndRuntimeEffect) -> dict[str, Any]:
         "duration_text": effect.duration_text,
         "recurring_save": bool(effect.recurring_save),
     }
+    readied = _readied_action_metadata(effect)
+    if readied is not None:
+        summary["readied_action"] = {
+            "source_id": str(readied.get("source_id") or ""),
+            "source_type": str(readied.get("source_type") or ""),
+            "readying_actor_id": str(readied.get("readying_actor_id") or ""),
+            "trigger_text": str(readied.get("trigger_text") or ""),
+            "requires_reaction": bool(readied.get("requires_reaction", True)),
+            "expires_at_start_of_actor_turn": bool(
+                readied.get("expires_at_start_of_actor_turn", True)
+            ),
+        }
+    return summary
 
 
 def _prepare_runtime_effect(effect: DndRuntimeEffect) -> None:

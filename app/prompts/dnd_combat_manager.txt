@@ -52,15 +52,32 @@ For phase PLAN_ROLLS, emit RollPlan:
   the listed spell attack bonus or spell save DC when present. For saving
   throws, actor_id is the source/caster, target_id is the creature rolling the
   save, and dc is the source/caster's save DC.
+- For no-attack/no-save damage from a listed action or spell, use
+  kind="damage_roll". Set actor_id to the damage source, target_id to the
+  damaged creature, action_id to the listed action/spell id, and ability="str"
+  as a required placeholder. Magic Missile should use one damage_roll per dart
+  so each dart has its own target and damage record.
 - For saves/checks, use ability_check, skill_check, or saving_throw. Set
   target_id to the affected character when applicable. If cover or another
   visible modifier changes the target's save bonus, set modifier_bonus and
   modifier_bonus_reason; do not change the caster's dc for that target bonus.
   For save-damage spells, set damage_on_save_success to "half", "none", or
   "full" from the spell rule.
+- Cover matters for Dexterity saving throws when the packet/advisories show
+  half or three-quarters cover between the effect origin and the target. Use
+  modifier_bonus=2 for half cover and modifier_bonus=5 for three-quarters
+  cover, and mention the cover in modifier_bonus_reason. Total cover normally
+  excludes the target unless the spell text explicitly says it spreads around
+  that obstruction.
 - Leave effect_id empty for initial spell saves and other immediate saves. Use
   effect_id only when the roll is a follow-up save/check for an already
   sustained effect in the packet.
+- Active effects may include readied_action. If the current intention visibly
+  satisfies that readied trigger, include the release roll(s) in roll_requests
+  from readied_action.readying_actor_id and set effect_id to the held effect_id.
+  The held action was already readied, so release rolls do not spend the spell
+  slot or other casting resource again. Use damage_roll for held damage that
+  needs no attack roll or saving throw.
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
 - Use advantage_state only when the supplied state makes it clear.
 - Opportunity attacks are automatic. If movement provokes one, include its
@@ -74,8 +91,8 @@ For phase PLAN_ROLLS, emit RollPlan:
 For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - Use the roll ledger exactly as supplied. Ledger totals are authoritative for
   dice, hit/miss results, damage arithmetic, and any special damage adjustment
-  recorded there. If the ledger says an attack hit and applied damage, treat
-  that HP change as already accounted for.
+  recorded there. If the ledger says an attack or damage_roll applied damage,
+  treat that HP change as already accounted for.
 - Set combat_status="ended" only when active hostilities clearly stop through
   defeat, surrender, flight, or mutual de-escalation. Otherwise set "ongoing".
 - visible_outcome_facts are public, concrete facts of this turn's resolved
@@ -103,9 +120,17 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - If the current action breaks an existing effect, emit an explicit end
   effect_delta for that effect. Do not imply effect endings through any
   separate action-label field.
+- If the current action releases a readied effect, emit an explicit end
+  effect_delta for the held effect_id. The release spends the readying
+  character's reaction, but the held spell or feature is not cast again and
+  should not create a second resource spend.
 - For a save-ends spell such as Hold Person, put the initial saving throw in
   PLAN_ROLLS. If the spell takes hold, emit an effect_delta with the condition,
   concentration=true when applicable, and recurring_save timing/DC.
+- For a spell area that persists and also restrains, charms, paralyzes, or
+  otherwise conditions failed-save creatures, use spatial_deltas for the area
+  and one effect_delta start per affected creature for the sourced condition.
+  Do not represent a sustained spell condition only as a combat_state_delta.
 - If action economy or legality makes a declared second action unavailable,
   visible facts should say the character cannot also do that part this turn, not
   that the character attempted it and failed.
