@@ -23,7 +23,11 @@ from app.schemas.dnd_cat_ii import (
     PlannedRoll,
     RulesAdjudication,
 )
-from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
+from app.schemas.dnd_spatial import (
+    DndAreaTemplate,
+    DndBattleMapState,
+    DndBattleMapToken,
+)
 from app.schemas.state import (
     DndCombatantState,
     DndCombatState,
@@ -3449,6 +3453,147 @@ def test_combat_resolver_ongoing_effect_rolls_without_original_slot(
     assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
         "spellcasting"
     ]["slots"]["3"]["current"] == 0
+
+
+def test_combat_resolver_battle_map_area_effect_rolls_from_source_spell(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.session.active_combat.turn_index = 1
+    ckpt.session.active_combat.battle_map = DndBattleMapState(
+        present=True,
+        map_name="Toxic chamber",
+        width=10,
+        height=10,
+        square_size_ft=5,
+        tokens=[
+            DndBattleMapToken(
+                token_id="alice",
+                character_id="alice",
+                label="Alice",
+                x=1,
+                y=1,
+                size_squares=1,
+            ),
+            DndBattleMapToken(
+                token_id="bob",
+                character_id="bob",
+                label="Bob",
+                x=5,
+                y=5,
+                size_squares=1,
+            ),
+        ],
+        terrain=[],
+        areas=[
+            DndAreaTemplate(
+                template_id="cloudkill_area",
+                label="Cloudkill",
+                shape="circle",
+                x=5,
+                y=5,
+                radius_squares=4,
+                width=1,
+                height=1,
+                duration_rounds=10,
+                notes=(
+                    "Source alice; action_id cloudkill_area; creatures in "
+                    "the cloud make a Constitution save at turn start."
+                ),
+            )
+        ],
+        notes="",
+    )
+    ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"]["spellcasting"] = {
+        "profiles": [{
+            "id": "class_1",
+            "name": "Wizard",
+            "ability": "int",
+            "spell_save_dc": 13,
+        }],
+        "slots": {"5": {"current": 0, "max": 1}},
+        "spells": [
+            _spell(
+                "cloudkill_area",
+                "Cloudkill",
+                level=5,
+                save_ability="con",
+                dc=13,
+                damage="5d8 poison",
+                concentration=True,
+            )
+        ],
+    }
+    values = iter([0, 0, 0, 0, 0, 0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="bob",
+                    source_type="effect",
+                    source_id="cloudkill_area",
+                    use_mode="sustain",
+                    economy="none",
+                    resource_spends=[],
+                    rolls=[
+                        DndPlannedActionRoll(
+                            roll_id="cloudkill_bob",
+                            kind="saving_throw",
+                            roller_id="bob",
+                            target_id="bob",
+                            ability="con",
+                            skill="",
+                            dc=13,
+                            opposed_by="",
+                            advantage_state="normal",
+                            damage_on_save_success="none",
+                            reason="Bob resists the cloudkill area.",
+                        )
+                    ],
+                    reason="Resolve Cloudkill at the start of Bob's turn.",
+                )
+            ],
+            no_action_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="The poisonous cloud bites.",
+            visible_outcome_facts=["The green vapor burns Bob's lungs."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="bob",
+            intention="I run out of the cloudkill.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.resource_spends == []
+    assert transaction.damage_records[0].target_id == "bob"
+    assert transaction.damage_records[0].damage_type == "poison"
+    assert ckpt.session.active_combat.combatants[1].hit_points_current == 8
 
 
 def test_combat_resolver_consumes_readied_no_roll_spell_once():

@@ -57,7 +57,10 @@ For phase PLAN_TURN, emit an action-first turn plan:
   changes the hit threshold. Do not give the target a cover bonus merely because
   the attacker moved behind cover; cover helps the creature being attacked. If
   dc differs from the target armor_class, state the concrete reason in the roll
-  reason.
+  reason. Leave modifier_bonus=0 unless the packet supplies a temporary
+  attack-roll bonus or penalty that is not already part of the listed weapon,
+  action, spell attack bonus, ability modifier, or proficiency bonus. Never put
+  the base weapon or spell attack bonus in modifier_bonus.
 - For attack damage with situational resistance, immunity, or vulnerability
   that is visible in this packet and not already part of durable character
   mechanics, add damage_adjustments to that roll with kind, a non-empty
@@ -152,9 +155,10 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   or rules_notes instead. For area saves, describe only visible effects such as
   poison cloud failing to bite, radiance searing the target, exhaustion taking
   hold, or the creature escaping the hazard. Do not state remaining hit points,
-  spell slot counts, "no opportunity attacks occur", or similar bookkeeping as
-  visible facts. Do not use "saving throw", "save", or "DC" in visible facts;
-  say what witnesses see instead. Do not include negative bookkeeping such as
+  spell slots, pact slots, charges, action economy names, "no opportunity
+  attacks occur", or similar bookkeeping as visible facts. Do not use "saving
+  throw", "save", or "DC" in visible facts; say what witnesses see instead.
+  Do not include negative bookkeeping such as
   "no attacks were made", "no rolls were required", "no saving throw was
   needed", "no damage was applied", or "no damage was dealt"; omit those facts
   or put them in rules_notes. For non-damaging actions such as disarm, shove,

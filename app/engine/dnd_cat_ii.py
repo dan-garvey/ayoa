@@ -575,6 +575,16 @@ def _effect_source_for_action(
     ckpt: CheckpointFile,
     action: DndCombatActionUse,
 ) -> dict[str, object] | None:
+    active_effect = _active_effect_source_for_action(ckpt, action)
+    if active_effect is not None:
+        return active_effect
+    return _battle_map_area_source_for_action(ckpt, action)
+
+
+def _active_effect_source_for_action(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+) -> dict[str, object] | None:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
         return None
@@ -606,6 +616,42 @@ def _effect_source_for_action(
                     "source_id": str(getattr(effect, "source_id", "") or ""),
                     "slug": str(getattr(effect, "slug", "") or ""),
                 }
+    return None
+
+
+def _battle_map_area_source_for_action(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+) -> dict[str, object] | None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    battle_map = getattr(combat, "battle_map", None) if combat is not None else None
+    if battle_map is None:
+        return None
+    wanted = {
+        _normalize_action_text(action.effect_id),
+        _normalize_action_text(action.source_id),
+    }
+    wanted = {value for value in wanted if value}
+    if not wanted:
+        return None
+    for area in list(getattr(battle_map, "areas", []) or []):
+        area_keys = {
+            _normalize_action_text(getattr(area, "template_id", "") or ""),
+            _normalize_action_text(getattr(area, "label", "") or ""),
+        }
+        area_keys = {value for value in area_keys if value}
+        if not wanted.intersection(area_keys):
+            continue
+        template_id = str(getattr(area, "template_id", "") or "")
+        label = str(getattr(area, "label", "") or "")
+        return {
+            "id": template_id,
+            "name": label,
+            "effect_id": template_id,
+            "source_id": template_id,
+            "slug": template_id,
+            "notes": str(getattr(area, "notes", "") or ""),
+        }
     return None
 
 
@@ -1767,9 +1813,18 @@ def _spell_for_request(
     request: PlannedRoll,
 ) -> dict[str, object] | None:
     character = _character_for_combat_target(ckpt, request.actor_id)
-    if character is None:
+    if character is not None:
+        spell = _find_spell(character, request.action_id, reason=request.reason)
+        if spell is not None:
+            return spell
+    wanted = _normalize_action_text(request.action_id)
+    if not wanted:
         return None
-    return _find_spell(character, request.action_id, reason=request.reason)
+    for candidate in ckpt.characters:
+        spell = _find_spell(candidate, request.action_id, reason="")
+        if spell is not None:
+            return spell
+    return None
 
 
 def _damage_profile_for_direct_damage(
