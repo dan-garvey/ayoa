@@ -89,11 +89,9 @@ from app.bot.engine_bridge import (
     joinable_character_summaries,
 )
 from app.engine import dnd_experience, dnd_inventory, dnd_presentation
-from app.llm.env import load_shell_export_env
 from app.engine.text_safety import strip_terminal_control
 
 load_dotenv()
-load_shell_export_env()
 logger = logging.getLogger(__name__)
 
 MAX_DND_CHARACTER_BYTES = 5_000_000

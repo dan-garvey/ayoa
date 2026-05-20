@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +13,6 @@ from app.llm.client import (
     extract_json,
 )
 from app.llm.config import LLMConfig
-from app.llm.env import load_shell_export_env
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
     DndCombatTurnPlan,
@@ -217,29 +215,6 @@ class TestLLMConfig:
             config.api_key_for_provider("openai", role="dnd_combat_manager")
             == "combat-manager-key"
         )
-
-    def test_load_shell_export_env_loads_missing_llm_keys_only(self, tmp_path):
-        shell_file = tmp_path / ".bashrc"
-        shell_file.write_text(
-            "\n".join([
-                "export OPEN_AI_COMBAT_MANAGER='combat-manager-key'",
-                "export OPEN_AI_ROUTER='router-key-from-shell'",
-                "export UNRELATED_SECRET='do-not-load'",
-            ]),
-            encoding="utf-8",
-        )
-
-        with patch.dict(
-            os.environ,
-            {"OPEN_AI_ROUTER": "already-set-router-key"},
-            clear=True,
-        ):
-            load_shell_export_env([shell_file])
-
-            assert os.environ["OPEN_AI_COMBAT_MANAGER"] == "combat-manager-key"
-            assert os.environ["OPEN_AI_ROUTER"] == "already-set-router-key"
-            assert "UNRELATED_SECRET" not in os.environ
-
 
 # --- LLMClient unit tests (mocked API) ---
 
