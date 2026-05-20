@@ -25,6 +25,7 @@ from app.bot.commands import register
 from app.bot.engine_bridge import EngineBridge
 from app.bot.session_map import SessionMap
 from app.llm.config import LLMConfig
+from app.llm.env import load_shell_export_env
 
 _LOG_FILE = Path(".bot.log")
 _LOG_FMT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -44,6 +45,7 @@ logger = logging.getLogger("app.bot")
 
 async def _run() -> int:
     load_dotenv(Path(".env"), override=False)
+    load_shell_export_env()
 
     token = os.environ.get("DISCORD_BOT_TOKEN")
     if not token:

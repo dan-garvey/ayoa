@@ -34,12 +34,9 @@ _ROLE_ENV_ALIASES = {
     "agent_standard": ("AGENT_STANDARD", "STANDARD_AGENT"),
     "agent_convenience": ("AGENT_CONVENIENCE", "CONVENIENCE_AGENT"),
     "character_gen": ("CHARACTER_GEN", "AGENT"),
-    "dnd_combat_manager": ("DND_COMBAT_MANAGER", "COMBAT_MANAGER"),
+    "dnd_combat_manager": ("COMBAT_MANAGER", "DND_COMBAT_MANAGER"),
     "event_router": ("ROUTER",),
     "narrator": ("NARRATOR",),
-}
-_OPENAI_ROLE_API_KEY_FALLBACKS = {
-    "dnd_combat_manager": ("event_router",),
 }
 
 
@@ -134,7 +131,7 @@ def _openai_role_api_key_env_names(role: str) -> tuple[str, ...]:
     names: list[str] = []
 
     # Local cost-tracking keys may use short role names:
-    # OPEN_AI_AGENT, OPEN_AI_ROUTER, OPEN_AI_NARRATOR.
+    # OPEN_AI_AGENT, OPEN_AI_ROUTER, OPEN_AI_NARRATOR, OPEN_AI_COMBAT_MANAGER.
     for alias in _ROLE_ENV_ALIASES.get(role, ()):
         names.append(f"OPEN_AI_{alias}")
 
@@ -303,16 +300,7 @@ class LLMConfig(BaseModel):
         return providers
 
     def openai_api_key_for_role(self, role: str) -> str:
-        explicit = self.openai_role_api_keys.get(role, "")
-        if explicit:
-            return explicit
-        if self.openai_api_key:
-            return self.openai_api_key
-        for fallback_role in _OPENAI_ROLE_API_KEY_FALLBACKS.get(role, ()):
-            fallback = self.openai_role_api_keys.get(fallback_role, "")
-            if fallback:
-                return fallback
-        return ""
+        return self.openai_role_api_keys.get(role, "") or self.openai_api_key
 
     def openai_role_api_key_env_names(self, role: str) -> tuple[str, ...]:
         return _openai_role_api_key_env_names(role)

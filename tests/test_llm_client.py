@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,6 +14,7 @@ from app.llm.client import (
     extract_json,
 )
 from app.llm.config import LLMConfig
+from app.llm.env import load_shell_export_env
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
     DndCombatTurnPlan,
@@ -146,6 +148,7 @@ class TestLLMConfig:
                 "OPEN_AI_NARRATOR": "narrator-openai-key",
                 "OPEN_AI_ROUTER": "router-openai-key",
                 "OPEN_AI_AGENT": "agent-openai-key",
+                "OPEN_AI_COMBAT_MANAGER": "combat-manager-openai-key",
                 "LLM_PROVIDER_ROUTER": "openai",
                 "LLM_PROVIDER_NARRATOR": "openai",
                 "LLM_MODEL_NARRATOR": "gpt-5.4-mini",
@@ -171,6 +174,10 @@ class TestLLMConfig:
                 config.api_key_for_provider("openai", role="narrator")
                 == "narrator-openai-key"
             )
+            assert (
+                config.api_key_for_provider("openai", role="dnd_combat_manager")
+                == "combat-manager-openai-key"
+            )
             assert config.provider_for_role("event_router") == "openai"
             assert config.provider_for_role("narrator") == "openai"
             assert config.model_for_role("narrator") == "gpt-5.4-mini"
@@ -179,7 +186,7 @@ class TestLLMConfig:
             assert config.openai_reasoning_effort_for_role("narrator") == "low"
             assert config.enable_anthropic_compaction is True
 
-    def test_dnd_combat_manager_reuses_router_openai_key_when_unset(self):
+    def test_dnd_combat_manager_does_not_reuse_router_openai_key(self):
         with patch.dict(
             "os.environ",
             {
@@ -193,14 +200,13 @@ class TestLLMConfig:
         assert config.openai_api_key == ""
         assert (
             config.api_key_for_provider("openai", role="dnd_combat_manager")
-            == "router-openai-key"
+            == ""
         )
 
     def test_dnd_combat_manager_openai_key_prefers_explicit_role_key(self):
         with patch.dict(
             "os.environ",
             {
-                "OPEN_AI_ROUTER": "router-openai-key",
                 "OPEN_AI_COMBAT_MANAGER": "combat-manager-key",
             },
             clear=True,
@@ -211,6 +217,28 @@ class TestLLMConfig:
             config.api_key_for_provider("openai", role="dnd_combat_manager")
             == "combat-manager-key"
         )
+
+    def test_load_shell_export_env_loads_missing_llm_keys_only(self, tmp_path):
+        shell_file = tmp_path / ".bashrc"
+        shell_file.write_text(
+            "\n".join([
+                "export OPEN_AI_COMBAT_MANAGER='combat-manager-key'",
+                "export OPEN_AI_ROUTER='router-key-from-shell'",
+                "export UNRELATED_SECRET='do-not-load'",
+            ]),
+            encoding="utf-8",
+        )
+
+        with patch.dict(
+            os.environ,
+            {"OPEN_AI_ROUTER": "already-set-router-key"},
+            clear=True,
+        ):
+            load_shell_export_env([shell_file])
+
+            assert os.environ["OPEN_AI_COMBAT_MANAGER"] == "combat-manager-key"
+            assert os.environ["OPEN_AI_ROUTER"] == "already-set-router-key"
+            assert "UNRELATED_SECRET" not in os.environ
 
 
 # --- LLMClient unit tests (mocked API) ---
