@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import re
 from typing import Any
 
-from app.engine.dnd_constants import DND_RUNTIME_KEY
+from app.engine import dnd_runtime
 from app.schemas.characters import CharacterRecord
 
 
@@ -80,8 +80,8 @@ def has_dnd_mechanics(character: CharacterRecord) -> bool:
 
 def experience_points(character: CharacterRecord) -> int:
     mechanics = character.mechanics if isinstance(character.mechanics, dict) else {}
-    runtime = mechanics.get(DND_RUNTIME_KEY)
-    if isinstance(runtime, dict) and "experience_points" in runtime:
+    runtime = dnd_runtime.get_dnd_runtime(mechanics)
+    if "experience_points" in runtime:
         return _safe_nonnegative_int(runtime.get("experience_points"))
     if "experience_points" in mechanics:
         return _safe_nonnegative_int(mechanics.get("experience_points"))
@@ -240,10 +240,7 @@ def _set_experience_points(character: CharacterRecord, value: int) -> None:
 
     total = max(0, int(value))
     mechanics["experience_points"] = total
-    runtime = mechanics.get(DND_RUNTIME_KEY)
-    if not isinstance(runtime, dict):
-        runtime = {}
-        mechanics[DND_RUNTIME_KEY] = runtime
+    runtime = dnd_runtime.ensure_dnd_runtime(mechanics)
     runtime["experience_points"] = total
 
     sheet = mechanics.get("dnd5e_sheet")
@@ -268,10 +265,7 @@ def _append_award_log(
     mechanics = character.mechanics
     if not isinstance(mechanics, dict):
         return
-    runtime = mechanics.get(DND_RUNTIME_KEY)
-    if not isinstance(runtime, dict):
-        runtime = {}
-        mechanics[DND_RUNTIME_KEY] = runtime
+    runtime = dnd_runtime.ensure_dnd_runtime(mechanics)
     log = runtime.get("experience_awards")
     if not isinstance(log, list):
         log = []

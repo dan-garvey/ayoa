@@ -14,29 +14,31 @@ D&D mechanics. Do not copy its D&D assumptions into rules-neutral stories.
 
 1. Copy `ckpt_0000.json` to `app/storage/stories/<story_id>/ckpt_0000.json`.
 2. Replace both `session.session_id` and `session.story_id` with `<story_id>`.
-3. Keep `turn_index` at `0`, and keep all conversation, transcript,
+3. Add the new story directory and `ckpt_0000.json` to the explicit
+   `.gitignore` allowlist. Runtime session checkpoints and local story drafts
+   stay ignored; shipped story seeds must be intentional.
+4. Keep `turn_index` at `0`, and keep all conversation, transcript,
    visibility, render, Cat II, combat, loot, commitment, and canonical-event
    collections empty.
-4. Fill public world fields first: `world_state.setting`, `world_state.facts`,
+5. Fill public world fields first: `world_state.setting`, `world_state.facts`,
    `world_state.physics_ruleset`, `world_state.lore`, and
    `config.narrative_rules`.
-5. Fill private world fields second: `world_state.hidden_lore` and
+6. Fill private world fields second: `world_state.hidden_lore` and
    `world_state.hidden_facts`. These are router/agent context, not player
    briefing text.
-6. Fill `player_primer` with a short spoiler-free onboarding brief. This is
+7. Fill `player_primer` with a short spoiler-free onboarding brief. This is
    shown by `/story start`; it is not opening prose. The opening scene is
    generated through the normal `(begin)` router and narrator path.
-7. Add `characters` with stable ids and complete public/private fields. Every
+8. Add `characters` with stable ids and complete public/private fields. Every
    important NPC should have `backstory`, `personality`, `known_context`,
    `descriptions.public`, `descriptions.private`, and
    `visuals.default_loadout`.
-8. Mark only actual player slots with `is_playable: true`. A blank player slot
+9. Mark only actual player slots with `is_playable: true`. A blank player slot
    may intentionally have empty `backstory`, `personality`, `known_context`,
    and `mechanics` when those will be supplied by the player.
-9. For D&D stories, set both `session.config.settings.ruleset_id` and
-   `config.settings.ruleset_id` to `dnd5e_basic`. Leave rules-neutral stories
-   at `narrative`.
-10. Validate before handoff:
+10. For D&D stories, set `session.config.settings.ruleset_id` to
+   `dnd5e_basic`. Leave rules-neutral stories at `narrative`.
+11. Validate before handoff:
 
 ```bash
 .venv/bin/python - <<'PY'

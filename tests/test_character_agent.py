@@ -349,7 +349,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        result = await agent.respond(guard_character, sample_checkpoint)
+        result = await agent.turn(guard_character, sample_checkpoint)
 
         assert result.character_id == "guard_17"
         # Dialogue + actions live in public_text; intent is split off
@@ -371,7 +371,7 @@ class TestCharacterAgent:
             'A flicker of irritation. "Storm\'s coming." (Stalling.)'
         )
         agent = CharacterAgent(mock_client, prompt_manager)
-        result = await agent.respond(guard_character, sample_checkpoint)
+        result = await agent.turn(guard_character, sample_checkpoint)
         assert result.character_id == "guard_17"
 
     @pytest.mark.asyncio
@@ -391,7 +391,7 @@ class TestCharacterAgent:
         )
         agent = CharacterAgent(mock_client, prompt_manager)
         with caplog.at_level(logging.WARNING):
-            result = await agent.respond(guard_character, sample_checkpoint)
+            result = await agent.turn(guard_character, sample_checkpoint)
         assert result.public_text  # full prose preserved
         assert result.intent == ""
         assert any(
@@ -407,7 +407,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         call_args = mock_client.complete.call_args
         prompt = "\n".join(
@@ -432,7 +432,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_text = messages[0]["content"]
@@ -442,7 +442,7 @@ class TestCharacterAgent:
         assert "1 minute" in user_text
 
     @pytest.mark.asyncio
-    async def test_respond_commit_updates_last_agent_turn_time(
+    async def test_turn_commit_updates_last_agent_turn_time(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -451,7 +451,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         assert guard_character.last_agent_turn_at_s == 35
 
@@ -464,7 +464,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_text = messages[0]["content"]
@@ -560,7 +560,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_text = messages[0]["content"]
@@ -641,7 +641,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         call_args = mock_client.complete.call_args
         user_msg = call_args.kwargs["messages"][-1]["content"]
@@ -657,7 +657,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         call_args = mock_client.complete.call_args
         assert call_args.kwargs["role"] == "agent"
@@ -676,7 +676,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         assert mock_client.complete.call_args.kwargs["role"] == "agent_standard"
 
@@ -689,7 +689,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
 
@@ -702,7 +702,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
 
@@ -716,7 +716,7 @@ class TestCharacterAgent:
 
         assert sample_checkpoint.character_conversations == {}
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         convo = sample_checkpoint.character_conversations["guard_17"]
         assert len(convo) == 2
@@ -735,7 +735,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         # User message should contain the flushed observations.
         call_args = mock_client.complete.call_args
@@ -761,7 +761,7 @@ class TestCharacterAgent:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
 
         # Expect: system, prior user, prior assistant, current user
         messages = mock_client.complete.call_args.kwargs["messages"]
@@ -947,13 +947,13 @@ class TestUnifiedAgentCacheLineage:
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
-        # Run respond, capture system message.
+        # Run a foreground turn, capture system message.
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(guard_character, sample_checkpoint)
-        respond_messages = mock_client.complete.call_args.kwargs["messages"]
-        respond_system = respond_messages[0]
-        assert respond_system["role"] == "system"
+        await agent.turn(guard_character, sample_checkpoint)
+        turn_messages = mock_client.complete.call_args.kwargs["messages"]
+        turn_system = turn_messages[0]
+        assert turn_system["role"] == "system"
 
         # Reset call captures and run a background turn on the SAME character
         # + checkpoint. The path must produce a byte-identical
@@ -969,7 +969,7 @@ class TestUnifiedAgentCacheLineage:
         # Any divergence (a stray newline, a mode-conditional line)
         # invalidates the Anthropic prompt cache and resurrects the
         # cache-trail proliferation bug.
-        assert background_system["content"] == respond_system["content"]
+        assert background_system["content"] == turn_system["content"]
 
     @pytest.mark.asyncio
     async def test_different_characters_share_same_system_prefix(
@@ -995,12 +995,12 @@ class TestUnifiedAgentCacheLineage:
 
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
         guard_messages = mock_client.complete.call_args.kwargs["messages"]
 
         mock_client.complete.reset_mock()
         mock_client.complete.return_value = _llm_response(sample_agent_text)
-        await agent.respond(other, sample_checkpoint)
+        await agent.turn(other, sample_checkpoint)
         other_messages = mock_client.complete.call_args.kwargs["messages"]
 
         guard_system = guard_messages[0]["content"]
@@ -1012,13 +1012,13 @@ class TestUnifiedAgentCacheLineage:
         assert "Mistress Vale" in other_messages[-1]["content"]
 
     @pytest.mark.asyncio
-    async def test_respond_user_message_starts_with_agent_turn_header(
+    async def test_turn_user_message_starts_with_agent_turn_header(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
         messages = mock_client.complete.call_args.kwargs["messages"]
         user_content = messages[-1]["content"]
         # First non-empty line must be the mode header — the
@@ -1029,6 +1029,9 @@ class TestUnifiedAgentCacheLineage:
         )
         assert first_line == AGENT_TURN_HEADER
         assert "## Turn Frame\nforeground" in user_content
+        assert "## Scene" not in user_content
+        assert "## What You Observe This Turn" not in user_content
+        assert "## Other Characters' Responses This Turn" not in user_content
 
     @pytest.mark.asyncio
     async def test_background_user_message_uses_background_frame(
@@ -1076,7 +1079,7 @@ class TestUnifiedAgentCacheLineage:
         assert "## Turn Frame\nbackground" in saved_user
 
     @pytest.mark.asyncio
-    async def test_background_turn_appends_to_same_rolling_conversation_as_respond(
+    async def test_background_turn_appends_to_same_rolling_conversation_as_foreground(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
@@ -1087,7 +1090,7 @@ class TestUnifiedAgentCacheLineage:
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
 
-        await agent.respond(guard_character, sample_checkpoint)
+        await agent.turn(guard_character, sample_checkpoint)
         mock_client.complete.return_value = _llm_response(
             'He stands by the window. (Watching the gate.)'
         )
@@ -1219,17 +1222,17 @@ class TestPerceptionMode:
         assert "Bells ring" not in user_content
 
     @pytest.mark.asyncio
-    async def test_perceive_shares_system_prefix_with_respond(
+    async def test_perceive_shares_system_prefix_with_turn(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,
     ):
-        # Cache-lineage invariant: respond and perceive must yield
+        # Cache-lineage invariant: turn and perceive must yield
         # byte-identical system prompts so the Anthropic prompt cache
         # hits across modes.
         mock_client.complete.return_value = _llm_response(sample_agent_text)
         agent = CharacterAgent(mock_client, prompt_manager)
-        await agent.respond(guard_character, sample_checkpoint)
-        respond_system = mock_client.complete.call_args.kwargs["messages"][0]
+        await agent.turn(guard_character, sample_checkpoint)
+        turn_system = mock_client.complete.call_args.kwargs["messages"][0]
 
         mock_client.complete.reset_mock()
         mock_client.complete.return_value = self._llm_text_only("loadout")
@@ -1237,7 +1240,7 @@ class TestPerceptionMode:
         perceive_system = mock_client.complete.call_args.kwargs["messages"][0]
 
         assert perceive_system["role"] == "system"
-        assert perceive_system["content"] == respond_system["content"]
+        assert perceive_system["content"] == turn_system["content"]
 
     @pytest.mark.asyncio
     async def test_perceive_does_not_render_or_update_elapsed_turn_context(
@@ -1257,7 +1260,7 @@ class TestPerceptionMode:
         assert guard_character.last_agent_turn_at_s == 12
 
     @pytest.mark.asyncio
-    async def test_perceive_uses_lower_max_tokens_than_respond(
+    async def test_perceive_uses_lower_max_tokens_than_turn(
         self, mock_client, prompt_manager, guard_character, sample_checkpoint,
     ):
         # Perception is capped at 3 sentences; the call site uses a

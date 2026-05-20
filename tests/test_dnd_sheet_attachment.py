@@ -134,7 +134,11 @@ def _checkpoint(bindings: dict[str, str] | None = None) -> CheckpointFile:
 @pytest.fixture
 def bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    return EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
 
 
 def _seed(bridge: EngineBridge, ckpt: CheckpointFile) -> None:

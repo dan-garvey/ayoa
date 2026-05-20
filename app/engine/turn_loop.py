@@ -5,9 +5,8 @@ It replaces the one-shot `process_turn → single narrator render` shape
 with a beat-cascading loop: intentions flow in, are classified Cat I
 (self-closing) or Cat II (contested responder-collecting), canonical
 events are adjudicated, broadcast to observers in the shared perceptual
-frame, and the beat
-continues through agent reactions until the router signals ends_beat
-or the backstop fires.
+frame, and the beat continues through agent reactions until the router
+emits a terminal `event_kind` or the backstop fires.
 
 ## State machine summary
 
@@ -16,7 +15,7 @@ or the backstop fires.
     interpret-as-Cat-II-responder.
 
   classify(intention) → Cat I | Cat II
-    Cat I → canonicalize, broadcast, check ends_beat.
+    Cat I → canonicalize, broadcast, check `event_kind`.
     Cat II → open event, collect required responders (agents intend
       immediately; humans pin slot and wait), adjudicate on close,
       then route the resolution's selected follow-up NPCs, falling back to the
@@ -45,7 +44,7 @@ the old v8 pipeline — the v11 path is gated until it's fully wired.
 
 ## Terminology
 
-  Beat — a stretch of canonical events that closes on ends_beat.
+  Beat — a stretch of canonical events that closes on terminal `event_kind`.
   active_act_slot — the session's beat gate, holding 0..N character-slot entries.
   Cat I — self-closing intention (dialogue, passive, unambiguous).
   Cat II — contested intention, collects responder intentions.
@@ -82,7 +81,11 @@ from app.engine.visual_context import (
     plan_event_visual_introductions,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.event_router import (
+    EventRouterOutput,
+    ObserverEntry,
+    empty_commitment_open_signal,
+)
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
@@ -764,15 +767,25 @@ def _log_router_rationale(
     rationale = (result.decision_rationale or "").strip()
     if not rationale:
         rationale = "(no rationale emitted)"
+    ended = result.event_kind != "beat_continues"
+    reason = result.event_kind if ended else ""
     logger.info(
         "router[%s] actor=%s cat=%s ends_beat=%s reason=%r next=%s enrich=%s :: %s",
         kind, actor_id,
         "II" if result.requires_responders else "I",
-        result.ends_beat, result.ends_beat_reason,
+        ended, reason,
         result.next_output_character_ids,
         result.perception_enrichment_character_ids,
         rationale,
     )
+
+
+def _event_ends_beat(result: EventRouterOutput) -> bool:
+    return result.event_kind != "beat_continues"
+
+
+def _terminal_event_reason(result: EventRouterOutput) -> str:
+    return result.event_kind if _event_ends_beat(result) else ""
 
 
 def _filter_routed_agents_for_dispatch(
@@ -848,7 +861,7 @@ def _filter_routed_agents_for_dispatch(
         if (
             event is not None
             and rid not in observer_ids
-            and event.ends_beat_reason not in {
+            and event.event_kind not in {
                 "query_response",
                 "observation_harvest",
             }
@@ -863,6 +876,59 @@ def _filter_routed_agents_for_dispatch(
             continue
         out.append(rid)
     return out
+
+
+async def _materialize_required_responder_spawns(
+    dispatcher: Dispatcher,
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+    required: list[str],
+) -> None:
+    """Ensure Cat II required responders exist before any dispatch.
+
+    Router-authored `spawn` is normally a post-beat orchestrator side effect,
+    but Cat II responder collection happens inside `run_beat`. If the router
+    names a newly discovered NPC as a required responder and also emits the
+    spawn request in the same output, materialize that spawn before calling the
+    character agent. A required responder with no character record and no
+    matching spawn is a router contract violation.
+    """
+    known_ids = {char.character_id for char in ckpt.characters}
+    missing = [cid for cid in required if cid not in known_ids]
+    if not missing:
+        return
+
+    spawn_ids = {
+        spawn.character_id
+        for spawn in result.spawn
+        if spawn.character_id
+    }
+    materializable = [cid for cid in missing if cid in spawn_ids]
+    if materializable:
+        materializer = getattr(dispatcher, "materialize_spawns", None)
+        if materializer is None:
+            raise RuntimeError(
+                "Cat II required responders are not in the roster and the "
+                "dispatcher cannot materialize router spawns before dispatch: "
+                + ", ".join(materializable)
+            )
+        await materializer(
+            ckpt=ckpt,
+            result=result,
+            actor_id=actor_id,
+            character_ids=materializable,
+        )
+
+    known_ids = {char.character_id for char in ckpt.characters}
+    still_missing = [cid for cid in required if cid not in known_ids]
+    if still_missing:
+        raise RuntimeError(
+            "Cat II required responders are not in the roster and were not "
+            "spawned by the router output: "
+            + ", ".join(still_missing)
+        )
 
 
 def _cat_ii_resolution_followup_ids(
@@ -1194,7 +1260,6 @@ async def _append_harvest_fragments(
     result: EventRouterOutput,
     *,
     targets: list[str],
-    current_actor: str,
     log_label: str,
 ) -> int:
     """Append perception fragments to a just-broadcast event.
@@ -1215,7 +1280,6 @@ async def _append_harvest_fragments(
     fragments = await dispatcher.harvest_perceptions(
         ckpt=ckpt,
         character_ids=targets,
-        acting_character_id=current_actor,
     )
     by_id = {c.character_id: c for c in ckpt.characters}
     appended = 0
@@ -1301,7 +1365,7 @@ def broadcast_event(
 
     The NPC inbox path is the engine implementation of the perception
     channel the router describes in `observable_facts`. When an NPC is
-    routed for next output in this same beat, their `respond` call drains
+    routed for next output in this same beat, their agent turn drains
     the queue and they see the just-broadcast event as the most recent
     entry.
 
@@ -1713,19 +1777,24 @@ def flush_combat_visible_facts(ckpt: CheckpointFile) -> int:
         return 0
     event = EventRouterOutput(
         event_id="",
+        effective_at_s=0,
+        duration_s=0,
         decision_rationale="code-owned combat state change",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(feasible=True),
             observable_facts=[ObservableFact.all(fact) for fact in facts],
         ),
+        event_kind="state_change",
         requires_responders=False,
         required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="state_change",
         observers=observers,
         spawn=[],
         dormant=[],
         cull=[],
+        commitment_open=empty_commitment_open_signal(),
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
     )
     broadcast_event(ckpt, event)
     return 1
@@ -1763,8 +1832,7 @@ def _start_dnd_combat_from_router_signal(
         result.requires_responders = False
         result.required_responders = []
         result.clear_routing_roles()
-        result.ends_beat = True
-        result.ends_beat_reason = "state_change"
+        result.event_kind = "state_change"
         return False
 
     combat_id = f"combat_{result.event_id or uuid.uuid4().hex[:8]}"
@@ -1787,8 +1855,7 @@ def _start_dnd_combat_from_router_signal(
     result.requires_responders = False
     result.required_responders = []
     result.clear_routing_roles()
-    result.ends_beat = True
-    result.ends_beat_reason = "state_change"
+    result.event_kind = "state_change"
     _ensure_combatant_observers(result, participants)
     _set_pending_initiating_action(
         combat,
@@ -1824,8 +1891,7 @@ def _block_dnd_combat_start_from_router_signal(
     result.requires_responders = False
     result.required_responders = []
     result.clear_routing_roles()
-    result.ends_beat = True
-    result.ends_beat_reason = "state_change"
+    result.event_kind = "state_change"
     if actor_id:
         existing_observers = {
             observer.character_id for observer in result.observers
@@ -1856,8 +1922,7 @@ def _end_dnd_combat_from_router_signal(
         result.requires_responders = False
         result.required_responders = []
         result.clear_routing_roles()
-        result.ends_beat = True
-        result.ends_beat_reason = "state_change"
+        result.event_kind = "state_change"
         return False
     dnd_combat.append_audit_line(
         combat,
@@ -1870,8 +1935,7 @@ def _end_dnd_combat_from_router_signal(
     result.requires_responders = False
     result.required_responders = []
     result.clear_routing_roles()
-    result.ends_beat = True
-    result.ends_beat_reason = "state_change"
+    result.event_kind = "state_change"
     result.canonical_event.observable_facts.append(ObservableFact.all(
         "D&D combat ends."
     ))
@@ -1979,7 +2043,7 @@ def _eligible_combat_reaction_prompts(
     # Latest eligible trigger wins for each character, keeping one slot per
     # character and avoiding multiple prompts from a single dense beat.
     for event, actor_id in reversed(list(zip(closed_events, actors))):
-        if event.ends_beat_reason in _COMBAT_REACTION_EXCLUDED_REASONS:
+        if event.event_kind in _COMBAT_REACTION_EXCLUDED_REASONS:
             continue
         for observer in event.observers:
             cid = observer.character_id
@@ -2010,7 +2074,7 @@ def _beat_cap_overrun_cause(
         return False, False, False
 
     closed_events = ckpt.canonical_events[-events_closed:]
-    closed_reasons = [event.ends_beat_reason for event in closed_events]
+    closed_reasons = [_terminal_event_reason(event) for event in closed_events]
     cat_ii_open = (
         ended_reason == "cat_ii_pending"
         or any(reason == "cat_ii_open" for reason in closed_reasons)
@@ -2071,7 +2135,7 @@ class Dispatcher(Protocol):
         prior_result: EventRouterOutput,
     ) -> EventRouterOutput:
         """Advance an open beat when the prior router output supplied
-        no dispatchable next actor despite `ends_beat=false`."""
+        no dispatchable next actor despite `event_kind=beat_continues`."""
         ...
 
     async def route_agent_output(
@@ -2119,24 +2183,17 @@ class Dispatcher(Protocol):
         self,
         ckpt: CheckpointFile,
         character_ids: list[str],
-        acting_character_id: str,
     ) -> list[str]:
         """Fire CharacterAgent.perceive() across `character_ids` in
         parallel; return per-character "visual loadout" fragments in
         the same order as the input ids.
 
         Used by the observation-harvest fork in `run_beat` when the
-        router classifies an action as `ends_beat_reason=
-        "observation_harvest"`. Empty / failed-perception entries are
+        router classifies an action as `event_kind="observation_harvest"`.
+        Empty / failed-perception entries are
         included as empty strings so the caller can zip with the
         input ids; callers SHOULD filter those out before composing
         the canonical event's `observable_facts`.
-
-        `acting_character_id` is the looker (the player who /act'd
-        the observation). It is NOT the observer for filtering
-        purposes — perception is observer-agnostic — but is plumbed
-        for context-builder helpers that frame "the player who is
-        currently doing things" in the agent's identity envelope.
 
         Per-call exceptions (LLM failure, agent prompt error) are
         absorbed into an empty fragment for that character rather
@@ -2230,7 +2287,7 @@ async def run_beat(
        and the intention is routed as an out-of-turn response.
 
     Termination:
-    - Router's ends_beat=true → render fan-out, slot release.
+    - Terminal `event_kind` → render fan-out, slot release.
     - Cat II event adjudicates; selected `next_output` NPCs get first
       follow-up, otherwise NPC initiators keep the legacy first follow-up.
       If no NPC can act, render fan-out and slot release.
@@ -2491,7 +2548,7 @@ async def run_beat(
             return await _end_beat(
                 ckpt,
                 dispatcher,
-                ended_reason=resolved.ends_beat_reason
+                ended_reason=_terminal_event_reason(resolved)
                 or "ruleset_resolution",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
@@ -2527,7 +2584,7 @@ async def run_beat(
             return await _end_beat(
                 ckpt,
                 dispatcher,
-                ended_reason=resolved.ends_beat_reason
+                ended_reason=_terminal_event_reason(resolved)
                 or "ruleset_resolution",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
@@ -2627,7 +2684,7 @@ async def run_beat(
             return await _end_beat(
                 ckpt,
                 dispatcher,
-                ended_reason=result.ends_beat_reason or "state_change",
+                ended_reason=_terminal_event_reason(result) or "state_change",
                 events_closed=events_closed,
                 event_actor_ids=event_actor_ids,
                 acting_player_id=actor_id,
@@ -2656,8 +2713,7 @@ async def run_beat(
                 result.requires_responders = False
                 result.required_responders = []
                 result.clear_routing_roles()
-                result.ends_beat = True
-                result.ends_beat_reason = "ruleset_cat_ii_suppressed"
+                result.event_kind = "ruleset_cat_ii_suppressed"
                 broadcast_event(ckpt, result, actor_id=suppressed_actor_id)
                 event_actor_ids.append(suppressed_actor_id)
                 events_closed += 1
@@ -2675,6 +2731,13 @@ async def run_beat(
                     "Router continuation opened Cat II; continuation mode "
                     "must create a closed cue or pick a dispatchable NPC."
                 )
+            await _materialize_required_responder_spawns(
+                dispatcher,
+                ckpt,
+                result,
+                actor_id=result_actor_id,
+                required=required,
+            )
             # Cat II: open the event, pin humans, request agent
             # responder intentions immediately (they're fast).
             # Filter: the initiator can never be their own responder,
@@ -2698,10 +2761,10 @@ async def run_beat(
                         suppress_reaction_prompts=suppress_reaction_prompts,
                     )
                 # Fall through to the standard Cat I ends_beat check.
-                if result.ends_beat:
+                if _event_ends_beat(result):
                     return await _end_beat(
                         ckpt, dispatcher,
-                        ended_reason=result.ends_beat_reason
+                        ended_reason=_terminal_event_reason(result)
                             or "cascade_exhausted",
                         events_closed=events_closed,
                         event_actor_ids=event_actor_ids,
@@ -2734,8 +2797,7 @@ async def run_beat(
             # every observer receives the same public attempt that the
             # responder is reacting to. Pre-r12 synthesized an
             # observerless stub here and dropped the router's facts.
-            result.ends_beat = True
-            result.ends_beat_reason = "cat_ii_open"
+            result.event_kind = "cat_ii_open"
             broadcast_event(ckpt, result, actor_id=result_actor_id)
             event_actor_ids.append(result_actor_id)
             events_closed += 1
@@ -2835,7 +2897,7 @@ async def run_beat(
         events_closed += 1
 
         # v11-r8a: observation_harvest fork. The router signals
-        # `ends_beat_reason="observation_harvest"` when the actor is
+        # `event_kind="observation_harvest"` when the actor is
         # purely observing perceptually available NPCs (looking,
         # studying, scanning
         # without dialogue or contact). We bypass the cascade and
@@ -2850,7 +2912,7 @@ async def run_beat(
         # buffers) and the narrator reads the live
         # `observable_facts` list at compose time. The harvest path uses
         # the same human-only pick guard as the cascade path.
-        if result.ends_beat_reason == "observation_harvest":
+        if result.event_kind == "observation_harvest":
             harvest_picks = _filter_routed_agents_for_dispatch(
                 ckpt, result.perception_enrichment_character_ids,
                 event=result,
@@ -2858,7 +2920,6 @@ async def run_beat(
             appended = await _append_harvest_fragments(
                 dispatcher, ckpt, result,
                 targets=harvest_picks,
-                current_actor=current_actor,
                 log_label="Observation harvest",
             )
             if appended:
@@ -2873,7 +2934,7 @@ async def run_beat(
                         else "intention"
                     ),
                 )
-        elif result.ends_beat_reason == "query_response":
+        elif result.event_kind == "query_response":
             query_picks = _filter_routed_agents_for_dispatch(
                 ckpt, result.perception_enrichment_character_ids,
                 event=result,
@@ -2883,7 +2944,6 @@ async def run_beat(
                 appended = await _append_harvest_fragments(
                     dispatcher, ckpt, result,
                     targets=query_picks,
-                    current_actor=current_actor,
                     log_label="Query harvest",
                 )
                 if appended and _loadout_fact_count(result) > before_loadouts:
@@ -2917,9 +2977,9 @@ async def run_beat(
                 continue
 
         # Ends-beat decision.
-        if result.ends_beat or events_closed >= max_events:
-            reason = result.ends_beat_reason or "max_events_cap"
-            if events_closed >= max_events and not result.ends_beat:
+        if _event_ends_beat(result) or events_closed >= max_events:
+            reason = _terminal_event_reason(result) or "max_events_cap"
+            if events_closed >= max_events and not _event_ends_beat(result):
                 reason = "max_events_cap"
             return await _end_beat(
                 ckpt, dispatcher,

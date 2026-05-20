@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.bot.engine_bridge import (
-    CompletedPendingRoll,
-    EngineBridge,
-)
 from app.bot.commands import _dice_roll_content, _roll_result_line
+from app.bot.engine_bridge import EngineBridge
+from app.engine.frontend_views import CompletedPendingRoll
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.state import (
@@ -148,7 +146,11 @@ async def test_complete_pending_roll_saves_dice_before_router_finalize(
 ):
     from app.engine import dice
 
-    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    bridge = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
     bridge.checkpoint_mgr.save(_pending_roll_checkpoint())
     monkeypatch.setattr(dice.d20.expression.random, "randrange", lambda _: 15)
 
@@ -182,7 +184,11 @@ async def test_complete_pending_roll_accepts_combat_transaction_without_cat_ii(
 ):
     from app.engine import dice
 
-    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    bridge = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
     bridge.checkpoint_mgr.save(_combat_pending_roll_checkpoint())
     monkeypatch.setattr(dice.d20.expression.random, "randrange", lambda _: 15)
 
@@ -204,7 +210,11 @@ async def test_complete_pending_roll_accepts_combat_transaction_without_cat_ii(
 
 @pytest.mark.asyncio
 async def test_complete_pending_roll_rejects_stale_combat_transaction(tmp_path):
-    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    bridge = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
     ckpt = _combat_pending_roll_checkpoint()
     ckpt.session.active_combat = None
     bridge.checkpoint_mgr.save(ckpt)

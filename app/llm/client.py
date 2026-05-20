@@ -454,14 +454,13 @@ class LLMClient:
         max_tokens: int,
         response_model: type[T] | None = None,
         cache: bool = True,
-        cache_user_tail: bool = False,
         compact: bool = False,
         stream: bool = False,
     ) -> LLMResponse:
         """Call the configured provider and optionally enforce a Pydantic schema.
 
         Args:
-            role: The engine role making this call (narrator, discriminator, agent, etc.).
+            role: The engine role making this call (event_router, narrator, agent, etc.).
                   Used to select the model via config.
             messages: Chat messages in OpenAI-style format. Provider adapters translate
                       system placement and persisted assistant content as needed.
@@ -475,11 +474,6 @@ class LLMClient:
                    breakpoint at the end of the system block so calls that share the
                    same system (but differ in the user tail) hit the same cache entry.
                    No-op when there is no system message (nothing shared to cache).
-            cache_user_tail: If True, force a cache breakpoint on the last user
-                   message even when there's only one user turn (normally breakpoint
-                   on user tail is only added when len(messages) > 1). Use when a
-                   caller expects a follow-up call to read
-                   [system, user1, assistant1] as a cached prefix.
             compact: If True, request server-side context compaction (beta). The
                      request is honored only when `config.enable_anthropic_compaction`
                      is also true and the selected model supports the beta. The API
@@ -500,7 +494,6 @@ class LLMClient:
                 max_tokens=max_tokens,
                 response_model=response_model,
                 cache=cache,
-                cache_user_tail=cache_user_tail,
                 compact=compact,
             )
         if provider == "openai":
@@ -522,7 +515,6 @@ class LLMClient:
         max_tokens: int,
         response_model: type[T] | None,
         cache: bool,
-        cache_user_tail: bool,
         compact: bool,
     ) -> LLMResponse:
         model_name = self.config.model_for_role(role)
@@ -565,7 +557,6 @@ class LLMClient:
             temperature=temp,
             max_tokens=max_tok,
             cache=cache,
-            cache_user_tail=cache_user_tail,
             compact=compact,
             response_model=response_model,
             thinking_budget=thinking_budget,
@@ -795,7 +786,6 @@ class LLMClient:
         temperature: float,
         max_tokens: int,
         cache: bool,
-        cache_user_tail: bool,
         compact: bool,
         response_model: type[T] | None,
         thinking_budget: int = 0,
@@ -850,10 +840,8 @@ class LLMClient:
 
         # Rolling-conversation caching: when history exists (messages > 1 pair),
         # also mark the last user message as a cache breakpoint so subsequent
-        # turns read the whole prior conversation at cache-hit price. The
-        # `cache_user_tail` override forces the same breakpoint on single-turn
-        # calls when a follow-up is expected to replay this call as history.
-        should_mark_user = cache and (len(messages) > 1 or cache_user_tail)
+        # turns read the whole prior conversation at cache-hit price.
+        should_mark_user = cache and len(messages) > 1
         if should_mark_user and messages:
             last_idx = len(messages) - 1
             last = messages[last_idx]

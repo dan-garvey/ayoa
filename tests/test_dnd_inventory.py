@@ -3,11 +3,14 @@ from __future__ import annotations
 import pytest
 
 from app.engine import dnd_inventory, dnd_presentation
+from app.engine.dnd_constants import DND_RUNTIME_KEY
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOfferItem
+from app.schemas.events import ObservableFact
 from app.schemas.event_router import DndEventRouterOutput
 from app.schemas.state import SessionState
+from tests.support.factories import dnd_router_output
 
 
 def _ckpt() -> CheckpointFile:
@@ -46,29 +49,10 @@ def _ckpt() -> CheckpointFile:
 
 
 def _loot_event() -> DndEventRouterOutput:
-    return DndEventRouterOutput(
+    return dnd_router_output(
         event_id="evt_loot",
-        decision_rationale="test",
-        canonical_event={
-            "world_adjudication": {"feasible": True},
-            "observable_facts": [
-                {
-                    "text": "Alice opens the chest.",
-                    "audience": "all_observers",
-                    "visible_to": [],
-                }
-            ],
-        },
-        observers=[
-            {
-                "character_id": "alice",
-                "observation_level": "d",
-                "routing_role": "observe_only",
-            }
-        ],
-        spawn=[],
-        dormant=[],
-        cull=[],
+        facts=[ObservableFact.all("Alice opens the chest.")],
+        observer_ids=["alice"],
         interaction_mode="cat_i",
         combatant_ids=[],
         loot_offer={
@@ -97,8 +81,7 @@ def _loot_event() -> DndEventRouterOutput:
         },
         requires_responders=False,
         required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="state_change",
+        event_kind="state_change",
     )
 
 
@@ -114,7 +97,7 @@ def test_apply_loot_offer_is_idempotent_and_prompts_bound_characters():
     assert len(ckpt.session.dnd_inventory_offers) == 1
 
 
-def test_narrative_mundane_gear_handoff_becomes_claimable_loot():
+def test_visible_prose_without_structured_signal_does_not_create_loot_offer():
     ckpt = _ckpt()
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
     data = _loot_event().model_dump()
@@ -127,140 +110,6 @@ def test_narrative_mundane_gear_handoff_becomes_claimable_loot():
                 "wraps, a torch bundle, and a folded rough map sheet. She sets "
                 "the bundle down within reach of Alice and Bob; a healer's kit "
                 "in a leather roll lands on top."
-            ),
-            "audience": "all_observers",
-            "visible_to": [],
-        }
-    ]
-    data["loot_offer"] = {
-        "present": False,
-        "source_kind": "other",
-        "source_label": "",
-        "visibility": "table",
-        "eligible_character_ids": [],
-        "items": [],
-        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
-        "notes": "",
-    }
-
-    prompts = dnd_inventory.apply_loot_offers_from_events(
-        ckpt,
-        [DndEventRouterOutput(**data)],
-    )
-
-    offer = ckpt.session.dnd_inventory_offers[0]
-    assert prompts == {"alice": ["loot_evt_gear_handoff"], "bob": ["loot_evt_gear_handoff"]}
-    assert offer.source_kind == "handoff"
-    assert offer.source_label == "Hall stock"
-    items = {item.item_id: item for item in offer.items}
-    assert set(items) == {
-        "healers_kit",
-        "rope",
-        "bedroll",
-        "rations",
-        "torch_bundle",
-        "rough_map",
-    }
-    assert items["bedroll"].quantity == 2
-
-    result = dnd_inventory.claim_loot(
-        ckpt,
-        character_id="alice",
-        offer_id="loot_evt_gear_handoff",
-        item_ids=[],
-        take_all_available=True,
-    )
-
-    assert [item["name"] for item in result["claimed_items"]] == [
-        "Healer's Kit",
-        "Rope",
-        "Bedroll",
-        "Rations",
-        "Torch Bundle",
-        "Rough Map",
-    ]
-    runtime_items = ckpt.characters[0].mechanics["dnd5e_runtime"]["inventory"][
-        "items"
-    ]
-    assert "Healer's Kit" in {item["name"] for item in runtime_items}
-
-
-def test_narrative_gear_handoff_inference_is_dnd_only():
-    ckpt = _ckpt()
-    data = _loot_event().model_dump()
-    data["event_id"] = "evt_gear_handoff"
-    data["canonical_event"]["observable_facts"] = [
-        {
-            "text": "Korva sets a rope and healer's kit down within reach.",
-            "audience": "all_observers",
-            "visible_to": [],
-        }
-    ]
-    data["loot_offer"] = {
-        "present": False,
-        "source_kind": "other",
-        "source_label": "",
-        "visibility": "table",
-        "eligible_character_ids": [],
-        "items": [],
-        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
-        "notes": "",
-    }
-
-    prompts = dnd_inventory.apply_loot_offers_from_events(
-        ckpt,
-        [DndEventRouterOutput(**data)],
-    )
-
-    assert prompts == {}
-    assert ckpt.session.dnd_inventory_offers == []
-
-
-def test_narrative_handoff_does_not_offer_animal_tack():
-    ckpt = _ckpt()
-    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-    data = _loot_event().model_dump()
-    data["event_id"] = "evt_mule_rope"
-    data["canonical_event"]["observable_facts"] = [
-        {
-            "text": (
-                "Korva gathers the supply mule's lead rope, passes the reins "
-                "to Alice, and keeps the animal steady by the stable door."
-            ),
-            "audience": "all_observers",
-            "visible_to": [],
-        }
-    ]
-    data["loot_offer"] = {
-        "present": False,
-        "source_kind": "other",
-        "source_label": "",
-        "visibility": "table",
-        "eligible_character_ids": [],
-        "items": [],
-        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
-        "notes": "",
-    }
-
-    prompts = dnd_inventory.apply_loot_offers_from_events(
-        ckpt,
-        [DndEventRouterOutput(**data)],
-    )
-
-    assert prompts == {}
-    assert ckpt.session.dnd_inventory_offers == []
-
-
-def test_narrative_handoff_does_not_offer_owned_gear():
-    ckpt = _ckpt()
-    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-    data = _loot_event().model_dump()
-    data["event_id"] = "evt_owned_rope"
-    data["canonical_event"]["observable_facts"] = [
-        {
-            "text": (
-                "Garrick pulls rope from his own pack, passes the loose end "
-                "around Dace's wrists, and ties it off."
             ),
             "audience": "all_observers",
             "visible_to": [],
@@ -329,7 +178,7 @@ def test_claim_loot_creates_runtime_overlay_without_mutating_import():
     imported = (
         alice.mechanics["dnd5e_sheet"]["statblock"]["inventory"]["items"]
     )
-    runtime = alice.mechanics["dnd5e_runtime"]["inventory"]
+    runtime = alice.mechanics[DND_RUNTIME_KEY]["inventory"]
     assert imported == [
         {
             "id": "ddb_item_rope",
@@ -379,10 +228,10 @@ def test_split_currency_divides_by_bound_eligible_characters():
 
     assert result["shares"]["alice"]["gp"] == 6
     assert result["shares"]["bob"]["gp"] == 6
-    assert ckpt.characters[0].mechanics["dnd5e_runtime"]["inventory"][
+    assert ckpt.characters[0].mechanics[DND_RUNTIME_KEY]["inventory"][
         "currency"
     ]["gp"] == 8
-    assert ckpt.characters[1].mechanics["dnd5e_runtime"]["inventory"][
+    assert ckpt.characters[1].mechanics[DND_RUNTIME_KEY]["inventory"][
         "currency"
     ]["gp"] == 6
 

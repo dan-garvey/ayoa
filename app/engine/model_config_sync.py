@@ -16,7 +16,6 @@ def runtime_model_config(config: LLMConfig) -> ModelConfig:
         event_router=_runtime_model_label(config, "event_router"),
         narrator=_runtime_model_label(config, "narrator"),
         dnd_combat_manager=_runtime_model_label(config, "dnd_combat_manager"),
-        discriminator=_runtime_model_label(config, "event_router"),
         agent_default=_runtime_model_label(config, "agent"),
         agent_standard=_runtime_model_label(config, "agent_standard"),
         agent_convenience=_runtime_model_label(config, "agent_convenience"),
@@ -28,14 +27,8 @@ def sync_checkpoint_runtime_models(
     config: LLMConfig,
 ) -> bool:
     models = runtime_model_config(config)
-    changed = False
-
-    if checkpoint.config.models != models:
-        checkpoint.config.models = models
-        changed = True
-
     if checkpoint.session.config.models != models:
         checkpoint.session.config.models = models
-        changed = True
+        return True
 
-    return changed
+    return False

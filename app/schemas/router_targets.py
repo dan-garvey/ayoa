@@ -96,7 +96,7 @@ def targets_from_router_output(
             )
             for cid in perception_targets
         )
-    elif not result.ends_beat or result.event_kind == "public_fact":
+    elif result.event_kind == "beat_continues" or result.event_kind == "public_fact":
         targets.extend(
             RouterOutputTarget(
                 target_kind="agent_turn",
@@ -114,7 +114,7 @@ def targets_from_router_output(
     target_audience = [
         observer.character_id
         for observer in result.observers
-        if result.ends_beat and observer.character_id in player_ids
+        if result.event_kind != "beat_continues" and observer.character_id in player_ids
     ]
 
     return RouterTargetProjection(

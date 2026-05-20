@@ -14,8 +14,6 @@ import asyncio
 import json
 import logging
 import re
-import shutil
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -33,7 +31,21 @@ from app.engine.dnd_character_import import (
     mechanics_from_snapshot,
     normalize_dndbeyond_export,
 )
-from app.engine import dnd_experience, dnd_inventory, dnd_spatial
+from app.engine import dnd_experience, dnd_inventory, dnd_runtime, dnd_spatial
+from app.engine.frontend_views import (
+    CharacterSummary,
+    CompletedPendingRoll,
+    DndCombatParticipantView,
+    DndCombatView,
+    DndExperienceAwardResult,
+    DndInventoryView,
+    DndLootClaimResult,
+    DndSheetAttachmentSummary,
+    PendingRollPrompt,
+    RetryRenderResult,
+    RewindResult,
+    TurnHistoryEntry,
+)
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -55,194 +67,15 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOffer
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
+from app.schemas.event_router import (
+    EventRouterOutput,
+    ObserverEntry,
+    empty_commitment_open_signal,
+)
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
-from app.schemas.narrator import TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import SlotEntry
-
-@dataclass(frozen=True)
-class CharacterSummary:
-    """Spoiler-free summary of a character for /story characters and /join.
-
-    Public-sheet fields plus status / name / binding — nothing from
-    private_state, backstory, personality, or hidden lore. `bound_user_id`
-    is populated when reading a session checkpoint; empty on pristine
-    story-level lookups. `is_playable` mirrors the runtime
-    `CharacterRecord.is_playable` flag (renamed from `is_player` in the
-    playable-2 commit; see schema docstring).
-    """
-    character_id: str
-    name: str
-    role: str
-    faction: str
-    appearance: str
-    status: str  # "active" | "dormant" | "culled"
-    is_playable: bool
-    bound_user_id: str = ""
-
-
-@dataclass(frozen=True)
-class RewindResult:
-    """Result of an EngineBridge.rewind_session call.
-
-    `target_turn` is the checkpoint id the session is now anchored to
-    (`ckpt_<target_turn>.json` is the new latest). `previous_latest` and
-    `new_latest` describe the before/after state for the confirmation
-    embed. `deleted_turns` is the list of turn indices whose checkpoints
-    were culled — usually contiguous from target_turn+1 to previous_latest
-    inclusive, but the rewind is robust to gaps (an old corrupted save
-    that was already missing simply doesn't appear in the list).
-
-    `location` and `actor_character_id` are recovered from the loaded
-    checkpoint to help the frontend render a "resume at <location>" line.
-    Both may be empty if the session has no bound actor (e.g. a fresh
-    session before any /join).
-    """
-    session_id: str
-    target_turn: int
-    previous_latest: int
-    new_latest: int
-    deleted_turns: list[int]
-    location: str = ""
-    actor_character_id: str = ""
-
-
-@dataclass(frozen=True)
-class RetryRenderResult:
-    response: TurnResponse
-    actor_character_id: str = ""
-    actor_user_id: str = ""
-
-
-@dataclass(frozen=True)
-class TurnHistoryEntry:
-    turn_index: int
-    entry: TranscriptEntry
-
-
-@dataclass(frozen=True)
-class PendingRollPrompt:
-    session_id: str
-    event_id: str
-    roll_id: str
-    actor_id: str
-    user_id: str
-    label: str
-    reason: str
-
-
-@dataclass(frozen=True)
-class CompletedPendingRoll:
-    session_id: str
-    event_id: str
-    roll_id: str
-    actor_id: str
-    user_id: str
-    label: str
-    reason: str
-    expression: str
-    total: int
-    detail: str
-    crit: str
-    remaining_pending_rolls: int
-    die_values: tuple[int, ...] = ()
-    kept_die_values: tuple[int, ...] = ()
-    modifier: int = 0
-    dc: int = 0
-    outcome: str = ""
-    target_id: str = ""
-    target_name: str = ""
-    damage_total: int = 0
-    damage_type: str = ""
-    damage_detail: str = ""
-
-
-@dataclass(frozen=True)
-class DndSheetAttachmentSummary:
-    character_id: str
-    character_name: str
-    imported_name: str
-    ruleset_id: str
-    session_ruleset_id: str
-    player_roll_mode: str
-    source_type: str
-    total_level: int
-    classes: list[str]
-    armor_class: int
-    hit_points_current: int
-    hit_points_max: int
-    hit_points_temporary: int
-    skills_count: int
-    actions_count: int
-    spells_count: int
-    resources_count: int
-    name_overridden: bool
-
-
-@dataclass(frozen=True)
-class DndInventoryView:
-    character_id: str
-    character_name: str
-    items: list[dict[str, Any]]
-    currency: dict[str, int]
-
-
-@dataclass(frozen=True)
-class DndLootClaimResult:
-    offer_id: str
-    character_id: str
-    claimed_items: list[dict[str, Any]]
-    claimed_currency: dict[str, int]
-    shares: dict[str, dict[str, int]]
-    offer_closed: bool
-    message: str
-
-
-@dataclass(frozen=True)
-class DndExperienceAwardResult:
-    character_id: str
-    character_name: str
-    amount: int
-    before: int
-    after: int
-    total_level: int
-    next_level: int
-    xp_to_next_level: int
-    level_available: bool
-    eligible_level: int
-
-
-@dataclass(frozen=True)
-class DndCombatParticipantView:
-    character_id: str
-    name: str
-    current: bool = False
-    initiative: int | None = None
-    hp_current: int | None = None
-    hp_max: int | None = None
-    hp_temporary: int = 0
-    armor_class: int | None = None
-    conditions: tuple[str, ...] = ()
-    active_effects: tuple[str, ...] = ()
-    defeat_state: str = "active"
-    death_save_successes: int = 0
-    death_save_failures: int = 0
-    pending_initiating_action: str = ""
-
-
-@dataclass(frozen=True)
-class DndCombatView:
-    session_id: str
-    active: bool
-    round_number: int = 0
-    turn_number: int = 0
-    current_participant_id: str = ""
-    participants: tuple[DndCombatParticipantView, ...] = ()
-    map_lines: tuple[str, ...] = ()
-    message: str = ""
-
 
 def _loot_claim_message(result: dict[str, Any]) -> str:
     parts: list[str] = []
@@ -386,10 +219,6 @@ class EngineBridge:
     separate namespaces means creating a new session from a story does not
     mutate the canonical source seed.
 
-    `saves_dir` is accepted for backward compatibility; when set, it
-    becomes the parent of both stories_dir and sessions_dir unless those
-    are specified explicitly. Legacy flat layouts at
-    `app/storage/saves/` are auto-migrated on construction.
     """
 
     def __init__(
@@ -397,21 +226,11 @@ class EngineBridge:
         *,
         stories_dir: str | None = None,
         sessions_dir: str | None = None,
-        saves_dir: str | None = None,
         prompts_dir: str = "app/prompts",
         llm_config: LLMConfig | None = None,
     ):
-        # `saves_dir` is a convenience for tests and backward-compat: when
-        # provided, stories and sessions live under subdirs of it unless
-        # overridden. New code should pass stories_dir / sessions_dir
-        # directly.
-        if saves_dir is not None:
-            base = Path(saves_dir)
-            self.stories_dir = Path(stories_dir) if stories_dir else base / "stories"
-            self.sessions_dir = Path(sessions_dir) if sessions_dir else base / "sessions"
-        else:
-            self.stories_dir = Path(stories_dir or "app/storage/stories")
-            self.sessions_dir = Path(sessions_dir or "app/storage/sessions")
+        self.stories_dir = Path(stories_dir or "app/storage/stories")
+        self.sessions_dir = Path(sessions_dir or "app/storage/sessions")
         self.stories_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.client = LLMClient(config=llm_config or LLMConfig.from_env())
@@ -2099,26 +1918,6 @@ class EngineBridge:
                 selected.append(char.character_id)
         return selected
 
-    def _combat_call(
-        self,
-        module: Any,
-        names: tuple[str, ...],
-        ckpt: CheckpointFile,
-        **kwargs: Any,
-    ) -> Any:
-        for name in names:
-            fn = getattr(module, name, None)
-            if fn is None:
-                continue
-            try:
-                return fn(ckpt, **kwargs)
-            except TypeError:
-                return fn(ckpt)
-        joined = ", ".join(names)
-        raise RuntimeError(
-            f"D&D combat tracker core does not expose any of: {joined}."
-        )
-
     def _combat_save_and_view(
         self,
         ckpt: CheckpointFile,
@@ -2252,9 +2051,9 @@ class EngineBridge:
             )
         active_effects = self._combat_get(raw, "active_effects", default=None)
         if active_effects is None and isinstance(mechanics, dict):
-            runtime = mechanics.get("dnd5e_runtime")
-            if isinstance(runtime, dict):
-                active_effects = runtime.get("active_effects", [])
+            active_effects = dnd_runtime.get_dnd_runtime(mechanics).get(
+                "active_effects", []
+            )
         raw_death_saves = self._combat_get(raw, "death_saves", default={})
         if not isinstance(raw_death_saves, dict):
             raw_death_saves = {}
@@ -2419,24 +2218,14 @@ class EngineBridge:
         )
         if not participants:
             raise ValueError("No active combat participants found.")
-        if getattr(module, "begin_combat", None) is not None:
-            result = module.begin_combat(ckpt, participant_ids=participants)
-        elif getattr(module, "start_combat", None) is not None:
-            by_id = {c.character_id: c for c in ckpt.characters}
-            selected = [by_id[cid] for cid in participants if cid in by_id]
-            missing = [cid for cid in participants if cid not in by_id]
-            if missing:
-                raise ValueError(
-                    "Unknown combat participant(s): " + ", ".join(missing)
-                )
-            result = module.start_combat(ckpt.session, selected)
-        else:
-            result = self._combat_call(
-                module,
-                ("begin_combat", "start_combat"),
-                ckpt,
-                participant_ids=participants,
+        by_id = {c.character_id: c for c in ckpt.characters}
+        selected = [by_id[cid] for cid in participants if cid in by_id]
+        missing = [cid for cid in participants if cid not in by_id]
+        if missing:
+            raise ValueError(
+                "Unknown combat participant(s): " + ", ".join(missing)
             )
+        result = module.start_combat(ckpt.session, selected)
         return self._combat_save_and_view(ckpt, result)
 
     def combat_status(
@@ -2448,43 +2237,20 @@ class EngineBridge:
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         if getattr(ckpt.session, "active_combat", None) is None:
             return self._combat_view(ckpt)
-        if getattr(module, "combat_status", None) is not None:
-            result = module.combat_status(ckpt, private=private)
-        elif private and getattr(module, "private_status", None) is not None:
+        if private:
             result = module.private_status(ckpt.session)
-        elif getattr(module, "public_status", None) is not None:
-            result = module.public_status(ckpt.session)
         else:
-            result = self._combat_call(
-                module,
-                ("combat_status", "get_combat_status", "status"),
-                ckpt,
-                private=private,
-            )
+            result = module.public_status(ckpt.session)
         return self._combat_view(ckpt, result)
 
     def combat_next(self, session_id: str) -> DndCombatView:
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        if getattr(module, "combat_next", None) is not None:
-            module.combat_next(ckpt)
-        elif getattr(module, "advance_turn", None) is not None:
-            advance = getattr(module, "advance_turn_with_effects", None)
-            if advance is not None:
-                advance(ckpt.session, characters=ckpt.characters)
-            else:
-                module.advance_turn(ckpt.session)
-        else:
-            self._combat_call(
-                module,
-                ("combat_next", "next_turn", "advance_combat"),
-                ckpt,
-            )
-        if getattr(module, "sync_combat_effects_to_characters", None) is not None:
-            module.sync_combat_effects_to_characters(
-                ckpt.session.active_combat,
-                ckpt.characters,
-            )
+        module.advance_turn_with_effects(ckpt.session, characters=ckpt.characters)
+        module.sync_combat_effects_to_characters(
+            ckpt.session.active_combat,
+            ckpt.characters,
+        )
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
@@ -2512,18 +2278,9 @@ class EngineBridge:
             seen.add(cid)
         pending_facts = []
         if combat is not None:
-            drain_facts = getattr(module, "drain_pending_visible_facts", None)
-            if callable(drain_facts):
-                pending_facts = list(drain_facts(combat))
-            queue_observed = getattr(module, "queue_router_observed_fact_updates", None)
-            if callable(queue_observed):
-                queue_observed(ckpt.session, combat)
-        if getattr(module, "combat_end", None) is not None:
-            module.combat_end(ckpt)
-        elif getattr(module, "end_combat", None) is not None:
-            module.end_combat(ckpt.session, characters=ckpt.characters)
-        else:
-            self._combat_call(module, ("combat_end", "end_combat"), ckpt)
+            pending_facts = list(module.drain_pending_visible_facts(combat))
+            module.queue_router_observed_fact_updates(ckpt.session, combat)
+        module.end_combat(ckpt.session, characters=ckpt.characters)
         if observers:
             observable_facts = [
                 ObservableFact.all(fact)
@@ -2533,19 +2290,24 @@ class EngineBridge:
             observable_facts.append(ObservableFact.all("D&D combat ends."))
             broadcast_event(ckpt, EventRouterOutput(
                 event_id="",
+                effective_at_s=0,
+                duration_s=0,
                 decision_rationale="manual combat end",
                 canonical_event=CanonicalEvent(
                     world_adjudication=WorldAdjudication(feasible=True),
                     observable_facts=observable_facts,
                 ),
+                event_kind="state_change",
                 requires_responders=False,
                 required_responders=[],
-                ends_beat=True,
-                ends_beat_reason="state_change",
                 observers=observers,
                 spawn=[],
                 dormant=[],
                 cull=[],
+                commitment_open=empty_commitment_open_signal(),
+                commitment_resolutions=[],
+                commitment_interrupts=[],
+                location_updates=[],
             ))
         self.checkpoint_mgr.save(ckpt)
         return DndCombatView(
@@ -2563,18 +2325,11 @@ class EngineBridge:
         )
         if character is None:
             raise ValueError(f"Unknown combat participant: {character_id}")
-        if getattr(module, "combat_add", None) is not None:
-            module.combat_add(ckpt, character_id=character_id)
-        elif getattr(module, "add_combatant", None) is not None:
-            module.add_combatant(
-                ckpt.session,
-                character,
-                session=ckpt.session,
-            )
-        else:
-            raise RuntimeError(
-                "D&D combat tracker core does not expose add_combatant."
-            )
+        module.add_combatant(
+            ckpt.session,
+            character,
+            session=ckpt.session,
+        )
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
@@ -2586,14 +2341,7 @@ class EngineBridge:
     ) -> DndCombatView:
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        if getattr(module, "combat_remove", None) is not None:
-            module.combat_remove(ckpt, combatant_id=combatant_id, hard=hard)
-        elif getattr(module, "remove_combatant", None) is not None:
-            module.remove_combatant(ckpt.session, combatant_id, hard=hard)
-        else:
-            raise RuntimeError(
-                "D&D combat tracker core does not expose remove_combatant."
-            )
+        module.remove_combatant(ckpt.session, combatant_id, hard=hard)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
 
@@ -2607,23 +2355,12 @@ class EngineBridge:
             raise ValueError("Damage amount must be positive.")
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        if getattr(module, "combat_damage", None) is not None:
-            module.combat_damage(ckpt, target_id=target_id, amount=amount)
-        elif getattr(module, "apply_damage", None) is not None:
-            module.apply_damage(
-                ckpt.session,
-                target_id,
-                amount,
-                characters=ckpt.characters,
-            )
-        else:
-            self._combat_call(
-                module,
-                ("combat_damage", "damage", "apply_damage"),
-                ckpt,
-                target_id=target_id,
-                amount=amount,
-            )
+        module.apply_damage(
+            ckpt.session,
+            target_id,
+            amount,
+            characters=ckpt.characters,
+        )
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
@@ -2638,18 +2375,7 @@ class EngineBridge:
             raise ValueError("Heal amount must be positive.")
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        if getattr(module, "combat_heal", None) is not None:
-            module.combat_heal(ckpt, target_id=target_id, amount=amount)
-        elif getattr(module, "apply_healing", None) is not None:
-            module.apply_healing(ckpt.session, target_id, amount)
-        else:
-            self._combat_call(
-                module,
-                ("combat_heal", "heal", "apply_heal", "apply_healing"),
-                ckpt,
-                target_id=target_id,
-                amount=amount,
-            )
+        module.apply_healing(ckpt.session, target_id, amount)
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)
@@ -3349,98 +3075,6 @@ def _parse_model_json(model_cls, content: str):
             f"Failed to parse {model_cls.__name__} from LLM output: {e} "
             f"— first 500 chars: {snippet!r}"
         ) from e
-
-
-def migrate_legacy_saves(
-    legacy_dir: Path,
-    stories_dir: Path,
-    sessions_dir: Path,
-    dry_run: bool = False,
-) -> tuple[int, int]:
-    """Move a legacy flat `saves/` layout into the split stories/ + sessions/
-    layout. Returns `(stories_moved, sessions_moved)`.
-
-    Safety:
-    - All three paths are explicit — no hidden defaults that could target
-      production state by accident.
-    - Refuses to run if `legacy_dir` resolves to a parent/equal of either
-      target dir, or vice-versa — prevents moving a dir into its own
-      subtree.
-    - Refuses to run if either target already contains subdirs — prior
-      migration present.
-    - `dry_run=True` logs the classification without moving anything.
-
-    Classification: a legacy dir is treated as a session if it has more
-    than one ckpt, a non-zero turn_index, or any transcript entries.
-    Otherwise it's treated as a story seed (ckpt_0000).
-
-    Not called automatically. Invoke via scripts/migrate_storage.py with
-    explicit --legacy-dir / --stories-dir / --sessions-dir arguments.
-    """
-    legacy_dir = Path(legacy_dir).resolve()
-    stories_dir = Path(stories_dir).resolve()
-    sessions_dir = Path(sessions_dir).resolve()
-
-    if not legacy_dir.exists() or not legacy_dir.is_dir():
-        raise FileNotFoundError(f"legacy_dir does not exist: {legacy_dir}")
-
-    for target in (stories_dir, sessions_dir):
-        # Target cannot be inside legacy and legacy cannot be inside target.
-        if target == legacy_dir or target in legacy_dir.parents:
-            raise ValueError(
-                f"target {target} is an ancestor of legacy_dir {legacy_dir}"
-            )
-        if legacy_dir in target.parents:
-            raise ValueError(
-                f"legacy_dir {legacy_dir} is an ancestor of target {target}"
-            )
-
-    for target in (stories_dir, sessions_dir):
-        if target.exists() and any(c.is_dir() for c in target.iterdir()):
-            raise RuntimeError(
-                f"target already has content: {target} "
-                f"— refusing to migrate into a populated directory"
-            )
-
-    if not dry_run:
-        stories_dir.mkdir(parents=True, exist_ok=True)
-        sessions_dir.mkdir(parents=True, exist_ok=True)
-
-    stories_moved = 0
-    sessions_moved = 0
-    for child in legacy_dir.iterdir():
-        if not child.is_dir():
-            continue
-        ckpts = sorted(child.glob("ckpt_*.json"))
-        if not ckpts:
-            continue
-        kind = "story"
-        try:
-            latest = json.loads(ckpts[-1].read_text())
-            turn = latest.get("session", {}).get("turn_index", 0) or 0
-            has_transcript = bool(latest.get("transcript"))
-            if len(ckpts) > 1 or turn > 0 or has_transcript:
-                kind = "session"
-        except Exception:
-            kind = "session"  # safer to treat unknown as session
-        target = (stories_dir if kind == "story" else sessions_dir) / child.name
-        logger.info(
-            "%s %s → %s/%s",
-            "[dry-run] would move" if dry_run else "Moving",
-            child.name, kind, child.name,
-        )
-        if not dry_run:
-            if target.exists():
-                logger.warning(
-                    "Target %s already exists, skipping", target
-                )
-                continue
-            shutil.move(str(child), str(target))
-        if kind == "story":
-            stories_moved += 1
-        else:
-            sessions_moved += 1
-    return stories_moved, sessions_moved
 
 
 def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:

@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.state import (
+    ModelConfig,
     SessionState,
     PendingNarratorRender, PhysicsRuleset, StorySetting, WorldState,
 )
@@ -475,7 +476,15 @@ class TestEventRouterOutput:
     def test_spawn_request(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "spawn": [{"character_id": "stablehand_03", "seed": {"role": "stablehand"}}],
+            "spawn": [{
+                "character_id": "stablehand_03",
+                "seed": {
+                    "role": "stablehand",
+                    "reason": "needed for the stable scene",
+                    "location": "stables",
+                    "objectives": ["hold the horses"],
+                },
+            }],
         }
         r = EventRouterOutput(**data)
         assert r.spawn[0].character_id == "stablehand_03"
@@ -1014,6 +1023,39 @@ class TestCheckpointFile:
         ckpt = CheckpointFile(**legacy_payload)
         assert ckpt.session.session_id == "legacy"
         assert not hasattr(ckpt, "prompt_versions")
+
+    def test_legacy_model_config_discriminator_ignored(self):
+        legacy_models = ModelConfig(
+            event_router="openai:gpt-5.2",
+            narrator="openai:gpt-5.2",
+            discriminator="openai:gpt-5.2",
+            agent_default="anthropic:claude-opus-4-6",
+        )
+
+        assert not hasattr(legacy_models, "discriminator")
+        assert "discriminator" not in legacy_models.model_dump()
+
+    def test_retired_top_level_config_is_ignored(self):
+        payload = {
+            "schema_version": "4.0",
+            "session": {
+                "session_id": "canonical-config",
+                "config": {
+                    "narrative_rules": "Session rules win.",
+                    "settings": {"ruleset_id": "dnd5e_basic"},
+                },
+            },
+            "config": {
+                "narrative_rules": "Retired duplicate.",
+                "settings": {"ruleset_id": "narrative"},
+            },
+        }
+
+        ckpt = CheckpointFile.model_validate(payload)
+
+        assert not hasattr(ckpt, "config")
+        assert ckpt.session.config.narrative_rules == "Session rules win."
+        assert ckpt.session.config.settings.ruleset_id == "dnd5e_basic"
 
     def test_round_trip(self):
         ckpt = CheckpointFile(

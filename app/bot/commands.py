@@ -52,18 +52,20 @@ from app.bot.embed import (
     render_turn,
 )
 from app.bot.engine_bridge import (
+    EngineBridge,
+)
+from app.bot.player_errors import player_safe_error_message
+from app.engine import dnd_experience, dnd_inventory, dnd_presentation
+from app.engine.frontend_views import (
     CompletedPendingRoll,
     DndCombatView,
     DndExperienceAwardResult,
     DndInventoryView,
     DndLootClaimResult,
     DndSheetAttachmentSummary,
-    EngineBridge,
     PendingRollPrompt,
     RewindResult,
 )
-from app.bot.player_errors import player_safe_error_message
-from app.engine import dnd_experience, dnd_inventory, dnd_presentation
 from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError

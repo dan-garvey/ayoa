@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
+from app.engine import dnd_runtime
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
@@ -393,9 +394,9 @@ def build_narrator_player_characters_block(
 
     The router needs character ids for structural routing. The narrator only
     needs names and which character is "you" to avoid puppeting player-owned
-    choices. Player-safe identity/appearance context lives in the stable public
-    character context block; raw public_sheet fields are not a narrator gloss
-    source.
+    choices. First-look/player-safe identity context stays in engine memory and
+    is surfaced only when the visual-introduction planner selects a newly met
+    character.
     """
     bindings = checkpoint.session.character_bindings or {}
     bound_ids = list(bindings.keys())
@@ -442,7 +443,7 @@ def _build_dnd_player_equipment_sentence(
     mechanics = character.mechanics if isinstance(character.mechanics, dict) else {}
     if not (
         isinstance(mechanics.get("dnd5e_sheet"), dict)
-        or isinstance(mechanics.get("dnd5e_runtime"), dict)
+        or dnd_runtime.has_dnd_runtime(mechanics)
     ):
         return ""
 
@@ -491,81 +492,6 @@ def _format_dnd_equipment_item(item: dict[str, object]) -> str:
         quantity = 1
     label = f"{quantity}x {name}" if quantity != 1 else name
     return _compact_player_context(label, limit=80)
-
-
-def build_narrator_public_character_context_block(
-    checkpoint: CheckpointFile,
-    *,
-    max_characters: int = 120,
-) -> str:
-    """Stable, player-safe character context for narrator glosses.
-
-    This deliberately reads only `descriptions.public`, not
-    `public_sheet.role/faction/appearance`. Older imports sometimes put
-    authorial or hidden labels in those legacy fields; the narrator's
-    public context must be a separate, explicitly player-safe surface.
-    """
-    lines: list[str] = []
-    for char in checkpoint.characters:
-        if char.status == "culled":
-            continue
-        if not char.name.strip():
-            continue
-        description = _compact_player_context(
-            char.descriptions.public, limit=420,
-        )
-        if description:
-            lines.append(f"- {char.name}: {description}")
-        if len(lines) >= max_characters:
-            break
-
-    if not lines:
-        return "- No player-safe public character context is available."
-    return "\n".join(lines)
-
-
-def build_narrator_pov_knowledge_block(
-    checkpoint: CheckpointFile,
-    pov_character_id: str,
-    visible_text: str,
-    *,
-    max_characters: int = 8,
-) -> str:
-    """List public-context entries that are relevant to this passage.
-
-    The actual descriptions live in the stable narrator public-character
-    context block. This per-turn block only names which public entries
-    are eligible for a short local gloss, keeping volatile prompt input
-    small and avoiding repetition of public descriptions every turn.
-    """
-    haystack = visible_text or ""
-    if not haystack.strip():
-        return "- No additional viewpoint-known glosses for this passage."
-
-    mentioned: list[CharacterRecord] = []
-    for char in checkpoint.characters:
-        if char.character_id == pov_character_id:
-            continue
-        probes = [char.character_id, char.name]
-        if any(
-            probe and re.search(
-                rf"(?<![A-Za-z0-9_]){re.escape(probe)}(?![A-Za-z0-9_])",
-                haystack,
-            )
-            for probe in probes
-        ):
-            mentioned.append(char)
-        if len(mentioned) >= max_characters:
-            break
-
-    lines: list[str] = []
-    for char in mentioned:
-        if char.descriptions.public.strip():
-            lines.append(f"- {char.name}")
-
-    if not lines:
-        return "- No additional viewpoint-known glosses for this passage."
-    return "\n".join(lines)
 
 
 def clear_character_inbox(character: CharacterRecord) -> None:

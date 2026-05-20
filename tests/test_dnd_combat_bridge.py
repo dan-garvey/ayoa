@@ -17,7 +17,11 @@ SESSION_ID = "combat_session"
 @pytest.fixture
 def bridge(tmp_path, monkeypatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    return EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
 
 
 def _char(
@@ -94,14 +98,38 @@ def test_combat_status_and_mutations_delegate_and_persist(
 ):
     _seed(bridge)
     calls: dict[str, object] = {}
+    original_public_status = dnd_combat.public_status
     original_private_status = dnd_combat.private_status
+    original_advance = dnd_combat.advance_turn_with_effects
+    original_end = dnd_combat.end_combat
+
+    def public_status_spy(combat):
+        calls["status_public"] = True
+        return original_public_status(combat)
 
     def private_status_spy(combat):
         calls["status_private"] = True
         return original_private_status(combat)
 
+    def advance_spy(combat, **kwargs):
+        characters = list(kwargs.get("characters") or [])
+        calls["next_character_ids"] = [c.character_id for c in characters]
+        return original_advance(combat, **kwargs)
+
+    def end_spy(session, **kwargs):
+        characters = list(kwargs.get("characters") or [])
+        calls["end_character_ids"] = [c.character_id for c in characters]
+        return original_end(session, **kwargs)
+
+    monkeypatch.setattr(dnd_combat, "public_status", public_status_spy)
     monkeypatch.setattr(dnd_combat, "private_status", private_status_spy)
+    monkeypatch.setattr(dnd_combat, "advance_turn_with_effects", advance_spy)
+    monkeypatch.setattr(dnd_combat, "end_combat", end_spy)
     bridge.begin_combat(SESSION_ID, ["alice", "guard"])
+
+    public_status = bridge.combat_status(SESSION_ID)
+    assert calls["status_public"] is True
+    assert public_status.round_number == 1
 
     status = bridge.combat_status(SESSION_ID, private=True)
     assert calls["status_private"] is True
@@ -110,6 +138,13 @@ def test_combat_status_and_mutations_delegate_and_persist(
     assert all(p.initiative is not None for p in status.participants)
 
     next_view = bridge.combat_next(SESSION_ID)
+    assert calls["next_character_ids"] == [
+        "alice",
+        "bob",
+        "guard",
+        "distant",
+        "sleeping",
+    ]
     assert next_view.current_participant_id in {"alice", "guard"}
 
     added = bridge.combat_add(SESSION_ID, "bob")
@@ -139,6 +174,13 @@ def test_combat_status_and_mutations_delegate_and_persist(
     assert combatant.hit_points_current == 6
 
     ended = bridge.combat_end(SESSION_ID)
+    assert calls["end_character_ids"] == [
+        "alice",
+        "bob",
+        "guard",
+        "distant",
+        "sleeping",
+    ]
     assert ended.active is False
     assert ended.message == "Combat ended."
 

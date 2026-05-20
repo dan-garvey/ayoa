@@ -23,6 +23,7 @@ from app.schemas.event_router import (
     DndObserverEntry,
     EventRouterOutput,
     ObserverEntry,
+    empty_commitment_open_signal,
 )
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.dnd_cat_ii import (
@@ -497,23 +498,10 @@ def _planned_roll_from_action(
         if roll.kind == "saving_throw" and roll.target_id
         else roll.roller_id or action.actor_id
     )
-    return PlannedRoll(
-        roll_id=roll.roll_id,
+    return roll.as_planned_roll(
         actor_id=actor_id,
-        kind=roll.kind,
-        ability=roll.ability,
-        skill=roll.skill,
-        dc=roll.dc,
-        opposed_by=roll.opposed_by,
-        advantage_state=roll.advantage_state,
-        reason=roll.reason,
         action_id=action.source_id,
-        target_id=roll.target_id,
         effect_id=action.effect_id,
-        modifier_bonus=roll.modifier_bonus,
-        modifier_bonus_reason=roll.modifier_bonus_reason,
-        damage_on_save_success=roll.damage_on_save_success,
-        damage_adjustments=list(roll.damage_adjustments),
     )
 
 
@@ -3120,6 +3108,8 @@ def _compile_event_router_output(
     ]
     return EventRouterOutput(
         event_id="",
+        effective_at_s=0,
+        duration_s=0,
         decision_rationale=" ".join(rationale_parts) or "D&D Cat II adjudication.",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
@@ -3127,12 +3117,13 @@ def _compile_event_router_output(
             ),
             observable_facts=_outcome_observable_facts(adjudication),
         ),
+        event_kind=(
+            "cat_ii_resolution"
+            if not social_followup_ids
+            else "beat_continues"
+        ),
         requires_responders=False,
         required_responders=[],
-        ends_beat=not social_followup_ids,
-        ends_beat_reason=(
-            "cat_ii_resolution" if not social_followup_ids else ""
-        ),
         observers=[
             ObserverEntry(
                 character_id=cid,
@@ -3149,6 +3140,10 @@ def _compile_event_router_output(
         spawn=[],
         dormant=[],
         cull=[],
+        commitment_open=empty_commitment_open_signal(),
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
     )
 
 
@@ -3255,6 +3250,8 @@ def _compile_combat_router_output(
     ]
     return DndEventRouterOutput(
         event_id="",
+        effective_at_s=0,
+        duration_s=0,
         decision_rationale=" ".join(rationale_parts) or "D&D combat adjudication.",
         canonical_event=CanonicalEvent(
             world_adjudication=WorldAdjudication(
@@ -3265,10 +3262,9 @@ def _compile_combat_router_output(
                 for fact in visible_facts
             ] + _private_outcome_observable_facts(adjudication),
         ),
+        event_kind="ruleset_resolution",
         requires_responders=False,
         required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="ruleset_resolution",
         observers=[
             DndObserverEntry(
                 character_id=cid,
@@ -3285,6 +3281,10 @@ def _compile_combat_router_output(
         spawn=[],
         dormant=[],
         cull=[],
+        commitment_open=empty_commitment_open_signal(),
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
         interaction_mode="cat_i",
         combatant_ids=[],
     )

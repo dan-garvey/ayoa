@@ -9,33 +9,18 @@ from app.schemas.characters import (
     CharacterVisuals,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, ObserverEntry
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.event_router import EventRouterOutput
+from app.schemas.events import ObservableFact
 from app.schemas.state import RenderBufferEntry, SessionState
+from tests.support.factories import router_output
 
 
 def _event(text: str) -> EventRouterOutput:
-    return EventRouterOutput(
+    return router_output(
         event_id="evt_group",
-        decision_rationale="test fixture",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=[ObservableFact.all(text)],
-        ),
-        observers=[
-            ObserverEntry(
-                character_id="alice",
-                observation_level="d",
-                routing_role="observe_only",
-            ),
-        ],
-        requires_responders=False,
-        required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="directed_at_player",
-        spawn=[],
-        dormant=[],
-        cull=[],
+        facts=[ObservableFact.all(text)],
+        observer_ids=["alice"],
+        event_kind="directed_at_player",
     )
 
 

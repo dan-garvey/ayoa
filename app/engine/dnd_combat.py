@@ -4,8 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from app.engine import dice, dnd_experience, dnd_spatial, mechanics
-from app.engine.dnd_constants import DND_RUNTIME_KEY
+from app.engine import dice, dnd_experience, dnd_runtime, dnd_spatial, mechanics
 from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.state import (
     DndCombatantState,
@@ -352,7 +351,7 @@ def runtime_effects_for_character(
     """Read D&D runtime effects from the adapter-owned mechanics bag."""
     if character is None:
         return []
-    runtime = (character.mechanics or {}).get(DND_RUNTIME_KEY) or {}
+    runtime = dnd_runtime.get_dnd_runtime(character.mechanics or {})
     raw_effects = runtime.get(DND_ACTIVE_EFFECTS_KEY) or []
     if not isinstance(raw_effects, list):
         return []
@@ -375,13 +374,13 @@ def set_runtime_effects_for_character(
     effects: Iterable[DndRuntimeEffect],
 ) -> None:
     mechanics_state = dict(character.mechanics or {})
-    runtime = dict(mechanics_state.get(DND_RUNTIME_KEY) or {})
+    runtime = dict(dnd_runtime.get_dnd_runtime(mechanics_state))
     runtime[DND_ACTIVE_EFFECTS_KEY] = [
         effect.model_dump()
         for effect in effects
         if effect.target_id in {"", character.character_id}
     ]
-    mechanics_state[DND_RUNTIME_KEY] = runtime
+    dnd_runtime.ensure_dnd_runtime(mechanics_state).update(runtime)
     character.mechanics = mechanics_state
 
 

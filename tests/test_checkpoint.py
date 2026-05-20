@@ -59,6 +59,8 @@ class TestCheckpointSaveLoad:
         ckpt.session.character_bindings = {"guard_17": "42"}
         ckpt.canonical_events.append(DndEventRouterOutput(
             event_id="evt_loot",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="test",
             canonical_event={
                 "world_adjudication": {"feasible": True},
@@ -70,6 +72,7 @@ class TestCheckpointSaveLoad:
                     }
                 ],
             },
+            event_kind="ruleset_resolution",
             observers=[
                 {
                     "character_id": "guard_17",
@@ -94,8 +97,17 @@ class TestCheckpointSaveLoad:
             },
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="state_change",
+            commitment_open={
+                "present": False,
+                "actor_ids": [],
+                "description": "",
+                "expected_duration_s": 0,
+                "max_duration_s": 0,
+                "location_label": "",
+            },
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
         ckpt.session.dnd_inventory_offers.append(DndLootOffer(
             offer_id="loot_evt_loot",

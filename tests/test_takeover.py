@@ -25,7 +25,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.bot.engine_bridge import EngineBridge
-from app.llm.client import LLMResponse
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
@@ -40,29 +39,18 @@ from app.schemas.takeover import (
     TakeoverAuthoredOutput,
     TakeoverSuggestOutput,
 )
+from tests.support.factories import llm_response
 
 
 SESSION_ID = "test_session"
 
 
-def _llm_response(parsed) -> LLMResponse:
+def _llm_response(parsed):
     """Shape an LLMResponse. Takeover paths parse JSON from response.content
     (structured output disabled — see benchmark), so content must contain
     the pydantic model's JSON."""
     text = parsed.model_dump_json() if hasattr(parsed, "model_dump_json") else "{}"
-    raw = MagicMock()
-    text_block = MagicMock()
-    text_block.type = "text"
-    text_block.text = text
-    text_block.model_dump = lambda: {"type": "text", "text": text}
-    raw.content = [text_block]
-    raw.model = "claude-sonnet-4-6"
-    return LLMResponse(
-        parsed=parsed,
-        raw_response=raw,
-        content=text,
-        model="claude-sonnet-4-6",
-    )
+    return llm_response(parsed, model="claude-sonnet-4-6", raw_text=text)
 
 
 def _authored(**overrides):
@@ -113,7 +101,11 @@ def bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     `bridge.client.complete` with an AsyncMock before any async call.
     """
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    return EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
 
 
 def _seed(bridge: EngineBridge, ckpt: CheckpointFile) -> None:

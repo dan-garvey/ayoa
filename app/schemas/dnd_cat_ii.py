@@ -93,24 +93,71 @@ class PlannedDamageAdjustment(BaseModel):
         return self
 
 
-class PlannedRoll(BaseModel):
-    """One D&D Cat II roll request planned by the event-router role.
-
-    All fields are required to keep structured-output schemas fixed. Empty
-    strings and zeroes are used where a field is not applicable.
-    """
+class PlannedRollBase(BaseModel):
+    """Common D&D Cat II roll request fields and normalization."""
 
     model_config = ConfigDict(extra="forbid")
 
     roll_id: str
-    actor_id: str
     kind: RollKind
     ability: AbilityId
     skill: str
     dc: int
     opposed_by: str
     advantage_state: AdvantageState
+    modifier_bonus: int = 0
+    modifier_bonus_reason: str = ""
+    damage_on_save_success: SaveDamageOutcome = "none"
+    damage_adjustments: list[PlannedDamageAdjustment] = Field(default_factory=list)
     reason: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_missing_roll_fields(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            data.setdefault("skill", "")
+            data.setdefault("dc", 0)
+            data.setdefault("opposed_by", "")
+            data.setdefault("modifier_bonus", 0)
+            data.setdefault("modifier_bonus_reason", "")
+            data.setdefault("damage_on_save_success", "none")
+            data.setdefault("damage_adjustments", [])
+            save_damage = data.get("damage_on_save_success")
+            if isinstance(save_damage, str):
+                data["damage_on_save_success"] = (
+                    save_damage.strip().lower() or "none"
+                )
+        return data
+
+    @model_validator(mode="after")
+    def _clean_common_roll_fields(self) -> "PlannedRollBase":
+        self.roll_id = self.roll_id.strip()
+        self.skill = self.skill.strip().lower()
+        self.opposed_by = self.opposed_by.strip()
+        self.modifier_bonus_reason = self.modifier_bonus_reason.strip()
+        self.damage_on_save_success = (
+            self.damage_on_save_success.strip().lower()  # type: ignore[assignment]
+            or "none"
+        )
+        self.reason = self.reason.strip()
+        if not self.roll_id:
+            raise ValueError("roll_id is required")
+        if self.dc < 0:
+            self.dc = 0
+        if self.damage_on_save_success not in {"none", "half", "full"}:
+            self.damage_on_save_success = "none"
+        return self
+
+
+class PlannedRoll(PlannedRollBase):
+    """One canonical D&D Cat II roll request.
+
+    All fields are required to keep structured-output schemas fixed. Empty
+    strings and zeroes are used where a field is not applicable.
+    """
+
+    actor_id: str
     # Optional adapter metadata. Empty outside D&D combat. `action_id`
     # names the attack/action profile to use for to-hit and damage lookup;
     # `target_id` names the intended target for AC, saving throws, and damage
@@ -120,10 +167,6 @@ class PlannedRoll(BaseModel):
     action_id: str
     target_id: str
     effect_id: str = ""
-    modifier_bonus: int = 0
-    modifier_bonus_reason: str = ""
-    damage_on_save_success: SaveDamageOutcome = "none"
-    damage_adjustments: list[PlannedDamageAdjustment]
 
     @model_validator(mode="before")
     @classmethod
@@ -133,35 +176,16 @@ class PlannedRoll(BaseModel):
             data.setdefault("action_id", "")
             data.setdefault("target_id", "")
             data.setdefault("effect_id", "")
-            data.setdefault("modifier_bonus", 0)
-            data.setdefault("modifier_bonus_reason", "")
-            data.setdefault("damage_on_save_success", "none")
-            data.setdefault("damage_adjustments", [])
         return data
 
     @model_validator(mode="after")
-    def _clean(self) -> "PlannedRoll":
-        self.roll_id = self.roll_id.strip()
+    def _clean_planned_roll_fields(self) -> "PlannedRoll":
         self.actor_id = self.actor_id.strip()
-        self.skill = self.skill.strip().lower()
-        self.opposed_by = self.opposed_by.strip()
-        self.reason = self.reason.strip()
         self.action_id = self.action_id.strip().lower()
         self.target_id = self.target_id.strip()
         self.effect_id = self.effect_id.strip()
-        self.modifier_bonus_reason = self.modifier_bonus_reason.strip()
-        self.damage_on_save_success = (
-            self.damage_on_save_success.strip().lower()  # type: ignore[assignment]
-            or "none"
-        )
-        if not self.roll_id:
-            raise ValueError("roll_id is required")
         if not self.actor_id:
             raise ValueError("actor_id is required")
-        if self.dc < 0:
-            self.dc = 0
-        if self.damage_on_save_success not in {"none", "half", "full"}:
-            self.damage_on_save_success = "none"
         return self
 
 
@@ -263,61 +287,40 @@ class DndPlannedTargeting(BaseModel):
         return self
 
 
-class DndPlannedActionRoll(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    roll_id: str
-    kind: RollKind
+class DndPlannedActionRoll(PlannedRollBase):
     roller_id: str
-    target_id: str
-    ability: AbilityId
-    skill: str
-    dc: int
-    opposed_by: str
-    advantage_state: AdvantageState
-    modifier_bonus: int = 0
-    modifier_bonus_reason: str = ""
-    damage_on_save_success: SaveDamageOutcome = "none"
-    damage_adjustments: list[PlannedDamageAdjustment] = Field(default_factory=list)
-    reason: str
+    target_id: str = ""
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce_missing_roll_fields(cls, data):
+    def _coerce_missing_action_roll_fields(cls, data):
         if isinstance(data, dict):
             data = dict(data)
             data.setdefault("target_id", "")
-            data.setdefault("skill", "")
-            data.setdefault("dc", 0)
-            data.setdefault("opposed_by", "")
-            data.setdefault("modifier_bonus", 0)
-            data.setdefault("modifier_bonus_reason", "")
-            data.setdefault("damage_on_save_success", "none")
-            data.setdefault("damage_adjustments", [])
         return data
 
     @model_validator(mode="after")
-    def _clean(self) -> "DndPlannedActionRoll":
-        self.roll_id = self.roll_id.strip()
+    def _clean_action_roll_fields(self) -> "DndPlannedActionRoll":
         self.roller_id = self.roller_id.strip()
         self.target_id = self.target_id.strip()
-        self.skill = self.skill.strip().lower()
-        self.opposed_by = self.opposed_by.strip()
-        self.modifier_bonus_reason = self.modifier_bonus_reason.strip()
-        self.damage_on_save_success = (
-            self.damage_on_save_success.strip().lower()  # type: ignore[assignment]
-            or "none"
-        )
-        self.reason = self.reason.strip()
-        if not self.roll_id:
-            raise ValueError("roll_id is required")
         if not self.roller_id:
             raise ValueError("roller_id is required")
-        if self.dc < 0:
-            self.dc = 0
-        if self.damage_on_save_success not in {"none", "half", "full"}:
-            self.damage_on_save_success = "none"
         return self
+
+    def as_planned_roll(
+        self,
+        *,
+        actor_id: str,
+        action_id: str,
+        effect_id: str = "",
+    ) -> PlannedRoll:
+        data = self.model_dump(exclude={"roller_id"})
+        data.update(
+            actor_id=actor_id,
+            action_id=action_id,
+            effect_id=effect_id,
+        )
+        return PlannedRoll.model_validate(data)
 
 
 class DndCombatActionUse(BaseModel):

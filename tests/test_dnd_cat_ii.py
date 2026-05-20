@@ -6,9 +6,6 @@ from app.engine.dnd_cat_ii import (
     DndCatIIResolver,
     complete_pending_player_roll,
 )
-from app.llm.client import LLMResponse
-from app.schemas.characters import CharacterRecord, PublicSheet
-from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import (
     DndCombatActionUse,
     DndCombatCasting,
@@ -20,50 +17,43 @@ from app.schemas.dnd_cat_ii import (
     RollPlan,
     RulesAdjudication,
 )
-from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
+from app.schemas.state import OpenCatIIEvent
+from tests.support.factories import (
+    character_record,
+    checkpoint,
+    dnd5e_mechanics,
+    llm_response,
+)
 
 
-def _ckpt() -> CheckpointFile:
-    return CheckpointFile(
-        session=SessionState(session_id="s"),
-        world_state=WorldState(),
+def _ckpt():
+    return checkpoint(
         characters=[
-            CharacterRecord(
-                character_id="alice",
+            character_record(
+                "alice",
                 name="Alice",
-                public_sheet=PublicSheet(role="fighter"),
-                mechanics={
-                    "ruleset_id": "dnd5e_basic",
-                    "ability_scores": {"str": 16, "dex": 12},
-                    "proficiency_bonus": 2,
-                    "skill_proficiencies": ["athletics"],
-                },
+                role="fighter",
+                mechanics=dnd5e_mechanics(
+                    ability_scores={"str": 16, "dex": 12},
+                    skill_proficiencies=["athletics"],
+                ),
             ),
-            CharacterRecord(
-                character_id="pip",
+            character_record(
+                "pip",
                 name="Pip",
-                public_sheet=PublicSheet(role="goblin"),
-                mechanics={
-                    "ruleset_id": "dnd5e_basic",
-                    "ability_scores": {"str": 8, "dex": 14},
-                    "proficiency_bonus": 2,
-                    "skill_proficiencies": ["acrobatics"],
-                },
+                role="goblin",
+                mechanics=dnd5e_mechanics(
+                    ability_scores={"str": 8, "dex": 14},
+                    skill_proficiencies=["acrobatics"],
+                    name="Pip",
+                ),
             ),
         ],
     )
 
 
-def _llm_response(parsed) -> LLMResponse:
-    raw = MagicMock()
-    raw.content = []
-    raw.model = "gpt-5.2"
-    return LLMResponse(
-        parsed=parsed,
-        raw_response=raw,
-        content="{}",
-        model="gpt-5.2",
-    )
+def _llm_response(parsed):
+    return llm_response(parsed, content="{}", model="gpt-5.2")
 
 
 def _opposed_plan() -> RollPlan:
@@ -224,6 +214,49 @@ def test_dnd_combat_turn_plan_accepts_nested_multi_roll_spell_action():
     assert [roll.roll_id for roll in plan.actions[0].rolls] == ["ray_1", "ray_2"]
 
 
+def test_dnd_combat_action_roll_reuses_planned_roll_shape():
+    action_roll = DndPlannedActionRoll(
+        roll_id=" save_bob ",
+        kind="saving_throw",
+        roller_id=" bob ",
+        target_id=" bob ",
+        ability="dex",
+        skill=" Acrobatics ",
+        dc=-1,
+        opposed_by=" ",
+        advantage_state="normal",
+        modifier_bonus=2,
+        modifier_bonus_reason=" cover ",
+        damage_on_save_success="HALF",
+        reason=" Bob dives away. ",
+    )
+
+    request = action_roll.as_planned_roll(
+        actor_id=" alice ",
+        action_id=" Fireball ",
+        effect_id=" effect_1 ",
+    )
+
+    assert request == PlannedRoll(
+        roll_id="save_bob",
+        actor_id="alice",
+        kind="saving_throw",
+        ability="dex",
+        skill="acrobatics",
+        dc=0,
+        opposed_by="",
+        advantage_state="normal",
+        reason="Bob dives away.",
+        action_id="fireball",
+        target_id="bob",
+        effect_id="effect_1",
+        modifier_bonus=2,
+        modifier_bonus_reason="cover",
+        damage_on_save_success="half",
+        damage_adjustments=[],
+    )
+
+
 def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):
     from app.engine import dice
 
@@ -266,8 +299,7 @@ def test_dnd_cat_ii_executes_roll_plan_and_compiles_router_output(monkeypatch):
         "event_router",
     ]
     assert routed.requires_responders is False
-    assert routed.ends_beat is True
-    assert routed.ends_beat_reason == "cat_ii_resolution"
+    assert routed.event_kind == "cat_ii_resolution"
     assert routed.next_output_character_ids == []
     assert [o.character_id for o in routed.observers] == ["alice", "pip"]
     assert routed.canonical_event.observable_facts[0].text == (
@@ -343,8 +375,7 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
     )
     assert routed.requires_responders is False
     assert routed.required_responders == []
-    assert routed.ends_beat is False
-    assert routed.ends_beat_reason == ""
+    assert routed.event_kind == "beat_continues"
     assert routed.next_output_character_ids == ["pip"]
     assert {
         observer.character_id: observer.routing_role

@@ -5,7 +5,7 @@ from typing import Any
 
 from app.schemas.characters import CharacterRecord
 from app.schemas.dnd_cat_ii import PlannedRoll
-from app.engine import dnd_inventory
+from app.engine import dnd_inventory, dnd_runtime
 
 
 _SKILL_ABILITIES = {
@@ -62,6 +62,7 @@ def mechanics_summary(
     mechanics = character.mechanics or {}
     statblock = (mechanics.get("dnd5e_sheet") or {}).get("statblock") or {}
     defenses = statblock.get("defenses", {}) if isinstance(statblock, dict) else {}
+    runtime = dnd_runtime.get_dnd_runtime(mechanics)
     summary: dict[str, Any] = {
         "ruleset_id": str(mechanics.get("ruleset_id", "")),
         "ability_scores": mechanics.get("ability_scores", {}),
@@ -73,11 +74,7 @@ def mechanics_summary(
         "armor_class": mechanics.get("armor_class", 0),
         "hit_points": mechanics.get("hit_points", {}),
         "conditions": mechanics.get("conditions", []),
-        "active_effects": (
-            (mechanics.get("dnd5e_runtime") or {}).get("active_effects", [])
-            if isinstance(mechanics.get("dnd5e_runtime"), dict)
-            else []
-        ),
+        "active_effects": runtime.get("active_effects", []),
         "defenses": defenses if isinstance(defenses, dict) else {},
     }
     if include_inventory_resources:

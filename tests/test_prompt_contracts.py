@@ -2,7 +2,6 @@ from app.engine.turn_loop_contracts import (
     SWEPT_RESPONDERS_SUBHEADER,
     ROUTER_CONTINUATION_HEADER,
     format_agent_turn_body,
-    format_agent_on_stage_body,
     format_agent_output_entry,
     format_cat_ii_resolution_block,
     format_human_initiator_intention,
@@ -78,18 +77,6 @@ class TestAgentOutputEntry:
 class TestAgentModeContract:
     """Contract helpers that build the user-message bodies for agent modes."""
 
-    def test_on_stage_body_is_empty(self):
-        """v11-r10: the on-stage body has no per-turn content. The
-        three blocks it once carried — `## Scene`, `## What You
-        Observe This Turn`, `## Other Characters' Responses This
-        Turn` — were all removed because the agent already learns
-        the same information through their `pending_observations`
-        inbox (location seeded at story creation/spawn, perception pushed by
-        `broadcast_event`). Pin the empty-body shape so a future
-        edit that re-adds a per-turn block here is loud."""
-        body = format_agent_on_stage_body()
-        assert body == ""
-
     def test_background_turn_body_renders_location_and_instruction(self):
         body = format_agent_turn_body(
             frame="background",
@@ -101,8 +88,8 @@ class TestAgentModeContract:
         assert "Library" in body
         assert "single tight beat" in body
 
-    def test_agent_turn_body_does_not_carry_removed_context_blocks(self):
-        body = format_agent_turn_body(frame="background", location_context="x")
+    def test_foreground_turn_body_does_not_carry_removed_context_blocks(self):
+        body = format_agent_turn_body(frame="foreground", location_context="x")
         assert "## Scene" not in body
         assert "## What You Observe This Turn" not in body
         assert "## Other Characters' Responses This Turn" not in body

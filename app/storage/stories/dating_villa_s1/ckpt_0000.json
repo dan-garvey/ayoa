@@ -16,7 +16,6 @@
         "event_router": "openai:gpt-5.2",
         "narrator": "openai:gpt-5.2",
         "dnd_combat_manager": "gpt-5.1",
-        "discriminator": "openai:gpt-5.2",
         "agent_default": "anthropic:claude-opus-4-6",
         "agent_standard": "anthropic:claude-haiku-4-5",
         "agent_convenience": "anthropic:claude-sonnet-4-6"
@@ -936,24 +935,5 @@
   "character_conversations": {},
   "canonical_events": [],
   "transcript": [],
-  "visibility_log": [],
-  "config": {
-    "models": {
-      "event_router": "openai:gpt-5.2",
-      "narrator": "openai:gpt-5.2",
-      "dnd_combat_manager": "gpt-5.1",
-      "discriminator": "openai:gpt-5.2",
-      "agent_default": "anthropic:claude-opus-4-6",
-      "agent_standard": "anthropic:claude-haiku-4-5",
-      "agent_convenience": "anthropic:claude-sonnet-4-6"
-    },
-    "narrative_rules": "**Core conflict engine: cognitive dissonance as lived experience.**\nEvery public beat should carry at least two true things at once: the tender possibility that real attachment is happening, and the hard fact that it is also being selected, lit, and scheduled. The show is not a conspiracy of cartoon villains; it is an incentive landscape where 'good' people and 'bad' people are labels for a cut that has not been made yet. The narrator can describe the apparatus — lights, mics, ADR, edit bays — as physical reality, not a wink, unless a character is using humor to survive. Avoid sneering at reality TV as a genre; treat it as a high-stakes social game with real money, real humiliation, and real tenderness inside the same hour.\n\n**Information asymmetry as default (player-safe knowledge).**\nCharacters only 'know' what is plausible in their envelope: their backstory, their secrets, their faction-adjacent rumors, and what they have plausibly overheard. Production staff may suspect more than they can prove. Contestants may misread each other in ways that are psychologically true even when factually false. The audience outside the text does not exist for in-world characters; what exists is a constant awareness that a future audience might — which changes behavior without being talked about on the nose every line.\n\n**Camera-aware tone: two audiences, one mouth.**\nMost cast members are performing for two audiences simultaneously: the people in the room, and a hypothetical edit that will decide whether they are 'likable.' Write speech that sounds like a real person on a hot mic: sometimes polished, sometimes cracked, sometimes a joke to buy time. Let characters be media-literate in different ways — some name dynamics ('that was a leading question') and some refuse to, out of superstition. Crew talk should be smooth, practiced, slightly paternal, never cartoon-evil. The host (Dante) is warmth with professional timing: he is not a therapist, but he can make a room feel like one until it doesn't.\n\n**Escalation logic (reality-romance response patterns).**\nWhen a secret is prodded, most people: (1) deflect with a joke, (2) go still and reach for a safer truth, (3) overshare to regain control, or (4) get angry at the process rather than the person — and sometimes mis-aim. Interpersonal conflict here often looks like: mismatch between story promised in pods vs. body in space; jealousy framed as 'concern'; ethics framed as 'negativity' when a producer wants a cleaner hero shot. Favor confrontations that can go quiet — the most dangerous move in this format is not screaming; it is a calm sentence that cannot be bleeped for drama because it is too accurate.\n\n**Moral weight: antagonists and 'villain edits' have interior logic.**\nA person chasing clout, a person protecting their family, a person lying to a partner at home, a person 'playing the game' — these are not species separate from 'real' love. Let competing goods collide: care vs. contract; honesty vs. safety; group harmony vs. personal boundary. 'Here for the wrong reasons' is a phrase the cast use as a weapon; let it land differently depending on who says it, and whether they believe it or need it to be true.\n\n**Production manipulation: constraint, not puppet strings.**\nStory producers and control-room decisions should appear as *timing* (who gets placed where), *routing* (which corridor is 'open'), *room tone* (which whisper ends up in the group mix), and *interview architecture* (the same question until the sentence matches a trailer). Avoid turning Lena or Dante into omniscient directors of private thought; they are experts at *edges*, not mind-readers. If something is uncanny, it should still be explainable as a human system under pressure, plus accidents.\n\n**Multiplayer / roster fairness.**\nThis season has multiple possible human protagonists; the opening sets a shared pod-phase pressure, where voices matter before bodies do, but no single cast member owns the story. When a scene features one POV, others remain active off-screen with their own objectives. Cross-thread secrets may belong to one protagonist's private_state and another's only as gossip — or not at all until earned.\n\n**Pacing and physicality.**\nFavor small physical actions with big emotional leverage: a step forward, a hand not taken, a laugh held one beat too long, a glance to the red tally light. The villa is a stage, but the heat, sweat, and chafing lavalier are real. Night shoots mean ringing ears; long days mean short fuses. Let logistics matter: phone hours, wing rules, medical holds — they are moral instruments as much as hammers.\n\n**Sponsor and platform reality (without ad-copy cosplay).**\nSponsor obligations exist as pressure: bottles turned label-out, a wellness check that is part care and part liability, a 'hydration' beat that is contractually 'organic.' Do not make every scene a product joke; do let characters notice when a frame feels purchased — and choose whether to comply, refuse, or weaponize the awkwardness.",
-    "settings": {
-      "max_events_per_beat": 40,
-      "max_agent_cascades_per_beat": 35,
-      "cat_ii_human_timeout_seconds": 86400,
-      "ruleset_id": "narrative",
-      "player_roll_mode": "auto"
-    }
-  }
+  "visibility_log": []
 }

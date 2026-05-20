@@ -25,7 +25,6 @@ import logging
 import sys
 import time
 import traceback
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -37,9 +36,24 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from app.engine import dnd_combat
 from app.engine.character_agent import CharacterAgent
-from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.prompt_manager import PromptManager
+from app.engine.dnd_combat_harness import (
+    CapturingDndCombatResolver,
+    _capture_dump,
+    _combat_summary,
+    _event_summary,
+    _message_capture,
+    _preflight_api_keys,
+    _role_label,
+    _usage_totals,
+    live_all_illegal_stress_turns,
+    live_illegal_stress_turns,
+    live_quality_findings,
+    live_report_checks,
+    live_report_markdown,
+    make_harness_report_paths,
+)
 from app.engine.turn_loop import (
     _start_dnd_combat_from_router_signal,
     broadcast_event,
@@ -50,10 +64,6 @@ from app.llm.client import LLMClient
 from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.dnd_cat_ii import (
-    DndCombatManagerAdjudication,
-    DndCombatTurnPlan,
-)
 from app.schemas.dnd_spatial import (
     DndBattleMapState,
     DndBattleMapToken,
@@ -70,13 +80,19 @@ from app.schemas.state import (
 )
 
 
-REPORT_DIR = REPO_ROOT / "app/storage/playtest_reports"
-TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-RUN_DIR = REPORT_DIR / f"dnd_combat_manager_live_{TS}"
-JSON_PATH = RUN_DIR / "report.json"
-MD_PATH = RUN_DIR / "report.md"
-LOG_PATH = RUN_DIR / "run.log"
-FINAL_CHECKPOINT_PATH = RUN_DIR / "final_checkpoint.json"
+REPORT_PATHS = make_harness_report_paths(
+    REPO_ROOT,
+    "dnd_combat_manager_live",
+    include_final_checkpoint=True,
+)
+TS = REPORT_PATHS.timestamp
+RUN_DIR = REPORT_PATHS.run_dir
+JSON_PATH = REPORT_PATHS.json_path
+MD_PATH = REPORT_PATHS.md_path
+LOG_PATH = REPORT_PATHS.log_path
+FINAL_CHECKPOINT_PATH = REPORT_PATHS.final_checkpoint_path or (
+    RUN_DIR / "final_checkpoint.json"
+)
 
 PLAYER_IDS = ("pc_aria", "pc_bram")
 AGENT_MONSTER_ID = "ashbound_warcaller"
@@ -139,77 +155,6 @@ ACTION_SCRIPTS = {
         "safety.",
     ),
 }
-
-
-@dataclass
-class CombatCapture:
-    actor_id: str
-    intention: str
-    packet: str = ""
-    turn_plan: dict[str, Any] | None = None
-    roll_ledger: list[str] | None = None
-    adjudication: dict[str, Any] | None = None
-
-
-class CapturingDndCombatResolver(DndCombatResolver):
-    def __init__(self, client: LLMClient, prompt_mgr: PromptManager):
-        super().__init__(client, prompt_mgr)
-        self.captures: list[CombatCapture] = []
-        self._active_capture: CombatCapture | None = None
-        self._active_actor_id = ""
-        self._active_intention = ""
-
-    async def resolve_combat_action(
-        self,
-        *,
-        ckpt: CheckpointFile,
-        actor_id: str,
-        intention: str,
-    ):
-        self._active_actor_id = actor_id
-        self._active_intention = intention
-        try:
-            return await super().resolve_combat_action(
-                ckpt=ckpt,
-                actor_id=actor_id,
-                intention=intention,
-            )
-        finally:
-            self._active_actor_id = ""
-            self._active_intention = ""
-            self._active_capture = None
-
-    async def _plan_turn(self, packet: str) -> DndCombatTurnPlan:
-        plan = await super()._plan_turn(packet)
-        self._active_capture = CombatCapture(
-            actor_id=self._active_actor_id,
-            intention=self._active_intention,
-            packet=packet,
-            turn_plan=plan.model_dump(mode="json"),
-        )
-        return plan
-
-    async def _finalize(
-        self,
-        packet: str,
-        ledger_lines: list[str],
-        planned_actions_block: str,
-    ) -> DndCombatManagerAdjudication:
-        adjudication = await super()._finalize(
-            packet,
-            ledger_lines,
-            planned_actions_block,
-        )
-        capture = self._active_capture or CombatCapture(
-            actor_id=self._active_actor_id,
-            intention=self._active_intention,
-            packet=packet,
-        )
-        capture.roll_ledger = list(ledger_lines)
-        capture.adjudication = adjudication.model_dump(mode="json")
-        self.captures.append(capture)
-        self._active_capture = None
-        return adjudication
 
 
 def _mechanics(
@@ -859,7 +804,7 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
                 "source": source,
                 "source_detail": source_detail,
                 "intention": intention,
-                "result": _event_summary(result),
+                "result": _event_summary(result, include_observers=True, prefer_ends_beat_reason=True),
                 "capture": _capture_dump(capture),
                 "role_calls": role_calls[call_start:],
                 "next_actor_id": _current_actor_id(ckpt),
@@ -912,676 +857,32 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
         "pending_engine_state_updates": list(
             ckpt.session.pending_engine_state_updates
         ),
-        "canonical_events": [_event_summary(event) for event in ckpt.canonical_events],
+        "canonical_events": [_event_summary(event, include_observers=True, prefer_ends_beat_reason=True) for event in ckpt.canonical_events],
         "error": error,
     }
-    report["all_illegal_stress_turns"] = _all_illegal_stress_turns(report)
-    report["illegal_stress_turns"] = _illegal_stress_turns(report)
-    report["checks"] = _checks(report)
-    report["quality_findings"] = _quality_findings(report)
+    report["all_illegal_stress_turns"] = live_all_illegal_stress_turns(
+        report,
+        illegal_stress_actions=ILLEGAL_STRESS_ACTIONS,
+        illegal_action_index=ILLEGAL_STRESS_ACTION_INDEX,
+    )
+    report["illegal_stress_turns"] = live_illegal_stress_turns(
+        report,
+        illegal_action_index=ILLEGAL_STRESS_ACTION_INDEX,
+    )
+    report["checks"] = live_report_checks(
+        report,
+        player_ids=PLAYER_IDS,
+        agent_monster_id=AGENT_MONSTER_ID,
+        dummy_monster_ids=DUMMY_MONSTER_IDS,
+        illegal_action_index=ILLEGAL_STRESS_ACTION_INDEX,
+    )
+    report["quality_findings"] = live_quality_findings(
+        report,
+        illegal_action_index=ILLEGAL_STRESS_ACTION_INDEX,
+    )
     JSON_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    MD_PATH.write_text(_markdown(report), encoding="utf-8")
+    MD_PATH.write_text(live_report_markdown(report), encoding="utf-8")
     return report
-
-
-def _event_summary(event: Any) -> dict[str, Any]:
-    return {
-        "event_id": getattr(event, "event_id", ""),
-        "event_kind": getattr(event, "ends_beat_reason", "")
-        or getattr(event, "event_kind", ""),
-        "decision_rationale": getattr(event, "decision_rationale", ""),
-        "facts": [
-            fact.text
-            for fact in getattr(event.canonical_event, "observable_facts", [])
-        ],
-        "observers": [
-            {
-                "character_id": observer.character_id,
-                "observation_level": observer.observation_level,
-                "routing_role": observer.routing_role,
-            }
-            for observer in getattr(event, "observers", [])
-        ],
-    }
-
-
-def _message_capture(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    captured: list[dict[str, Any]] = []
-    for index, message in enumerate(messages):
-        content = str(message.get("content") or "")
-        captured.append({
-            "index": index,
-            "role": str(message.get("role") or ""),
-            "chars": len(content),
-            "content": content,
-        })
-    return captured
-
-
-def _capture_dump(capture: CombatCapture | None) -> dict[str, Any]:
-    if capture is None:
-        return {}
-    return {
-        "actor_id": capture.actor_id,
-        "intention": capture.intention,
-        "packet": json.loads(capture.packet) if capture.packet else {},
-        "turn_plan": capture.turn_plan or {},
-        "flattened_rolls": _flatten_turn_rolls(capture.turn_plan or {}),
-        "roll_ledger": capture.roll_ledger or [],
-        "adjudication": capture.adjudication or {},
-    }
-
-
-def _flatten_turn_rolls(turn_plan: dict[str, Any]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for action in turn_plan.get("actions") or []:
-        if not isinstance(action, dict):
-            continue
-        for roll in action.get("rolls") or []:
-            if not isinstance(roll, dict):
-                continue
-            flattened = dict(roll)
-            flattened["actor_id"] = action.get("actor_id", "")
-            flattened["action_id"] = action.get("source_id", "")
-            flattened["source_type"] = action.get("source_type", "")
-            flattened["source_id"] = action.get("source_id", "")
-            flattened["effect_id"] = action.get("effect_id", "")
-            flattened["economy"] = action.get("economy", "")
-            flattened["use_mode"] = action.get("use_mode", "")
-            out.append(flattened)
-    return out
-
-
-def _combat_summary(ckpt: CheckpointFile) -> dict[str, Any]:
-    combat = ckpt.session.active_combat
-    if combat is None:
-        return {"active": False}
-    summary = dnd_combat.public_status(ckpt.session)
-    summary["active"] = True
-    return summary
-
-
-def _checks(report: dict[str, Any]) -> list[dict[str, Any]]:
-    turns = report.get("turns") or []
-    role_calls = report.get("role_calls") or []
-    max_turns = int(report.get("max_turns") or 0)
-    acted_by_source: dict[str, set[str]] = {
-        "player_canned": set(),
-        "agent_llm": set(),
-        "dummy_canned": set(),
-    }
-    illegal_turns = _illegal_stress_turns(report)
-    for turn in turns:
-        source = turn.get("source", "")
-        if source in acted_by_source:
-            acted_by_source[source].add(str(turn.get("actor_id", "")))
-    active = bool((report.get("final_combat") or {}).get("active"))
-    conversation_len = len(report.get("session_conversation") or [])
-    agent_calls = _agent_role_calls(report)
-    non_enemy_opportunity_attacks = _non_enemy_opportunity_attacks(report)
-    agent_user_text = "\n\n".join(
-        str((call.get("messages") or [{}])[-1].get("content") or "")
-        for call in agent_calls
-        if call.get("messages")
-    )
-    agent_turns = [
-        turn for turn in turns if turn.get("source") == "agent_llm"
-    ]
-    expected_agent_turns = (
-        3 if max_turns >= 15 else 2 if max_turns >= 9 else 1 if max_turns >= 3 else 0
-    )
-    return [
-        _check("no_harness_error", not report.get("error"), report.get("error")),
-        _check(
-            "dummy_router_started_combat",
-            bool(report.get("dummy_router_start")),
-            report.get("dummy_router_start"),
-        ),
-        _check(
-            "complex_battle_map_seeded",
-            len((report.get("initial_map") or {}).get("tokens") or []) == 6
-            and len((report.get("initial_map") or {}).get("terrain") or []) >= 4,
-            report.get("initial_map"),
-        ),
-        _check(
-            "two_player_characters_acted",
-            acted_by_source["player_canned"] >= set(PLAYER_IDS),
-            sorted(acted_by_source["player_canned"]),
-        ),
-        _check(
-            "agent_monster_used_llm",
-            acted_by_source["agent_llm"] == {AGENT_MONSTER_ID},
-            sorted(acted_by_source["agent_llm"]),
-        ),
-        _check(
-            "agent_turn_count_matches_scenario",
-            len(agent_turns) >= expected_agent_turns,
-            {"expected_at_least": expected_agent_turns, "actual": len(agent_turns)},
-        ),
-        _check(
-            "agent_prompt_captured_for_qa",
-            bool(agent_calls and agent_user_text),
-            agent_calls,
-        ),
-        _check(
-            "agent_receives_combat_map_actions_and_context",
-            all(
-                needle in agent_user_text
-                for needle in (
-                    "## D&D Combat",
-                    "Available combat actions:",
-                    "Cinder Bolt",
-                    "## Tactical Map",
-                    "## Local Context",
-                )
-            ),
-            agent_user_text,
-        ),
-        _check(
-            "agent_private_intent_parsed",
-            all(
-                str((turn.get("source_detail") or {}).get("private_intent") or "")
-                for turn in agent_turns
-            ),
-            [turn.get("source_detail") for turn in agent_turns],
-        ),
-        _check(
-            "three_dummy_monsters_acted",
-            acted_by_source["dummy_canned"] >= set(DUMMY_MONSTER_IDS),
-            sorted(acted_by_source["dummy_canned"]),
-        ),
-        _check(
-            "illegal_dummy_stress_turns_exercised",
-            set(illegal_turns) >= set(DUMMY_MONSTER_IDS),
-            illegal_turns,
-        ),
-        _check(
-            "illegal_dummy_stress_rejected",
-            _illegal_stress_rejected(illegal_turns),
-            illegal_turns,
-        ),
-        _check(
-            "no_non_enemy_opportunity_attacks",
-            not non_enemy_opportunity_attacks,
-            non_enemy_opportunity_attacks,
-        ),
-        _check(
-            "combat_manager_calls_present",
-            any(call.get("role") == "dnd_combat_manager" for call in role_calls),
-            role_calls,
-        ),
-        _check(
-            "no_generic_router_or_narrator_calls",
-            not any(
-                call.get("role") in {"event_router", "narrator"}
-                for call in role_calls
-            ),
-            role_calls,
-        ),
-        _check(
-            "router_history_scoped",
-            (conversation_len == 0 if active else conversation_len <= 1),
-            report.get("session_conversation"),
-        ),
-    ]
-
-
-def _check(name: str, passed: bool, detail: Any = "") -> dict[str, Any]:
-    return {"name": name, "passed": bool(passed), "detail": detail}
-
-
-def _agent_role_calls(report: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
-        call for call in report.get("role_calls") or []
-        if call.get("role") in {"agent", "agent_standard", "agent_convenience"}
-    ]
-
-
-def _all_illegal_stress_turns(report: dict[str, Any]) -> list[dict[str, Any]]:
-    illegal_turns: list[dict[str, Any]] = []
-    for turn in report.get("turns") or []:
-        actor_id = str(turn.get("actor_id") or "")
-        if actor_id not in ILLEGAL_STRESS_ACTIONS:
-            continue
-        action_index = int(turn.get("actor_action_index") or 0)
-        if action_index < 1:
-            continue
-        capture = turn.get("capture") or {}
-        turn_plan = capture.get("turn_plan") or {}
-        adjudication = capture.get("adjudication") or {}
-        text = "\n".join([
-            str(turn.get("intention") or ""),
-            str(turn_plan.get("no_action_reason") or ""),
-            str(adjudication.get("mechanical_summary") or ""),
-            str(adjudication.get("fallback_reason") or ""),
-            "\n".join(str(item) for item in capture.get("roll_ledger") or []),
-            "\n".join(
-                str(item)
-                for item in adjudication.get("visible_outcome_facts") or []
-            ),
-        ])
-        lowered = text.lower()
-        forbidden_effects = [
-            "hold person",
-            "teleport",
-            "phase",
-            "twice",
-            "set her shield arm on fire",
-            "thirty feet away",
-            "bonus spear attack",
-            "both bram and aria",
-            "heal myself",
-            "full health",
-            "fireball",
-            "invisible",
-            "drop her shield",
-            "revivify",
-            "four copies",
-            "legendary actions",
-            "mass cure wounds",
-            "every cultist",
-            "restrain everyone",
-            "teleport to safety",
-        ]
-        rejection_terms = [
-            "cannot",
-            "unavailable",
-            "not listed",
-            "not a listed",
-            "no roll",
-            "no attack",
-            "impossible",
-            "illegal",
-            "blocked",
-            "out of range",
-            "no effect",
-            "not occur",
-        ]
-        visible_outcome_facts = adjudication.get("visible_outcome_facts") or []
-        illegal_turns.append({
-            "actor_id": actor_id,
-            "turn_number": turn.get("turn_number"),
-            "action_index": action_index,
-            "is_pure_illegal_probe": action_index >= ILLEGAL_STRESS_ACTION_INDEX,
-            "intention": turn.get("intention"),
-            "needs_rolls": bool(capture.get("flattened_rolls") or []),
-            "flattened_rolls": capture.get("flattened_rolls") or [],
-            "rejection_mentions": [
-                term for term in rejection_terms if term in lowered
-            ],
-            "forbidden_mentions": [
-                term for term in forbidden_effects if term in lowered
-            ],
-            "affirmed_illegal_mentions": _affirmed_term_mentions(
-                "\n".join(str(fact) for fact in visible_outcome_facts),
-                forbidden_effects,
-            ),
-            "visible_outcome_facts": visible_outcome_facts,
-            "no_action_reason": turn_plan.get("no_action_reason") or "",
-            "mechanical_summary": adjudication.get("mechanical_summary") or "",
-            "fallback_reason": adjudication.get("fallback_reason") or "",
-            "roll_ledger": capture.get("roll_ledger") or [],
-            "stress_profile": ILLEGAL_STRESS_ACTIONS[actor_id],
-        })
-    return illegal_turns
-
-
-def _illegal_stress_turns(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    illegal_by_actor: dict[str, dict[str, Any]] = {}
-    for detail in report.get("all_illegal_stress_turns") or _all_illegal_stress_turns(
-        report
-    ):
-        actor_id = str(detail.get("actor_id") or "")
-        action_index = int(detail.get("action_index") or 0)
-        if action_index >= ILLEGAL_STRESS_ACTION_INDEX:
-            illegal_by_actor[actor_id] = detail
-    return illegal_by_actor
-
-
-def _affirmed_term_mentions(text: str, terms: list[str]) -> list[str]:
-    denial_markers = (
-        "cannot",
-        "can't",
-        "could not",
-        "did not",
-        "does not",
-        "do not",
-        "no ",
-        "not ",
-        "unavailable",
-        "lacks",
-        "without",
-        "not occur",
-        "no effect",
-        "failed",
-        "missed",
-    )
-    sentences = [
-        sentence.strip().lower()
-        for sentence in text.replace("\n", ". ").replace(";", ".").split(".")
-        if sentence.strip()
-    ]
-    affirmed: list[str] = []
-    for term in terms:
-        term_lower = term.lower()
-        for sentence in sentences:
-            if term_lower not in sentence:
-                continue
-            if any(marker in sentence for marker in denial_markers):
-                continue
-            affirmed.append(term)
-            break
-    return affirmed
-
-
-def _illegal_stress_rejected(turns: dict[str, dict[str, Any]]) -> bool:
-    if set(turns) < set(DUMMY_MONSTER_IDS):
-        return False
-    for detail in turns.values():
-        if not detail.get("rejection_mentions"):
-            return False
-        if detail.get("needs_rolls"):
-            return False
-        if detail.get("affirmed_illegal_mentions"):
-            return False
-    return True
-
-
-def _non_enemy_opportunity_attacks(report: dict[str, Any]) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    for turn in report.get("turns") or []:
-        capture = turn.get("capture") or {}
-        packet = capture.get("packet") or {}
-        combatants = {
-            str(
-                combatant.get("character_id")
-                or combatant.get("combatant_id")
-                or ""
-            ): combatant
-            for combatant in packet.get("combatants") or []
-        }
-        for request in capture.get("flattened_rolls") or []:
-            reason = str(request.get("reason") or "")
-            roll_id = str(request.get("roll_id") or "")
-            opportunity_text = f"{roll_id} {reason}".lower()
-            if "opportunity" not in opportunity_text:
-                continue
-            if any(
-                denial in opportunity_text
-                for denial in (
-                    "no opportunity",
-                    "not provoke",
-                    "not provoked",
-                    "does not provoke",
-                    "without provoking",
-                )
-            ):
-                continue
-            if not (
-                roll_id.lower().startswith(("oa", "opp"))
-                or "opportunity attack" in opportunity_text
-            ):
-                continue
-            actor_id = str(request.get("actor_id") or "")
-            actor = combatants.get(actor_id) or {}
-            relationship = str(
-                actor.get("relationship_to_current_actor") or ""
-            )
-            if relationship == "enemy":
-                continue
-            findings.append({
-                "turn_number": turn.get("turn_number"),
-                "current_actor_id": turn.get("actor_id"),
-                "opportunity_actor_id": actor_id,
-                "target_id": request.get("target_id"),
-                "relationship_to_current_actor": relationship or "unknown",
-                "reason": reason,
-            })
-    return findings
-
-
-def _quality_findings(report: dict[str, Any]) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    observed: list[dict[str, Any]] = []
-    for turn in report.get("turns") or []:
-        adjudication = (turn.get("capture") or {}).get("adjudication") or {}
-        for fact in adjudication.get("router_observed_facts") or []:
-            observed.append({
-                "turn_number": turn.get("turn_number"),
-                "actor_id": turn.get("actor_id"),
-                "fact": fact,
-            })
-    if observed:
-        findings.append({
-            "name": "review_router_observed_facts",
-            "severity": "medium",
-            "detail": observed,
-        })
-
-    for turn in report.get("turns") or []:
-        if turn.get("source") != "agent_llm":
-            continue
-        public_text = str(
-            (turn.get("source_detail") or {}).get("public_text") or ""
-        )
-        if any(
-            label in public_text
-            for label in ("**Action:**", "**Bonus Action:**", "**Movement:**")
-        ):
-            findings.append({
-                "name": "agent_output_uses_mechanical_markdown",
-                "severity": "low",
-                "detail": {
-                    "turn_number": turn.get("turn_number"),
-                    "actor_id": turn.get("actor_id"),
-                    "public_text": public_text,
-                },
-            })
-
-    for turn in report.get("turns") or []:
-        capture = turn.get("capture") or {}
-        packet = capture.get("packet") or {}
-        ac_by_id = {
-            item.get("character_id"): item.get("armor_class")
-            for item in packet.get("combatants") or []
-        }
-        for request in capture.get("flattened_rolls") or []:
-            if request.get("kind") != "attack_roll":
-                continue
-            target_id = request.get("target_id")
-            dc = request.get("dc")
-            base_ac = ac_by_id.get(target_id)
-            reason = str(request.get("reason") or "").lower()
-            if (
-                isinstance(dc, int)
-                and isinstance(base_ac, int)
-                and dc != base_ac
-                and "cover" not in reason
-            ):
-                findings.append({
-                    "name": "attack_dc_differs_without_cover_reason",
-                    "severity": "high",
-                    "detail": {
-                        "turn_number": turn.get("turn_number"),
-                        "actor_id": turn.get("actor_id"),
-                        "target_id": target_id,
-                        "dc": dc,
-                        "base_ac": base_ac,
-                        "reason": request.get("reason"),
-                    },
-                })
-    illegal_turns = _illegal_stress_turns(report)
-    for actor_id, detail in illegal_turns.items():
-        if not detail.get("rejection_mentions"):
-            findings.append({
-                "name": "illegal_dummy_action_not_explicitly_rejected",
-                "severity": "high",
-                "detail": {"actor_id": actor_id, **detail},
-            })
-        if detail.get("needs_rolls"):
-            findings.append({
-                "name": "illegal_dummy_action_requested_rolls",
-                "severity": "high",
-                "detail": {"actor_id": actor_id, **detail},
-            })
-        if detail.get("affirmed_illegal_mentions"):
-            findings.append({
-                "name": "illegal_dummy_effect_leaked_to_outcome",
-                "severity": "high",
-                "detail": {"actor_id": actor_id, **detail},
-            })
-    for detail in _non_enemy_opportunity_attacks(report):
-        findings.append({
-            "name": "non_enemy_opportunity_attack_requested",
-            "severity": "high",
-            "detail": detail,
-        })
-    return findings
-
-
-def _usage_totals(calls: list[dict[str, Any]]) -> dict[str, int]:
-    keys = (
-        "prompt_tokens",
-        "completion_tokens",
-        "visible_completion_tokens",
-        "reasoning_tokens",
-        "cache_read_input_tokens",
-        "cache_creation_input_tokens",
-        "full_input_tokens",
-        "total_tokens",
-    )
-    totals = {key: 0 for key in keys}
-    for call in calls:
-        usage = call.get("usage") or {}
-        for key in keys:
-            totals[key] += int(usage.get(key, 0) or 0)
-    return totals
-
-
-def _preflight_api_keys(config: LLMConfig, roles: set[str]) -> list[str]:
-    missing: list[str] = []
-    for role in sorted(roles):
-        provider = config.provider_for_role(role)
-        if not config.api_key_for_provider(provider, role=role):
-            missing.append(f"{role} ({provider})")
-    return missing
-
-
-def _role_label(config: LLMConfig, role: str) -> str:
-    return f"{config.provider_for_role(role)}:{config.model_for_role(role)}"
-
-
-def _markdown(report: dict[str, Any]) -> str:
-    lines = [
-        "# D&D Combat Manager Live Harness",
-        "",
-        f"Generated: `{report['generated_at']}`",
-        f"Run dir: `{report['run_dir']}`",
-        f"Agent: `{report['roles']['agent']}`",
-        f"Combat manager: `{report['roles']['dnd_combat_manager']}`",
-        "",
-        "## Checks",
-        "",
-    ]
-    for check in report["checks"]:
-        mark = "PASS" if check["passed"] else "FAIL"
-        lines.append(f"- {mark}: `{check['name']}`")
-    lines.extend([
-        "",
-        "## Quality Findings",
-        "",
-    ])
-    if report.get("quality_findings"):
-        for finding in report["quality_findings"]:
-            lines.append(
-                f"- {finding.get('severity', 'info').upper()}: "
-                f"`{finding.get('name')}`"
-            )
-    else:
-        lines.append("- None.")
-    lines.extend([
-        "",
-        "## Illegal Stress Probes",
-        "",
-    ])
-    for detail in report.get("all_illegal_stress_turns") or []:
-        marker = "pure" if detail.get("is_pure_illegal_probe") else "mixed"
-        roll_state = "rolls" if detail.get("needs_rolls") else "no rolls"
-        reject_state = (
-            "rejected" if detail.get("rejection_mentions") else "not rejected"
-        )
-        leaks = detail.get("affirmed_illegal_mentions") or []
-        leak_state = f"; leaks: {', '.join(leaks)}" if leaks else ""
-        lines.append(
-            f"- Turn {detail.get('turn_number')}: `{detail.get('actor_id')}` "
-            f"({marker}, {roll_state}, {reject_state}{leak_state})"
-        )
-    if not report.get("all_illegal_stress_turns"):
-        lines.append("- None.")
-    lines.extend([
-        "",
-        "## Usage",
-        "",
-        "```json",
-        json.dumps(report.get("usage_totals") or {}, indent=2),
-        "```",
-        "",
-        "## Turns",
-        "",
-    ])
-    for turn in report["turns"]:
-        lines.extend([
-            f"### Turn {turn['turn_number']}: {turn['actor_id']}",
-            "",
-            f"Source: `{turn['source']}`",
-            "",
-            f"Intention: {turn['intention']}",
-            "",
-            "Facts:",
-        ])
-        for fact in (turn.get("result") or {}).get("facts") or []:
-            lines.append(f"- {fact}")
-        adjudication = (turn.get("capture") or {}).get("adjudication") or {}
-        observed = adjudication.get("router_observed_facts") or []
-        if observed:
-            lines.extend(["", "Router-observed facts:"])
-            for fact in observed:
-                lines.append(
-                    f"- {fact.get('fact')} "
-                    f"({fact.get('salience')}: {fact.get('reason')})"
-                )
-        lines.extend(["", "Roll ledger:"])
-        for item in (turn.get("capture") or {}).get("roll_ledger") or []:
-            lines.append(f"- {item}")
-        if turn.get("source") == "agent_llm":
-            detail = turn.get("source_detail") or {}
-            lines.extend([
-                "",
-                "Agent QA:",
-                f"- Public text: {detail.get('public_text', '')}",
-                f"- Private intent: {detail.get('private_intent', '')}",
-            ])
-            for call in turn.get("role_calls") or []:
-                if call.get("role") not in {
-                    "agent",
-                    "agent_standard",
-                    "agent_convenience",
-                }:
-                    continue
-                messages = call.get("messages") or []
-                user_text = (
-                    messages[-1].get("content", "") if messages else ""
-                )
-                lines.extend([
-                    "- Agent received:",
-                    "```text",
-                    user_text,
-                    "```",
-                ])
-        lines.append("")
-    if report.get("error"):
-        lines.extend(["## Error", "", "```text", report["error"], "```", ""])
-    return "\n".join(lines)
 
 
 async def main() -> None:

@@ -22,7 +22,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.bot import commands as bot_commands
-from app.bot.engine_bridge import EngineBridge, RetryRenderResult
+from app.bot.engine_bridge import EngineBridge
+from app.engine.frontend_views import RetryRenderResult
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import DndLootOffer
@@ -97,7 +98,11 @@ class TestAdminEnvParsing:
 @pytest.fixture
 def mock_bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    return EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
 
 
 class TestEngineBridgeQuery:
@@ -1071,11 +1076,7 @@ class TestApplyRosterUpdatesPurgesCulled:
         from app.engine.character_manager import CharacterManager
         from app.schemas.characters import CharacterRecord, PublicSheet
         from app.schemas.checkpoint import CheckpointFile
-        from app.schemas.event_router import EventRouterOutput
-        from app.schemas.events import (
-            CanonicalEvent,
-            WorldAdjudication,
-        )
+        from tests.support.factories import router_output
         from app.schemas.state import OpenCatIIEvent, SessionState, WorldState
 
         ckpt = CheckpointFile(
@@ -1100,22 +1101,7 @@ class TestApplyRosterUpdatesPurgesCulled:
             )
         )
 
-        routed = EventRouterOutput(
-            event_id="",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=[],
-            ),
-            observers=[],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="",
-            spawn=[],
-            dormant=[],
-            cull=["villain"],
-        )
+        routed = router_output(facts=[], cull=["villain"])
         mgr = CharacterManager()
         mgr.apply_roster_updates(ckpt, routed)
         # Event initiated by the culled character is abandoned.

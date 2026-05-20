@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class CheckpointManager:
     """Manages versioned JSON checkpoint save/load."""
 
-    def __init__(self, save_dir: str = "app/storage/saves"):
+    def __init__(self, save_dir: str):
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 

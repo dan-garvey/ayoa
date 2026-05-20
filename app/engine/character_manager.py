@@ -1,7 +1,7 @@
 """Character manager — registry operations, roster updates, spawning.
 
 Handles character lookup, state mutations after agent responses,
-roster changes from discriminator output, and LLM-powered character genesis.
+roster changes from event-router output, and LLM-powered character genesis.
 """
 
 from __future__ import annotations
@@ -214,7 +214,7 @@ class CharacterManager:
         router input.
 
         Spawn-location resolution chain:
-          1. router-supplied `req.seed["location"]`
+          1. router-supplied `req.seed.location`
           2. `default_location` — the acting actor's current location label
           3. the LLM's `authored.location` — last-resort, only hit when
              both router and orchestrator omit a location.
@@ -225,7 +225,7 @@ class CharacterManager:
         physics = checkpoint.world_state.physics_ruleset
         world_rules = f"Strength limits: {physics.strength_limits}\nMagic: {'enabled' if physics.magic_enabled else 'disabled'}"
 
-        seed_loc = (req.seed.get("location") or "").strip()
+        seed_loc = req.seed.location.strip()
         location = seed_loc or default_location
         if not location:
             logger.warning(
@@ -238,9 +238,12 @@ class CharacterManager:
             f"Location: {location}" if location else "Location: (none supplied)"
         )
 
-        seed_lines = []
-        for k, v in req.seed.items():
-            seed_lines.append(f"{k}: {v}")
+        seed_lines = [
+            f"role: {req.seed.role}",
+            f"reason: {req.seed.reason}",
+            f"location: {req.seed.location}",
+            f"objectives: {', '.join(req.seed.objectives)}",
+        ]
         spawn_seed = "\n".join(seed_lines) if seed_lines else "No specific seed provided."
 
         existing = ", ".join(c.name for c in checkpoint.characters)

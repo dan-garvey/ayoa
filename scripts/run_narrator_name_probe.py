@@ -31,8 +31,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from app.engine.context_builder import (
     build_narrator_player_characters_block,
-    build_narrator_public_character_context_block,
-    build_narrator_pov_knowledge_block,
     build_setting_summary,
 )
 from app.engine.prompt_manager import PromptManager
@@ -238,21 +236,16 @@ async def _run_case(
         "narrator_phase2",
         history=[],
         setting_summary=build_setting_summary(ckpt),
-        narrative_rules=ckpt.config.narrative_rules or "No specific narrative rules.",
+        narrative_rules=(
+            ckpt.session.config.narrative_rules
+            or "No specific narrative rules."
+        ),
         visible_events=visible_events,
         user_input=case.user_input,
         pov_character_name=pov_name,
         player_characters_block=build_narrator_player_characters_block(
             ckpt,
             case.pov_character_id,
-        ),
-        public_character_context_block=build_narrator_public_character_context_block(
-            ckpt,
-        ),
-        pov_knowledge_block=build_narrator_pov_knowledge_block(
-            ckpt,
-            case.pov_character_id,
-            visible_events,
         ),
         rendering_note="Write through to the natural handoff point.",
     )

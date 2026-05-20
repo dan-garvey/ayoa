@@ -4,7 +4,7 @@ real router / agent / narrator modules.
 `turn_loop.run_beat` talks to the world exclusively through the
 `Dispatcher` Protocol. This module provides the production binding:
 the three async methods call through to the `event_router` prompt
-template, CharacterAgent.respond(), and
+template, CharacterAgent.turn(), and
 narrator.compose_pov_render() (per-POV entry point), constructing
 their user-message blocks through the shared helpers in
 `turn_loop_contracts` so prompt-code contracts stay in lockstep.
@@ -24,10 +24,12 @@ import logging
 
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
+from app.engine.character_manager import CharacterManager
 from app.engine.context_builder import (
     build_player_characters_block,
     build_setting_summary,
     resolve_acting_character,
+    resolve_location_for_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.dnd_cat_ii import (
@@ -78,13 +80,9 @@ def _router_ruleset_template_vars(
             "ruleset_router_addon": prompt_mgr.render(
                 "event_router_ruleset_dnd5e",
             ).strip(),
-            "ruleset_output_schema_fields": prompt_mgr.render(
-                "event_router_ruleset_dnd5e_output_fields",
-            ),
         }
     return {
         "ruleset_router_addon": "",
-        "ruleset_output_schema_fields": "",
     }
 
 
@@ -284,10 +282,8 @@ def _router_history_record(
         f"prior_event {result.event_id} @{result.effective_at_s}"
         f"+{result.duration_s} source={acting_character_id or '-'} mode={mode}"
     )
-    if result.ends_beat_reason:
-        header += f" end={result.ends_beat_reason}"
-    elif result.ends_beat:
-        header += " end=true"
+    if result.event_kind != "beat_continues":
+        header += f" end={result.event_kind}"
     if result.requires_responders:
         header += f" requires={_compact_id_list(result.required_responders)}"
     if result.next_output_character_ids:
@@ -537,6 +533,46 @@ class LLMDispatcher:
         self._agent = CharacterAgent(client, prompt_mgr)
         self._dnd_cat_ii = DndCatIIResolver(client, prompt_mgr)
         self._dnd_combat = DndCombatResolver(client, prompt_mgr)
+
+    async def materialize_spawns(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        result: EventRouterOutput,
+        actor_id: str,
+        character_ids: list[str],
+    ) -> list[str]:
+        """Materialize router spawns needed before in-beat dispatch.
+
+        Most router spawns are applied by the orchestrator after `run_beat`.
+        Cat II responder dispatch is earlier than that, so required responder
+        spawns must be available immediately. Requests handled here are removed
+        from `result.spawn` so the post-beat side-effect pass does not create
+        the same character a second time.
+        """
+        target_ids = {cid for cid in character_ids if cid}
+        if not target_ids:
+            return []
+        requests = [
+            spawn for spawn in result.spawn
+            if spawn.character_id in target_ids
+        ]
+        if not requests:
+            return []
+
+        char_mgr = CharacterManager(self.client, self.prompt_mgr)
+        spawned = await char_mgr.spawn_characters(
+            ckpt,
+            requests,
+            acting_actor_location=resolve_location_for_character(ckpt, actor_id),
+        )
+        spawned_ids = [char.character_id for char in spawned]
+        spawned_set = set(spawned_ids)
+        result.spawn = [
+            spawn for spawn in result.spawn
+            if spawn.character_id not in spawned_set
+        ]
+        return spawned_ids
 
     # ------------------------------------------------------------------
     # route_intention
@@ -942,7 +978,6 @@ class LLMDispatcher:
         output = await self._agent.turn(
             character=character,
             checkpoint=ckpt,
-            acting_character_id=character_id,
             frame=frame,
             local_context=local_context,
         )
@@ -972,7 +1007,6 @@ class LLMDispatcher:
         *,
         ckpt: CheckpointFile,
         character_ids: list[str],
-        acting_character_id: str,
     ) -> list[str]:
         """Fan out CharacterAgent.perceive() across `character_ids` in
         parallel.
@@ -1013,7 +1047,6 @@ class LLMDispatcher:
                 return await self._agent.perceive(
                     character=character,
                     checkpoint=ckpt,
-                    acting_character_id=acting_character_id,
                 )
             except Exception as exc:  # noqa: BLE001 — see docstring
                 logger.warning(

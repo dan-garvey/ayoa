@@ -121,7 +121,6 @@ class TestPromptManagerWithRealTemplates:
                 "Tall, broad-shouldered, grey-streaked hair."
             ),
             ruleset_router_addon="",
-            ruleset_output_schema_fields="",
             router_input_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
@@ -222,7 +221,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="x",
             player_characters_block="x",
             ruleset_router_addon="",
-            ruleset_output_schema_fields="",
             router_input_block="",
         )
         assert len(messages) == 2
@@ -247,7 +245,6 @@ class TestPromptManagerWithRealTemplates:
                 "Unique player-block appearance."
             ),
             ruleset_router_addon="",
-            ruleset_output_schema_fields="",
             router_input_block="I wait.",
         )
 
@@ -279,16 +276,12 @@ class TestPromptManagerWithRealTemplates:
                 "- Aldric UniquePOV (you) - scholar. "
                 "Unique player-block appearance."
             ),
-            public_character_context_block=(
-                "- Pip StableKnown: stable public glossary marker."
-            ),
-            pov_knowledge_block=(
-                "- Pip UniqueKnown"
-            ),
             rendering_note=PARTIAL_MODE_MARKER,
             visible_events=(
                 "Seen directly:\n"
-                "- Unique event fact."
+                "- Unique event fact.\n\n"
+                "Newly introduced character context:\n"
+                "- Pip UniqueKnown: player-safe context: stable public glossary marker."
             ),
             user_input="Unique submitted action.",
         )
@@ -300,17 +293,16 @@ class TestPromptManagerWithRealTemplates:
         assert "Unique player-block appearance" not in system
         assert "Pip UniqueKnown" not in system
         assert "Unique event fact" not in system
+        assert "stable public glossary marker" not in system
         assert "Unique submitted action" not in system
         assert PARTIAL_MODE_MARKER not in system
 
         assert "Genre: fantasy" in system
         assert "Concise prose." in system
-        assert "Pip StableKnown" in system
-        assert "stable public glossary marker" in system
         assert "Aldric UniquePOV" in user
         assert "Unique player-block appearance" in user
         assert "Pip UniqueKnown" in user
-        assert "stable public glossary marker" not in user
+        assert "stable public glossary marker" in user
         assert "Unique event fact" in user
         assert "Unique submitted action" in user
         assert PARTIAL_MODE_MARKER in user
@@ -337,7 +329,6 @@ class TestPromptManagerWithRealTemplates:
             acting_character_id="x",
             player_characters_block="x",
             ruleset_router_addon="",
-            ruleset_output_schema_fields="",
             router_input_block="",
         )
         assert len(messages) == 4

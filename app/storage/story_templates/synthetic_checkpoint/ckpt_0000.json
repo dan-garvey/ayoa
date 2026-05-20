@@ -16,7 +16,6 @@
         "event_router": "openai:gpt-5.2",
         "narrator": "openai:gpt-5.2",
         "dnd_combat_manager": "openai:gpt-5.1",
-        "discriminator": "openai:gpt-5.2",
         "agent_default": "anthropic:claude-opus-4-6",
         "agent_standard": "anthropic:claude-haiku-4-5",
         "agent_convenience": "anthropic:claude-sonnet-4-6"
@@ -38,8 +37,7 @@
     "open_commitments": [],
     "pending_commitment_revisions": {},
     "render_buffers": {},
-    "pending_narrator_render": null,
-    "pending_intentions": []
+    "pending_narrator_render": null
   },
   "player_primer": "",
   "world_state": {
@@ -57,8 +55,7 @@
     },
     "lore": "",
     "hidden_lore": "",
-    "hidden_facts": [],
-    "known_characters": []
+    "hidden_facts": []
   },
   "characters": [],
   "session_conversation": [],
@@ -66,24 +63,5 @@
   "character_conversations": {},
   "canonical_events": [],
   "transcript": [],
-  "visibility_log": [],
-  "config": {
-    "models": {
-      "event_router": "openai:gpt-5.2",
-      "narrator": "openai:gpt-5.2",
-      "dnd_combat_manager": "openai:gpt-5.1",
-      "discriminator": "openai:gpt-5.2",
-      "agent_default": "anthropic:claude-opus-4-6",
-      "agent_standard": "anthropic:claude-haiku-4-5",
-      "agent_convenience": "anthropic:claude-sonnet-4-6"
-    },
-    "narrative_rules": "",
-    "settings": {
-      "max_events_per_beat": 40,
-      "max_agent_cascades_per_beat": 35,
-      "cat_ii_human_timeout_seconds": 86400,
-      "ruleset_id": "narrative",
-      "player_roll_mode": "auto"
-    }
-  }
+  "visibility_log": []
 }

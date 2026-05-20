@@ -63,10 +63,6 @@ EventKind = Literal[
 
 TERMINAL_EVENT_KINDS = set(EventKind.__args__) - {"beat_continues"}
 
-# Backward-facing type alias for code that has not yet been renamed. The
-# router-facing schema uses `event_kind`; `ends_beat_reason` is now a property.
-EndsBeatReason = EventKind
-
 ObserverRoutingRole = Literal[
     # Receives any visible facts for this event, but no immediate output is
     # requested from this observer.
@@ -231,12 +227,6 @@ class SpawnSeed(BaseModel):
     location: str
     objectives: list[str]
 
-    def get(self, key: str, default: Any = None) -> Any:
-        return self.model_dump().get(key, default)
-
-    def items(self):
-        return self.model_dump().items()
-
 
 class SpawnRequest(BaseModel):
     """Router-directed creation of a new character. `seed` is a fixed
@@ -248,30 +238,6 @@ class SpawnRequest(BaseModel):
 
     character_id: str
     seed: SpawnSeed
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_legacy_seed(cls, data: Any) -> Any:
-        """Upgrade older checkpoints/tests that stored partial freeform
-        seed dicts. The LLM-facing schema remains all-required."""
-        if not isinstance(data, dict):
-            return data
-        seed = data.get("seed")
-        if not isinstance(seed, dict):
-            return data
-
-        coerced = {
-            "role": str(seed.get("role", "") or ""),
-            "reason": str(seed.get("reason", "") or ""),
-            "location": str(seed.get("location", "") or ""),
-            "objectives": seed.get("objectives") or [],
-        }
-        if not isinstance(coerced["objectives"], list):
-            coerced["objectives"] = [str(coerced["objectives"])]
-
-        data = dict(data)
-        data["seed"] = coerced
-        return data
 
 
 class CommitmentOpenSignal(BaseModel):
@@ -478,23 +444,10 @@ class EventRouterOutput(BaseModel):
         if not isinstance(data, dict):
             return data
         data = dict(data)
+        if "event_kind" not in data:
+            return data
         valid = set(EventKind.__args__)
         raw_kind = data.get("event_kind")
-        if raw_kind is None:
-            legacy_reason = data.pop("ends_beat_reason", "")
-            legacy_ends = data.pop("ends_beat", True)
-            if isinstance(legacy_reason, str) and legacy_reason in valid and legacy_reason:
-                raw_kind = legacy_reason
-            elif legacy_ends is False:
-                raw_kind = "beat_continues"
-            elif data.get("requires_responders"):
-                raw_kind = "cat_ii_open"
-            else:
-                raw_kind = "directed_at_player"
-        else:
-            data.pop("ends_beat", None)
-            data.pop("ends_beat_reason", None)
-
         if not isinstance(raw_kind, str) or raw_kind not in valid:
             import logging
             logging.getLogger(__name__).warning(
@@ -518,20 +471,6 @@ class EventRouterOutput(BaseModel):
             eid = data.get("event_id", "")
             if not eid:
                 data["event_id"] = _new_event_id()
-        return data
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_new_timing_fields(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        data.setdefault("effective_at_s", 0)
-        data.setdefault("duration_s", 0)
-        data.setdefault("commitment_open", empty_commitment_open_signal())
-        data.setdefault("commitment_resolutions", [])
-        data.setdefault("commitment_interrupts", [])
-        data.setdefault("location_updates", [])
         return data
 
     @model_validator(mode="after")
@@ -607,7 +546,7 @@ class EventRouterOutput(BaseModel):
                     "were dropped: %s",
                     dropped_fact_count,
                 )
-        if self.ends_beat_reason == "observation_harvest":
+        if self.event_kind == "observation_harvest":
             # Harvest is a fork in the engine: enrichment roles become
             # perception targets, not cascade actors. These are CLAMP-not-raise
             # checks so prompt drift doesn't crash a session.
@@ -619,16 +558,8 @@ class EventRouterOutput(BaseModel):
                     "nothing to harvest. "
                     "Coercing to cascade_exhausted.",
                 )
-                self.ends_beat_reason = "cascade_exhausted"
-            if not self.ends_beat:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "event_kind='observation_harvest' cannot continue; "
-                    "harvest implies a terminal event. "
-                    "Coercing to observation_harvest.",
-                )
-                self.ends_beat = True
-        if self.ends_beat_reason == "cat_ii_open" or self.requires_responders:
+                self.event_kind = "cascade_exhausted"
+        if self.event_kind == "cat_ii_open" or self.requires_responders:
             self.duration_s = 0
         if self.effective_at_s < 0:
             self.effective_at_s = 0
@@ -676,31 +607,6 @@ class EventRouterOutput(BaseModel):
         for observer in self.observers:
             if observer.routing_role in roles:
                 observer.routing_role = "observe_only"  # type: ignore[assignment]
-
-    @property
-    def ends_beat(self) -> bool:
-        return self.event_kind != "beat_continues"
-
-    @ends_beat.setter
-    def ends_beat(self, value: bool) -> None:
-        self.event_kind = (
-            "directed_at_player"
-            if value
-            else "beat_continues"
-        )
-
-    @property
-    def ends_beat_reason(self) -> EndsBeatReason | str:
-        if self.event_kind == "beat_continues":
-            return ""
-        return self.event_kind
-
-    @ends_beat_reason.setter
-    def ends_beat_reason(self, value: str) -> None:
-        if value in EventKind.__args__ and value:
-            self.event_kind = value  # type: ignore[assignment]
-        elif not value and self.event_kind != "beat_continues":
-            self.event_kind = "directed_at_player"
 
 
 class DndEventRouterOutput(EventRouterOutput):

@@ -15,7 +15,6 @@ def _stale_checkpoint(story_id: str) -> CheckpointFile:
     stale = ModelConfig(
         event_router="claude-sonnet-4-6",
         narrator="claude-sonnet-4-6",
-        discriminator="claude-sonnet-4-6",
         agent_default="claude-sonnet-4-6",
     )
     return CheckpointFile(
@@ -24,7 +23,6 @@ def _stale_checkpoint(story_id: str) -> CheckpointFile:
             story_id=story_id,
             config=SessionConfig(models=stale),
         ),
-        config=SessionConfig(models=stale),
     )
 
 
@@ -48,20 +46,19 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
 
     expected = runtime_model_config(llm_config)
     assert changed is True
-    assert ckpt.config.models == expected
     assert ckpt.session.config.models == expected
-    assert ckpt.config.models.event_router == "openai:gpt-5.1"
-    assert ckpt.config.models.dnd_combat_manager == "openai:gpt-5-mini"
-    assert ckpt.config.models.agent_default == "anthropic:claude-sonnet-4-6"
-    assert ckpt.config.models.agent_standard == "anthropic:claude-haiku-4-5"
-    assert ckpt.config.models.agent_convenience == "anthropic:claude-sonnet-4-6"
+    assert not hasattr(ckpt, "config")
+    assert ckpt.session.config.models.event_router == "openai:gpt-5.1"
+    assert ckpt.session.config.models.dnd_combat_manager == "openai:gpt-5-mini"
+    assert ckpt.session.config.models.agent_default == "anthropic:claude-sonnet-4-6"
+    assert ckpt.session.config.models.agent_standard == "anthropic:claude-haiku-4-5"
+    assert ckpt.session.config.models.agent_convenience == "anthropic:claude-sonnet-4-6"
 
 
 def test_runtime_model_config_defaults_label_mixed_provider_roles():
     models = runtime_model_config(LLMConfig())
 
     assert models.event_router == "openai:gpt-5.2"
-    assert models.discriminator == "openai:gpt-5.2"
     assert models.narrator == "openai:gpt-5.2"
     assert models.dnd_combat_manager == "openai:gpt-5-mini"
     assert models.agent_default == "anthropic:claude-opus-4-6"
@@ -75,7 +72,8 @@ def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):
         openai_api_key="sk-openai-test",
     )
     bridge = EngineBridge(
-        saves_dir=str(tmp_path),
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
         prompts_dir="app/prompts",
         llm_config=llm_config,
     )
@@ -90,7 +88,6 @@ def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):
     ckpt = bridge.load_story_into_session("session_1", story_id)
 
     expected = runtime_model_config(llm_config)
-    assert ckpt.config.models == expected
     assert ckpt.session.config.models == expected
 
     ckpt_0000 = CheckpointFile.model_validate_json(
@@ -99,15 +96,16 @@ def test_load_story_into_session_rewrites_stale_story_models(tmp_path: Path):
     ckpt_0001 = CheckpointFile.model_validate_json(
         (tmp_path / "sessions" / "session_1" / "ckpt_0001.json").read_text()
     )
-    assert ckpt_0000.config.models == expected
     assert ckpt_0000.session.config.models == expected
-    assert ckpt_0001.config.models == expected
     assert ckpt_0001.session.config.models == expected
+    assert not hasattr(ckpt_0000, "config")
+    assert not hasattr(ckpt_0001, "config")
 
 
 def test_load_story_into_session_rejects_stale_schema(tmp_path: Path):
     bridge = EngineBridge(
-        saves_dir=str(tmp_path),
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
         prompts_dir="app/prompts",
         llm_config=LLMConfig(api_key="sk-ant-test"),
     )

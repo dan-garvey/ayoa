@@ -22,6 +22,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.engine import dnd_spatial
+from app.engine.dnd_combat_access import (
+    checkpoint_active_combat as _active_combat,
+    combatant_character_id as _combatant_character_id,
+    combatant_for_character as _combatant_for_character,
+    combatants as _combatants,
+    current_combatant as _current_combatant,
+    obj_get as _obj_get,
+)
 from app.engine.context_builder import (
     append_turn_to_conversation,
     build_character_packet,
@@ -36,7 +44,6 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import (
     AGENT_TURN_HEADER,
     AGENT_PERCEPTION_HEADER,
-    format_agent_on_stage_body,
     format_agent_perception_body,
     format_agent_turn_body,
 )
@@ -90,12 +97,6 @@ def _conversation_safe_user_content(text: str) -> str:
     return "\n".join(lines)
 
 
-def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
-
-
 def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
     settings = getattr(
         getattr(checkpoint.session, "config", None),
@@ -114,43 +115,6 @@ def model_role_for_character(character: CharacterRecord) -> str:
     }:
         return CONVENIENCE_AGENT_ROLE
     return PLOT_AGENT_ROLE
-
-
-def _active_combat(checkpoint: CheckpointFile) -> Any | None:
-    combat = getattr(checkpoint.session, "active_combat", None)
-    if combat is None:
-        return None
-    status = _obj_get(combat, "status", "active")
-    if status != "active":
-        return None
-    if not list(_obj_get(combat, "combatants", []) or []):
-        return None
-    return combat
-
-
-def _combatant_character_id(combatant: Any) -> str:
-    return (
-        str(_obj_get(combatant, "character_id", "") or "")
-        or str(_obj_get(combatant, "combatant_id", "") or "")
-    )
-
-
-def _combatant_for_character(combat: Any, character_id: str) -> Any | None:
-    for combatant in list(_obj_get(combat, "combatants", []) or []):
-        if _combatant_character_id(combatant) == character_id:
-            return combatant
-    return None
-
-
-def _current_combatant(combat: Any) -> Any | None:
-    combatants = list(_obj_get(combat, "combatants", []) or [])
-    if not combatants:
-        return None
-    try:
-        idx = int(_obj_get(combat, "turn_index", 0) or 0) % len(combatants)
-    except (TypeError, ValueError):
-        idx = 0
-    return combatants[idx]
 
 
 def _combat_state_line(combatant: Any) -> str:
@@ -289,25 +253,10 @@ class CharacterAgent:
         # Usage from the most recent agent turn/perception call.
         self.last_usage: dict[str, int] = {}
 
-    async def respond(
-        self,
-        character: CharacterRecord,
-        checkpoint: CheckpointFile,
-        acting_character_id: str = "",
-    ) -> CharacterAgentOutput:
-        """Compatibility wrapper for a foreground agent turn."""
-        return await self.turn(
-            character=character,
-            checkpoint=checkpoint,
-            acting_character_id=acting_character_id,
-            frame="foreground",
-        )
-
     async def turn(
         self,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
-        acting_character_id: str = "",
         frame: str = "foreground",
         local_context: str = "",
     ) -> CharacterAgentOutput:
@@ -315,7 +264,6 @@ class CharacterAgent:
         draft = await self.draft_turn(
             character=character,
             checkpoint=checkpoint,
-            acting_character_id=acting_character_id,
             frame=frame,
             local_context=local_context,
         )
@@ -335,7 +283,7 @@ class CharacterAgent:
         if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
             return ""
         combat = _active_combat(checkpoint)
-        if combat is None:
+        if combat is None or not _combatants(combat):
             return ""
         current = _current_combatant(combat)
         current_id = _combatant_character_id(current) if current else ""
@@ -380,14 +328,13 @@ class CharacterAgent:
         self,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
-        acting_character_id: str = "",
     ) -> str:
         """Observer-agnostic perception beat — return this character's
         current visual loadout as plain prose (1-3 sentences).
 
         Used by the observation-harvest fork in `turn_loop.run_beat`
         when a player's action is purely observational
-        (`ends_beat_reason="observation_harvest"`), and reachable
+        (`event_kind="observation_harvest"`), and reachable
         later from `/query` for "what does X look like?" questions.
 
         Distinct from committed agent turns in two load-bearing ways:
@@ -409,13 +356,6 @@ class CharacterAgent:
         Unlike normal agent turns, this still does not drain pending_observations
         and does not produce private intent.
 
-        `acting_character_id` is currently vestigial — the agent
-        prompt no longer surfaces who is acting this beat (that
-        framing primed the model toward sycophantic
-        protagonist-deference). The parameter is kept on the
-        signature for callers (perception harvest, /query) but
-        nothing inside this method consumes it. Pass empty string
-        when called outside a beat.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 
@@ -485,7 +425,6 @@ class CharacterAgent:
         self,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
-        acting_character_id: str = "",
         frame: str = "foreground",
         local_context: str = "",
     ) -> CharacterAgentTurnDraft:
@@ -498,10 +437,7 @@ class CharacterAgent:
             if character.location else "Location: Off-screen / unspecified location."
         )
         foreground_block = (
-            _join_mode_blocks(
-                format_agent_on_stage_body(),
-                self._dnd_combat_mode_block(character, checkpoint),
-            )
+            self._dnd_combat_mode_block(character, checkpoint)
             if frame == "foreground"
             else ""
         )
@@ -509,7 +445,6 @@ class CharacterAgent:
         return await self._draft_beat(
             character=character,
             checkpoint=checkpoint,
-            acting_character_id=acting_character_id,
             mode_header=AGENT_TURN_HEADER,
             mode_block=_join_mode_blocks(
                 format_agent_turn_body(
@@ -549,7 +484,6 @@ class CharacterAgent:
         *,
         character: CharacterRecord,
         checkpoint: CheckpointFile,
-        acting_character_id: str,
         mode_header: str,
         mode_block: str,
         log_label: str,
@@ -569,9 +503,6 @@ class CharacterAgent:
         message. This shared prefix is what lets one cache lineage cover
         multiple characters on the same model role.
 
-        `acting_character_id` is currently vestigial — same reasoning
-        as `perceive` above. Kept on the signature so callers don't
-        have to special-case the boundary; nothing here consumes it.
         """
         history = checkpoint.character_conversations.get(character.character_id, [])
 

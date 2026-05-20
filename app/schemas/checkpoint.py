@@ -8,7 +8,7 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
 from app.schemas.narrator import TranscriptEntry
-from app.schemas.state import SessionConfig, SessionState, WorldState
+from app.schemas.state import SessionState, WorldState
 
 
 CURRENT_SCHEMA_VERSION = "4.0"
@@ -53,4 +53,3 @@ class CheckpointFile(BaseModel):
     # Display/audit log only — no longer fed into prompts.
     transcript: list[TranscriptEntry] = Field(default_factory=list)
     visibility_log: list[dict[str, Any]] = Field(default_factory=list)
-    config: SessionConfig = Field(default_factory=SessionConfig)

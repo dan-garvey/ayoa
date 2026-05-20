@@ -43,9 +43,10 @@ class PublicSheet(BaseModel):
 
 class CharacterDescriptions(BaseModel):
     # Player-safe identity context. The narrator may use this to explain
-    # why a known name, uniform, rank, or social shorthand matters to the
-    # viewpoint character. It must not contain secrets, motives, hidden
-    # allegiances, authorial labels, or private body details.
+    # why a newly met name, uniform, rank, or social shorthand matters to the
+    # viewpoint character when the engine explicitly surfaces first-meeting
+    # context. It must not contain secrets, motives, hidden allegiances,
+    # authorial labels, or private body details.
     public: str = ""
     # Omniscient/private character description for future engine use and
     # auditing. This may contain spoiler-bearing identity context, but it is

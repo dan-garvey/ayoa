@@ -13,7 +13,6 @@ class ModelConfig(BaseModel):
     event_router: str = "gpt-5.2"
     narrator: str = "gpt-5.2"
     dnd_combat_manager: str = "gpt-5-mini"
-    discriminator: str = "gpt-5.2"
     agent_default: str = "claude-opus-4-6"
     agent_standard: str = "claude-haiku-4-5"
     agent_convenience: str = "claude-sonnet-4-6"
@@ -625,11 +624,6 @@ class SessionState(BaseModel):
     # work and is awaiting a successful narrator render. The latest
     # checkpoint can resume the render without rerunning upstream LLM calls.
     pending_narrator_render: PendingNarratorRender | None = None
-    # v11: queued /acts that arrived during a moment where they can't be
-    # processed yet — or that may need re-examination once a slot frees.
-    # In the reject-on-conflict model we're shipping, this is usually
-    # empty; kept for future queueing/inspection.
-    pending_intentions: list[dict[str, str]] = Field(default_factory=list)
 
 
 class PhysicsRuleset(BaseModel):
@@ -652,11 +646,8 @@ class WorldState(BaseModel):
     setting: StorySetting = Field(default_factory=StorySetting)
     # Long-form world lore: history, factions, laws, magic systems, etc.
     lore: str = ""
-    # Hidden lore/facts — available to discriminator and agents for authentic
+    # Hidden lore/facts — available to the event router and agents for authentic
     # reactions, but NEVER shown to the narrator or the player. These contain
     # spoilers, conspiracy details, and secrets to be discovered through play.
     hidden_lore: str = ""
     hidden_facts: list[str] = Field(default_factory=list)
-    # Characters the player has been formally introduced to (by character_id).
-    # NP2 uses names only for known characters; others are described by appearance.
-    known_characters: list[str] = Field(default_factory=list)

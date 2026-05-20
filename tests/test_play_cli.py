@@ -21,7 +21,7 @@ from scripts.play import (
     _cli_log_level,
     _default_history_path,
 )
-from app.bot.engine_bridge import (
+from app.engine.frontend_views import (
     CharacterSummary,
     CompletedPendingRoll,
     DndCombatParticipantView,
@@ -1427,7 +1427,7 @@ class TestRewindCommand:
         # validation so the CLI handler exercises the branches it
         # needs to handle (unknown turn, target == latest, etc.) the
         # same way the real bridge would.
-        from app.bot.engine_bridge import RewindResult
+        from app.engine.frontend_views import RewindResult
 
         def _preview(_session_id: str, target: int) -> RewindResult:
             if not turns:

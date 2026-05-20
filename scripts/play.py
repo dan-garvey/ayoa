@@ -78,17 +78,19 @@ from dotenv import load_dotenv
 
 from app.bot.player_errors import player_safe_error_message
 from app.bot.engine_bridge import (
+    EngineBridge,
+    joinable_character_summaries,
+)
+from app.engine import dnd_experience, dnd_inventory, dnd_presentation
+from app.engine.frontend_views import (
     CharacterSummary,
     CompletedPendingRoll,
     DndCombatParticipantView,
     DndCombatView,
     DndInventoryView,
     DndSheetAttachmentSummary,
-    EngineBridge,
     PendingRollPrompt,
-    joinable_character_summaries,
 )
-from app.engine import dnd_experience, dnd_inventory, dnd_presentation
 from app.engine.text_safety import strip_terminal_control
 
 load_dotenv()

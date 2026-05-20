@@ -377,7 +377,6 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
       "location_label": "string"
     }}
   ],
-{ruleset_output_schema_fields}
   "requires_responders": true or false,
   "required_responders": ["character_id - Cat II only, else empty"],
   "event_kind": "string - one of: beat_continues | public_fact | directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"

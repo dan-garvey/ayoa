@@ -2,10 +2,10 @@ import pytest
 
 from app.bot.commands import _render_combat_status
 from app.bot.embed import MAX_DESCRIPTION
-from app.bot.engine_bridge import (
+from app.bot.engine_bridge import EngineBridge
+from app.engine.frontend_views import (
     DndCombatParticipantView,
     DndCombatView,
-    EngineBridge,
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
@@ -21,7 +21,11 @@ from app.schemas.state import (
 @pytest.fixture
 def bridge(tmp_path, monkeypatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    return EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
 
 
 def test_bridge_combat_status_labels_active_effects_without_roll_details(

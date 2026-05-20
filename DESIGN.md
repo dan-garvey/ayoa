@@ -38,11 +38,12 @@
 * `app/bot/` — Discord frontend: slash commands, `EngineBridge`,
   `SessionMap`, embed rendering, `__main__` startup.
 * `app/storage/sessions/` — per-session checkpoint directories.
-* `app/storage/stories/` — synthetic story seed checkpoints.
+* `app/storage/stories/` — synthetic story seed checkpoints. This directory
+  defaults to ignored so local/runtime story drafts do not appear
+  accidentally; shipped seed directories must be explicitly allowlisted in
+  `.gitignore`.
 * `app/storage/story_templates/` — authoring templates and notes for
   coding agents creating synthetic story seeds.
-  An older flat `app/storage/saves/` layout is auto-migrated on
-  `EngineBridge` construction.
 * `scripts/play.py` — interactive terminal REPL frontend, supports
   multi-character play.
 * `tests/` — pytest tests.
@@ -429,6 +430,9 @@ The authoring template lives at
 `app/storage/story_templates/synthetic_checkpoint/ckpt_0000.json`, with
 design notes beside it. The template is intentionally outside
 `app/storage/stories/` so it does not appear in `/story list`.
+New shipped story seeds under `app/storage/stories/` must also be allowlisted
+in `.gitignore`; session checkpoints and playtest reports remain ignored
+runtime outputs.
 
 Opening prose is not authored in the checkpoint. The first playable scene is
 composed later by the router on `(begin)` and rendered through the normal
@@ -478,11 +482,8 @@ Anthropic `claude-opus-4-6` for premium `agent` calls, Anthropic
 for `agent_convenience`, and Opus for `character_gen`.
 
 Active live model roles are `event_router`, `narrator`, `agent`,
-`agent_standard`, and `agent_convenience`.
-`character_gen` remains in configuration and has a prompt file, but the
-current spawn path renders `character_gen.txt` and calls the LLM with
-`role="agent"`. The old `discriminator` role is vestigial compatibility state
-and is not used by live calls.
+`agent_standard`, `agent_convenience`, `dnd_combat_manager`, and
+`character_gen`.
 
 ## 6. Turn Lifecycle
 
@@ -961,8 +962,7 @@ Top-level shape:
   "character_conversations": {},
   "canonical_events": [],
   "transcript": [],
-  "visibility_log": [],
-  "config": {}
+  "visibility_log": []
 }
 ```
 
@@ -972,6 +972,8 @@ Important notes:
 * `transcript` is primarily display/audit state, but takeover/personality
   synthesis flows may read recent transcript entries as authoring context.
 * `session_conversation` is the router's rolling history.
+* `session.config` is the canonical config source for model labels, narrative
+  rules, and live settings.
 * D&D roll transactions are checkpoint/audit state, not router, narrator, or
   character-agent rolling history.
 * `narrator_conversations` are per human POV.
@@ -1360,10 +1362,6 @@ Known stale or transitional areas:
 * some code comments still reference older architecture names or call counts,
   especially around the early v11 turn-loop skeleton and hidden-context
   comments
-* `SessionConfig.models.discriminator` remains for compatibility even
-  though the active LLM config no longer calls a discriminator role
-* `character_gen` remains a configured model role, but the live spawn path
-  currently calls `role="agent"` while rendering `character_gen.txt`
 * `visibility_log` exists but the main v11 flow relies on
   `canonical_events`, render buffers, and NPC inboxes
 * global `transcript` stores one selected POV per beat; other POV prose

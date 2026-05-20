@@ -16,8 +16,6 @@ import time
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
     append_assistant_to_conversation,
-    build_narrator_public_character_context_block,
-    build_narrator_pov_knowledge_block,
     build_narrator_player_characters_block,
     replace_character_ids_with_names,
 )
@@ -203,12 +201,12 @@ async def compose_pov_render(
 
     from app.engine.context_builder import build_setting_summary
     setting_summary = build_setting_summary(ckpt)
-    narrative_rules = ckpt.config.narrative_rules or "No specific narrative rules."
+    narrative_rules = (
+        ckpt.session.config.narrative_rules
+        or "No specific narrative rules."
+    )
     player_characters_block = build_narrator_player_characters_block(
         ckpt, pov_character_id
-    )
-    public_character_context_block = build_narrator_public_character_context_block(
-        ckpt,
     )
     visible_events_block = _format_visible_events_block(
         resolved, pov_character_id, ckpt,
@@ -223,9 +221,6 @@ async def compose_pov_render(
     )
     if visual_intro_block:
         visible_events_block = f"{visible_events_block}\n\n{visual_intro_block}"
-    pov_knowledge_block = build_narrator_pov_knowledge_block(
-        ckpt, pov_character_id, visible_events_block,
-    )
     rendering_note = (
         PARTIAL_MODE_MARKER
         if partial_mode
@@ -248,8 +243,6 @@ async def compose_pov_render(
         user_input=user_input,
         pov_character_name=pov_name,
         player_characters_block=player_characters_block,
-        public_character_context_block=public_character_context_block,
-        pov_knowledge_block=pov_knowledge_block,
         rendering_note=rendering_note,
     )
     render_ms = (time.monotonic() - render_t0) * 1000

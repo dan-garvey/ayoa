@@ -134,51 +134,6 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
     return "\n".join(lines)
 
 
-def format_agent_on_stage_body() -> str:
-    """v11 unified-agent on-stage user-message body — intentionally empty.
-
-    The full user message is
-    `{AGENT_TURN_HEADER}\\n\\n{pending_observations_block}\\n\\n{this body}`.
-    The on-stage body USED to carry three blocks (`## Scene`,
-    `## What You Observe This Turn`, `## Other Characters' Responses
-    This Turn`); all three are gone (v11-r10) because the same
-    information already lands on the agent through other channels:
-
-    - **`## Scene`** was a per-turn restatement of where the character
-      is standing and a co-located roster. Initial location now lands
-      via the story seed / spawn helper, which pushes
-      `[your own action] <Name> at <Location Label>.` into
-      `pending_observations` once at character creation. The agent
-      reads this through their inbox (the block above this one), so
-      re-emitting the same facts in `## Scene` was duplicate context
-      every beat.
-
-    - **`## What You Observe This Turn`** rendered the `observed_facts`
-      list every production caller passed as `[]`. Perception lands on
-      the cascade NPC's `pending_observations` queue via
-      `broadcast_event` (which pushes each observer's visible
-      observable_facts onto their inbox when local or explicitly named
-      by a mediated fact), not through this body. The block was
-      rendering literal "" on every beat.
-
-    - **`## Other Characters' Responses This Turn`** rendered the
-      `prior_responses` list every production caller passed as `None`.
-      Cascade NPCs see prior cascade responses through the same
-      `pending_observations` channel: each cascade event broadcasts
-      to its declared observers, so by the time NPC #2 fires they have NPC
-      #1's just-broadcast event in their inbox. The block was
-      rendering literal "" on every beat.
-
-    The on-stage user message is now just the mode header plus the
-    pending-observations block, and that's the entire payload. Kept
-    as a function so dispatcher code can stay symmetric with
-    `format_agent_turn_body()` / `format_agent_perception_body()` and
-    so future foreground-only context (if any ever surfaces a real
-    need) has a documented home.
-    """
-    return ""
-
-
 def format_agent_perception_body() -> str:
     """v11: agent perception-mode user-message body.
 

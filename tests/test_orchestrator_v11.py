@@ -10,19 +10,18 @@ from app.engine import dice, dnd_experience, dnd_monsters
 from app.engine.dnd_combat import apply_damage, current_combatant
 from app.engine.orchestrator import Orchestrator
 from app.engine.turn_loop import BeatResult, broadcast_event
-from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
     ObserverEntry,
+    empty_commitment_open_signal,
 )
 from app.schemas.events import (
     CanonicalEvent,
     ObservableFact,
     WorldAdjudication,
 )
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.state import (
     CatIIRollRecord,
@@ -33,137 +32,23 @@ from app.schemas.state import (
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
-    SessionState,
     SlotEntry,
-    WorldState,
+)
+from tests.support.factories import (
+    ClassFakeDispatcher as FakeDispatcher,
+    dnd5e_mechanics as _dnd_mechanics,
+    dnd_router_output as _dnd_router_out,
+    gatehouse_checkpoint,
+    router_output as _router_out,
 )
 
 
 def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
-    return CheckpointFile(
-        session=SessionState(
-            session_id="s",
-            turn_index=0,
-            player_character_id="alice",
-            character_bindings=bindings or {"alice": "u1"},
-        ),
-        world_state=WorldState(),
-        characters=[
-            CharacterRecord(
-                character_id="alice",
-                name="Alice",
-                public_sheet=PublicSheet(role="player"),
-                location="gatehouse",
-                is_playable=True,
-            ),
-            CharacterRecord(
-                character_id="bob",
-                name="Bob",
-                public_sheet=PublicSheet(role="player"),
-                location="gatehouse",
-                is_playable=True,
-            ),
-            CharacterRecord(
-                character_id="pip",
-                name="Pip",
-                public_sheet=PublicSheet(role="guard"),
-                location="gatehouse",
-                is_playable=False,
-            ),
-        ],
+    return gatehouse_checkpoint(
+        bindings=bindings or {"alice": "u1"},
+        player_character_id="alice",
+        pip_role="guard",
     )
-
-
-def _router_out(
-    *,
-    requires_responders: bool = False,
-    required_responders: list[str] | None = None,
-    agent_ids: list[str] | None = None,
-    ends_beat: bool = True,
-    ends_beat_reason: str = "directed_at_player",
-    facts: list[ObservableFact] | None = None,
-) -> EventRouterOutput:
-    picks = agent_ids or []
-    required = required_responders or []
-    observer_ids = ["alice", *picks, *required]
-    observers: list[ObserverEntry] = []
-    seen: set[str] = set()
-    for cid in observer_ids:
-        if cid in seen:
-            continue
-        seen.add(cid)
-        observers.append(
-            ObserverEntry(
-                character_id=cid,
-                observation_level="d",
-                routing_role="next_output" if cid in picks else "observe_only",
-            )
-        )
-    if not ends_beat:
-        ends_beat_reason = ""
-    return EventRouterOutput(
-        event_id="",
-        decision_rationale="test fixture",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=facts if facts is not None else [
-                ObservableFact.all("Something happens.")
-            ],
-        ),
-        observers=observers,
-        requires_responders=requires_responders,
-        required_responders=required,
-        ends_beat=ends_beat,
-        ends_beat_reason=ends_beat_reason,
-        spawn=[],
-        dormant=[],
-        cull=[],
-    )
-
-
-def _dnd_router_out(
-    *,
-    interaction_mode: str,
-    combatant_ids: list[str] | None = None,
-    combatant_spawns: list[dict] | None = None,
-    **kwargs,
-) -> DndEventRouterOutput:
-    data = _router_out(**kwargs).model_dump()
-    data["interaction_mode"] = interaction_mode
-    data["combatant_ids"] = combatant_ids or []
-    data["combatant_spawns"] = combatant_spawns or []
-    return DndEventRouterOutput(**data)
-
-
-def _dnd_mechanics(
-    *,
-    xp: int = 0,
-    hp: int = 10,
-    ac: int = 12,
-) -> dict:
-    return {
-        "ruleset_id": "dnd5e_basic",
-        "experience_points": xp,
-        "armor_class": ac,
-        "hit_points": {"current": hp, "max": hp, "temporary": 0},
-        "ability_scores": {
-            "str": 10,
-            "dex": 10,
-            "con": 10,
-            "int": 10,
-            "wis": 10,
-            "cha": 10,
-        },
-        "dnd5e_sheet": {
-            "identity": {
-                "name": "Alice",
-                "total_level": 1,
-                "experience_points": xp,
-                "classes": [{"name": "Fighter", "level": 1}],
-            },
-            "statblock": {},
-        },
-    }
 
 
 def _rat_combatant_spawn() -> dict:
@@ -216,72 +101,6 @@ def _rat_combatant_spawn() -> dict:
             ],
         },
     }
-
-
-class FakeDispatcher:
-    _route_responses: list[EventRouterOutput] = []
-    _agent_responses: list[str] = []
-    _narrator_errors: list[Exception] = []
-    _narrator_text: str = "POV_RENDER"
-    route_calls: list[dict] = []
-    agent_calls: list[dict] = []
-    narrator_calls: list[dict] = []
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    @classmethod
-    def reset(cls) -> None:
-        cls._route_responses = []
-        cls._agent_responses = []
-        cls._narrator_errors = []
-        cls._narrator_text = "POV_RENDER"
-        cls.route_calls = []
-        cls.agent_calls = []
-        cls.narrator_calls = []
-
-    @classmethod
-    def queue_route(cls, response: EventRouterOutput) -> None:
-        cls._route_responses.append(response)
-
-    @classmethod
-    def queue_agent(cls, intention: str) -> None:
-        cls._agent_responses.append(intention)
-
-    @classmethod
-    def queue_narrator_error(cls, error: Exception) -> None:
-        cls._narrator_errors.append(error)
-
-    async def route_intention(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def route_continuation(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def route_combat_action(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def continue_combat_transaction(self, **kw) -> EventRouterOutput:
-        type(self).route_calls.append(kw)
-        return type(self)._route_responses.pop(0)
-
-    async def agent_intend(self, **kw) -> str:
-        type(self).agent_calls.append(kw)
-        return type(self)._agent_responses.pop(0)
-
-    async def narrator_compose(self, **kw):
-        type(self).narrator_calls.append(kw)
-        if type(self)._narrator_errors:
-            raise type(self)._narrator_errors.pop(0)
-        envelope = NarratorFinalOutput(final_text=type(self)._narrator_text)
-        entry = TranscriptEntry(
-            user=kw.get("user_input", ""),
-            assistant=type(self)._narrator_text,
-        )
-        return envelope, entry
 
 
 @pytest.fixture(autouse=True)
@@ -527,7 +346,7 @@ class TestPendingCombatRolls:
         )
         orch, mgr = patched_orchestrator(ckpt)
         FakeDispatcher.queue_route(
-            _router_out(ends_beat_reason="ruleset_resolution")
+            _router_out(event_kind="ruleset_resolution")
         )
 
         response = await orch.continue_cat_ii_after_roll(
@@ -618,7 +437,7 @@ class TestPendingCombatRolls:
                     {"size": 20, "values": [13], "kept": True, "total": 13},
                 ],
             }
-            return _router_out(ends_beat_reason="ruleset_resolution")
+            return _router_out(event_kind="ruleset_resolution")
 
         monkeypatch.setattr(
             FakeDispatcher,
@@ -1020,8 +839,7 @@ class TestCombatTurnGating:
         async def fail_combat_action(self, *, ckpt, actor_id, intention):
             assert actor_id == "rat"
             partial = _router_out(
-                ends_beat=True,
-                ends_beat_reason="ruleset_resolution",
+                event_kind="ruleset_resolution",
                 facts=[ObservableFact.all("Rat snaps at Alice but resolution fails.")],
             )
             partial.observers = [
@@ -1485,11 +1303,14 @@ class TestCombatTurnGating:
         orch, mgr = patched_orchestrator(ckpt)
         FakeDispatcher.queue_route(EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="reaction act",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Bob reacts.")],
             ),
+            event_kind="directed_at_player",
             observers=[
                 ObserverEntry(
                     character_id="bob",
@@ -1499,11 +1320,13 @@ class TestCombatTurnGating:
             ],
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="directed_at_player",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -1687,11 +1510,14 @@ class TestCombatTurnGating:
         orch, mgr = patched_orchestrator(ckpt)
         FakeDispatcher.queue_route(EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="cat ii closes after reaction",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("The exchange resolves.")],
             ),
+            event_kind="cat_ii_resolution",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -1706,11 +1532,13 @@ class TestCombatTurnGating:
             ],
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="cat_ii_resolution",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -1761,8 +1589,7 @@ class TestCatIIPending:
         pin_cat_ii_responder(ckpt, "bob", opened.event_id)
         orch, mgr = patched_orchestrator(ckpt)
         FakeDispatcher.queue_route(_router_out(
-            ends_beat=True,
-            ends_beat_reason="cat_ii_resolution",
+            event_kind="cat_ii_resolution",
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -1943,8 +1770,7 @@ class TestResolveCatII:
         evt.collected_intentions["pip"] = "I step back"
         orch, mgr = patched_orchestrator(ckpt)
         resolution = _router_out(
-            ends_beat=True,
-            ends_beat_reason="cat_ii_resolution",
+            event_kind="cat_ii_resolution",
             facts=[ObservableFact.all("Pip steps back from Alice.")],
         )
         resolution.observers = [

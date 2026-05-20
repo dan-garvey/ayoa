@@ -60,7 +60,11 @@ def _ckpt() -> CheckpointFile:
 @pytest.fixture
 def bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    b = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    b = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
     ckpt = _ckpt()
     ckpt.session.turn_index = 1
     b.checkpoint_mgr.save(ckpt)
@@ -180,7 +184,6 @@ class TestEngineBridgeSettings:
         ckpt.session.session_id = story_id
         ckpt.session.story_id = story_id
         ckpt.session.config.settings.max_events_per_beat = 12
-        ckpt.config.settings.max_events_per_beat = 12
         (story_dir / "ckpt_0000.json").write_text(
             ckpt.model_dump_json(indent=2)
         )
@@ -191,7 +194,7 @@ class TestEngineBridgeSettings:
         )
 
         assert loaded.session.config.settings.max_events_per_beat == 12
-        assert loaded.config.settings.max_events_per_beat == 12
+        assert not hasattr(loaded, "config")
 
     def test_list_has_rows(self, bridge: EngineBridge):
         rows = bridge.list_settings(SESSION_ID)

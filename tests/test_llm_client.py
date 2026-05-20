@@ -376,6 +376,55 @@ class TestLLMClientComplete:
         assert "cache_control" not in call_kwargs
 
     @pytest.mark.asyncio
+    async def test_single_turn_keeps_user_tail_uncached(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[
+                {"role": "system", "content": "You are a bard."},
+                {"role": "user", "content": "Sing."},
+            ],
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["messages"] == [{"role": "user", "content": "Sing."}]
+
+    @pytest.mark.asyncio
+    async def test_history_caches_last_user_tail(self, client):
+        mock = _install_stream_mock(client, _make_mock_response("ok"))
+
+        await client.complete(
+            role="narrator",
+            messages=[
+                {"role": "system", "content": "You are a bard."},
+                {"role": "user", "content": "Sing."},
+                {"role": "assistant", "content": "A song begins."},
+                {"role": "user", "content": "Continue."},
+            ],
+            temperature=0.5,
+            max_tokens=100,
+        )
+
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["messages"] == [
+            {"role": "user", "content": "Sing."},
+            {"role": "assistant", "content": "A song begins."},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Continue.",
+                        "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                    }
+                ],
+            },
+        ]
+
+    @pytest.mark.asyncio
     async def test_no_cache_when_no_system(self, client):
         """No shared prefix → no cache marker anywhere."""
         mock = _install_stream_mock(client, _make_mock_response("ok"))

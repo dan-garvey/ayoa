@@ -505,7 +505,7 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
 
     bob = ckpt.session.active_combat.combatants[1]
     assert bob.hit_points_current == 6
-    assert routed.ends_beat_reason == "ruleset_resolution"
+    assert routed.event_kind == "ruleset_resolution"
     assert routed.canonical_event.observable_facts[0].text == (
         "Alice cuts Bob across the guard."
     )

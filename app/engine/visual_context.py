@@ -26,6 +26,7 @@ class VisualIntroduction:
     character_id: str
     name: str
     default_loadout: str
+    public_context: str
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,20 @@ def _default_loadout(character: CharacterRecord) -> str:
     return str(getattr(visuals, "default_loadout", "") or "").strip()
 
 
-def _known_characters(ckpt: CheckpointFile) -> list[CharacterRecord]:
+def _public_context(character: CharacterRecord) -> str:
+    descriptions = getattr(character, "descriptions", None)
+    return str(getattr(descriptions, "public", "") or "").strip()
+
+
+def _is_redundant_context(loadout: str, public_context: str) -> bool:
+    left = " ".join((loadout or "").casefold().split())
+    right = " ".join((public_context or "").casefold().split())
+    if not left or not right:
+        return False
+    return left in right or right in left
+
+
+def _active_roster_characters(ckpt: CheckpointFile) -> list[CharacterRecord]:
     return [
         character for character in ckpt.characters
         if _character_status_value(character) != "culled"
@@ -65,7 +79,10 @@ def _known_characters(ckpt: CheckpointFile) -> list[CharacterRecord]:
 def _character_maps(
     ckpt: CheckpointFile,
 ) -> tuple[dict[str, CharacterRecord], dict[str, str]]:
-    by_id = {character.character_id: character for character in _known_characters(ckpt)}
+    by_id = {
+        character.character_id: character
+        for character in _active_roster_characters(ckpt)
+    }
     by_label: dict[str, str] = {}
     for character in by_id.values():
         if character.character_id:
@@ -83,7 +100,7 @@ def _mentioned_character_ids(
     if not text:
         return set()
     mentioned: set[str] = set()
-    for character in _known_characters(ckpt):
+    for character in _active_roster_characters(ckpt):
         probes = [character.character_id, character.name]
         for probe in probes:
             if not probe:
@@ -106,7 +123,7 @@ def _speaking_character_ids(
     if not texts:
         return set()
     speaking: set[str] = set()
-    for character in _known_characters(ckpt):
+    for character in _active_roster_characters(ckpt):
         probes = [character.character_id, character.name]
         for probe in probes:
             if not probe:
@@ -218,7 +235,10 @@ def _plan_visual_introductions(
             mark_ids.append(character_id)
             continue
         loadout = _default_loadout(character)
-        if not loadout:
+        public_context = _public_context(character)
+        if _is_redundant_context(loadout, public_context):
+            public_context = ""
+        if not loadout and not public_context:
             continue
         sort_key = (
             priority_index.get(character_id, 10_000),
@@ -231,6 +251,7 @@ def _plan_visual_introductions(
                 character_id=character_id,
                 name=character.name or character_id,
                 default_loadout=loadout,
+                public_context=public_context,
             ),
         ))
 
@@ -303,9 +324,13 @@ def format_visual_introductions(
     entries = list(introductions)
     if not entries:
         return ""
-    lines = ["First visible impressions:"]
+    lines = ["Newly introduced character context:"]
     for introduction in entries:
-        lines.append(
-            f"- {introduction.name}: {introduction.default_loadout}"
-        )
+        parts: list[str] = []
+        if introduction.default_loadout:
+            parts.append(f"first visible impression: {introduction.default_loadout}")
+        if introduction.public_context:
+            parts.append(f"player-safe context: {introduction.public_context}")
+        if parts:
+            lines.append(f"- {introduction.name}: {' '.join(parts)}")
     return "\n".join(lines)

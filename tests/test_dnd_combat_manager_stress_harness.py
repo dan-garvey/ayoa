@@ -1,4 +1,4 @@
-from scripts.run_dnd_combat_manager_stress import (
+from app.engine.dnd_combat_harness import (
     _fact_asserts_condition,
     _scenario_findings,
 )

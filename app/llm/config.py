@@ -157,8 +157,7 @@ class LLMConfig(BaseModel):
     default_provider: str = "openai"
     role_providers: dict[str, str] = Field(default_factory=dict)
 
-    # The discriminator role was merged into the event router in v2; no
-    # caller asks for role="discriminator" anymore, so it's omitted here.
+    # Role-specific model overrides. Keep this list to active LLM call roles.
     role_models: dict[str, str] = Field(default_factory=lambda: {
         "event_router": _ROUTER_MODEL,
         "narrator": _NARRATOR_MODEL,

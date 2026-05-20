@@ -16,25 +16,19 @@ from pathlib import Path
 
 import pytest
 
-from app.bot.engine_bridge import EngineBridge, RewindResult
+from app.bot.engine_bridge import EngineBridge
+from app.engine.frontend_views import RewindResult
 from app.schemas.characters import (
     CharacterRecord,
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import (
-    EventRouterOutput,
-    ObserverEntry,
-)
-from app.schemas.events import (
-    CanonicalEvent,
-    WorldAdjudication,
-)
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import (
     SessionState,
     WorldState,
 )
+from tests.support.factories import router_output
 
 
 SESSION_ID = "rewind_test"
@@ -66,27 +60,11 @@ def _make_ckpt(
     events = []
     for i in range(canonical_event_count):
         events.append(
-            EventRouterOutput(
+            router_output(
                 event_id=f"evt_t{turn_index}_{i}",
-                decision_rationale="(test fixture)",
-                canonical_event=CanonicalEvent(
-                    world_adjudication=WorldAdjudication(feasible=True),
-                    observable_facts=[],
-                ),
-                observers=[
-                    ObserverEntry(
-                        character_id=actor_id,
-                        observation_level="d",
-                        routing_role="observe_only",
-                    ),
-                ],
-                requires_responders=False,
-                required_responders=[],
-                ends_beat=True,
-                ends_beat_reason="cascade_exhausted",
-                spawn=[],
-                dormant=[],
-                cull=[],
+                observer_ids=[actor_id],
+                facts=[],
+                event_kind="cascade_exhausted",
             )
         )
 
@@ -109,7 +87,11 @@ def _make_ckpt(
 @pytest.fixture
 def bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    return EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    return EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
 
 
 def _seed_session(

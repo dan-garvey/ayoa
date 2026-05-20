@@ -6,11 +6,11 @@ import pytest
 from pathlib import Path
 
 from app.bot.engine_bridge import (
-    CharacterSummary,
     EngineBridge,
     joinable_character_summaries,
     _summaries_from_checkpoint,
 )
+from app.engine.frontend_views import CharacterSummary
 from app.engine.context_builder import (
     build_player_characters_block,
     collect_player_ids,
@@ -83,7 +83,11 @@ def bridge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> EngineBridge:
     # EngineBridge builds an LLMClient from env; avoid that by stubbing the
     # env-derived config to point at a harmless model.
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    b = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    b = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
     ckpt = _make_checkpoint()
     ckpt.session.turn_index = 1
     b.checkpoint_mgr.save(ckpt)

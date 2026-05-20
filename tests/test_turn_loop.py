@@ -30,13 +30,13 @@ from app.engine.turn_loop import (
     _end_dnd_combat_from_router_signal,
 )
 from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
-from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
     DndObserverEntry,
-    DndEventRouterOutput,
     EventRouterOutput,
     ObserverEntry,
+    SpawnRequest,
+    empty_commitment_open_signal,
 )
 from app.schemas.events import (
     CanonicalEvent,
@@ -44,7 +44,6 @@ from app.schemas.events import (
     WorldAdjudication,
     visible_fact_texts,
 )
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.router_targets import targets_from_router_output
 from app.schemas.state import (
     DndCombatantState,
@@ -52,182 +51,18 @@ from app.schemas.state import (
     DndRouterObservedFact,
     OpenCommitment,
     RenderBufferEntry,
-    SessionState,
     SlotEntry,
-    WorldState,
+)
+from tests.support.factories import (
+    InstanceFakeDispatcher as FakeDispatcher,
+    dnd_router_output as _dnd_router_out,
+    gatehouse_checkpoint,
+    router_output as _router_out,
 )
 
 
-def _ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
-    return CheckpointFile(
-        session=SessionState(
-            session_id="s",
-            character_bindings=bindings or {},
-        ),
-        world_state=WorldState(),
-        characters=[
-            CharacterRecord(
-                character_id="alice",
-                name="Alice",
-                public_sheet=PublicSheet(role="player"),
-                location="gatehouse",
-                is_playable=True,
-            ),
-            CharacterRecord(
-                character_id="bob",
-                name="Bob",
-                public_sheet=PublicSheet(role="player"),
-                location="gatehouse",
-                is_playable=True,
-            ),
-            CharacterRecord(
-                character_id="pip",
-                name="Pip",
-                public_sheet=PublicSheet(role="npc"),
-                location="gatehouse",
-                is_playable=False,
-            ),
-        ],
-    )
-
-
-def _router_out(
-    *,
-    requires_responders: bool = False,
-    required_responders: list[str] | None = None,
-    agent_ids: list[str] | None = None,
-    observer_ids: list[str] | None = None,
-    event_kind: str | None = None,
-    ends_beat: bool = True,
-    facts: list[ObservableFact] | None = None,
-    effective_at_s: int = 0,
-    duration_s: int = 0,
-    location_updates: list[dict] | None = None,
-) -> EventRouterOutput:
-    picks = agent_ids or []
-    required = required_responders or []
-    observer_ids = observer_ids if observer_ids is not None else [
-        "alice", *picks, *required
-    ]
-    observers: list[ObserverEntry] = []
-    seen: set[str] = set()
-    for cid in observer_ids:
-        if cid in seen:
-            continue
-        seen.add(cid)
-        observers.append(
-            ObserverEntry(
-                character_id=cid,
-                observation_level="d",
-                routing_role="next_output" if cid in picks else "observe_only",
-            )
-        )
-    data = dict(
-        event_id="",
-        effective_at_s=effective_at_s,
-        duration_s=duration_s,
-        decision_rationale="test fixture",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=facts if facts is not None else [
-                ObservableFact.all("Something happens.")
-            ],
-        ),
-        observers=observers,
-        requires_responders=requires_responders,
-        required_responders=required,
-        ends_beat=ends_beat,
-        ends_beat_reason="directed_at_player" if ends_beat else "",
-        spawn=[],
-        dormant=[],
-        cull=[],
-        location_updates=location_updates or [],
-    )
-    if event_kind is not None:
-        data["event_kind"] = event_kind
-    return EventRouterOutput(**data)
-
-
-def _dnd_router_out(
-    *,
-    interaction_mode: str,
-    combatant_ids: list[str] | None = None,
-    battle_map_seed: dict | None = None,
-    **kwargs,
-) -> DndEventRouterOutput:
-    data = _router_out(**kwargs).model_dump()
-    data["interaction_mode"] = interaction_mode
-    data["combatant_ids"] = combatant_ids or []
-    if battle_map_seed is not None:
-        data["battle_map_seed"] = battle_map_seed
-    return DndEventRouterOutput(**data)
-
-
-class FakeDispatcher:
-    def __init__(self):
-        self.route_calls: list[dict] = []
-        self.continuation_calls: list[dict] = []
-        self.agent_output_calls: list[dict] = []
-        self.agent_calls: list[dict] = []
-        self.narrator_calls: list[dict] = []
-        self.harvest_calls: list[dict] = []
-        self.combat_calls: list[dict] = []
-        self._route_responses: list[EventRouterOutput] = []
-        self._combat_responses: list[EventRouterOutput] = []
-        self._agent_responses: list[str] = []
-        self._harvest_responses: list[list[str]] = []
-        self._narrator_response = "RENDER"
-
-    def queue_route(self, response: EventRouterOutput) -> None:
-        self._route_responses.append(response)
-
-    def queue_combat(self, response: EventRouterOutput) -> None:
-        self._combat_responses.append(response)
-
-    def queue_agent(self, intention: str) -> None:
-        self._agent_responses.append(intention)
-
-    def queue_harvest(self, fragments: list[str]) -> None:
-        self._harvest_responses.append(fragments)
-
-    async def route_intention(self, **kw) -> EventRouterOutput:
-        self.route_calls.append(kw)
-        return self._route_responses.pop(0)
-
-    async def route_continuation(self, **kw) -> EventRouterOutput:
-        self.continuation_calls.append(kw)
-        return self._route_responses.pop(0)
-
-    async def route_agent_output(self, **kw) -> EventRouterOutput:
-        self.agent_output_calls.append(kw)
-        return self._route_responses.pop(0)
-
-    async def route_combat_action(self, **kw) -> EventRouterOutput:
-        self.combat_calls.append(kw)
-        return self._combat_responses.pop(0)
-
-    async def continue_combat_transaction(self, **kw) -> EventRouterOutput:
-        self.combat_calls.append(kw)
-        return self._combat_responses.pop(0)
-
-    async def agent_intend(self, **kw) -> str:
-        self.agent_calls.append(kw)
-        return self._agent_responses.pop(0)
-
-    async def harvest_perceptions(self, **kw) -> list[str]:
-        self.harvest_calls.append(kw)
-        if self._harvest_responses:
-            return self._harvest_responses.pop(0)
-        return ["" for _ in kw.get("character_ids", [])]
-
-    async def narrator_compose(self, **kw):
-        self.narrator_calls.append(kw)
-        envelope = NarratorFinalOutput(final_text=self._narrator_response)
-        entry = TranscriptEntry(
-            user=kw.get("user_input", ""),
-            assistant=self._narrator_response,
-        )
-        return envelope, entry
+def _ckpt(bindings: dict[str, str] | None = None):
+    return gatehouse_checkpoint(bindings=bindings)
 
 
 class TestCheckActSlot:
@@ -357,11 +192,14 @@ class TestBeatCascade:
         fake = FakeDispatcher()
         fake.queue_route(EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="reaction prompt",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Alice rushes past Bob.")],
             ),
+            event_kind="directed_at_player",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -376,11 +214,13 @@ class TestBeatCascade:
             ],
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="directed_at_player",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
 
         result = asyncio.run(run_beat(
@@ -419,11 +259,14 @@ class TestBeatCascade:
         fake = FakeDispatcher()
         fake.queue_route(EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="no reaction prompt",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Alice shifts her stance.")],
             ),
+            event_kind="directed_at_player",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -438,11 +281,13 @@ class TestBeatCascade:
             ],
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="directed_at_player",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
 
         result = asyncio.run(run_beat(
@@ -479,6 +324,8 @@ class TestBeatCascade:
         )
         trigger = EventRouterOutput(
             event_id="evt_trigger",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="trigger",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
@@ -493,13 +340,16 @@ class TestBeatCascade:
                     routing_role="observe_only",
                 )
             ],
+            event_kind="directed_at_player",
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="directed_at_player",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         )
         ckpt.canonical_events.append(trigger)
         ckpt.session.active_act_slots["bob"] = SlotEntry(
@@ -508,7 +358,7 @@ class TestBeatCascade:
         )
         fake = FakeDispatcher()
         combat_out = _router_out(ends_beat=True)
-        combat_out.ends_beat_reason = "ruleset_resolution"
+        combat_out.event_kind = "ruleset_resolution"
         fake.queue_combat(combat_out)
 
         result = asyncio.run(run_beat(
@@ -532,6 +382,8 @@ class TestBeatCascade:
         fake = FakeDispatcher()
         fake.queue_route(EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="private query answer",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
@@ -551,13 +403,16 @@ class TestBeatCascade:
                     routing_role="perception_enrichment",
                 ),
             ],
+            event_kind="query_response",
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="query_response",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
         fake.queue_harvest(["Pip wears a red coat."])
 
@@ -582,6 +437,8 @@ class TestBeatCascade:
         fake = FakeDispatcher()
         fake.queue_route(EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="private query answer",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
@@ -603,13 +460,16 @@ class TestBeatCascade:
                     routing_role="perception_enrichment",
                 ),
             ],
+            event_kind="query_response",
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="query_response",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
         fake.queue_harvest(["Pip has brown eyes."])
 
@@ -638,6 +498,8 @@ class TestBeatCascade:
         fake = FakeDispatcher()
         fake.queue_route(EventRouterOutput(
             event_id="evt_query",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="private query answer",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
@@ -659,13 +521,16 @@ class TestBeatCascade:
                     routing_role="perception_enrichment",
                 ),
             ],
+            event_kind="query_response",
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="query_response",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         ))
         fake.queue_harvest(["Pip has brown eyes."])
 
@@ -942,11 +807,69 @@ class TestCatIIBeat:
 
         assert result.ended_reason == "cat_ii_resolution"
         assert result.events_closed == 2
-        assert ckpt.canonical_events[0].ends_beat_reason == "cat_ii_open"
+        assert ckpt.canonical_events[0].event_kind == "cat_ii_open"
         assert ckpt.canonical_events[0].effective_at_s == 100
         assert ckpt.canonical_events[0].duration_s == 0
         assert ckpt.canonical_events[1].effective_at_s == 100
         assert ckpt.session.open_cat_ii_events == []
+
+    def test_cat_ii_materializes_spawned_responder_before_dispatch(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["hidden_lookout"],
+            observer_ids=["alice", "hidden_lookout"],
+            ends_beat=False,
+            spawn=[
+                SpawnRequest(
+                    character_id="hidden_lookout",
+                    seed={
+                        "role": "hidden lookout",
+                        "reason": "spotted the stealth attempt",
+                        "location": "mill hedge",
+                        "objectives": ["track intruders"],
+                    },
+                ),
+            ],
+        ))
+        fake.queue_agent("The lookout freezes and signals.")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I creep toward the mill.",
+        ))
+
+        assert result.ended_reason == "cat_ii_resolution"
+        assert fake.materialize_calls
+        assert fake.agent_calls[0]["character_id"] == "hidden_lookout"
+        assert fake.agent_character_exists == [True]
+        assert any(c.character_id == "hidden_lookout" for c in ckpt.characters)
+        assert ckpt.canonical_events[0].spawn == []
+
+    def test_cat_ii_unknown_required_responder_without_spawn_errors(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["ghost_responder"],
+            observer_ids=["alice", "ghost_responder"],
+            ends_beat=False,
+        ))
+
+        with pytest.raises(RuntimeError, match="not in the roster"):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I creep toward the mill.",
+            ))
+
+        assert fake.materialize_calls == []
+        assert fake.agent_calls == []
 
     def test_cat_ii_inline_overrun_logs_cap_telemetry(self, caplog):
         ckpt = _ckpt({"alice": "1"})
@@ -1041,7 +964,7 @@ class TestCatIIBeat:
         assert ckpt.session.open_cat_ii_events == []
         assert ckpt.session.active_act_slots == {}
         assert result.reaction_prompts == {}
-        assert ckpt.canonical_events[0].ends_beat_reason == (
+        assert ckpt.canonical_events[0].event_kind == (
             "ruleset_cat_ii_suppressed"
         )
         assert fake.agent_calls == []
@@ -1368,7 +1291,7 @@ class TestCatIIBeat:
             requires_responders=False,
             facts=[ObservableFact.all("Alice's strike resolves against Bob.")],
         )
-        combat_out.ends_beat_reason = "ruleset_resolution"
+        combat_out.event_kind = "ruleset_resolution"
         fake.queue_combat(combat_out)
 
         result = asyncio.run(run_beat(
@@ -1381,7 +1304,7 @@ class TestCatIIBeat:
         assert result.ended_reason == "ruleset_resolution"
         assert fake.route_calls == []
         assert fake.combat_calls[0]["actor_id"] == "alice"
-        assert ckpt.canonical_events[0].ends_beat_reason == (
+        assert ckpt.canonical_events[0].event_kind == (
             "ruleset_resolution"
         )
 
@@ -1414,11 +1337,14 @@ class TestCatIIBeat:
         fake = FakeDispatcher()
         combat_out = EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="Pip hits Bob.",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Pip cuts Bob.")],
             ),
+            event_kind="ruleset_resolution",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -1433,11 +1359,13 @@ class TestCatIIBeat:
             ],
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="ruleset_resolution",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         )
         fake.queue_combat(combat_out)
 
@@ -1595,7 +1523,7 @@ class TestObservationHarvest:
         ))
         fake = FakeDispatcher()
         out = _router_out(ends_beat=True, agent_ids=["pip", "vex"])
-        out.ends_beat_reason = "observation_harvest"
+        out.event_kind = "observation_harvest"
         for observer in out.observers:
             if observer.character_id in {"pip", "vex"}:
                 observer.routing_role = "perception_enrichment"
@@ -1622,7 +1550,7 @@ class TestObservationHarvest:
     def test_harvest_drops_human_targets(self):
         ckpt = _ckpt({"alice": "1"})
         out = _router_out(ends_beat=True, agent_ids=["alice"])
-        out.ends_beat_reason = "observation_harvest"
+        out.event_kind = "observation_harvest"
         fake = FakeDispatcher()
         fake.queue_route(out)
 
@@ -1656,6 +1584,7 @@ class TestBroadcastEvent:
                     ObservableFact.all("Alice sets down a glass.")
                 ],
             ),
+            event_kind="directed_at_player",
             observers=[
                 ObserverEntry(
                     character_id=cid,
@@ -1666,11 +1595,13 @@ class TestBroadcastEvent:
             ],
             requires_responders=False,
             required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="directed_at_player",
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         )
 
     def _with_updates(self, event: EventRouterOutput, **updates) -> EventRouterOutput:
@@ -1728,8 +1659,8 @@ class TestBroadcastEvent:
         assert pip.pending_observations == [
             "Alice says, 'Here.'",
             (
-                "First visible impressions:\n"
-                "- Alice: Blue travel cloak, rain-dark hair, silver pin."
+                "Newly introduced character context:\n"
+                "- Alice: first visible impression: Blue travel cloak, rain-dark hair, silver pin."
             ),
             "Alice says, 'Here.'",
         ]
@@ -2192,11 +2123,14 @@ class TestSchemaValidators:
     def test_next_output_observers_drive_router_targets(self):
         out = EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="test fixture",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[],
             ),
+            event_kind="beat_continues",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -2209,23 +2143,28 @@ class TestSchemaValidators:
                     routing_role="next_output",
                 ),
             ],
-            event_kind="beat_continues",
             requires_responders=False,
             required_responders=[],
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         )
         assert out.next_output_character_ids == ["pip"]
 
     def test_public_fact_event_kind_is_accepted(self):
         out = _router_out(event_kind="public_fact", observer_ids=["pip"])
         assert out.event_kind == "public_fact"
-        assert out.ends_beat is True
+        assert out.event_kind != "beat_continues"
 
     def test_observation_harvest_uses_perception_enrichment_targets(self):
         out = EventRouterOutput(
             event_id="",
+            effective_at_s=0,
+            duration_s=0,
             decision_rationale="test fixture",
             canonical_event=CanonicalEvent(
                 world_adjudication=WorldAdjudication(feasible=True),
@@ -2251,6 +2190,10 @@ class TestSchemaValidators:
             spawn=[],
             dormant=[],
             cull=[],
+            commitment_open=empty_commitment_open_signal(),
+            commitment_resolutions=[],
+            commitment_interrupts=[],
+            location_updates=[],
         )
         assert out.perception_enrichment_character_ids == ["pip"]
 
@@ -2321,7 +2264,7 @@ class TestSchemaValidators:
             if observer["character_id"] == "pip":
                 observer["routing_role"] = "perception_enrichment"
         rebuilt = EventRouterOutput.model_validate(data)
-        assert rebuilt.ends_beat is True
+        assert rebuilt.event_kind != "beat_continues"
 
 
 class TestEndBeatFanout:

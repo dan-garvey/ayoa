@@ -14,9 +14,9 @@ from app.schemas.characters import (
     PrivateState,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput, SpawnRequest
-from app.schemas.events import CanonicalEvent, WorldAdjudication
+from app.schemas.event_router import SpawnRequest
 from app.schemas.state import SessionState, WorldState
+from tests.support.factories import router_output
 
 # --- Fixtures ---
 
@@ -57,6 +57,21 @@ def _llm_response(parsed) -> LLMResponse:
     raw.model = "claude-sonnet-4-6"
     return LLMResponse(parsed=parsed, raw_response=raw, content=text, model="claude-sonnet-4-6")
 
+
+def _spawn_request(
+    character_id: str,
+    *,
+    seed: dict | None = None,
+) -> SpawnRequest:
+    seed_data = {
+        "role": "",
+        "reason": "",
+        "location": "",
+        "objectives": [],
+    }
+    seed_data.update(seed or {})
+    return SpawnRequest(character_id=character_id, seed=seed_data)
+
 # --- Tests ---
 
 class TestCharacterManager:
@@ -73,22 +88,7 @@ class TestCharacterManager:
 
     def test_apply_roster_dormant(self, sample_checkpoint):
         mgr = CharacterManager()
-        routed = EventRouterOutput(
-            event_id="",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=[],
-            ),
-            observers=[],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="",
-            spawn=[],
-            dormant=["guard_17"],
-            cull=[],
-        )
+        routed = router_output(facts=[], dormant=["guard_17"])
         mgr.apply_roster_updates(sample_checkpoint, routed)
         char = mgr.get_character(sample_checkpoint, "guard_17")
         assert char.status.value == "dormant"
@@ -114,7 +114,7 @@ class TestCharacterSpawn:
 
         spawned = await mgr.spawn_characters(
             sample_checkpoint,
-            [SpawnRequest(character_id="stablehand_01", seed={"role": "stablehand"})],
+            [_spawn_request(character_id="stablehand_01", seed={"role": "stablehand"})],
         )
 
         assert len(spawned) == 1
@@ -134,7 +134,7 @@ class TestCharacterSpawn:
         with pytest.raises(ValueError, match="existing ids"):
             await mgr.spawn_characters(
                 sample_checkpoint,
-                [SpawnRequest(character_id="guard_17", seed={"role": "guard"})],
+                [_spawn_request(character_id="guard_17", seed={"role": "guard"})],
             )
 
         mock_client.complete.assert_not_called()
@@ -156,7 +156,7 @@ class TestCharacterSpawn:
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
 
         requests = [
-            SpawnRequest(character_id=f"npc_{i}", seed={"role": f"npc{i}"})
+            _spawn_request(character_id=f"npc_{i}", seed={"role": f"npc{i}"})
             for i in range(5)
         ]
         with pytest.raises(ValueError, match="max per turn"):
@@ -171,7 +171,7 @@ class TestCharacterSpawn:
             asyncio.run(
                 mgr.spawn_characters(
                     sample_checkpoint,
-                    [SpawnRequest(character_id="test", seed={})],
+                    [_spawn_request(character_id="test", seed={})],
                 )
             )
 
@@ -200,7 +200,7 @@ class TestCharacterSpawn:
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
         spawned = await mgr.spawn_characters(
             sample_checkpoint,
-            [SpawnRequest(character_id="sera_01", seed={"role": "cartographer"})],
+            [_spawn_request(character_id="sera_01", seed={"role": "cartographer"})],
         )
 
         assert len(spawned) == 1
@@ -250,7 +250,7 @@ class TestCharacterSpawn:
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
         spawned = await mgr.spawn_characters(
             sample_checkpoint,
-            [SpawnRequest(character_id="stablehand_01", seed={"role": "stablehand"})],
+            [_spawn_request(character_id="stablehand_01", seed={"role": "stablehand"})],
         )
 
         assert len(spawned) == 1
@@ -269,11 +269,11 @@ class TestCharacterSpawn:
             await mgr.spawn_characters(
                 sample_checkpoint,
                 [
-                    SpawnRequest(
+                    _spawn_request(
                         character_id="runner_01",
                         seed={"role": "runner"},
                     ),
-                    SpawnRequest(
+                    _spawn_request(
                         character_id="runner_01",
                         seed={"role": "runner"},
                     ),
@@ -293,10 +293,10 @@ class TestCharacterSpawn:
             await mgr.spawn_characters(
                 sample_checkpoint,
                 [
-                    SpawnRequest(character_id="runner_01", seed={"role": "r"}),
-                    SpawnRequest(character_id="runner_01", seed={"role": "r"}),
-                    SpawnRequest(character_id="runner_01", seed={"role": "r"}),
-                    SpawnRequest(
+                    _spawn_request(character_id="runner_01", seed={"role": "r"}),
+                    _spawn_request(character_id="runner_01", seed={"role": "r"}),
+                    _spawn_request(character_id="runner_01", seed={"role": "r"}),
+                    _spawn_request(
                         character_id="unique_villain",
                         seed={"role": "v"},
                     ),
@@ -332,7 +332,7 @@ class TestCharacterSpawn:
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
         spawned = await mgr.spawn_characters(
             sample_checkpoint,
-            [SpawnRequest(character_id="courier_01", seed={})],
+            [_spawn_request(character_id="courier_01", seed={})],
             acting_actor_location="library",
         )
         assert len(spawned) == 1
@@ -360,7 +360,7 @@ class TestCharacterSpawn:
         mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
         spawned = await mgr.spawn_characters(
             sample_checkpoint,
-            [SpawnRequest(
+            [_spawn_request(
                 character_id="steward_01",
                 seed={"location": "chapel", "role": "steward"},
             )],

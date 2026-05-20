@@ -17,18 +17,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.engine.context_builder import build_narrator_public_character_context_block
 from app.engine.narrator import compose_pov_render
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
-from app.llm.client import LLMClient, LLMResponse
+from app.llm.client import LLMClient
 from app.schemas.characters import (
     CharacterDescriptions,
     CharacterRecord,
     CharacterVisuals,
     PublicSheet,
 )
-from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, ObserverEntry
 from app.schemas.events import (
     CanonicalEvent,
@@ -39,121 +37,84 @@ from app.schemas.narrator import NarratorFinalOutput
 from app.schemas.state import (
     RenderBufferEntry,
     SessionConfig,
-    SessionState,
     StorySetting,
     WorldState,
+)
+from tests.support.factories import (
+    character_record,
+    checkpoint,
+    narrator_llm_response,
+    router_output,
 )
 
 
 # ---- helpers --------------------------------------------------------------
 
 
-def _ckpt() -> CheckpointFile:
+def _ckpt():
     """Minimal checkpoint with two canonical events and a
     single human-bound character."""
-    ckpt = CheckpointFile(
-        session=SessionState(
-            session_id="s",
-            character_bindings={"alice": "1"},
-            player_character_id="alice",
-        ),
+    ckpt = checkpoint(
+        bindings={"alice": "1"},
+        player_character_id="alice",
         world_state=WorldState(
             setting=StorySetting(genre="fantasy", tone="quiet"),
         ),
         characters=[
-            CharacterRecord(
-                character_id="alice", name="Alice",
+            character_record(
+                "alice",
+                name="Alice",
                 public_sheet=PublicSheet(role="player", appearance="dark-haired"),
-                location="gatehouse",
                 is_playable=True,
             ),
-            CharacterRecord(
-                character_id="pip", name="Pip",
-                public_sheet=PublicSheet(role="npc"),
-                location="gatehouse",
-                is_playable=False,
-            ),
+            character_record("pip", name="Pip", role="npc"),
         ],
-        config=SessionConfig(narrative_rules="Concise prose."),
     )
+    ckpt.session.config = SessionConfig(narrative_rules="Concise prose.")
     # Seed two canonical events into the log.
-    ev1 = EventRouterOutput(
-        event_id="evt_alpha",
-        decision_rationale="(test fixture)",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=[ObservableFact.all("The arch is weathered.")],
-        ),
-        observers=[
-            ObserverEntry(character_id="alice", observation_level="d", routing_role="observe_only"),
-        ],
-        requires_responders=False,
-        required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="",
-        spawn=[],
-        dormant=[],
-        cull=[],
+    ev1 = _router_event(
+        "evt_alpha",
+        [ObservableFact.all("The arch is weathered.")],
     )
-    ev2 = EventRouterOutput(
-        event_id="evt_beta",
-        decision_rationale="(test fixture)",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=[ObservableFact.all("Pip nods.")],
-        ),
-        observers=[
-            ObserverEntry(character_id="alice", observation_level="d", routing_role="observe_only"),
-        ],
-        requires_responders=False,
-        required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="",
-        spawn=[],
-        dormant=[],
-        cull=[],
+    ev2 = _router_event(
+        "evt_beta",
+        [ObservableFact.all("Pip nods.")],
     )
     ckpt.canonical_events.extend([ev1, ev2])
     return ckpt
 
 
-def test_public_character_context_skips_nameless_player_slot():
-    ckpt = _ckpt()
-    ckpt.characters.append(CharacterRecord(
-        character_id="player_protagonist",
-        name="",
-        descriptions=CharacterDescriptions(
-            public="The nameless player slot should not render as a blank label.",
-            private="Private player-slot context.",
-        ),
-        is_playable=True,
-    ))
-
-    block = build_narrator_public_character_context_block(ckpt)
-
-    assert "blank label" not in block
-    assert "- :" not in block
-
-
-def _llm_response(final_text: str = "RENDERED") -> LLMResponse:
+def _llm_response(final_text: str = "RENDERED"):
     """Minimal LLMResponse that can pass through
     `serialize_assistant_content` when the narrator appends history."""
-    parsed = NarratorFinalOutput(final_text=final_text)
-    raw = MagicMock()
-    text_block = MagicMock()
-    text_block.type = "text"
-    text_block.text = "{}"
-    # model_dump is called in serialize_assistant_content's fallback path;
-    # for type=="text" it takes the `text` attr directly, so either works.
-    text_block.model_dump = lambda: {"type": "text", "text": "{}"}
-    raw.content = [text_block]
-    raw.model = "claude-sonnet-4-6"
-    return LLMResponse(
-        parsed=parsed,
-        raw_response=raw,
-        content="{}",
-        model="claude-sonnet-4-6",
+    return narrator_llm_response(final_text)
+
+
+def _router_event(
+    event_id: str,
+    facts: list[ObservableFact],
+    *,
+    observers: list[str] | None = None,
+    duration_s: int = 0,
+) -> EventRouterOutput:
+    event = router_output(
+        event_id=event_id,
+        duration_s=duration_s,
+        facts=facts,
+        event_kind="directed_at_player",
+        observer_ids=observers or ["alice"],
     )
+    event.commitment_open = {
+        "present": False,
+        "actor_ids": [],
+        "description": "",
+        "expected_duration_s": 0,
+        "max_duration_s": 0,
+        "location_label": "",
+    }
+    event.commitment_resolutions = []
+    event.commitment_interrupts = []
+    return event
 
 
 @pytest.fixture
@@ -251,7 +212,7 @@ class TestComposePovRender:
         assert stored["final_text"] == "She says, 'entirely human?'"
 
     @pytest.mark.asyncio
-    async def test_player_legible_public_context_is_in_system_prefix(
+    async def test_new_character_context_is_user_tail_only(
         self, mock_client, prompt_manager,
     ):
         ckpt = _ckpt()
@@ -273,33 +234,14 @@ class TestComposePovRender:
                 ),
                 private="Sora is also quietly watching the defective summon.",
             ),
+            visuals=CharacterVisuals(
+                default_loadout="Blue sun-crest tabard, quick posture.",
+            ),
             location="gatehouse",
         ))
-        ckpt.canonical_events.append(EventRouterOutput(
-            event_id="evt_sora",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=[
-                    ObservableFact.all(
-                        "sora_kageyama adjusts the blue tabard."
-                    ),
-                ],
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id="alice",
-                    observation_level="d",
-                    routing_role="observe_only",
-                ),
-            ],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="",
-            spawn=[],
-            dormant=[],
-            cull=[],
+        ckpt.canonical_events.append(_router_event(
+            "evt_sora",
+            [ObservableFact.all("sora_kageyama adjusts the blue tabard.")],
         ))
 
         await compose_pov_render(
@@ -323,17 +265,17 @@ class TestComposePovRender:
             if isinstance(m.get("content"), str)
         )
 
-        assert "Public character context for brief glosses" in system_content
-        assert "Sora Kageyama: Sora is the cohort's informal leader" in system_content
-        assert "blue sun-crest tabard" in system_content
+        assert "Newly introduced character context" not in system_content
+        assert "Sora Kageyama: Sora is the cohort's informal leader" not in system_content
+        assert "blue sun-crest tabard" not in system_content
         assert "quietly watching" not in system_content
         assert "private authorial role" not in system_content
         assert "Crown's blue Hero livery" not in flat
 
-        assert "Gloss candidates for this passage" in user_content
+        assert "Newly introduced character context" in user_content
         assert "- Sora Kageyama" in user_content
-        assert "cohort's informal leader" not in user_content
-        assert "blue sun-crest tabard" not in user_content
+        assert "cohort's informal leader" in user_content
+        assert "blue sun-crest tabard" in user_content
         assert "private authorial role" not in user_content
 
     @pytest.mark.asyncio
@@ -358,31 +300,9 @@ class TestComposePovRender:
             ),
             location="gatehouse",
         ))
-        ckpt.canonical_events.append(EventRouterOutput(
-            event_id="evt_korva",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=[
-                    ObservableFact.all(
-                        "korva_sahl stands near the notice board."
-                    ),
-                ],
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id="alice",
-                    observation_level="d",
-                    routing_role="observe_only",
-                ),
-            ],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="",
-            spawn=[],
-            dormant=[],
-            cull=[],
+        ckpt.canonical_events.append(_router_event(
+            "evt_korva",
+            [ObservableFact.all("korva_sahl stands near the notice board.")],
         ))
 
         await compose_pov_render(
@@ -498,10 +418,10 @@ class TestComposePovRender:
         messages = mock_client.complete.call_args.kwargs["messages"]
         system_content = messages[0]["content"]
         user_content = messages[-1]["content"]
-        assert "First visible impressions" not in system_content
+        assert "Newly introduced character context" not in system_content
         assert "Patched red coat" not in system_content
-        assert "First visible impressions" in user_content
-        assert "Pip: Patched red coat" in user_content
+        assert "Newly introduced character context" in user_content
+        assert "Pip: first visible impression: Patched red coat" in user_content
         assert ckpt.session.visual_introductions["alice"] == ["pip"]
 
     @pytest.mark.asyncio
@@ -511,29 +431,9 @@ class TestComposePovRender:
         ckpt = _ckpt()
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         pip.visuals = CharacterVisuals(default_loadout="Default red coat.")
-        ckpt.canonical_events.append(EventRouterOutput(
-            event_id="evt_query_loadout",
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=[
-                    ObservableFact.all("[loadout — Pip] Pip wears a blue cloak."),
-                ],
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id="alice",
-                    observation_level="d",
-                    routing_role="observe_only",
-                ),
-            ],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="query_response",
-            spawn=[],
-            dormant=[],
-            cull=[],
+        ckpt.canonical_events.append(_router_event(
+            "evt_query_loadout",
+            [ObservableFact.all("[loadout — Pip] Pip wears a blue cloak.")],
         ))
 
         await compose_pov_render(
@@ -553,7 +453,7 @@ class TestComposePovRender:
         user_content = mock_client.complete.call_args.kwargs["messages"][-1]["content"]
         assert "Pip wears a blue cloak." in user_content
         assert "Default red coat" not in user_content
-        assert "First visible impressions" not in user_content
+        assert "Newly introduced character context" not in user_content
         assert ckpt.session.visual_introductions["alice"] == ["pip"]
 
     @pytest.mark.asyncio
@@ -600,28 +500,11 @@ class TestFormatVisibleEventsBlock:
         level: str = "direct", observers: list[str] | None = None,
         duration_s: int = 0,
     ):
-        ev = EventRouterOutput(
-            event_id=event_id,
-            effective_at_s=0,
+        ev = _router_event(
+            event_id,
+            list(facts),
+            observers=observers or [],
             duration_s=duration_s,
-            decision_rationale="(test fixture)",
-            canonical_event=CanonicalEvent(
-                world_adjudication=WorldAdjudication(feasible=True),
-                observable_facts=list(facts),
-            ),
-            observers=[
-                ObserverEntry(
-                    character_id=cid,
-                    observation_level="d",
-                    routing_role="observe_only",
-                )
-                for cid in (observers or [])
-            ],
-            requires_responders=False,
-            required_responders=[],
-            ends_beat=True,
-            ends_beat_reason="",
-            spawn=[], dormant=[], cull=[],
         )
         entry = RenderBufferEntry(
             event_id=event_id,

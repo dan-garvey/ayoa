@@ -108,7 +108,11 @@ def test_experience_view_reports_xp_to_next_level():
 
 def test_bridge_awards_xp_to_all_bound_dnd_player_characters(tmp_path, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    bridge = EngineBridge(saves_dir=str(tmp_path), prompts_dir="app/prompts")
+    bridge = EngineBridge(
+        stories_dir=str(tmp_path / "stories"),
+        sessions_dir=str(tmp_path / "sessions"),
+        prompts_dir="app/prompts",
+    )
     ckpt = CheckpointFile(
         session=SessionState(
             session_id=SESSION_ID,

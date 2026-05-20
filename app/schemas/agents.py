@@ -3,7 +3,7 @@
 The agent's LLM call no longer uses structured output. The model produces
 free-form prose followed by a single trailing parenthetical containing
 its private intent. The engine parses that into the two fields below at
-`CharacterAgent.turn`/`respond`/`draft_turn` time:
+`CharacterAgent.turn`/`draft_turn` time:
 
 - `public_text`: everything before the trailing parenthetical. This is
   what flows downstream to the router as `character_id: public_text`.
@@ -44,7 +44,7 @@ from pydantic import BaseModel, ConfigDict
 class CharacterAgentOutput(BaseModel):
     """Engine-internal record of one parsed agent response.
 
-    Constructed by `CharacterAgent.turn` / `.respond` after extracting
+    Constructed by `CharacterAgent.turn` / `.draft_turn` after extracting
     the trailing parenthetical from the LLM's prose output. NOT an LLM
     target — the LLM emits plain text and we parse it.
     """

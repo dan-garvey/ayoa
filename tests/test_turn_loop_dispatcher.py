@@ -14,16 +14,15 @@ from app.engine.turn_loop_contracts import (
     ROUTER_CONTINUATION_HEADER,
 )
 from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
-from app.llm.client import LLMClient, LLMResponse
+from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
-from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
     ObserverEntry,
 )
-from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.events import ObservableFact
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
 from app.schemas.state import (
@@ -31,73 +30,46 @@ from app.schemas.state import (
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
-    SessionState,
     StorySetting,
     WorldState,
 )
+from tests.support.factories import (
+    character_record,
+    checkpoint,
+    dnd_router_output,
+    llm_response,
+    router_output,
+)
 
 
-def _ckpt(*, bindings: dict[str, str] | None = None) -> CheckpointFile:
-    return CheckpointFile(
-        session=SessionState(session_id="s", character_bindings=bindings or {}),
+def _ckpt(*, bindings: dict[str, str] | None = None):
+    return checkpoint(
+        bindings=bindings,
         world_state=WorldState(
             setting=StorySetting(genre="fantasy", tone="grim"),
         ),
         characters=[
-            CharacterRecord(
-                character_id="alice",
+            character_record(
+                "alice",
                 name="Alice",
-                public_sheet=PublicSheet(role="player"),
-                location="gatehouse",
+                role="player",
                 is_playable=True,
             ),
-            CharacterRecord(
-                character_id="pip",
-                name="Pip",
-                public_sheet=PublicSheet(role="npc"),
-                location="gatehouse",
-                is_playable=False,
-            ),
+            character_record("pip", name="Pip", role="npc"),
         ],
     )
 
 
 def _router_output() -> EventRouterOutput:
-    return EventRouterOutput(
-        event_id="",
-        decision_rationale="test fixture",
-        canonical_event=CanonicalEvent(
-            world_adjudication=WorldAdjudication(feasible=True),
-            observable_facts=[],
-        ),
-        observers=[],
-        requires_responders=False,
-        required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="directed_at_player",
-        spawn=[],
-        dormant=[],
-        cull=[],
-    )
+    return router_output(facts=[], observer_ids=[])
 
 
 def _dnd_router_output() -> DndEventRouterOutput:
-    data = _router_output().model_dump()
-    data["interaction_mode"] = "cat_i"
-    data["combatant_ids"] = []
-    return DndEventRouterOutput(**data)
+    return dnd_router_output(facts=[], observer_ids=[])
 
 
-def _llm_response(parsed) -> LLMResponse:
-    raw = MagicMock()
-    raw.content = []
-    raw.model = "gpt-5.2"
-    return LLMResponse(
-        parsed=parsed,
-        raw_response=raw,
-        content="{}",
-        model="gpt-5.2",
-    )
+def _llm_response(parsed):
+    return llm_response(parsed, content="{}", model="gpt-5.2")
 
 
 @pytest.fixture
@@ -421,8 +393,8 @@ class TestRouteIntention:
         assert call["response_model"] is DndEventRouterOutput
         system_content = call["messages"][0]["content"]
         assert "D&D Interaction Mode" in system_content
-        assert '"interaction_mode"' in system_content
-        assert '"combatant_spawns"' in system_content
+        assert "`interaction_mode`" in system_content
+        assert "`combatant_spawns`" in system_content
 
     def test_dnd_loot_offer_is_not_replayed_in_router_history(
         self, prompt_mgr, mock_client,
@@ -562,7 +534,7 @@ class TestRouteIntention:
             cat_ii_event=evt,
         ))
 
-        assert out.ends_beat_reason == "cat_ii_resolution"
+        assert out.event_kind == "cat_ii_resolution"
         assert out.canonical_event.observable_facts[0].text == (
             "Pip steps aside before Alice hits him."
         )
@@ -685,8 +657,7 @@ class TestRouteIntention:
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         prior = _router_output()
-        prior.ends_beat = False
-        prior.ends_beat_reason = ""
+        prior.event_kind = "beat_continues"
         prior.decision_rationale = "The beat stayed open without a pick."
         mock_client.complete.return_value = _llm_response(_router_output())
 
@@ -852,9 +823,10 @@ class TestAgentIntend:
     def test_returns_public_text_only(self, prompt_mgr, mock_client, monkeypatch):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        async def _fake_turn(self, *, character, checkpoint,
-                             acting_character_id="", frame="foreground",
-                             local_context=""):
+        async def _fake_turn(
+            self, *, character, checkpoint,
+            frame="foreground", local_context="",
+        ):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text='He plants himself in the doorway. "Hold there."',
@@ -878,9 +850,10 @@ class TestAgentIntend:
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
 
-        async def _silent_turn(self, *, character, checkpoint,
-                               acting_character_id="", frame="foreground",
-                               local_context=""):
+        async def _silent_turn(
+            self, *, character, checkpoint,
+            frame="foreground", local_context="",
+        ):
             return CharacterAgentOutput(
                 character_id=character.character_id,
                 public_text="",
@@ -916,8 +889,7 @@ class TestHarvestPerceptions:
             "vex": "Vex in midnight silk.",
         }
 
-        async def _fake_perceive(self, character, checkpoint,
-                                 acting_character_id=""):
+        async def _fake_perceive(self, character, checkpoint):
             return loadouts[character.character_id]
 
         monkeypatch.setattr(
@@ -928,7 +900,6 @@ class TestHarvestPerceptions:
         out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
             ckpt=ckpt,
             character_ids=["vex", "pip"],
-            acting_character_id="alice",
         ))
         assert out == [loadouts["vex"], loadouts["pip"]]
 
@@ -939,7 +910,6 @@ class TestHarvestPerceptions:
         out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
             ckpt=ckpt,
             character_ids=["never_existed"],
-            acting_character_id="alice",
         ))
         assert out == [""]
 
@@ -954,8 +924,7 @@ class TestHarvestPerceptions:
             location="gatehouse",
         ))
 
-        async def _flaky_perceive(self, character, checkpoint,
-                                  acting_character_id=""):
+        async def _flaky_perceive(self, character, checkpoint):
             if character.character_id == "vex":
                 raise RuntimeError("model timeout")
             return "Pip's loadout"
@@ -968,7 +937,6 @@ class TestHarvestPerceptions:
         out = asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
             ckpt=ckpt,
             character_ids=["pip", "vex"],
-            acting_character_id="alice",
         ))
         assert out == ["Pip's loadout", ""]
 
