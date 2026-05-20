@@ -155,14 +155,34 @@ def _event_summary(
     if event is None:
         return {}
     event_kind = getattr(event, "event_kind", "")
+    fact_details: list[dict[str, Any]] = []
+    public_facts: list[str] = []
+    private_facts: list[dict[str, Any]] = []
+    for fact in getattr(event.canonical_event, "observable_facts", []):
+        text = str(getattr(fact, "text", "") or "")
+        audience = str(getattr(fact, "audience", "") or "all_observers")
+        visible_to = [
+            str(value)
+            for value in getattr(fact, "visible_to", []) or []
+            if str(value)
+        ]
+        detail = {
+            "text": text,
+            "audience": audience,
+            "visible_to": visible_to,
+        }
+        fact_details.append(detail)
+        if audience == "only":
+            private_facts.append({"text": text, "visible_to": visible_to})
+        else:
+            public_facts.append(text)
     summary = {
         "event_id": getattr(event, "event_id", ""),
         "event_kind": event_kind,
         "decision_rationale": getattr(event, "decision_rationale", ""),
-        "facts": [
-            fact.text
-            for fact in getattr(event.canonical_event, "observable_facts", [])
-        ],
+        "facts": public_facts,
+        "private_facts": private_facts,
+        "fact_details": fact_details,
     }
     if include_observers:
         summary["observers"] = [
@@ -721,6 +741,12 @@ def live_report_markdown(report: dict[str, Any]) -> str:
         ])
         for fact in (turn.get("result") or {}).get("facts") or []:
             lines.append(f"- {fact}")
+        private_facts = (turn.get("result") or {}).get("private_facts") or []
+        if private_facts:
+            lines.extend(["", "Private facts:"])
+            for fact in private_facts:
+                visible_to = ", ".join(fact.get("visible_to") or [])
+                lines.append(f"- [{visible_to}] {fact.get('text')}")
         adjudication = (turn.get("capture") or {}).get("adjudication") or {}
         observed = adjudication.get("router_observed_facts") or []
         if observed:
@@ -846,6 +872,12 @@ def stress_report_markdown(report: dict[str, Any]) -> str:
         lines.extend(["", "Facts:"])
         for fact in ((scenario.get("event") or {}).get("facts") or []):
             lines.append(f"- {fact}")
+        private_facts = (scenario.get("event") or {}).get("private_facts") or []
+        if private_facts:
+            lines.extend(["", "Private facts:"])
+            for fact in private_facts:
+                visible_to = ", ".join(fact.get("visible_to") or [])
+                lines.append(f"- [{visible_to}] {fact.get('text')}")
         lines.extend(["", "Turn plan:"])
         turn_plan = (scenario.get("capture") or {}).get("turn_plan") or {}
         lines.extend([
@@ -1507,6 +1539,66 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "medium",
             "detail": global_bad_visible,
         })
+    if expectations.get("require_private_fact_for_failed_save_targets"):
+        failed_targets = _failed_save_targets(result)
+        required_terms = [
+            str(term).strip().lower()
+            for term in expectations.get("private_fact_must_contain_any") or []
+            if str(term).strip()
+        ]
+        matching_private = [
+            fact for fact in _private_outcome_facts(result)
+            if _private_fact_matches_terms(fact, required_terms)
+        ]
+        if not failed_targets:
+            findings.append({
+                "name": "no_failed_save_targets_for_private_fact_check",
+                "severity": "high",
+                "detail": requests,
+            })
+        if not matching_private:
+            findings.append({
+                "name": "missing_required_private_outcome_facts",
+                "severity": "high",
+                "detail": {
+                    "failed_targets": sorted(failed_targets),
+                    "required_terms": required_terms,
+                    "private_outcome_facts": _private_outcome_facts(result),
+                },
+            })
+        missing_private_targets = sorted(
+            target_id
+            for target_id in failed_targets
+            if not any(
+                target_id in set(fact.get("visible_to") or [])
+                for fact in matching_private
+            )
+        )
+        if missing_private_targets:
+            findings.append({
+                "name": "failed_save_targets_missing_private_facts",
+                "severity": "high",
+                "detail": {
+                    "missing_targets": missing_private_targets,
+                    "private_outcome_facts": matching_private,
+                },
+            })
+        if expectations.get("private_fact_forbid_visible_to_non_failed"):
+            bad_private_scope = []
+            for fact in matching_private:
+                extra = sorted(set(fact.get("visible_to") or []) - failed_targets)
+                if extra:
+                    bad_private_scope.append({
+                        "text": fact.get("text"),
+                        "visible_to": fact.get("visible_to"),
+                        "non_failed_visible_to": extra,
+                    })
+            if bad_private_scope:
+                findings.append({
+                    "name": "private_fact_visible_to_non_failed_targets",
+                    "severity": "high",
+                    "detail": bad_private_scope,
+                })
     for rule in expectations.get("condition_fact_requires_delta") or []:
         condition = str(rule.get("condition") or "").strip().lower()
         target_id = str(rule.get("target_id") or "").strip()
@@ -1831,6 +1923,19 @@ def _effect_delta_matches_required(
             return False
     if required.get("conditions_empty") and delta.get("conditions"):
         return False
+    required_conditions = {
+        str(condition).strip().lower()
+        for condition in required.get("conditions_include") or []
+        if str(condition).strip()
+    }
+    if required_conditions:
+        actual_conditions = {
+            str(condition).strip().lower()
+            for condition in delta.get("conditions") or []
+            if str(condition).strip()
+        }
+        if not required_conditions.issubset(actual_conditions):
+            return False
     return True
 
 
@@ -1914,6 +2019,32 @@ def _dict_contains_key(value: Any, key: str) -> bool:
     if isinstance(value, list):
         return any(_dict_contains_key(item, key) for item in value)
     return False
+
+
+def _private_outcome_facts(result: dict[str, Any]) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for raw in _adjudication(result).get("private_outcome_facts") or []:
+        if not isinstance(raw, dict):
+            continue
+        text = str(raw.get("text") or "").strip()
+        visible_to = [
+            str(value).strip()
+            for value in raw.get("visible_to") or []
+            if str(value).strip()
+        ]
+        if text and visible_to:
+            facts.append({"text": text, "visible_to": visible_to})
+    return facts
+
+
+def _private_fact_matches_terms(
+    fact: dict[str, Any],
+    terms: list[str],
+) -> bool:
+    if not terms:
+        return True
+    text = str(fact.get("text") or "").lower()
+    return any(term in text for term in terms)
 
 
 def _quality_findings(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

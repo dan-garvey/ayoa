@@ -314,6 +314,15 @@ DndEffectDurationKind = Literal[
 DndEffectSaveTiming = Literal["start_of_turn", "end_of_turn"]
 
 
+def _normalized_recurring_save_end(value: str) -> str:
+    text = str(value or "").strip().lower()
+    if text in {"success", "succeed", "succeeds", "successful", "save_success"}:
+        return "success"
+    if text in {"failure", "fail", "fails", "failed", "save_failure"}:
+        return "failure"
+    return "success"
+
+
 class DndEffectRecurringSave(BaseModel):
     """A router-authored recurring save attached to a D&D runtime effect.
 
@@ -335,7 +344,7 @@ class DndEffectRecurringSave(BaseModel):
             self.ability = ""
         if self.dc < 0:
             self.dc = 0
-        self.ends_on = self.ends_on.strip().lower() or "success"
+        self.ends_on = _normalized_recurring_save_end(self.ends_on)
         return self
 
 

@@ -622,6 +622,26 @@ def _scenarios() -> list[Scenario]:
         ),
         consumes_level=3,
     )
+    fear = _spell(
+        "fear",
+        "Fear",
+        level=3,
+        save_ability="wis",
+        dc=30,
+        damage="",
+        range_text="Self",
+        target_text=(
+            "30-foot cone; each creature in the cone makes a Wisdom save. On "
+            "a failed save, the creature privately sees a phantasmal image of "
+            "its worst fear, becomes frightened, and drops what it is holding"
+        ),
+        concentration=True,
+        duration_text=(
+            "Concentration, up to 1 minute; frightened creatures repeat the "
+            "save when they end a turn somewhere they cannot see the caster"
+        ),
+        consumes_level=3,
+    )
     web = _spell(
         "web",
         "Web",
@@ -1032,6 +1052,138 @@ def _scenarios() -> list[Scenario]:
                 "friendly_fire_targets": ["pc_aria"],
             },
             category="known_good",
+        ),
+        Scenario(
+            name="fear_illusion_private_failed_ogres",
+            summary=(
+                "Fear is an Illusion spell against two ogres with weak Wisdom "
+                "saves. Failed targets should become frightened and receive "
+                "a private scoped fact for the phantasmal fear they perceive; "
+                "the table should only see their outward panic."
+            ),
+            actor_id="pc_illusionist",
+            intention=(
+                "I cast Fear in a cone over the two ogres, shaping the image "
+                "of the Pale Maw opening behind me. The battle-hardened "
+                "captain outside the cone should not be affected."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_illusionist",
+                    "Sera Illusionist",
+                    "adventurers",
+                    ac=13,
+                    hp=25,
+                    playable=True,
+                    abilities={"cha": 18, "dex": 14},
+                    spellcasting=_spellcasting(
+                        ability="cha",
+                        attack_bonus=7,
+                        save_dc=30,
+                        spells=[fear],
+                    ),
+                ),
+                CharacterSpec(
+                    "ogre_vanguard",
+                    "Ogre Vanguard",
+                    "ogres",
+                    ac=11,
+                    hp=59,
+                    abilities={"str": 19, "wis": 7, "int": 5},
+                    actions=[claws],
+                ),
+                CharacterSpec(
+                    "ogre_mauler",
+                    "Ogre Mauler",
+                    "ogres",
+                    ac=11,
+                    hp=59,
+                    abilities={"str": 19, "wis": 7, "int": 5},
+                    actions=[claws],
+                ),
+                CharacterSpec(
+                    "hob_captain",
+                    "Hobgoblin Captain",
+                    "hobgoblins",
+                    ac=17,
+                    hp=39,
+                    abilities={"wis": 12, "int": 12},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("pc_illusionist", 2, 5),
+                ("ogre_vanguard", 5, 4),
+                ("ogre_mauler", 6, 6),
+                ("hob_captain", 10, 2),
+            ],
+            areas=[
+                _area(
+                    "fear_cone",
+                    "Fear cone",
+                    shape="cone",
+                    x=2,
+                    y=5,
+                    width=6,
+                    height=6,
+                    notes=(
+                        "30-foot cone projected east from Sera; the two ogres "
+                        "are inside it, while the hobgoblin captain is outside."
+                    ),
+                )
+            ],
+            expectations={
+                "must_include_save_targets": ["ogre_vanguard", "ogre_mauler"],
+                "must_exclude_roll_targets": ["hob_captain"],
+                "must_fail_save_targets": ["ogre_vanguard", "ogre_mauler"],
+                "expected_save_ability": "wis",
+                "forbid_damage_records": True,
+                "require_effect_delta_if_failed": True,
+                "require_effect_delta_matches": [
+                    {
+                        "operation": "start",
+                        "target_id": "pc_illusionist",
+                        "source_id": "fear",
+                        "concentration": True,
+                        "conditions_empty": True,
+                    },
+                    {
+                        "operation": "start",
+                        "target_id": "ogre_vanguard",
+                        "source_id": "fear",
+                        "conditions_include": ["frightened"],
+                    },
+                    {
+                        "operation": "start",
+                        "target_id": "ogre_mauler",
+                        "source_id": "fear",
+                        "conditions_include": ["frightened"],
+                    },
+                ],
+                "require_private_fact_for_failed_save_targets": True,
+                "private_fact_must_contain_any": [
+                    "worst fear",
+                    "phantasmal",
+                    "pale maw",
+                    "terror",
+                ],
+                "private_fact_forbid_visible_to_non_failed": True,
+                "forbid_effect_conditions": ["concentrating"],
+                "forbid_fact_contains": [
+                    "maw",
+                    "worst fear",
+                    "phantasmal",
+                    "phantasmal image",
+                    "Pale Maw",
+                ],
+                "require_resource_spends": [{
+                    "actor_id": "pc_illusionist",
+                    "resource_id": "spell_slot_3",
+                    "source_id": "fear",
+                    "amount": 1,
+                    "applied": True,
+                }],
+            },
         ),
         Scenario(
             name="web_area_creation_and_restrain",

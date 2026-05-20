@@ -166,6 +166,18 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   collapse."
 - Set private_outcome_facts=[] unless this turn creates a private sensory or
   emotional fact visible only to named characters.
+- For illusion, fear, charm, deception, or mind-affecting effects that create a
+  subjective image, belief, urge, or emotion, put that subjective experience in
+  private_outcome_facts visible only to the affected character ids. Public
+  visible facts may describe the spellcasting and outward behavior such as
+  panic, hesitation, fascination, or dropped objects, but must not reveal the
+  exact private image, belief, fear, or emotional framing unless every observer
+  can actually perceive it. If the intention names the intended private image,
+  fear, belief, or emotion, treat that named content as private subjective
+  content. Do not repeat or paraphrase that named content in public facts;
+  refer only to an unnamed spell effect and the affected creatures' outward
+  reactions. Do not describe a hidden image, horror, memory, belief, or
+  emotion as if public witnesses can perceive it.
 - Translate mechanics into witnessable fiction in visible_outcome_facts. Put
   saving throw success/failure, save DCs, full/half damage, HP totals, resource
   spends, turn economy, and opportunity-attack bookkeeping in mechanical_summary

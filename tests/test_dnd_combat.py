@@ -65,6 +65,12 @@ def _character(
     )
 
 
+def test_recurring_save_end_synonyms_normalize_to_engine_values():
+    assert DndEffectRecurringSave(ends_on="succeed").ends_on == "success"
+    assert DndEffectRecurringSave(ends_on="fails").ends_on == "failure"
+    assert DndEffectRecurringSave(ends_on="unexpected").ends_on == "success"
+
+
 def test_start_combat_builds_snapshots_rolls_initiative_and_persists(monkeypatch):
     values = iter([9, 9, 19])
     monkeypatch.setattr(
