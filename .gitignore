@@ -7,6 +7,8 @@ __pycache__/
 .demo.log
 .server.log
 .bot.log
+*.swp
+recovered_playthrough.txt
 app/storage/playtest_reports/
 app/storage/saves/*
 app/storage/stories/*
