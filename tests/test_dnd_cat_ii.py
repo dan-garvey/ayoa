@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     DndCatIIResolver,
+    _combat_visible_facts,
     complete_pending_player_roll,
 )
 from app.schemas.dnd_cat_ii import (
@@ -17,7 +18,7 @@ from app.schemas.dnd_cat_ii import (
     RollPlan,
     RulesAdjudication,
 )
-from app.schemas.state import OpenCatIIEvent
+from app.schemas.state import DndCombatState, OpenCatIIEvent
 from tests.support.factories import (
     character_record,
     checkpoint,
@@ -54,6 +55,76 @@ def _ckpt():
 
 def _llm_response(parsed):
     return llm_response(parsed, content="{}", model="gpt-5.2")
+
+
+def test_combat_visible_facts_suppress_private_illusion_effect_note():
+    combat = DndCombatState(
+        pending_visible_facts=[
+            (
+                "Phantasmal Force — illusory portcullis takes hold on "
+                "Orc Raider."
+            )
+        ]
+    )
+    adjudication = RulesAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="The private illusion is sustained.",
+        visible_outcome_facts=["Sera gestures toward the Orc Raider."],
+        private_outcome_facts=[
+            PrivateOutcomeFact(
+                text="An iron portcullis blocks the east arch.",
+                visible_to=["orc_raider"],
+            )
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[{"operation": "start", "target_id": "orc_raider"}],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+    )
+
+    assert _combat_visible_facts(
+        combat,
+        manager_facts=adjudication.visible_outcome_facts,
+        adjudication=adjudication,
+    ) == ["Sera gestures toward the Orc Raider."]
+
+
+def test_combat_visible_facts_keep_public_condition_effect_note():
+    combat = DndCombatState(
+        pending_visible_facts=[
+            "Web takes hold on Bob after the initial save fails."
+        ]
+    )
+    adjudication = RulesAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="Web restrains Bob.",
+        visible_outcome_facts=["Bob is held in place."],
+        private_outcome_facts=[
+            PrivateOutcomeFact(
+                text="The portcullis is real to you.",
+                visible_to=["orc_raider"],
+            )
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[{"operation": "start", "target_id": "bob"}],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+    )
+
+    assert _combat_visible_facts(
+        combat,
+        manager_facts=adjudication.visible_outcome_facts,
+        adjudication=adjudication,
+    ) == [
+        "Bob is held in place.",
+        "Web takes hold on Bob after the initial save fails.",
+    ]
 
 
 def _opposed_plan() -> RollPlan:

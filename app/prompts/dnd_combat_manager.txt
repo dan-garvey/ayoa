@@ -43,8 +43,10 @@ For phase PLAN_TURN, emit an action-first turn plan:
   source_type="effect" or when a readied or ongoing effect is released or
   sustained. For an existing battle_map area, use source_type="effect",
   source_id set to that area's template_id, effect_id set to the same
-  template_id, use_mode="sustain", and economy="none". Never leave effect_id
-  empty when source_type="effect".
+  template_id, use_mode="sustain", and economy="none". For an active effect on
+  a combatant, copy source_id from that active effect's source_id; do not put
+  the effect_id, effect name, or condition name in source_id. Never leave
+  effect_id empty when source_type="effect".
 - resource_spends is the only place to declare consumed slots, pact slots,
   limited features, charges, or similar resources. Do not rely on finalization
   prose, effect names, or roll labels to imply a resource spend.
@@ -107,6 +109,14 @@ For phase PLAN_TURN, emit an action-first turn plan:
   released effect. The held action was already readied, so release never spends
   the spell slot or other casting resource again. Use damage_roll for held
   damage that needs no attack roll or saving throw.
+- Active effects may also impose mandatory magical control on the current
+  actor, such as Command forcing a one-turn action, Fear forcing dropped held
+  items and later flight, paralysis preventing actions, or incapacitation
+  preventing voluntary action. Apply those compulsory rules the same way for
+  player-controlled and agent-controlled combatants. If the submitted intention
+  conflicts with a mandatory control effect, the control effect wins. Include a
+  source_type="effect" action with use_mode="sustain", the existing effect_id,
+  resource_spends=[], and only the rolls required by that effect.
 - Existing battle_map areas may impose start-of-turn or entry effects. If an
   actor starts in or enters such an area, include one source_type="effect"
   action for that area with source_id and effect_id set to the area's
@@ -178,6 +188,27 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   refer only to an unnamed spell effect and the affected creatures' outward
   reactions. Do not describe a hidden image, horror, memory, belief, or
   emotion as if public witnesses can perceive it.
+- Some illusions present information as real without forcing a mechanical
+  action, condition, or movement. When an illusion only changes what a target
+  perceives or believes, put that perceived fact in private_outcome_facts from
+  the target's perspective as an ordinary real fact. Do not label it as an
+  illusion, trick, phantasm, image, hallucination, or something that "seems" or
+  "appears" to be true for that target. Do not hedge with "real to you";
+  state the target's private reality directly. Do not choose the target's later
+  voluntary reaction unless the spell or effect explicitly compels it. If the
+  spell's hidden nature is not itself observable, do not name the spell or call
+  it an illusion in public facts; put spell names and rule labels in
+  mechanical_summary or rules_notes instead. Public facts may describe a
+  target looking toward a place or object, hesitating, or otherwise reacting
+  visibly, but must not infer or name the private thing the target perceives.
+  Do not use public "as if ..." explanations, because they usually paraphrase
+  private content;
+  say only what an uninformed witness can observe from body language, gaze,
+  movement, speech, or hesitation. Write "Sera casts a spell at the Orc
+  Raider," not "Sera casts an illusion spell." Write "The Orc Raider stops and
+  stares toward the arch," not "The Orc Raider behaves as if a barrier blocks
+  the arch." Avoid public descriptions that say the target acts as if
+  something blocks, obstructs, seals, or bars a route.
 - Translate mechanics into witnessable fiction in visible_outcome_facts. Put
   saving throw success/failure, save DCs, full/half damage, HP totals, resource
   spends, turn economy, and opportunity-attack bookkeeping in mechanical_summary
@@ -225,6 +256,12 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - If the current action breaks an existing effect, emit an explicit end
   effect_delta for that effect. Do not imply effect endings through any
   separate action-label field.
+- If a mandatory magical-control effect directly causes visible behavior or
+  prevents the submitted action, visible_outcome_facts may narrate that
+  compulsory result as what happened. Keep voluntary choices out of the result:
+  narrate the required dropped item, forced movement, paralysis, silence, or
+  failed attempt to act, but do not add extra tactics, panic, surrender, or
+  personality choices beyond the spell's rule.
 - If the current action releases a readied effect, emit an explicit end
   effect_delta for the held effect_id. The release spends the readying
   character's reaction, but the held spell or feature is not cast again and
@@ -232,6 +269,13 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - For a save-ends spell such as Hold Person, put the initial saving throw in
   PLAN_TURN. If the spell takes hold, emit an effect_delta with the condition,
   concentration=true when applicable, and recurring_save timing/DC.
+- For a sustained private illusion or belief that imposes no standard D&D
+  condition, emit the effect_delta with conditions=[]. Do not invent condition
+  labels such as "under_phantasmal_force"; the effect name, source_id, duration,
+  and private_outcome_facts already carry the rule.
+- For private illusion effect_deltas, keep effect names public-safe. Do not put
+  the private image, fear, belief, or hidden illusion content in the effect
+  name; keep that content in private_outcome_facts.
 - For a spell area that persists and also restrains, charms, paralyzes, or
   otherwise conditions failed-save creatures, use spatial_deltas for the area
   and one effect_delta start per affected creature for the sourced condition.
@@ -279,6 +323,10 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - During ongoing combat, router_observed_facts should usually be []. Failed
   unlisted features, ordinary commands, threats, tactical squeezes, cover, range,
   and position advantages are not enough by themselves.
+- Private illusions, private beliefs, and private emotions created during
+  ongoing combat should stay in private_outcome_facts and effect_deltas; do not
+  duplicate or reveal them in router_observed_facts unless they have already
+  changed public story continuity beyond the initiative scene.
 - Each router_observed_facts item has fact, salience, and reason. fact is the
   concise continuity claim. salience is a simple label such as major, notable,
   or minor. reason explains why this fact should matter later in story,

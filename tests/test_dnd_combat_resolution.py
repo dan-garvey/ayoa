@@ -9,6 +9,8 @@ from app.engine.dnd_combat_resolution import (
     COMBAT_MANAGER_FINALIZE_MAX_TOKENS,
     COMBAT_MANAGER_PLAN_MAX_TOKENS,
     DndCombatResolver,
+    _scrub_visible_bookkeeping,
+    _scrub_private_outcome_leaks,
 )
 from app.llm.client import LLMResponse
 from app.schemas.characters import CharacterRecord, PublicSheet
@@ -63,6 +65,104 @@ _SPELL_SOURCE_IDS = {
     "misty_step",
     "scorching_ray",
 }
+
+
+def test_scrub_private_outcome_leaks_removes_public_and_router_duplicates():
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="The private perception takes hold.",
+        visible_outcome_facts=[
+            "Sera casts a spell at the Orc Raider.",
+            (
+                "The Orc Raider turns as if an iron portcullis blocks the "
+                "east arch."
+            ),
+            "The Orc Raider acts as if something obstructs the way.",
+        ],
+        private_outcome_facts=[
+            {
+                "text": "You see an iron portcullis block the east arch.",
+                "visible_to": ["orc_raider"],
+            }
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[
+            {
+                "fact": "Sera made the orc perceive the portcullis.",
+                "salience": "notable",
+                "reason": "The private belief may matter later.",
+            }
+        ],
+    )
+
+    _scrub_private_outcome_leaks(adjudication)
+
+    assert adjudication.visible_outcome_facts == [
+        "Sera casts a spell at the Orc Raider."
+    ]
+    assert adjudication.router_observed_facts == []
+
+
+def test_scrub_visible_bookkeeping_removes_concentration_fact():
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="The action resolves.",
+        visible_outcome_facts=[
+            "Sera begins concentrating to maintain the effect.",
+            "Sera gestures toward the Orc Raider.",
+        ],
+        private_outcome_facts=[],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[],
+    )
+
+    _scrub_visible_bookkeeping(adjudication)
+
+    assert adjudication.visible_outcome_facts == [
+        "Sera gestures toward the Orc Raider."
+    ]
+
+
+def test_scrub_private_outcome_leaks_does_not_match_character_name_substrings():
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="The private perception takes hold.",
+        visible_outcome_facts=[
+            "Sera Illusionist casts a spell at the Orc Raider.",
+        ],
+        private_outcome_facts=[
+            {
+                "text": "You see an iron portcullis block the east arch.",
+                "visible_to": ["orc_raider"],
+            }
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[],
+    )
+
+    _scrub_private_outcome_leaks(adjudication)
+
+    assert adjudication.visible_outcome_facts == [
+        "Sera Illusionist casts a spell at the Orc Raider."
+    ]
 
 
 def _turn_plan(

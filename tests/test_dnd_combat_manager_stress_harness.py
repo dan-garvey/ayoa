@@ -172,6 +172,150 @@ def test_private_fact_check_rejects_non_failed_recipients():
     ]
 
 
+def test_private_fact_target_check_accepts_scoped_real_fiction():
+    result = {
+        "expectations": {
+            "require_private_fact_for_targets": ["orc"],
+            "private_fact_must_contain_any": ["iron portcullis"],
+            "private_fact_forbid_visible_to_non_targets": True,
+            "private_fact_forbid_contains": ["illusion"],
+            "forbid_fact_contains": ["iron portcullis"],
+        },
+        "capture": {
+            "adjudication": {
+                "private_outcome_facts": [
+                    {
+                        "text": "An iron portcullis seals the east arch.",
+                        "visible_to": ["orc"],
+                    }
+                ],
+                "visible_outcome_facts": ["Sera focuses magic toward the arch."],
+            },
+        },
+        "event": {"facts": ["Sera focuses magic toward the arch."]},
+    }
+
+    assert not [
+        finding
+        for finding in _scenario_findings(result)
+        if finding["name"] in {
+            "missing_required_private_outcome_facts",
+            "private_fact_targets_missing",
+            "private_fact_visible_to_unexpected_targets",
+            "forbidden_private_fact",
+            "forbidden_visible_fact",
+        }
+    ]
+
+
+def test_private_fact_target_check_rejects_leaked_illusion_language():
+    result = {
+        "expectations": {
+            "require_private_fact_for_targets": ["orc"],
+            "private_fact_must_contain_any": ["iron portcullis"],
+            "private_fact_forbid_visible_to_non_targets": True,
+            "private_fact_forbid_contains": ["illusion"],
+        },
+        "capture": {
+            "adjudication": {
+                "private_outcome_facts": [
+                    {
+                        "text": "An illusion of an iron portcullis seals the arch.",
+                        "visible_to": ["orc", "captain"],
+                    }
+                ],
+                "visible_outcome_facts": [],
+            },
+        },
+        "event": {"facts": []},
+    }
+
+    findings = _scenario_findings(result)
+
+    assert [
+        finding
+        for finding in findings
+        if finding["name"] == "private_fact_visible_to_unexpected_targets"
+    ]
+    assert [
+        finding for finding in findings
+        if finding["name"] == "forbidden_private_fact"
+    ]
+
+
+def test_action_and_spatial_match_checks_catch_control_contract():
+    result = {
+        "expectations": {
+            "forbid_action_source_ids": ["longsword"],
+            "require_action_matches": {
+                "actor_id": "pc_guard",
+                "source_type": "effect",
+                "source_id": "command",
+                "effect_id": "command_flee_pc_guard",
+                "use_mode": "sustain",
+            },
+            "require_spatial_delta_matches": {
+                "kind": "move_token",
+                "target_id": "pc_guard",
+            },
+            "forbid_spatial_delta_kinds": ["add_area"],
+        },
+        "capture": {
+            "turn_plan": {
+                "actions": [
+                    {
+                        "actor_id": "pc_guard",
+                        "source_type": "effect",
+                        "source_id": "command",
+                        "effect_id": "command_flee_pc_guard",
+                        "use_mode": "sustain",
+                    }
+                ],
+            },
+            "adjudication": {
+                "spatial_deltas": [
+                    {"kind": "move_token", "target_id": "pc_guard"}
+                ],
+            },
+        },
+        "event": {"facts": []},
+    }
+
+    assert not [
+        finding
+        for finding in _scenario_findings(result)
+        if finding["name"] in {
+            "forbidden_action_source_used",
+            "missing_required_action_match",
+            "missing_required_spatial_delta_match",
+            "forbidden_spatial_delta_kind",
+        }
+    ]
+
+
+def test_forbid_router_observed_facts_rejects_private_illusion_duplication():
+    result = {
+        "expectations": {"forbid_router_observed_facts": True},
+        "capture": {
+            "adjudication": {
+                "router_observed_facts": [
+                    {
+                        "fact": "Sera created a private illusion.",
+                        "salience": "notable",
+                        "reason": "It may matter after combat.",
+                    }
+                ],
+            },
+        },
+        "event": {"facts": []},
+    }
+
+    assert [
+        finding for finding in _scenario_findings(result)
+        if finding["name"] == "unexpected_router_observed_facts"
+    ]
+
+
 def test_effect_delta_match_supports_required_conditions():
     result = {
         "expectations": {

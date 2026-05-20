@@ -642,6 +642,28 @@ def _scenarios() -> list[Scenario]:
         ),
         consumes_level=3,
     )
+    phantasmal_force = _spell(
+        "phantasmal_force",
+        "Phantasmal Force",
+        level=2,
+        save_ability="int",
+        dc=30,
+        damage="",
+        range_text="60 ft",
+        target_text=(
+            "One creature makes an Intelligence save. On a failed save, the "
+            "target privately perceives a chosen phantasmal object, creature, "
+            "or visible phenomenon as real. The target is not forced to move "
+            "or choose a particular response unless later circumstances do so."
+        ),
+        concentration=True,
+        duration_text=(
+            "Concentration, up to 1 minute. The target may use a later action "
+            "to examine the phenomenon with an Intelligence check against the "
+            "spell save DC."
+        ),
+        consumes_level=2,
+    )
     web = _spell(
         "web",
         "Web",
@@ -1070,7 +1092,7 @@ def _scenarios() -> list[Scenario]:
             characters=[
                 CharacterSpec(
                     "pc_illusionist",
-                    "Sera Illusionist",
+                    "Sera Vale",
                     "adventurers",
                     ac=13,
                     hp=25,
@@ -1180,6 +1202,370 @@ def _scenarios() -> list[Scenario]:
                     "actor_id": "pc_illusionist",
                     "resource_id": "spell_slot_3",
                     "source_id": "fear",
+                    "amount": 1,
+                    "applied": True,
+                }],
+            },
+        ),
+        Scenario(
+            name="fear_agent_forced_flight_overrides_attack",
+            summary=(
+                "An NPC ogre starts its turn under an existing Fear effect. "
+                "Even if its submitted intention is to attack, Fear should "
+                "force the mandatory flight behavior as a spell effect rather "
+                "than letting the agent choose to stand and fight."
+            ),
+            actor_id="ogre_vanguard",
+            intention=(
+                "I ignore the terror and charge Sera with my claws, trying to "
+                "tear her apart before she can keep casting."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_illusionist",
+                    "Sera Vale",
+                    "adventurers",
+                    ac=13,
+                    hp=25,
+                    playable=True,
+                    abilities={"cha": 18, "dex": 14},
+                    spellcasting=_spellcasting(
+                        ability="cha",
+                        attack_bonus=7,
+                        save_dc=30,
+                        spells=[fear],
+                    ),
+                    active_effects=[{
+                        "effect_id": "fear_concentration_pc_illusionist",
+                        "name": "Concentrating: Fear",
+                        "slug": "concentration_fear",
+                        "source_type": "spell",
+                        "source_id": "fear",
+                        "originator_id": "pc_illusionist",
+                        "target_id": "pc_illusionist",
+                        "conditions": [],
+                        "concentration": True,
+                        "duration_kind": "rounds",
+                        "duration_amount": 10,
+                        "remaining_rounds": 9,
+                        "duration_text": "Concentration, up to 1 minute.",
+                        "break_triggers": ["lost_concentration"],
+                    }],
+                ),
+                CharacterSpec(
+                    "ogre_vanguard",
+                    "Ogre Vanguard",
+                    "ogres",
+                    ac=11,
+                    hp=59,
+                    abilities={"str": 19, "wis": 7, "int": 5},
+                    actions=[claws],
+                    conditions=["frightened"],
+                    active_effects=[{
+                        "effect_id": "fear_ogre_vanguard",
+                        "name": "Frightened by Fear",
+                        "slug": "fear_frightened",
+                        "source_type": "spell",
+                        "source_id": "fear",
+                        "originator_id": "pc_illusionist",
+                        "target_id": "ogre_vanguard",
+                        "conditions": ["frightened"],
+                        "concentration": False,
+                        "duration_kind": "rounds",
+                        "duration_amount": 10,
+                        "remaining_rounds": 9,
+                        "duration_text": (
+                            "While frightened by Fear, the target must take "
+                            "the Dash action and move away from the caster by "
+                            "the safest available route on each of its turns "
+                            "unless there is nowhere to move."
+                        ),
+                        "break_triggers": [
+                            "caster_loses_concentration",
+                            "successful_recurring_save",
+                        ],
+                        "recurring_save": {
+                            "ability": "wis",
+                            "dc": 30,
+                            "timing": "end_of_turn",
+                            "ends_on": "success",
+                            "repeat": True,
+                        },
+                    }],
+                ),
+                CharacterSpec(
+                    "pc_guard",
+                    "Bram Flint",
+                    "adventurers",
+                    ac=17,
+                    hp=38,
+                    playable=True,
+                    abilities={"str": 16},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("pc_illusionist", 2, 5),
+                ("ogre_vanguard", 5, 5),
+                ("pc_guard", 7, 8),
+            ],
+            expectations={
+                "forbid_attack_rolls": True,
+                "forbid_action_source_ids": ["claws"],
+                "forbid_damage_records": True,
+                "forbid_hp_change": True,
+                "require_action_matches": {
+                    "actor_id": "ogre_vanguard",
+                    "source_type": "effect",
+                    "source_id": "fear",
+                    "effect_id": "fear_ogre_vanguard",
+                    "use_mode": "sustain",
+                },
+                "require_spatial_delta_matches": {
+                    "kind": "move_token",
+                    "target_id": "ogre_vanguard",
+                },
+                "forbid_fact_contains": [
+                    "chooses to flee",
+                    "decides to flee",
+                    "surrenders",
+                ],
+            },
+        ),
+        Scenario(
+            name="commanded_player_flee_overrides_attack",
+            summary=(
+                "A player-controlled guard starts the turn under Command: "
+                "Flee. The player intention tries to attack anyway, but the "
+                "compulsory magical control should override the submitted "
+                "action exactly as it would for an agent-controlled NPC."
+            ),
+            actor_id="pc_guard",
+            intention=(
+                "I refuse the command, plant my feet, and attack the cult "
+                "enchanter with my longsword."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_guard",
+                    "Bram Flint",
+                    "adventurers",
+                    ac=17,
+                    hp=38,
+                    playable=True,
+                    abilities={"str": 16, "wis": 10},
+                    actions=[longsword],
+                    active_effects=[{
+                        "effect_id": "command_flee_pc_guard",
+                        "name": "Command: Flee",
+                        "slug": "command_flee",
+                        "source_type": "spell",
+                        "source_id": "command",
+                        "originator_id": "cult_enchanter",
+                        "target_id": "pc_guard",
+                        "conditions": [],
+                        "concentration": False,
+                        "duration_kind": "rounds",
+                        "duration_amount": 1,
+                        "remaining_rounds": 1,
+                        "duration_text": (
+                            "Until the end of this turn. The target must spend "
+                            "its action to Dash and move away from the caster "
+                            "by the fastest available route, and it does "
+                            "nothing else this turn."
+                        ),
+                        "break_triggers": ["end_of_target_turn"],
+                    }],
+                ),
+                CharacterSpec(
+                    "cult_enchanter",
+                    "Cult Enchanter",
+                    "ash_cult",
+                    ac=13,
+                    hp=24,
+                    abilities={"cha": 16, "wis": 12},
+                    actions=[dagger],
+                ),
+                CharacterSpec(
+                    "pc_ally",
+                    "Aria Venn",
+                    "adventurers",
+                    ac=17,
+                    hp=32,
+                    playable=True,
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("cult_enchanter", 3, 4),
+                ("pc_guard", 6, 4),
+                ("pc_ally", 8, 4),
+            ],
+            expectations={
+                "forbid_attack_rolls": True,
+                "forbid_action_source_ids": ["longsword"],
+                "forbid_damage_records": True,
+                "forbid_hp_change": True,
+                "require_action_matches": {
+                    "actor_id": "pc_guard",
+                    "source_type": "effect",
+                    "source_id": "command",
+                    "effect_id": "command_flee_pc_guard",
+                    "use_mode": "sustain",
+                },
+                "require_spatial_delta_matches": {
+                    "kind": "move_token",
+                    "target_id": "pc_guard",
+                },
+                "forbid_fact_contains": [
+                    "chooses to flee",
+                    "decides to flee",
+                    "keeps attacking",
+                    "longsword connects",
+                ],
+            },
+        ),
+        Scenario(
+            name="phantasmal_force_private_reality_no_forced_reaction",
+            summary=(
+                "Phantasmal Force is used creatively to make one orc perceive "
+                "an iron portcullis as real. The failed target should receive "
+                "that reality as a private scoped fact, while the combat "
+                "manager should not force movement, a condition, damage, or "
+                "a voluntary reaction."
+            ),
+            actor_id="pc_illusionist",
+            intention=(
+                "I cast Phantasmal Force on the orc raider, making it believe "
+                "an iron portcullis has slammed down across the east arch. I "
+                "am not forcing the orc to run or surrender; I just want that "
+                "obstruction to be real to it."
+            ),
+            characters=[
+                CharacterSpec(
+                    "pc_illusionist",
+                    "Sera Vale",
+                    "adventurers",
+                    ac=13,
+                    hp=25,
+                    playable=True,
+                    abilities={"cha": 18, "dex": 14},
+                    spellcasting=_spellcasting(
+                        ability="cha",
+                        attack_bonus=7,
+                        save_dc=30,
+                        slots={"2": {"current": 2, "max": 3}},
+                        spells=[phantasmal_force],
+                    ),
+                ),
+                CharacterSpec(
+                    "orc_raider",
+                    "Orc Raider",
+                    "iron_orcs",
+                    ac=13,
+                    hp=24,
+                    abilities={"int": 7, "wis": 11, "str": 16},
+                    actions=[claws],
+                ),
+                CharacterSpec(
+                    "orc_captain",
+                    "Orc Captain",
+                    "iron_orcs",
+                    ac=15,
+                    hp=45,
+                    abilities={"int": 10, "wis": 12},
+                    actions=[longsword],
+                ),
+            ],
+            tokens=[
+                ("pc_illusionist", 2, 5),
+                ("orc_raider", 6, 5),
+                ("orc_captain", 6, 7),
+            ],
+            expectations={
+                "must_include_save_targets": ["orc_raider"],
+                "must_exclude_roll_targets": ["orc_captain"],
+                "must_fail_save_targets": ["orc_raider"],
+                "expected_save_ability": "int",
+                "forbid_damage_records": True,
+                "forbid_hp_change": True,
+                "require_effect_delta_if_failed": True,
+                "require_effect_delta_matches": [
+                    {
+                        "operation": "start",
+                        "target_id": "pc_illusionist",
+                        "source_id": "phantasmal_force",
+                        "concentration": True,
+                        "conditions_empty": True,
+                    },
+                    {
+                        "operation": "start",
+                        "target_id": "orc_raider",
+                        "source_id": "phantasmal_force",
+                        "conditions_empty": True,
+                    },
+                ],
+                "require_private_fact_for_targets": ["orc_raider"],
+                "private_fact_must_contain_any": [
+                    "iron portcullis",
+                    "east arch",
+                    "obstruction",
+                ],
+                "private_fact_forbid_visible_to_non_targets": True,
+                "private_fact_forbid_contains": [
+                    "illusion",
+                    "illusory",
+                    "phantasm",
+                    "phantasmal",
+                    "hallucination",
+                    "perceive",
+                    "perceived",
+                    "seems",
+                    "appears",
+                    "appearing",
+                    "looks",
+                    "real to you",
+                    "feels real",
+                    "not real",
+                    "fake",
+                ],
+                "forbid_fact_contains": [
+                    "iron portcullis",
+                    "portcullis",
+                    "obstacle",
+                    "blocked the passage",
+                    "blocks the way",
+                    "something blocks",
+                    "obstructs",
+                    "something now obstructs",
+                    "as if",
+                    "illusion",
+                    "illusion spell",
+                    "illusory",
+                    "phantasmal",
+                    "hallucination",
+                    "not real",
+                    "fake",
+                    "runs away",
+                    "surrenders",
+                ],
+                "forbid_spatial_delta_kinds": [
+                    "move_token",
+                    "add_area",
+                    "remove_area",
+                ],
+                "forbid_effect_conditions": [
+                    "frightened",
+                    "restrained",
+                    "charmed",
+                    "incapacitated",
+                    "concentrating",
+                ],
+                "forbid_router_observed_facts": True,
+                "require_resource_spends": [{
+                    "actor_id": "pc_illusionist",
+                    "resource_id": "spell_slot_2",
+                    "source_id": "phantasmal_force",
                     "amount": 1,
                     "applied": True,
                 }],

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 
 from app.engine import dnd_cat_ii as cat
@@ -168,4 +169,112 @@ class DndCombatResolver:
             cache=True,
             compact=False,
         )
-        return response.parsed
+        adjudication = response.parsed
+        _scrub_visible_bookkeeping(adjudication)
+        _scrub_private_outcome_leaks(adjudication)
+        return adjudication
+
+
+_VISIBLE_BOOKKEEPING_TERMS = (
+    "saving throw",
+    "opportunity attack",
+    "hit points",
+    "spell slot",
+    "concentrating",
+    "roll ledger",
+    "no attacks",
+    "no attack was made",
+    "no rolls",
+    "no saving throw",
+    "no damage",
+    "no damage was",
+)
+
+_PRIVATE_OUTCOME_LEAK_WORDS = {
+    "illusion",
+    "illusory",
+    "phantasm",
+    "phantasmal",
+    "hallucination",
+    "imagined",
+    "imaginary",
+    "fake",
+}
+
+
+def _scrub_visible_bookkeeping(
+    adjudication: DndCombatManagerAdjudication,
+) -> None:
+    adjudication.visible_outcome_facts = [
+        fact for fact in adjudication.visible_outcome_facts
+        if not _text_has_visible_bookkeeping(fact)
+    ]
+    if not adjudication.visible_outcome_facts:
+        adjudication.visible_outcome_facts = ["The action resolves."]
+
+
+def _text_has_visible_bookkeeping(text: str) -> bool:
+    lower = " ".join(str(text or "").lower().split())
+    return any(term in lower for term in _VISIBLE_BOOKKEEPING_TERMS)
+
+
+def _scrub_private_outcome_leaks(
+    adjudication: DndCombatManagerAdjudication,
+) -> None:
+    private_terms = _private_outcome_terms(adjudication)
+    if not private_terms:
+        return
+    adjudication.visible_outcome_facts = [
+        fact for fact in adjudication.visible_outcome_facts
+        if not _text_leaks_private_outcome(fact, private_terms)
+    ]
+    adjudication.router_observed_facts = [
+        fact for fact in adjudication.router_observed_facts
+        if not _text_leaks_private_outcome(
+            f"{fact.fact} {fact.reason}",
+            private_terms,
+        )
+    ]
+    if not adjudication.visible_outcome_facts:
+        adjudication.visible_outcome_facts = ["The spell takes effect."]
+
+
+def _private_outcome_terms(adjudication: DndCombatManagerAdjudication) -> set[str]:
+    terms: set[str] = set()
+    for fact in adjudication.private_outcome_facts:
+        terms.update(
+            token for token in re.findall(r"[a-z0-9]+", fact.text.lower())
+            if len(token) >= 5
+            and token not in {
+                "about",
+                "above",
+                "across",
+                "behind",
+                "below",
+                "completely",
+                "north",
+                "south",
+                "east",
+                "west",
+                "feels",
+                "looks",
+                "sound",
+                "sounds",
+                "there",
+            }
+        )
+    return terms
+
+
+def _text_leaks_private_outcome(text: str, private_terms: set[str]) -> bool:
+    lower = " ".join(str(text or "").lower().split())
+    tokens = set(re.findall(r"[a-z0-9]+", lower))
+    if tokens.intersection(_PRIVATE_OUTCOME_LEAK_WORDS):
+        return True
+    if "not real" in lower:
+        return True
+    if private_terms.intersection(tokens):
+        return True
+    if "as if" in lower:
+        return True
+    return False

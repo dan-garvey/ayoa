@@ -3319,6 +3319,7 @@ def _combat_visible_facts(
         pending = [
             fact for fact in pending
             if not _covered_engine_effect_mutation_fact(fact, manager_facts)
+            and not _private_effect_mutation_fact_leaks(fact, adjudication)
         ]
     return [*manager_facts, *pending]
 
@@ -3350,6 +3351,53 @@ def _covered_engine_effect_mutation_fact(
     ]
     manager_text = " ".join(str(fact or "").lower() for fact in manager_facts)
     return any(token in manager_text for token in effect_tokens)
+
+
+def _private_effect_mutation_fact_leaks(
+    fact: str,
+    adjudication: RulesAdjudication,
+) -> bool:
+    if not adjudication.private_outcome_facts:
+        return False
+    lower = " ".join(str(fact or "").lower().split())
+    if not any(
+        marker in lower
+        for marker in (" takes hold on ", " ends on ", " changes on ")
+    ):
+        return False
+    private_leak_terms = {
+        "illusion",
+        "illusory",
+        "phantasm",
+        "phantasmal",
+        "hallucination",
+        "imagined",
+        "imaginary",
+        "fake",
+        "not real",
+    }
+    if any(term in lower for term in private_leak_terms):
+        return True
+    private_tokens = {
+        token
+        for private_fact in adjudication.private_outcome_facts
+        for token in re.findall(r"[a-z0-9]+", private_fact.text.lower())
+        if len(token) >= 4
+        and token not in {
+            "your",
+            "that",
+            "this",
+            "with",
+            "real",
+            "feel",
+            "feels",
+            "look",
+            "looks",
+            "sound",
+            "sounds",
+        }
+    }
+    return any(token in lower for token in private_tokens)
 
 
 def _combat_affected_ids(

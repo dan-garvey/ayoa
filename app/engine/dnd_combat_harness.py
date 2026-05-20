@@ -1113,6 +1113,33 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
             "severity": "high",
             "detail": effect_actions_wrong_mode,
         })
+    forbidden_action_source_ids = {
+        str(source_id).strip().lower()
+        for source_id in expectations.get("forbid_action_source_ids") or []
+        if str(source_id).strip()
+    }
+    if forbidden_action_source_ids:
+        bad_actions = [
+            action for action in actions
+            if str(action.get("source_id") or "").strip().lower()
+            in forbidden_action_source_ids
+        ]
+        if bad_actions:
+            findings.append({
+                "name": "forbidden_action_source_used",
+                "severity": "high",
+                "detail": bad_actions,
+            })
+    required_action_matches = expectations.get("require_action_matches") or []
+    if isinstance(required_action_matches, dict):
+        required_action_matches = [required_action_matches]
+    for required in required_action_matches:
+        if not any(_action_matches_required(action, required) for action in actions):
+            findings.append({
+                "name": "missing_required_action_match",
+                "severity": "high",
+                "detail": required,
+            })
     expected_status = str(expectations.get("expected_combat_status") or "").strip()
     if expected_status:
         actual_status = str(adjudication.get("combat_status") or "").strip()
@@ -1129,6 +1156,12 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
         fact for fact in adjudication.get("router_observed_facts") or []
         if isinstance(fact, dict) and str(fact.get("fact") or "").strip()
     ]
+    if expectations.get("forbid_router_observed_facts") and router_facts:
+        findings.append({
+            "name": "unexpected_router_observed_facts",
+            "severity": "medium",
+            "detail": router_facts,
+        })
     minimum_router_facts = int(
         expectations.get("minimum_router_observed_facts", 0) or 0
     )
@@ -1599,6 +1632,66 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                     "severity": "high",
                     "detail": bad_private_scope,
                 })
+    required_private_targets = {
+        str(target_id).strip()
+        for target_id in expectations.get("require_private_fact_for_targets") or []
+        if str(target_id).strip()
+    }
+    if required_private_targets:
+        required_terms = [
+            str(term).strip().lower()
+            for term in expectations.get("private_fact_must_contain_any") or []
+            if str(term).strip()
+        ]
+        matching_private = [
+            fact for fact in _private_outcome_facts(result)
+            if _private_fact_matches_terms(fact, required_terms)
+        ]
+        if not matching_private:
+            findings.append({
+                "name": "missing_required_private_outcome_facts",
+                "severity": "high",
+                "detail": {
+                    "required_targets": sorted(required_private_targets),
+                    "required_terms": required_terms,
+                    "private_outcome_facts": _private_outcome_facts(result),
+                },
+            })
+        missing_private_targets = sorted(
+            target_id
+            for target_id in required_private_targets
+            if not any(
+                target_id in set(fact.get("visible_to") or [])
+                for fact in matching_private
+            )
+        )
+        if missing_private_targets:
+            findings.append({
+                "name": "private_fact_targets_missing",
+                "severity": "high",
+                "detail": {
+                    "missing_targets": missing_private_targets,
+                    "private_outcome_facts": matching_private,
+                },
+            })
+        if expectations.get("private_fact_forbid_visible_to_non_targets"):
+            bad_private_scope = []
+            for fact in matching_private:
+                extra = sorted(
+                    set(fact.get("visible_to") or []) - required_private_targets
+                )
+                if extra:
+                    bad_private_scope.append({
+                        "text": fact.get("text"),
+                        "visible_to": fact.get("visible_to"),
+                        "unexpected_visible_to": extra,
+                    })
+            if bad_private_scope:
+                findings.append({
+                    "name": "private_fact_visible_to_unexpected_targets",
+                    "severity": "high",
+                    "detail": bad_private_scope,
+                })
     for rule in expectations.get("condition_fact_requires_delta") or []:
         condition = str(rule.get("condition") or "").strip().lower()
         target_id = str(rule.get("target_id") or "").strip()
@@ -1631,6 +1724,22 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": "missing_required_spatial_delta",
                 "severity": "high",
                 "detail": required_spatial,
+            })
+    forbidden_spatial_kinds = {
+        str(kind).strip()
+        for kind in expectations.get("forbid_spatial_delta_kinds") or []
+        if str(kind).strip()
+    }
+    if forbidden_spatial_kinds:
+        bad_spatial_deltas = [
+            delta for delta in adjudication.get("spatial_deltas") or []
+            if str(delta.get("kind") or "") in forbidden_spatial_kinds
+        ]
+        if bad_spatial_deltas:
+            findings.append({
+                "name": "forbidden_spatial_delta_kind",
+                "severity": "high",
+                "detail": bad_spatial_deltas,
             })
     required_spatial_if_failed = str(
         expectations.get("require_spatial_delta_if_failed") or ""
@@ -1666,6 +1775,19 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                     "expected": expected_move_if_failed,
                     "actual": matching_moves,
                 },
+            })
+    required_spatial_matches = expectations.get("require_spatial_delta_matches") or []
+    if isinstance(required_spatial_matches, dict):
+        required_spatial_matches = [required_spatial_matches]
+    for required in required_spatial_matches:
+        if not any(
+            _spatial_delta_matches_required(delta, required)
+            for delta in adjudication.get("spatial_deltas") or []
+        ):
+            findings.append({
+                "name": "missing_required_spatial_delta_match",
+                "severity": "high",
+                "detail": required,
             })
     required_effect_ends = expectations.get("require_effect_end_slug") or []
     if isinstance(required_effect_ends, str):
@@ -1822,6 +1944,25 @@ def _scenario_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": "medium",
                 "detail": {"term": term, "facts": matches},
             })
+    forbidden_private_fact_terms = (
+        expectations.get("private_fact_forbid_contains") or []
+    )
+    if isinstance(forbidden_private_fact_terms, str):
+        forbidden_private_fact_terms = [forbidden_private_fact_terms]
+    for term in forbidden_private_fact_terms:
+        text = str(term).strip().lower()
+        if not text:
+            continue
+        matches = [
+            fact for fact in _private_outcome_facts(result)
+            if text in str(fact.get("text") or "").lower()
+        ]
+        if matches:
+            findings.append({
+                "name": "forbidden_private_fact",
+                "severity": "medium",
+                "detail": {"term": term, "facts": matches},
+            })
     if expectations.get("forbid_visible_damage_numbers"):
         damage_number_pattern = re.compile(
             r"\b\d+\s+(?:acid|bludgeoning|cold|fire|force|lightning|"
@@ -1898,6 +2039,41 @@ def _has_opposed_rolls(requests: list[dict[str, Any]]) -> bool:
         if str(request.get("actor_id") or "")
     }
     return len(contest_requests) >= 2 and len(actors) >= 2
+
+
+def _action_matches_required(
+    action: dict[str, Any],
+    required: dict[str, Any],
+) -> bool:
+    for key in (
+        "actor_id",
+        "source_type",
+        "source_id",
+        "effect_id",
+        "use_mode",
+        "economy",
+    ):
+        if key in required and action.get(key) != required[key]:
+            return False
+    return True
+
+
+def _spatial_delta_matches_required(
+    delta: dict[str, Any],
+    required: dict[str, Any],
+) -> bool:
+    for key in (
+        "kind",
+        "target_id",
+        "character_id",
+        "x",
+        "y",
+        "label",
+        "shape",
+    ):
+        if key in required and delta.get(key) != required[key]:
+            return False
+    return True
 
 
 def _effect_delta_contains(delta: dict[str, Any], expected: str) -> bool:
