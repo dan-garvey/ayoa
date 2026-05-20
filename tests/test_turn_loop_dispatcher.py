@@ -161,6 +161,16 @@ class TestRouterContext:
         assert "open_commitments_block" not in ctx
         assert "commitment_revision_block" not in ctx
 
+    def test_first_turn_context_surfaces_current_locations(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        pip.location = "archive"
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert "Location: gatehouse" in ctx["player_characters_block"]
+        assert "Location: archive" in ctx["initial_roster_block"]
+
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
         self, prompt_mgr, mock_client,

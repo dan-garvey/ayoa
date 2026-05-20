@@ -273,6 +273,21 @@ class TestPlayerCharactersBlock:
         assert "acting this turn" in aldric_line
         assert "acting this turn" not in sera_line
 
+    def test_includes_current_locations(self):
+        ckpt = _make_checkpoint()
+        ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
+        next(c for c in ckpt.characters if c.character_id == "aldric").location = (
+            "gatehouse"
+        )
+        next(c for c in ckpt.characters if c.character_id == "sera").location = (
+            "archive"
+        )
+
+        block = build_player_characters_block(ckpt, "aldric")
+
+        assert "Location: gatehouse" in block
+        assert "Location: archive" in block
+
     def test_falls_back_to_creator_when_no_bindings(self):
         """With no `character_bindings`, the creator binding still
         surfaces in the prompt block (so single-player legacy

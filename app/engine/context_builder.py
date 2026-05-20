@@ -369,8 +369,12 @@ def build_player_characters_block(
             continue
         role = char.public_sheet.role or "unspecified role"
         appearance = (char.public_sheet.appearance or "not yet described").strip()
+        location = char.location or "unknown location"
         marker = " (acting this turn)" if char.character_id == acting_character_id else ""
-        lines.append(f"- **{char.character_id}**{marker} — {role}. {appearance}")
+        lines.append(
+            f"- **{char.character_id}**{marker} — {role}. "
+            f"Location: {location}. {appearance}"
+        )
 
     if not lines:
         return "- No player characters bound to this session."

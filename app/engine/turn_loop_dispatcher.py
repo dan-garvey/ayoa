@@ -168,6 +168,8 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
             f"- {char.character_id}",
             f"  Role: {role}",
         ]
+        location = char.location or "unknown location"
+        parts.append(f"  Location: {location}")
         goals = [g for g in (char.private_state.goals or []) if g]
         if goals:
             parts.append(
