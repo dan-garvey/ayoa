@@ -1516,6 +1516,38 @@ class TestCatIIBeat:
         assert ckpt.session.open_cat_ii_events == []
         assert ckpt.session.active_act_slots == {}
 
+    def test_cat_ii_resolution_routes_explicit_next_output_before_initiator(self):
+        ckpt = _ckpt({"alice": "1"})
+        evt = open_cat_ii(
+            ckpt,
+            initiator_id="alice",
+            initiator_intention="I warn Pip away from the door",
+            required_responders=["pip"],
+        )
+
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            ends_beat=False,
+        ))
+        fake.queue_agent("Pip answers the warning.")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="pip",
+            intention="I try not to show fear",
+            cat_ii_event_id=evt.event_id,
+        ))
+
+        assert result.ended_reason == "directed_at_player"
+        assert ckpt.session.open_cat_ii_events == []
+        assert fake.agent_calls[0]["character_id"] == "pip"
+        assert fake.agent_output_calls[0]["character_id"] == "pip"
+        assert fake.route_calls[0]["actor_id"] == "alice"
+
     def test_cat_ii_multi_responder_pauses_until_all_intentions_in(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         evt = open_cat_ii(

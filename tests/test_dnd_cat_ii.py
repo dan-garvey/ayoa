@@ -97,6 +97,37 @@ def _opposed_plan() -> RollPlan:
     )
 
 
+def _social_plan() -> RollPlan:
+    return RollPlan(
+        needs_rolls=True,
+        roll_requests=[
+            PlannedRoll(
+                roll_id="roll_alice",
+                actor_id="alice",
+                kind="skill_check",
+                ability="cha",
+                skill="intimidation",
+                dc=0,
+                opposed_by="roll_pip",
+                advantage_state="normal",
+                reason="Alice presses Pip with a credible threat.",
+            ),
+            PlannedRoll(
+                roll_id="roll_pip",
+                actor_id="pip",
+                kind="skill_check",
+                ability="wis",
+                skill="insight",
+                dc=0,
+                opposed_by="roll_alice",
+                advantage_state="normal",
+                reason="Pip tries to read how dangerous Alice really is.",
+            ),
+        ],
+        no_roll_reason="",
+    )
+
+
 def _open_event() -> OpenCatIIEvent:
     return OpenCatIIEvent(
         event_id="evt_open",
@@ -283,7 +314,7 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
     )
     client = MagicMock()
     client.complete = AsyncMock(side_effect=[
-        _llm_response(_opposed_plan()),
+        _llm_response(_social_plan()),
         _llm_response(adjudication),
     ])
     prompt_mgr = MagicMock()
@@ -310,6 +341,18 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
         "Alice's threat feels immediate enough that staying in place feels "
         "dangerous."
     )
+    assert routed.requires_responders is False
+    assert routed.required_responders == []
+    assert routed.ends_beat is False
+    assert routed.ends_beat_reason == ""
+    assert routed.next_output_character_ids == ["pip"]
+    assert {
+        observer.character_id: observer.routing_role
+        for observer in routed.observers
+    } == {
+        "alice": "observe_only",
+        "pip": "next_output",
+    }
 
 
 def test_dnd_cat_ii_interactive_player_roll_pauses_until_roll_submitted(

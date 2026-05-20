@@ -1871,6 +1871,45 @@ class TestResolveCatII:
         assert FakeDispatcher.route_calls[1]["actor_id"] == "pip"
 
     @pytest.mark.asyncio
+    async def test_ready_event_routes_resolution_next_output_before_initiator(
+        self, patched_orchestrator,
+    ):
+        from app.engine.turn_loop import open_cat_ii
+
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        evt = open_cat_ii(
+            ckpt,
+            initiator_id="alice",
+            initiator_intention="alice warns pip away",
+            required_responders=["pip"],
+        )
+        evt.collected_intentions["pip"] = "Pip tries not to flinch."
+        orch, mgr = patched_orchestrator(ckpt)
+
+        resolution = _router_out(
+            ends_beat=False,
+            agent_ids=["pip"],
+            facts=[
+                ObservableFact.all("Alice's warning hangs in the doorway."),
+                ObservableFact.only(
+                    "The warning feels immediate to Pip.",
+                    ["pip"],
+                ),
+            ],
+        )
+        FakeDispatcher.queue_route(resolution)
+        FakeDispatcher.queue_agent("Pip answers the warning.")
+        FakeDispatcher.queue_route(_router_out(ends_beat=True, agent_ids=[]))
+
+        response = await orch.resolve_cat_ii("s", evt.event_id)
+
+        assert response.beat_ended_reason == "directed_at_player"
+        saved = mgr.save.call_args[0][0]
+        assert len(saved.canonical_events) == 2
+        assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
+        assert FakeDispatcher.route_calls[1]["actor_id"] == "pip"
+
+    @pytest.mark.asyncio
     async def test_ready_cat_ii_flushes_pending_combat_visible_facts(
         self, patched_orchestrator,
     ):

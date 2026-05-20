@@ -70,7 +70,7 @@ from app.engine.turn_loop import (
     _clear_pending_initiating_action,
     _end_beat,
     flush_combat_visible_facts,
-    _filter_routed_agents_for_dispatch,
+    _cat_ii_resolution_followup_ids,
 )
 from app.llm.client import LLMClient
 
@@ -1242,8 +1242,8 @@ class Orchestrator:
 
         Acquires the session lock for the event, re-checks
         readiness, drives `route_intention` on the adjudication path,
-        closes the event, broadcasts the canonical result, lets an NPC
-        initiator take the first follow-up when applicable, fans renders
+        closes the event, broadcasts the canonical result, lets selected
+        follow-up NPCs act when applicable, fans renders
         out, applies roster side-effects, and saves.
         Returns a TurnResponse describing the resolution; if the event
         was already closed (race) returns an empty "cat_ii_stale"
@@ -1358,20 +1358,22 @@ class Orchestrator:
                 # initiator, needs the final result in their inbox for future
                 # turns.
                 broadcast_event(ckpt, resolved)
-                initiator_pick = _filter_routed_agents_for_dispatch(
-                    ckpt, [evt_live.initiator_id],
-                    event=resolved,
+                followup_ids = _cat_ii_resolution_followup_ids(
+                    ckpt,
+                    resolved,
+                    initiator_id=evt_live.initiator_id,
                 )
+                followup_actor_id = followup_ids[0] if followup_ids else ""
                 followup = None
-                if initiator_pick:
+                if followup_actor_id:
                     followup = await _agent_intention_for_dispatch(
-                        dispatcher, ckpt, evt_live.initiator_id,
+                        dispatcher, ckpt, followup_actor_id,
                     )
                 if followup is not None:
                     followup_result = await run_beat(
                         ckpt=ckpt,
                         dispatcher=dispatcher,
-                        actor_id=evt_live.initiator_id,
+                        actor_id=followup_actor_id,
                         intention=followup,
                     )
                     beat_result = BeatResult(
@@ -1788,20 +1790,22 @@ class Orchestrator:
             )
         align_cat_ii_resolution_time(ckpt, evt_live, resolved)
         broadcast_event(ckpt, resolved)
-        initiator_pick = _filter_routed_agents_for_dispatch(
-            ckpt, [evt_live.initiator_id],
-            event=resolved,
+        followup_ids = _cat_ii_resolution_followup_ids(
+            ckpt,
+            resolved,
+            initiator_id=evt_live.initiator_id,
         )
+        followup_actor_id = followup_ids[0] if followup_ids else ""
         followup = None
-        if initiator_pick:
+        if followup_actor_id:
             followup = await _agent_intention_for_dispatch(
-                dispatcher, ckpt, evt_live.initiator_id,
+                dispatcher, ckpt, followup_actor_id,
             )
         if followup is not None:
             followup_result = await run_beat(
                 ckpt=ckpt,
                 dispatcher=dispatcher,
-                actor_id=evt_live.initiator_id,
+                actor_id=followup_actor_id,
                 intention=followup,
             )
             beat_result = BeatResult(

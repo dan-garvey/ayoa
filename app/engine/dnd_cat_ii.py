@@ -64,6 +64,7 @@ _DAMAGE_TYPES = {
     "slashing",
     "thunder",
 }
+_SOCIAL_INFLUENCE_SKILLS = {"deception", "intimidation", "persuasion"}
 _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
     {
         "id": "dash",
@@ -283,7 +284,7 @@ class DndCatIIResolver:
 
         adjudication = await self._finalize(packet, transaction.ledger_lines)
         result = _compile_event_router_output(
-            ckpt, cat_ii_event, adjudication
+            ckpt, cat_ii_event, transaction, adjudication
         )
         transaction.status = "finalized"
         transaction.final_event_id = result.event_id
@@ -3098,9 +3099,16 @@ def _resource_summaries(value: object) -> list[dict[str, object]]:
 def _compile_event_router_output(
     ckpt: CheckpointFile,
     cat_ii_event: OpenCatIIEvent,
+    transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
 ) -> EventRouterOutput:
     observer_ids = _observer_ids(cat_ii_event)
+    social_followup_ids = _social_private_followup_responder_ids(
+        ckpt,
+        cat_ii_event,
+        transaction,
+        adjudication,
+    )
     notes = "; ".join(adjudication.rules_notes)
     rationale_parts = [
         part for part in (
@@ -3121,13 +3129,19 @@ def _compile_event_router_output(
         ),
         requires_responders=False,
         required_responders=[],
-        ends_beat=True,
-        ends_beat_reason="cat_ii_resolution",
+        ends_beat=not social_followup_ids,
+        ends_beat_reason=(
+            "cat_ii_resolution" if not social_followup_ids else ""
+        ),
         observers=[
             ObserverEntry(
                 character_id=cid,
                 observation_level="d",
-                routing_role="observe_only",
+                routing_role=(
+                    "next_output"
+                    if cid in social_followup_ids
+                    else "observe_only"
+                ),
             )
             for cid in observer_ids
             if _character_exists(ckpt, cid)
@@ -3136,6 +3150,65 @@ def _compile_event_router_output(
         dormant=[],
         cull=[],
     )
+
+
+def _social_private_followup_responder_ids(
+    ckpt: CheckpointFile,
+    cat_ii_event: OpenCatIIEvent,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> list[str]:
+    """Route social-influence targets to answer the pressure privately framed.
+
+    `required_responders` belongs to opening Cat II collection. After the roll
+    resolves, the existing continuation signal is `routing_role="next_output"`.
+    Only adapter-local social influence checks use this heuristic; generic Cat II
+    and non-social D&D contests keep the old terminal behavior.
+    """
+    if not _transaction_uses_social_influence(transaction):
+        return []
+
+    from app.engine.context_builder import collect_player_ids
+
+    humans = collect_player_ids(ckpt)
+    required = set(cat_ii_event.required_responders)
+    out: list[str] = []
+    for fact in adjudication.private_outcome_facts:
+        for cid in fact.visible_to:
+            if cid not in required:
+                continue
+            if cid in humans:
+                continue
+            if not _character_exists(ckpt, cid):
+                continue
+            if cid not in out:
+                out.append(cid)
+    return out
+
+
+def _transaction_uses_social_influence(
+    transaction: CatIIRollTransaction,
+) -> bool:
+    for request in _transaction_roll_requests(transaction):
+        skill = str(request.get("skill") or "").strip().lower()
+        if skill in _SOCIAL_INFLUENCE_SKILLS:
+            return True
+    return False
+
+
+def _transaction_roll_requests(
+    transaction: CatIIRollTransaction,
+) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    plan_requests = transaction.plan.get("roll_requests")
+    if isinstance(plan_requests, list):
+        out.extend(
+            item for item in plan_requests if isinstance(item, dict)
+        )
+    for record in transaction.rolls:
+        if isinstance(record.request, dict):
+            out.append(record.request)
+    return out
 
 
 def _compile_combat_router_output(

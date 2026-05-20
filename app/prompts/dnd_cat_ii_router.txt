@@ -47,6 +47,16 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   characters in visible_to. Use them for social pressure, fear, credibility,
   suspicion, readable tells, and other inward or narrowly perceived effects of
   the resolved contest.
+- In contested social influence, resolve the pressure created by the roll, not
+  the target's voluntary answer. Do not decide that a target complies, refuses,
+  surrenders, attacks, signals, confesses, bargains, or stays silent unless that
+  choice was already part of a submitted intention. Leave the target's next
+  choice for that character; use private_outcome_facts to frame what now feels
+  credible, frightening, plausible, costly, hollow, or hard to dismiss.
+- Public visible_outcome_facts for social influence should stop at observable
+  framing: words spoken, a pause, a flinch, a tightened grip, a glance, a held
+  breath, a stalled signal, or another surface sign. Do not turn that surface
+  sign into a durable decision for the target.
 - Use explicit names for non-self-referential character references in visible_outcome_facts. If the sentence names the acting character as the subject, normal self-reference is allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a pronoun would refer to a different character, use that character's name instead. If quoted dialogue contains a pronoun for someone other than the speaker, replace that pronoun with the character name in square brackets. Leave self-reference in dialogue alone.
 - For Persuasion success, a private fact can say the appeal lands as sincere,
   practical, honorable, emotionally pointed, or hard to dismiss.

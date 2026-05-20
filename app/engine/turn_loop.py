@@ -19,7 +19,8 @@ or the backstop fires.
     Cat I → canonicalize, broadcast, check ends_beat.
     Cat II → open event, collect required responders (agents intend
       immediately; humans pin slot and wait), adjudicate on close,
-      then give the initiator the first follow-up if they are an NPC.
+      then route the resolution's selected follow-up NPCs, falling back to the
+      initiator only when the resolution did not select anyone.
 
   broadcast(event):
     Append to every local human's render buffer, plus mediated humans
@@ -862,6 +863,18 @@ def _filter_routed_agents_for_dispatch(
             continue
         out.append(rid)
     return out
+
+
+def _cat_ii_resolution_followup_ids(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    initiator_id: str,
+) -> list[str]:
+    explicit = event.next_output_character_ids
+    if explicit:
+        return _filter_routed_agents_for_dispatch(ckpt, explicit, event=event)
+    return _filter_routed_agents_for_dispatch(ckpt, [initiator_id], event=event)
 
 
 def _character_by_id(ckpt: CheckpointFile) -> dict[str, Any]:
@@ -2218,8 +2231,9 @@ async def run_beat(
 
     Termination:
     - Router's ends_beat=true → render fan-out, slot release.
-    - Cat II event adjudicates; NPC initiators get first follow-up,
-      otherwise render fan-out and slot release.
+    - Cat II event adjudicates; selected `next_output` NPCs get first
+      follow-up, otherwise NPC initiators keep the legacy first follow-up.
+      If no NPC can act, render fan-out and slot release.
     - max_events_per_beat reached → forced render + slot release.
     - max_agent_cascades_per_beat reached → forced render + slot release.
     """
@@ -2424,15 +2438,16 @@ async def run_beat(
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
 
-        initiator_pick = _filter_routed_agents_for_dispatch(
-            ckpt, [evt.initiator_id], event=resolved,
+        followup_ids = _cat_ii_resolution_followup_ids(
+            ckpt,
+            resolved,
+            initiator_id=evt.initiator_id,
         )
-        followup = None
-        if initiator_pick:
-            followup = await _agent_intention_for_dispatch(
-                dispatcher, ckpt, evt.initiator_id,
-            )
-        if followup is None:
+        if followup_ids:
+            queued = await _queue_router_agent_output(resolved, followup_ids)
+            if not queued:
+                return await _end_for_cascade_cap()
+        else:
             return await _end_beat(
                 ckpt, dispatcher,
                 ended_reason="cat_ii_resolution",
@@ -2442,12 +2457,6 @@ async def run_beat(
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
-
-        # The Cat II initiator gets first follow-up after the adjudication.
-        # Human initiators cannot be dispatched here, so they naturally fall
-        # through to the player render above.
-        current_actor = evt.initiator_id
-        current_intention = followup
 
     if combat_reaction_event_id is not None:
         release_character_slot(ckpt, actor_id)
