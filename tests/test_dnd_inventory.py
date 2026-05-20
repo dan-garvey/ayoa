@@ -113,6 +113,108 @@ def test_apply_loot_offer_is_idempotent_and_prompts_bound_characters():
     assert len(ckpt.session.dnd_inventory_offers) == 1
 
 
+def test_narrative_mundane_gear_handoff_becomes_claimable_loot():
+    ckpt = _ckpt()
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+    data = _loot_event().model_dump()
+    data["event_id"] = "evt_gear_handoff"
+    data["canonical_event"]["observable_facts"] = [
+        {
+            "text": (
+                "Korva returns from the ledger counter carrying a small bundle "
+                "of Hall-stock travel gear: coiled rope, two bedrolls, ration "
+                "wraps, a torch bundle, and a folded rough map sheet. She sets "
+                "the bundle down within reach of Alice and Bob; a healer's kit "
+                "in a leather roll lands on top."
+            ),
+            "audience": "all_observers",
+            "visible_to": [],
+        }
+    ]
+    data["loot_offer"] = {
+        "present": False,
+        "source_kind": "other",
+        "source_label": "",
+        "visibility": "table",
+        "eligible_character_ids": [],
+        "items": [],
+        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
+        "notes": "",
+    }
+
+    prompts = dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+
+    offer = ckpt.session.dnd_inventory_offers[0]
+    assert prompts == {"alice": ["loot_evt_gear_handoff"], "bob": ["loot_evt_gear_handoff"]}
+    assert offer.source_kind == "handoff"
+    assert offer.source_label == "Hall stock"
+    items = {item.item_id: item for item in offer.items}
+    assert set(items) == {
+        "healers_kit",
+        "rope",
+        "bedroll",
+        "rations",
+        "torch_bundle",
+        "rough_map",
+    }
+    assert items["bedroll"].quantity == 2
+
+    result = dnd_inventory.claim_loot(
+        ckpt,
+        character_id="alice",
+        offer_id="loot_evt_gear_handoff",
+        item_ids=[],
+        take_all_available=True,
+    )
+
+    assert [item["name"] for item in result["claimed_items"]] == [
+        "Healer's Kit",
+        "Rope",
+        "Bedroll",
+        "Rations",
+        "Torch Bundle",
+        "Rough Map",
+    ]
+    runtime_items = ckpt.characters[0].mechanics["dnd5e_runtime"]["inventory"][
+        "items"
+    ]
+    assert "Healer's Kit" in {item["name"] for item in runtime_items}
+
+
+def test_narrative_gear_handoff_inference_is_dnd_only():
+    ckpt = _ckpt()
+    data = _loot_event().model_dump()
+    data["event_id"] = "evt_gear_handoff"
+    data["canonical_event"]["observable_facts"] = [
+        {
+            "text": "Korva sets a rope and healer's kit down within reach.",
+            "audience": "all_observers",
+            "visible_to": [],
+        }
+    ]
+    data["loot_offer"] = {
+        "present": False,
+        "source_kind": "other",
+        "source_label": "",
+        "visibility": "table",
+        "eligible_character_ids": [],
+        "items": [],
+        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
+        "notes": "",
+    }
+
+    prompts = dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+
+    assert prompts == {}
+    assert ckpt.session.dnd_inventory_offers == []
+
+
 def test_claim_loot_creates_runtime_overlay_without_mutating_import():
     ckpt = _ckpt()
     dnd_inventory.apply_loot_offers_from_events(ckpt, [_loot_event()])

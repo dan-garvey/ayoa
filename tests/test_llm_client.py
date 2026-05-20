@@ -179,6 +179,39 @@ class TestLLMConfig:
             assert config.openai_reasoning_effort_for_role("narrator") == "low"
             assert config.enable_anthropic_compaction is True
 
+    def test_dnd_combat_manager_reuses_router_openai_key_when_unset(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "ANTHROPIC_API_KEY": "test-key",
+                "OPEN_AI_ROUTER": "router-openai-key",
+            },
+            clear=True,
+        ):
+            config = LLMConfig.from_env()
+
+        assert config.openai_api_key == ""
+        assert (
+            config.api_key_for_provider("openai", role="dnd_combat_manager")
+            == "router-openai-key"
+        )
+
+    def test_dnd_combat_manager_openai_key_prefers_explicit_role_key(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPEN_AI_ROUTER": "router-openai-key",
+                "OPEN_AI_COMBAT_MANAGER": "combat-manager-key",
+            },
+            clear=True,
+        ):
+            config = LLMConfig.from_env()
+
+        assert (
+            config.api_key_for_provider("openai", role="dnd_combat_manager")
+            == "combat-manager-key"
+        )
+
 
 # --- LLMClient unit tests (mocked API) ---
 
@@ -574,6 +607,15 @@ class TestLLMClientComplete:
         assert openai_ctor.call_args_list[0].kwargs["api_key"] == "narrator-openai-key"
         assert openai_ctor.call_args_list[1].kwargs["api_key"] == "router-openai-key"
         assert openai_ctor.call_args_list[2].kwargs["api_key"] == "global-openai-key"
+
+    def test_openai_client_missing_role_key_error_names_role_envs(self):
+        client = LLMClient(config=LLMConfig(openai_api_key=""))
+
+        with pytest.raises(RuntimeError, match="dnd_combat_manager"):
+            client._get_openai_client("dnd_combat_manager")
+
+        with pytest.raises(RuntimeError, match="OPEN_AI_COMBAT_MANAGER"):
+            client._get_openai_client("dnd_combat_manager")
 
     @pytest.mark.asyncio
     async def test_openai_structured_output_passes_json_schema(self):

@@ -543,6 +543,78 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    ("source_id", "use_mode", "intention"),
+    [
+        ("dash", "activate", "I take the Dash action."),
+        ("disengage", "activate", "I take the Disengage action."),
+        ("dodge", "activate", "I take the Dodge action."),
+        ("help", "activate", "I take the Help action."),
+        ("hide", "activate", "I take the Hide action."),
+        ("ready", "activate", "I take the Ready action."),
+        ("search", "activate", "I take the Search action."),
+        ("use_an_object", "interact", "I take the Use an Object action."),
+    ],
+)
+def test_combat_resolver_accepts_universal_no_roll_actions(
+    source_id: str,
+    use_mode: str,
+    intention: str,
+):
+    ckpt = _ckpt()
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="alice",
+                    source_type="action",
+                    source_id=source_id,
+                    use_mode=use_mode,
+                    economy="action",
+                    rolls=[],
+                    resource_spends=[],
+                    reason=intention,
+                )
+            ],
+            no_action_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            mechanical_summary="Alice focuses entirely on defense.",
+            visible_outcome_facts=["Alice squares up behind her shield."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention=intention,
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert transaction.status == "finalized"
+    assert transaction.rolls == []
+    assert transaction.resource_spends == []
+    ledger_source = "use_an_object" if source_id == "use_an_object" else source_id
+    assert any(ledger_source in line for line in transaction.ledger_lines)
+    assert routed.canonical_event.observable_facts[0].text == (
+        "Alice squares up behind her shield."
+    )
+
+
 def test_combat_saving_throw_uses_target_modifier_and_cover_bonus(monkeypatch):
     ckpt = _ckpt()
     ckpt.session.character_bindings["bob"] = "2"

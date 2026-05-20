@@ -38,6 +38,9 @@ _ROLE_ENV_ALIASES = {
     "event_router": ("ROUTER",),
     "narrator": ("NARRATOR",),
 }
+_OPENAI_ROLE_API_KEY_FALLBACKS = {
+    "dnd_combat_manager": ("event_router",),
+}
 
 
 def _normalise_provider(provider: str) -> str:
@@ -300,7 +303,16 @@ class LLMConfig(BaseModel):
         return providers
 
     def openai_api_key_for_role(self, role: str) -> str:
-        return self.openai_role_api_keys.get(role, "") or self.openai_api_key
+        explicit = self.openai_role_api_keys.get(role, "")
+        if explicit:
+            return explicit
+        if self.openai_api_key:
+            return self.openai_api_key
+        for fallback_role in _OPENAI_ROLE_API_KEY_FALLBACKS.get(role, ()):
+            fallback = self.openai_role_api_keys.get(fallback_role, "")
+            if fallback:
+                return fallback
+        return ""
 
     def openai_role_api_key_env_names(self, role: str) -> tuple[str, ...]:
         return _openai_role_api_key_env_names(role)

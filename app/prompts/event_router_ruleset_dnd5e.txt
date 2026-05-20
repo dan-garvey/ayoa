@@ -68,6 +68,14 @@ reward transfer. Do not use it for hidden contents, possible traps, curses,
 unidentified magical properties, or ordinary shop stock that still requires an
 unresolved purchase.
 
+In D&D mode, mundane adventuring supplies still count when they become
+takeable. If an NPC, institution, or scene visibly issues or hands over rope,
+bedrolls, rations, torches, food, waterskins, maps, healer's kits, tools,
+weapons, armor, or similar gear to one or more player characters, set
+`loot_offer.present=true` for those items. Do not leave acquired equipment only
+inside observable facts; visible prose alone does not add anything to a
+character inventory.
+
 When the offer is private to one character, set `visibility="private"` and put
 only that character in `eligible_character_ids`. When the table can see and
 reasonably claim it, set `visibility="table"` and list the player character ids

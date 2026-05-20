@@ -607,6 +607,13 @@ class LLMClient:
         if role not in self._openai_clients:
             kwargs: dict[str, Any] = {"timeout": self.config.timeout}
             api_key = self.config.api_key_for_provider("openai", role=role)
+            if not api_key:
+                env_names = ", ".join(self.config.openai_role_api_key_env_names(role))
+                raise RuntimeError(
+                    f"OpenAI credentials are not configured for role {role!r}. "
+                    "Set OPENAI_API_KEY"
+                    + (f" or one of: {env_names}." if env_names else ".")
+                )
             if api_key:
                 kwargs["api_key"] = api_key
             self._openai_clients[role] = openai.AsyncOpenAI(**kwargs)

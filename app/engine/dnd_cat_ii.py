@@ -76,6 +76,82 @@ _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
         ),
     },
     {
+        "id": "disengage",
+        "name": "Disengage",
+        "range": "self",
+        "notes": (
+            "Universal D&D combat action. Until the end of the current turn, "
+            "the actor's movement does not provoke opportunity attacks. "
+            "Disengage requires no roll and deals no damage."
+        ),
+    },
+    {
+        "id": "dodge",
+        "name": "Dodge",
+        "range": "self",
+        "notes": (
+            "Universal D&D combat action. Until the start of the actor's next "
+            "turn, attacks against the actor have disadvantage if the actor can "
+            "see the attacker, and the actor has advantage on Dexterity saving "
+            "throws. Dodge requires no roll and deals no damage."
+        ),
+    },
+    {
+        "id": "help",
+        "name": "Help",
+        "range": "5 ft",
+        "notes": (
+            "Universal D&D combat action. The actor aids another creature's "
+            "ability check or distracts a foe within 5 feet so an ally's next "
+            "attack against that foe can gain advantage when the fiction "
+            "supports it. Help usually requires no roll and deals no damage."
+        ),
+    },
+    {
+        "id": "hide",
+        "name": "Hide",
+        "range": "self",
+        "notes": (
+            "Universal D&D combat action. The actor attempts to become hidden "
+            "when cover, concealment, or distraction makes that plausible. "
+            "Usually resolve with Dexterity (Stealth) against passive or active "
+            "perception. Hide deals no damage."
+        ),
+    },
+    {
+        "id": "ready",
+        "name": "Ready",
+        "range": "self",
+        "notes": (
+            "Universal D&D combat action. The actor prepares a specific action "
+            "or movement to release later when a visible trigger occurs. Ready "
+            "setup usually requires no roll; releases use the readied source or "
+            "effect when the trigger happens."
+        ),
+    },
+    {
+        "id": "search",
+        "name": "Search",
+        "range": "self",
+        "notes": (
+            "Universal D&D combat action. The actor devotes attention to "
+            "finding something hidden or clarifying a scene detail. Resolve "
+            "with an appropriate Wisdom or Intelligence check when uncertainty "
+            "matters. Search deals no damage."
+        ),
+    },
+    {
+        "id": "use_object",
+        "name": "Use an Object",
+        "range": "touch",
+        "notes": (
+            "Universal D&D combat action. The actor uses or manipulates an "
+            "object when that goes beyond a free object interaction. It usually "
+            "requires no roll unless the object use is contested or uncertain, "
+            "and deals no damage unless the object itself has listed damage."
+        ),
+    },
+    {
         "id": "shove",
         "name": "Shove",
         "range": "5 ft",

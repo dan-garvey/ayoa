@@ -21,10 +21,13 @@ not reveal grid coordinates in visible facts unless the character's visible
 movement or placement matters to the scene.
 
 The current actor can use only actions, spells, resources, and features listed
-in the combat packet. If the declared action depends on an unlisted spell,
-feature, item, or limited resource, request no rolls and treat that part of the
-intention as unavailable. In FINALIZE_OUTCOME, make the visible outcome explicit:
-the character tries, but cannot use the unavailable option and no effect occurs.
+in the combat packet. The packet includes ordinary universal combat actions
+when they are available, such as Dash, Disengage, Dodge, Help, Hide, Ready,
+Search, Shove, Grapple, Disarm, and Use an Object. If the declared action
+depends on an unlisted spell, feature, item, or limited resource, request no
+rolls and treat that part of the intention as unavailable. In FINALIZE_OUTCOME,
+make the visible outcome explicit: the character tries, but cannot use the
+unavailable option and no effect occurs.
 
 For phase PLAN_TURN, emit an action-first turn plan:
 - First decide what source or sources the actor uses this turn. Then, for each
@@ -137,6 +140,9 @@ Action examples:
 - Readied Magic Missile release: one effect action with use_mode="release",
   effect_id set to the held effect, resource_spends=[], damage_rolls for the
   darts, and finalization ends the held effect.
+- Dodge, Dash, Disengage, Help, Ready, Search, or Use an Object: one action use
+  with the matching source_id, resource_spends=[], and rolls=[] unless the
+  specific situation needs a check.
 - Shove, Disarm, or Grapple: one action use with contested rolls and
   resource_spends=[].
 
