@@ -117,6 +117,12 @@ weapons, armor, or similar gear to one or more player characters, set
 inside observable facts; visible prose alone does not add anything to a
 character inventory.
 
+Do not create a loot offer when a character merely uses, adjusts, draws, or
+handles gear they already have. Do not create a loot offer for animal tack,
+reins, saddles, harnesses, or lead ropes unless the event clearly separates the
+item from the animal and presents it as adventuring gear a player character can
+claim.
+
 When the offer is private to one character, set `visibility="private"` and put
 only that character in `eligible_character_ids`. When the table can see and
 reasonably claim it, set `visibility="table"` and list the player character ids

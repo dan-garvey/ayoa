@@ -11,6 +11,8 @@ from app.schemas.conversation import ConversationMessage
 
 logger = logging.getLogger(__name__)
 
+_DND5E_BASIC_RULESET_ID = "dnd5e_basic"
+
 
 def append_turn_to_conversation(
     conversation: list[ConversationMessage],
@@ -371,9 +373,11 @@ def build_player_characters_block(
         appearance = (char.public_sheet.appearance or "not yet described").strip()
         location = char.location or "unknown location"
         marker = " (acting this turn)" if char.character_id == acting_character_id else ""
+        equipment = _build_dnd_player_equipment_sentence(checkpoint, char)
+        equipment_text = f" {equipment}" if equipment else ""
         lines.append(
             f"- **{char.character_id}**{marker} — {role}. "
-            f"Location: {location}. {appearance}"
+            f"Location: {location}. {appearance}{equipment_text}"
         )
 
     if not lines:
@@ -424,6 +428,69 @@ def _compact_player_context(text: str, *, limit: int) -> str:
     if cut < 0:
         cut = limit
     return compact[:cut].rstrip(" .") + "."
+
+
+def _build_dnd_player_equipment_sentence(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+    *,
+    max_items: int = 12,
+) -> str:
+    settings = getattr(getattr(checkpoint.session, "config", None), "settings", None)
+    if getattr(settings, "ruleset_id", "") != _DND5E_BASIC_RULESET_ID:
+        return ""
+    mechanics = character.mechanics if isinstance(character.mechanics, dict) else {}
+    if not (
+        isinstance(mechanics.get("dnd5e_sheet"), dict)
+        or isinstance(mechanics.get("dnd5e_runtime"), dict)
+    ):
+        return ""
+
+    from app.engine import dnd_inventory
+
+    inventory = dnd_inventory.inventory_view(character)
+    raw_items = inventory.get("items") if isinstance(inventory, dict) else []
+    items = [item for item in raw_items or [] if isinstance(item, dict)]
+    if not items:
+        return "D&D equipment: no gear listed."
+
+    equipped: list[str] = []
+    carried: list[str] = []
+    for item in items:
+        formatted = _format_dnd_equipment_item(item)
+        if not formatted:
+            continue
+        bucket = equipped if item.get("equipped") else carried
+        bucket.append(formatted)
+
+    sections: list[str] = []
+    remaining = max_items
+    if equipped:
+        shown = equipped[:remaining]
+        sections.append(f"equipped {', '.join(shown)}")
+        remaining -= len(shown)
+    if carried and remaining > 0:
+        shown = carried[:remaining]
+        sections.append(f"carried {', '.join(shown)}")
+        remaining -= len(shown)
+    omitted = max(0, len(equipped) + len(carried) - max_items)
+    if omitted:
+        sections.append(f"{omitted} more item(s)")
+    if not sections:
+        return "D&D equipment: no gear listed."
+    return f"D&D equipment: currently has {'; '.join(sections)}."
+
+
+def _format_dnd_equipment_item(item: dict[str, object]) -> str:
+    name = str(item.get("name") or "Item").strip()
+    if not name:
+        return ""
+    try:
+        quantity = int(item.get("quantity") or 1)
+    except (TypeError, ValueError):
+        quantity = 1
+    label = f"{quantity}x {name}" if quantity != 1 else name
+    return _compact_player_context(label, limit=80)
 
 
 def build_narrator_public_character_context_block(

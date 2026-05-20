@@ -1260,6 +1260,7 @@ class EngineBridge:
             )
             class_line = ", ".join(summary.classes) or "unknown class"
             imported = summary.imported_name or "unnamed D&D character"
+            equipment_line = _dnd_attachment_equipment_sentence(mechanics)
             ckpt.session.pending_engine_state_updates.append(
                 f"D&D sheet attached: {target.character_id} now has "
                 f"imported D&D mechanics "
@@ -1270,7 +1271,8 @@ class EngineBridge:
                 f"{settings.ruleset_id}, player_roll_mode="
                 f"{settings.player_roll_mode}. "
                 "Use these mechanics for D&D adjudication; preserve the "
-                "story identity unless fiction explicitly changes it."
+                "story identity unless fiction explicitly changes it. "
+                f"{equipment_line}"
             )
             self.checkpoint_mgr.save(ckpt)
             logger.info(
@@ -3220,6 +3222,31 @@ def _dnd_attachment_summary(
         spells_count=len(spellcasting.get("spells") or []),
         resources_count=len(statblock.get("resources") or []),
         name_overridden=name_overridden,
+    )
+
+
+def _dnd_attachment_equipment_sentence(mechanics: dict[str, Any]) -> str:
+    sheet = mechanics.get("dnd5e_sheet") if isinstance(mechanics, dict) else {}
+    statblock = sheet.get("statblock") if isinstance(sheet, dict) else {}
+    inventory = statblock.get("inventory") if isinstance(statblock, dict) else {}
+    raw_items = inventory.get("items") if isinstance(inventory, dict) else []
+    items = [item for item in raw_items or [] if isinstance(item, dict)]
+    if not items:
+        return "Their D&D equipment has no listed gear."
+
+    labels: list[str] = []
+    for item in items[:10]:
+        name = str(item.get("name") or "Item").strip() or "Item"
+        try:
+            quantity = int(item.get("quantity") or 1)
+        except (TypeError, ValueError):
+            quantity = 1
+        labels.append(f"{quantity}x {name}" if quantity != 1 else name)
+    if len(items) > 10:
+        labels.append(f"{len(items) - 10} more item(s)")
+    return (
+        "Their listed D&D equipment is physically present and available now "
+        f"unless later fiction changes it: {', '.join(labels)}."
     )
 
 

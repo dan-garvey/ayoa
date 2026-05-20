@@ -129,6 +129,20 @@ _NARRATIVE_GEAR_PATTERNS: tuple[tuple[re.Pattern[str], dict[str, Any]], ...] = (
         },
     ),
 )
+_OWNED_GEAR_SOURCE_RE = re.compile(
+    r"\bfrom\s+"
+    r"(?:his|her|their|my|your|[a-z][a-z'-]+(?:'s)?)\s+"
+    r"(?:own\s+)?(?:pack|backpack|satchel|pouch|belt|kit|gear)\b",
+    re.IGNORECASE,
+)
+_ANIMAL_TACK_RE = re.compile(
+    r"\b(?:lead\s+rope|reins?|halter|bridle|saddle|tack|harness)\b|"
+    r"\b(?:mule|horse|pony|donkey|mount|pack\s+animal|supply\s+mule)\b"
+    r".{0,80}\b(?:rope|reins?|lead|halter|bridle|saddle|tack|harness)\b|"
+    r"\b(?:rope|reins?|lead|halter|bridle|saddle|tack|harness)\b"
+    r".{0,80}\b(?:mule|horse|pony|donkey|mount|pack\s+animal|supply\s+mule)\b",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def inventory_view(character: CharacterRecord) -> dict[str, Any]:
@@ -562,9 +576,13 @@ def _looks_like_narrative_handoff(text: str) -> bool:
 
 
 def _narrative_handoff_items(text: str) -> list[DndLootOfferItem]:
+    if _looks_like_owned_gear_handling(text):
+        return []
     items: list[DndLootOfferItem] = []
     for pattern, template in _NARRATIVE_GEAR_PATTERNS:
         if not pattern.search(text):
+            continue
+        if _narrative_item_is_nonclaimable_tack(text, template["item_id"]):
             continue
         quantity = _narrative_item_quantity(text, template["item_id"])
         items.append(DndLootOfferItem(
@@ -581,6 +599,14 @@ def _narrative_handoff_items(text: str) -> list[DndLootOfferItem]:
             notes=_NARRATIVE_LOOT_NOTES,
         ))
     return items
+
+
+def _looks_like_owned_gear_handling(text: str) -> bool:
+    return bool(_OWNED_GEAR_SOURCE_RE.search(text))
+
+
+def _narrative_item_is_nonclaimable_tack(text: str, item_id: object) -> bool:
+    return str(item_id) == "rope" and bool(_ANIMAL_TACK_RE.search(text))
 
 
 def _narrative_item_quantity(text: str, item_id: object) -> int:

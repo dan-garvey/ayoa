@@ -142,30 +142,31 @@ def inventory_item_line(
 ) -> str:
     qty = int_or(item.get("quantity"), 1)
     prefix = f"{qty}x " if qty != 1 else ""
+    name = str(item.get("name") or "Item")
     kind = str(item.get("kind") or "").replace("_", " ")
     item_id = str(item.get("id") or item.get("item_id") or "")
-    suffix_bits = [kind]
+    suffix_bits = []
+    if kind and not _name_has_kind_suffix(name, kind):
+        suffix_bits.append(kind)
     if include_attuned and item.get("attuned"):
         suffix_bits.append("attuned")
     if include_id:
         suffix_bits.append(item_id)
     suffix = " (" + ", ".join(bit for bit in suffix_bits if bit) + ")"
     bullet_prefix = "- " if bullet else ""
-    return (
-        f"{bullet_prefix}{prefix}{item.get('name') or 'Item'}"
-        f"{suffix if suffix != ' ()' else ''}"
-    )
+    return f"{bullet_prefix}{prefix}{name}{suffix if suffix != ' ()' else ''}"
 
 
 def loot_item_line(item: Any) -> str:
     qty = int_or(getattr(item, "quantity", 1), 1)
     prefix = f"{qty}x " if qty != 1 else ""
     kind = str(getattr(item, "kind", "") or "").replace("_", " ")
-    suffix = f" ({kind})" if kind else ""
+    name = str(getattr(item, "name", "Item") or "Item")
+    suffix = f" ({kind})" if kind and not _name_has_kind_suffix(name, kind) else ""
     notes = str(getattr(item, "notes", "") or "").strip()
     if notes:
         suffix += f" - {notes}"
-    return f"{prefix}{getattr(item, 'name', 'Item')}{suffix}"
+    return f"{prefix}{name}{suffix}"
 
 
 def int_or(value: Any, default: int) -> int:
@@ -173,3 +174,9 @@ def int_or(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _name_has_kind_suffix(name: str, kind: str) -> bool:
+    clean_name = " ".join(name.lower().split())
+    clean_kind = " ".join(kind.lower().split())
+    return bool(clean_kind) and clean_name.endswith(f"({clean_kind})")

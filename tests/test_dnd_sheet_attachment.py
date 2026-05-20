@@ -178,6 +178,11 @@ async def test_attach_preserves_story_identity_without_override(
         "D&D session settings enabled"
         in loaded.session.pending_engine_state_updates[-1]
     )
+    assert (
+        "listed D&D equipment is physically present"
+        in loaded.session.pending_engine_state_updates[-1]
+    )
+    assert "Longsword" in loaded.session.pending_engine_state_updates[-1]
 
 
 @pytest.mark.asyncio

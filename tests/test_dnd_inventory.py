@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.engine import dnd_inventory
+from app.engine import dnd_inventory, dnd_presentation
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.dnd_inventory import DndLootOfferItem
 from app.schemas.event_router import DndEventRouterOutput
 from app.schemas.state import SessionState
 
@@ -213,6 +214,103 @@ def test_narrative_gear_handoff_inference_is_dnd_only():
 
     assert prompts == {}
     assert ckpt.session.dnd_inventory_offers == []
+
+
+def test_narrative_handoff_does_not_offer_animal_tack():
+    ckpt = _ckpt()
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+    data = _loot_event().model_dump()
+    data["event_id"] = "evt_mule_rope"
+    data["canonical_event"]["observable_facts"] = [
+        {
+            "text": (
+                "Korva gathers the supply mule's lead rope, passes the reins "
+                "to Alice, and keeps the animal steady by the stable door."
+            ),
+            "audience": "all_observers",
+            "visible_to": [],
+        }
+    ]
+    data["loot_offer"] = {
+        "present": False,
+        "source_kind": "other",
+        "source_label": "",
+        "visibility": "table",
+        "eligible_character_ids": [],
+        "items": [],
+        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
+        "notes": "",
+    }
+
+    prompts = dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+
+    assert prompts == {}
+    assert ckpt.session.dnd_inventory_offers == []
+
+
+def test_narrative_handoff_does_not_offer_owned_gear():
+    ckpt = _ckpt()
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+    data = _loot_event().model_dump()
+    data["event_id"] = "evt_owned_rope"
+    data["canonical_event"]["observable_facts"] = [
+        {
+            "text": (
+                "Garrick pulls rope from his own pack, passes the loose end "
+                "around Dace's wrists, and ties it off."
+            ),
+            "audience": "all_observers",
+            "visible_to": [],
+        }
+    ]
+    data["loot_offer"] = {
+        "present": False,
+        "source_kind": "other",
+        "source_label": "",
+        "visibility": "table",
+        "eligible_character_ids": [],
+        "items": [],
+        "currency": {"cp": 0, "sp": 0, "ep": 0, "gp": 0, "pp": 0},
+        "notes": "",
+    }
+
+    prompts = dnd_inventory.apply_loot_offers_from_events(
+        ckpt,
+        [DndEventRouterOutput(**data)],
+    )
+
+    assert prompts == {}
+    assert ckpt.session.dnd_inventory_offers == []
+
+
+def test_loot_and_inventory_lines_do_not_duplicate_kind_suffix():
+    item = DndLootOfferItem(
+        item_id="scaled_vest",
+        name="scaled vest (armor)",
+        kind="armor",
+        quantity=1,
+        identified=True,
+        requires_identification=False,
+        requires_attunement=False,
+        consumable=False,
+        value_gp=0,
+        weight=20,
+        notes="",
+    )
+
+    assert dnd_presentation.loot_item_line(item) == "scaled vest (armor)"
+    assert dnd_presentation.inventory_item_line(
+        {
+            "id": "scaled_vest",
+            "name": "scaled vest (armor)",
+            "kind": "armor",
+            "quantity": 1,
+        },
+        include_id=False,
+    ) == "scaled vest (armor)"
 
 
 def test_claim_loot_creates_runtime_overlay_without_mutating_import():

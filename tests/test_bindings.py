@@ -318,3 +318,41 @@ class TestPlayerCharactersBlock:
         assert "**aldric**" in block
         assert "**sera**" in block
         assert "(id:" not in block
+
+    def test_dnd_equipment_context_is_dnd_only(self):
+        ckpt = _make_checkpoint()
+        ckpt.session.character_bindings = {"aldric": "1"}
+        aldric = next(c for c in ckpt.characters if c.character_id == "aldric")
+        aldric.mechanics = {
+            "dnd5e_sheet": {
+                "statblock": {
+                    "inventory": {
+                        "items": [
+                            {
+                                "id": "sword",
+                                "name": "Longsword",
+                                "kind": "weapon",
+                                "quantity": 1,
+                                "equipped": True,
+                            },
+                            {
+                                "id": "torch",
+                                "name": "Torch",
+                                "kind": "gear",
+                                "quantity": 2,
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+
+        neutral_block = build_player_characters_block(ckpt, "aldric")
+        assert "D&D equipment" not in neutral_block
+
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        dnd_block = build_player_characters_block(ckpt, "aldric")
+
+        assert "D&D equipment: currently has" in dnd_block
+        assert "equipped Longsword" in dnd_block
+        assert "carried 2x Torch" in dnd_block
