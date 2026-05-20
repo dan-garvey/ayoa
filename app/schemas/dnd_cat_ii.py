@@ -173,6 +173,27 @@ class RollPlan(BaseModel):
     no_roll_reason: str
 
 
+class PrivateOutcomeFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    visible_to: list[str]
+
+    @model_validator(mode="after")
+    def _clean(self) -> "PrivateOutcomeFact":
+        self.text = self.text.strip()
+        self.visible_to = [
+            character_id.strip()
+            for character_id in self.visible_to
+            if character_id.strip()
+        ]
+        if not self.text:
+            raise ValueError("Private outcome fact text is required")
+        if not self.visible_to:
+            raise ValueError("Private outcome fact requires visible_to")
+        return self
+
+
 class DndCombatCasting(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -484,6 +505,7 @@ class RulesAdjudication(BaseModel):
     combat_status: CombatStatus
     mechanical_summary: str
     visible_outcome_facts: list[str]
+    private_outcome_facts: list[PrivateOutcomeFact] = Field(default_factory=list)
     state_deltas: list[str]
     combat_state_deltas: list[CombatStateDelta] = Field(default_factory=list)
     effect_deltas: list[EffectDelta] = Field(default_factory=list)
@@ -497,6 +519,7 @@ class RulesAdjudication(BaseModel):
         if isinstance(data, dict):
             data = dict(data)
             data.setdefault("combat_status", "ongoing")
+            data.setdefault("private_outcome_facts", [])
             data.setdefault("combat_state_deltas", [])
             data.setdefault("effect_deltas", [])
             data.setdefault("spatial_deltas", [])

@@ -164,6 +164,8 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   hidden intent in visible facts. Once the ledger has resolved the result, state
   what visibly happened; avoid unresolved alternatives such as "stagger or
   collapse."
+- Set private_outcome_facts=[] unless this turn creates a private sensory or
+  emotional fact visible only to named characters.
 - Translate mechanics into witnessable fiction in visible_outcome_facts. Put
   saving throw success/failure, save DCs, full/half damage, HP totals, resource
   spends, turn economy, and opportunity-attack bookkeeping in mechanical_summary

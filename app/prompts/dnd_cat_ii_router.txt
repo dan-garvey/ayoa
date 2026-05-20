@@ -19,6 +19,13 @@ For phase PLAN_ROLLS, emit RollPlan:
 - Set opposed_by to the opposing roll_id for opposed rolls, else "".
 - Use skill="" unless kind is skill_check.
 - If no roll is needed, set needs_rolls=false, roll_requests=[], and explain.
+- For social contests, use Charisma (Persuasion) for honest appeal,
+  Charisma (Deception) for misleading claims, and Charisma (Intimidation) for
+  credible threat or coercive pressure. Use Wisdom (Insight) when a character
+  is reading motive, fear, coercion, sincerity, or a strained performance.
+- Use opposed rolls when two characters' active skill matters. Use a fixed DC
+  when only the attempt's difficulty matters. Do not ask for dice when the
+  request is plainly impossible, plainly accepted, or has no meaningful cost.
 - Set action_id="" and target_id="" unless this is a D&D combat attack roll
   with a known action/target.
 - For attack damage with situational resistance, immunity, or vulnerability
@@ -36,7 +43,26 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
 - Set combat_status="ongoing"; ordinary Cat II resolution does not start or
   end initiative.
 - visible_outcome_facts are public, concrete facts of the resolved contest.
+- private_outcome_facts are concrete facts perceived only by the named
+  characters in visible_to. Use them for social pressure, fear, credibility,
+  suspicion, readable tells, and other inward or narrowly perceived effects of
+  the resolved contest.
 - Use explicit names for non-self-referential character references in visible_outcome_facts. If the sentence names the acting character as the subject, normal self-reference is allowed: "Alice raises her shield," not "Alice raises Alice's shield." If a pronoun would refer to a different character, use that character's name instead. If quoted dialogue contains a pronoun for someone other than the speaker, replace that pronoun with the character name in square brackets. Leave self-reference in dialogue alone.
+- For Persuasion success, a private fact can say the appeal lands as sincere,
+  practical, honorable, emotionally pointed, or hard to dismiss.
+- For Intimidation success, a private fact can say the danger feels credible,
+  fear catches, the threat feels immediate, or self-preservation presses in.
+- For Deception success, do not say "lie", "deception", "false", "truth", or
+  any similar outside label. Describe only plausibility from the target's view:
+  the story fits, the details sound familiar, the speaker seems to belong, or
+  there is no immediate reason to doubt.
+- For Insight success, a private fact can give the reader a visible tell,
+  strained tone, guarded glance, forced calm, concealed pain, or other
+  perceptible clue. Do not reveal private thoughts.
+- On failed social checks, private facts can describe resistance, suspicion,
+  mismatch, a threat that rings hollow, a claim that feels too rehearsed, or an
+  appeal that misses what the target values. Do not mention checks, success,
+  failure, roll totals, or skill names.
 - Keep state_deltas empty for ordinary D&D Cat II resolution.
 - combat_state_deltas=[] for ordinary Cat II resolution outside active combat.
 - effect_deltas=[] for ordinary Cat II resolution.

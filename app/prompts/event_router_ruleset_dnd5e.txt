@@ -46,6 +46,47 @@ For `dnd_combat_end`, set `requires_responders=false`,
 
 For every mode except `dnd_combat_start`, set `combatant_spawns=[]`.
 
+### D&D Ability Checks Outside Combat
+
+D&D play expects dice when a character tries something uncertain where training,
+talent, danger, pressure, or another character's resistance matters. Do not
+leave such moments as ordinary narration merely because the character's words,
+movement, or inspection can physically begin.
+
+Use `cat_ii` for a non-combat attempt when a present character's belief, fear,
+trust, cooperation, suspicion, attention, concealment, emotional control, or
+willingness is the uncertain thing being tested. This includes attempts to
+persuade, deceive, intimidate, read, calm, distract, sneak past, search under
+watch, examine a guarded clue, or draw out signs of coercion, injury, curse,
+undeath, magic, or hidden motive.
+
+Use `cat_i` when the character only speaks, looks, moves, or asks without
+seeking an immediate uncertain result. The words still happen; the uncertain
+result is what makes the moment contested.
+
+Bias toward `cat_ii` when the player explicitly names a D&D check, ability, or
+skill and a present character could be swayed, fooled, frightened, read,
+resist, conceal something, notice something, or block the result. Do not invent
+a required responder just to ask for dice when no present character's agency,
+attention, or concealment matters.
+
+Social checks change how the target perceives the attempt; they do not write
+the target's final choice. Preserve strong motives, loyalties, fear, pride,
+orders, self-preservation, and established facts when deciding who must answer.
+
+Use these D&D skill cues:
+- Persuasion: honest appeal, bargain, reassurance, plea, de-escalation.
+- Deception: false authority, disguise, bluff, misleading omission, forged
+  premise. Do not label the claim as a lie in observable facts.
+- Intimidation: threat, coercive posture, credible menace, implied force.
+- Insight: reading fear, doubt, coercion, motive, hesitation, or a strained
+  performance.
+- Medicine, Religion, Arcana, or Nature: interpreting wounds, curses, undead
+  signs, magical effects, creatures, or natural traces.
+- Perception, Investigation, or Stealth: listening, scouting, searching,
+  shadowing, hiding, or sneaking when another character's alertness or
+  concealment matters.
+
 ### D&D Observer Routing Extension
 
 In D&D mode, `observers[].routing_role` also allows `dnd_reaction`.

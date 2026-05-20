@@ -3117,10 +3117,7 @@ def _compile_event_router_output(
             world_adjudication=WorldAdjudication(
                 feasible=adjudication.feasible
             ),
-            observable_facts=[
-                ObservableFact.all(fact)
-                for fact in adjudication.visible_outcome_facts
-            ],
+            observable_facts=_outcome_observable_facts(adjudication),
         ),
         requires_responders=False,
         required_responders=[],
@@ -3193,7 +3190,7 @@ def _compile_combat_router_output(
             observable_facts=[
                 ObservableFact.all(fact)
                 for fact in visible_facts
-            ],
+            ] + _private_outcome_observable_facts(adjudication),
         ),
         requires_responders=False,
         required_responders=[],
@@ -3218,6 +3215,24 @@ def _compile_combat_router_output(
         interaction_mode="cat_i",
         combatant_ids=[],
     )
+
+
+def _outcome_observable_facts(
+    adjudication: RulesAdjudication,
+) -> list[ObservableFact]:
+    return [
+        ObservableFact.all(fact)
+        for fact in adjudication.visible_outcome_facts
+    ] + _private_outcome_observable_facts(adjudication)
+
+
+def _private_outcome_observable_facts(
+    adjudication: RulesAdjudication,
+) -> list[ObservableFact]:
+    return [
+        ObservableFact.only(fact.text, fact.visible_to)
+        for fact in adjudication.private_outcome_facts
+    ]
 
 
 def _combat_visible_facts(
