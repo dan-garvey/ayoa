@@ -15,6 +15,47 @@ Use page-aligned rendering as the source of truth. Embedded image streams can be
 4. Postprocess Surya `results.json` into per-page raw text, column-ordered text, line JSON, a summary JSON, and combined Markdown files.
 5. Validate coverage by checking that the rendered page count matches the requested range and reviewing zero-line pages. Zero-line pages are acceptable only for full-page artwork or intentionally blank pages.
 
+## Manual Map Template Import
+
+For adventure map/floorplan pages, OCR and image labels are only the first pass.
+Manual import must produce a `TacticalMapTemplate` wrapper before any map can
+seed combat.
+
+Required map-template review steps:
+
+1. Inspect the rendered map image and curated label file.
+2. Inspect nearby OCR/source text for keyed areas on the map page and adjacent
+   pages in the same section.
+3. Record whether the map is `reference_only` or can seed `DndBattleMapState`.
+4. If it can seed combat, draft one active floor/submap at a time. Do not put
+   multiple floors into one battle map state.
+5. Record wrapper metadata separately from the live battle map:
+   - spawn anchors
+   - keyed area links
+   - stairs and vertical links
+   - secret doors, hidden routes, traps, concealed areas, and reveal conditions
+   - review status and caveats
+6. Compile only valid `DndBattleMapState` fields into the live seed:
+   `present`, `map_name`, `width`, `height`, `square_size_ft`, `tokens`,
+   rectangular `terrain`, `areas`, and `notes`.
+
+Nearby-text cross-check is mandatory before marking topology reviewed. Use it
+to catch:
+
+- scale and orientation mistakes
+- stairs, shafts, drops, bridges, and inter-map vertical links
+- secret doors or concealed passages mentioned in keyed text but not obvious on
+  the image
+- walls, windows, parapets, pits, water, rubble, furniture, and terrain that
+  affect movement, cover, or line of sight
+- room labels that OCR misread or omitted
+- overland maps that should remain reference-only
+- spawn anchors that land inside walls, hazards, furniture, or secret-only areas
+
+Be conservative. If exact walls, secrets, doors, or vertical links are not
+confirmed by both image and nearby text, keep `review_status="draft"` and write
+the uncertainty into review notes.
+
 ## Commands
 
 Use `.venv/bin/python` and `.venv/bin/surya_ocr` from the repo root.

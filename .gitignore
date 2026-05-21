@@ -22,6 +22,7 @@ app/storage/bot/
 core.egg-info/
 .coverage
 logs/
+private_extractions/
 
 # Beads / Dolt files (added by bd init)
 .dolt/
