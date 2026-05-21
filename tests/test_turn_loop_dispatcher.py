@@ -26,8 +26,10 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
-from app.schemas.dnd_cat_ii import RollPlan, RulesAdjudication
+from app.schemas.dnd_cat_ii import DndCombatTurnPlan, RollPlan, RulesAdjudication
 from app.schemas.state import (
+    CatIIRollTransaction,
+    DndCombatantState,
     DndCombatState,
     OpenCatIIEvent,
     OpenCommitment,
@@ -98,31 +100,100 @@ def _last_user_content(messages: list[dict]) -> str:
 def _queue_content_signal(
     ckpt,
     *,
+    signal_id: str = "sig-1",
     ref_id: str = "room/entry",
     content_hash: str = "hash-1",
     kind: str = "location_card",
+    metadata: dict | None = None,
 ) -> None:
-    ckpt.session.content_state = {
-        "pack": ContentPackState(
-            pack_id="pack",
-            pending_signals={
-                "sig-1": PendingContentSignal(
-                    signal_id="sig-1",
-                    pack_id="pack",
-                    ref_id=ref_id,
-                    content_hash=content_hash,
-                    metadata={
-                        "kind": kind,
-                        "visibility": "hidden",
-                        "summary": "Entry chamber context.",
-                        "exits": ["north"],
-                        "hazards": ["loose floor"],
-                        "clues": ["old crest"],
-                    },
-                )
-            },
-        )
-    }
+    pack_state = ckpt.session.content_state.setdefault(
+        "pack",
+        ContentPackState(pack_id="pack"),
+    )
+    pack_state.pending_signals[signal_id] = PendingContentSignal(
+        signal_id=signal_id,
+        pack_id="pack",
+        ref_id=ref_id,
+        content_hash=content_hash,
+        metadata=metadata or {
+            "kind": kind,
+            "visibility": "hidden",
+            "summary": "Entry chamber context.",
+            "exits": ["north"],
+            "hazards": ["loose floor"],
+            "clues": ["old crest"],
+        },
+    )
+
+
+def _enable_dnd(ckpt) -> None:
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+
+
+def _open_cat_ii_event() -> OpenCatIIEvent:
+    return OpenCatIIEvent(
+        event_id="evt_open",
+        initiator_id="alice",
+        initiator_intention="I shove Pip away from the door.",
+        required_responders=["pip"],
+        collected_intentions={"pip": "I twist aside."},
+        opening_observer_ids=["alice", "pip"],
+        opening_observable_facts=["Alice lunges toward Pip at the doorway."],
+    )
+
+
+def _rules_adjudication(fact: str = "The action resolves.") -> RulesAdjudication:
+    return RulesAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary=fact,
+        visible_outcome_facts=[fact],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+    )
+
+
+def _activate_dnd_combat(ckpt) -> None:
+    ckpt.session.active_combat = DndCombatState(
+        combatants=[
+            DndCombatantState(
+                combatant_id="alice",
+                character_id="alice",
+                name="Alice",
+                player_controlled=True,
+                hit_points_current=12,
+                hit_points_max=12,
+            ),
+            DndCombatantState(
+                combatant_id="pip",
+                character_id="pip",
+                name="Pip",
+                hit_points_current=7,
+                hit_points_max=7,
+                initiative_order=1,
+            ),
+        ],
+    )
+
+
+def _no_action_plan() -> DndCombatTurnPlan:
+    return DndCombatTurnPlan(
+        feasible=True,
+        actions=[],
+        no_action_reason="No roll is needed.",
+    )
+
+
+def _pending_content_record_count(ckpt, marker: str) -> int:
+    return sum(
+        1
+        for message in ckpt.session_conversation
+        if message.role == "assistant" and marker in str(message.content)
+    )
 
 
 class TestRouterContext:
@@ -436,6 +507,61 @@ class TestRouteIntention:
         assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
             "pack::room/entry::hash-1"
         ]
+
+    def test_dnd_cat_ii_packet_receives_pending_content_context(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _enable_dnd(ckpt)
+        _queue_content_signal(ckpt)
+        _queue_content_signal(
+            ckpt,
+            signal_id="sig-trap",
+            ref_id="trap/needle",
+            content_hash="hash-trap",
+            metadata={
+                "kind": "trap_card",
+                "visibility": "hidden",
+                "summary": "Needle trap under the door latch.",
+            },
+        )
+        mock_client.complete.side_effect = [
+            _llm_response(RollPlan(
+                needs_rolls=False,
+                roll_requests=[],
+                no_roll_reason="The contest resolves without dice.",
+            )),
+            _llm_response(_rules_adjudication("Pip gives ground.")),
+        ]
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I press Pip back.",
+            cat_ii_event=_open_cat_ii_event(),
+        ))
+
+        plan_messages = mock_client.complete.await_args_list[0].kwargs["messages"]
+        plan_user_content = _last_user_content(plan_messages)
+        assert '"content_context": [' in plan_user_content
+        assert "location_card ref=room/entry" in plan_user_content
+        assert "content_known ref=trap/needle" in plan_user_content
+        assert ckpt.session.content_state["pack"].pending_signals == {}
+        assert _pending_content_record_count(ckpt, "location_card ref=room/entry") == 1
+        assert _pending_content_record_count(ckpt, "content_known ref=trap/needle") == 1
+
+        mock_client.complete.reset_mock()
+        mock_client.complete.side_effect = None
+        mock_client.complete.return_value = _llm_response(_dnd_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I inspect the latch again.",
+        ))
+
+        assert _pending_content_record_count(ckpt, "location_card ref=room/entry") == 1
+        assert _pending_content_record_count(ckpt, "content_known ref=trap/needle") == 1
 
     def test_router_history_replays_prior_defer_to_next_call(
         self, prompt_mgr, mock_client,
@@ -835,6 +961,113 @@ class TestRouteIntention:
 
         assert ckpt.session.content_state["pack"].model_dump() == before_content
         assert ckpt.session_conversation == []
+
+
+class TestDndCombatContentContext:
+    def test_active_combat_packet_receives_pending_front_context(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _enable_dnd(ckpt)
+        _activate_dnd_combat(ckpt)
+        _queue_content_signal(
+            ckpt,
+            ref_id="front/vampire",
+            kind="front_signal",
+            metadata={
+                "kind": "front_signal",
+                "visibility": "hidden",
+                "summary": "The vampire presses the ambush.",
+                "actor": "pip",
+                "knows": "the east door is barred",
+                "pressure": "draw Alice toward the trapped latch",
+            },
+        )
+        mock_client.complete.side_effect = [
+            _llm_response(_no_action_plan()),
+            _llm_response(_rules_adjudication("Alice holds position.")),
+        ]
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I hold the doorway.",
+        ))
+
+        plan_messages = mock_client.complete.await_args_list[0].kwargs["messages"]
+        plan_user_content = _last_user_content(plan_messages)
+        assert '"content_context": [' in plan_user_content
+        assert "front_signal ref=front/vampire" in plan_user_content
+        assert ckpt.session.content_state["pack"].pending_signals == {}
+        assert _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1
+
+        mock_client.complete.reset_mock()
+        mock_client.complete.side_effect = None
+        mock_client.complete.return_value = _llm_response(_dnd_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I glance back at Pip.",
+        ))
+
+        assert _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1
+
+    def test_combat_continuation_merges_pending_content_into_transaction_packet(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _enable_dnd(ckpt)
+        _activate_dnd_combat(ckpt)
+        transaction = CatIIRollTransaction(
+            transaction_id="rolltxn_existing",
+            event_id="cmb_existing",
+            source="combat",
+            actor_id="alice",
+            intention="I wait for the opening.",
+            ruleset_id="dnd5e_basic",
+            status="ready_to_finalize",
+            plan=_no_action_plan().model_dump(),
+            context={
+                "ruleset_id": "dnd5e_basic",
+                "current_turn": {"actor_id": "alice"},
+                "intention": "I wait for the opening.",
+                "combatants": [],
+            },
+            no_roll_reason="No roll is needed.",
+            ledger_lines=["No rolls were made."],
+        )
+        ckpt.session.cat_ii_roll_transactions.append(transaction)
+        _queue_content_signal(
+            ckpt,
+            ref_id="trap/needle",
+            content_hash="hash-trap",
+            metadata={
+                "kind": "trap_card",
+                "visibility": "hidden",
+                "summary": "Needle trap under the door latch.",
+            },
+        )
+        mock_client.complete.return_value = _llm_response(
+            _rules_adjudication("Alice keeps the opening covered.")
+        )
+
+        asyncio.run(
+            LLMDispatcher(mock_client, prompt_mgr).continue_combat_transaction(
+                ckpt=ckpt,
+                event_id="cmb_existing",
+            )
+        )
+
+        final_messages = mock_client.complete.await_args.kwargs["messages"]
+        final_user_content = _last_user_content(final_messages)
+        assert "content_known ref=trap/needle" in final_user_content
+        assert transaction.context["content_context"] == [
+            'content_known ref=trap/needle scope=router visibility=hidden '
+            'hash=hash-trap kind=trap_card pack=pack '
+            'summary="Needle trap under the door latch."'
+        ]
+        assert ckpt.session.content_state["pack"].pending_signals == {}
 
 
 class TestRouteAgentOutput:

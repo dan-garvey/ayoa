@@ -35,6 +35,7 @@ from app.engine.context_builder import (
 from app.engine.prompt_manager import PromptManager
 from app.engine.dnd_cat_ii import (
     DND5E_BASIC_RULESET_ID,
+    DndCatIIRollsPending,
     DndCatIIResolver,
     dnd_cat_ii_router_enabled,
     dnd_combat_manager_enabled,
@@ -283,11 +284,29 @@ def _restore_router_call_snapshot(
     del ckpt.session_conversation[int(snapshot["session_conversation_len"]):]
 
 
-def _append_pending_router_content_records(ckpt: CheckpointFile) -> None:
+def _append_pending_router_content_records(ckpt: CheckpointFile) -> list[str]:
     """Append one-shot content lookup deltas to router history, if any."""
     from app.engine.content_resolver import append_pending_router_content_records
 
-    append_pending_router_content_records(ckpt)
+    return append_pending_router_content_records(ckpt)
+
+
+def _transaction_waits_for_player_rolls(
+    ckpt: CheckpointFile,
+    event_id: str,
+    *,
+    source: str = "",
+) -> bool:
+    for transaction in ckpt.session.cat_ii_roll_transactions:
+        if transaction.event_id != event_id:
+            continue
+        if source and transaction.source != source:
+            continue
+        return any(
+            record.actor_control == "player" and record.status == "pending"
+            for record in transaction.rolls
+        )
+    return False
 
 
 def _compact_router_history_text(text: str) -> str:
@@ -641,10 +660,26 @@ class LLMDispatcher:
                 "using dnd_cat_ii_router",
                 actor_id, cat_ii_event.event_id,
             )
-            result = await self._dnd_cat_ii.resolve_cat_ii(
-                ckpt=ckpt,
-                cat_ii_event=cat_ii_event,
-            )
+            dnd_snapshot = _router_call_snapshot(ckpt)
+            try:
+                content_context_records = (
+                    []
+                    if _transaction_waits_for_player_rolls(
+                        ckpt,
+                        cat_ii_event.event_id,
+                    )
+                    else _append_pending_router_content_records(ckpt)
+                )
+                result = await self._dnd_cat_ii.resolve_cat_ii(
+                    ckpt=ckpt,
+                    cat_ii_event=cat_ii_event,
+                    content_context_records=content_context_records,
+                )
+            except DndCatIIRollsPending:
+                raise
+            except Exception:
+                _restore_router_call_snapshot(ckpt, dnd_snapshot)
+                raise
             _normalize_router_result_for_history(
                 ckpt,
                 result=result,
@@ -775,11 +810,20 @@ class LLMDispatcher:
             "LLMDispatcher.route_combat_action: actor=%s using dnd_combat_manager",
             actor_id,
         )
-        result = await self._dnd_combat.resolve_combat_action(
-            ckpt=ckpt,
-            actor_id=actor_id,
-            intention=intention,
-        )
+        dnd_snapshot = _router_call_snapshot(ckpt)
+        try:
+            content_context_records = _append_pending_router_content_records(ckpt)
+            result = await self._dnd_combat.resolve_combat_action(
+                ckpt=ckpt,
+                actor_id=actor_id,
+                intention=intention,
+                content_context_records=content_context_records,
+            )
+        except DndCatIIRollsPending:
+            raise
+        except Exception:
+            _restore_router_call_snapshot(ckpt, dnd_snapshot)
+            raise
         _normalize_router_result_for_history(
             ckpt,
             result=result,
@@ -807,10 +851,27 @@ class LLMDispatcher:
         logger.info(
             "LLMDispatcher.continue_combat_transaction: event=%s", event_id,
         )
-        result = await self._dnd_combat.continue_combat_transaction(
-            ckpt=ckpt,
-            event_id=event_id,
-        )
+        dnd_snapshot = _router_call_snapshot(ckpt)
+        try:
+            content_context_records = (
+                []
+                if _transaction_waits_for_player_rolls(
+                    ckpt,
+                    event_id,
+                    source="combat",
+                )
+                else _append_pending_router_content_records(ckpt)
+            )
+            result = await self._dnd_combat.continue_combat_transaction(
+                ckpt=ckpt,
+                event_id=event_id,
+                content_context_records=content_context_records,
+            )
+        except DndCatIIRollsPending:
+            raise
+        except Exception:
+            _restore_router_call_snapshot(ckpt, dnd_snapshot)
+            raise
         actor_id = _roll_transaction_actor_id(ckpt, event_id)
         _normalize_router_result_for_history(
             ckpt,

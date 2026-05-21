@@ -260,8 +260,13 @@ class DndCatIIResolver:
         *,
         ckpt: CheckpointFile,
         cat_ii_event: OpenCatIIEvent,
+        content_context_records: list[str] | None = None,
     ) -> EventRouterOutput:
-        packet = _build_contested_packet(ckpt, cat_ii_event)
+        packet = _build_contested_packet(
+            ckpt,
+            cat_ii_event,
+            content_context_records=content_context_records,
+        )
         transaction = _find_transaction(ckpt, cat_ii_event.event_id)
 
         if transaction is None:
@@ -2592,6 +2597,8 @@ def _crit_damage_expression(expression: str) -> str:
 def _build_contested_packet(
     ckpt: CheckpointFile,
     cat_ii_event: OpenCatIIEvent,
+    *,
+    content_context_records: list[str] | None = None,
 ) -> str:
     by_id = {c.character_id: c for c in ckpt.characters}
     bindings = ckpt.session.character_bindings or {}
@@ -2626,6 +2633,8 @@ def _build_contested_packet(
         "opening_observable_facts": cat_ii_event.opening_observable_facts,
         "participants": participants,
     }
+    if content_context_records:
+        payload["content_context"] = list(content_context_records)
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
@@ -2633,6 +2642,8 @@ def _build_combat_packet(
     ckpt: CheckpointFile,
     actor_id: str,
     intention: str,
+    *,
+    content_context_records: list[str] | None = None,
 ) -> str:
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
@@ -2745,6 +2756,8 @@ def _build_combat_packet(
         "combatants": participants,
         **spatial_context,
     }
+    if content_context_records:
+        payload["content_context"] = list(content_context_records)
     return json.dumps(payload, indent=2, sort_keys=True)
 
 

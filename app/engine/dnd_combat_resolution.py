@@ -37,8 +37,14 @@ class DndCombatResolver:
         ckpt: CheckpointFile,
         actor_id: str,
         intention: str,
+        content_context_records: list[str] | None = None,
     ) -> EventRouterOutput:
-        packet = cat._build_combat_packet(ckpt, actor_id, intention)
+        packet = cat._build_combat_packet(
+            ckpt,
+            actor_id,
+            intention,
+            content_context_records=content_context_records,
+        )
         event_id = f"cmb_{uuid.uuid4().hex[:12]}"
         plan = await self._plan_turn(packet)
         transaction = cat._create_combat_transaction(
@@ -57,6 +63,7 @@ class DndCombatResolver:
         *,
         ckpt: CheckpointFile,
         event_id: str,
+        content_context_records: list[str] | None = None,
     ) -> EventRouterOutput:
         transaction = cat._find_transaction(ckpt, event_id)
         if transaction is None or transaction.source != "combat":
@@ -71,6 +78,11 @@ class DndCombatResolver:
             transaction.updated_at = cat._utcnow_iso()
         elif transaction.status in {"planning", "planned"}:
             cat._execute_available_rolls(ckpt, transaction)
+        if content_context_records:
+            _merge_content_context_records(
+                transaction.context,
+                content_context_records,
+            )
         return await self._resolve_transaction(ckpt, transaction)
 
     async def _resolve_transaction(
@@ -173,6 +185,26 @@ class DndCombatResolver:
         _scrub_visible_bookkeeping(adjudication)
         _scrub_private_outcome_leaks(adjudication)
         return adjudication
+
+
+def _merge_content_context_records(
+    context: dict[str, object],
+    records: list[str],
+) -> None:
+    existing = context.get("content_context")
+    merged = [
+        str(record)
+        for record in (existing if isinstance(existing, list) else [])
+        if str(record).strip()
+    ]
+    seen = set(merged)
+    for record in records:
+        text = str(record or "").strip()
+        if text and text not in seen:
+            merged.append(text)
+            seen.add(text)
+    if merged:
+        context["content_context"] = merged
 
 
 _VISIBLE_BOOKKEEPING_TERMS = (
