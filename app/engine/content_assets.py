@@ -16,6 +16,10 @@ from app.schemas.content_pack import (
 
 APPROVED_ASSET_REVIEW_STATUSES = {"reviewed", "approved"}
 _ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_.-])/(?:[^/\s]+/)+[^/\s]+")
+_ASSET_DELIVERY_REF_RE = re.compile(
+    r"^asset://(?P<pack_id>[A-Za-z0-9][A-Za-z0-9_.-]*)/"
+    r"(?P<asset_id>[A-Za-z0-9][A-Za-z0-9_.-]*)$"
+)
 _FORBIDDEN_METADATA_KEYS = {
     "dm_notes",
     "file_path",
@@ -67,7 +71,11 @@ def write_asset_catalog(
                     asset.spoiler_class,
                     _redact_unsafe_text(asset.player_safe_alt_text),
                     _redact_unsafe_text(asset.player_safe_caption),
-                    _safe_delivery_ref(asset.delivery_ref),
+                    _safe_delivery_ref(
+                        asset.delivery_ref,
+                        pack_id=asset.pack_id,
+                        asset_id=asset.asset_id,
+                    ),
                     int(asset.safe_for_players),
                     int(asset.safe_for_llm),
                     json.dumps(metadata, sort_keys=True),
@@ -130,6 +138,11 @@ def safe_asset_reveals_for_viewer(
             asset = asset_lookup.get(reveal.asset_id)
         if asset is None or not _asset_is_player_safe(asset):
             continue
+        delivery_ref = _safe_delivery_ref(
+            asset.delivery_ref,
+            pack_id=asset.pack_id,
+            asset_id=asset.asset_id,
+        )
         caption = _redact_unsafe_text(reveal.caption or asset.player_safe_caption)
         payloads.append(
             SafeAssetRevealPayload(
@@ -141,7 +154,7 @@ def safe_asset_reveals_for_viewer(
                 width=asset.width,
                 height=asset.height,
                 sha256=asset.sha256,
-                delivery_ref=_safe_delivery_ref(asset.delivery_ref),
+                delivery_ref=delivery_ref,
                 presentation=reveal.presentation,
                 caption=caption,
                 alt_text=_redact_unsafe_text(asset.player_safe_alt_text),
@@ -227,18 +240,29 @@ def _viewer_can_see_reveal(
     user_id: str,
     event_observer_ids: set[str],
 ) -> bool:
+    viewer_is_observer = bool(character_id and character_id in event_observer_ids)
     if reveal.audience == "all_observers":
-        return not event_observer_ids or character_id in event_observer_ids
-    if character_id and character_id in reveal.visible_to_character_ids:
-        return True
-    return bool(user_id and user_id in reveal.visible_to_user_ids)
+        return viewer_is_observer
+    if not viewer_is_observer:
+        return False
+    if not character_id or character_id not in reveal.visible_to_character_ids:
+        return False
+    if reveal.visible_to_user_ids:
+        return bool(user_id and user_id in reveal.visible_to_user_ids)
+    return True
 
 
 def _asset_is_player_safe(asset: ContentImageAsset) -> bool:
     return (
         asset.safe_for_players
         and asset.review_status in APPROVED_ASSET_REVIEW_STATUSES
-        and bool(_safe_delivery_ref(asset.delivery_ref))
+        and bool(
+            _safe_delivery_ref(
+                asset.delivery_ref,
+                pack_id=asset.pack_id,
+                asset_id=asset.asset_id,
+            )
+        )
     )
 
 
@@ -289,11 +313,19 @@ def _sanitize_metadata(value: Any, protected_terms: Sequence[str]) -> Any:
     return value
 
 
-def _safe_delivery_ref(value: str) -> str:
+def _safe_delivery_ref(
+    value: str,
+    *,
+    pack_id: str = "",
+    asset_id: str = "",
+) -> str:
     delivery_ref = value.strip()
-    if "://" in delivery_ref:
-        return delivery_ref
-    if _ABSOLUTE_PATH_RE.search(delivery_ref):
+    match = _ASSET_DELIVERY_REF_RE.fullmatch(delivery_ref)
+    if match is None:
+        return ""
+    if pack_id and match.group("pack_id") != pack_id.strip():
+        return ""
+    if asset_id and match.group("asset_id") != asset_id.strip():
         return ""
     return delivery_ref
 

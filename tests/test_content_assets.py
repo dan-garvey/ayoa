@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.engine.content_assets import (
     load_asset_catalog,
     safe_asset_reveals_for_viewer,
@@ -145,6 +147,96 @@ def test_asset_catalog_persists_safe_refs_without_private_paths_or_notes(tmp_pat
     assert asset.source_ref == "src-map-001"
     assert asset.metadata == {"safe_tag": "fixture", "nested": {}}
 
+    payloads = safe_asset_reveals_for_viewer(
+        catalog,
+        [
+            {
+                "pack_id": "synthetic",
+                "asset_id": "map-safe",
+                "audience": "all_observers",
+            }
+        ],
+        character_id="cleric",
+        event_observer_ids=["cleric"],
+    )
+    assert [payload.delivery_ref for payload in payloads] == [
+        "asset://synthetic/map-safe"
+    ]
+
+
+@pytest.mark.parametrize(
+    "delivery_ref",
+    [
+        "file:///private/table/maps/dm-map.png",
+        "/private/table/maps/dm-map.png",
+        "dm-map.png",
+        "maps/dm-map.png",
+        "../maps/dm-map.png",
+        "s3://bucket/maps/dm-map.png",
+        "gs://bucket/maps/dm-map.png",
+        "data:image/png;base64,AAAA",
+        "javascript:alert(1)",
+        "ftp://example.invalid/maps/dm-map.png",
+        "https://example.invalid/maps/dm-map.png",
+        "asset://synthetic/other-map",
+    ],
+)
+def test_unsafe_delivery_refs_are_not_persisted_or_revealed(
+    tmp_path, delivery_ref
+):
+    db_path = tmp_path / "assets.sqlite"
+    write_asset_catalog(
+        db_path,
+        [
+            {
+                "pack_id": "synthetic",
+                "asset_id": "map-safe",
+                "kind": "player_safe_map",
+                "title": "Safe crop",
+                "mime_type": "image/png",
+                "width": 200,
+                "height": 160,
+                "sha256": "hash-safe",
+                "source_ref": "src-map-001",
+                "review_status": "approved",
+                "spoiler_class": "low",
+                "player_safe_alt_text": "A safe crop.",
+                "player_safe_caption": "A safe crop of the room.",
+                "delivery_ref": delivery_ref,
+                "safe_for_players": True,
+                "safe_for_llm": True,
+                "metadata": {
+                    "source_path": RAW_SOURCE_PATH,
+                    "dm_notes": PROTECTED_EXCERPT,
+                },
+            }
+        ],
+        protected_terms=[PROTECTED_EXCERPT],
+    )
+
+    raw_db = db_path.read_bytes()
+    assert delivery_ref.encode() not in raw_db
+    assert RAW_SOURCE_PATH.encode() not in raw_db
+    assert PROTECTED_EXCERPT.encode() not in raw_db
+
+    catalog = load_asset_catalog(db_path, pack_id="synthetic")
+    assert catalog["synthetic::map-safe"].delivery_ref == ""
+    assert (
+        safe_asset_reveals_for_viewer(
+            catalog,
+            [
+                {
+                    "pack_id": "synthetic",
+                    "asset_id": "map-safe",
+                    "audience": "all_observers",
+                }
+            ],
+            character_id="cleric",
+            event_observer_ids=["cleric"],
+        )
+        == []
+    )
+
 
 def test_unsafe_or_unreviewed_assets_are_not_revealed():
     assets = [
@@ -164,6 +256,24 @@ def test_unsafe_or_unreviewed_assets_are_not_revealed():
             "title": "Unreviewed handout",
             "delivery_ref": "asset://synthetic/unreviewed-handout",
             "review_status": "needs_review",
+            "safe_for_players": True,
+        },
+        {
+            "pack_id": "synthetic",
+            "asset_id": "blocked-handout",
+            "kind": "handout",
+            "title": "Blocked handout",
+            "delivery_ref": "asset://synthetic/blocked-handout",
+            "review_status": "blocked",
+            "safe_for_players": True,
+        },
+        {
+            "pack_id": "synthetic",
+            "asset_id": "rejected-handout",
+            "kind": "handout",
+            "title": "Rejected handout",
+            "delivery_ref": "asset://synthetic/rejected-handout",
+            "review_status": "rejected",
             "safe_for_players": True,
         },
         {
@@ -189,6 +299,16 @@ def test_unsafe_or_unreviewed_assets_are_not_revealed():
         },
         {
             "pack_id": "synthetic",
+            "asset_id": "blocked-handout",
+            "audience": "all_observers",
+        },
+        {
+            "pack_id": "synthetic",
+            "asset_id": "rejected-handout",
+            "audience": "all_observers",
+        },
+        {
+            "pack_id": "synthetic",
             "asset_id": "path-ref",
             "audience": "all_observers",
         },
@@ -203,3 +323,74 @@ def test_unsafe_or_unreviewed_assets_are_not_revealed():
         )
         == []
     )
+
+
+def test_visible_user_ids_only_narrow_character_visible_reveals():
+    assets = [
+        {
+            "pack_id": "synthetic",
+            "asset_id": "private-handout",
+            "kind": "handout",
+            "title": "Private handout",
+            "delivery_ref": "asset://synthetic/private-handout",
+            "review_status": "approved",
+            "safe_for_players": True,
+        }
+    ]
+
+    user_only_reveal = [
+        {
+            "pack_id": "synthetic",
+            "asset_id": "private-handout",
+            "audience": "only",
+            "visible_to_user_ids": ["user-rogue"],
+        }
+    ]
+    assert (
+        safe_asset_reveals_for_viewer(
+            assets,
+            user_only_reveal,
+            character_id="cleric",
+            user_id="user-rogue",
+            event_observer_ids=["rogue"],
+        )
+        == []
+    )
+    assert (
+        safe_asset_reveals_for_viewer(
+            assets,
+            user_only_reveal,
+            character_id="rogue",
+            user_id="user-rogue",
+            event_observer_ids=["rogue"],
+        )
+        == []
+    )
+
+    character_and_user_reveal = [
+        {
+            "pack_id": "synthetic",
+            "asset_id": "private-handout",
+            "audience": "only",
+            "visible_to_character_ids": ["rogue"],
+            "visible_to_user_ids": ["user-rogue"],
+        }
+    ]
+    assert (
+        safe_asset_reveals_for_viewer(
+            assets,
+            character_and_user_reveal,
+            character_id="rogue",
+            user_id="user-cleric",
+            event_observer_ids=["rogue"],
+        )
+        == []
+    )
+    allowed_payloads = safe_asset_reveals_for_viewer(
+        assets,
+        character_and_user_reveal,
+        character_id="rogue",
+        user_id="user-rogue",
+        event_observer_ids=["rogue"],
+    )
+    assert [payload.asset_id for payload in allowed_payloads] == ["private-handout"]
