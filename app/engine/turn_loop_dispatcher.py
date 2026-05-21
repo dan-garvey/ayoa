@@ -147,7 +147,10 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     public signals (cascade intentions, prior canonical events) +
     seeded objectives, not stolen interior.
     """
-    if checkpoint.session_conversation:
+    if any(
+        not _is_router_content_history_message(message)
+        for message in checkpoint.session_conversation
+    ):
         return ""
     if not checkpoint.characters:
         return ""
@@ -190,6 +193,14 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
         "and active pursuits.\n\n"
     )
     return header + "\n\n".join(entries) + "\n"
+
+
+def _is_router_content_history_message(message: ConversationMessage) -> bool:
+    if message.role != "assistant" or not isinstance(message.content, str):
+        return False
+    return message.content.startswith(
+        ("content_known ", "location_card ", "front_signal ")
+    )
 
 
 def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:

@@ -21,6 +21,7 @@ def test_pending_content_signals_drain_once_and_only_changed_refs_repeat():
             {
                 "ref": "area.entry",
                 "content_hash": "hash-1",
+                "status": "pending",
                 "kind": "location_card",
                 "visibility": "hidden",
                 "summary": "Entry chamber.",
@@ -54,6 +55,7 @@ def test_pending_content_signals_drain_once_and_only_changed_refs_repeat():
         {
             "ref": "area.entry",
             "content_hash": "hash-1",
+            "status": "pending",
             "kind": "location_card",
             "summary": "Entry chamber.",
             "exits": ["north door"],
@@ -66,6 +68,7 @@ def test_pending_content_signals_drain_once_and_only_changed_refs_repeat():
         {
             "ref": "area.entry",
             "content_hash": "hash-2",
+            "status": "pending",
             "kind": "location_card",
             "summary": "Entry chamber after the door opens.",
             "exits": ["north door", "stairs"],
@@ -120,6 +123,7 @@ def test_dict_backed_content_state_uses_ref_id_keys_and_clears_pending_map():
             "sig-1": {
                 "ref_id": "room/1",
                 "content_hash": "hash-a",
+                "status": "pending",
                 "kind": "content_known",
                 "visibility": "hidden",
                 "summary": "Private room key.",
@@ -141,6 +145,55 @@ def test_dict_backed_content_state_uses_ref_id_keys_and_clears_pending_map():
         state,
         {"ref_id": "room/1", "content_hash": "hash-a"},
     ) is False
+
+
+def test_drain_prunes_non_pending_signals_without_introducing_refs():
+    state = {
+        "pack_id": "pack",
+        "introduced_refs": {},
+        "pending_signals": {
+            "sig-pending": {
+                "ref_id": "room/pending",
+                "content_hash": "hash-pending",
+                "status": "pending",
+                "kind": "content_known",
+                "visibility": "hidden",
+                "summary": "Pending room key.",
+            },
+            "sig-resolved": {
+                "ref_id": "room/resolved",
+                "content_hash": "hash-resolved",
+                "status": "resolved",
+                "kind": "content_known",
+                "visibility": "hidden",
+                "summary": "Resolved stale key.",
+            },
+            "sig-dismissed": {
+                "ref_id": "room/dismissed",
+                "content_hash": "hash-dismissed",
+                "status": "dismissed",
+                "kind": "content_known",
+                "visibility": "hidden",
+                "summary": "Dismissed stale key.",
+            },
+        },
+    }
+
+    records = drain_pending_content_signals(state)
+
+    assert records == [
+        (
+            "content_known ref=room/pending scope=router visibility=hidden "
+            "hash=hash-pending kind=content_known pack=pack "
+            'summary="Pending room key."'
+        )
+    ]
+    assert state["pending_signals"] == {}
+    assert sorted(state["introduced_refs"]) == [
+        "pack::room/pending::hash-pending"
+    ]
+    assert "room/resolved" not in records[0]
+    assert "room/dismissed" not in records[0]
 
 
 def test_load_content_cards_reads_simple_sqlite_rows(tmp_path):
@@ -202,6 +255,7 @@ def test_append_pending_router_content_records_adds_assistant_history_once():
                     pack_id="pack",
                     ref_id="front/villain",
                     content_hash="hash-front",
+                    status="pending",
                     metadata={
                         "kind": "front_signal",
                         "visibility": "hidden",
@@ -235,3 +289,45 @@ def test_append_pending_router_content_records_adds_assistant_history_once():
     assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
         "pack::front/villain::hash-front"
     ]
+
+
+def test_append_pending_router_content_records_ignores_terminal_signals():
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "pack": ContentPackState(
+            pack_id="pack",
+            pending_signals={
+                "sig-dismissed": PendingContentSignal(
+                    signal_id="sig-dismissed",
+                    pack_id="pack",
+                    ref_id="front/stale",
+                    content_hash="hash-stale",
+                    status="dismissed",
+                    metadata={
+                        "kind": "front_signal",
+                        "visibility": "hidden",
+                        "summary": "This stale front was dismissed.",
+                    },
+                ),
+                "sig-resolved": PendingContentSignal(
+                    signal_id="sig-resolved",
+                    pack_id="pack",
+                    ref_id="front/resolved",
+                    content_hash="hash-resolved",
+                    status="resolved",
+                    metadata={
+                        "kind": "front_signal",
+                        "visibility": "hidden",
+                        "summary": "This front already resolved.",
+                    },
+                ),
+            },
+        )
+    }
+
+    records = append_pending_router_content_records(ckpt)
+
+    assert records == []
+    assert ckpt.session_conversation == []
+    assert ckpt.session.content_state["pack"].pending_signals == {}
+    assert ckpt.session.content_state["pack"].introduced_refs == {}

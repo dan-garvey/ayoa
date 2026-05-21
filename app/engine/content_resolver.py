@@ -208,6 +208,8 @@ def drain_pending_content_signals(state: Any) -> list[str]:
 
     records: list[str] = []
     for signal in pending:
+        if _content_signal_status(signal) != "pending":
+            continue
         if not content_ref_needs_introduction(state, signal):
             continue
         records.append(
@@ -218,6 +220,8 @@ def drain_pending_content_signals(state: Any) -> list[str]:
         )
         mark_ref_introduced(state, signal)
 
+    # Draining consumes this one-shot queue: terminal resolved/dismissed
+    # entries are pruned without formatting or introduction.
     _clear_pending_signals(state)
     return records
 
@@ -517,6 +521,10 @@ def _pending_signal_items(state: Any) -> list[Any]:
                 return list(values.values())
             return values
     return []
+
+
+def _content_signal_status(signal: Any) -> str:
+    return _normalized_text(_value(signal, "status")).lower()
 
 
 def _clear_pending_signals(state: Any) -> None:

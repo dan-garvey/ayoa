@@ -18,6 +18,7 @@ from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.content import ContentPackState, PendingContentSignal
+from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
@@ -173,6 +174,33 @@ class TestRouterContext:
 
         assert "Location: gatehouse" in ctx["player_characters_block"]
         assert "Location: archive" in ctx["initial_roster_block"]
+
+    def test_initial_roster_ignores_opening_content_history_only(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session_conversation = [
+            ConversationMessage(
+                role="assistant",
+                content="location_card ref=room/entry hash=hash-1",
+            )
+        ]
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert "## Initial Roster" in ctx["initial_roster_block"]
+        assert "- pip" in ctx["initial_roster_block"]
+
+    def test_initial_roster_still_omits_after_non_content_history(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session_conversation = [
+            ConversationMessage(
+                role="assistant",
+                content="prior_event evt_1 @0+1 source=alice mode=intention",
+            )
+        ]
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert ctx["initial_roster_block"] == ""
 
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
@@ -389,6 +417,8 @@ class TestRouteIntention:
 
         assert "location_card ref=room/entry" not in system_content
         assert "location_card ref=room/entry" not in user_content
+        assert "## Initial Roster" in user_content
+        assert "- pip" in user_content
         assert any(
             message.get("role") == "assistant"
             and "location_card ref=room/entry" in message.get("content", "")
