@@ -85,3 +85,9 @@
 {"id":"int-94b24d2d","kind":"field_change","created_at":"2026-05-21T23:47:06.379995337Z","actor":"dan","issue_id":"ayoa-57l","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Decision documented in DND_MODULE_PRIVACY_BOUNDARY.md"}}
 {"id":"int-aed7e69b","kind":"field_change","created_at":"2026-05-21T23:47:08.074981444Z","actor":"dan","issue_id":"ayoa-50c","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Decision documented in DND_ASSET_BACKING_AND_DELIVERY.md"}}
 {"id":"int-bf90fbf1","kind":"field_change","created_at":"2026-05-21T23:47:09.027447518Z","actor":"dan","issue_id":"ayoa-d57","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Decision documented in DND_ASSET_REVEAL_CONTRACT.md"}}
+{"id":"int-cf181628","kind":"field_change","created_at":"2026-05-21T23:48:07.123709541Z","actor":"dan","issue_id":"ayoa-kd9","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-f858ff62","kind":"field_change","created_at":"2026-05-21T23:48:07.123877209Z","actor":"dan","issue_id":"ayoa-kd9","extra":{"field":"assignee","new_value":"dan","old_value":""}}
+{"id":"int-168294d4","kind":"field_change","created_at":"2026-05-21T23:48:08.031072276Z","actor":"dan","issue_id":"ayoa-3gk","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-28ec3909","kind":"field_change","created_at":"2026-05-21T23:48:08.031176844Z","actor":"dan","issue_id":"ayoa-3gk","extra":{"field":"assignee","new_value":"dan","old_value":""}}
+{"id":"int-ba6974ff","kind":"field_change","created_at":"2026-05-21T23:48:09.25391661Z","actor":"dan","issue_id":"ayoa-93b","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-c7620fc0","kind":"field_change","created_at":"2026-05-21T23:48:09.254064228Z","actor":"dan","issue_id":"ayoa-93b","extra":{"field":"assignee","new_value":"dan","old_value":""}}
