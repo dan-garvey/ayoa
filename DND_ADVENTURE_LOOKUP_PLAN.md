@@ -113,6 +113,15 @@ extraction. The import path should therefore plan for page-addressable import,
 outline extraction, maps/images, stat blocks, tables, and appendices as separate
 domains.
 
+Initial D&D module imports are manual coding-agent work, not an automated PDF
+importer. A coding agent may inspect private source pages, use OCR or extraction
+tools as aids, and author redacted pack records, but no unattended code process
+is the source of truth for runtime-ready content. The compiler/database layer is
+the storage, validation, provenance, and coverage target for those manually
+authored records. Automated extraction can be added later only as a drafting aid,
+and its output must still be reviewed and accepted by an import agent before the
+runtime resolver may serve it.
+
 Images are private table assets. Lookup may return image refs alongside text
 refs, but not raw bytes. The router may reveal player-safe assets as sibling
 payloads to canonical facts using the same `all_observers` / `only` visibility

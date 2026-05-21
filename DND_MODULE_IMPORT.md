@@ -824,9 +824,18 @@ images may also have an ASCII room/exits summary when available.
 ## Import Strategy
 
 PDF import should be local-only and offline for protected content. It should be
-treated as a compilation pipeline with review, not as a perfect one-shot parse.
+treated as manually authored coding-agent import work first, not as an automated
+one-shot parser.
 
-The compiler pipeline should be staged:
+For the initial D&D module path, coding agents inspect private source pages and
+author redacted pack records by hand. OCR, image extraction, layout helpers, or
+LLM drafts may be used as private aids, but they are not authoritative import
+processes. The runtime pack compiler is the validation and persistence target for
+agent-authored records: it stores source refs, provenance, coverage manifests,
+review status, aliases, cards, and safe assets after the import agent has
+accepted them.
+
+The longer-term compiler pipeline can be staged:
 
 1. **Source inventory**
 
@@ -907,13 +916,15 @@ The compiler pipeline should be staged:
 The importer can use LLMs at import time because the expensive part happens
 once. Turn-time should use compact compiled artifacts.
 
-LLMs should propose OCR cleanup, section detection, card drafts, image
-classification, spoiler splits, table interpretation, stat-block extraction,
-cross-reference candidates, and front summaries. Deterministic code owns
-hashing, provenance, confidence aggregation, schema validation, dice-table
+LLMs and helper tools may propose OCR cleanup, section detection, card drafts,
+image classification, spoiler splits, table interpretation, stat-block
+extraction, cross-reference candidates, and front summaries. Deterministic code
+owns hashing, provenance, confidence aggregation, schema validation, dice-table
 checks, graph consistency, duplicate detection, source coverage, and pack
-compilation. Manual review is required for page alignment, low-confidence OCR,
-map topology, spoiler boundaries, player-safe handouts, randomization tables,
+compilation. For the initial module import, a coding agent manually accepts,
+rewrites, or rejects those drafts before they become runtime pack records.
+Manual review is required for page alignment, low-confidence OCR, map topology,
+spoiler boundaries, player-safe handouts, randomization tables,
 combat-critical stat blocks, and front/villain dossiers.
 
 Runtime use requires:
