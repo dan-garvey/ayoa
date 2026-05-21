@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.content import ContentPackState
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.dnd_spatial import DndBattleMapState
 
@@ -616,6 +617,9 @@ class SessionState(BaseModel):
     # D&D-adapter pending loot/reward choices. Generic narrative sessions leave
     # this empty; item/currency claims mutate character mechanics overlays.
     dnd_inventory_offers: list[DndLootOffer] = Field(default_factory=list)
+    # Generic adapter/content-pack lookup state. Pack-specific meaning stays in
+    # the content scaffold; the narrative engine only persists the slice.
+    content_state: dict[str, ContentPackState] = Field(default_factory=dict)
     # Private long-action state. These records are derived from router-authored
     # canonical events and are not narrator-visible facts.
     open_commitments: list[OpenCommitment] = Field(default_factory=list)
