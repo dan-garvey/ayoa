@@ -8,6 +8,8 @@ from pathlib import Path
 from collections.abc import MutableMapping, MutableSequence
 from typing import Any, Iterable, Mapping, Sequence
 
+from app.schemas.conversation import ConversationMessage
+
 try:  # The content schemas may land after this scaffold.
     from app.schemas.content import IntroducedContentRef as _IntroducedContentRef
 except Exception:  # pragma: no cover - defensive import boundary.
@@ -220,6 +222,39 @@ def drain_pending_content_signals(state: Any) -> list[str]:
     return records
 
 
+def append_pending_router_content_records(ckpt: Any) -> list[str]:
+    """Drain pending content deltas into compact router history records.
+
+    These records are assistant-side memory for the router, not current-turn
+    user input and not narrator/agent context. The dispatcher snapshots and
+    restores checkpoint state around this call when a router call fails.
+    """
+    session = getattr(ckpt, "session", None)
+    if session is None:
+        return []
+    content_state = getattr(session, "content_state", None) or {}
+    if not isinstance(content_state, Mapping):
+        return []
+    conversation = getattr(ckpt, "session_conversation", None)
+    if conversation is None:
+        return []
+
+    records: list[str] = []
+    for pack_id, pack_state in content_state.items():
+        if hasattr(pack_state, "pack_id") and not getattr(pack_state, "pack_id", ""):
+            try:
+                pack_state.pack_id = str(pack_id)
+            except Exception:
+                pass
+        for record in drain_pending_content_signals(pack_state):
+            if record:
+                records.append(record)
+
+    for record in records:
+        conversation.append(ConversationMessage(role="assistant", content=record))
+    return records
+
+
 def format_compact_record(
     record: Any,
     *,
@@ -378,13 +413,25 @@ def _value(record: Any, key: str, default: Any = None) -> Any:
     if record is None:
         return default
     if isinstance(record, Mapping):
-        return record.get(key, default)
+        if key in record:
+            return record.get(key, default)
+        metadata = record.get("metadata")
+        if isinstance(metadata, Mapping) and key in metadata:
+            return metadata.get(key, default)
+        return default
     if hasattr(record, key):
         return getattr(record, key)
     if hasattr(record, "model_dump"):
         dumped = record.model_dump()
         if isinstance(dumped, Mapping):
-            return dumped.get(key, default)
+            if key in dumped:
+                return dumped.get(key, default)
+            metadata = dumped.get("metadata")
+            if isinstance(metadata, Mapping) and key in metadata:
+                return metadata.get(key, default)
+    metadata = getattr(record, "metadata", None)
+    if isinstance(metadata, Mapping) and key in metadata:
+        return metadata.get(key, default)
     return default
 
 

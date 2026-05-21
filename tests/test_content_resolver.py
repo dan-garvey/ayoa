@@ -3,11 +3,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.engine.content_resolver import (
+    append_pending_router_content_records,
     content_ref_needs_introduction,
     drain_pending_content_signals,
     format_front_signal_record,
     load_content_cards,
 )
+from app.schemas.content import ContentPackState, PendingContentSignal
+from tests.support.factories import checkpoint
 
 
 def test_pending_content_signals_drain_once_and_only_changed_refs_repeat():
@@ -176,3 +179,59 @@ def test_load_content_cards_reads_simple_sqlite_rows(tmp_path):
     assert cards[0].ref == "room/1"
     assert cards[0].content_hash == "hash-a"
     assert cards[0].metadata == {"tier": "dm"}
+
+
+def test_append_pending_router_content_records_noops_for_non_content_story():
+    ckpt = checkpoint()
+
+    records = append_pending_router_content_records(ckpt)
+
+    assert records == []
+    assert ckpt.session.content_state == {}
+    assert ckpt.session_conversation == []
+
+
+def test_append_pending_router_content_records_adds_assistant_history_once():
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "pack": ContentPackState(
+            pack_id="pack",
+            pending_signals={
+                "sig-1": PendingContentSignal(
+                    signal_id="sig-1",
+                    pack_id="pack",
+                    ref_id="front/villain",
+                    content_hash="hash-front",
+                    metadata={
+                        "kind": "front_signal",
+                        "visibility": "hidden",
+                        "actor": "villain",
+                        "knows": "the party caused public trouble",
+                        "pressure": "send spies",
+                        "summary": "The front may now react.",
+                        "source_path": "/private/module.pdf",
+                    },
+                )
+            },
+        )
+    }
+
+    first = append_pending_router_content_records(ckpt)
+    second = append_pending_router_content_records(ckpt)
+
+    assert first == [
+        (
+            "front_signal ref=front/villain actor=villain "
+            'knows="the party caused public trouble" pressure="send spies" '
+            "visibility=hidden hash=hash-front pack=pack "
+            'summary="The front may now react."'
+        )
+    ]
+    assert second == []
+    assert [message.role for message in ckpt.session_conversation] == ["assistant"]
+    assert ckpt.session_conversation[0].content == first[0]
+    assert "source_path" not in first[0]
+    assert ckpt.session.content_state["pack"].pending_signals == {}
+    assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
+        "pack::front/villain::hash-front"
+    ]

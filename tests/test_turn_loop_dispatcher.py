@@ -17,6 +17,7 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.content import ContentPackState, PendingContentSignal
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
@@ -91,6 +92,36 @@ def _last_user_content(messages: list[dict]) -> str:
     if isinstance(content, list):
         return "".join(p.get("text", "") for p in content)
     return content
+
+
+def _queue_content_signal(
+    ckpt,
+    *,
+    ref_id: str = "room/entry",
+    content_hash: str = "hash-1",
+    kind: str = "location_card",
+) -> None:
+    ckpt.session.content_state = {
+        "pack": ContentPackState(
+            pack_id="pack",
+            pending_signals={
+                "sig-1": PendingContentSignal(
+                    signal_id="sig-1",
+                    pack_id="pack",
+                    ref_id=ref_id,
+                    content_hash=content_hash,
+                    metadata={
+                        "kind": kind,
+                        "visibility": "hidden",
+                        "summary": "Entry chamber context.",
+                        "exits": ["north"],
+                        "hazards": ["loose floor"],
+                        "clues": ["old crest"],
+                    },
+                )
+            },
+        )
+    }
 
 
 class TestRouterContext:
@@ -338,6 +369,43 @@ class TestRouteIntention:
         assert ckpt.session_conversation[1].content.startswith(
             "prior_event evt_defer_continue "
         )
+
+    def test_route_intention_adds_pending_content_as_prior_history_only(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _queue_content_signal(ckpt)
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I inspect the threshold.",
+        ))
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        system_content = messages[0]["content"]
+        user_content = _last_user_content(messages)
+
+        assert "location_card ref=room/entry" not in system_content
+        assert "location_card ref=room/entry" not in user_content
+        assert any(
+            message.get("role") == "assistant"
+            and "location_card ref=room/entry" in message.get("content", "")
+            for message in messages
+        )
+        assert [message.role for message in ckpt.session_conversation] == [
+            "assistant",
+            "assistant",
+        ]
+        assert ckpt.session_conversation[0].content.startswith(
+            "location_card ref=room/entry "
+        )
+        assert ckpt.session_conversation[1].content.startswith("prior_event ")
+        assert ckpt.session.content_state["pack"].pending_signals == {}
+        assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
+            "pack::room/entry::hash-1"
+        ]
 
     def test_router_history_replays_prior_defer_to_next_call(
         self, prompt_mgr, mock_client,
@@ -675,6 +743,31 @@ class TestRouteIntention:
         assert "Alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
 
+    def test_route_continuation_adds_pending_content_before_recovery_call(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _queue_content_signal(ckpt, ref_id="front/villain", kind="front_signal")
+        prior = _router_output()
+        prior.event_kind = "beat_continues"
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_continuation(
+            ckpt=ckpt,
+            actor_id="alice",
+            prior_result=prior,
+        ))
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        user_content = _last_user_content(messages)
+        assert ROUTER_CONTINUATION_HEADER in user_content
+        assert "front_signal ref=front/villain" not in user_content
+        assert any(
+            message.get("role") == "assistant"
+            and "front_signal ref=front/villain" in message.get("content", "")
+            for message in messages
+        )
+
     def test_failed_router_call_restores_engine_state_updates(
         self, prompt_mgr, mock_client,
     ):
@@ -693,6 +786,24 @@ class TestRouteIntention:
             ))
 
         assert ckpt.session.pending_engine_state_updates == before_updates
+        assert ckpt.session_conversation == []
+
+    def test_failed_router_call_restores_pending_content_state(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _queue_content_signal(ckpt)
+        before_content = ckpt.session.content_state["pack"].model_dump()
+        mock_client.complete.side_effect = RuntimeError("transient API failure")
+
+        with pytest.raises(RuntimeError):
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="examine the threshold",
+            ))
+
+        assert ckpt.session.content_state["pack"].model_dump() == before_content
         assert ckpt.session_conversation == []
 
 
@@ -729,6 +840,55 @@ class TestRouteAgentOutput:
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
         assert "source=pip mode=agent_output" in ckpt.session_conversation[-1].content
+
+    def test_agent_output_keeps_content_delta_out_of_bare_user_message(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _queue_content_signal(ckpt)
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
+            ckpt=ckpt,
+            character_id="pip",
+            public_text="He paces the threshold.",
+        ))
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        user_content = _last_user_content(messages)
+        assert user_content == "pip: He paces the threshold."
+        assert "location_card ref=room/entry" not in user_content
+        assert any(
+            message.get("role") == "assistant"
+            and "location_card ref=room/entry" in message.get("content", "")
+            for message in messages
+        )
+        assert ckpt.session_conversation[0].content.startswith(
+            "location_card ref=room/entry "
+        )
+        assert ckpt.session_conversation[-1].content.startswith("prior_event ")
+
+    def test_agent_output_render_failure_restores_content_delta(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        _queue_content_signal(ckpt)
+        before_content = ckpt.session.content_state["pack"].model_dump()
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("render failed")
+
+        monkeypatch.setattr(prompt_mgr, "render_messages", _boom)
+
+        with pytest.raises(RuntimeError, match="render failed"):
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
+                ckpt=ckpt,
+                character_id="pip",
+                public_text="He paces the threshold.",
+            ))
+
+        assert ckpt.session.content_state["pack"].model_dump() == before_content
+        assert ckpt.session_conversation == []
 
     def test_agent_output_time_is_floored_to_session_edge(
         self, prompt_mgr, mock_client,

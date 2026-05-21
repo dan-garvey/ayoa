@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from copy import deepcopy
 
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
@@ -241,6 +242,41 @@ def _build_router_input_block(*blocks: str) -> str:
         for block in blocks
         if block and block.strip()
     )
+
+
+def _router_call_snapshot(ckpt: CheckpointFile) -> dict[str, object]:
+    """Capture prompt-side mutable state before a router call.
+
+    Content lookup records are deterministic router-history deltas, just like
+    compact `prior_event` records. They must not stay appended if the router call
+    fails before producing a canonical event.
+    """
+    return {
+        "pending_engine_state_updates": list(
+            ckpt.session.pending_engine_state_updates
+        ),
+        "content_state": deepcopy(getattr(ckpt.session, "content_state", {})),
+        "session_conversation_len": len(ckpt.session_conversation),
+    }
+
+
+def _restore_router_call_snapshot(
+    ckpt: CheckpointFile,
+    snapshot: dict[str, object],
+) -> None:
+    ckpt.session.pending_engine_state_updates = list(
+        snapshot["pending_engine_state_updates"]
+    )
+    if hasattr(ckpt.session, "content_state"):
+        ckpt.session.content_state = deepcopy(snapshot["content_state"])
+    del ckpt.session_conversation[int(snapshot["session_conversation_len"]):]
+
+
+def _append_pending_router_content_records(ckpt: CheckpointFile) -> None:
+    """Append one-shot content lookup deltas to router history, if any."""
+    from app.engine.content_resolver import append_pending_router_content_records
+
+    append_pending_router_content_records(ckpt)
 
 
 def _compact_router_history_text(text: str) -> str:
@@ -612,10 +648,9 @@ class LLMDispatcher:
             )
             return result
 
-        saved_engine_updates = list(
-            ckpt.session.pending_engine_state_updates
-        )
+        router_snapshot = _router_call_snapshot(ckpt)
         try:
+            _append_pending_router_content_records(ckpt)
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
@@ -690,7 +725,7 @@ class LLMDispatcher:
                 compact=True,
             )
         except Exception:
-            ckpt.session.pending_engine_state_updates = saved_engine_updates
+            _restore_router_call_snapshot(ckpt, router_snapshot)
             raise
 
         result: EventRouterOutput = response.parsed
@@ -793,10 +828,9 @@ class LLMDispatcher:
     ) -> EventRouterOutput:
         """Ask the router to advance an open beat with no next-output target."""
 
-        saved_engine_updates = list(
-            ckpt.session.pending_engine_state_updates
-        )
+        router_snapshot = _router_call_snapshot(ckpt)
         try:
+            _append_pending_router_content_records(ckpt)
             ctx = _build_router_context(
                 ckpt,
                 actor_id,
@@ -839,7 +873,7 @@ class LLMDispatcher:
                 compact=True,
             )
         except Exception:
-            ckpt.session.pending_engine_state_updates = saved_engine_updates
+            _restore_router_call_snapshot(ckpt, router_snapshot)
             raise
 
         result: EventRouterOutput = response.parsed
@@ -873,50 +907,57 @@ class LLMDispatcher:
         router receives only public result text and chooses the next response
         or player-facing boundary through its normal output fields.
         """
-        ctx = _build_router_context(
-            ckpt,
-            character_id,
-            resolve_actor_fallback=False,
-            include_engine_state_updates=False,
-        )
+        router_snapshot = _router_call_snapshot(ckpt)
+        try:
+            _append_pending_router_content_records(ckpt)
 
-        agent_output = format_agent_output_entry(character_id, public_text)
+            ctx = _build_router_context(
+                ckpt,
+                character_id,
+                resolve_actor_fallback=False,
+                include_engine_state_updates=False,
+            )
 
-        template_vars = {
-            **ctx,
-            **_router_ruleset_template_vars(
-                self.prompt_mgr,
-                dnd_fresh=False,
-            ),
-            "router_input_block": agent_output,
-        }
+            agent_output = format_agent_output_entry(character_id, public_text)
 
-        base_messages = self.prompt_mgr.render_messages(
-            "event_router",
-            **template_vars,
-        )
-        messages = [base_messages[0]]
-        for item in ckpt.session_conversation:
-            messages.append({"role": item.role, "content": item.content})
-        messages.append({
-            "role": "user",
-            "content": agent_output,
-        })
+            template_vars = {
+                **ctx,
+                **_router_ruleset_template_vars(
+                    self.prompt_mgr,
+                    dnd_fresh=False,
+                ),
+                "router_input_block": agent_output,
+            }
 
-        logger.info(
-            "LLMDispatcher.route_agent_output: character=%s",
-            character_id,
-        )
+            base_messages = self.prompt_mgr.render_messages(
+                "event_router",
+                **template_vars,
+            )
+            messages = [base_messages[0]]
+            for item in ckpt.session_conversation:
+                messages.append({"role": item.role, "content": item.content})
+            messages.append({
+                "role": "user",
+                "content": agent_output,
+            })
 
-        response = await self.client.complete(
-            role="event_router",
-            messages=messages,
-            response_model=EventRouterOutput,
-            temperature=0.35,
-            max_tokens=5000,
-            cache=True,
-            compact=True,
-        )
+            logger.info(
+                "LLMDispatcher.route_agent_output: character=%s",
+                character_id,
+            )
+
+            response = await self.client.complete(
+                role="event_router",
+                messages=messages,
+                response_model=EventRouterOutput,
+                temperature=0.35,
+                max_tokens=5000,
+                cache=True,
+                compact=True,
+            )
+        except Exception:
+            _restore_router_call_snapshot(ckpt, router_snapshot)
+            raise
 
         result: EventRouterOutput = response.parsed
         _normalize_router_result_for_history(

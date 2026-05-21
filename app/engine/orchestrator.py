@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from copy import deepcopy
 from typing import Any, Callable
 
 from app.engine.context_builder import collect_player_ids
@@ -414,6 +415,10 @@ def _automated_turn_snapshot(ckpt: CheckpointFile) -> dict[str, Any]:
         "open_cat_ii_events": len(ckpt.session.open_cat_ii_events),
         "active_act_slots": dict(ckpt.session.active_act_slots),
         "session_conversation": len(ckpt.session_conversation),
+        "pending_engine_state_updates": list(
+            ckpt.session.pending_engine_state_updates
+        ),
+        "content_state": deepcopy(ckpt.session.content_state),
         "narrator_conversations": {
             cid: len(history)
             for cid, history in ckpt.narrator_conversations.items()
@@ -441,6 +446,10 @@ def _rollback_automated_turn_snapshot(
     del ckpt.session.open_cat_ii_events[snapshot["open_cat_ii_events"]:]
     ckpt.session.active_act_slots = dict(snapshot["active_act_slots"])
     del ckpt.session_conversation[snapshot["session_conversation"]:]
+    ckpt.session.pending_engine_state_updates = list(
+        snapshot["pending_engine_state_updates"]
+    )
+    ckpt.session.content_state = deepcopy(snapshot["content_state"])
 
     narrator_lengths = snapshot["narrator_conversations"]
     for cid in list(ckpt.narrator_conversations):
