@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.engine import narrator as narrator_module
+from app.engine.content_lookup import MissingContentError
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
@@ -124,6 +126,28 @@ def _queue_content_signal(
             "clues": ["old crest"],
         },
     )
+
+
+def _content_pack_db(tmp_path, rows: list[tuple[str, str, str, str, str, str]]):
+    db_path = tmp_path / "pack.sqlite"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE content_cards (
+                pack_id TEXT,
+                ref TEXT,
+                content_hash TEXT,
+                kind TEXT,
+                visibility TEXT,
+                summary TEXT
+            )
+            """
+        )
+        conn.executemany(
+            "INSERT INTO content_cards VALUES (?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+    return db_path
 
 
 def _enable_dnd(ckpt) -> None:
@@ -507,6 +531,82 @@ class TestRouteIntention:
         assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
             "pack::room/entry::hash-1"
         ]
+
+    def test_route_intention_runs_lookup_preflight_before_router(
+        self, prompt_mgr, mock_client, tmp_path,
+    ):
+        db_path = _content_pack_db(
+            tmp_path,
+            [
+                (
+                    "pack",
+                    "room/entry",
+                    "hash-entry",
+                    "location_card",
+                    "hidden",
+                    "Entry chamber context.",
+                )
+            ],
+        )
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.content_state = {
+            "pack": ContentPackState(
+                pack_id="pack",
+                metadata={
+                    "db_path": str(db_path),
+                    "aliases": {"threshold": "room/entry"},
+                },
+            )
+        }
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I inspect the threshold.",
+        ))
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        system_content = messages[0]["content"]
+        user_content = _last_user_content(messages)
+        assert "location_card ref=room/entry" not in system_content
+        assert "location_card ref=room/entry" not in user_content
+        assert any(
+            message.get("role") == "assistant"
+            and "location_card ref=room/entry" in message.get("content", "")
+            for message in messages
+        )
+        assert ckpt.session_conversation[0].content.startswith(
+            "location_card ref=room/entry "
+        )
+        assert ckpt.session_conversation[-1].content.startswith("prior_event ")
+
+    def test_lookup_preflight_missing_content_aborts_before_router_call(
+        self, prompt_mgr, mock_client, tmp_path,
+    ):
+        db_path = _content_pack_db(tmp_path, [])
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.content_state = {
+            "pack": ContentPackState(
+                pack_id="pack",
+                metadata={
+                    "db_path": str(db_path),
+                    "aliases": {"secret door": "room/secret"},
+                },
+            )
+        }
+        before_content = ckpt.session.content_state["pack"].model_dump()
+
+        with pytest.raises(MissingContentError):
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I search for the secret door.",
+            ))
+
+        mock_client.complete.assert_not_awaited()
+        assert ckpt.session.content_state["pack"].model_dump() == before_content
+        assert ckpt.session_conversation == []
 
     def test_dnd_cat_ii_packet_receives_pending_content_context(
         self, prompt_mgr, mock_client,
