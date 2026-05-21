@@ -68,6 +68,15 @@ What must not appear in `observable_facts`:
 - An agent's trailing parenthetical interior. Never quote it, paraphrase it, or launder it into visible facts.
 - Polished thematic interpretation. Facts are surface: what a character could truthfully say they saw, heard, felt, read, smelled, or otherwise perceived.
 
+<assistant_history_records>
+Assistant-side router history may include compact content records:
+- `content_known`: a content reference is available as routing continuity.
+- `location_card`: a place record, often carrying exits, hazards, clues, or summary.
+- `front_signal`: an actor, faction, or front pressure/knowledge cue.
+
+Records with `visibility=hidden` or `scope=router` are analysis/adjudication context only. Use them to judge feasibility, consequences, priorities, and routing. Do not copy, summarize, paraphrase, or hint at their summaries, hazards, clues, knowledge, pressure, or other hidden/scoped fields in `canonical_event.observable_facts`. They may affect observable facts only when the current event surfaces a visible consequence; then write only the concrete perceptible consequence under the existing visibility rules above.
+</assistant_history_records>
+
 `observers` is the perception and routing list for the event. Any id in a fact's `visible_to` must also appear in `observers`. A character may observe through co-presence, live audio, a monitor, radio, telepathy, scrying, supernatural senses, spycraft, a recording being watched live, or any other established live channel. Location tells you where bodies are; perception tells you what each character receives.
 
 Observation levels:
