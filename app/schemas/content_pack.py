@@ -34,6 +34,29 @@ CrossReferenceRelation = Literal[
     "unlocks",
     "uses",
 ]
+RevealRelation = Literal["reveals", "requires", "foreshadows", "unlocks", "blocks"]
+RevealAudience = Literal["router", "players", "character", "host"]
+SectionKind = Literal["book", "chapter", "section", "appendix", "span_group"]
+SpanRole = Literal[
+    "heading",
+    "body",
+    "table",
+    "caption",
+    "sidebar",
+    "boxed_text",
+    "map_label",
+    "statblock",
+]
+LocationKind = Literal["region", "site", "level", "keyed_area", "room", "route"]
+HandoutKind = Literal["document", "image", "map", "symbol", "object", "other"]
+AdventureTableKind = Literal[
+    "random_encounter",
+    "treasure",
+    "rumor",
+    "reaction",
+    "weather",
+    "other",
+]
 TacticalMapKind = Literal["battle_map", "exploration_map", "region_map", "theater"]
 TacticalFeatureKind = Literal[
     "wall",
@@ -185,6 +208,231 @@ class ContentCrossReference(ContentPackDomainRecord):
         self.target_ref = self.target_ref.strip()
         self.target_kind = self.target_kind.strip()
         self.note = self.note.strip()
+        return self
+
+
+class ContentSectionRecord(ContentPackDomainRecord):
+    """Reviewed module section boundary without raw source text."""
+
+    record_kind: Literal["section"] = "section"
+    section_kind: SectionKind = "section"
+    parent_section_ref: str = ""
+    ordinal: int = 0
+    page_refs: list[str] = Field(default_factory=list)
+    child_section_refs: list[str] = Field(default_factory=list)
+    span_refs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean_section(self) -> "ContentSectionRecord":
+        self.parent_section_ref = self.parent_section_ref.strip()
+        self.ordinal = max(0, int(self.ordinal or 0))
+        self.page_refs = _clean_unique_strings(self.page_refs)
+        self.child_section_refs = _clean_unique_strings(self.child_section_refs)
+        self.span_refs = _clean_unique_strings(self.span_refs)
+        return self
+
+
+class ContentSpanRecord(ContentPackDomainRecord):
+    """Reviewed span pointer plus redacted summary."""
+
+    record_kind: Literal["span"] = "span"
+    section_ref: str = ""
+    page_id: str
+    source_span_id: str = ""
+    span_role: SpanRole = "body"
+    ordinal: int = 0
+    bbox: list[float] = Field(default_factory=list)
+    redacted_summary: str = ""
+
+    @model_validator(mode="after")
+    def _clean_span(self) -> "ContentSpanRecord":
+        self.section_ref = self.section_ref.strip()
+        self.page_id = self.page_id.strip()
+        self.source_span_id = self.source_span_id.strip()
+        self.ordinal = max(0, int(self.ordinal or 0))
+        self.bbox = [float(value) for value in self.bbox]
+        self.redacted_summary = self.redacted_summary.strip()
+        return self
+
+
+class LocationExit(BaseModel):
+    """Navigable edge from a location or keyed area."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    exit_id: str
+    to_ref: str
+    label: str = ""
+    travel_mode: str = "walk"
+    visible: bool = True
+    locked: bool = False
+    secret: bool = False
+    one_way: bool = False
+    requirements: list[str] = Field(default_factory=list)
+    reveal_trigger: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "LocationExit":
+        self.exit_id = self.exit_id.strip()
+        self.to_ref = self.to_ref.strip()
+        self.label = self.label.strip()
+        self.travel_mode = self.travel_mode.strip().lower() or "walk"
+        self.requirements = _clean_unique_strings(self.requirements)
+        self.reveal_trigger = self.reveal_trigger.strip()
+        if self.secret and not self.reveal_trigger:
+            raise ValueError("secret exits need reveal_trigger")
+        return self
+
+
+class LocationRecord(ContentPackDomainRecord):
+    """Rules-neutral location record with typed navigation and module links."""
+
+    record_kind: Literal["location"] = "location"
+    location_kind: LocationKind = "site"
+    keyed_label: str = ""
+    parent_location_ref: str = ""
+    section_ref: str = ""
+    player_arrival_summary: str = ""
+    exits: list[LocationExit] = Field(default_factory=list)
+    clue_refs: list[str] = Field(default_factory=list)
+    secret_refs: list[str] = Field(default_factory=list)
+    trap_refs: list[str] = Field(default_factory=list)
+    hazard_refs: list[str] = Field(default_factory=list)
+    treasure_refs: list[str] = Field(default_factory=list)
+    encounter_template_refs: list[str] = Field(default_factory=list)
+    handout_refs: list[str] = Field(default_factory=list)
+    table_refs: list[str] = Field(default_factory=list)
+    map_template_refs: list[str] = Field(default_factory=list)
+    front_refs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean_location(self) -> "LocationRecord":
+        self.keyed_label = self.keyed_label.strip()
+        self.parent_location_ref = self.parent_location_ref.strip()
+        self.section_ref = self.section_ref.strip()
+        self.player_arrival_summary = self.player_arrival_summary.strip()
+        for field_name in _LOCATION_REF_LIST_FIELDS:
+            setattr(self, field_name, _clean_unique_strings(getattr(self, field_name)))
+        return self
+
+
+class KeyedAreaRecord(LocationRecord):
+    """Location record for a keyed module/map area."""
+
+    record_kind: Literal["keyed_area"] = "keyed_area"
+    location_kind: Literal["keyed_area"] = "keyed_area"
+    keyed_label: str
+
+    @model_validator(mode="after")
+    def _clean_keyed_area(self) -> "KeyedAreaRecord":
+        self.keyed_label = self.keyed_label.strip()
+        if not self.keyed_label:
+            raise ValueError("keyed areas need keyed_label")
+        return self
+
+
+class RevealGraphEdge(ContentPackDomainRecord):
+    """Reveal dependency edge over authored refs."""
+
+    record_kind: Literal["reveal_edge"] = "reveal_edge"
+    from_ref: str
+    to_ref: str
+    relation: RevealRelation = "reveals"
+    trigger: str = ""
+    audience: RevealAudience = "router"
+    required: bool = True
+
+    @model_validator(mode="after")
+    def _clean_reveal_edge(self) -> "RevealGraphEdge":
+        self.from_ref = self.from_ref.strip()
+        self.to_ref = self.to_ref.strip()
+        self.trigger = self.trigger.strip()
+        return self
+
+
+class HandoutRevealBlock(BaseModel):
+    """Player-safe partial handout reveal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reveal_id: str
+    trigger: str
+    safe_text: str = ""
+    safe_asset_ids: list[str] = Field(default_factory=list)
+    audience: RevealAudience = "players"
+
+    @model_validator(mode="after")
+    def _clean(self) -> "HandoutRevealBlock":
+        self.reveal_id = self.reveal_id.strip()
+        self.trigger = self.trigger.strip()
+        self.safe_text = self.safe_text.strip()
+        self.safe_asset_ids = _clean_unique_strings(self.safe_asset_ids)
+        return self
+
+
+class HandoutRecord(ContentPackDomainRecord):
+    """Reviewed handout/document record with safe reveal projections."""
+
+    record_kind: Literal["handout"] = "handout"
+    handout_kind: HandoutKind = "document"
+    safe_asset_ids: list[str] = Field(default_factory=list)
+    player_safe_text: str = ""
+    player_safe_caption: str = ""
+    player_safe_alt_text: str = ""
+    possession_ref: str = ""
+    reading_constraints: list[str] = Field(default_factory=list)
+    partial_reveals: list[HandoutRevealBlock] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean_handout(self) -> "HandoutRecord":
+        self.safe_asset_ids = _clean_unique_strings(self.safe_asset_ids)
+        self.player_safe_text = self.player_safe_text.strip()
+        self.player_safe_caption = self.player_safe_caption.strip()
+        self.player_safe_alt_text = self.player_safe_alt_text.strip()
+        self.possession_ref = self.possession_ref.strip()
+        self.reading_constraints = _clean_unique_strings(self.reading_constraints)
+        return self
+
+
+class AdventureTableRow(BaseModel):
+    """One reviewed random/lookup table row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    row_id: str = ""
+    range_start: int | None = None
+    range_end: int | None = None
+    weight: int = 1
+    result_ref: str = ""
+    result_summary: str = ""
+    reroll: bool = False
+
+    @model_validator(mode="after")
+    def _clean(self) -> "AdventureTableRow":
+        self.row_id = self.row_id.strip()
+        self.result_ref = self.result_ref.strip()
+        self.result_summary = self.result_summary.strip()
+        self.weight = max(0, int(self.weight or 0))
+        if (
+            self.range_start is not None
+            and self.range_end is not None
+            and self.range_end < self.range_start
+        ):
+            raise ValueError("table row range_end must be >= range_start")
+        return self
+
+
+class AdventureTableRecord(ContentPackDomainRecord):
+    """Reviewed table usable by router or adapter lookup."""
+
+    record_kind: Literal["table"] = "table"
+    table_kind: AdventureTableKind = "other"
+    roll_formula: str = ""
+    rows: list[AdventureTableRow] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean_table(self) -> "AdventureTableRecord":
+        self.roll_formula = self.roll_formula.strip()
         return self
 
 
@@ -764,6 +1012,13 @@ class ContentPackDomainCatalog(BaseModel):
     schema_version: str = "content-pack-domain-v1"
     source_fingerprint: str = ""
     build_hash: str = ""
+    sections: list[ContentSectionRecord] = Field(default_factory=list)
+    spans: list[ContentSpanRecord] = Field(default_factory=list)
+    locations: list[LocationRecord] = Field(default_factory=list)
+    keyed_areas: list[KeyedAreaRecord] = Field(default_factory=list)
+    reveal_edges: list[RevealGraphEdge] = Field(default_factory=list)
+    handouts: list[HandoutRecord] = Field(default_factory=list)
+    tables: list[AdventureTableRecord] = Field(default_factory=list)
     tactical_map_templates: list[TacticalMapTemplateRecord] = Field(
         default_factory=list
     )
@@ -811,10 +1066,34 @@ class ContentPackDomainCatalog(BaseModel):
                     f"{cross_ref.target_ref}"
                 )
 
+        for edge in self.reveal_edges:
+            if edge.gate_status == "blocked":
+                continue
+            if edge.from_ref not in known_refs:
+                raise ValueError(f"reveal edge source is not authored: {edge.from_ref}")
+            if edge.to_ref not in known_refs:
+                raise ValueError(f"reveal edge target is not authored: {edge.to_ref}")
+
+        for location in [*self.locations, *self.keyed_areas]:
+            if location.gate_status == "blocked":
+                continue
+            for exit_record in location.exits:
+                if exit_record.to_ref not in known_refs:
+                    raise ValueError(
+                        f"location exit target is not authored: {exit_record.to_ref}"
+                    )
+
         return self
 
     def _domain_records(self) -> list[ContentPackDomainRecord]:
         return [
+            *self.sections,
+            *self.spans,
+            *self.locations,
+            *self.keyed_areas,
+            *self.reveal_edges,
+            *self.handouts,
+            *self.tables,
             *self.tactical_map_templates,
             *self.front_dossiers,
             *self.statblocks,
@@ -1078,6 +1357,20 @@ class SafeAssetRevealPayload(BaseModel):
     presentation: AssetPresentation = "reference"
     caption: str = ""
     alt_text: str = ""
+
+
+_LOCATION_REF_LIST_FIELDS = (
+    "clue_refs",
+    "secret_refs",
+    "trap_refs",
+    "hazard_refs",
+    "treasure_refs",
+    "encounter_template_refs",
+    "handout_refs",
+    "table_refs",
+    "map_template_refs",
+    "front_refs",
+)
 
 
 def _clean_unique_strings(values: list[str]) -> list[str]:

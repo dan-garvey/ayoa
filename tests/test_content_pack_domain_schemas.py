@@ -4,12 +4,20 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.content_pack import (
+    AdventureTableRecord,
     ContentCrossReference,
     ContentPackDomainCatalog,
+    ContentSectionRecord,
+    ContentSpanRecord,
     DndStatBlockRecord,
     EncounterTemplateRecord,
     FrontDossierRecord,
     GridRect,
+    HandoutRecord,
+    KeyedAreaRecord,
+    LocationExit,
+    LocationRecord,
+    RevealGraphEdge,
     TacticalMapFeature,
     TacticalMapTemplateRecord,
     TrapHazardRecord,
@@ -23,6 +31,13 @@ def test_domain_catalog_accepts_prioritized_module_records():
         pack_version="0.1.0",
         source_fingerprint="sha256:synthetic-redacted",
         build_hash="sha256:synthetic-build",
+        sections=[_section()],
+        spans=[_span()],
+        locations=[_location()],
+        keyed_areas=[_keyed_area()],
+        reveal_edges=[_reveal_edge()],
+        handouts=[_handout()],
+        tables=[_table()],
         tactical_map_templates=[_map_template()],
         statblocks=[_statblock()],
         trap_hazards=[_trap()],
@@ -48,6 +63,15 @@ def test_domain_catalog_accepts_prioritized_module_records():
     )
 
     assert catalog.schema_version == "content-pack-domain-v1"
+    assert catalog.sections[0].span_refs == ["span.entry.body"]
+    assert catalog.spans[0].section_ref == "sec.entry"
+    assert catalog.locations[0].exits[0].to_ref == "area.entry"
+    assert catalog.keyed_areas[0].keyed_label == "A1"
+    assert catalog.reveal_edges[0].to_ref == "handout.entry"
+    assert catalog.handouts[0].partial_reveals[0].safe_asset_ids == [
+        "asset.handout.entry"
+    ]
+    assert catalog.tables[0].rows[0].range_start == 1
     assert catalog.tactical_map_templates[0].pack_id == "synthetic-pack"
     assert catalog.statblocks[0].automation_scope == "combat"
     assert catalog.trap_hazards[0].mechanics is not None
@@ -68,6 +92,12 @@ def test_domain_records_forbid_surplus_source_or_runtime_fields():
         DndStatBlockRecord(
             **_statblock().model_dump(),
             prompt_payload={"raw_ocr": "forbidden"},
+        )
+
+    with pytest.raises(ValidationError):
+        HandoutRecord(
+            **_handout().model_dump(),
+            unsafe_delivery_ref="synthetic-unsafe-ref",
         )
 
 
@@ -146,6 +176,73 @@ def test_catalog_rejects_duplicate_refs_and_missing_required_cross_ref_targets()
     assert catalog.cross_refs[0].external is True
 
 
+def test_catalog_validates_location_and_reveal_graph_targets():
+    with pytest.raises(ValidationError, match="location exit target"):
+        ContentPackDomainCatalog(
+            pack_id="synthetic-pack",
+            locations=[
+                LocationRecord(
+                    **{
+                        **_location().model_dump(),
+                        "exits": [
+                            {
+                                "exit_id": "exit.missing",
+                                "to_ref": "area.missing",
+                            }
+                        ],
+                    }
+                )
+            ],
+        )
+
+    with pytest.raises(ValidationError, match="reveal edge target"):
+        ContentPackDomainCatalog(
+            pack_id="synthetic-pack",
+            keyed_areas=[_keyed_area()],
+            reveal_edges=[
+                RevealGraphEdge(
+                    **{
+                        **_reveal_edge().model_dump(),
+                        "from_ref": "area.entry",
+                        "to_ref": "handout.missing",
+                    }
+                )
+            ],
+        )
+
+
+def test_added_domain_schema_invariants_are_strict():
+    with pytest.raises(ValidationError, match="keyed_label"):
+        KeyedAreaRecord(
+            **{
+                **_keyed_area().model_dump(),
+                "keyed_label": " ",
+            }
+        )
+
+    with pytest.raises(ValidationError, match="reveal_trigger"):
+        LocationExit(
+            exit_id="exit.secret",
+            to_ref="area.entry",
+            secret=True,
+        )
+
+    with pytest.raises(ValidationError, match="range_end"):
+        AdventureTableRecord(
+            **{
+                **_table().model_dump(),
+                "rows": [
+                    {
+                        "row_id": "row.bad",
+                        "range_start": 6,
+                        "range_end": 1,
+                        "result_summary": "Bad synthetic range.",
+                    }
+                ],
+            }
+        )
+
+
 def test_adapter_schema_guards_combat_and_tactical_map_invariants():
     with pytest.raises(ValidationError, match="at least one action"):
         DndStatBlockRecord(
@@ -164,6 +261,165 @@ def test_adapter_schema_guards_combat_and_tactical_map_invariants():
 
     with pytest.raises(ValidationError, match="width must be positive"):
         GridRect(x=0, y=0, width=0, height=2)
+
+
+def _section() -> ContentSectionRecord:
+    return ContentSectionRecord(
+        ref="sec.entry",
+        content_hash="hash-sec-entry",
+        title="Synthetic Entry Section",
+        summary="Reviewed section boundary for synthetic entry records.",
+        confidence=0.98,
+        review_status="approved",
+        gate_status="runtime_ready",
+        section_kind="section",
+        page_refs=["page.001", "page.001"],
+        span_refs=["span.entry.body"],
+    )
+
+
+def _span() -> ContentSpanRecord:
+    return ContentSpanRecord(
+        ref="span.entry.body",
+        content_hash="hash-span-entry-body",
+        title="Synthetic Entry Span",
+        summary="Reviewed span pointer with redacted summary.",
+        confidence=0.94,
+        review_status="approved",
+        gate_status="runtime_ready",
+        section_ref="sec.entry",
+        page_id="page.001",
+        source_span_id="span.private.001",
+        span_role="body",
+        ordinal=1,
+        bbox=[0.1, 0.2, 0.8, 0.4],
+        redacted_summary="Synthetic redacted span summary.",
+    )
+
+
+def _location() -> LocationRecord:
+    return LocationRecord(
+        ref="loc.entry",
+        content_hash="hash-loc-entry",
+        title="Synthetic Entry Location",
+        summary="A reviewed synthetic approach location.",
+        confidence=0.96,
+        review_status="approved",
+        gate_status="runtime_ready",
+        location_kind="site",
+        section_ref="sec.entry",
+        player_arrival_summary="A safe paraphrased arrival summary.",
+        exits=[
+            {
+                "exit_id": "exit.to_area",
+                "to_ref": "area.entry",
+                "label": "entry door",
+                "requirements": ["door accessible", "door accessible"],
+            }
+        ],
+        handout_refs=["handout.entry"],
+        table_refs=["table.entry"],
+        map_template_refs=["map.entry"],
+        front_refs=["front.clock"],
+    )
+
+
+def _keyed_area() -> KeyedAreaRecord:
+    return KeyedAreaRecord(
+        ref="area.entry",
+        content_hash="hash-area-entry",
+        title="Synthetic Keyed Area",
+        summary="A reviewed synthetic keyed area.",
+        confidence=0.97,
+        review_status="approved",
+        gate_status="runtime_ready",
+        keyed_label="A1",
+        parent_location_ref="loc.entry",
+        section_ref="sec.entry",
+        trap_refs=["trap.floor"],
+        treasure_refs=["treasure.cache"],
+        encounter_template_refs=["enc.entry"],
+        exits=[
+            {
+                "exit_id": "exit.back",
+                "to_ref": "loc.entry",
+                "label": "back to approach",
+            }
+        ],
+    )
+
+
+def _reveal_edge() -> RevealGraphEdge:
+    return RevealGraphEdge(
+        ref="reveal.entry.handout",
+        content_hash="hash-reveal-entry-handout",
+        title="Synthetic reveal edge",
+        summary="A synthetic reveal edge from area to handout.",
+        confidence=0.95,
+        review_status="approved",
+        gate_status="runtime_ready",
+        from_ref="area.entry",
+        to_ref="handout.entry",
+        relation="reveals",
+        trigger="A character searches the synthetic cache.",
+        audience="players",
+    )
+
+
+def _handout() -> HandoutRecord:
+    return HandoutRecord(
+        ref="handout.entry",
+        content_hash="hash-handout-entry",
+        title="Synthetic Handout",
+        summary="A reviewed synthetic handout.",
+        confidence=0.94,
+        review_status="approved",
+        gate_status="runtime_ready",
+        handout_kind="document",
+        safe_asset_ids=["asset.handout.entry", "asset.handout.entry"],
+        player_safe_text="Player-safe synthetic handout text.",
+        player_safe_caption="A safe synthetic caption.",
+        player_safe_alt_text="A safe synthetic alt text.",
+        possession_ref="treasure.cache",
+        reading_constraints=["must hold the handout", "must hold the handout"],
+        partial_reveals=[
+            {
+                "reveal_id": "reveal.safe.asset",
+                "trigger": "The handout is opened.",
+                "safe_text": "A safe partial reveal.",
+                "safe_asset_ids": ["asset.handout.entry"],
+            }
+        ],
+    )
+
+
+def _table() -> AdventureTableRecord:
+    return AdventureTableRecord(
+        ref="table.entry",
+        content_hash="hash-table-entry",
+        title="Synthetic Entry Table",
+        summary="A reviewed synthetic lookup table.",
+        confidence=0.93,
+        review_status="approved",
+        gate_status="runtime_ready",
+        table_kind="random_encounter",
+        roll_formula="1d6",
+        rows=[
+            {
+                "row_id": "row.1",
+                "range_start": 1,
+                "range_end": 3,
+                "result_ref": "enc.entry",
+                "result_summary": "Use the synthetic entry encounter.",
+            },
+            {
+                "row_id": "row.2",
+                "range_start": 4,
+                "range_end": 6,
+                "result_summary": "No synthetic encounter.",
+            },
+        ],
+    )
 
 
 def _map_template() -> TacticalMapTemplateRecord:
