@@ -65,6 +65,18 @@ def test_compiled_pack_writer_persists_inventory_cards_provenance_and_manifest(
                         "human_review_status": "approved",
                     }
                 ],
+                "field_provenance": {
+                    "summary": [
+                        {
+                            "source_asset_id": "src-page-001",
+                            "page_id": "page-001",
+                            "span_id": "span-summary",
+                            "method": "human-review",
+                            "confidence": 0.99,
+                            "human_review_status": "approved",
+                        }
+                    ]
+                },
             }
         ],
         aliases=[
@@ -99,6 +111,7 @@ def test_compiled_pack_writer_persists_inventory_cards_provenance_and_manifest(
     assert cards[0].ref == "area.entry"
     assert cards[0].gate_status == "runtime_ready"
     assert cards[0].provenance[0].source_asset_id == "src-page-001"
+    assert cards[0].field_provenance["summary"][0].span_id == "span-summary"
 
     with sqlite3.connect(db_path) as conn:
         tables = {
@@ -112,9 +125,15 @@ def test_compiled_pack_writer_persists_inventory_cards_provenance_and_manifest(
         "page_inventory",
         "content_cards",
         "card_provenance",
+        "card_field_provenance",
         "content_aliases",
         "coverage_manifest",
     } <= tables
+    with sqlite3.connect(db_path) as conn:
+        field_rows = conn.execute(
+            "SELECT field_name, span_id FROM card_field_provenance"
+        ).fetchall()
+    assert field_rows == [("summary", "span-summary")]
 
 
 def test_coverage_gates_block_low_confidence_and_high_spoiler_runtime_cards(
@@ -200,6 +219,101 @@ def test_high_spoiler_with_reviewed_reveal_trigger_can_pass_gate():
     assert gate.status == "runtime_ready"
     assert gate.allowed is True
     assert gate.reasons == []
+
+
+def test_coverage_manifest_reports_expected_domains_and_blocking_issues(tmp_path):
+    db_path = tmp_path / "synthetic_pack.sqlite"
+    writer = CompiledContentPackWriter(db_path, pack_id="synthetic")
+
+    manifest = writer.write_pack(
+        pages=[
+            {
+                "page_id": "page-001",
+                "source_asset_id": "src-page-001",
+                "review_status": "approved",
+            }
+        ],
+        cards=[
+            {
+                "ref": "area.entry",
+                "card_kind": "keyed_area",
+                "summary": "Reviewed keyed area.",
+                "body": "Synthetic redacted text.",
+                "confidence": 0.90,
+                "review_status": "approved",
+                "metadata": {"domain": "keyed_areas"},
+            },
+            {
+                "ref": "front.strahd",
+                "card_kind": "front_dossier",
+                "summary": "Reviewed front dossier.",
+                "body": "Synthetic redacted text.",
+                "confidence": 0.90,
+                "review_status": "approved",
+                "metadata": {"domain": "fronts"},
+            },
+        ],
+        expected_domain_counts={
+            "sections": 1,
+            "keyed_areas": 2,
+            "maps": 1,
+            "tables": 1,
+            "statblocks": 1,
+            "traps": 1,
+            "loot": 1,
+            "handouts": 1,
+            "fronts": 1,
+        },
+        coverage_issues=[
+            {
+                "issue_kind": "unresolved_ref",
+                "domain": "keyed_areas",
+                "ref": "area.entry",
+                "target_ref": "area.missing",
+                "message": "Synthetic missing exit.",
+            },
+            {
+                "issue_kind": "malformed_table",
+                "domain": "tables",
+                "ref": "table.bad",
+                "severity": "warning",
+                "message": "Synthetic table row has a bad range.",
+            },
+            {
+                "issue_kind": "blocked_section",
+                "domain": "sections",
+                "ref": "sec.blocked",
+                "message": "Synthetic blocked section.",
+            },
+            {
+                "issue_kind": "invalid_statblock",
+                "domain": "statblocks",
+                "ref": "stat.bad",
+                "message": "Synthetic statblock lacks actions.",
+            },
+            {
+                "issue_kind": "unreviewed_topology",
+                "domain": "maps",
+                "ref": "map.unreviewed",
+                "message": "Synthetic map topology is unreviewed.",
+            },
+        ],
+    )
+
+    assert manifest.domain_coverage["keyed_areas"].expected_count == 2
+    assert manifest.domain_coverage["keyed_areas"].found_count == 1
+    assert manifest.domain_coverage["keyed_areas"].missing_count == 1
+    assert manifest.domain_coverage["fronts"].ready_count == 1
+    assert manifest.domain_coverage["tables"].warning_count == 1
+    assert manifest.domain_coverage["sections"].blocking_issue_count == 1
+    assert manifest.unresolved_ref_count == 1
+    assert manifest.malformed_table_count == 1
+    assert manifest.blocked_section_count == 1
+    assert manifest.invalid_statblock_count == 1
+    assert manifest.unreviewed_topology_count == 1
+    assert "blocking_coverage_issues_present" in manifest.warnings
+
+    assert CompiledContentPackReader(db_path).manifest() == manifest
 
 
 def test_compiler_defaults_are_private_and_sanitize_forbidden_source_material(

@@ -15,6 +15,17 @@ ReviewStatus = Literal[
 ]
 SpoilerClass = Literal["none", "low", "moderate", "high"]
 CoverageGateStatus = Literal["runtime_ready", "flagged", "blocked"]
+CoverageIssueKind = Literal[
+    "missing_expected_domain_records",
+    "unresolved_ref",
+    "high_spoiler_trigger_gap",
+    "malformed_table",
+    "unreviewed_topology",
+    "invalid_statblock",
+    "blocked_section",
+    "blocked_record",
+]
+CoverageIssueSeverity = Literal["warning", "blocker"]
 AssetRevealAudience = Literal["all_observers", "only"]
 AssetPresentation = Literal["inline", "attachment", "reference", "map_overlay"]
 ContentVisibility = Literal[
@@ -160,6 +171,7 @@ class ContentPackDomainRecord(BaseModel):
     gate_status: CoverageGateStatus = "flagged"
     gate_reasons: list[str] = Field(default_factory=list)
     provenance: list[ContentProvenance] = Field(default_factory=list)
+    field_provenance: dict[str, list[ContentProvenance]] = Field(default_factory=dict)
     coverage_notes: str = ""
 
     @model_validator(mode="after")
@@ -175,6 +187,7 @@ class ContentPackDomainRecord(BaseModel):
         self.coverage_notes = self.coverage_notes.strip()
         self.confidence = _clamp_confidence(self.confidence)
         self.gate_reasons = _clean_unique_strings(self.gate_reasons)
+        self.field_provenance = _clean_field_provenance(self.field_provenance)
         if self.gate_status == "runtime_ready" and not self.content_hash:
             raise ValueError("runtime_ready records need content_hash")
         if self.gate_status == "runtime_ready" and self.review_status not in {
@@ -705,10 +718,14 @@ class FrontActionPaletteEntry(BaseModel):
 
     action_id: str
     action_kind: FrontActionKind
+    priority: int = 0
     trigger: str = ""
     cooldown: str = ""
     target_scope: str = ""
     summary: str = ""
+    resource_refs: list[str] = Field(default_factory=list)
+    minion_refs: list[str] = Field(default_factory=list)
+    restraints: list[str] = Field(default_factory=list)
     consequence_refs: list[str] = Field(default_factory=list)
     encounter_template_refs: list[str] = Field(default_factory=list)
     statblock_refs: list[str] = Field(default_factory=list)
@@ -716,10 +733,14 @@ class FrontActionPaletteEntry(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "FrontActionPaletteEntry":
         self.action_id = self.action_id.strip()
+        self.priority = max(0, int(self.priority or 0))
         self.trigger = self.trigger.strip()
         self.cooldown = self.cooldown.strip()
         self.target_scope = self.target_scope.strip()
         self.summary = self.summary.strip()
+        self.resource_refs = _clean_unique_strings(self.resource_refs)
+        self.minion_refs = _clean_unique_strings(self.minion_refs)
+        self.restraints = _clean_unique_strings(self.restraints)
         self.consequence_refs = _clean_unique_strings(self.consequence_refs)
         self.encounter_template_refs = _clean_unique_strings(
             self.encounter_template_refs
@@ -735,11 +756,16 @@ class FrontDossierRecord(ContentPackDomainRecord):
     villain_refs: list[str] = Field(default_factory=list)
     goals: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
+    knowledge_channels: list[str] = Field(default_factory=list)
     resources: list[str] = Field(default_factory=list)
+    minion_refs: list[str] = Field(default_factory=list)
     domain_refs: list[str] = Field(default_factory=list)
     initial_knowledge: list[str] = Field(default_factory=list)
     knowledge_rules: list[FrontKnowledgeRule] = Field(default_factory=list)
     clocks: list[FrontClock] = Field(default_factory=list)
+    escalation_thresholds: list[str] = Field(default_factory=list)
+    cooldowns: list[str] = Field(default_factory=list)
+    restraints: list[str] = Field(default_factory=list)
     action_palette: list[FrontActionPaletteEntry] = Field(default_factory=list)
     foreshadowing_refs: list[str] = Field(default_factory=list)
     hard_spoiler_boundaries: list[str] = Field(default_factory=list)
@@ -750,9 +776,14 @@ class FrontDossierRecord(ContentPackDomainRecord):
             "villain_refs",
             "goals",
             "constraints",
+            "knowledge_channels",
             "resources",
+            "minion_refs",
             "domain_refs",
             "initial_knowledge",
+            "escalation_thresholds",
+            "cooldowns",
+            "restraints",
             "foreshadowing_refs",
             "hard_spoiler_boundaries",
         ):
@@ -1306,6 +1337,7 @@ class CompiledContentCard(BaseModel):
     gate_reasons: list[str] = Field(default_factory=list)
     aliases: list[str] = Field(default_factory=list)
     provenance: list[ContentProvenance] = Field(default_factory=list)
+    field_provenance: dict[str, list[ContentProvenance]] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -1330,6 +1362,7 @@ class CompiledContentCard(BaseModel):
             for alias in dict.fromkeys(self.aliases)
             if alias.strip()
         ]
+        self.field_provenance = _clean_field_provenance(self.field_provenance)
         return self
 
 
@@ -1365,6 +1398,60 @@ class CoverageGateResult(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
+class CoverageDomainReport(BaseModel):
+    """Expected-vs-found coverage for one module import domain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    domain: str
+    expected_count: int = 0
+    found_count: int = 0
+    ready_count: int = 0
+    flagged_count: int = 0
+    blocked_count: int = 0
+    missing_count: int = 0
+    warning_count: int = 0
+    blocking_issue_count: int = 0
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CoverageDomainReport":
+        self.domain = self.domain.strip()
+        for field_name in (
+            "expected_count",
+            "found_count",
+            "ready_count",
+            "flagged_count",
+            "blocked_count",
+            "missing_count",
+            "warning_count",
+            "blocking_issue_count",
+        ):
+            if getattr(self, field_name) < 0:
+                setattr(self, field_name, 0)
+        return self
+
+
+class CoverageBlockingIssue(BaseModel):
+    """Manifest issue that blocks or warns on unsafe/incomplete runtime material."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    issue_kind: CoverageIssueKind
+    domain: str = ""
+    ref: str = ""
+    target_ref: str = ""
+    severity: CoverageIssueSeverity = "blocker"
+    message: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "CoverageBlockingIssue":
+        self.domain = self.domain.strip()
+        self.ref = self.ref.strip()
+        self.target_ref = self.target_ref.strip()
+        self.message = self.message.strip()
+        return self
+
+
 class CoverageManifest(BaseModel):
     """Pack-level import coverage summary persisted beside compiled records."""
 
@@ -1384,6 +1471,14 @@ class CoverageManifest(BaseModel):
     blocked_count: int = 0
     low_confidence_count: int = 0
     high_spoiler_count: int = 0
+    unresolved_ref_count: int = 0
+    high_spoiler_trigger_gap_count: int = 0
+    malformed_table_count: int = 0
+    unreviewed_topology_count: int = 0
+    invalid_statblock_count: int = 0
+    blocked_section_count: int = 0
+    domain_coverage: dict[str, CoverageDomainReport] = Field(default_factory=dict)
+    blocking_issues: list[CoverageBlockingIssue] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -1408,9 +1503,26 @@ class CoverageManifest(BaseModel):
             "blocked_count",
             "low_confidence_count",
             "high_spoiler_count",
+            "unresolved_ref_count",
+            "high_spoiler_trigger_gap_count",
+            "malformed_table_count",
+            "unreviewed_topology_count",
+            "invalid_statblock_count",
+            "blocked_section_count",
         ):
             if getattr(self, field_name) < 0:
                 setattr(self, field_name, 0)
+        self.domain_coverage = {
+            key.strip(): (
+                report
+                if report.domain
+                else CoverageDomainReport(
+                    **{**report.model_dump(), "domain": key.strip()}
+                )
+            )
+            for key, report in self.domain_coverage.items()
+            if key.strip()
+        }
         return self
 
 
@@ -1522,6 +1634,26 @@ _LOCATION_REF_LIST_FIELDS = (
 
 def _clean_unique_strings(values: list[str]) -> list[str]:
     return [value for value in dict.fromkeys(item.strip() for item in values) if value]
+
+
+def _clean_field_provenance(
+    value: dict[str, list[ContentProvenance]],
+) -> dict[str, list[ContentProvenance]]:
+    cleaned: dict[str, list[ContentProvenance]] = {}
+    for raw_field_name, raw_provenance in value.items():
+        field_name = str(raw_field_name or "").strip()
+        if not field_name:
+            continue
+        provenance: list[ContentProvenance] = []
+        for item in raw_provenance or ():
+            provenance.append(
+                item
+                if isinstance(item, ContentProvenance)
+                else ContentProvenance(**item)
+            )
+        if provenance:
+            cleaned[field_name] = provenance
+    return cleaned
 
 
 def _positive_int(value: int, field_name: str) -> int:

@@ -9,6 +9,8 @@ REDACTED_IMPORT_SENTINEL = "[redacted private module material]"
 PRIVATE_RUNTIME_METADATA_CONTEXT = "include_private_runtime_metadata"
 
 FORBIDDEN_MODULE_METADATA_KEYS = {
+    "action_palette",
+    "actions",
     "asset_cache_root",
     "asset_cache_roots",
     "asset_media_root",
@@ -16,22 +18,41 @@ FORBIDDEN_MODULE_METADATA_KEYS = {
     "cache_root",
     "cache_roots",
     "content_db_path",
+    "cooldowns",
+    "constraints",
     "db_path",
     "delivery_ref",
     "dm_notes",
+    "escalation_thresholds",
     "file_path",
+    "front_dossier_records",
+    "front_dossiers",
+    "front_resources",
+    "goals",
     "hidden_labels",
+    "hidden_plans",
+    "hidden_resources",
+    "imported_front_dossiers",
+    "imported_fronts",
+    "knowledge_channels",
+    "knows",
     "local_path",
     "media_root",
     "media_roots",
+    "minion_refs",
+    "minions",
     "pack_path",
     "path",
     "player_display_payload",
+    "pressure",
     "protected_excerpt",
     "raw_bytes",
     "raw_ocr",
     "raw_source_path",
     "raw_text",
+    "resources",
+    "restraints",
+    "villains",
     "sqlite_path",
     "source_path",
     "source_ref",
@@ -92,6 +113,11 @@ def sanitize_player_safe_text(
 
 
 def sanitize_module_metadata(value: Any) -> Any:
+    if hasattr(value, "model_dump") and callable(value.model_dump):
+        try:
+            return sanitize_module_metadata(value.model_dump(mode="json"))
+        except TypeError:
+            return sanitize_module_metadata(value.model_dump())
     if isinstance(value, Mapping):
         sanitized: dict[str, Any] = {}
         for key, item in value.items():

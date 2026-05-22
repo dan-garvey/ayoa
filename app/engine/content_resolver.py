@@ -81,6 +81,17 @@ def format_front_signal_record(
         ("knows", "knows"),
         ("pressure", "pressure"),
         ("summary", "summary"),
+        ("villains", "villains"),
+        ("goals", "goals"),
+        ("constraints", "constraints"),
+        ("knowledge_channels", "knowledge_channels"),
+        ("resources", "resources"),
+        ("minions", "minions"),
+        ("minion_refs", "minions"),
+        ("escalation_thresholds", "escalation_thresholds"),
+        ("cooldowns", "cooldowns"),
+        ("restraints", "restraints"),
+        ("actions", "actions"),
     ):
         value = _value(signal, source)
         if value not in (None, "", [], ()):
@@ -88,7 +99,26 @@ def format_front_signal_record(
     return _format_record(
         "front_signal",
         fields,
-        ("ref", "actor", "knows", "pressure", "visibility", "hash", "pack", "summary"),
+        (
+            "ref",
+            "actor",
+            "villains",
+            "knows",
+            "pressure",
+            "visibility",
+            "hash",
+            "pack",
+            "summary",
+            "goals",
+            "constraints",
+            "knowledge_channels",
+            "resources",
+            "minions",
+            "escalation_thresholds",
+            "cooldowns",
+            "restraints",
+            "actions",
+        ),
     )
 
 
@@ -401,16 +431,42 @@ def _format_record(
 
 def _format_value(value: Any) -> str:
     if isinstance(value, (list, tuple, set, frozenset)):
+        if any(isinstance(item, Mapping) for item in value):
+            json_ready = [
+                _json_ready(item)
+                for item in value
+                if _json_ready(item) not in (None, "", [], {})
+            ]
+            return json.dumps(json_ready, ensure_ascii=True, separators=(",", ":"))
         values = [_normalized_text(item) for item in value if _normalized_text(item)]
         if not values:
             return "[]"
         if all(_TOKEN_RE.match(item) for item in values):
             return ",".join(values)
         return json.dumps(values, ensure_ascii=True, separators=(",", ":"))
+    if isinstance(value, Mapping):
+        return json.dumps(_json_ready(value), ensure_ascii=True, separators=(",", ":"))
     text = _normalized_text(value)
     if _TOKEN_RE.match(text):
         return text
     return json.dumps(text, ensure_ascii=True, separators=(",", ":"))
+
+
+def _json_ready(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            _normalized_text(key): _json_ready(item)
+            for key, item in value.items()
+            if _normalized_text(key)
+            and _json_ready(item) not in (None, "", [], {})
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [
+            ready
+            for item in value
+            if (ready := _json_ready(item)) not in (None, "", [], {})
+        ]
+    return _normalized_text(value)
 
 
 def _value(record: Any, key: str, default: Any = None) -> Any:
@@ -425,6 +481,9 @@ def _value(record: Any, key: str, default: Any = None) -> Any:
         return default
     if hasattr(record, key):
         return getattr(record, key)
+    metadata = getattr(record, "metadata", None)
+    if isinstance(metadata, Mapping) and key in metadata:
+        return metadata.get(key, default)
     if hasattr(record, "model_dump"):
         dumped = record.model_dump()
         if isinstance(dumped, Mapping):
@@ -433,9 +492,6 @@ def _value(record: Any, key: str, default: Any = None) -> Any:
             metadata = dumped.get("metadata")
             if isinstance(metadata, Mapping) and key in metadata:
                 return metadata.get(key, default)
-    metadata = getattr(record, "metadata", None)
-    if isinstance(metadata, Mapping) and key in metadata:
-        return metadata.get(key, default)
     return default
 
 

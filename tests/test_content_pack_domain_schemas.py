@@ -86,6 +86,9 @@ def test_domain_catalog_accepts_prioritized_module_records():
         "The entry alarm draws a patrol."
     ]
     assert catalog.treasures[0].items[0].name == "Synthetic key"
+    assert catalog.treasures[0].field_provenance["summary"][0].span_id == (
+        "span.treasure.summary"
+    )
     assert catalog.encounter_templates[0].participants[0].statblock_ref == (
         "stat.guardian"
     )
@@ -615,6 +618,18 @@ def _treasure() -> TreasureRecord:
         confidence=0.95,
         review_status="approved",
         gate_status="runtime_ready",
+        field_provenance={
+            "summary": [
+                {
+                    "source_asset_id": "asset.page.001",
+                    "page_id": "page.001",
+                    "span_id": "span.treasure.summary",
+                    "method": "human-review",
+                    "confidence": 0.97,
+                    "human_review_status": "approved",
+                }
+            ]
+        },
         container_ref="loc.entry.cache",
         depletion_ref="depleted.treasure.cache",
         currency=[{"denomination": "gp", "amount": 12}],

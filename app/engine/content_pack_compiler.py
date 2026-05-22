@@ -13,6 +13,8 @@ from app.schemas.content_pack import (
     CompiledContentCard,
     ContentAliasRecord,
     ContentProvenance,
+    CoverageBlockingIssue,
+    CoverageDomainReport,
     CoverageGateResult,
     CoverageManifest,
     PageInventoryRecord,
@@ -126,6 +128,8 @@ class CompiledContentPackWriter:
         pages: Iterable[PageInventoryRecord | Mapping[str, Any]],
         cards: Iterable[CompiledContentCard | Mapping[str, Any]],
         aliases: Iterable[ContentAliasRecord | Mapping[str, Any]] = (),
+        expected_domain_counts: Mapping[str, int] | None = None,
+        coverage_issues: Iterable[CoverageBlockingIssue | Mapping[str, Any]] = (),
         source_page_count: int | None = None,
     ) -> CoverageManifest:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +144,10 @@ class CompiledContentPackWriter:
             page_records,
             card_records,
             alias_records,
+            expected_domain_counts=expected_domain_counts or {},
+            coverage_issues=[
+                _coerce_coverage_issue(issue) for issue in coverage_issues
+            ],
             source_page_count=source_page_count,
         )
 
@@ -179,6 +187,8 @@ class CompiledContentPackWriter:
         cards: Sequence[CompiledContentCard],
         aliases: Sequence[ContentAliasRecord],
         *,
+        expected_domain_counts: Mapping[str, int],
+        coverage_issues: Sequence[CoverageBlockingIssue],
         source_page_count: int | None,
     ) -> CoverageManifest:
         warnings: list[str] = []
@@ -201,6 +211,21 @@ class CompiledContentPackWriter:
             warnings.append("low_confidence_records_present")
         if high_spoiler:
             warnings.append("high_spoiler_records_present")
+        domain_coverage = _domain_coverage(
+            cards,
+            expected_domain_counts=expected_domain_counts,
+            issues=coverage_issues,
+        )
+        blocking_issues = [
+            issue for issue in coverage_issues if issue.severity == "blocker"
+        ]
+        warning_issues = [
+            issue for issue in coverage_issues if issue.severity == "warning"
+        ]
+        if blocking_issues:
+            warnings.append("blocking_coverage_issues_present")
+        if warning_issues:
+            warnings.append("warning_coverage_issues_present")
         return CoverageManifest(
             pack_id=self.pack_id,
             pack_version=self.pack_version,
@@ -216,6 +241,20 @@ class CompiledContentPackWriter:
             blocked_count=blocked,
             low_confidence_count=low_confidence,
             high_spoiler_count=high_spoiler,
+            unresolved_ref_count=_issue_count(coverage_issues, "unresolved_ref"),
+            high_spoiler_trigger_gap_count=_issue_count(
+                coverage_issues,
+                "high_spoiler_trigger_gap",
+            ),
+            malformed_table_count=_issue_count(coverage_issues, "malformed_table"),
+            unreviewed_topology_count=_issue_count(
+                coverage_issues,
+                "unreviewed_topology",
+            ),
+            invalid_statblock_count=_issue_count(coverage_issues, "invalid_statblock"),
+            blocked_section_count=_issue_count(coverage_issues, "blocked_section"),
+            domain_coverage=domain_coverage,
+            blocking_issues=list(coverage_issues),
             warnings=warnings,
         )
 
@@ -273,9 +312,9 @@ class CompiledContentPackWriter:
                 pack_id, ref, content_hash, kind, card_kind, visibility,
                 title, summary, body, spoiler_class, reveal_trigger,
                 confidence, review_status, gate_status, gate_reasons_json,
-                provenance_json, metadata_json
+                provenance_json, field_provenance_json, metadata_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 self.pack_id,
@@ -297,11 +336,23 @@ class CompiledContentPackWriter:
                     [item.model_dump(mode="json") for item in card.provenance],
                     sort_keys=True,
                 ),
+                json.dumps(
+                    {
+                        field_name: [
+                            item.model_dump(mode="json") for item in provenance
+                        ]
+                        for field_name, provenance in card.field_provenance.items()
+                    },
+                    sort_keys=True,
+                ),
                 json.dumps(card.metadata, sort_keys=True),
             ),
         )
         for provenance in card.provenance:
             self._write_provenance(conn, card.ref, provenance)
+        for field_name, provenance_items in card.field_provenance.items():
+            for provenance in provenance_items:
+                self._write_field_provenance(conn, card.ref, field_name, provenance)
 
     def _write_provenance(
         self,
@@ -321,6 +372,39 @@ class CompiledContentPackWriter:
             (
                 self.pack_id,
                 ref,
+                provenance.source_asset_id,
+                provenance.page_id,
+                provenance.span_id,
+                provenance.image_id,
+                json.dumps(provenance.bbox, sort_keys=True),
+                provenance.section_id,
+                provenance.method,
+                provenance.confidence,
+                provenance.importer_version,
+                provenance.human_review_status,
+            ),
+        )
+
+    def _write_field_provenance(
+        self,
+        conn: sqlite3.Connection,
+        ref: str,
+        field_name: str,
+        provenance: ContentProvenance,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO card_field_provenance (
+                pack_id, ref, field_name, source_asset_id, page_id, span_id, image_id,
+                bbox_json, section_id, method, confidence, importer_version,
+                human_review_status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self.pack_id,
+                ref,
+                field_name,
                 provenance.source_asset_id,
                 provenance.page_id,
                 provenance.span_id,
@@ -514,12 +598,28 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             gate_status TEXT NOT NULL,
             gate_reasons_json TEXT NOT NULL,
             provenance_json TEXT NOT NULL,
+            field_provenance_json TEXT NOT NULL,
             metadata_json TEXT NOT NULL,
             PRIMARY KEY (pack_id, ref)
         );
         CREATE TABLE IF NOT EXISTS card_provenance (
             pack_id TEXT NOT NULL,
             ref TEXT NOT NULL,
+            source_asset_id TEXT NOT NULL,
+            page_id TEXT NOT NULL,
+            span_id TEXT NOT NULL,
+            image_id TEXT NOT NULL,
+            bbox_json TEXT NOT NULL,
+            section_id TEXT NOT NULL,
+            method TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            importer_version TEXT NOT NULL,
+            human_review_status TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS card_field_provenance (
+            pack_id TEXT NOT NULL,
+            ref TEXT NOT NULL,
+            field_name TEXT NOT NULL,
             source_asset_id TEXT NOT NULL,
             page_id TEXT NOT NULL,
             span_id TEXT NOT NULL,
@@ -554,6 +654,7 @@ def _replace_pack(conn: sqlite3.Connection, pack_id: str) -> None:
         "page_inventory",
         "content_cards",
         "card_provenance",
+        "card_field_provenance",
         "content_aliases",
         "coverage_manifest",
     ):
@@ -599,6 +700,14 @@ def _coerce_alias(
     return ContentAliasRecord(**values)
 
 
+def _coerce_coverage_issue(
+    issue: CoverageBlockingIssue | Mapping[str, Any],
+) -> CoverageBlockingIssue:
+    if isinstance(issue, CoverageBlockingIssue):
+        return issue
+    return CoverageBlockingIssue(**dict(issue))
+
+
 def _dedupe_aliases(aliases: Iterable[ContentAliasRecord]) -> list[ContentAliasRecord]:
     seen: set[tuple[str, str, str]] = set()
     deduped: list[ContentAliasRecord] = []
@@ -609,6 +718,82 @@ def _dedupe_aliases(aliases: Iterable[ContentAliasRecord]) -> list[ContentAliasR
         seen.add(key)
         deduped.append(alias)
     return deduped
+
+
+def _domain_coverage(
+    cards: Sequence[CompiledContentCard],
+    *,
+    expected_domain_counts: Mapping[str, int],
+    issues: Sequence[CoverageBlockingIssue],
+) -> dict[str, CoverageDomainReport]:
+    domains = {
+        str(domain).strip()
+        for domain in expected_domain_counts
+        if str(domain).strip()
+    }
+    domains.update(_card_domain(card) for card in cards)
+    domains.update(issue.domain for issue in issues if issue.domain)
+    reports: dict[str, CoverageDomainReport] = {}
+    for domain in sorted(domains):
+        domain_cards = [card for card in cards if _card_domain(card) == domain]
+        domain_issues = [issue for issue in issues if issue.domain == domain]
+        expected = max(0, int(expected_domain_counts.get(domain, 0) or 0))
+        found = len(domain_cards)
+        reports[domain] = CoverageDomainReport(
+            domain=domain,
+            expected_count=expected,
+            found_count=found,
+            ready_count=sum(
+                1 for card in domain_cards if card.gate_status == "runtime_ready"
+            ),
+            flagged_count=sum(
+                1 for card in domain_cards if card.gate_status == "flagged"
+            ),
+            blocked_count=sum(
+                1 for card in domain_cards if card.gate_status == "blocked"
+            ),
+            missing_count=max(0, expected - found),
+            warning_count=sum(
+                1 for issue in domain_issues if issue.severity == "warning"
+            ),
+            blocking_issue_count=sum(
+                1 for issue in domain_issues if issue.severity == "blocker"
+            ),
+        )
+    return reports
+
+
+def _issue_count(
+    issues: Sequence[CoverageBlockingIssue],
+    issue_kind: str,
+) -> int:
+    return sum(1 for issue in issues if issue.issue_kind == issue_kind)
+
+
+def _card_domain(card: CompiledContentCard) -> str:
+    metadata_domain = (
+        card.metadata.get("domain") if isinstance(card.metadata, Mapping) else ""
+    )
+    if metadata_domain:
+        return str(metadata_domain).strip()
+    kind = card.card_kind.strip().lower()
+    return {
+        "location_card": "locations",
+        "keyed_area": "keyed_areas",
+        "map": "maps",
+        "tactical_map_template": "maps",
+        "table": "tables",
+        "adventure_table": "tables",
+        "statblock": "statblocks",
+        "dnd_statblock": "statblocks",
+        "trap": "traps",
+        "trap_hazard": "traps",
+        "treasure": "loot",
+        "handout": "handouts",
+        "front_signal": "fronts",
+        "front_dossier": "fronts",
+        "section": "sections",
+    }.get(kind, kind or "content")
 
 
 def _content_hash(card: CompiledContentCard) -> str:
@@ -709,6 +894,17 @@ def _card_from_row(row: sqlite3.Row) -> CompiledContentCard:
         for item in _json_list(row["provenance_json"])
         if isinstance(item, Mapping)
     ]
+    field_provenance = {
+        str(field_name): [
+            ContentProvenance(**item)
+            for item in provenance_items
+            if isinstance(item, Mapping)
+        ]
+        for field_name, provenance_items in _json_mapping(
+            _row_value(row, "field_provenance_json", "{}")
+        ).items()
+        if isinstance(provenance_items, list)
+    }
     metadata = _json_mapping(row["metadata_json"])
     gate_reasons = [
         str(item) for item in _json_list(row["gate_reasons_json"]) if str(item)
@@ -729,8 +925,13 @@ def _card_from_row(row: sqlite3.Row) -> CompiledContentCard:
         gate_status=row["gate_status"],
         gate_reasons=gate_reasons,
         provenance=provenance,
+        field_provenance=field_provenance,
         metadata=dict(metadata),
     )
+
+
+def _row_value(row: sqlite3.Row, key: str, default: Any = None) -> Any:
+    return row[key] if key in row.keys() else default
 
 
 def _json_list(value: str) -> list[Any]:
