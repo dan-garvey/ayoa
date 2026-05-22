@@ -48,6 +48,7 @@ def test_content_overlay_round_trips_through_checkpoint_dump() -> None:
                         content_hash="sha256:trap",
                         revealed=True,
                         sprung=True,
+                        depleted=True,
                     )
                 },
                 treasures={
@@ -143,6 +144,7 @@ def test_content_overlay_round_trips_through_checkpoint_dump() -> None:
     assert sorted(overlay.locations) == ["location/chapel::sha256:loc"]
     assert overlay.doors["door/north::sha256:door"].opened is True
     assert overlay.traps["trap/pit::sha256:trap"].sprung is True
+    assert overlay.traps["trap/pit::sha256:trap"].depleted is True
     assert overlay.treasures["treasure/altar::sha256:loot"].claimed_ref_ids == [
         "item/gem",
         "coin/cache",

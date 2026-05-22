@@ -946,22 +946,60 @@ class TrapHazardMechanics(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ruleset_id: Literal["dnd5e_basic"] = "dnd5e_basic"
+    target: str = ""
     detection_dc: int | None = None
     disarm_dc: int | None = None
     save_dc: int | None = None
     save_ability: str = ""
+    save_success: str = ""
+    save_failure: str = ""
     attack_bonus: int | None = None
     damage: list[DndDamageExpression] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
+    effects: list[str] = Field(default_factory=list)
     reset_policy: str = ""
     depletion_ref: str = ""
 
     @model_validator(mode="after")
     def _clean(self) -> "TrapHazardMechanics":
+        self.target = self.target.strip()
         self.save_ability = self.save_ability.strip().lower()
+        self.save_success = self.save_success.strip()
+        self.save_failure = self.save_failure.strip()
         self.conditions = _clean_unique_strings(self.conditions)
+        self.effects = _clean_unique_strings(self.effects)
         self.reset_policy = self.reset_policy.strip()
         self.depletion_ref = self.depletion_ref.strip()
+        return self
+
+
+class TrapHazardPlacement(BaseModel):
+    """Reviewed map/location placement for a trap or environmental hazard."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    placement_id: str = ""
+    location_ref: str = ""
+    map_template_ref: str = ""
+    map_feature_ref: str = ""
+    area_ref: str = ""
+    floor_id: str = ""
+    cells: list[GridPoint] = Field(default_factory=list)
+    bounds: GridRect | None = None
+    label: str = ""
+    hidden: bool = True
+    reveal_trigger: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "TrapHazardPlacement":
+        self.placement_id = self.placement_id.strip()
+        self.location_ref = self.location_ref.strip()
+        self.map_template_ref = self.map_template_ref.strip()
+        self.map_feature_ref = self.map_feature_ref.strip()
+        self.area_ref = self.area_ref.strip()
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.reveal_trigger = self.reveal_trigger.strip()
         return self
 
 
@@ -975,6 +1013,8 @@ class TrapHazardRecord(ContentPackDomainRecord):
     countermeasures: list[str] = Field(default_factory=list)
     linked_location_refs: list[str] = Field(default_factory=list)
     linked_map_feature_refs: list[str] = Field(default_factory=list)
+    placements: list[TrapHazardPlacement] = Field(default_factory=list)
+    runtime_consequences: list[str] = Field(default_factory=list)
     mechanics: TrapHazardMechanics | None = None
 
     @model_validator(mode="after")
@@ -986,6 +1026,7 @@ class TrapHazardRecord(ContentPackDomainRecord):
         self.linked_map_feature_refs = _clean_unique_strings(
             self.linked_map_feature_refs
         )
+        self.runtime_consequences = _clean_unique_strings(self.runtime_consequences)
         return self
 
 

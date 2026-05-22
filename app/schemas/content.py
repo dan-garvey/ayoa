@@ -322,6 +322,7 @@ class ContentTrapOverlayState(BaseModel):
     revealed: bool = False
     disabled: bool = False
     sprung: bool = False
+    depleted: bool = False
 
     @model_validator(mode="after")
     def _clean(self) -> "ContentTrapOverlayState":

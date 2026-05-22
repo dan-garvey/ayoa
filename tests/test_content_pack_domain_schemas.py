@@ -81,6 +81,10 @@ def test_domain_catalog_accepts_prioritized_module_records():
     )
     assert catalog.statblocks[0].automation_scope == "combat"
     assert catalog.trap_hazards[0].mechanics is not None
+    assert catalog.trap_hazards[0].placements[0].bounds is not None
+    assert catalog.trap_hazards[0].runtime_consequences == [
+        "The entry alarm draws a patrol."
+    ]
     assert catalog.treasures[0].items[0].name == "Synthetic key"
     assert catalog.encounter_templates[0].participants[0].statblock_ref == (
         "stat.guardian"
@@ -572,12 +576,31 @@ def _trap() -> TrapHazardRecord:
         detection="Careful inspection can reveal disturbed stonework.",
         countermeasures=["Jam the mechanism", "Avoid the marked cells"],
         linked_location_refs=["loc.entry"],
+        placements=[
+            {
+                "placement_id": "place.trap.floor",
+                "location_ref": "loc.entry",
+                "map_template_ref": "map.entry",
+                "map_feature_ref": "feature.trap.floor",
+                "area_ref": "area.entry",
+                "floor_id": "floor.ground",
+                "bounds": {"x": 1, "y": 1, "width": 2, "height": 2},
+                "label": "Marked floor stones",
+                "reveal_trigger": "The floor is inspected or triggered.",
+            }
+        ],
+        runtime_consequences=["The entry alarm draws a patrol."],
         mechanics={
+            "target": "creatures on the marked floor",
             "detection_dc": 13,
             "disarm_dc": 14,
             "save_dc": 12,
             "save_ability": "dexterity",
+            "save_success": "The creature clears the floor stones.",
+            "save_failure": "The floor spikes catch the creature.",
             "damage": [{"expression": "2d6", "damage_type": "piercing"}],
+            "effects": ["the floor locks open"],
+            "reset_policy": "manual reset from the service niche",
             "depletion_ref": "depleted.trap.floor",
         },
     )
