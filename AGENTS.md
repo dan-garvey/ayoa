@@ -25,6 +25,10 @@ Player UX review should assume pseudo-live table norms unless the user says othe
 
 When the user challenges a router, schema, prompt, or model-input design as over-engineered, first re-evaluate whether each extra surface is semantically necessary. Do not preserve headers, wrapper blocks, queues, compatibility paths, or diagnostic summaries just because they already exist.
 
+Keep the codebase as unified and cohesive as possible. Prefer one clear runtime contract over parallel structures, even when the parallel version was introduced for a real need, because every extra path increases maintenance cost, test burden, and future design ambiguity.
+
+When adding a structure that is semantically similar to an existing one, first try to merge the new semantics into the existing path. If the new structure truly replaces the old path and cannot be merged cleanly, remove the obsolete structure, readers, writers, tests, and documentation in the same change. Do not leave duplicate schema, prompt, or runtime surfaces around for hypothetical compatibility unless the user explicitly asks for that compatibility.
+
 Prefer the smallest model input that preserves the real runtime contract. If compact canonical history already carries a fact, decision, clock, or state transition, do not re-send a derived copy unless there is a current producer outside that canonical path. If two input paths carry the same semantic content, unify them instead of creating a second prompt mode.
 
 Before claiming latency, correctness, or orchestration tradeoffs, draw or describe the actual loop in terms of who is called, what waits for what, and what context each model receives. Distinguish sequential same-context cascades from genuinely independent parallel work.
