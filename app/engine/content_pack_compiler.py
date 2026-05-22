@@ -12,6 +12,7 @@ from typing import Any
 from app.schemas.content_pack import (
     CompiledContentCard,
     ContentAliasRecord,
+    ContentCrossReference,
     ContentProvenance,
     CoverageBlockingIssue,
     CoverageDomainReport,
@@ -38,6 +39,10 @@ FORBIDDEN_METADATA_KEYS = {
     "source_path",
 }
 _ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_.-])/(?:[^/\s]+/)+[^/\s]+")
+
+
+class CompiledContentPackMismatchError(RuntimeError):
+    """Raised when a compiled pack is not the expected runtime authority."""
 
 
 @dataclass(frozen=True)
@@ -128,6 +133,7 @@ class CompiledContentPackWriter:
         pages: Iterable[PageInventoryRecord | Mapping[str, Any]],
         cards: Iterable[CompiledContentCard | Mapping[str, Any]],
         aliases: Iterable[ContentAliasRecord | Mapping[str, Any]] = (),
+        cross_refs: Iterable[ContentCrossReference | Mapping[str, Any]] = (),
         expected_domain_counts: Mapping[str, int] | None = None,
         coverage_issues: Iterable[CoverageBlockingIssue | Mapping[str, Any]] = (),
         source_page_count: int | None = None,
@@ -140,6 +146,10 @@ class CompiledContentPackWriter:
         ]
         alias_records.extend(self._aliases_from_cards(card_records))
         alias_records = _dedupe_aliases(alias_records)
+        graph_edges = [
+            _coerce_cross_ref(cross_ref, pack_id=self.pack_id)
+            for cross_ref in cross_refs
+        ]
         manifest = self._build_manifest(
             page_records,
             card_records,
@@ -162,6 +172,8 @@ class CompiledContentPackWriter:
                 self._write_card(conn, card)
             for alias in alias_records:
                 self._write_alias(conn, alias)
+            for edge in graph_edges:
+                self._write_graph_edge(conn, edge)
             self._write_manifest(conn, manifest)
             conn.commit()
 
@@ -353,6 +365,13 @@ class CompiledContentPackWriter:
         for field_name, provenance_items in card.field_provenance.items():
             for provenance in provenance_items:
                 self._write_field_provenance(conn, card.ref, field_name, provenance)
+        conn.execute(
+            """
+            INSERT INTO content_cards_fts (pack_id, ref, title, summary, body)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (self.pack_id, card.ref, card.title, card.summary, card.body),
+        )
 
     def _write_provenance(
         self,
@@ -436,6 +455,32 @@ class CompiledContentPackWriter:
             ),
         )
 
+    def _write_graph_edge(
+        self,
+        conn: sqlite3.Connection,
+        edge: ContentCrossReference,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO content_graph_edges (
+                pack_id, edge_ref, record_ref, target_ref, relation, target_kind,
+                required, external, note
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self.pack_id,
+                edge.ref,
+                edge.record_ref,
+                edge.target_ref,
+                edge.relation,
+                edge.target_kind,
+                1 if edge.required else 0,
+                1 if edge.external else 0,
+                edge.note,
+            ),
+        )
+
     def _write_manifest(
         self,
         conn: sqlite3.Connection,
@@ -499,6 +544,42 @@ class CompiledContentPackReader:
             return None
         return CoverageManifest.model_validate_json(row[0])
 
+    def assert_pack_identity(
+        self,
+        *,
+        pack_id: str = "",
+        pack_version: str = "",
+        source_fingerprint: str = "",
+        schema_version: str = SCHEMA_VERSION,
+    ) -> CoverageManifest:
+        manifest = self.manifest()
+        if manifest is None:
+            raise CompiledContentPackMismatchError(
+                f"Compiled pack metadata is missing: {self.db_path}"
+            )
+        expected = {
+            "pack_id": pack_id,
+            "pack_version": pack_version,
+            "source_fingerprint": source_fingerprint,
+            "schema_version": schema_version,
+        }
+        actual = {
+            "pack_id": manifest.pack_id,
+            "pack_version": manifest.pack_version,
+            "source_fingerprint": manifest.source_fingerprint,
+            "schema_version": manifest.schema_version,
+        }
+        mismatches = [
+            f"{key}:expected={value or '-'} actual={actual[key] or '-'}"
+            for key, value in expected.items()
+            if value and actual[key] != value
+        ]
+        if mismatches:
+            raise CompiledContentPackMismatchError(
+                "Compiled pack identity mismatch: " + "; ".join(mismatches)
+            )
+        return manifest
+
     def list_pages(self) -> list[PageInventoryRecord]:
         if not self.db_path.exists():
             return []
@@ -530,6 +611,35 @@ class CompiledContentPackReader:
             rows = conn.execute(sql, params).fetchall()
         return [_alias_from_row(row) for row in rows]
 
+    def resolve_ref(self, value: str) -> str:
+        token = value.strip()
+        if not token or not self.db_path.exists():
+            return ""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT ref
+                FROM content_cards
+                WHERE pack_id = ? AND ref = ?
+                LIMIT 1
+                """,
+                (self.pack_id, token),
+            ).fetchone()
+            if row is not None:
+                return str(row["ref"])
+            row = conn.execute(
+                """
+                SELECT ref
+                FROM content_aliases
+                WHERE pack_id = ? AND alias = ?
+                ORDER BY confidence DESC, ref
+                LIMIT 1
+                """,
+                (self.pack_id, token),
+            ).fetchone()
+        return str(row["ref"]) if row is not None else ""
+
     def load_cards(
         self,
         *,
@@ -555,6 +665,101 @@ class CompiledContentPackReader:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(sql, params).fetchall()
         return [_card_from_row(row) for row in rows]
+
+    @property
+    def pack_id(self) -> str:
+        manifest = self.manifest()
+        return manifest.pack_id if manifest is not None else ""
+
+    def search_cards(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        include_flagged: bool = False,
+    ) -> list[CompiledContentCard]:
+        search = query.strip()
+        if not search or not self.db_path.exists():
+            return []
+        gate_statuses = ["runtime_ready"]
+        if include_flagged:
+            gate_statuses.append("flagged")
+        status_sql = ",".join("?" for _ in gate_statuses)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if not _table_exists(conn, "content_cards_fts"):
+                return []
+            rows = conn.execute(
+                f"""
+                SELECT cards.*
+                FROM content_cards_fts fts
+                JOIN content_cards cards
+                  ON cards.pack_id = fts.pack_id
+                 AND cards.ref = fts.ref
+                WHERE fts.pack_id = ?
+                  AND content_cards_fts MATCH ?
+                  AND cards.gate_status IN ({status_sql})
+                ORDER BY rank
+                LIMIT ?
+                """,
+                [self.pack_id, search, *gate_statuses, max(0, int(limit or 0))],
+            ).fetchall()
+        return [_card_from_row(row) for row in rows]
+
+    def graph_neighbors(
+        self,
+        ref: str,
+        *,
+        relation: str = "",
+        direction: str = "out",
+    ) -> list[str]:
+        edges = self.list_graph_edges(ref=ref, relation=relation, direction=direction)
+        out: list[str] = []
+        for edge in edges:
+            if direction == "in":
+                out.append(edge.record_ref)
+            elif direction == "both" and edge.target_ref == ref:
+                out.append(edge.record_ref)
+            else:
+                out.append(edge.target_ref)
+        return [value for value in dict.fromkeys(out) if value]
+
+    def list_graph_edges(
+        self,
+        *,
+        ref: str = "",
+        relation: str = "",
+        direction: str = "out",
+    ) -> list[ContentCrossReference]:
+        if not self.db_path.exists():
+            return []
+        where = ["pack_id = ?"]
+        params: list[Any] = [self.pack_id]
+        cleaned_ref = ref.strip()
+        if cleaned_ref:
+            if direction == "in":
+                where.append("target_ref = ?")
+                params.append(cleaned_ref)
+            elif direction == "both":
+                where.append("(record_ref = ? OR target_ref = ?)")
+                params.extend([cleaned_ref, cleaned_ref])
+            else:
+                where.append("record_ref = ?")
+                params.append(cleaned_ref)
+        if relation:
+            where.append("relation = ?")
+            params.append(relation.strip())
+        sql = (
+            "SELECT * FROM content_graph_edges WHERE "
+            + " AND ".join(where)
+            + " ORDER BY record_ref, relation, target_ref"
+        )
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if not _table_exists(conn, "content_graph_edges"):
+                return []
+            rows = conn.execute(sql, params).fetchall()
+        return [_cross_ref_from_row(row) for row in rows]
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
@@ -602,6 +807,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             metadata_json TEXT NOT NULL,
             PRIMARY KEY (pack_id, ref)
         );
+        CREATE VIRTUAL TABLE IF NOT EXISTS content_cards_fts
+        USING fts5(pack_id UNINDEXED, ref UNINDEXED, title, summary, body);
         CREATE TABLE IF NOT EXISTS card_provenance (
             pack_id TEXT NOT NULL,
             ref TEXT NOT NULL,
@@ -640,10 +847,30 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             review_status TEXT NOT NULL,
             PRIMARY KEY (pack_id, alias, ref)
         );
+        CREATE TABLE IF NOT EXISTS content_graph_edges (
+            pack_id TEXT NOT NULL,
+            edge_ref TEXT NOT NULL,
+            record_ref TEXT NOT NULL,
+            target_ref TEXT NOT NULL,
+            relation TEXT NOT NULL,
+            target_kind TEXT NOT NULL,
+            required INTEGER NOT NULL,
+            external INTEGER NOT NULL,
+            note TEXT NOT NULL,
+            PRIMARY KEY (pack_id, edge_ref)
+        );
         CREATE TABLE IF NOT EXISTS coverage_manifest (
             pack_id TEXT NOT NULL,
             manifest_json TEXT NOT NULL
         );
+        CREATE INDEX IF NOT EXISTS idx_content_cards_pack_kind
+            ON content_cards(pack_id, card_kind, gate_status);
+        CREATE INDEX IF NOT EXISTS idx_content_aliases_pack_alias
+            ON content_aliases(pack_id, alias);
+        CREATE INDEX IF NOT EXISTS idx_content_graph_edges_src
+            ON content_graph_edges(pack_id, record_ref, relation);
+        CREATE INDEX IF NOT EXISTS idx_content_graph_edges_dst
+            ON content_graph_edges(pack_id, target_ref, relation);
         """
     )
 
@@ -653,9 +880,11 @@ def _replace_pack(conn: sqlite3.Connection, pack_id: str) -> None:
         "pack_metadata",
         "page_inventory",
         "content_cards",
+        "content_cards_fts",
         "card_provenance",
         "card_field_provenance",
         "content_aliases",
+        "content_graph_edges",
         "coverage_manifest",
     ):
         conn.execute(f"DELETE FROM {table} WHERE pack_id = ?", (pack_id,))
@@ -698,6 +927,19 @@ def _coerce_alias(
         values = dict(alias)
     values["pack_id"] = values.get("pack_id") or pack_id
     return ContentAliasRecord(**values)
+
+
+def _coerce_cross_ref(
+    cross_ref: ContentCrossReference | Mapping[str, Any],
+    *,
+    pack_id: str,
+) -> ContentCrossReference:
+    if isinstance(cross_ref, ContentCrossReference):
+        values = cross_ref.model_dump()
+    else:
+        values = dict(cross_ref)
+    values["pack_id"] = values.get("pack_id") or pack_id
+    return ContentCrossReference(**values)
 
 
 def _coerce_coverage_issue(
@@ -888,6 +1130,20 @@ def _alias_from_row(row: sqlite3.Row) -> ContentAliasRecord:
     )
 
 
+def _cross_ref_from_row(row: sqlite3.Row) -> ContentCrossReference:
+    return ContentCrossReference(
+        pack_id=row["pack_id"],
+        ref=row["edge_ref"],
+        record_ref=row["record_ref"],
+        target_ref=row["target_ref"],
+        relation=row["relation"],
+        target_kind=row["target_kind"],
+        required=bool(row["required"]),
+        external=bool(row["external"]),
+        note=row["note"],
+    )
+
+
 def _card_from_row(row: sqlite3.Row) -> CompiledContentCard:
     provenance = [
         ContentProvenance(**item)
@@ -932,6 +1188,14 @@ def _card_from_row(row: sqlite3.Row) -> CompiledContentCard:
 
 def _row_value(row: sqlite3.Row, key: str, default: Any = None) -> Any:
     return row[key] if key in row.keys() else default
+
+
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
 
 
 def _json_list(value: str) -> list[Any]:

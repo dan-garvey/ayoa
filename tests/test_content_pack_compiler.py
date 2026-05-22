@@ -5,6 +5,7 @@ import sqlite3
 import pytest
 
 from app.engine.content_pack_compiler import (
+    CompiledContentPackMismatchError,
     DEFAULT_PRIVATE_PACK_DIR,
     CompiledContentPackReader,
     CompiledContentPackWriter,
@@ -314,6 +315,95 @@ def test_coverage_manifest_reports_expected_domains_and_blocking_issues(tmp_path
     assert "blocking_coverage_issues_present" in manifest.warnings
 
     assert CompiledContentPackReader(db_path).manifest() == manifest
+
+
+def test_compiled_sqlite_indexes_alias_fts_graph_and_pack_identity(tmp_path):
+    db_path = tmp_path / "synthetic_pack.sqlite"
+    writer = CompiledContentPackWriter(
+        db_path,
+        pack_id="synthetic",
+        pack_version="1.2.3",
+        source_fingerprint="sha256:source",
+    )
+
+    writer.write_pack(
+        pages=[
+            {
+                "page_id": "page-001",
+                "source_asset_id": "src-page-001",
+                "review_status": "approved",
+            }
+        ],
+        cards=[
+            {
+                "ref": "area.entry",
+                "card_kind": "keyed_area",
+                "title": "Entry",
+                "summary": "Reviewed entry hall.",
+                "body": "A safe redacted entry card.",
+                "confidence": 0.95,
+                "review_status": "approved",
+                "aliases": ["threshold"],
+            },
+            {
+                "ref": "area.secret",
+                "card_kind": "keyed_area",
+                "title": "Secret Room",
+                "summary": "Reviewed secret clue chamber.",
+                "body": "A safe redacted secret clue appears here.",
+                "confidence": 0.95,
+                "review_status": "approved",
+                "aliases": ["hidden chamber"],
+            },
+        ],
+        cross_refs=[
+            {
+                "ref": "xref.entry.secret",
+                "record_ref": "area.entry",
+                "target_ref": "area.secret",
+                "relation": "reveals",
+                "target_kind": "keyed_area",
+                "review_status": "approved",
+            }
+        ],
+    )
+    reader = CompiledContentPackReader(db_path)
+
+    assert reader.assert_pack_identity(
+        pack_id="synthetic",
+        pack_version="1.2.3",
+        source_fingerprint="sha256:source",
+    ).schema_version == "content-pack-v1"
+    with pytest.raises(CompiledContentPackMismatchError, match="pack_version"):
+        reader.assert_pack_identity(pack_version="wrong")
+    assert reader.resolve_ref("threshold") == "area.entry"
+    assert reader.resolve_ref("area.secret") == "area.secret"
+    assert [card.ref for card in reader.search_cards("secret")] == [
+        "area.secret"
+    ]
+    assert reader.graph_neighbors("area.entry", relation="reveals") == [
+        "area.secret"
+    ]
+    assert reader.graph_neighbors(
+        "area.secret",
+        relation="reveals",
+        direction="in",
+    ) == ["area.entry"]
+
+    with sqlite3.connect(db_path) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type IN ('table', 'index')"
+            )
+        }
+    assert {
+        "content_cards_fts",
+        "content_graph_edges",
+        "idx_content_aliases_pack_alias",
+        "idx_content_graph_edges_src",
+        "idx_content_graph_edges_dst",
+    } <= tables
 
 
 def test_compiler_defaults_are_private_and_sanitize_forbidden_source_material(
