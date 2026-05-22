@@ -157,6 +157,108 @@ def _guardian_statblock() -> dict:
     }
 
 
+def _encounter_template() -> dict:
+    return {
+        "pack_id": "synthetic-pack",
+        "ref": "enc.entry",
+        "content_hash": "sha256:enc-entry",
+        "title": "Synthetic Entry Encounter",
+        "summary": "A reviewed encounter seed.",
+        "confidence": 0.95,
+        "review_status": "approved",
+        "gate_status": "runtime_ready",
+        "trigger": "The party enters the watched area.",
+        "location_refs": ["gatehouse"],
+        "participants": [
+            {
+                "participant_id": "guardian",
+                "statblock_ref": "stat.guardian",
+                "count": 1,
+                "role": "sentinel",
+                "starting_anchor_ref": "spawn.enemies",
+                "tactics": "Hold the gatehouse threshold.",
+            }
+        ],
+        "map_template_refs": ["map.entry"],
+        "trap_refs": ["trap.floor"],
+        "treasure_refs": ["treasure.cache"],
+    }
+
+
+def _encounter_map_template() -> dict:
+    return {
+        "pack_id": "synthetic-pack",
+        "ref": "map.entry",
+        "content_hash": "sha256:map-entry",
+        "title": "Entry Map",
+        "summary": "Reviewed entry map.",
+        "confidence": 0.95,
+        "review_status": "approved",
+        "gate_status": "runtime_ready",
+        "derived_from_map_asset_id": "asset.map.entry.player",
+        "grid_width": 8,
+        "grid_height": 6,
+        "spawn_anchors": [
+            {
+                "anchor_id": "spawn.enemies",
+                "anchor_kind": "enemies",
+                "cells": [{"x": 5, "y": 3}],
+                "label": "Enemy start",
+            }
+        ],
+    }
+
+
+def _encounter_trap() -> dict:
+    return {
+        "pack_id": "synthetic-pack",
+        "ref": "trap.floor",
+        "content_hash": "sha256:trap-floor",
+        "title": "Entry Floor Trap",
+        "summary": "A reviewed floor trap.",
+        "confidence": 0.95,
+        "review_status": "approved",
+        "gate_status": "runtime_ready",
+        "trigger": "A creature crosses the marked stones.",
+        "detection": "A seam crosses the floor.",
+        "countermeasures": ["Jam the floor plate"],
+        "linked_location_refs": ["gatehouse"],
+        "placements": [
+            {
+                "placement_id": "place.floor",
+                "location_ref": "gatehouse",
+                "map_template_ref": "map.entry",
+                "map_feature_ref": "feature.floor",
+                "bounds": {"x": 2, "y": 2, "width": 1, "height": 1},
+            }
+        ],
+        "mechanics": {
+            "detection_dc": 13,
+            "disarm_dc": 14,
+            "save_dc": 12,
+            "save_ability": "dexterity",
+            "damage": [{"expression": "2d6", "damage_type": "piercing"}],
+            "depletion_ref": "depleted.trap.floor",
+        },
+    }
+
+
+def _encounter_treasure() -> dict:
+    return {
+        "pack_id": "synthetic-pack",
+        "ref": "treasure.cache",
+        "content_hash": "sha256:treasure-cache",
+        "title": "Entry Cache",
+        "summary": "A reviewed cache.",
+        "confidence": 0.95,
+        "review_status": "approved",
+        "gate_status": "runtime_ready",
+        "treasure_kind": "container",
+        "container_ref": "container.cache",
+        "currency": [{"denomination": "gp", "amount": 10}],
+    }
+
+
 def _safe_asset_payload(asset_id: str) -> SafeAssetRevealPayload:
     return SafeAssetRevealPayload(
         pack_id="synthetic",
@@ -828,6 +930,62 @@ class TestCombatTurnGating:
         assert event.combatant_spawns[0].statblock is None
         dumped = json.dumps(guardian.model_dump(mode="json"), sort_keys=True)
         assert "/private/source.pdf" not in dumped
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_resolves_imported_encounter_template(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10, 10])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.content_state = {
+            "synthetic-pack": ContentPackState(
+                pack_id="synthetic-pack",
+                metadata={
+                    "locations": [{"ref": "gatehouse"}],
+                    "encounter_templates": [_encounter_template()],
+                    "statblocks": [_guardian_statblock()],
+                    "tactical_map_templates": [_encounter_map_template()],
+                    "trap_hazards": [_encounter_trap()],
+                    "treasures": [_encounter_treasure()],
+                },
+            )
+        }
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice"],
+            combatant_spawns=[],
+            facts=[ObservableFact.all("Alice challenges the guardian.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I challenge the guardian",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        guardian = next(c for c in ckpt.characters if c.character_id == "guardian")
+        assert guardian.mechanics["imported_statblock"]["ref"] == "stat.guardian"
+        combat = ckpt.session.active_combat
+        assert combat is not None
+        assert {c.character_id for c in combat.combatants} == {"alice", "guardian"}
+        assert combat.battle_map is not None
+        assert combat.battle_map.source_template_ref == "map.entry"
+        assert any(
+            "Imported encounter template applied: enc.entry." in line
+            for line in combat.audit_lines
+        )
+        event = ckpt.canonical_events[-1]
+        assert event.combatant_spawns[0].statblock_ref == "stat.guardian"
+        assert event.battle_map_seed.present is True
 
     @pytest.mark.asyncio
     async def test_dnd_combat_start_missing_imported_statblock_ref_errors(

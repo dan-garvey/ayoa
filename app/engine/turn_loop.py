@@ -61,7 +61,13 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
 
-from app.engine import dnd_combat, dnd_monsters, dnd_spatial, imported_statblocks
+from app.engine import (
+    dnd_combat,
+    dnd_monsters,
+    dnd_spatial,
+    imported_encounters,
+    imported_statblocks,
+)
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
@@ -1815,6 +1821,14 @@ def _start_dnd_combat_from_router_signal(
 ) -> bool:
     if not _dnd_ruleset_enabled(ckpt) or _active_combat(ckpt) is not None:
         return False
+    imported_encounter = imported_encounters.resolve_combat_start_from_content_state(
+        getattr(ckpt.session, "content_state", {}),
+        location_ref=_character_location(ckpt, actor_id),
+    )
+    imported_encounters.apply_resolved_encounter_to_router_output(
+        result,
+        imported_encounter,
+    )
     spawned_ids, prior_combatant_ids = _materialize_dnd_combatant_spawns(
         ckpt,
         result,
@@ -1884,6 +1898,12 @@ def _start_dnd_combat_from_router_signal(
             "Battle map seeded: "
             f"{combat.battle_map.map_name} "
             f"{combat.battle_map.width}x{combat.battle_map.height}.",
+        )
+    if imported_encounter is not None:
+        dnd_combat.append_audit_line(
+            combat,
+            "Imported encounter template applied: "
+            f"{imported_encounter.encounter_ref}.",
         )
     return True
 
