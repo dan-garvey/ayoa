@@ -3,6 +3,87 @@ from __future__ import annotations
 from typing import Any
 
 
+def character_identity_summary(character: Any) -> dict[str, str]:
+    mechanics = getattr(character, "mechanics", None)
+    if not isinstance(mechanics, dict):
+        return {}
+    sheet = mechanics.get("dnd5e_sheet")
+    if not isinstance(sheet, dict):
+        return {}
+    identity = sheet.get("identity")
+    if not isinstance(identity, dict):
+        return {}
+
+    summary: dict[str, str] = {}
+    name = _clean_text(identity.get("name"))
+    if name:
+        summary["name"] = name
+    species = _first_clean_text(identity, "species", "ancestry", "race")
+    if species:
+        summary["species"] = species
+    classes = _class_line(identity.get("classes"))
+    if classes:
+        summary["classes"] = classes
+    background = _clean_text(identity.get("background"))
+    if background:
+        summary["background"] = background
+    return summary
+
+
+def character_identity_sentence(character: Any) -> str:
+    summary = character_identity_summary(character)
+    if not summary:
+        return ""
+    parts: list[str] = []
+    species = summary.get("species", "")
+    classes = summary.get("classes", "")
+    background = summary.get("background", "")
+    if species:
+        parts.append(species)
+    if classes:
+        parts.append(classes)
+    if background:
+        parts.append(f"{background} background")
+    if not parts and summary.get("name"):
+        parts.append(f"imported name {summary['name']}")
+    if not parts:
+        return ""
+    return f"D&D identity: {'; '.join(parts)}."
+
+
+def _clean_text(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def _first_clean_text(source: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = _clean_text(source.get(key))
+        if value:
+            return value
+    return ""
+
+
+def _class_line(value: Any) -> str:
+    if not isinstance(value, list):
+        return ""
+    parts: list[str] = []
+    for item in value:
+        if isinstance(item, dict):
+            name = _clean_text(item.get("name") or item.get("class"))
+            level_raw = item.get("level")
+        else:
+            name = _clean_text(item)
+            level_raw = None
+        if not name:
+            continue
+        try:
+            level = int(level_raw or 0)
+        except (TypeError, ValueError):
+            level = 0
+        parts.append(f"{name} {level}" if level > 0 else name)
+    return " / ".join(parts)
+
+
 def combat_status_lines(
     view: Any,
     *,

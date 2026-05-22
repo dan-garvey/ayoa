@@ -67,6 +67,42 @@ _DAMAGE_TYPES = {
     "thunder",
 }
 _SOCIAL_INFLUENCE_SKILLS = {"deception", "intimidation", "persuasion"}
+_STEALTH_RECON_CONTEXT_TERMS = {
+    "hide",
+    "hidden",
+    "hiding",
+    "lookout",
+    "recon",
+    "reconnoiter",
+    "scout",
+    "shadow",
+    "sneak",
+    "stealth",
+    "unseen",
+    "watcher",
+}
+_STEALTH_RECON_PLAYER_SKILLS = {
+    "investigation",
+    "perception",
+    "stealth",
+    "survival",
+}
+_STEALTH_RECON_COUNTER_SKILLS = {
+    "insight",
+    "investigation",
+    "perception",
+    "stealth",
+    "survival",
+}
+_TRAINING_SPAR_CONTEXT_TERMS = {
+    "bout",
+    "drill",
+    "practice",
+    "spar",
+    "sparring",
+    "train",
+    "training",
+}
 _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
     {
         "id": "dash",
@@ -2634,11 +2670,53 @@ def _build_contested_packet(
         "opening_observable_facts": cat_ii_event.opening_observable_facts,
         "participants": participants,
     }
+    adjudication_hints = _contested_adjudication_hints(cat_ii_event)
+    if adjudication_hints:
+        payload["adjudication_hints"] = adjudication_hints
     if content_context_records:
         payload["content_context"] = _safe_content_context_records(
             content_context_records
         )
     return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _contested_adjudication_hints(
+    cat_ii_event: OpenCatIIEvent,
+) -> dict[str, object]:
+    hints: dict[str, object] = {}
+    if _training_spar_context_present(cat_ii_event):
+        hints["training_spar"] = {
+            "present": True,
+            "stakes": (
+                "Non-hostile D&D drill or spar. Use rules to clarify the "
+                "exchange, not to force full initiative."
+            ),
+            "mechanics_options": [
+                (
+                    "Testing footing or balance can use opposed Athletics, "
+                    "Acrobatics, or another fitting ability check."
+                ),
+                (
+                    "Reading an opening can use Insight, Perception, or a "
+                    "weapon-relevant check against the partner's guard."
+                ),
+                (
+                    "One real exchange can use an attack roll or opposed "
+                    "martial check, with training-safe consequences unless "
+                    "the fiction explicitly escalates."
+                ),
+            ],
+        }
+    if _stealth_recon_context_present(cat_ii_event):
+        hints["stealth_recon"] = {
+            "present": True,
+            "consequence_contract": (
+                "If an observer beats a player-controlled stealth or recon "
+                "approach, the result must create an actionable consequence "
+                "or give that observer an immediate follow-up choice."
+            ),
+        }
+    return hints
 
 
 def _build_combat_packet(
@@ -3123,6 +3201,15 @@ def _compile_event_router_output(
         transaction,
         adjudication,
     )
+    stealth_recon_followup_ids = _stealth_recon_followup_responder_ids(
+        ckpt,
+        cat_ii_event,
+        transaction,
+    )
+    followup_ids = _dedupe([
+        *social_followup_ids,
+        *stealth_recon_followup_ids,
+    ])
     notes = "; ".join(adjudication.rules_notes)
     rationale_parts = [
         part for part in (
@@ -3145,7 +3232,7 @@ def _compile_event_router_output(
         ),
         event_kind=(
             "cat_ii_resolution"
-            if not social_followup_ids
+            if not followup_ids
             else "beat_continues"
         ),
         requires_responders=False,
@@ -3156,7 +3243,7 @@ def _compile_event_router_output(
                 observation_level="d",
                 routing_role=(
                     "next_output"
-                    if cid in social_followup_ids
+                    if cid in followup_ids
                     else "observe_only"
                 ),
             )
@@ -3205,6 +3292,94 @@ def _social_private_followup_responder_ids(
             if cid not in out:
                 out.append(cid)
     return out
+
+
+def _stealth_recon_followup_responder_ids(
+    ckpt: CheckpointFile,
+    cat_ii_event: OpenCatIIEvent,
+    transaction: CatIIRollTransaction,
+) -> list[str]:
+    """Give a hidden watcher agency when they win the D&D contest.
+
+    A failed stealth/recon approach against a hidden or watchful NPC is not a
+    terminal "nothing happens" result at the table. The observer now knows
+    something and should either act immediately or receive a concrete state
+    change. The adapter enforces the agency half of that contract by routing
+    the winning non-player responder for the next output.
+    """
+    if not _stealth_recon_context_present(cat_ii_event):
+        return []
+
+    from app.engine.context_builder import collect_player_ids
+
+    humans = collect_player_ids(ckpt)
+    required = set(cat_ii_event.required_responders)
+    by_roll_id = {
+        record.roll_id: record
+        for record in transaction.rolls
+        if record.roll_id
+    }
+    out: list[str] = []
+    for player_record in transaction.rolls:
+        if player_record.actor_id not in humans:
+            continue
+        player_request = _safe_planned_roll(player_record.request)
+        if player_request is None:
+            continue
+        if not _is_stealth_recon_player_roll(player_request):
+            continue
+        observer_record = by_roll_id.get(player_request.opposed_by)
+        if observer_record is None:
+            continue
+        if observer_record.actor_id in humans:
+            continue
+        if observer_record.actor_id not in required:
+            continue
+        observer_request = _safe_planned_roll(observer_record.request)
+        if observer_request is None:
+            continue
+        if not _is_stealth_recon_counter_roll(observer_request):
+            continue
+        player_total = _completed_roll_total(player_record)
+        observer_total = _completed_roll_total(observer_record)
+        if player_total is None or observer_total is None:
+            continue
+        if observer_total <= player_total:
+            continue
+        if not _character_exists(ckpt, observer_record.actor_id):
+            continue
+        if observer_record.actor_id not in out:
+            out.append(observer_record.actor_id)
+    return out
+
+
+def _safe_planned_roll(value: object) -> PlannedRoll | None:
+    try:
+        return PlannedRoll.model_validate(value)
+    except Exception:
+        return None
+
+
+def _completed_roll_total(record: CatIIRollRecord) -> int | None:
+    try:
+        return int((record.result or {}).get("total"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_stealth_recon_player_roll(request: PlannedRoll) -> bool:
+    return (
+        request.kind in {"ability_check", "skill_check"}
+        and request.skill.strip().lower() in _STEALTH_RECON_PLAYER_SKILLS
+        and bool(request.opposed_by.strip())
+    )
+
+
+def _is_stealth_recon_counter_roll(request: PlannedRoll) -> bool:
+    return (
+        request.kind in {"ability_check", "skill_check"}
+        and request.skill.strip().lower() in _STEALTH_RECON_COUNTER_SKILLS
+    )
 
 
 def _transaction_uses_social_influence(
@@ -4145,6 +4320,52 @@ def _dedupe(ids: list[str]) -> list[str]:
             seen.add(cid)
             out.append(cid)
     return out
+
+
+def _training_spar_context_present(cat_ii_event: OpenCatIIEvent) -> bool:
+    text = _cat_ii_event_context_text(cat_ii_event)
+    if _text_contains_terms(text, _TRAINING_SPAR_CONTEXT_TERMS):
+        return True
+    return any(
+        phrase in text
+        for phrase in (
+            "test my footing",
+            "test footing",
+            "read an opening",
+            "reading an opening",
+            "one real exchange",
+            "one clean exchange",
+            "make one exchange",
+        )
+    )
+
+
+def _stealth_recon_context_present(cat_ii_event: OpenCatIIEvent) -> bool:
+    return _event_text_contains(cat_ii_event, _STEALTH_RECON_CONTEXT_TERMS)
+
+
+def _event_text_contains(
+    cat_ii_event: OpenCatIIEvent,
+    terms: set[str],
+) -> bool:
+    return _text_contains_terms(_cat_ii_event_context_text(cat_ii_event), terms)
+
+
+def _cat_ii_event_context_text(cat_ii_event: OpenCatIIEvent) -> str:
+    return " ".join([
+        cat_ii_event.initiator_intention,
+        *cat_ii_event.collected_intentions.values(),
+        *cat_ii_event.opening_observable_facts,
+    ]).lower()
+
+
+def _text_contains_terms(text: str, terms: set[str]) -> bool:
+    tokens = set(re.findall(r"[a-z0-9]+", text))
+    return any(
+        term in tokens
+        or any(token.startswith(term) for token in tokens if len(term) >= 4)
+        for term in terms
+    )
 
 
 def _character_exists(ckpt: CheckpointFile, character_id: str) -> bool:

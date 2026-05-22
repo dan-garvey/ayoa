@@ -33,6 +33,7 @@ from app.engine.dnd_combat_access import (
 from app.engine.context_builder import (
     append_turn_to_conversation,
     build_character_packet,
+    build_dnd_player_identities_block,
     build_character_state,
     build_world_context,
     clear_character_inbox,
@@ -372,7 +373,7 @@ class CharacterAgent:
         # their rolling history (`history` above), which is what should
         # color their visual loadout. The resulting loadout is appended
         # after the call so future beats remember what was established.
-        char_identity = build_character_packet(character)
+        char_identity = build_character_packet(character, checkpoint)
         char_state = build_character_state(character)
 
         render_t0 = time.monotonic()
@@ -510,10 +511,12 @@ class CharacterAgent:
             character, checkpoint,
         )
         pending_block = (
-            elapsed_time_block + format_pending_observations_block(character)
+            build_dnd_player_identities_block(checkpoint)
+            + elapsed_time_block
+            + format_pending_observations_block(character)
         )
 
-        char_identity = build_character_packet(character)
+        char_identity = build_character_packet(character, checkpoint)
         char_state = build_character_state(character)
 
         render_t0 = time.monotonic()

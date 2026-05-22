@@ -1341,7 +1341,7 @@ class TestRouteAgentOutput:
         def _boom(*args, **kwargs):
             raise RuntimeError("render failed")
 
-        monkeypatch.setattr(prompt_mgr, "render_messages", _boom)
+        monkeypatch.setattr(prompt_mgr, "render_system_message", _boom)
 
         with pytest.raises(RuntimeError, match="render failed"):
             asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
@@ -1352,6 +1352,28 @@ class TestRouteAgentOutput:
 
         assert ckpt.session.content_state["pack"].model_dump() == before_content
         assert ckpt.session_conversation == []
+
+    def test_agent_output_does_not_render_discarded_user_tail(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        def _boom(*args, **kwargs):
+            raise AssertionError("route_agent_output should not render user tail")
+
+        monkeypatch.setattr(prompt_mgr, "render_messages", _boom)
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_agent_output(
+            ckpt=ckpt,
+            character_id="pip",
+            public_text="He paces the threshold.",
+        ))
+
+        user_content = _last_user_content(
+            mock_client.complete.await_args.kwargs["messages"]
+        )
+        assert user_content == "pip: He paces the threshold."
 
     def test_agent_output_time_is_floored_to_session_edge(
         self, prompt_mgr, mock_client,

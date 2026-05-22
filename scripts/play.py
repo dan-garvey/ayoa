@@ -456,15 +456,26 @@ def _print_experience_awards(awards: list[Any]) -> None:
         print(f"  {_experience_award_line(award)}")
 
 
-def _print_roll_prompts(prompts: list[PendingRollPrompt]) -> None:
+def _print_roll_prompts(
+    prompts: list[PendingRollPrompt],
+    *,
+    include_actor: bool = False,
+) -> None:
     if not prompts:
         return
     print()
     print("--- Pending D&D Rolls ---")
+    show_actor = include_actor or len({p.actor_id for p in prompts}) > 1
     for prompt in prompts:
+        actor = f"{prompt.actor_id}: " if show_actor and prompt.actor_id else ""
         reason = f" — {prompt.reason}" if prompt.reason else ""
-        print(f"  {prompt.roll_id}: {prompt.label}{reason}")
-    if len(prompts) == 1:
+        print(f"  {prompt.roll_id}: {actor}{prompt.label}{reason}")
+    if show_actor:
+        print(
+            "Use /roll all to roll every joined-character roll, or "
+            "/as <character_id> then /roll <roll_id>."
+        )
+    elif len(prompts) == 1:
         print("Use /roll to roll it, or /roll <roll_id>.")
     else:
         print("Use /roll <roll_id> for one roll, or /roll all.")
@@ -1116,12 +1127,16 @@ def _combat_initiative_line(view: DndCombatView) -> str:
 
 
 def _split_combat_ids(arg: str) -> list[str]:
-    return [
-        part.strip()
-        for chunk in arg.split()
-        for part in chunk.split(",")
-        if part.strip()
-    ]
+    raw = arg.strip()
+    if not raw:
+        return []
+    if "," in raw:
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    try:
+        chunks = shlex.split(raw)
+    except ValueError:
+        chunks = raw.split()
+    return [part.strip() for part in chunks if part.strip()]
 
 
 def _joinable_character_line(summary: CharacterSummary) -> str:
@@ -2315,40 +2330,70 @@ class CLIState:
             print(f"not claimed: {self.current_actor}")
             return
 
-        prompts = self.engine.pending_roll_prompts(
-            self.session_id,
-            user_id=uid,
-        )
-        if not prompts:
-            print("no pending D&D roll for the current actor")
-            return
-
         requested = arg.strip()
         printed_pending_from_response = False
+        roll_all = requested.lower() == "all"
+        if roll_all:
+            prompts = self._joined_pending_roll_prompts()
+            if not prompts:
+                print("no pending D&D rolls for joined characters")
+                return
+        else:
+            prompts = self.engine.pending_roll_prompts(
+                self.session_id,
+                user_id=uid,
+            )
+            if not prompts:
+                joined_prompts = [
+                    p for p in self._joined_pending_roll_prompts()
+                    if p.actor_id != self.current_actor
+                ]
+                if joined_prompts:
+                    print(
+                        "no pending D&D roll for the current actor; "
+                        "joined characters have pending rolls:"
+                    )
+                    _print_roll_prompts(joined_prompts, include_actor=True)
+                else:
+                    print("no pending D&D roll for the current actor")
+                return
+
+        selected: list[tuple[PendingRollPrompt, int]] = []
         if not requested:
             if len(prompts) == 1:
-                selected = [prompts[0]]
+                selected = [(prompts[0], uid)]
             else:
                 _print_roll_prompts(prompts)
                 return
-        elif requested.lower() == "all":
-            selected = prompts
+        elif roll_all:
+            for prompt in prompts:
+                prompt_uid = self.claims.get(prompt.actor_id)
+                if prompt_uid is None:
+                    try:
+                        prompt_uid = int(prompt.user_id)
+                    except (TypeError, ValueError):
+                        print(
+                            "error: pending roll has no usable player binding: "
+                            f"{prompt.roll_id}"
+                        )
+                        return
+                selected.append((prompt, prompt_uid))
         else:
             chosen = next((p for p in prompts if p.roll_id == requested), None)
             if chosen is None:
                 print(f"no pending roll id for {self.current_actor}: {requested}")
                 _print_roll_prompts(prompts)
                 return
-            selected = [chosen]
+            selected = [(chosen, uid)]
 
         continued_events: set[str] = set()
-        for prompt in selected:
+        for prompt, prompt_uid in selected:
             try:
                 result = await self.engine.complete_pending_roll(
                     session_id=self.session_id,
                     event_id=prompt.event_id,
                     roll_id=prompt.roll_id,
-                    user_id=uid,
+                    user_id=prompt_uid,
                 )
             except Exception as e:
                 logger.exception("pending roll failed")
@@ -2377,11 +2422,15 @@ class CLIState:
                 printed_pending_from_response = True
 
         if not printed_pending_from_response:
-            remaining = self.engine.pending_roll_prompts(
-                self.session_id,
-                user_id=uid,
+            remaining = (
+                self._joined_pending_roll_prompts()
+                if roll_all
+                else self.engine.pending_roll_prompts(
+                    self.session_id,
+                    user_id=uid,
+                )
             )
-            _print_roll_prompts(remaining)
+            _print_roll_prompts(remaining, include_actor=roll_all)
 
     async def cmd_rewind(self, arg: str) -> None:
         """Rewind the session to an earlier checkpoint.

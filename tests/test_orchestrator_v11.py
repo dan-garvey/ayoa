@@ -1360,7 +1360,7 @@ class TestCombatTurnGating:
         assert response.beat_ended_reason == "directed_at_player"
         assert ckpt.session.active_combat.turn_index == 2
         assert ckpt.session.active_combat.round_number == 1
-        assert response.output_text == "alice acts.\n\npip acts."
+        assert response.output_text == "alice acts. pip acts."
         assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
         assert any(
             "Initiative advanced to Pip" in line

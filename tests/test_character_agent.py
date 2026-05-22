@@ -507,6 +507,74 @@ class TestCharacterAgent:
         assert "Active D&D 5e initiative is running" not in user_text
 
     @pytest.mark.asyncio
+    async def test_dnd_player_identity_species_is_live_user_context(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
+        lyra = CharacterRecord(
+            character_id="lyra",
+            name="Lyra",
+            public_sheet=PublicSheet(role="cleric"),
+            mechanics={
+                "ruleset_id": "dnd5e_basic",
+                "dnd5e_sheet": {
+                    "identity": {
+                        "species": "Hill Dwarf",
+                        "classes": [{"name": "Cleric", "level": 3}],
+                    },
+                    "statblock": {},
+                },
+            },
+        )
+        sample_checkpoint.characters = [guard_character, lyra]
+        sample_checkpoint.session.character_bindings = {"lyra": "discord_1"}
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.turn(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = messages[0]["content"]
+        user_text = messages[-1]["content"]
+        assert "D&D Player Character Identities" not in system_text
+        assert "Hill Dwarf" not in system_text
+        assert "D&D Player Character Identities" in user_text
+        assert "Lyra: Hill Dwarf; Cleric 3" in user_text
+
+    @pytest.mark.asyncio
+    async def test_dnd_player_identity_absent_outside_dnd_ruleset(
+        self, mock_client, prompt_manager, guard_character,
+        sample_checkpoint, sample_agent_text,
+    ):
+        lyra = CharacterRecord(
+            character_id="lyra",
+            name="Lyra",
+            public_sheet=PublicSheet(role="cleric"),
+            mechanics={
+                "ruleset_id": "dnd5e_basic",
+                "dnd5e_sheet": {
+                    "identity": {"species": "Hill Dwarf"},
+                    "statblock": {},
+                },
+            },
+        )
+        sample_checkpoint.characters = [guard_character, lyra]
+        sample_checkpoint.session.character_bindings = {"lyra": "discord_1"}
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.turn(guard_character, sample_checkpoint)
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        flat = "\n".join(
+            message["content"] for message in messages
+            if isinstance(message.get("content"), str)
+        )
+        assert "D&D Player Character Identities" not in flat
+        assert "Hill Dwarf" not in flat
+
+    @pytest.mark.asyncio
     async def test_dnd_combat_marker_is_live_user_context(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,

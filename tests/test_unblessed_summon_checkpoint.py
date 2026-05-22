@@ -7,7 +7,7 @@ form. These tests pin the structural contracts the engine relies on so
 edits to the file fail fast on obvious mistakes:
 
 * the JSON must round-trip through `CheckpointFile.model_validate`;
-* the player slot must remain unstatted (`mechanics == {}`) so a user's
+* the player slots must remain unstatted (`mechanics == {}`) so a user's
   `/attach` upload is not silently overwritten;
 * the named NPC roster must be present;
 * world_state lore + hidden_lore + facts + hidden_facts must be
@@ -43,6 +43,8 @@ CHECKPOINT_PATH = (
 )
 
 PLAYER_CHARACTER_ID = "player_protagonist"
+SECOND_PLAYER_CHARACTER_ID = "player_protagonist_2"
+PLAYER_CHARACTER_IDS = {PLAYER_CHARACTER_ID, SECOND_PLAYER_CHARACTER_ID}
 
 EXPECTED_NPC_IDS = {
     # romance roster
@@ -91,7 +93,7 @@ EXPECTED_NPC_IDS = {
     "mira",
 }
 
-EXPECTED_ALL_IDS = EXPECTED_NPC_IDS | {PLAYER_CHARACTER_ID}
+EXPECTED_ALL_IDS = EXPECTED_NPC_IDS | PLAYER_CHARACTER_IDS
 
 # Each romance interest must use a distinct D&D 5e class chassis. The
 # user explicitly required no class repeats among the seven romance
@@ -120,7 +122,8 @@ COHORT_CHARACTER_IDS = {
     "kei_sugino",
 }
 
-SUMMONING_CHAMBER = "veylan_mother_cathedral_summoning_chamber"
+GUILD_HALL = "caer_veylan_adventurers_guild_hall"
+HERO_TRAINING_COMPOUND = "veylan_royal_academy_hero_training_compound"
 
 
 @pytest.fixture(scope="module")
@@ -177,19 +180,19 @@ def test_player_primer_present(checkpoint: CheckpointFile) -> None:
     )
 
 
-def test_opening_starts_at_summoning_moment(
+def test_opening_starts_at_guild_remand(
     checkpoint: CheckpointFile,
     by_id: dict,
 ) -> None:
-    assert by_id[PLAYER_CHARACTER_ID].location == SUMMONING_CHAMBER
+    for cid in PLAYER_CHARACTER_IDS:
+        assert by_id[cid].location == GUILD_HALL, cid
     for cid in COHORT_CHARACTER_IDS:
-        assert by_id[cid].location == SUMMONING_CHAMBER, cid
+        assert by_id[cid].location == HERO_TRAINING_COMPOUND, cid
 
     stale_opening_terms = [
         "four months",
         "hall tavern",
         "hero hall",
-        "adventurers' guild",
         "bandages",
         "soap",
         "second invitation",
@@ -198,6 +201,8 @@ def test_opening_starts_at_summoning_moment(
         checkpoint.player_primer,
         by_id[PLAYER_CHARACTER_ID].backstory,
         by_id[PLAYER_CHARACTER_ID].known_context,
+        by_id[SECOND_PLAYER_CHARACTER_ID].backstory,
+        by_id[SECOND_PLAYER_CHARACTER_ID].known_context,
         checkpoint.world_state.setting.era,
     ]).lower()
     for term in stale_opening_terms:
@@ -205,13 +210,14 @@ def test_opening_starts_at_summoning_moment(
 
 
 def test_player_does_not_start_with_cohort_names(by_id: dict) -> None:
-    player_context = "\n".join([
-        by_id[PLAYER_CHARACTER_ID].backstory,
-        by_id[PLAYER_CHARACTER_ID].known_context,
-    ]).lower()
-    for cid in COHORT_CHARACTER_IDS:
-        name = by_id[cid].name.lower()
-        assert name not in player_context, cid
+    for player_id in PLAYER_CHARACTER_IDS:
+        player_context = "\n".join([
+            by_id[player_id].backstory,
+            by_id[player_id].known_context,
+        ]).lower()
+        for cid in COHORT_CHARACTER_IDS:
+            name = by_id[cid].name.lower()
+            assert name not in player_context, (player_id, cid)
 
 
 def test_world_state_is_authored_not_stubbed(
@@ -263,7 +269,7 @@ def test_character_descriptions_are_split_and_seeded(by_id: dict) -> None:
         if char.agent_tier == CharacterAgentTier.utility
     }
     assert utility_ids == {
-        PLAYER_CHARACTER_ID,
+        *PLAYER_CHARACTER_IDS,
         "tatsuya_hozumi",
         "guild_master_bren",
         "crown_prince_aldemar",
@@ -291,7 +297,8 @@ def test_tick_annotations_seeded(by_id: dict) -> None:
     assert tickable
     assert all(c.private_state.tick_cues for c in tickable)
     assert "failed candle" in by_id["korva_sahl"].private_state.tick_cues
-    assert "Theodric" in by_id["cardinal_vespera"].private_state.tick_cues
+    assert "unblessed remand" in by_id["cardinal_vespera"].private_state.tick_cues
+    assert "Guild placement" in by_id["cardinal_vespera"].private_state.tick_cues
     assert by_id["demon_lord"].private_state.intentions_enabled is True
     assert by_id["demon_lord"].status.value == "active"
     assert by_id["princess_nirvel"].status.value == "dormant"
@@ -299,24 +306,25 @@ def test_tick_annotations_seeded(by_id: dict) -> None:
     assert by_id["princess_nirvel"].private_state.tick_cues == []
 
 
-def test_only_player_is_playable(by_id: dict) -> None:
+def test_only_unblessed_pair_is_playable(by_id: dict) -> None:
     playable_ids = {cid for cid, c in by_id.items() if c.is_playable}
-    assert playable_ids == {PLAYER_CHARACTER_ID}
+    assert playable_ids == PLAYER_CHARACTER_IDS
 
 
-def test_player_has_empty_mechanics(by_id: dict) -> None:
-    """The player slot must not have a synthetic D&D sheet attached.
+def test_players_have_empty_mechanics(by_id: dict) -> None:
+    """The player slots must not have synthetic D&D sheets attached.
 
     This is the load-bearing contract that lets a user `/attach` their
-    own DDB sheet without it being silently overwritten by a stale
-    synthetic profile. Any future edit that adds a `mechanics` block
-    to the player_protagonist character should fail here.
+    own DDB sheet without it being silently overwritten by stale
+    synthetic profiles. Any future edit that adds a `mechanics` block
+    to either player character should fail here.
     """
-    player = by_id[PLAYER_CHARACTER_ID]
-    assert player.mechanics == {}, (
-        "player_protagonist must ship with empty mechanics so /attach "
-        "imports do not collide with a synthetic sheet"
-    )
+    for cid in PLAYER_CHARACTER_IDS:
+        player = by_id[cid]
+        assert player.mechanics == {}, (
+            f"{cid} must ship with empty mechanics so /attach imports do "
+            "not collide with a synthetic sheet"
+        )
 
 
 def test_every_npc_has_dnd_mechanics(by_id: dict) -> None:
@@ -430,21 +438,22 @@ def test_synthetic_sheets_are_used_for_roll_modifiers(by_id: dict) -> None:
 
 
 def test_player_roll_modifier_falls_back_to_zero(by_id: dict) -> None:
-    """With no mechanics attached, the player's roll modifier is the
+    """With no mechanics attached, each player's roll modifier is the
     bare ability modifier (which without an ability_scores block is
     zero). This documents that the engine handles the empty-mechanics
-    case cleanly until the user attaches a real sheet.
+    case cleanly until users attach real sheets.
     """
-    request = PlannedRoll(
-        roll_id="roll_player",
-        actor_id=PLAYER_CHARACTER_ID,
-        kind="skill_check",
-        ability="cha",
-        skill="persuasion",
-        dc=0,
-        opposed_by="",
-        advantage_state="normal",
-        reason="test",
-    )
-    actual = mechanics.roll_modifier(by_id[PLAYER_CHARACTER_ID], request)
-    assert actual == 0
+    for cid in PLAYER_CHARACTER_IDS:
+        request = PlannedRoll(
+            roll_id=f"roll_{cid}",
+            actor_id=cid,
+            kind="skill_check",
+            ability="cha",
+            skill="persuasion",
+            dc=0,
+            opposed_by="",
+            advantage_state="normal",
+            reason="test",
+        )
+        actual = mechanics.roll_modifier(by_id[cid], request)
+        assert actual == 0

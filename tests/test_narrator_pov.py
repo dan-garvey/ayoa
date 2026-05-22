@@ -184,6 +184,42 @@ class TestComposePovRender:
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
 
     @pytest.mark.asyncio
+    async def test_dnd_player_species_reaches_narrator_user_context(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        alice = next(char for char in ckpt.characters if char.character_id == "alice")
+        alice.mechanics = {
+            "ruleset_id": "dnd5e_basic",
+            "dnd5e_sheet": {
+                "identity": {
+                    "species": "Hill Dwarf",
+                    "classes": [{"name": "Cleric", "level": 3}],
+                },
+                "statblock": {},
+            },
+        }
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
+            ],
+            partial_mode=False,
+            user_input="I look around.",
+        )
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = messages[0]["content"]
+        user_text = messages[-1]["content"]
+        assert "Hill Dwarf" not in system_text
+        assert "Alice (you) — Hill Dwarf; Cleric 3" in user_text
+
+    @pytest.mark.asyncio
     async def test_imported_asset_source_sentinels_do_not_reach_prompt(
         self, mock_client, prompt_manager,
     ):

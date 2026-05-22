@@ -69,17 +69,7 @@ class PromptManager:
             )
         return path
 
-    def render(self, template_name: str, **variables) -> str:
-        """Load and render a template with the given variables.
-
-        `template_name` is the file stem under `app/prompts/`
-        (e.g. `'event_router'`, `'narrator_phase2'`) — no version
-        suffix. The corresponding `.txt` file is loaded, HTML-style
-        comment blocks are stripped, `{include "..."}` directives
-        are recursively expanded from `_partials/`, and finally
-        the remaining `{var}` placeholders are substituted from
-        `variables`.
-        """
+    def _load_template_text(self, template_name: str) -> str:
         path = self._find_template(template_name)
 
         raw = path.read_text()
@@ -93,9 +83,16 @@ class PromptManager:
         # Only whole-line `<!-- ... -->` blocks are recognized; inline HTML
         # comments inside prose would be rare and we'd rather preserve them.
         stripped = _COMMENT_RE.sub("", raw)
-        stripped = self._expand_includes(stripped)
+        return self._expand_includes(stripped)
 
-        required = set(re.findall(r"\{(\w+)\}", stripped))
+    @staticmethod
+    def _format_template_fragment(
+        *,
+        template_name: str,
+        text: str,
+        variables: dict,
+    ) -> str:
+        required = set(re.findall(r"\{(\w+)\}", text))
         provided = set(variables.keys())
         missing = required - provided
         if missing:
@@ -104,7 +101,47 @@ class PromptManager:
                 f"that were not provided"
             )
 
-        return stripped.format(**variables)
+        return text.format(**variables)
+
+    def render(self, template_name: str, **variables) -> str:
+        """Load and render a template with the given variables.
+
+        `template_name` is the file stem under `app/prompts/`
+        (e.g. `'event_router'`, `'narrator_phase2'`) — no version
+        suffix. The corresponding `.txt` file is loaded, HTML-style
+        comment blocks are stripped, `{include "..."}` directives
+        are recursively expanded from `_partials/`, and finally
+        the remaining `{var}` placeholders are substituted from
+        `variables`.
+        """
+        return self._format_template_fragment(
+            template_name=template_name,
+            text=self._load_template_text(template_name),
+            variables=variables,
+        )
+
+    def render_system_message(
+        self,
+        template_name: str,
+        **variables,
+    ) -> dict[str, str]:
+        """Render only the cacheable system message before `<<<USER>>>`."""
+        marker = "<<<USER>>>"
+        text = self._load_template_text(template_name)
+        if marker not in text:
+            raise ValueError(
+                f"Template '{template_name}' must contain the `{marker}` delimiter "
+                f"separating the frozen system prefix from the per-turn user body."
+            )
+        system, _user = text.split(marker, 1)
+        return {
+            "role": "system",
+            "content": self._format_template_fragment(
+                template_name=template_name,
+                text=system,
+                variables=variables,
+            ).strip(),
+        }
 
     def render_messages(self, template_name: str, **variables) -> list[dict[str, str]]:
         """Render a template and split it into system + user messages on `<<<USER>>>`.

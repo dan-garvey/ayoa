@@ -227,6 +227,27 @@ class TestPromptManagerWithRealTemplates:
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
 
+    def test_render_system_message_formats_only_system_prefix(self, tmp_path):
+        (tmp_path / "router.txt").write_text(
+            "System {stable} <<<USER>>> User {volatile}"
+        )
+        mgr = PromptManager(prompts_dir=str(tmp_path))
+
+        message = mgr.render_system_message("router", stable="cacheable")
+
+        assert message == {"role": "system", "content": "System cacheable"}
+
+    def test_render_system_message_still_requires_system_variables(
+        self, tmp_path,
+    ):
+        (tmp_path / "router.txt").write_text(
+            "System {stable} <<<USER>>> User {volatile}"
+        )
+        mgr = PromptManager(prompts_dir=str(tmp_path))
+
+        with pytest.raises(KeyError, match="stable"):
+            mgr.render_system_message("router", volatile="turn")
+
     def test_event_router_keeps_turn_context_out_of_system_prefix(self):
         """Router cache efficiency depends on actor/player turn state
         living in the volatile user tail, not the cached system prefix."""

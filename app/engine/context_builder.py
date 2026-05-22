@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
-from app.engine import dnd_runtime
+from app.engine import dnd_presentation, dnd_runtime
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
@@ -70,7 +70,10 @@ def append_assistant_to_conversation(
     conversation.append(assistant_message_from_response(response))
 
 
-def build_character_packet(char: CharacterRecord) -> dict[str, str]:
+def build_character_packet(
+    char: CharacterRecord,
+    checkpoint: CheckpointFile | None = None,
+) -> dict[str, str]:
     """Build the stable character-identity variables for the agent user tail.
 
     Dynamic state (goals/objectives/secrets) is rendered into the same per-turn
@@ -79,13 +82,21 @@ def build_character_packet(char: CharacterRecord) -> dict[str, str]:
     Traits, voice, and narrative_notes are gone as separate fields —
     personality absorbs all of them into one prose block.
     """
+    backstory = char.backstory or "No detailed backstory available."
+    dnd_identity = (
+        build_dnd_character_identity_sentence(checkpoint, char)
+        if checkpoint is not None else ""
+    )
+    if dnd_identity:
+        backstory = f"{dnd_identity}\n{backstory}"
+
     return {
         "character_id": char.character_id,
         "character_name": char.name,
         "character_role": char.public_sheet.role or "unspecified",
         "character_appearance": char.public_sheet.appearance or "unremarkable",
         "character_faction": char.public_sheet.faction or "unaffiliated",
-        "character_backstory": char.backstory or "No detailed backstory available.",
+        "character_backstory": backstory,
         "character_personality": char.personality or "No detailed personality notes.",
     }
 
@@ -334,6 +345,44 @@ def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
     return ids
 
 
+def build_dnd_character_identity_sentence(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> str:
+    if not _dnd_ruleset_enabled(checkpoint):
+        return ""
+    return dnd_presentation.character_identity_sentence(character)
+
+
+def build_dnd_player_identities_block(checkpoint: CheckpointFile) -> str:
+    if not _dnd_ruleset_enabled(checkpoint):
+        return ""
+    player_ids = collect_player_ids(checkpoint)
+    if not player_ids:
+        return ""
+
+    lines: list[str] = []
+    for char in checkpoint.characters:
+        if char.character_id not in player_ids:
+            continue
+        identity = build_dnd_character_identity_sentence(checkpoint, char)
+        if not identity:
+            continue
+        label = _dnd_identity_display_text(identity)
+        lines.append(f"- {char.name}: {label}")
+
+    if not lines:
+        return ""
+    return (
+        "## D&D Player Character Identities\n"
+        "Use these to avoid wrong species, ancestry, or class references when "
+        "your character has in-fiction reason to refer to a player character; "
+        "do not treat this block as new private knowledge.\n"
+        + "\n".join(lines)
+        + "\n\n"
+    )
+
+
 def build_player_characters_block(
     checkpoint: CheckpointFile,
     acting_character_id: str,
@@ -375,11 +424,13 @@ def build_player_characters_block(
         appearance = (char.public_sheet.appearance or "not yet described").strip()
         location = char.location or "unknown location"
         marker = " (acting this turn)" if char.character_id == acting_character_id else ""
+        identity = build_dnd_character_identity_sentence(checkpoint, char)
+        identity_text = f" {identity}" if identity else ""
         equipment = _build_dnd_player_equipment_sentence(checkpoint, char)
         equipment_text = f" {equipment}" if equipment else ""
         lines.append(
             f"- **{char.character_id}**{marker} — {role}. "
-            f"Location: {location}. {appearance}{equipment_text}"
+            f"Location: {location}. {appearance}{identity_text}{equipment_text}"
         )
 
     if not lines:
@@ -413,7 +464,11 @@ def build_narrator_player_characters_block(
         if char is None:
             continue
         marker = " (you)" if char.character_id == pov_character_id else ""
-        lines.append(f"- {char.name}{marker}")
+        identity = build_dnd_character_identity_sentence(checkpoint, char)
+        identity_text = (
+            f" — {_dnd_identity_display_text(identity)}" if identity else ""
+        )
+        lines.append(f"- {char.name}{marker}{identity_text}")
 
     if not lines:
         return "- No human-played characters are currently listed."
@@ -430,6 +485,19 @@ def _compact_player_context(text: str, *, limit: int) -> str:
     if cut < 0:
         cut = limit
     return compact[:cut].rstrip(" .") + "."
+
+
+def _dnd_ruleset_enabled(checkpoint: CheckpointFile) -> bool:
+    settings = getattr(getattr(checkpoint.session, "config", None), "settings", None)
+    return getattr(settings, "ruleset_id", "") == _DND5E_BASIC_RULESET_ID
+
+
+def _dnd_identity_display_text(identity_sentence: str) -> str:
+    text = identity_sentence.strip()
+    prefix = "D&D identity: "
+    if text.startswith(prefix):
+        text = text[len(prefix):]
+    return text.rstrip(".")
 
 
 def _build_dnd_player_equipment_sentence(

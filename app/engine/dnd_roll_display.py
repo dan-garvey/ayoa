@@ -18,6 +18,7 @@ def completed_automatic_roll_keys(ckpt: CheckpointFile) -> set[RollKey]:
         (txn.transaction_id, record.roll_id)
         for txn, record in _iter_completed_rolls(ckpt)
         if record.completed_by_user_id == "engine"
+        and _automatic_rolls_have_been_player_safe(txn)
     }
 
 
@@ -29,6 +30,8 @@ def dice_roll_displays_since(
     for txn, record in _iter_completed_rolls(ckpt):
         key = (txn.transaction_id, record.roll_id)
         if key in before or record.completed_by_user_id != "engine":
+            continue
+        if not _automatic_rolls_are_player_safe_now(txn):
             continue
         displays.append(dice_roll_display_for_record(ckpt, txn, record))
     return displays
@@ -93,6 +96,30 @@ def _iter_completed_rolls(
             if record.status == "completed" and record.roll_id:
                 completed.append((txn, record))
     return completed
+
+
+def _automatic_rolls_have_been_player_safe(
+    transaction: CatIIRollTransaction,
+) -> bool:
+    return str(transaction.status or "") == "finalized"
+
+
+def _automatic_rolls_are_player_safe_now(
+    transaction: CatIIRollTransaction,
+) -> bool:
+    if _pending_player_rolls(transaction):
+        return False
+    status = str(transaction.status or "")
+    return status != "awaiting_player_rolls"
+
+
+def _pending_player_rolls(
+    transaction: CatIIRollTransaction,
+) -> list[CatIIRollRecord]:
+    return [
+        record for record in (transaction.rolls or [])
+        if record.actor_control == "player" and record.status == "pending"
+    ]
 
 
 def _planned_roll(value: dict[str, Any]) -> PlannedRoll | None:

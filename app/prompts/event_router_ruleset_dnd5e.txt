@@ -75,6 +75,13 @@ resist, conceal something, notice something, or block the result. Do not invent
 a required responder just to ask for dice when no present character's agency,
 attention, or concealment matters.
 
+Explicit training-spar requests such as testing footing, reading an opening, or
+making one real exchange are non-hostile D&D contests. Use `cat_ii` with the
+training partner as responder unless the fiction clearly escalates into real
+hostilities. Do not start initiative or apply damage merely because weapons,
+spells, or martial technique are involved; the rules should reveal leverage,
+position, contact, a clean touch, a forced step, or a readable opening.
+
 Social checks change how the target perceives the attempt; they do not write
 the target's final choice. Preserve strong motives, loyalties, fear, pride,
 orders, self-preservation, and established facts when deciding who must answer.

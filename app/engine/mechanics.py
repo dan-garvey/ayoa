@@ -5,7 +5,7 @@ from typing import Any
 
 from app.schemas.characters import CharacterRecord
 from app.schemas.dnd_cat_ii import PlannedRoll
-from app.engine import dnd_inventory, dnd_runtime
+from app.engine import dnd_inventory, dnd_presentation, dnd_runtime
 
 
 _SKILL_ABILITIES = {
@@ -77,6 +77,9 @@ def mechanics_summary(
         "active_effects": runtime.get("active_effects", []),
         "defenses": defenses if isinstance(defenses, dict) else {},
     }
+    identity = dnd_presentation.character_identity_summary(character)
+    if identity:
+        summary["identity"] = identity
     if include_inventory_resources:
         inventory = dnd_inventory.inventory_view(character)
         summary["resources"] = mechanics.get("resources", {})

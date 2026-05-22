@@ -21,7 +21,12 @@ from app.schemas.dnd_cat_ii import (
     RulesAdjudication,
 )
 from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
-from app.schemas.state import DndCombatState, OpenCatIIEvent
+from app.schemas.state import (
+    CatIIRollRecord,
+    CatIIRollTransaction,
+    DndCombatState,
+    OpenCatIIEvent,
+)
 from tests.support.factories import (
     character_record,
     checkpoint,
@@ -228,6 +233,156 @@ def test_dnd_cat_ii_content_context_redacts_imported_asset_sentinels():
         assert sentinel not in flat
     assert REDACTED_IMPORT_SENTINEL in flat
     assert "Visible surface" in flat
+
+
+def test_dnd_cat_ii_packet_includes_identity_and_training_spar_hints():
+    lyra = character_record(
+        "lyra",
+        name="Lyra",
+        role="cleric",
+        mechanics={
+            "ruleset_id": "dnd5e_basic",
+            "dnd5e_sheet": {
+                "identity": {
+                    "species": "Hill Dwarf",
+                    "classes": [{"name": "Cleric", "level": 3}],
+                    "background": "Acolyte",
+                },
+                "statblock": {},
+            },
+        },
+    )
+    herrik = character_record("herrik", name="Herrik", role="trainer")
+    ckpt = checkpoint(
+        bindings={"lyra": "discord_1"},
+        characters=[lyra, herrik],
+    )
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+    evt = OpenCatIIEvent(
+        event_id="evt_spar",
+        initiator_id="lyra",
+        initiator_intention=(
+            "I ask Herrik for a training spar to test my footing and read "
+            "an opening."
+        ),
+        required_responders=["herrik"],
+        collected_intentions={"herrik": "I give Lyra one clean exchange."},
+        opening_observer_ids=["lyra", "herrik"],
+        opening_observable_facts=[
+            "Lyra and Herrik square up for a training exchange."
+        ],
+    )
+
+    packet = json.loads(cat._build_contested_packet(ckpt, evt))
+
+    lyra_packet = next(
+        item for item in packet["participants"]
+        if item["character_id"] == "lyra"
+    )
+    assert lyra_packet["mechanics"]["identity"] == {
+        "species": "Hill Dwarf",
+        "classes": "Cleric 3",
+        "background": "Acolyte",
+    }
+    assert packet["adjudication_hints"]["training_spar"]["present"] is True
+    assert "training-safe consequences" in " ".join(
+        packet["adjudication_hints"]["training_spar"]["mechanics_options"]
+    )
+
+
+def test_hidden_observer_who_beats_player_stealth_gets_next_output():
+    ckpt = checkpoint(
+        bindings={"alice": "discord_1"},
+        characters=[
+            character_record("alice", name="Alice", role="rogue"),
+            character_record("dace", name="Dace", role="hidden lookout"),
+        ],
+    )
+    evt = OpenCatIIEvent(
+        event_id="evt_stealth",
+        initiator_id="alice",
+        initiator_intention="I sneak along the hedge to recon the lookout.",
+        required_responders=["dace"],
+        collected_intentions={"dace": "I stay hidden and watch for movement."},
+        opening_observer_ids=["alice", "dace"],
+        opening_observable_facts=[
+            "Alice moves quietly along the hedge while an unseen lookout watches."
+        ],
+    )
+    alice_roll = PlannedRoll(
+        roll_id="roll_alice",
+        actor_id="alice",
+        kind="skill_check",
+        ability="dex",
+        skill="stealth",
+        dc=0,
+        opposed_by="roll_dace",
+        advantage_state="normal",
+        reason="Alice tries to move unseen along the hedge.",
+    )
+    dace_roll = PlannedRoll(
+        roll_id="roll_dace",
+        actor_id="dace",
+        kind="skill_check",
+        ability="wis",
+        skill="perception",
+        dc=0,
+        opposed_by="roll_alice",
+        advantage_state="normal",
+        reason="Dace watches the hedge for movement.",
+    )
+    transaction = CatIIRollTransaction(
+        transaction_id="rolltxn_stealth",
+        event_id="evt_stealth",
+        ruleset_id="dnd5e_basic",
+        status="ready_to_finalize",
+        rolls=[
+            CatIIRollRecord(
+                roll_id="roll_alice",
+                actor_id="alice",
+                status="completed",
+                request=alice_roll.model_dump(),
+                result={"total": 12, "detail": "d20(9) + 3"},
+            ),
+            CatIIRollRecord(
+                roll_id="roll_dace",
+                actor_id="dace",
+                status="completed",
+                request=dace_roll.model_dump(),
+                result={"total": 13, "detail": "d20(11) + 2"},
+            ),
+        ],
+    )
+    adjudication = RulesAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="Dace beats Alice's Stealth.",
+        visible_outcome_facts=[
+            "Alice reaches the hedge without drawing a shout."
+        ],
+        private_outcome_facts=[
+            PrivateOutcomeFact(
+                text="Dace catches the hedge movement and can track Alice.",
+                visible_to=["dace"],
+            )
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+    )
+
+    routed = cat._compile_event_router_output(ckpt, evt, transaction, adjudication)
+
+    assert routed.event_kind == "beat_continues"
+    assert routed.next_output_character_ids == ["dace"]
+    dace_observer = next(
+        observer for observer in routed.observers
+        if observer.character_id == "dace"
+    )
+    assert dace_observer.routing_role == "next_output"
 
 
 def test_dnd_combat_turn_plan_accepts_nested_no_roll_action():

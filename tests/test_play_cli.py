@@ -20,6 +20,7 @@ from scripts.play import (
     _ConsoleInput,
     _cli_log_level,
     _default_history_path,
+    _split_combat_ids,
 )
 from app.engine.cli_image_display import CliImageDisplayResult
 from app.engine.frontend_views import (
@@ -1003,6 +1004,17 @@ class TestBeginCommand:
 
 
 class TestCombatCommand:
+    def test_combat_begin_parser_preserves_comma_or_quoted_names(self):
+        assert _split_combat_ids("alice guard") == ["alice", "guard"]
+        assert _split_combat_ids("alice, Herrik Voss") == [
+            "alice",
+            "Herrik Voss",
+        ]
+        assert _split_combat_ids('alice "Herrik Voss"') == [
+            "alice",
+            "Herrik Voss",
+        ]
+
     def test_combat_status_renders_order(self, run, capsys):
         engine = _mock_engine()
         engine.combat_status.return_value = DndCombatView(
@@ -1297,6 +1309,71 @@ class TestRollCommand:
         assert "Rolled Attack:" in out
         assert "Rolled Acrobatics:" in out
         assert "Ash keeps his footing." in out
+
+    def test_roll_all_uses_joined_rolls_when_current_actor_has_none(
+        self, run, capsys,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
+        prompt = PendingRollPrompt(
+            session_id=SESSION_ID,
+            event_id="evt_sera",
+            roll_id="roll_stealth",
+            actor_id="sera",
+            user_id="2",
+            label="Stealth",
+            reason="Slip behind the pillar.",
+        )
+        completed = False
+
+        def pending_rolls(session_id, *, user_id=None):
+            assert session_id == SESSION_ID
+            if completed:
+                return []
+            return [prompt] if user_id == 2 else []
+
+        async def complete_roll(**kwargs):
+            nonlocal completed
+            completed = True
+            assert kwargs == {
+                "session_id": SESSION_ID,
+                "event_id": "evt_sera",
+                "roll_id": "roll_stealth",
+                "user_id": 2,
+            }
+            return CompletedPendingRoll(
+                session_id=SESSION_ID,
+                event_id="evt_sera",
+                roll_id="roll_stealth",
+                actor_id="sera",
+                user_id="2",
+                label="Stealth",
+                reason="Slip behind the pillar.",
+                expression="1d20+6",
+                total=18,
+                detail="1d20 (12) + 6 = `18`",
+                crit="none",
+                remaining_pending_rolls=0,
+            )
+
+        engine.pending_roll_prompts.side_effect = pending_rolls
+        engine.complete_pending_roll.side_effect = complete_roll
+        engine.continue_pending_roll.return_value = _turn_response(
+            turn_index=5,
+            output_text="Sera ducks back into shadow.",
+        )
+
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        assert state.current_actor == "aldric"
+        run(state.handle_line("/roll all"))
+
+        engine.continue_pending_roll.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            event_id="evt_sera",
+            actor_id="sera",
+        )
+        out = capsys.readouterr().out
+        assert "Rolled Stealth:" in out
+        assert "Sera ducks back into shadow." in out
 
 
 class TestActingDescribe:

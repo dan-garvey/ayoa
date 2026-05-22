@@ -92,6 +92,65 @@ def test_begin_combat_defaults_to_bound_party_and_same_location_npcs(
     assert all(p.hp_current is not None for p in view.participants)
 
 
+def test_begin_combat_accepts_unambiguous_display_name_slug(
+    bridge: EngineBridge,
+    monkeypatch,
+):
+    _seed(bridge)
+    ckpt = bridge.load_latest(SESSION_ID)
+    ckpt.characters.append(
+        _char(
+            "brigand_leader_herrik",
+            name="Herrik Voss",
+            location="Hall",
+            hp_current=14,
+            hp_max=14,
+        )
+    )
+    bridge.checkpoint_mgr.save(ckpt)
+    original_start = dnd_combat.start_combat
+    calls: dict[str, object] = {}
+
+    def start_spy(session, characters, **kwargs):
+        selected = list(characters)
+        calls["begin_participant_ids"] = [c.character_id for c in selected]
+        return original_start(session, selected, **kwargs)
+
+    monkeypatch.setattr(dnd_combat, "start_combat", start_spy)
+
+    view = bridge.begin_combat(
+        SESSION_ID,
+        ["alice", "herrik_voss"],
+    )
+
+    assert calls["begin_participant_ids"] == [
+        "alice",
+        "brigand_leader_herrik",
+    ]
+    assert {p.character_id for p in view.participants} == {
+        "alice",
+        "brigand_leader_herrik",
+    }
+
+
+def test_begin_combat_ambiguous_name_lists_usable_ids(bridge: EngineBridge):
+    _seed(bridge)
+    ckpt = bridge.load_latest(SESSION_ID)
+    ckpt.characters.extend([
+        _char("brigand_leader_herrik", name="Herrik Voss", location="Hall"),
+        _char("stablehand_herrik", name="Herrik Tal", location="Hall"),
+    ])
+    bridge.checkpoint_mgr.save(ckpt)
+
+    with pytest.raises(ValueError) as exc:
+        bridge.begin_combat(SESSION_ID, ["herrik"])
+
+    message = str(exc.value)
+    assert "Ambiguous combat participant 'herrik'" in message
+    assert "brigand_leader_herrik" in message
+    assert "stablehand_herrik" in message
+
+
 def test_combat_status_and_mutations_delegate_and_persist(
     bridge: EngineBridge,
     monkeypatch,

@@ -1919,6 +1919,50 @@ class EngineBridge:
                 selected.append(char.character_id)
         return selected
 
+    def _resolve_combat_participant_refs(
+        self,
+        ckpt: CheckpointFile,
+        refs: Iterable[str],
+    ) -> list[str]:
+        by_id = {c.character_id: c for c in ckpt.characters}
+        resolved: list[str] = []
+        missing: list[str] = []
+        for raw_ref in refs:
+            ref = str(raw_ref or "").strip()
+            if not ref:
+                continue
+            if ref in by_id:
+                resolved.append(ref)
+                continue
+            ref_slug = _participant_ref_slug(ref)
+            matches = [
+                character for character in ckpt.characters
+                if _combat_participant_ref_matches(character, ref_slug)
+            ]
+            if len(matches) == 1:
+                resolved.append(matches[0].character_id)
+                continue
+            if len(matches) > 1:
+                choices = ", ".join(
+                    _combat_participant_choice_text(character)
+                    for character in matches[:8]
+                )
+                raise ValueError(
+                    f"Ambiguous combat participant {ref!r}. "
+                    f"Use one of these character IDs: {choices}."
+                )
+            missing.append(ref)
+        if missing:
+            options = _combat_participant_options_text(ckpt.characters)
+            suffix = f" Available participants: {options}." if options else ""
+            raise ValueError(
+                "Unknown combat participant(s): "
+                + ", ".join(missing)
+                + ". Use character IDs or unambiguous names."
+                + suffix
+            )
+        return resolved
+
     def _combat_save_and_view(
         self,
         ckpt: CheckpointFile,
@@ -2219,13 +2263,9 @@ class EngineBridge:
         )
         if not participants:
             raise ValueError("No active combat participants found.")
+        participants = self._resolve_combat_participant_refs(ckpt, participants)
         by_id = {c.character_id: c for c in ckpt.characters}
         selected = [by_id[cid] for cid in participants if cid in by_id]
-        missing = [cid for cid in participants if cid not in by_id]
-        if missing:
-            raise ValueError(
-                "Unknown combat participant(s): " + ", ".join(missing)
-            )
         result = module.start_combat(ckpt.session, selected)
         return self._combat_save_and_view(ckpt, result)
 
@@ -2799,6 +2839,50 @@ def _pick_unused_character_id(
     while f"{base}_{i}" in taken:
         i += 1
     return f"{base}_{i}"
+
+
+def _participant_ref_slug(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
+
+
+def _combat_participant_ref_matches(
+    character: CharacterRecord,
+    ref_slug: str,
+) -> bool:
+    if not ref_slug:
+        return False
+    character_id = str(character.character_id or "")
+    name = str(character.name or "")
+    id_slug = _participant_ref_slug(character_id)
+    name_slug = _participant_ref_slug(name)
+    if ref_slug in {id_slug, name_slug}:
+        return True
+    return (
+        ref_slug in id_slug.split("_")
+        or ref_slug in name_slug.split("_")
+    )
+
+
+def _combat_participant_choice_text(character: CharacterRecord) -> str:
+    name = str(character.name or "").strip()
+    if name and name != character.character_id:
+        return f"{name} ({character.character_id})"
+    return str(character.character_id)
+
+
+def _combat_participant_options_text(
+    characters: Iterable[CharacterRecord],
+) -> str:
+    active = [
+        character for character in characters
+        if str(getattr(character.status, "value", character.status)) == "active"
+    ]
+    choices = [
+        _combat_participant_choice_text(character)
+        for character in active[:12]
+    ]
+    suffix = "" if len(active) <= 12 else ", ..."
+    return ", ".join(choices) + suffix
 
 
 def _build_takeover_context(

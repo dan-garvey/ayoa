@@ -131,3 +131,92 @@ def test_dice_roll_displays_since_ignores_seen_and_player_rolls():
         completed_by_user_id="123",
     ))
     assert dice_roll_displays_since(player_ckpt, before=set()) == []
+
+
+def test_opposed_npc_rolls_wait_for_player_resolution_before_display():
+    npc_record = CatIIRollRecord(
+        roll_id="roll_pip",
+        actor_id="pip",
+        actor_control="agent",
+        status="completed",
+        request={
+            "roll_id": "roll_pip",
+            "actor_id": "pip",
+            "kind": "skill_check",
+            "ability": "wis",
+            "skill": "insight",
+            "dc": 0,
+            "opposed_by": "roll_alice",
+            "advantage_state": "normal",
+            "reason": "Pip reads Alice's bluff.",
+        },
+        modifier=2,
+        label="Insight",
+        reason="Pip reads Alice's bluff.",
+        result={
+            "roll_id": "roll_pip",
+            "expression": "1d20+2",
+            "total": 15,
+            "detail": "1d20 (13) + 2 = `15`",
+            "crit": "none",
+            "dice": [
+                {"size": 20, "values": [13], "kept": True, "total": 13},
+            ],
+        },
+        completed_by_user_id="engine",
+    )
+    player_record = CatIIRollRecord(
+        roll_id="roll_alice",
+        actor_id="alice",
+        actor_control="player",
+        status="pending",
+        request={
+            "roll_id": "roll_alice",
+            "actor_id": "alice",
+            "kind": "skill_check",
+            "ability": "cha",
+            "skill": "deception",
+            "dc": 0,
+            "opposed_by": "roll_pip",
+            "advantage_state": "normal",
+            "reason": "Alice keeps her story straight.",
+        },
+        modifier=5,
+        label="Deception",
+        reason="Alice keeps her story straight.",
+    )
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        world_state=WorldState(),
+        characters=[
+            CharacterRecord(character_id="alice", name="Alice"),
+            CharacterRecord(character_id="pip", name="Pip"),
+        ],
+    )
+    transaction = CatIIRollTransaction(
+        transaction_id="rolltxn_social",
+        event_id="evt_social",
+        source="cat_ii",
+        actor_id="alice",
+        status="awaiting_player_rolls",
+        rolls=[player_record, npc_record],
+    )
+    ckpt.session.cat_ii_roll_transactions.append(transaction)
+
+    before = completed_automatic_roll_keys(ckpt)
+
+    assert before == set()
+    assert dice_roll_displays_since(ckpt, before=set()) == []
+
+    player_record.status = "completed"
+    player_record.completed_by_user_id = "123"
+    transaction.status = "ready_to_finalize"
+    assert completed_automatic_roll_keys(ckpt) == set()
+
+    transaction.status = "finalized"
+    displays = dice_roll_displays_since(ckpt, before=before)
+
+    assert len(displays) == 1
+    assert displays[0].roll_id == "roll_pip"
+    assert displays[0].actor_name == "Pip"
+    assert displays[0].total == 15

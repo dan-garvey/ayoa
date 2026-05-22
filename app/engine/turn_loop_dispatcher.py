@@ -1039,11 +1039,11 @@ class LLMDispatcher:
                 "router_input_block": agent_output,
             }
 
-            base_messages = self.prompt_mgr.render_messages(
+            system_message = self.prompt_mgr.render_system_message(
                 "event_router",
                 **template_vars,
             )
-            messages = [base_messages[0]]
+            messages = [system_message]
             for item in ckpt.session_conversation:
                 messages.append({"role": item.role, "content": item.content})
             messages.append({
