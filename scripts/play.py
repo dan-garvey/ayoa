@@ -91,6 +91,10 @@ from app.engine.frontend_views import (
     DndSheetAttachmentSummary,
     PendingRollPrompt,
 )
+from app.engine.cli_image_display import (
+    CliImageDisplayRenderer,
+    CliImageDisplayResult,
+)
 from app.engine.text_safety import strip_terminal_control
 
 load_dotenv()
@@ -1149,6 +1153,19 @@ def _print_joinable_characters(
         print("  (none)")
 
 
+def _cli_image_display_message(result: CliImageDisplayResult) -> str:
+    if result.displayed:
+        return "Displayed revealed image."
+    if result.export_path is not None:
+        return (
+            "Image reveal could not be displayed in this terminal. "
+            f"Safe export: {result.export_path}"
+        )
+    if result.degraded and result.error_code == "unsupported_terminal":
+        return "Image reveal could not be displayed in this terminal."
+    return "Could not display the revealed image."
+
+
 class CLIState:
     """Per-session state for the interactive REPL.
 
@@ -1166,11 +1183,13 @@ class CLIState:
         story_id: str,
         *,
         console: _ConsoleInput | None = None,
+        asset_image_renderer: CliImageDisplayRenderer | None = None,
     ):
         self.engine = engine
         self.session_id = session_id
         self.story_id = story_id
         self.console = console or _ConsoleInput(readline_module=None)
+        self.asset_image_renderer = asset_image_renderer or CliImageDisplayRenderer()
         self.current_actor: str | None = None
         # char_id -> synthetic user_id. Mirrors Discord's one-user-per-char
         # binding so we exercise the full path; the CLI is just "the god user"
@@ -2615,6 +2634,7 @@ class CLIState:
                 print("--- Before Your Action ---")
                 print(prose)
                 print()
+            self._print_asset_reveals(pre_resp)
             self._print_loot_prompts(pre_resp)
             self._print_commitment_revision_prompts(pre_resp)
 
@@ -2667,6 +2687,8 @@ class CLIState:
             print(prose)
             print()
 
+        self._print_asset_reveals(response)
+
         if response.beat_ended_reason == "cat_ii_pending_rolls":
             prompts = self._joined_pending_roll_prompts()
             _print_roll_prompts(prompts)
@@ -2675,6 +2697,36 @@ class CLIState:
         self._print_loot_prompts(response)
         self._print_commitment_revision_prompts(response)
         self._sync_current_actor_to_active_combat()
+
+    def _print_asset_reveals(self, response) -> None:
+        per_pov = getattr(response, "per_player_asset_reveals", None) or {}
+        if not per_pov or not self.claims:
+            return
+        claimed_ids = {cid for cid in per_pov if cid in self.claims}
+        if not claimed_ids:
+            return
+        try:
+            ckpt = self.engine.load_latest(self.session_id)
+            prepared = self.asset_image_renderer.prepare_reveals(
+                response,
+                ckpt=ckpt,
+                session_id=self.session_id,
+                character_ids=claimed_ids,
+            )
+        except Exception:
+            logger.exception("asset reveal preparation failed")
+            for cid in sorted(claimed_ids):
+                print(f"--- Image Reveal · {cid} ---")
+                print("Could not display the revealed image.")
+                print()
+            return
+
+        for cid in sorted(prepared):
+            print(f"--- Image Reveal · {cid} ---")
+            for item in prepared[cid]:
+                result = self.asset_image_renderer.render_prepared(item)
+                print(_cli_image_display_message(result))
+            print()
 
     def _print_cat_ii_pending_notice(self) -> None:
         try:
@@ -2954,7 +3006,16 @@ async def main_async(args: argparse.Namespace) -> int:
 
         console = _ConsoleInput(history_path=_default_history_path())
         console.install()
-        state = CLIState(engine, session_id, story_id, console=console)
+        image_renderer = CliImageDisplayRenderer.from_environment(
+            show_export_path=args.show_image_cache_paths,
+        )
+        state = CLIState(
+            engine,
+            session_id,
+            story_id,
+            console=console,
+            asset_image_renderer=image_renderer,
+        )
 
         print()
         if resumed_existing:
@@ -3000,6 +3061,14 @@ def main() -> None:
     parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Log engine INFO and WARNING messages to stderr.",
+    )
+    parser.add_argument(
+        "--show-image-cache-paths",
+        action="store_true",
+        help=(
+            "When terminal image display is unavailable, show the generated "
+            "player-safe cache path for eligible CLI image reveals."
+        ),
     )
     args = parser.parse_args()
     sys.exit(asyncio.run(main_async(args)))

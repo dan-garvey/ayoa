@@ -21,6 +21,7 @@ from scripts.play import (
     _cli_log_level,
     _default_history_path,
 )
+from app.engine.cli_image_display import CliImageDisplayResult
 from app.engine.frontend_views import (
     CharacterSummary,
     CompletedPendingRoll,
@@ -301,6 +302,36 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         message="No active combat.",
     ))
     return engine
+
+
+class _FakeAssetImageRenderer:
+    def __init__(self, *, displayed: bool = True) -> None:
+        self.displayed = displayed
+        self.prepare_calls = []
+        self.rendered_items = []
+
+    def prepare_reveals(self, response, *, ckpt, session_id, character_ids):
+        self.prepare_calls.append({
+            "response": response,
+            "ckpt": ckpt,
+            "session_id": session_id,
+            "character_ids": set(character_ids),
+        })
+        return {
+            cid: [
+                CliImageDisplayResult(
+                    pov_character_id=cid,
+                    displayed=self.displayed,
+                    degraded=not self.displayed,
+                    error_code="" if self.displayed else "unsupported_terminal",
+                )
+            ]
+            for cid in sorted(character_ids)
+        }
+
+    def render_prepared(self, item):
+        self.rendered_items.append(item)
+        return item
 
 
 def _character(
@@ -1314,6 +1345,76 @@ class TestActingDescribe:
         out = capsys.readouterr().out
         assert "--- Turn 4 · aldric ---" in out
         assert "The crest is weathered silver." in out
+
+    def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        image_renderer = _FakeAssetImageRenderer()
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            turn_index=4,
+            output_text="Aldric sees the western door.",
+            per_player_renders={
+                "aldric": "Aldric sees the western door.",
+                "sera": "Sera sees the eastern alcove.",
+            },
+            asset_reveals=[SimpleNamespace(delivery_ref="asset://leaked/merged")],
+            per_player_asset_reveals={
+                "aldric": [SimpleNamespace(delivery_ref="asset://pack/aldric")],
+                "sera": [SimpleNamespace(delivery_ref="asset://pack/sera")],
+                "unclaimed": [SimpleNamespace(delivery_ref="asset://pack/hidden")],
+            },
+        ))
+
+        state = CLIState(
+            engine,
+            SESSION_ID,
+            STORY_ID,
+            asset_image_renderer=image_renderer,
+        )
+        run(state.handle_line("/join aldric"))
+        run(state.handle_line("/join sera"))
+        capsys.readouterr()
+        run(state.handle_line("I look around."))
+
+        assert image_renderer.prepare_calls[0]["character_ids"] == {
+            "aldric",
+            "sera",
+        }
+        out = capsys.readouterr().out
+        assert "--- Image Reveal · aldric ---" in out
+        assert "--- Image Reveal · sera ---" in out
+        assert "--- Image Reveal · unclaimed ---" not in out
+        assert out.count("Displayed revealed image.") == 2
+        assert "asset://pack" not in out
+        assert "asset://leaked" not in out
+
+    def test_unsupported_image_backend_is_degraded_not_success(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        image_renderer = _FakeAssetImageRenderer(displayed=False)
+        engine.run_turn = AsyncMock(return_value=_turn_response(
+            turn_index=4,
+            output_text="Aldric sees a handout.",
+            per_player_asset_reveals={
+                "aldric": [SimpleNamespace(delivery_ref="asset://pack/handout")],
+            },
+        ))
+        state = CLIState(
+            engine,
+            SESSION_ID,
+            STORY_ID,
+            asset_image_renderer=image_renderer,
+        )
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+        run(state.handle_line("I inspect it."))
+
+        out = capsys.readouterr().out
+        assert "Image reveal could not be displayed in this terminal." in out
+        assert "Displayed revealed image." not in out
+        assert "asset://pack" not in out
 
     def test_run_turn_error_is_player_safe(self, run, capsys):
         engine = _mock_engine()

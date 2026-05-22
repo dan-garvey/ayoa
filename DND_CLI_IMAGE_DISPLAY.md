@@ -1,12 +1,14 @@
 # D&D CLI Image Display Target
 
-Status: accepted decision for `ayoa-v1n`.
+Status: accepted decision for `ayoa-v1n`; initial CLI implementation landed for
+`ayoa-0f0`.
 
 This document chooses the CLI image display target for reviewed, player-safe
-maps and handouts. It does not implement the resolver, cache, frontend wiring,
-or terminal protocol support. The current CLI must not be described as having
-image display if it only prints captions, `asset://` refs, or text battle-map
-summaries.
+maps and handouts. The current CLI now resolves per-POV safe payloads, writes an
+Ayoa-managed cache copy, and uses the iTerm2 inline image protocol when a
+supported iTerm2 or WezTerm terminal is detected. Unsupported terminals remain
+an explicit degraded fallback and must not be described as successful image
+display.
 
 ## Grounding
 
@@ -204,25 +206,24 @@ writer should be isolated behind an interface so unit tests can assert the bytes
 or command arguments sent to the backend without requiring iTerm2, WezTerm, a
 real TTY, or a hosted LLM key.
 
-## Implementation Blockers
+## Implementation Status
 
-CLI image display remains blocked until these pieces exist:
+The initial CLI path now has:
 
 - `TurnResponse` and frontend DTO fields for per-POV safe asset reveals;
 - a byte resolver for `asset://<pack_id>/<asset_id>` that validates reviewed
   pack rows, hashes, MIME types, size limits, and player-safety gates;
-- an Ayoa-managed safe cache/export writer with generated non-spoiling names;
-- an iTerm2-protocol renderer or `wezterm imgcat` adapter with terminal/session
-  detection and no raw source-path arguments;
-- per-POV CLI rendering that can separate assets for multiple locally controlled
-  characters;
-- rewind-aware reveal/display bookkeeping that distinguishes checkpoint state
-  from ephemeral terminal output;
-- prompt, output, log, and cache hygiene tests using synthetic sentinel data.
+- an Ayoa-managed safe cache writer with generated non-spoiling names;
+- an iTerm2 inline image protocol renderer with terminal/session detection and
+  no raw source-path arguments;
+- per-POV CLI rendering for multiple locally controlled characters;
+- output and cache hygiene tests using synthetic sentinel data.
 
-Until those blockers are resolved, CLI output may show authorized safe captions
-or explicit degraded notices for debugging, but it must not claim that player
-maps or handouts were displayed.
+Remaining follow-up work is additive: more terminal backends, richer local
+viewer/export integrations, and explicit rewind transcript bookkeeping beyond
+the current checkpoint-authorized re-resolution path. Unsupported terminals may
+show explicit degraded notices and, only with an explicit CLI flag, the generated
+safe cache path.
 
 ## External Backend References
 
