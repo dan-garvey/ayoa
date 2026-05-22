@@ -12,6 +12,7 @@ from app.schemas.content_pack import (
     ContentImageAsset,
     SafeAssetRevealPayload,
 )
+from app.schemas.content_privacy import sanitize_player_safe_text
 
 
 APPROVED_ASSET_REVIEW_STATUSES = {"reviewed", "approved"}
@@ -61,7 +62,10 @@ def write_asset_catalog(
                     asset.pack_id,
                     asset.asset_id,
                     asset.kind,
-                    _redact_unsafe_text(asset.title),
+                    sanitize_player_safe_text(
+                        asset.title,
+                        protected_terms=protected_terms,
+                    ),
                     asset.mime_type,
                     asset.width,
                     asset.height,
@@ -69,8 +73,14 @@ def write_asset_catalog(
                     asset.source_ref,
                     asset.review_status,
                     asset.spoiler_class,
-                    _redact_unsafe_text(asset.player_safe_alt_text),
-                    _redact_unsafe_text(asset.player_safe_caption),
+                    sanitize_player_safe_text(
+                        asset.player_safe_alt_text,
+                        protected_terms=protected_terms,
+                    ),
+                    sanitize_player_safe_text(
+                        asset.player_safe_caption,
+                        protected_terms=protected_terms,
+                    ),
                     _safe_delivery_ref(
                         asset.delivery_ref,
                         pack_id=asset.pack_id,
@@ -143,13 +153,15 @@ def safe_asset_reveals_for_viewer(
             pack_id=asset.pack_id,
             asset_id=asset.asset_id,
         )
-        caption = _redact_unsafe_text(reveal.caption or asset.player_safe_caption)
+        caption = sanitize_player_safe_text(reveal.caption)
+        if not caption:
+            caption = sanitize_player_safe_text(asset.player_safe_caption)
         payloads.append(
             SafeAssetRevealPayload(
                 pack_id=asset.pack_id,
                 asset_id=asset.asset_id,
                 kind=asset.kind,
-                title=_redact_unsafe_text(asset.title),
+                title=sanitize_player_safe_text(asset.title),
                 mime_type=asset.mime_type,
                 width=asset.width,
                 height=asset.height,
@@ -157,7 +169,7 @@ def safe_asset_reveals_for_viewer(
                 delivery_ref=delivery_ref,
                 presentation=reveal.presentation,
                 caption=caption,
-                alt_text=_redact_unsafe_text(asset.player_safe_alt_text),
+                alt_text=sanitize_player_safe_text(asset.player_safe_alt_text),
             )
         )
 
@@ -328,10 +340,6 @@ def _safe_delivery_ref(
     if asset_id and match.group("asset_id") != asset_id.strip():
         return ""
     return delivery_ref
-
-
-def _redact_unsafe_text(value: str) -> str:
-    return "" if _ABSOLUTE_PATH_RE.search(value) else value.strip()
 
 
 def _json_mapping(value: str) -> dict[str, Any]:

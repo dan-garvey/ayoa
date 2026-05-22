@@ -19,6 +19,7 @@ from app.engine.context_builder import (
     build_narrator_player_characters_block,
     replace_character_ids_with_names,
 )
+from app.schemas.content_privacy import redact_imported_asset_text
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.engine.visual_context import (
     format_visual_introductions,
@@ -125,7 +126,7 @@ def _format_visible_events_block(
                     item[0],
                 ),
             )
-            if (cleaned := _strip_loadout_tag(fact.text))
+            if (cleaned := redact_imported_asset_text(_strip_loadout_tag(fact.text)))
         ]
         if ckpt is not None:
             facts = [

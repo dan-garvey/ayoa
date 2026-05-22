@@ -1,9 +1,21 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import re
 
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.content_privacy import (
+    redact_imported_asset_text,
+    sanitize_player_safe_text,
+)
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.state import DndExperienceAwardDisplay
+
+
+_ASSET_DELIVERY_REF_RE = re.compile(
+    r"^asset://(?P<pack_id>[A-Za-z0-9][A-Za-z0-9_.-]*)/"
+    r"(?P<asset_id>[A-Za-z0-9][A-Za-z0-9_.-]*)$"
+)
 
 
 class DiceRollDisplay(BaseModel):
@@ -109,3 +121,40 @@ class TurnResponse(BaseModel):
     # in DESIGN.md §19.1. Per-turn diagnostics live in the engine
     # logger (`turn_loop.router[route]` lines) and per-turn checkpoint
     # files.
+
+    @model_validator(mode="after")
+    def _sanitize_player_output_surfaces(self) -> "TurnResponse":
+        self.output_text = redact_imported_asset_text(self.output_text)
+        self.per_player_renders = {
+            str(cid): redact_imported_asset_text(text)
+            for cid, text in (self.per_player_renders or {}).items()
+        }
+        self.asset_reveals = _safe_asset_payloads(self.asset_reveals)
+        self.per_player_asset_reveals = {
+            str(cid): _safe_asset_payloads(payloads)
+            for cid, payloads in (self.per_player_asset_reveals or {}).items()
+        }
+        return self
+
+
+def _safe_asset_payloads(
+    payloads: list[SafeAssetRevealPayload],
+) -> list[SafeAssetRevealPayload]:
+    safe: list[SafeAssetRevealPayload] = []
+    for payload in payloads or []:
+        if not _safe_delivery_ref(payload):
+            continue
+        payload.title = sanitize_player_safe_text(payload.title)
+        payload.caption = sanitize_player_safe_text(payload.caption)
+        payload.alt_text = sanitize_player_safe_text(payload.alt_text)
+        safe.append(payload)
+    return safe
+
+
+def _safe_delivery_ref(payload: SafeAssetRevealPayload) -> bool:
+    match = _ASSET_DELIVERY_REF_RE.fullmatch((payload.delivery_ref or "").strip())
+    return bool(
+        match
+        and match.group("pack_id") == payload.pack_id.strip()
+        and match.group("asset_id") == payload.asset_id.strip()
+    )

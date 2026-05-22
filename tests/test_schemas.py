@@ -1056,6 +1056,42 @@ class TestTurnResponse:
         with pytest.raises(ValidationError):
             TurnResponse(session_id="abc", asset_reveals=[payload])
 
+    def test_player_output_redacts_imported_asset_source_sentinels(self):
+        payload = {
+            "pack_id": "synthetic",
+            "asset_id": "alice-handout",
+            "kind": "handout",
+            "delivery_ref": "asset://synthetic/alice-handout",
+            "caption": "source_ref=raw-row",
+            "alt_text": "file:///private/table/source-map.png",
+        }
+        response = TurnResponse(
+            session_id="abc",
+            output_text=(
+                "Visible prose. delivery_ref=asset://synthetic/hidden-map "
+                "/private/table/source-map.png"
+            ),
+            per_player_renders={
+                "alice": "Visible POV. raw_ocr=PROTECTED_SOURCE_EXCERPT",
+            },
+            asset_reveals=[payload],
+            per_player_asset_reveals={"alice": [payload]},
+        )
+
+        dumped = response.model_dump_json()
+        for sentinel in (
+            "delivery_ref=asset://synthetic/hidden-map",
+            "/private/table/source-map.png",
+            "raw_ocr=PROTECTED_SOURCE_EXCERPT",
+            "source_ref=raw-row",
+            "file:///private/table/source-map.png",
+        ):
+            assert sentinel not in dumped
+        assert "Visible prose." in response.output_text
+        assert "Visible POV." in response.per_player_renders["alice"]
+        assert response.asset_reveals[0].caption == ""
+        assert response.per_player_asset_reveals["alice"][0].alt_text == ""
+
 
 class TestCheckpointFile:
     def test_construct(self):

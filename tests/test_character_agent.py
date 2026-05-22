@@ -18,6 +18,7 @@ from app.engine.turn_loop_contracts import (
     AGENT_TURN_HEADER,
 )
 from app.llm.client import LLMClient, LLMResponse
+from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
@@ -358,6 +359,35 @@ class TestCharacterAgent:
         assert "steps closer" in result.public_text
         assert "Watch this newcomer" in result.intent
         assert "Watch this newcomer" not in result.public_text
+
+    @pytest.mark.asyncio
+    async def test_imported_asset_source_sentinels_do_not_reach_prompt(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+        sample_agent_text,
+    ):
+        sentinels = [
+            "source_ref=raw-row",
+            "delivery_ref=asset://synthetic/hidden-map",
+            "/private/table/source-map.png",
+            "raw_ocr=PROTECTED_SOURCE_EXCERPT",
+        ]
+        guard_character.pending_observations = ["Visible surface. " + " ".join(sentinels)]
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.turn(guard_character, sample_checkpoint)
+
+        mock_client.complete.assert_awaited_once()
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        flat = "\n".join(
+            message["content"]
+            for message in messages
+            if isinstance(message.get("content"), str)
+        )
+        for sentinel in sentinels:
+            assert sentinel not in flat
+        assert REDACTED_IMPORT_SENTINEL in flat
+        assert "Visible surface." in flat
 
     @pytest.mark.asyncio
     async def test_character_id_always_actor(

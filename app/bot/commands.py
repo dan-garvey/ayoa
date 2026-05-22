@@ -1229,9 +1229,7 @@ async def _post_assets_to_pov(
                 catalog=asset_catalog,
             )
         except AssetByteResolutionError:
-            logger.exception(
-                "post_assets_to_pov: asset resolution failed; withholding"
-            )
+            logger.warning("post_assets_to_pov: asset resolution failed; withholding")
             delivered_all = False
             await _send_private_asset_failure_notice(
                 inter=inter,
@@ -1243,7 +1241,7 @@ async def _post_assets_to_pov(
             )
             continue
         except Exception:
-            logger.exception(
+            logger.warning(
                 "post_assets_to_pov: unexpected asset resolution failure; "
                 "withholding"
             )
@@ -1282,7 +1280,7 @@ async def _post_assets_to_pov(
                 )
                 sent = True
             except Exception:
-                logger.exception(
+                logger.warning(
                     "post_assets_to_pov: thread.send to %s failed; "
                     "falling back to DM",
                     thread.id,
@@ -1304,7 +1302,7 @@ async def _post_assets_to_pov(
                 )
                 sent = True
             except Exception:
-                logger.exception(
+                logger.warning(
                     "post_assets_to_pov: DM fallback to user %s failed; "
                     "withholding asset",
                     user_id,

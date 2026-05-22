@@ -9,6 +9,7 @@ from app.engine import dnd_runtime
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
+from app.schemas.content_privacy import redact_imported_asset_text
 
 logger = logging.getLogger(__name__)
 
@@ -598,6 +599,8 @@ def format_pending_observations_block(character: CharacterRecord) -> str:
 
     lines = ["## Since your last response"]
     for entry in character.pending_observations:
-        lines.append(f"- {entry}")
+        cleaned = redact_imported_asset_text(entry)
+        if cleaned:
+            lines.append(f"- {cleaned}")
     lines.append("")  # trailing blank line before next section
     return "\n".join(lines) + "\n"

@@ -164,6 +164,69 @@ def test_asset_catalog_persists_safe_refs_without_private_paths_or_notes(tmp_pat
     ]
 
 
+def test_asset_catalog_redacts_player_text_with_protected_or_source_material(tmp_path):
+    db_path = tmp_path / "assets.sqlite"
+    write_asset_catalog(
+        db_path,
+        [
+            {
+                "pack_id": "synthetic",
+                "asset_id": "map-safe",
+                "kind": "player_safe_map",
+                "title": f"Safe crop {PROTECTED_EXCERPT}",
+                "mime_type": "image/png",
+                "width": 200,
+                "height": 160,
+                "sha256": "hash-safe",
+                "source_ref": "src-map-001",
+                "review_status": "approved",
+                "spoiler_class": "low",
+                "player_safe_alt_text": "source_ref=src-map-001",
+                "player_safe_caption": "file:///private/table/map.png",
+                "delivery_ref": "asset://synthetic/map-safe",
+                "safe_for_players": True,
+            }
+        ],
+        protected_terms=[PROTECTED_EXCERPT],
+    )
+
+    catalog = load_asset_catalog(db_path, pack_id="synthetic")
+    asset = catalog["synthetic::map-safe"]
+    assert asset.title == ""
+    assert asset.player_safe_alt_text == ""
+    assert asset.player_safe_caption == ""
+
+
+def test_reveal_caption_with_delivery_ref_does_not_override_safe_catalog_caption():
+    assets = [
+        {
+            "pack_id": "synthetic",
+            "asset_id": "map-safe",
+            "kind": "player_safe_map",
+            "title": "Safe crop",
+            "delivery_ref": "asset://synthetic/map-safe",
+            "review_status": "approved",
+            "safe_for_players": True,
+            "player_safe_caption": "A reviewed safe crop.",
+        }
+    ]
+    payloads = safe_asset_reveals_for_viewer(
+        assets,
+        [
+            {
+                "pack_id": "synthetic",
+                "asset_id": "map-safe",
+                "audience": "all_observers",
+                "caption": "delivery_ref=asset://synthetic/hidden-map",
+            }
+        ],
+        character_id="cleric",
+        event_observer_ids=["cleric"],
+    )
+
+    assert [payload.caption for payload in payloads] == ["A reviewed safe crop."]
+
+
 @pytest.mark.parametrize(
     "delivery_ref",
     [

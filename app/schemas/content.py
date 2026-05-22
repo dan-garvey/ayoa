@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+
+from app.schemas.content_privacy import sanitize_module_metadata
 
 
 ContentSignalStatus = Literal["pending", "resolved", "dismissed"]
@@ -89,6 +91,10 @@ class PendingContentSignal(BaseModel):
 
     def content_key(self) -> str:
         return content_ref_key(self.pack_id, self.ref_id, self.content_hash)
+
+    @field_serializer("metadata")
+    def _serialize_metadata(self, value: dict[str, Any]) -> dict[str, Any]:
+        return sanitize_module_metadata(value) or {}
 
 
 class ContentFrontState(BaseModel):
@@ -183,3 +189,7 @@ class ContentPackState(BaseModel):
     def _clean(self) -> "ContentPackState":
         self.pack_id = self.pack_id.strip()
         return self
+
+    @field_serializer("metadata")
+    def _serialize_metadata(self, value: dict[str, Any]) -> dict[str, Any]:
+        return sanitize_module_metadata(value) or {}

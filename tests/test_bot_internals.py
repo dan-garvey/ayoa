@@ -2008,14 +2008,19 @@ class TestPostAssetsToPov:
         assert record_kwargs["delivery"] == "thread_asset"
         assert record_kwargs["recipient_user_id"] == 42
 
-    def test_private_asset_failure_withholds_without_public_channel(
-        self, monkeypatch,
+    def test_private_asset_failure_logs_no_asset_source_sentinels(
+        self, monkeypatch, caplog,
     ):
         inter, channel, user, bot, smap, engine = self._env(monkeypatch)
         thread = MagicMock()
         thread.id = 999
-        thread.send = AsyncMock(side_effect=RuntimeError("upload failed"))
-        user.send = AsyncMock(side_effect=RuntimeError("dm failed"))
+        thread.send = AsyncMock(side_effect=RuntimeError(
+            "upload failed /private/table/source-map.png "
+            "delivery_ref=asset://synthetic/hidden-map"
+        ))
+        user.send = AsyncMock(side_effect=RuntimeError(
+            "dm failed raw_ocr=PROTECTED_SOURCE_EXCERPT"
+        ))
 
         async def _ensure(**_kwargs):
             return thread
@@ -2027,26 +2032,35 @@ class TestPostAssetsToPov:
             lambda *_args, **_kwargs: self._resolved_asset(),
         )
 
-        ok = asyncio.run(bot_commands._post_assets_to_pov(
-            inter=inter,
-            smap=smap,
-            user_id=42,
-            character_id="alice",
-            char_name="Alice",
-            asset_reveals=[_asset_payload(
-                caption="Spoiler-safe but still private.",
-                title="Private title",
-                asset_id="hidden-map",
-                delivery_ref="asset://synthetic/hidden-map",
-            )],
-            bot=bot,
-            engine=engine,
-            session_id="s",
-            turn_index=8,
-            catalog={},
-        ))
+        with caplog.at_level("WARNING", logger="app.bot.commands"):
+            ok = asyncio.run(bot_commands._post_assets_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=42,
+                character_id="alice",
+                char_name="Alice",
+                asset_reveals=[_asset_payload(
+                    caption="Spoiler-safe but still private.",
+                    title="Private title",
+                    asset_id="hidden-map",
+                    delivery_ref="asset://synthetic/hidden-map",
+                )],
+                bot=bot,
+                engine=engine,
+                session_id="s",
+                turn_index=8,
+                catalog={},
+            ))
 
         assert ok is False
+        for sentinel in (
+            "/private/table/source-map.png",
+            "delivery_ref=asset://synthetic/hidden-map",
+            "raw_ocr=PROTECTED_SOURCE_EXCERPT",
+            "Private title",
+            "Spoiler-safe",
+        ):
+            assert sentinel not in caplog.text
         channel.send.assert_not_awaited()
         inter.followup.send.assert_awaited_once()
         _, notice_kwargs = inter.followup.send.await_args

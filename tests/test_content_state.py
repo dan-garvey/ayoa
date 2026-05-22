@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import (
     ContentFrontState,
@@ -87,6 +89,47 @@ def test_content_state_round_trips_through_checkpoint_dump():
     ]
     assert rebuilt_pack.fronts["front_prison"].status == "active"
     assert rebuilt_pack.villains["warden"].status == "hidden"
+
+
+def test_default_checkpoint_dump_omits_imported_asset_source_sentinels():
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "pack": ContentPackState(
+            pack_id="pack",
+            pending_signals={
+                "sig": PendingContentSignal(
+                    signal_id="sig",
+                    pack_id="pack",
+                    ref_id="room/redacted",
+                    metadata={
+                        "source_ref": "raw-row",
+                        "delivery_ref": "asset://synthetic/hidden-map",
+                    },
+                )
+            },
+            metadata={
+                "db_path": "/private/table/compiled.sqlite",
+                "raw_ocr": "PROTECTED_SOURCE_EXCERPT",
+                "asset": {
+                    "delivery_ref": "asset://synthetic/hidden-map",
+                    "safe_status": "reviewed",
+                },
+            },
+        )
+    }
+
+    dumped = json.dumps(ckpt.model_dump(mode="json"), sort_keys=True)
+
+    for sentinel in (
+        "/private/table/compiled.sqlite",
+        "PROTECTED_SOURCE_EXCERPT",
+        "asset://synthetic/hidden-map",
+        "source_ref",
+        "delivery_ref",
+        "raw_ocr",
+    ):
+        assert sentinel not in dumped
+    assert "safe_status" in dumped
 
 
 def test_introduced_refs_are_dedup_friendly_by_pack_ref_and_hash():

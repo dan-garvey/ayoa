@@ -21,6 +21,7 @@ from app.engine.narrator import compose_pov_render
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
+from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.characters import (
     CharacterDescriptions,
     CharacterRecord,
@@ -181,6 +182,52 @@ class TestComposePovRender:
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], str)
         assert PARTIAL_MODE_MARKER not in user_msg["content"]
+
+    @pytest.mark.asyncio
+    async def test_imported_asset_source_sentinels_do_not_reach_prompt(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        sentinels = [
+            "delivery_ref=asset://synthetic/hidden-map",
+            "source_ref=raw-row",
+            "/private/table/source-map.png",
+            "raw_ocr=PROTECTED_SOURCE_EXCERPT",
+            "data:image/png;base64,AAAA",
+        ]
+        ckpt.canonical_events = [
+            _router_event(
+                "evt_leak",
+                [ObservableFact.all("Visible surface. " + " ".join(sentinels))],
+            ),
+        ]
+
+        await compose_pov_render(
+            client=mock_client,
+            prompt_mgr=prompt_manager,
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_leak",
+                    observation_level="direct",
+                )
+            ],
+            partial_mode=False,
+            user_input="I look around.",
+        )
+
+        mock_client.complete.assert_awaited_once()
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        flat = "\n".join(
+            message["content"]
+            for message in messages
+            if isinstance(message.get("content"), str)
+        )
+        for sentinel in sentinels:
+            assert sentinel not in flat
+        assert REDACTED_IMPORT_SENTINEL in flat
+        assert "Visible surface." in flat
 
     @pytest.mark.asyncio
     async def test_render_strips_unmatched_trailing_brace_from_final_text(
