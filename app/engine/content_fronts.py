@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import MutableMapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -227,6 +227,81 @@ def queue_front_signal_from_consequence(
     return FrontSignalUpdate(queued_signal=signal)
 
 
+def queue_front_signals_from_public_event(
+    ckpt: Any,
+    event: Any,
+    *,
+    actor_id: str = "",
+) -> list[FrontSignalUpdate]:
+    """Wire a canonical public consequence into imported front runtime state."""
+
+    if getattr(event, "event_kind", "") != "public_fact":
+        return []
+    facts = _public_consequence_facts(event)
+    if not facts:
+        return []
+    session = getattr(ckpt, "session", None)
+    content_state = getattr(session, "content_state", None) if session else None
+    if not isinstance(content_state, MutableMapping):
+        return []
+
+    from app.engine.imported_fronts import catalog_from_pack_state
+
+    visibility = _public_consequence_visibility(event)
+    source_event_id = _clean_text(getattr(event, "event_id", "")) or _signal_hash(
+        source_event_id="public_fact",
+        ref_id="event",
+        actor=actor_id,
+        known=facts,
+        pressure="",
+        summary="",
+    )
+    now_s = max(
+        0,
+        int(getattr(event, "effective_at_s", 0) or 0)
+        + int(getattr(event, "duration_s", 0) or 0),
+    )
+    updates: list[FrontSignalUpdate] = []
+    for pack_key, pack_state in list(content_state.items()):
+        catalog = catalog_from_pack_state(pack_key, pack_state)
+        if catalog is None:
+            continue
+        metadata = _pack_metadata(pack_state)
+        pack_id = _pack_id(pack_key, pack_state)
+        for front_ref in _active_front_refs(metadata, catalog.refs):
+            try:
+                front = catalog.get(front_ref)
+            except Exception:
+                continue
+            action = _front_action_for_consequence(front, facts)
+            villain_id = _first_item(getattr(front, "villain_refs", []))
+            front_actor = (
+                villain_id
+                or _first_item(getattr(front, "minion_refs", []))
+                or actor_id
+            )
+            cooldown_s = _front_cooldown_seconds(metadata, front.ref)
+            cooldown_until_s = (now_s + cooldown_s) if cooldown_s else None
+            update = queue_front_signal_from_consequence(
+                content_state,
+                pack_id=pack_id,
+                front_id=front.ref,
+                source_event_id=source_event_id,
+                villain_id=villain_id,
+                actor_id=front_actor,
+                known=facts,
+                pressure=_front_pressure(front, action),
+                summary=_front_summary(front, facts),
+                consequence_visibility=visibility,
+                now_s=now_s,
+                cooldown_until_s=cooldown_until_s,
+                restraint=_front_restraint(front, action),
+                priority=max(0, int(getattr(action, "priority", 0) or 0)),
+            )
+            updates.append(update)
+    return updates
+
+
 def _front_runtime(pack_state: ContentPackState) -> dict[str, Any]:
     runtime = pack_state.metadata.get(FRONT_RUNTIME_METADATA_KEY)
     if not isinstance(runtime, dict):
@@ -317,7 +392,7 @@ def _active_suppression(
 
 
 def _front_ref(front_id: str) -> str:
-    if front_id.startswith("front/"):
+    if front_id.startswith(("front/", "front.")):
         return front_id
     return f"front/{front_id}"
 
@@ -403,3 +478,142 @@ def _clean_nonnegative_int(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return max(0, parsed)
+
+
+def _public_consequence_facts(event: Any) -> list[str]:
+    facts: list[str] = []
+    canonical = getattr(event, "canonical_event", None)
+    for fact in getattr(canonical, "observable_facts", []) or []:
+        text = _clean_text(getattr(fact, "text", ""))
+        if not text:
+            continue
+        if getattr(fact, "audience", "") == "all_observers":
+            facts.append(text)
+            continue
+        if getattr(fact, "visible_to", []):
+            facts.append(text)
+    return list(dict.fromkeys(facts))
+
+
+def _public_consequence_visibility(event: Any) -> str:
+    canonical = getattr(event, "canonical_event", None)
+    facts = list(getattr(canonical, "observable_facts", []) or [])
+    if any(getattr(fact, "audience", "") == "all_observers" for fact in facts):
+        return "public"
+    return "semi_public"
+
+
+def _active_front_refs(metadata: Mapping[str, Any], catalog_refs: Sequence[str]) -> list[str]:
+    for key in ("active_front_refs", "front_refs"):
+        raw = metadata.get(key)
+        if isinstance(raw, Sequence) and not isinstance(raw, str):
+            refs = [_clean_text(item) for item in raw if _clean_text(item)]
+            if refs:
+                return refs
+    return [_clean_text(ref) for ref in catalog_refs if _clean_text(ref)]
+
+
+def _front_action_for_consequence(front: Any, facts: Sequence[str]) -> Any | None:
+    actions = list(getattr(front, "action_palette", []) or [])
+    if not actions:
+        return None
+    event_text = " ".join(facts).lower()
+    matching = [
+        action
+        for action in actions
+        if _action_matches_text(action, event_text)
+    ]
+    candidates = matching or actions
+    return sorted(
+        candidates,
+        key=lambda action: (-int(getattr(action, "priority", 0) or 0), getattr(action, "action_id", "")),
+    )[0]
+
+
+def _action_matches_text(action: Any, event_text: str) -> bool:
+    needles: list[str] = []
+    for value in (
+        getattr(action, "trigger", ""),
+        getattr(action, "summary", ""),
+        getattr(action, "target_scope", ""),
+    ):
+        needles.extend(_significant_words(value))
+    for field_name in ("consequence_refs", "encounter_template_refs", "statblock_refs"):
+        for value in getattr(action, field_name, []) or []:
+            needles.extend(_significant_words(value))
+    return any(needle in event_text for needle in needles)
+
+
+def _significant_words(value: Any) -> list[str]:
+    return [
+        word
+        for word in _clean_text(value).lower().replace("_", " ").replace("/", " ").split()
+        if len(word) >= 4
+    ]
+
+
+def _front_cooldown_seconds(metadata: Mapping[str, Any], front_ref: str) -> int:
+    for key in (
+        "front_signal_cooldown_s",
+        "public_consequence_cooldown_s",
+        "front_cooldown_s",
+    ):
+        raw = metadata.get(key)
+        if isinstance(raw, Mapping):
+            value = raw.get(front_ref) or raw.get(_front_ref(front_ref))
+        else:
+            value = raw
+        parsed = _clean_nonnegative_int(value)
+        if parsed:
+            return parsed
+    return 0
+
+
+def _front_pressure(front: Any, action: Any | None) -> str:
+    if action is not None:
+        for value in (getattr(action, "summary", ""), getattr(action, "trigger", "")):
+            if _clean_text(value):
+                return _clean_text(value)
+    return _clean_text(getattr(front, "summary", ""))
+
+
+def _front_summary(front: Any, facts: Sequence[str]) -> str:
+    title = _clean_text(getattr(front, "title", "")) or _clean_text(getattr(front, "ref", "front"))
+    fact = _clean_text(facts[0]) if facts else ""
+    if fact:
+        return f"{title} learns a public consequence: {fact}"
+    return f"{title} learns a public consequence."
+
+
+def _front_restraint(front: Any, action: Any | None) -> str:
+    if action is not None:
+        restraint = _first_item(getattr(action, "restraints", []))
+        if restraint:
+            return restraint
+    return _first_item(getattr(front, "restraints", []))
+
+
+def _first_item(values: Sequence[str]) -> str:
+    for value in values or ():
+        text = _clean_text(value)
+        if text:
+            return text
+    return ""
+
+
+def _pack_metadata(pack_state: Any) -> Mapping[str, Any]:
+    raw = (
+        pack_state.get("metadata")
+        if isinstance(pack_state, Mapping)
+        else getattr(pack_state, "metadata", None)
+    )
+    return raw if isinstance(raw, Mapping) else {}
+
+
+def _pack_id(pack_key: Any, pack_state: Any) -> str:
+    raw = (
+        pack_state.get("pack_id")
+        if isinstance(pack_state, Mapping)
+        else getattr(pack_state, "pack_id", "")
+    )
+    return _clean_text(raw or pack_key)

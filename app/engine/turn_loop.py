@@ -1404,6 +1404,9 @@ def broadcast_event(
     )
     event_sequence = len(ckpt.canonical_events)
     ckpt.canonical_events.append(event)
+    from app.engine.content_fronts import queue_front_signals_from_public_event
+
+    queue_front_signals_from_public_event(ckpt, event, actor_id=actor_id)
 
     from app.engine.context_builder import collect_player_ids
 

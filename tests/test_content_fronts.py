@@ -12,7 +12,11 @@ from app.engine.orchestrator import (
     _rollback_automated_turn_snapshot,
 )
 from app.schemas.checkpoint import CheckpointFile
-from tests.support.factories import checkpoint
+from app.schemas.content import ContentPackState
+from app.schemas.content_pack import FrontDossierRecord
+from app.schemas.events import ObservableFact
+from app.engine.turn_loop import broadcast_event
+from tests.support.factories import checkpoint, router_output
 
 
 def test_public_consequence_updates_front_state_and_queues_router_signal():
@@ -179,3 +183,116 @@ def test_front_runtime_state_round_trips_and_rolls_back_with_content_state():
     assert sorted(ckpt.session.content_state["curse"].pending_signals) == [
         update.queued_signal.signal_id
     ]
+
+
+def test_public_fact_broadcast_wires_imported_front_dossier_signal():
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "curse": ContentPackState(
+            pack_id="curse",
+            metadata={
+                "domain_catalog": {
+                    "pack_id": "curse",
+                    "front_dossiers": [_front_dossier().model_dump(mode="json")],
+                },
+                "active_front_refs": ["front.strahd"],
+                "front_signal_cooldown_s": 60,
+            },
+        )
+    }
+    event = router_output(
+        event_kind="public_fact",
+        observer_ids=["alice", "pip"],
+        facts=[ObservableFact.all("The tavern publicly shelters Ireena.")],
+        effective_at_s=30,
+    )
+
+    broadcast_event(ckpt, event, actor_id="alice")
+
+    pack = ckpt.session.content_state["curse"]
+    front_runtime = pack.metadata[FRONT_RUNTIME_METADATA_KEY]["fronts"][
+        "front.strahd"
+    ]
+    assert front_runtime["known_facts"] == [
+        "The tavern publicly shelters Ireena."
+    ]
+    assert front_runtime["last_visibility"] == "public"
+    assert front_runtime["cooldown_until_s"] == 90
+    assert front_runtime["restraint"] == {
+        "reason": "avoid direct violence before dinner",
+        "source_event_id": event.event_id,
+    }
+    assert len(pack.pending_signals) == 1
+
+    records = append_pending_router_content_records(ckpt)
+
+    assert len(records) == 1
+    assert records[0].startswith(
+        "front_signal ref=front.strahd actor=npc.strahd"
+    )
+    assert 'pressure="Send spies to observe the tavern."' in records[0]
+    assert "avoid direct violence before dinner" not in records[0]
+
+
+def test_public_fact_front_signal_respects_runtime_cooldown_but_records_knowledge():
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "curse": ContentPackState(
+            pack_id="curse",
+            metadata={
+                "domain_catalog": {
+                    "pack_id": "curse",
+                    "front_dossiers": [_front_dossier().model_dump(mode="json")],
+                },
+                "front_signal_cooldown_s": {"front.strahd": 60},
+            },
+        )
+    }
+    first = router_output(
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The tavern publicly shelters Ireena.")],
+        effective_at_s=10,
+    )
+    second = router_output(
+        event_kind="public_fact",
+        facts=[ObservableFact.all("The burgomaster publicly praises the party.")],
+        effective_at_s=20,
+    )
+
+    broadcast_event(ckpt, first, actor_id="alice")
+    broadcast_event(ckpt, second, actor_id="alice")
+
+    pack = ckpt.session.content_state["curse"]
+    front_runtime = pack.metadata[FRONT_RUNTIME_METADATA_KEY]["fronts"][
+        "front.strahd"
+    ]
+    assert front_runtime["known_facts"] == [
+        "The tavern publicly shelters Ireena.",
+        "The burgomaster publicly praises the party.",
+    ]
+    assert front_runtime["suppressed_source_event_ids"] == [second.event_id]
+    assert len(pack.pending_signals) == 1
+
+
+def _front_dossier() -> FrontDossierRecord:
+    return FrontDossierRecord(
+        ref="front.strahd",
+        content_hash="hash-front-strahd",
+        title="Strahd Front",
+        summary="Reviewed pressure dossier.",
+        review_status="approved",
+        gate_status="runtime_ready",
+        villain_refs=["npc.strahd"],
+        initial_knowledge=["Ireena matters"],
+        restraints=["avoid direct violence before dinner"],
+        action_palette=[
+            {
+                "action_id": "send_spies",
+                "action_kind": "spy",
+                "priority": 5,
+                "trigger": "Ireena is sheltered in public.",
+                "summary": "Send spies to observe the tavern.",
+                "restraints": ["avoid direct violence before dinner"],
+            }
+        ],
+    )
