@@ -103,3 +103,9 @@
 {"id":"int-eef05925","kind":"field_change","created_at":"2026-05-22T00:03:59.119279161Z","actor":"dan","issue_id":"ayoa-7jj","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"TurnResponse now carries safe per-POV asset reveal payloads with tests"}}
 {"id":"int-65f7ace0","kind":"field_change","created_at":"2026-05-22T00:04:00.483012333Z","actor":"dan","issue_id":"ayoa-6j7","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Decision documented in DND_CONTENT_MEMORY_INVARIANT.md"}}
 {"id":"int-4e743ade","kind":"field_change","created_at":"2026-05-22T00:04:01.451204838Z","actor":"dan","issue_id":"ayoa-75w","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Decision documented in DND_TACTICAL_MAP_GEOMETRY.md"}}
+{"id":"int-833e5e3f","kind":"field_change","created_at":"2026-05-22T00:06:26.143470042Z","actor":"dan","issue_id":"ayoa-otq","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-aed69977","kind":"field_change","created_at":"2026-05-22T00:06:26.143851037Z","actor":"dan","issue_id":"ayoa-otq","extra":{"field":"assignee","new_value":"dan","old_value":""}}
+{"id":"int-9cd10527","kind":"field_change","created_at":"2026-05-22T00:06:27.028740758Z","actor":"dan","issue_id":"ayoa-v1n","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-9ce19517","kind":"field_change","created_at":"2026-05-22T00:06:27.028868206Z","actor":"dan","issue_id":"ayoa-v1n","extra":{"field":"assignee","new_value":"dan","old_value":""}}
+{"id":"int-3f631e7a","kind":"field_change","created_at":"2026-05-22T00:06:27.907050279Z","actor":"dan","issue_id":"ayoa-don","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-458125ee","kind":"field_change","created_at":"2026-05-22T00:06:27.907211027Z","actor":"dan","issue_id":"ayoa-don","extra":{"field":"assignee","new_value":"dan","old_value":""}}
