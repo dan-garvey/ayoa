@@ -26,6 +26,14 @@ events, the narrator renders visible facts, character agents receive text
 observations, checkpoints persist session state, and D&D mechanics remain an
 adapter around that engine.
 
+For D&D, "runtime authority" means authority for reviewed facts and safe
+projection boundaries, not authority to replace table adjudication with a fully
+deterministic rules engine. Pack rows, schemas, and adapter computations should
+give the router or D&D combat resolver the best available mechanical context.
+The LLM remains the fun-first arbiter of what goes and what does not, except
+where safety, privacy, unsupported automation, missing reviewed content, or
+impossible state requires a loud deterministic failure.
+
 ## Decision
 
 The compiled SQLite content pack is the authoritative runtime representation for

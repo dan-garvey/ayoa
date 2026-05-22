@@ -13,6 +13,13 @@ exports receive only POV-safe projections of the router's decisions. Runtime
 LLMs never process raw source images, source page scans, OCR dumps, source
 paths, or protected source excerpts.
 
+For D&D module play, lookup is not a deterministic adventure runner. It serves
+the router and D&D combat resolver with the reviewed facts, rules payloads, and
+state needed to make better table rulings. The LLM remains the flexible,
+fun-first arbiter of the event; deterministic lookup and adapter code fail
+loudly only when required authority is missing, unsafe, unsupported, or
+contradictory.
+
 The runtime needs two related ledgers:
 
 - `router_content_memory`: content refs already introduced into router history.

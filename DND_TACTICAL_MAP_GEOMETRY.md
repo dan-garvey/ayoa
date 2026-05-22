@@ -32,6 +32,17 @@ The content-pack decisions add stricter authority boundaries:
 
 ## Decision
 
+Strict tactical geometry serves adjudication; it is not a replacement DM. The
+D&D adapter should compute movement budget, blockers, occupancy, distance, line
+of sight, cover, areas, terrain, and elevation as accurately as reviewed state
+allows, then present those results as structured context to the router or D&D
+combat manager. The flexible LLM remains the final arbiter of action legality,
+edge-case rulings, intent tradeoffs, and what outcome best serves the table.
+Deterministic code may still block when reviewed geometry or pack authority is
+missing, unsafe, unsupported, contradictory, or impossible, because asking the
+model to improvise missing authority would create worse play and worse
+privacy/safety boundaries.
+
 Imported module combat maps are strict only when their reviewed geometry is
 runtime-ready for the requested automation. They are not strict because an image
 exists, because a source map was extracted, because a note mentions a room, or

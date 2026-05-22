@@ -1054,6 +1054,16 @@ session settings. See §4.7 for the modularity contract.
 
 The adapter follows a thin-kernel split:
 
+This split is fun-first rather than deterministic-engine-first. D&D rules
+exist to serve the table experience, so adapter code should compute rules,
+resources, geometry, probabilities, and state as accurately as practical, then
+feed that structured context to the router or D&D combat resolver. The LLM
+remains the flexible adjudicator for action legality, edge-case rulings,
+tradeoffs, and what ultimately happens in the fiction. Code should fail loudly
+for safety, privacy, missing reviewed content, unsupported automation, or
+impossible state; it should not build a parallel deterministic DM that overrides
+the router merely because a rule can be calculated.
+
 * LLM router prompts own D&D judgment: action legality, target choice,
   roll planning, situational advantage/disadvantage, special damage
   adjustments visible in the supplied context, combat status, and

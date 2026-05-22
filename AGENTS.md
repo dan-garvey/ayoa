@@ -13,6 +13,8 @@ Every feature change must survive two questions before implementation:
 
 D&D mechanics must remain modular adapters around the narrative engine, not assumptions baked into generic router, narrator, or character-agent behavior.
 
+Within D&D, rules exist to serve the table experience. Compute rules, geometry, resources, and probabilities as accurately as practical, but use those computations to give the router or D&D combat resolver better adjudication context rather than replacing flexible LLM judgment with a fully deterministic rules engine. Hard deterministic failures should be reserved for safety, privacy, unsupported content, impossible state, or missing reviewed authority, not for overriding fun-first adjudication.
+
 Runtime LLMs must never process images. Vision/image-understanding calls are too expensive and outside this project's scope. If a source module includes maps, art, scanned pages, or other image-only information, a coding agent must inspect those images manually during import time and author the resulting text, geometry, asset metadata, or checkpoint data. Router, narrator, character-agent, and rules-adapter prompts may receive only that authored text or structured representation, never the image itself.
 
 Until Ayoa reaches a release-candidate migration posture, prefer retiring changed schema/prompt fields directly over maintaining compatibility with old saves. Avoid adding compatibility shims for obsolete checkpoint shapes unless the user explicitly requests them.

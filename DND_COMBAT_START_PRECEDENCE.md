@@ -27,6 +27,15 @@ module encounter data.
 
 ## Decision
 
+Compiled encounter templates provide authoritative mechanical facts, not a
+deterministic script for the scene. Their job is to supply the router and D&D
+combat resolver with reviewed participants, statblocks, map refs, hazards,
+spawn anchors, and gates so the LLM can adjudicate from accurate table context.
+The adapter should reject missing, unsafe, or unreviewed module authority
+instead of asking the model to invent it, but once authority is present the
+router/combat resolver remains the fun-first arbiter of how the combat starts
+and what the fiction makes possible.
+
 For module-backed combat, compiled encounter templates must resolve before a
 router-authored `dnd_combat_start` is executable.
 
