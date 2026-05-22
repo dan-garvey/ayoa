@@ -8,9 +8,10 @@ import pytest
 
 from app.engine import dice, dnd_experience, dnd_monsters
 from app.engine.dnd_combat import apply_damage, current_combatant
-from app.engine.orchestrator import Orchestrator
+from app.engine.orchestrator import Orchestrator, _with_pre_turn_resolutions
 from app.engine.turn_loop import BeatResult, broadcast_event
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
@@ -34,6 +35,7 @@ from app.schemas.state import (
     RenderBufferEntry,
     SlotEntry,
 )
+from app.schemas.responses import TurnResponse
 from tests.support.factories import (
     ClassFakeDispatcher as FakeDispatcher,
     dnd5e_mechanics as _dnd_mechanics,
@@ -103,11 +105,59 @@ def _rat_combatant_spawn() -> dict:
     }
 
 
+def _safe_asset_payload(asset_id: str) -> SafeAssetRevealPayload:
+    return SafeAssetRevealPayload(
+        pack_id="synthetic",
+        asset_id=asset_id,
+        kind="handout",
+        title=asset_id.replace("-", " ").title(),
+        mime_type="image/png",
+        width=320,
+        height=180,
+        sha256=f"hash-{asset_id}",
+        delivery_ref=f"asset://synthetic/{asset_id}",
+        presentation="attachment",
+        caption=f"{asset_id} caption",
+        alt_text=f"{asset_id} alt text",
+    )
+
+
 @pytest.fixture(autouse=True)
 def _reset_fake():
     FakeDispatcher.reset()
     yield
     FakeDispatcher.reset()
+
+
+def test_with_pre_turn_resolutions_preserves_asset_payloads_separately():
+    pre_payload = _safe_asset_payload("pre-turn-handout")
+    main_payload = _safe_asset_payload("main-turn-map")
+    pre_turn = TurnResponse(
+        session_id="s",
+        checkpoint_id="ckpt_0001",
+        turn_index=1,
+        output_text="The room shifts before Alice acts.",
+        asset_reveals=[pre_payload],
+        per_player_asset_reveals={"bob": [pre_payload]},
+    )
+    main = TurnResponse(
+        session_id="s",
+        checkpoint_id="ckpt_0002",
+        turn_index=2,
+        output_text="Alice studies the map.",
+        asset_reveals=[main_payload],
+        per_player_asset_reveals={"alice": [main_payload]},
+    )
+
+    response = _with_pre_turn_resolutions(main, [pre_turn])
+
+    assert response.asset_reveals == [main_payload]
+    assert response.per_player_asset_reveals == {"alice": [main_payload]}
+    assert response.pre_turn_resolutions == [pre_turn]
+    assert response.pre_turn_resolutions[0].asset_reveals == [pre_payload]
+    assert response.pre_turn_resolutions[0].per_player_asset_reveals == {
+        "bob": [pre_payload]
+    }
 
 
 @pytest.fixture

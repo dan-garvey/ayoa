@@ -973,6 +973,8 @@ class Orchestrator:
                     if (
                         pre_response.output_text
                         or pre_response.per_player_renders
+                        or pre_response.asset_reveals
+                        or pre_response.per_player_asset_reveals
                         or pre_response.dice_rolls
                     ):
                         return _with_pre_turn_resolutions(TurnResponse(

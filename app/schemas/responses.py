@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.state import DndExperienceAwardDisplay
 
 
@@ -59,6 +60,18 @@ class TurnResponse(BaseModel):
     # the beat paused mid-Cat-II (see
     # `beat_ended_reason`) or nobody was present to observe.
     per_player_renders: dict[str, str] = Field(default_factory=dict)
+    # Player-safe asset reveal payloads for legacy single-POV callers. For
+    # multi-POV delivery this should mirror
+    # `per_player_asset_reveals[acting_character_id]`; new callers should use
+    # the per-player map so private reveals stay scoped to the intended viewer.
+    asset_reveals: list[SafeAssetRevealPayload] = Field(default_factory=list)
+    # Authoritative per-POV asset reveal payloads, keyed by character_id. These
+    # payloads contain only delivery-safe references and public presentation
+    # metadata; private source refs, raw bytes, and DM/source notes never belong
+    # on this response surface.
+    per_player_asset_reveals: dict[str, list[SafeAssetRevealPayload]] = Field(
+        default_factory=dict
+    )
     # v11: why the beat stopped. Values come from `BeatResult.ended_reason`
     # (e.g. "directed_at_player", "cat_ii_resolution", "cat_ii_pending",
     # "max_events_cap", "cascade_exhausted"). Callers can detect the

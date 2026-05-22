@@ -25,6 +25,7 @@ from app.schemas.event_router import (
 )
 from app.schemas.dnd_cat_ii import DndCombatManagerAdjudication, RulesAdjudication
 from app.schemas.agents import CharacterAgentOutput
+from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
@@ -975,6 +976,8 @@ class TestTurnResponse:
         assert tr.loot_prompts == {}
         assert tr.commitment_revision_prompts == {}
         assert tr.dice_rolls == []
+        assert tr.asset_reveals == []
+        assert tr.per_player_asset_reveals == {}
 
     def test_legacy_debug_payload_silently_dropped(self):
         tr = TurnResponse(
@@ -984,6 +987,74 @@ class TestTurnResponse:
         )
         assert tr.session_id == "abc"
         assert not hasattr(tr, "debug")
+
+    def test_asset_reveal_payloads_round_trip_as_player_safe_response_data(self):
+        alice_payload = {
+            "pack_id": "synthetic",
+            "asset_id": "alice-handout",
+            "kind": "handout",
+            "title": "Folded note",
+            "mime_type": "image/png",
+            "width": 320,
+            "height": 180,
+            "sha256": "hash-alice",
+            "delivery_ref": "asset://synthetic/alice-handout",
+            "presentation": "attachment",
+            "caption": "A note Alice can inspect.",
+            "alt_text": "A folded note with a wax mark.",
+        }
+        bob_payload = {
+            "pack_id": "synthetic",
+            "asset_id": "bob-map",
+            "kind": "player_safe_map",
+            "title": "Visible corridor",
+            "mime_type": "image/png",
+            "width": 640,
+            "height": 480,
+            "sha256": "hash-bob",
+            "delivery_ref": "asset://synthetic/bob-map",
+            "presentation": "map_overlay",
+            "caption": "The corridor Bob can see.",
+            "alt_text": "A narrow stone corridor.",
+        }
+        response = TurnResponse(
+            session_id="abc",
+            output_text="Alice sees the note.",
+            asset_reveals=[alice_payload],
+            per_player_asset_reveals={
+                "alice": [alice_payload],
+                "bob": [bob_payload],
+            },
+        )
+
+        dumped = response.model_dump_json()
+        assert "source_ref" not in dumped
+        assert "source_path" not in dumped
+        assert "dm_notes" not in dumped
+        assert "raw_bytes" not in dumped
+
+        rebuilt = TurnResponse.model_validate_json(dumped)
+        assert rebuilt.asset_reveals == [SafeAssetRevealPayload(**alice_payload)]
+        assert [
+            payload.asset_id
+            for payload in rebuilt.per_player_asset_reveals["alice"]
+        ] == ["alice-handout"]
+        assert [
+            payload.asset_id
+            for payload in rebuilt.per_player_asset_reveals["bob"]
+        ] == ["bob-map"]
+
+    def test_asset_reveal_payloads_reject_private_source_fields(self):
+        payload = {
+            "pack_id": "synthetic",
+            "asset_id": "alice-handout",
+            "kind": "handout",
+            "delivery_ref": "asset://synthetic/alice-handout",
+            "source_ref": "private-source-row",
+        }
+
+        with pytest.raises(ValidationError):
+            TurnResponse(session_id="abc", asset_reveals=[payload])
 
 
 class TestCheckpointFile:
