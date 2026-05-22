@@ -291,19 +291,23 @@ def _append_pending_router_content_records(ckpt: CheckpointFile) -> list[str]:
     return append_pending_router_content_records(ckpt)
 
 
-def _append_router_content_lookup_records(
+async def _append_router_content_lookup_records(
     ckpt: CheckpointFile,
     *,
     actor_id: str,
     current_input: str,
+    client: LLMClient,
+    prompt_mgr: PromptManager,
 ) -> list[str]:
-    """Append deterministic preflight content records to router history."""
-    from app.engine.content_lookup import append_router_content_lookup_records
+    """Append bounded preflight content records to router history."""
+    from app.engine.content_lookup import append_router_content_lookup_records_with_llm
 
-    return append_router_content_lookup_records(
+    return await append_router_content_lookup_records_with_llm(
         ckpt,
         actor_id=actor_id,
         current_input=current_input,
+        client=client,
+        prompt_mgr=prompt_mgr,
     )
 
 
@@ -712,10 +716,12 @@ class LLMDispatcher:
 
         router_snapshot = _router_call_snapshot(ckpt)
         try:
-            _append_router_content_lookup_records(
+            await _append_router_content_lookup_records(
                 ckpt,
                 actor_id=actor_id,
                 current_input=intention,
+                client=self.client,
+                prompt_mgr=self.prompt_mgr,
             )
             ctx = _build_router_context(
                 ckpt,
@@ -922,10 +928,12 @@ class LLMDispatcher:
 
         router_snapshot = _router_call_snapshot(ckpt)
         try:
-            _append_router_content_lookup_records(
+            await _append_router_content_lookup_records(
                 ckpt,
                 actor_id=actor_id,
                 current_input=prior_result.decision_rationale,
+                client=self.client,
+                prompt_mgr=self.prompt_mgr,
             )
             ctx = _build_router_context(
                 ckpt,
@@ -1005,10 +1013,12 @@ class LLMDispatcher:
         """
         router_snapshot = _router_call_snapshot(ckpt)
         try:
-            _append_router_content_lookup_records(
+            await _append_router_content_lookup_records(
                 ckpt,
                 actor_id=character_id,
                 current_input=public_text,
+                client=self.client,
+                prompt_mgr=self.prompt_mgr,
             )
 
             ctx = _build_router_context(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -10,12 +11,16 @@ from app.engine.content_pack_compiler import (
     SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
 )
 from app.engine.content_lookup import (
+    EventRouterContentLookupOutput,
     MissingContentError,
     append_router_content_lookup_records,
+    append_router_content_lookup_records_with_llm,
     plan_llm_router_content_lookup_requests,
 )
+from app.engine.prompt_manager import PromptManager
+from app.llm.client import LLMClient
 from app.schemas.content import ContentPackState, IntroducedContentRef
-from tests.support.factories import checkpoint
+from tests.support.factories import checkpoint, llm_response
 
 
 PACK_VERSION = "1.0.0"
@@ -525,11 +530,177 @@ def test_lookup_preflight_noops_without_content_pack():
     assert ckpt.session_conversation == []
 
 
-def test_llm_lookup_extension_point_is_currently_disabled():
-    assert plan_llm_router_content_lookup_requests(
-        checkpoint(),
-        actor_id="alice",
-        current_input="I inspect the threshold.",
-        known_refs=set(),
-        deterministic_requests=[],
-    ) == []
+def test_llm_lookup_preflight_fetches_reviewed_hidden_ref(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "room/secret",
+                "hash-secret",
+                "location_card",
+                "hidden",
+                "A reviewed secret door latch record.",
+            )
+        ],
+    )
+    ckpt = checkpoint()
+    ckpt.session.content_state = {"pack": _pack_state(db_path)}
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=llm_response(
+        EventRouterContentLookupOutput(
+            requests=[
+                {
+                    "pack_id": "pack",
+                    "ref": "room/secret",
+                    "reason": "The wall inspection may need the secret latch record.",
+                }
+            ]
+        )
+    ))
+
+    records = asyncio_run(
+        append_router_content_lookup_records_with_llm(
+            ckpt,
+            actor_id="alice",
+            current_input="I study the odd draft coming from the wall.",
+            client=client,
+            prompt_mgr=PromptManager("app/prompts"),
+        )
+    )
+
+    assert records == [
+        (
+            "location_card ref=room/secret visibility=hidden hash=hash-secret "
+            'pack=pack summary="A reviewed secret door latch record."'
+        )
+    ]
+    assert [message.content for message in ckpt.session_conversation] == records
+    assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
+        "pack::room/secret::hash-secret"
+    ]
+    lookup_messages = client.complete.await_args.kwargs["messages"]
+    lookup_text = "\n".join(message["content"] for message in lookup_messages)
+    assert "room/secret" in lookup_text
+    assert str(db_path) not in lookup_text
+    assert "source_fingerprint" not in lookup_text
+
+
+def test_llm_lookup_preflight_fails_loudly_on_unresolved_required_ref(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "room/entry",
+                "hash-entry",
+                "location_card",
+                "hidden",
+                "A reviewed entry room record.",
+            )
+        ],
+    )
+    ckpt = checkpoint()
+    ckpt.session.content_state = {"pack": _pack_state(db_path)}
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=llm_response(
+        EventRouterContentLookupOutput(
+            requests=[
+                {
+                    "pack_id": "pack",
+                    "ref": "room/missing",
+                    "reason": "The model requested an unauthored room.",
+                }
+            ]
+        )
+    ))
+
+    with pytest.raises(MissingContentError) as exc:
+        asyncio_run(
+            append_router_content_lookup_records_with_llm(
+                ckpt,
+                actor_id="alice",
+                current_input="I inspect the blank wall.",
+                client=client,
+                prompt_mgr=PromptManager("app/prompts"),
+            )
+        )
+
+    assert "ref=room/missing" in str(exc.value)
+    assert ckpt.session_conversation == []
+    assert ckpt.session.content_state["pack"].introduced_refs == {}
+
+
+def test_llm_lookup_preflight_retry_is_bounded_and_receives_missing_refs(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "room/secret",
+                "hash-secret",
+                "location_card",
+                "hidden",
+                "A reviewed secret door latch record.",
+            )
+        ],
+    )
+    ckpt = checkpoint()
+    ckpt.session.content_state = {"pack": _pack_state(db_path)}
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(side_effect=[
+        llm_response(
+            EventRouterContentLookupOutput(
+                requests=[{"pack_id": "pack", "ref": "room/missing"}]
+            )
+        ),
+        llm_response(
+            EventRouterContentLookupOutput(
+                requests=[{"pack_id": "pack", "ref": "room/secret"}]
+            )
+        ),
+    ])
+
+    records = asyncio_run(
+        append_router_content_lookup_records_with_llm(
+            ckpt,
+            actor_id="alice",
+            current_input="I inspect the blank wall.",
+            client=client,
+            prompt_mgr=PromptManager("app/prompts"),
+            max_lookup_passes=2,
+        )
+    )
+
+    assert client.complete.await_count == 2
+    second_lookup_text = "\n".join(
+        message["content"]
+        for message in client.complete.await_args_list[1].kwargs["messages"]
+    )
+    assert "room/missing" in second_lookup_text
+    assert records[0].startswith("location_card ref=room/secret")
+
+
+def test_llm_lookup_preflight_noops_without_catalog():
+    ckpt = checkpoint()
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock()
+
+    records = asyncio_run(
+        append_router_content_lookup_records_with_llm(
+            ckpt,
+            actor_id="alice",
+            current_input="I inspect the threshold.",
+            client=client,
+            prompt_mgr=PromptManager("app/prompts"),
+        )
+    )
+
+    assert records == []
+    client.complete.assert_not_awaited()
+
+
+def asyncio_run(awaitable):
+    import asyncio
+
+    return asyncio.run(awaitable)

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.engine import narrator as narrator_module
+from app.engine.content_pack_compiler import (
+    CompiledContentPackWriter,
+    SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
+)
 from app.engine.content_lookup import MissingContentError
+from app.engine.content_lookup import EventRouterContentLookupOutput
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
@@ -128,26 +132,60 @@ def _queue_content_signal(
     )
 
 
-def _content_pack_db(tmp_path, rows: list[tuple[str, str, str, str, str, str]]):
+PACK_VERSION = "1.0.0"
+SOURCE_FINGERPRINT = "sha256:test-source"
+
+
+def _content_pack_db(
+    tmp_path,
+    rows: list[tuple[str, str, str, str, str, str]],
+    *,
+    aliases: list[tuple[str, str]] | None = None,
+):
     db_path = tmp_path / "pack.sqlite"
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            """
-            CREATE TABLE content_cards (
-                pack_id TEXT,
-                ref TEXT,
-                content_hash TEXT,
-                kind TEXT,
-                visibility TEXT,
-                summary TEXT
-            )
-            """
-        )
-        conn.executemany(
-            "INSERT INTO content_cards VALUES (?, ?, ?, ?, ?, ?)",
-            rows,
-        )
+    writer = CompiledContentPackWriter(
+        db_path,
+        pack_id="pack",
+        pack_version=PACK_VERSION,
+        source_fingerprint=SOURCE_FINGERPRINT,
+    )
+    writer.write_pack(
+        pages=[],
+        cards=[
+            {
+                "pack_id": pack_id,
+                "ref": ref,
+                "content_hash": content_hash,
+                "card_kind": kind,
+                "visibility": visibility,
+                "summary": summary,
+                "review_status": "approved",
+                "confidence": 1.0,
+            }
+            for pack_id, ref, content_hash, kind, visibility, summary in rows
+        ],
+        aliases=[
+            {
+                "alias": alias,
+                "ref": ref,
+                "review_status": "approved",
+                "confidence": 1.0,
+            }
+            for alias, ref in aliases or []
+        ],
+    )
     return db_path
+
+
+def _content_pack_metadata(db_path, **overrides):
+    metadata = {
+        "db_path": str(db_path),
+        "pack_version": PACK_VERSION,
+        "source_fingerprint": SOURCE_FINGERPRINT,
+        "schema_version": CONTENT_PACK_SCHEMA_VERSION,
+    }
+    metadata.update(overrides)
+    return metadata
 
 
 def _enable_dnd(ckpt) -> None:
@@ -552,10 +590,10 @@ class TestRouteIntention:
         ckpt.session.content_state = {
             "pack": ContentPackState(
                 pack_id="pack",
-                metadata={
-                    "db_path": str(db_path),
-                    "aliases": {"threshold": "room/entry"},
-                },
+                metadata=_content_pack_metadata(
+                    db_path,
+                    aliases={"threshold": "room/entry"},
+                ),
             )
         }
         mock_client.complete.return_value = _llm_response(_router_output())
@@ -589,10 +627,10 @@ class TestRouteIntention:
         ckpt.session.content_state = {
             "pack": ContentPackState(
                 pack_id="pack",
-                metadata={
-                    "db_path": str(db_path),
-                    "aliases": {"secret door": "room/secret"},
-                },
+                metadata=_content_pack_metadata(
+                    db_path,
+                    aliases={"secret door": "room/secret"},
+                ),
             )
         }
         before_content = ckpt.session.content_state["pack"].model_dump()
@@ -607,6 +645,68 @@ class TestRouteIntention:
         mock_client.complete.assert_not_awaited()
         assert ckpt.session.content_state["pack"].model_dump() == before_content
         assert ckpt.session_conversation == []
+
+    def test_route_intention_runs_bounded_lookup_model_before_router(
+        self, prompt_mgr, mock_client, tmp_path,
+    ):
+        db_path = _content_pack_db(
+            tmp_path,
+            [
+                (
+                    "pack",
+                    "room/secret",
+                    "hash-secret",
+                    "location_card",
+                    "hidden",
+                    "Reviewed secret latch context.",
+                )
+            ],
+        )
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.content_state = {
+            "pack": ContentPackState(
+                pack_id="pack",
+                metadata=_content_pack_metadata(db_path),
+            )
+        }
+        mock_client.complete.side_effect = [
+            _llm_response(
+                EventRouterContentLookupOutput(
+                    requests=[{"pack_id": "pack", "ref": "room/secret"}]
+                )
+            ),
+            _llm_response(_router_output()),
+        ]
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I investigate the odd draft in the wall.",
+        ))
+
+        assert mock_client.complete.await_count == 2
+        lookup_call = mock_client.complete.await_args_list[0].kwargs
+        router_call = mock_client.complete.await_args_list[1].kwargs
+        assert lookup_call["response_model"] is EventRouterContentLookupOutput
+        assert router_call["response_model"] is EventRouterOutput
+        lookup_text = "\n".join(
+            message["content"] for message in lookup_call["messages"]
+        )
+        assert "room/secret" in lookup_text
+        assert str(db_path) not in lookup_text
+
+        router_messages = router_call["messages"]
+        assert any(
+            message.get("role") == "assistant"
+            and "location_card ref=room/secret" in message.get("content", "")
+            for message in router_messages
+        )
+        assert "location_card ref=room/secret" not in router_messages[0]["content"]
+        assert "location_card ref=room/secret" not in _last_user_content(router_messages)
+        assert ckpt.session_conversation[0].content.startswith(
+            "location_card ref=room/secret "
+        )
+        assert ckpt.session_conversation[-1].content.startswith("prior_event ")
 
     def test_dnd_cat_ii_packet_receives_pending_content_context(
         self, prompt_mgr, mock_client,

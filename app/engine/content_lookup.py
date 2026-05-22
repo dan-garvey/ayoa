@@ -4,8 +4,11 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Literal, Mapping
 
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.engine.prompt_manager import PromptManager
 from app.engine.content_resolver import (
     append_pending_router_content_records,
     content_ref_needs_introduction,
@@ -18,7 +21,9 @@ from app.engine.content_pack_compiler import (
     CompiledContentPackReader,
     SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
 )
+from app.llm.client import LLMClient
 from app.schemas.conversation import ConversationMessage
+from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
 _REF_RE = re.compile(r"\bref=([A-Za-z0-9_.:/@+-]+)")
@@ -35,6 +40,38 @@ class ContentLookupRequest:
     urgency: str = "required"
     spoiler_boundary: str = "router_hidden"
     already_known: bool = False
+
+
+class EventRouterContentLookupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pack_id: str = ""
+    ref: str = ""
+    reason: str = ""
+    alias: str = ""
+    urgency: Literal["required", "optional"] = "required"
+    spoiler_boundary: str = "router_hidden"
+
+    @model_validator(mode="after")
+    def _clean(self) -> "EventRouterContentLookupRequest":
+        self.pack_id = self.pack_id.strip()
+        self.ref = self.ref.strip()
+        self.reason = " ".join(self.reason.split())
+        self.alias = " ".join(self.alias.split())
+        self.spoiler_boundary = self.spoiler_boundary.strip() or "router_hidden"
+        return self
+
+
+class EventRouterContentLookupOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requests: list[EventRouterContentLookupRequest] = Field(default_factory=list)
+    no_lookup_reason: str = ""
+
+    @model_validator(mode="after")
+    def _clean(self) -> "EventRouterContentLookupOutput":
+        self.no_lookup_reason = " ".join(self.no_lookup_reason.split())
+        return self
 
 
 class MissingContentError(RuntimeError):
@@ -61,6 +98,7 @@ def append_router_content_lookup_records(
     actor_id: str,
     current_input: str,
     max_lookup_passes: int = 1,
+    llm_requests: Iterable[ContentLookupRequest] = (),
 ) -> list[str]:
     """Append one-shot router content records before the normal router call.
 
@@ -88,21 +126,90 @@ def append_router_content_lookup_records(
         current_input=current_input,
         known_refs=known_refs,
     )
-    requests.extend(
-        plan_llm_router_content_lookup_requests(
-            ckpt,
-            actor_id=actor_id,
-            current_input=current_input,
-            known_refs=known_refs,
-            deterministic_requests=requests,
-        )
-    )
+    requests.extend(_dedupe_lookup_requests(list(llm_requests), known_refs=known_refs))
     if not requests:
         return records
 
     lookup_records = _fetch_lookup_records(ckpt, requests)
     for record in lookup_records:
         conversation.append(ConversationMessage(role="assistant", content=record))
+    records.extend(lookup_records)
+    return records
+
+
+async def append_router_content_lookup_records_with_llm(
+    ckpt: Any,
+    *,
+    actor_id: str,
+    current_input: str,
+    client: LLMClient,
+    prompt_mgr: PromptManager,
+    max_lookup_passes: int = 1,
+) -> list[str]:
+    """Append deterministic plus bounded model-selected content records."""
+
+    records = append_pending_router_content_records(ckpt)
+
+    session = getattr(ckpt, "session", None)
+    content_state = getattr(session, "content_state", None) if session else None
+    conversation = getattr(ckpt, "session_conversation", None)
+    if not isinstance(content_state, Mapping) or conversation is None:
+        return records
+
+    known_refs = _known_router_content_refs(ckpt)
+    deterministic_requests = plan_deterministic_router_content_lookup_requests(
+        ckpt,
+        actor_id=actor_id,
+        current_input=current_input,
+        known_refs=known_refs,
+    )
+    deterministic_requests = _dedupe_lookup_requests(
+        deterministic_requests,
+        known_refs=known_refs,
+    )
+    if max_lookup_passes < 1:
+        lookup_records = _fetch_lookup_records(ckpt, deterministic_requests)
+        _append_lookup_records(conversation, lookup_records)
+        records.extend(lookup_records)
+        return records
+
+    catalog_block = build_router_content_lookup_catalog_block(ckpt)
+    llm_requests: list[ContentLookupRequest] = []
+    previous_missing: list[ContentLookupRequest] = []
+    if catalog_block and not deterministic_requests:
+        for pass_index in range(max_lookup_passes):
+            llm_requests = await plan_llm_router_content_lookup_requests(
+                ckpt,
+                actor_id=actor_id,
+                current_input=current_input,
+                known_refs=known_refs,
+                deterministic_requests=deterministic_requests,
+                client=client,
+                prompt_mgr=prompt_mgr,
+                catalog_block=catalog_block,
+                previous_missing=previous_missing,
+            )
+            requests = _dedupe_lookup_requests(
+                [*deterministic_requests, *llm_requests],
+                known_refs=known_refs,
+            )
+            try:
+                lookup_records = _fetch_lookup_records(ckpt, requests)
+            except MissingContentError as exc:
+                if pass_index + 1 >= max_lookup_passes or not llm_requests:
+                    raise
+                previous_missing = exc.requests
+                continue
+            _append_lookup_records(conversation, lookup_records)
+            records.extend(lookup_records)
+            return records
+
+    requests = _dedupe_lookup_requests(
+        [*deterministic_requests, *llm_requests],
+        known_refs=known_refs,
+    )
+    lookup_records = _fetch_lookup_records(ckpt, requests)
+    _append_lookup_records(conversation, lookup_records)
     records.extend(lookup_records)
     return records
 
@@ -149,21 +256,59 @@ def plan_deterministic_router_content_lookup_requests(
     return requests
 
 
-def plan_llm_router_content_lookup_requests(
+async def plan_llm_router_content_lookup_requests(
     ckpt: Any,
     *,
     actor_id: str,
     current_input: str,
     known_refs: set[tuple[str, str]],
     deterministic_requests: list[ContentLookupRequest],
+    client: LLMClient,
+    prompt_mgr: PromptManager,
+    catalog_block: str = "",
+    previous_missing: list[ContentLookupRequest] | None = None,
 ) -> list[ContentLookupRequest]:
-    """Extension point for a future `event_router_content_lookup` prompt.
+    """Ask for exact reviewed refs that should be fetched before routing."""
 
-    The first runtime slice deliberately avoids a second model call. If an LLM
-    preflight is added later, keep it bounded to one request/refetch retry and
-    return exact ContentLookupRequest objects from here.
-    """
-    return []
+    catalog_text = catalog_block or build_router_content_lookup_catalog_block(ckpt)
+    if not catalog_text:
+        return []
+    messages = prompt_mgr.render_messages(
+        "event_router_content_lookup",
+        actor_id=actor_id,
+        current_input=current_input,
+        router_memory_block=_router_memory_block(ckpt),
+        known_refs_block=_known_refs_block(known_refs),
+        deterministic_requests_block=_requests_block(deterministic_requests),
+        catalog_block=catalog_text,
+        previous_missing_block=_requests_block(previous_missing or []),
+    )
+    response = await client.complete(
+        role="event_router",
+        messages=messages,
+        response_model=EventRouterContentLookupOutput,
+        temperature=0.1,
+        max_tokens=1200,
+        cache=True,
+        compact=True,
+    )
+    parsed = response.parsed
+    if not isinstance(parsed, EventRouterContentLookupOutput):
+        return []
+    requests = [
+        ContentLookupRequest(
+            pack_id=request.pack_id,
+            ref=request.ref,
+            reason=request.reason,
+            alias=request.alias,
+            urgency=request.urgency,
+            spoiler_boundary=request.spoiler_boundary,
+            already_known=(request.pack_id, request.ref) in known_refs,
+        )
+        for request in parsed.requests
+        if request.pack_id and request.ref
+    ]
+    return _dedupe_lookup_requests(requests, known_refs=known_refs)
 
 
 def _fetch_lookup_records(
@@ -190,7 +335,9 @@ def _fetch_lookup_records(
         db_path = _pack_db_path(pack_state)
         if db_path is None:
             missing.extend(
-                request for request in pack_requests if not request.already_known
+                request
+                for request in pack_requests
+                if not request.already_known and request.urgency != "optional"
             )
             continue
         _assert_pack_runtime_identity(
@@ -209,7 +356,7 @@ def _fetch_lookup_records(
         for request in pack_requests:
             card = cards_by_ref.get(request.ref)
             if card is None:
-                if not request.already_known:
+                if not request.already_known and request.urgency != "optional":
                     missing.append(request)
                 continue
             if not content_ref_needs_introduction(
@@ -237,6 +384,163 @@ def _fetch_lookup_records(
             summary=card.summary,
         )
     return records
+
+
+def _append_lookup_records(conversation: Any, records: list[str]) -> None:
+    for record in records:
+        conversation.append(ConversationMessage(role="assistant", content=record))
+
+
+def _dedupe_lookup_requests(
+    requests: Iterable[ContentLookupRequest],
+    *,
+    known_refs: set[tuple[str, str]],
+) -> list[ContentLookupRequest]:
+    deduped: list[ContentLookupRequest] = []
+    seen: set[tuple[str, str]] = set()
+    for request in requests:
+        pack_id = str(request.pack_id or "").strip()
+        ref = str(request.ref or "").strip()
+        if not pack_id or not ref:
+            continue
+        key = (pack_id, ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        if key in known_refs:
+            continue
+        deduped.append(
+            ContentLookupRequest(
+                pack_id=pack_id,
+                ref=ref,
+                reason=" ".join(str(request.reason or "").split()),
+                alias=" ".join(str(request.alias or "").split()),
+                urgency=(
+                    "optional" if request.urgency == "optional" else "required"
+                ),
+                spoiler_boundary=(
+                    str(request.spoiler_boundary or "").strip()
+                    or "router_hidden"
+                ),
+                already_known=False,
+            )
+        )
+    return deduped
+
+
+def build_router_content_lookup_catalog_block(
+    ckpt: Any,
+    *,
+    max_cards_per_pack: int = 80,
+) -> str:
+    session = getattr(ckpt, "session", None)
+    content_state = getattr(session, "content_state", None) if session else None
+    if not isinstance(content_state, Mapping):
+        return ""
+
+    lines: list[str] = []
+    for pack_key, pack_state in content_state.items():
+        pack_id = _pack_id(pack_key, pack_state)
+        db_path = _pack_db_path(pack_state)
+        if db_path is None:
+            continue
+        _assert_pack_runtime_identity(db_path, pack_id=pack_id, pack_state=pack_state)
+        aliases_by_ref = _aliases_by_ref(pack_state)
+        cards = load_content_cards(
+            db_path,
+            pack_id=pack_id,
+            limit=max_cards_per_pack,
+            runtime_only=True,
+        )
+        for card in cards:
+            aliases = aliases_by_ref.get(card.ref, [])
+            parts = [
+                f"pack={_safe_token(pack_id)}",
+                f"ref={_safe_token(card.ref)}",
+            ]
+            if card.kind:
+                parts.append(f"kind={_safe_token(card.kind)}")
+            if card.visibility:
+                parts.append(f"visibility={_safe_token(card.visibility)}")
+            if aliases:
+                parts.append("aliases=" + _quote_value(", ".join(aliases[:8])))
+            if card.title:
+                parts.append("title=" + _quote_value(card.title))
+            if card.summary:
+                parts.append("summary=" + _quote_value(card.summary))
+            lines.append(" ".join(parts))
+    return "\n".join(lines)
+
+
+def _aliases_by_ref(pack_state: Any) -> dict[str, list[str]]:
+    aliases: dict[str, list[str]] = {}
+    for alias, ref, _reason in _iter_alias_catalog_entries(pack_state):
+        safe_alias = _safe_catalog_text(alias)
+        safe_ref = _safe_catalog_text(ref)
+        if not safe_alias or not safe_ref:
+            continue
+        values = aliases.setdefault(safe_ref, [])
+        if safe_alias not in values:
+            values.append(safe_alias)
+    return aliases
+
+
+def _router_memory_block(ckpt: Any, *, limit: int = 18) -> str:
+    rows: list[str] = []
+    for message in getattr(ckpt, "session_conversation", []) or []:
+        if getattr(message, "role", "") != "assistant":
+            continue
+        content = _safe_catalog_text(getattr(message, "content", ""))
+        if not content:
+            continue
+        if content.startswith(("prior_event ", "content_known ", "location_card ", "front_signal ")):
+            rows.append(content)
+    return "\n".join(rows[-limit:]) or "-"
+
+
+def _known_refs_block(known_refs: set[tuple[str, str]]) -> str:
+    rows = [
+        f"pack={_safe_token(pack_id)} ref={_safe_token(ref)}"
+        for pack_id, ref in sorted(known_refs)
+        if _safe_token(pack_id) and _safe_token(ref)
+    ]
+    return "\n".join(rows) or "-"
+
+
+def _requests_block(requests: Iterable[ContentLookupRequest]) -> str:
+    rows = []
+    for request in requests:
+        parts = [
+            f"pack={_safe_token(request.pack_id)}",
+            f"ref={_safe_token(request.ref)}",
+        ]
+        if request.alias:
+            parts.append("alias=" + _quote_value(request.alias))
+        if request.reason:
+            parts.append("reason=" + _quote_value(request.reason))
+        rows.append(" ".join(part for part in parts if part and not part.endswith("=")))
+    return "\n".join(rows) or "-"
+
+
+def _quote_value(value: str) -> str:
+    text = _safe_catalog_text(value)
+    if not text:
+        return '""'
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _safe_token(value: Any) -> str:
+    text = _safe_catalog_text(value)
+    if not text or not re.match(r"^[A-Za-z0-9_.:/@+-]+$", text):
+        return ""
+    return text
+
+
+def _safe_catalog_text(value: Any) -> str:
+    text = " ".join(str(value or "").split())
+    if not text or contains_imported_asset_sentinel(text):
+        return ""
+    return text
 
 
 def _assert_pack_runtime_identity(
