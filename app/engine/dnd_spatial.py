@@ -22,6 +22,9 @@ SUMMARY_TOKEN_LIMIT = 12
 SUMMARY_TERRAIN_LIMIT = 4
 SUMMARY_AREA_LIMIT = 4
 SUMMARY_LABEL_MAX = 32
+CONTEXT_GEOMETRY_LIMIT = 40
+CONTEXT_AREA_LIMIT = 20
+CONTEXT_TARGET_LIMIT = 80
 
 
 def normalize_battle_map_seed(
@@ -160,11 +163,17 @@ def combat_packet_context(
     if battle_map is None:
         return {
             "battle_map": {},
+            "tactical_map_enforcement": {},
             "spatial_advisories": [],
             "area_targeting_advisories": [],
         }
     return {
         "battle_map": battle_map_status(battle_map),
+        "tactical_map_enforcement": tactical_map_enforcement_context(
+            combat,
+            actor_id,
+            relationships_by_id=relationships_by_id or {},
+        ),
         "spatial_advisories": spatial_advisories(combat, actor_id),
         "area_targeting_advisories": area_targeting_advisories(
             combat,
@@ -200,6 +209,92 @@ def spatial_advisories(combat: Any, actor_id: str) -> list[dict[str, Any]]:
             "cover": cover,
         })
     return advisories
+
+
+def tactical_map_enforcement_context(
+    combat: Any,
+    actor_id: str,
+    *,
+    relationships_by_id: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Compute structured tactical geometry for LLM adjudication.
+
+    The context is deliberately advisory except for hard gates that protect the
+    runtime map from impossible geometry such as overlapping tokens or blocked
+    destinations.
+    """
+    battle_map = _battle_map(combat)
+    if battle_map is None:
+        return {}
+
+    relationships = relationships_by_id or {}
+    actor_token = _token_for(battle_map, actor_id)
+    hard_gates: list[dict[str, Any]] = []
+    if actor_token is None:
+        hard_gates.append({
+            "kind": "actor_token_missing",
+            "reason": f"No tactical-map token found for {actor_id}.",
+        })
+
+    context: dict[str, Any] = {
+        "authority": {
+            "geometry": (
+                "reviewed_tactical_map"
+                if battle_map.source_template_ref
+                and battle_map.source_content_hash
+                else "runtime_battle_map"
+            ),
+            "reviewed_geometry": bool(
+                battle_map.source_template_ref
+                and battle_map.source_content_hash
+            ),
+        },
+        "grid": {
+            "width": battle_map.width,
+            "height": battle_map.height,
+            "square_size_ft": battle_map.square_size_ft,
+        },
+        "actor": _token_payload(actor_token) if actor_token is not None else {},
+        "occupancy": [
+            _token_payload(token)
+            for token in battle_map.tokens[:MAX_BATTLE_MAP_TOKENS]
+        ],
+        "terrain": _terrain_enforcement_payload(battle_map),
+        "active_areas": _active_area_payloads(battle_map),
+        "verticality": _verticality_payload(battle_map),
+        "targets": _target_geometry_payloads(
+            battle_map,
+            actor_token,
+            relationships,
+        ) if actor_token is not None else [],
+        "movement": _movement_payload(battle_map, actor_token)
+        if actor_token is not None else {},
+        "hard_gates": hard_gates,
+        "advisories": [],
+    }
+
+    if actor_token is not None:
+        current_gates = _placement_hard_gates(
+            battle_map,
+            actor_token,
+            actor_token.x,
+            actor_token.y,
+            actor_token.size_squares,
+        )
+        if current_gates:
+            context["hard_gates"].extend({
+                **gate,
+                "reason": f"Current actor position is invalid: {gate['reason']}",
+            } for gate in current_gates)
+    if battle_map.floors and not _tokens_have_floor_state(battle_map):
+        context["advisories"].append({
+            "kind": "floor_assignment_untracked",
+            "reason": (
+                "Map has floors or submaps, but combatant tokens are tracked "
+                "on the primary runtime grid only."
+            ),
+        })
+    return context
 
 
 def area_targeting_advisories(
@@ -288,13 +383,25 @@ def apply_spatial_deltas(
                 )
                 continue
             max_size = max(1, min(battle_map.width, battle_map.height))
-            token.size_squares = _clamp(delta.size_squares, 1, max_size)
-            token.x = _clamp(
-                delta.x, 0, max(0, battle_map.width - token.size_squares)
+            target_size = _clamp(delta.size_squares, 1, max_size)
+            placement_gates = _placement_hard_gates(
+                battle_map,
+                token,
+                delta.x,
+                delta.y,
+                target_size,
             )
-            token.y = _clamp(
-                delta.y, 0, max(0, battle_map.height - token.size_squares)
-            )
+            if placement_gates:
+                notes.append(_blocked_delta_note(token, delta, placement_gates))
+                if created:
+                    battle_map.tokens = [
+                        candidate for candidate in battle_map.tokens
+                        if candidate is not token
+                    ]
+                continue
+            token.size_squares = target_size
+            token.x = delta.x
+            token.y = delta.y
             if delta.label:
                 token.label = delta.label
             verb = "Placed" if created else "Moved"
@@ -461,6 +568,272 @@ def render_battle_map_summary(
         if advisory_text:
             lines.append("From you: " + "; ".join(advisory_text) + ".")
     return lines[:max_lines]
+
+
+def _token_payload(token: DndBattleMapToken | None) -> dict[str, Any]:
+    if token is None:
+        return {}
+    return {
+        "token_id": token.token_id,
+        "character_id": token.character_id,
+        "label": token.label,
+        "x": token.x,
+        "y": token.y,
+        "size_squares": token.size_squares,
+        "rect": _rect_payload(
+            token.x,
+            token.y,
+            token.size_squares,
+            token.size_squares,
+        ),
+    }
+
+
+def _terrain_enforcement_payload(
+    battle_map: DndBattleMapState,
+) -> dict[str, list[dict[str, Any]]]:
+    zones = _mechanical_zone_payloads(battle_map)
+    return {
+        "movement_blockers": [
+            zone for zone in zones if zone["blocks_movement"]
+        ][:CONTEXT_GEOMETRY_LIMIT],
+        "line_of_sight_blockers": [
+            zone for zone in zones if zone["blocks_line_of_sight"]
+        ][:CONTEXT_GEOMETRY_LIMIT],
+        "difficult_terrain": [
+            zone for zone in zones if zone["difficult_terrain"]
+        ][:CONTEXT_GEOMETRY_LIMIT],
+        "cover": [
+            zone for zone in zones if zone["cover"] != "none"
+        ][:CONTEXT_GEOMETRY_LIMIT],
+    }
+
+
+def _mechanical_zone_payloads(
+    battle_map: DndBattleMapState,
+) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for zone in battle_map.terrain:
+        payload = {
+            "id": zone.zone_id or zone.label,
+            "label": zone.label or zone.zone_id,
+            "kind": "terrain",
+            "floor_id": zone.floor_id,
+            "rect": _rect_payload(zone.x, zone.y, zone.width, zone.height),
+            "cells": [],
+            "blocks_movement": zone.blocks_movement,
+            "blocks_line_of_sight": zone.blocks_line_of_sight,
+            "difficult_terrain": False,
+            "cover": zone.cover,
+        }
+        payloads.append(payload)
+        if payload["id"]:
+            by_id[payload["id"]] = payload
+
+    for feature in _visible_features(battle_map):
+        if not _feature_has_mechanical_geometry(feature):
+            continue
+        payload = _feature_zone_payload(feature)
+        existing = by_id.get(feature.feature_id)
+        if existing is not None:
+            existing["kind"] = feature.feature_kind
+            existing["difficult_terrain"] = (
+                existing["difficult_terrain"] or feature.difficult_terrain
+            )
+            existing["blocks_movement"] = (
+                existing["blocks_movement"] or feature.blocks_movement
+            )
+            existing["blocks_line_of_sight"] = (
+                existing["blocks_line_of_sight"]
+                or feature.blocks_line_of_sight
+            )
+            if existing["cover"] == "none":
+                existing["cover"] = feature.cover
+            continue
+        payloads.append(payload)
+        if payload["id"]:
+            by_id[payload["id"]] = payload
+    return payloads
+
+
+def _feature_zone_payload(feature: DndBattleMapFeature) -> dict[str, Any]:
+    bounds = feature.bounds
+    cells = []
+    rect: dict[str, int] | None = None
+    if bounds is not None:
+        rect = _rect_payload(bounds.x, bounds.y, bounds.width, bounds.height)
+    elif feature.cells:
+        cells = [
+            {"x": point.x, "y": point.y}
+            for point in feature.cells[:CONTEXT_GEOMETRY_LIMIT]
+        ]
+    return {
+        "id": feature.feature_id or feature.label,
+        "label": feature.label or feature.feature_id,
+        "kind": feature.feature_kind,
+        "floor_id": feature.floor_id,
+        "rect": rect,
+        "cells": cells,
+        "blocks_movement": feature.blocks_movement,
+        "blocks_line_of_sight": feature.blocks_line_of_sight,
+        "difficult_terrain": feature.difficult_terrain,
+        "cover": feature.cover,
+    }
+
+
+def _active_area_payloads(
+    battle_map: DndBattleMapState,
+) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for area in battle_map.areas[:CONTEXT_AREA_LIMIT]:
+        affected = [
+            _token_identity(token)
+            for token in battle_map.tokens
+            if _area_contains_token(area, token)
+        ]
+        payloads.append({
+            "template_id": area.template_id,
+            "label": area.label,
+            "shape": area.shape,
+            "x": area.x,
+            "y": area.y,
+            "radius_squares": area.radius_squares,
+            "width": area.width,
+            "height": area.height,
+            "duration_rounds": area.duration_rounds,
+            "affected_tokens": affected,
+        })
+    return payloads
+
+
+def _verticality_payload(battle_map: DndBattleMapState) -> dict[str, Any]:
+    floors = [
+        {
+            "floor_id": floor.floor_id,
+            "label": floor.label,
+            "kind": floor.floor_kind,
+            "level_index": floor.level_index,
+            "elevation_ft": floor.elevation_ft,
+            "grid_width": floor.grid_width,
+            "grid_height": floor.grid_height,
+            "parent_floor_id": floor.parent_floor_id,
+            "parent_bounds": (
+                _rect_payload(
+                    floor.parent_bounds.x,
+                    floor.parent_bounds.y,
+                    floor.parent_bounds.width,
+                    floor.parent_bounds.height,
+                )
+                if floor.parent_bounds is not None else None
+            ),
+        }
+        for floor in battle_map.floors[:CONTEXT_GEOMETRY_LIMIT]
+    ]
+    vertical_links = []
+    for feature in _visible_features(battle_map):
+        if not _feature_is_vertical_link(feature):
+            continue
+        vertical_links.append({
+            "feature_id": feature.feature_id,
+            "label": feature.label or feature.feature_id,
+            "kind": feature.feature_kind,
+            "floor_id": feature.floor_id,
+            "rect": (
+                _rect_payload(
+                    feature.bounds.x,
+                    feature.bounds.y,
+                    feature.bounds.width,
+                    feature.bounds.height,
+                )
+                if feature.bounds is not None else None
+            ),
+            "cells": [
+                {"x": point.x, "y": point.y}
+                for point in feature.cells[:CONTEXT_GEOMETRY_LIMIT]
+            ],
+        })
+    return {
+        "floors": floors,
+        "vertical_links": vertical_links[:CONTEXT_GEOMETRY_LIMIT],
+    }
+
+
+def _target_geometry_payloads(
+    battle_map: DndBattleMapState,
+    actor_token: DndBattleMapToken,
+    relationships: dict[str, str],
+) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for token in battle_map.tokens[:CONTEXT_TARGET_LIMIT]:
+        if token is actor_token:
+            continue
+        distance_ft = _distance_ft(battle_map, actor_token, token)
+        line_of_sight = _line_of_sight_clear(battle_map, actor_token, token)
+        cover = _cover_between(battle_map, actor_token, token)
+        payloads.append({
+            "token_id": token.token_id,
+            "character_id": token.character_id,
+            "label": token.label,
+            "relationship": _token_relationship(token, relationships),
+            "distance_ft": distance_ft,
+            "adjacent": distance_ft <= battle_map.square_size_ft,
+            "line_of_sight": "clear" if line_of_sight else "blocked",
+            "cover": cover,
+        })
+    return payloads
+
+
+def _movement_payload(
+    battle_map: DndBattleMapState,
+    actor_token: DndBattleMapToken,
+) -> dict[str, Any]:
+    adjacent = []
+    for label, dx, dy in (
+        ("N", 0, -1),
+        ("NE", 1, -1),
+        ("E", 1, 0),
+        ("SE", 1, 1),
+        ("S", 0, 1),
+        ("SW", -1, 1),
+        ("W", -1, 0),
+        ("NW", -1, -1),
+    ):
+        x = actor_token.x + dx
+        y = actor_token.y + dy
+        gates = _placement_hard_gates(
+            battle_map,
+            actor_token,
+            x,
+            y,
+            actor_token.size_squares,
+        )
+        adjacent.append({
+            "direction": label,
+            "x": x,
+            "y": y,
+            "legal_destination": not gates,
+            "hard_gates": gates,
+            "terrain_cost": (
+                "difficult"
+                if not gates
+                and _placement_has_difficult_terrain(
+                    battle_map,
+                    x,
+                    y,
+                    actor_token.size_squares,
+                )
+                else "normal"
+            ),
+        })
+    return {
+        "from": {
+            "x": actor_token.x,
+            "y": actor_token.y,
+            "size_squares": actor_token.size_squares,
+        },
+        "adjacent_destinations": adjacent,
+    }
 
 
 def _normalize_area_template(
@@ -722,6 +1095,214 @@ def _token_relationship(
         if relationship:
             return relationship
     return "unknown"
+
+
+def _rect_payload(x: int, y: int, width: int, height: int) -> dict[str, int]:
+    return {
+        "x": int(x),
+        "y": int(y),
+        "width": max(1, int(width)),
+        "height": max(1, int(height)),
+    }
+
+
+def _visible_features(
+    battle_map: DndBattleMapState,
+) -> list[DndBattleMapFeature]:
+    return [feature for feature in battle_map.features if not feature.secret]
+
+
+def _feature_has_mechanical_geometry(feature: DndBattleMapFeature) -> bool:
+    return (
+        feature.blocks_movement
+        or feature.blocks_line_of_sight
+        or feature.difficult_terrain
+        or feature.cover != "none"
+    )
+
+
+def _feature_is_vertical_link(feature: DndBattleMapFeature) -> bool:
+    return feature.feature_kind in {
+        "stairs",
+        "pit",
+        "cliff",
+        "balcony",
+    }
+
+
+def _tokens_have_floor_state(battle_map: DndBattleMapState) -> bool:
+    return any(
+        str(getattr(token, "floor_id", "") or "").strip()
+        for token in battle_map.tokens
+    )
+
+
+def _area_contains_token(
+    area: DndAreaTemplate,
+    token: DndBattleMapToken,
+) -> bool:
+    tx, ty = _token_center(token)
+    if area.shape == "circle":
+        radius = max(0, area.radius_squares)
+        return max(abs(tx - area.x), abs(ty - area.y)) <= radius
+    return (
+        area.x <= tx < area.x + max(1, area.width)
+        and area.y <= ty < area.y + max(1, area.height)
+    )
+
+
+def _placement_hard_gates(
+    battle_map: DndBattleMapState,
+    moving_token: DndBattleMapToken | None,
+    x: int,
+    y: int,
+    size_squares: int,
+) -> list[dict[str, Any]]:
+    size = max(1, size_squares)
+    if x < 0 or y < 0 or x + size > battle_map.width or y + size > battle_map.height:
+        return [{
+            "kind": "out_of_bounds",
+            "reason": (
+                f"Destination ({x}, {y}) size {size} is outside "
+                f"the {battle_map.width}x{battle_map.height} map."
+            ),
+        }]
+
+    cells = _rect_cells(x, y, size, size)
+    gates: list[dict[str, Any]] = []
+    blockers = _movement_blockers_for_cells(battle_map, cells)
+    if blockers:
+        gates.append({
+            "kind": "movement_blocked",
+            "reason": (
+                "Destination includes movement blocker"
+                f"{'s' if len(blockers) != 1 else ''}: "
+                f"{', '.join(blockers)}."
+            ),
+            "blockers": blockers,
+        })
+
+    occupants = _occupying_tokens_for_cells(
+        battle_map,
+        cells,
+        ignore=moving_token,
+    )
+    if occupants:
+        gates.append({
+            "kind": "occupied",
+            "reason": (
+                "Destination is occupied by "
+                f"{', '.join(occupants)}."
+            ),
+            "occupants": occupants,
+        })
+    return gates
+
+
+def _placement_has_difficult_terrain(
+    battle_map: DndBattleMapState,
+    x: int,
+    y: int,
+    size_squares: int,
+) -> bool:
+    if x < 0 or y < 0:
+        return False
+    return any(
+        _cell_has_difficult_terrain(battle_map, cell_x, cell_y)
+        for cell_x, cell_y in _rect_cells(x, y, size_squares, size_squares)
+        if 0 <= cell_x < battle_map.width and 0 <= cell_y < battle_map.height
+    )
+
+
+def _movement_blockers_for_cells(
+    battle_map: DndBattleMapState,
+    cells: Iterable[tuple[int, int]],
+) -> list[str]:
+    blockers: list[str] = []
+    seen: set[str] = set()
+    for x, y in cells:
+        for label in _cell_movement_blockers(battle_map, x, y):
+            if label in seen:
+                continue
+            blockers.append(label)
+            seen.add(label)
+            if len(blockers) >= CONTEXT_GEOMETRY_LIMIT:
+                return blockers
+    return blockers
+
+
+def _cell_movement_blockers(
+    battle_map: DndBattleMapState,
+    x: int,
+    y: int,
+) -> list[str]:
+    labels: list[str] = []
+    for zone in battle_map.terrain:
+        if zone.blocks_movement and _point_in_zone(x, y, zone):
+            labels.append(zone.label or zone.zone_id or "terrain")
+    for feature in _visible_features(battle_map):
+        if feature.blocks_movement and _point_in_feature(x, y, feature):
+            labels.append(feature.label or feature.feature_id or "feature")
+    return list(dict.fromkeys(labels))
+
+
+def _cell_has_difficult_terrain(
+    battle_map: DndBattleMapState,
+    x: int,
+    y: int,
+) -> bool:
+    for zone in battle_map.terrain:
+        if getattr(zone, "difficult_terrain", False) and _point_in_zone(x, y, zone):
+            return True
+    for feature in _visible_features(battle_map):
+        if feature.difficult_terrain and _point_in_feature(x, y, feature):
+            return True
+    return False
+
+
+def _occupying_tokens_for_cells(
+    battle_map: DndBattleMapState,
+    cells: Iterable[tuple[int, int]],
+    *,
+    ignore: DndBattleMapToken | None,
+) -> list[str]:
+    occupied = set(cells)
+    occupants: list[str] = []
+    for token in battle_map.tokens:
+        if token is ignore:
+            continue
+        if occupied.intersection(_token_cells(token)):
+            occupants.append(_token_identity(token))
+    return occupants
+
+
+def _token_cells(token: DndBattleMapToken) -> set[tuple[int, int]]:
+    return set(_rect_cells(token.x, token.y, token.size_squares, token.size_squares))
+
+
+def _rect_cells(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+) -> list[tuple[int, int]]:
+    return [
+        (cell_x, cell_y)
+        for cell_x in range(x, x + max(1, width))
+        for cell_y in range(y, y + max(1, height))
+    ]
+
+
+def _blocked_delta_note(
+    token: DndBattleMapToken,
+    delta: DndSpatialDelta,
+    gates: list[dict[str, Any]],
+) -> str:
+    reasons = "; ".join(str(gate.get("reason") or "") for gate in gates)
+    return (
+        f"Spatial delta blocked: {_token_identity(token)} cannot occupy "
+        f"({delta.x}, {delta.y}). {reasons}"
+    )
 
 
 def _dedupe_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -987,12 +1568,19 @@ def _line_of_sight_clear(
     b: DndBattleMapToken,
 ) -> bool:
     blockers = [zone for zone in battle_map.terrain if zone.blocks_line_of_sight]
-    if not blockers:
+    feature_blockers = [
+        feature
+        for feature in _visible_features(battle_map)
+        if feature.blocks_line_of_sight
+    ]
+    if not blockers and not feature_blockers:
         return True
     for x, y in _line_between_tokens(a, b):
         if _point_in_token(x, y, a) or _point_in_token(x, y, b):
             continue
         if any(_point_in_zone(x, y, zone) for zone in blockers):
+            return False
+        if any(_point_in_feature(x, y, feature) for feature in feature_blockers):
             return False
     return True
 
@@ -1017,6 +1605,19 @@ def _cover_between(
         ):
             if cover_rank[zone.cover] > cover_rank[best]:
                 best = zone.cover
+    for feature in _visible_features(battle_map):
+        if feature.cover == "none":
+            continue
+        if any(
+            _point_in_feature(x, y, feature)
+            for x in range(b.x, b.x + max(1, b.size_squares))
+            for y in range(b.y, b.y + max(1, b.size_squares))
+        ) or any(
+            _point_in_feature(x, y, feature)
+            for x, y in _line_between_tokens(a, b)
+        ):
+            if cover_rank[feature.cover] > cover_rank[best]:
+                best = feature.cover
     return best
 
 
@@ -1048,6 +1649,15 @@ def _point_in_zone(x: int, y: int, zone: DndTerrainZone) -> bool:
         zone.x <= x < zone.x + zone.width
         and zone.y <= y < zone.y + zone.height
     )
+
+
+def _point_in_feature(x: int, y: int, feature: DndBattleMapFeature) -> bool:
+    if feature.bounds is not None:
+        return (
+            feature.bounds.x <= x < feature.bounds.x + feature.bounds.width
+            and feature.bounds.y <= y < feature.bounds.y + feature.bounds.height
+        )
+    return any(point.x == x and point.y == y for point in feature.cells)
 
 
 def _fallback_position(

@@ -165,6 +165,136 @@ def test_normalize_preserves_imported_runtime_geometry_without_status_leak():
     assert "secret.door" not in packet_text
     assert "spawn.enemies" not in packet_text
     assert "loc.crypt" not in packet_text
+    enforcement_text = repr(packet["tactical_map_enforcement"])
+    assert "reviewed_tactical_map" in enforcement_text
+    assert "mud.floor" in enforcement_text
+    assert "secret.door" not in enforcement_text
+    assert "loc.crypt" not in enforcement_text
+
+
+def test_tactical_map_enforcement_blocks_impossible_spatial_deltas():
+    combat = DndCombatState(
+        combatants=[_combatant("alice"), _combatant("bob")],
+        battle_map=DndBattleMapState(
+            present=True,
+            map_name="Bridge",
+            width=6,
+            height=4,
+            tokens=[
+                DndBattleMapToken(
+                    token_id="alice",
+                    character_id="alice",
+                    label="Alice",
+                    x=0,
+                    y=0,
+                ),
+                DndBattleMapToken(
+                    token_id="bob",
+                    character_id="bob",
+                    label="Bob",
+                    x=2,
+                    y=0,
+                ),
+            ],
+            features=[
+                {
+                    "feature_id": "wall.east",
+                    "feature_kind": "wall",
+                    "bounds": {"x": 1, "y": 1, "width": 1, "height": 2},
+                    "label": "Stone wall",
+                    "blocks_movement": True,
+                    "blocks_line_of_sight": True,
+                }
+            ],
+        ),
+    )
+
+    notes = dnd_spatial.apply_spatial_deltas(combat, [
+        DndSpatialDelta(
+            kind="move_token",
+            target_id="alice",
+            character_id="alice",
+            x=1,
+            y=1,
+        ),
+        DndSpatialDelta(
+            kind="move_token",
+            target_id="alice",
+            character_id="alice",
+            x=2,
+            y=0,
+        ),
+    ])
+
+    alice = next(
+        token for token in combat.battle_map.tokens
+        if token.character_id == "alice"
+    )
+    assert (alice.x, alice.y) == (0, 0)
+    assert any("Stone wall" in note for note in notes)
+    assert any("bob" in note.lower() for note in notes)
+
+
+def test_tactical_map_enforcement_context_surfaces_advisories_not_rulings():
+    combat = DndCombatState(
+        combatants=[_combatant("alice"), _combatant("bob")],
+        battle_map=DndBattleMapState(
+            present=True,
+            map_name="Bridge",
+            width=6,
+            height=4,
+            square_size_ft=5,
+            tokens=[
+                DndBattleMapToken(
+                    token_id="alice",
+                    character_id="alice",
+                    label="Alice",
+                    x=0,
+                    y=0,
+                ),
+                DndBattleMapToken(
+                    token_id="bob",
+                    character_id="bob",
+                    label="Bob",
+                    x=3,
+                    y=0,
+                ),
+            ],
+            features=[
+                {
+                    "feature_id": "low.wall",
+                    "feature_kind": "cover",
+                    "bounds": {"x": 1, "y": 0, "width": 1, "height": 1},
+                    "label": "Low wall",
+                    "blocks_line_of_sight": True,
+                    "cover": "half",
+                },
+                {
+                    "feature_id": "rubble",
+                    "feature_kind": "difficult_ground",
+                    "cells": [{"x": 0, "y": 1}],
+                    "label": "Loose rubble",
+                    "difficult_terrain": True,
+                },
+            ],
+        ),
+    )
+
+    context = dnd_spatial.tactical_map_enforcement_context(
+        combat,
+        "alice",
+        relationships_by_id={"bob": "enemy"},
+    )
+
+    assert context["targets"][0]["relationship"] == "enemy"
+    assert context["targets"][0]["line_of_sight"] == "blocked"
+    assert context["targets"][0]["cover"] == "half"
+    south = next(
+        dest for dest in context["movement"]["adjacent_destinations"]
+        if dest["direction"] == "S"
+    )
+    assert south["legal_destination"] is True
+    assert south["terrain_cost"] == "difficult"
 
 
 def test_remove_token_uses_character_id_when_unambiguous():
