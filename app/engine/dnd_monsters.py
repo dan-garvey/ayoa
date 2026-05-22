@@ -20,6 +20,10 @@ from app.schemas.dnd_monsters import (
 logger = logging.getLogger(__name__)
 
 
+class StatblockResolutionError(ValueError):
+    """Raised when an authoritative statblock resolver must block combat."""
+
+
 StatblockOverrideProvider = Callable[
     [DndCombatantSpawn],
     DndMonsterStatBlock | Mapping[str, Any] | None,
@@ -52,6 +56,8 @@ def resolve_statblock(spawn: DndCombatantSpawn) -> DndMonsterStatBlock:
     for provider in reversed(_STATBLOCK_OVERRIDE_PROVIDERS):
         try:
             candidate = provider(spawn)
+        except StatblockResolutionError:
+            raise
         except Exception:
             logger.exception(
                 "D&D statblock override provider failed for %s",
