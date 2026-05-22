@@ -65,7 +65,7 @@ from app.llm.config import LLMConfig
 from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_spatial import (
-    DndBattleMapState,
+    DndBattleMapSeed,
     DndBattleMapToken,
     DndTerrainZone,
 )
@@ -465,8 +465,8 @@ def _checkpoint(config: LLMConfig) -> CheckpointFile:
     return ckpt
 
 
-def _battle_map_seed() -> DndBattleMapState:
-    return DndBattleMapState(
+def _battle_map_seed() -> DndBattleMapSeed:
+    return DndBattleMapSeed(
         present=True,
         map_name="Ember Shrine",
         width=12,

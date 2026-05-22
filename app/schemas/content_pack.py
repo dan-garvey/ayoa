@@ -531,9 +531,7 @@ class TacticalMapTemplateRecord(ContentPackDomainRecord):
 
     record_kind: Literal["tactical_map_template"] = "tactical_map_template"
     ruleset_id: Literal["dnd5e_basic"] = "dnd5e_basic"
-    target_runtime_schema: Literal["DndBattleMapRuntimeState"] = (
-        "DndBattleMapRuntimeState"
-    )
+    target_runtime_schema: Literal["DndBattleMapState"] = "DndBattleMapState"
     map_kind: TacticalMapKind = "battle_map"
     derived_from_map_asset_id: str = ""
     grid_width: int

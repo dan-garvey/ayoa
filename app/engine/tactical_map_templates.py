@@ -12,10 +12,10 @@ from app.schemas.content_pack import (
     TacticalMapTemplateRecord,
 )
 from app.schemas.dnd_spatial import (
-    DndBattleMapAreaLink as RuntimeBattleMapAreaLink,
-    DndBattleMapFeature as RuntimeBattleMapFeature,
-    DndBattleMapRuntimeState,
-    DndBattleMapSpawnAnchor as RuntimeBattleMapSpawnAnchor,
+    DndBattleMapAreaLink,
+    DndBattleMapFeature,
+    DndBattleMapState,
+    DndBattleMapSpawnAnchor,
     DndMapPoint,
     DndMapRect,
     DndTerrainZone,
@@ -137,13 +137,13 @@ class CompiledTacticalMapTemplate:
             feature for feature in self.terrain_features if feature.is_vertical_link
         )
 
-    def to_battle_map_state(self) -> DndBattleMapRuntimeState:
+    def to_battle_map_state(self) -> DndBattleMapState:
         """Compile reviewed imported geometry into runtime combat-map state."""
         terrain: list[DndTerrainZone] = []
         for feature in self.terrain_features:
             terrain.extend(_terrain_zones_for_feature(feature))
 
-        return DndBattleMapRuntimeState(
+        return DndBattleMapState(
             present=True,
             map_name=self.title or self.ref or "Battle map",
             width=self.grid_width,
@@ -157,7 +157,7 @@ class CompiledTacticalMapTemplate:
             source_content_hash=self.content_hash,
             orientation=self.orientation,
             spawn_anchors=[
-                RuntimeBattleMapSpawnAnchor(
+                DndBattleMapSpawnAnchor(
                     anchor_id=anchor.anchor_id,
                     anchor_kind=anchor.anchor_kind,
                     cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in anchor.cells],
@@ -168,7 +168,7 @@ class CompiledTacticalMapTemplate:
             ],
             features=[_runtime_feature(feature) for feature in self.terrain_features],
             area_links=[
-                RuntimeBattleMapAreaLink(
+                DndBattleMapAreaLink(
                     area_id=link.area_id,
                     location_ref=link.location_ref,
                     cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in link.cells],
@@ -257,7 +257,7 @@ def compile_tactical_map_template(
 def compile_tactical_map_template_battle_map_state(
     template: TacticalMapTemplateRecord | Mapping[str, Any],
     **kwargs: Any,
-) -> DndBattleMapRuntimeState:
+) -> DndBattleMapState:
     compiled = compile_tactical_map_template(template, **kwargs)
     return compiled.to_battle_map_state()
 
@@ -274,7 +274,7 @@ def _validate_runtime_ready(
     record: TacticalMapTemplateRecord,
     blockers: list[str],
 ) -> None:
-    if record.target_runtime_schema != "DndBattleMapRuntimeState":
+    if record.target_runtime_schema != "DndBattleMapState":
         blockers.append(
             f"target_runtime_schema {record.target_runtime_schema!r} is unsupported"
         )
@@ -326,12 +326,12 @@ def _validate_grid(
 ) -> None:
     if record.grid_width > MAX_BATTLE_MAP_WIDTH:
         blockers.append(
-            f"grid_width {record.grid_width} exceeds DndBattleMapRuntimeState cap "
+            f"grid_width {record.grid_width} exceeds DndBattleMapState cap "
             f"{MAX_BATTLE_MAP_WIDTH}"
         )
     if record.grid_height > MAX_BATTLE_MAP_HEIGHT:
         blockers.append(
-            f"grid_height {record.grid_height} exceeds DndBattleMapRuntimeState cap "
+            f"grid_height {record.grid_height} exceeds DndBattleMapState cap "
             f"{MAX_BATTLE_MAP_HEIGHT}"
         )
 
@@ -684,8 +684,8 @@ def _terrain_zone(
     )
 
 
-def _runtime_feature(feature: CompiledMapFeature) -> RuntimeBattleMapFeature:
-    return RuntimeBattleMapFeature(
+def _runtime_feature(feature: CompiledMapFeature) -> DndBattleMapFeature:
+    return DndBattleMapFeature(
         feature_id=feature.feature_id,
         feature_kind=feature.feature_kind,
         cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in feature.cells],

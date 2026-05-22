@@ -345,7 +345,7 @@ class DndBattleMapAreaLink(BaseModel):
         return self
 
 
-class DndBattleMapState(BaseModel):
+class DndBattleMapSeed(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     present: bool
@@ -375,7 +375,7 @@ class DndBattleMapState(BaseModel):
         return data
 
     @model_validator(mode="after")
-    def _clean(self) -> "DndBattleMapState":
+    def _clean(self) -> "DndBattleMapSeed":
         self.map_name = self.map_name.strip()
         self.notes = self.notes.strip()
         if self.width < 0:
@@ -411,7 +411,7 @@ class DndBattleMapState(BaseModel):
         return self
 
 
-class DndBattleMapRuntimeState(DndBattleMapState):
+class DndBattleMapState(DndBattleMapSeed):
     """Adapter-owned runtime map state for imported D&D tactical geometry."""
 
     source_template_ref: str
@@ -435,7 +435,7 @@ class DndBattleMapRuntimeState(DndBattleMapState):
         return data
 
     @model_validator(mode="after")
-    def _clean_runtime(self) -> "DndBattleMapRuntimeState":
+    def _clean_runtime(self) -> "DndBattleMapState":
         self.source_template_ref = self.source_template_ref.strip()
         self.source_content_hash = self.source_content_hash.strip()
         self.orientation = self.orientation.strip()
@@ -522,7 +522,7 @@ class DndSpatialDelta(BaseModel):
         return self
 
 
-def empty_battle_map_state() -> dict[str, Any]:
+def empty_battle_map_seed() -> dict[str, Any]:
     return {
         "present": False,
         "map_name": "",
@@ -536,8 +536,8 @@ def empty_battle_map_state() -> dict[str, Any]:
     }
 
 
-def empty_battle_map_runtime_state() -> dict[str, Any]:
-    data = empty_battle_map_state()
+def empty_battle_map_state() -> dict[str, Any]:
+    data = empty_battle_map_seed()
     data.update({
         "source_template_ref": "",
         "source_content_hash": "",

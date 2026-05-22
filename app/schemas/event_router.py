@@ -12,8 +12,8 @@ from app.schemas.dnd_inventory import (
     empty_loot_offer_signal,
 )
 from app.schemas.dnd_spatial import (
-    DndBattleMapState,
-    empty_battle_map_state,
+    DndBattleMapSeed,
+    empty_battle_map_seed,
 )
 from app.schemas.dnd_monsters import DndCombatantSpawn
 
@@ -622,7 +622,7 @@ class DndEventRouterOutput(EventRouterOutput):
     combatant_ids: list[str]
     combatant_spawns: list[DndCombatantSpawn]
     loot_offer: DndLootOfferSignal
-    battle_map_seed: DndBattleMapState
+    battle_map_seed: DndBattleMapSeed
 
     def clear_routing_roles(self, *routing_roles: str) -> None:
         roles = set(routing_roles or (
@@ -642,7 +642,7 @@ class DndEventRouterOutput(EventRouterOutput):
             data["loot_offer"] = empty_loot_offer_signal()
         if "battle_map_seed" not in data:
             data = dict(data)
-            data["battle_map_seed"] = empty_battle_map_state()
+            data["battle_map_seed"] = empty_battle_map_seed()
         if "combatant_spawns" not in data:
             data = dict(data)
             data["combatant_spawns"] = []
@@ -668,8 +668,8 @@ class DndEventRouterOutput(EventRouterOutput):
             self.requires_responders = True
             self.combatant_ids = []
             self.combatant_spawns = []
-            self.battle_map_seed = DndBattleMapState.model_validate(
-                empty_battle_map_state()
+            self.battle_map_seed = DndBattleMapSeed.model_validate(
+                empty_battle_map_seed()
             )
             return self
 
@@ -693,8 +693,8 @@ class DndEventRouterOutput(EventRouterOutput):
         elif self.interaction_mode in {"cat_i", "dnd_combat_end"}:
             self.combatant_ids = []
             self.combatant_spawns = []
-            self.battle_map_seed = DndBattleMapState.model_validate(
-                empty_battle_map_state()
+            self.battle_map_seed = DndBattleMapSeed.model_validate(
+                empty_battle_map_seed()
             )
 
         return self

@@ -1,7 +1,6 @@
 from app.engine import dnd_combat, dnd_spatial
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
-    DndBattleMapRuntimeState,
     DndBattleMapState,
     DndBattleMapToken,
     DndSpatialDelta,
@@ -97,7 +96,7 @@ def test_duplicate_character_combatants_keep_distinct_tokens():
 
 def test_normalize_preserves_imported_runtime_geometry_without_status_leak():
     combatants = [_combatant("alice")]
-    seed = DndBattleMapRuntimeState(
+    seed = DndBattleMapState(
         present=True,
         map_name="Crypt",
         width=6,

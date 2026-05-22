@@ -1153,14 +1153,15 @@ adjudication.
   ordinary observable facts after combat advancement, and combat-end paths
   drain the queue into the same visible event before clearing combat.
 * `DndCombatState.battle_map` is an optional adapter-owned tactical grid
-  for active D&D combat. Runtime checkpoints store `DndBattleMapRuntimeState`,
-  a successor to the router's simpler `DndBattleMapState` seed. It carries
-  token coordinates, visible terrain, visible area templates, and imported
-  tactical geometry such as spawn anchors, keyed-area links, secret features,
-  difficult terrain, and vertical links. Player/model-facing projections
+  for active D&D combat. It stores the single runtime
+  `DndBattleMapState`: token coordinates, visible terrain, visible area
+  templates, and imported tactical geometry such as spawn anchors,
+  keyed-area links, secret features, difficult terrain, and vertical links.
+  The router's `battle_map_seed` remains a smaller `DndBattleMapSeed` used
+  only to start simple fiction-derived maps. Player/model-facing projections
   strip hidden anchors, keyed refs, reveal triggers, source hashes, and secret
-  features before rendering status or combat-manager packets. It does not
-  change generic `world_state.locations` or `CharacterRecord.location`.
+  features before rendering status or combat-manager packets. Battle-map state
+  does not change generic `world_state.locations` or `CharacterRecord.location`.
 * `DndCombatState.router_observed_facts` stores combat-manager selected
   continuity facts until initiative ends. Each item is only `fact`,
   `salience`, and `reason`; subject ids and event ids stay out of the

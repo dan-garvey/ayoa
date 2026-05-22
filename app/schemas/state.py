@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.content import ContentPackState
 from app.schemas.dnd_inventory import DndLootOffer
-from app.schemas.dnd_spatial import DndBattleMapRuntimeState, DndBattleMapState
+from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
 
 
 class ModelConfig(BaseModel):
@@ -502,7 +502,7 @@ class DndCombatState(BaseModel):
     )
     # Adapter-owned tactical map for active D&D combat. Generic narrative
     # location state remains an opaque label and has no topology.
-    battle_map: DndBattleMapRuntimeState | None = None
+    battle_map: DndBattleMapState | None = None
     # Combat-manager selected narrative continuity to carry back to generic
     # routing when active initiative ends. Routine damage, ammo, and unnamed
     # defeat bookkeeping stay out of this list.
@@ -512,12 +512,12 @@ class DndCombatState(BaseModel):
     @classmethod
     def _coerce_battle_map(
         cls,
-        value: DndBattleMapRuntimeState | DndBattleMapState | dict[str, Any] | None,
-    ) -> DndBattleMapRuntimeState | dict[str, Any] | None:
-        if value is None or isinstance(value, DndBattleMapRuntimeState):
+        value: DndBattleMapState | DndBattleMapSeed | dict[str, Any] | None,
+    ) -> DndBattleMapState | dict[str, Any] | None:
+        if value is None or isinstance(value, DndBattleMapState):
             return value
-        if isinstance(value, DndBattleMapState):
-            return DndBattleMapRuntimeState.model_validate(value.model_dump())
+        if isinstance(value, DndBattleMapSeed):
+            return DndBattleMapState.model_validate(value.model_dump())
         return value
 
 
