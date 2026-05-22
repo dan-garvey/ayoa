@@ -33,10 +33,13 @@ per-session lock so concurrent /act commands on the same channel serialize.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from io import BytesIO
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import time
 from typing import Any, Optional
@@ -56,6 +59,12 @@ from app.bot.engine_bridge import (
 )
 from app.bot.player_errors import player_safe_error_message
 from app.engine import dnd_experience, dnd_inventory, dnd_presentation
+from app.engine.content_asset_bytes import (
+    AssetByteResolutionError,
+    ResolvedAssetBytes,
+    resolve_asset_bytes,
+)
+from app.engine.content_assets import load_asset_catalog
 from app.engine.frontend_views import (
     CompletedPendingRoll,
     DndCombatView,
@@ -71,6 +80,7 @@ from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 
 logger = logging.getLogger(__name__)
@@ -963,6 +973,357 @@ async def _send_public_turn_render(
     )
 
 
+def _asset_key(pack_id: str, asset_id: str) -> str:
+    pack = pack_id.strip()
+    asset = asset_id.strip()
+    return f"{pack}::{asset}" if pack else asset
+
+
+def _content_asset_catalog_paths(engine: EngineBridge) -> list[Path]:
+    configured = getattr(engine, "content_asset_catalog_paths", None)
+    if configured:
+        if isinstance(configured, str | Path):
+            return [Path(configured)]
+        return [Path(value) for value in configured]
+
+    env_value = os.getenv("AYOA_CONTENT_ASSET_CATALOGS", "").strip()
+    if env_value:
+        return [
+            Path(value)
+            for value in env_value.split(os.pathsep)
+            if value.strip()
+        ]
+
+    roots: list[Path] = []
+    stories_dir = getattr(engine, "stories_dir", None)
+    if stories_dir is not None:
+        roots.append(Path(stories_dir).parent / "content_assets.sqlite")
+    roots.extend(
+        [
+            Path("app/storage/content_assets.sqlite"),
+            Path("private_extractions/content_assets.sqlite"),
+            Path("private_extractions/compiled/content_assets.sqlite"),
+        ]
+    )
+    return list(dict.fromkeys(roots))
+
+
+def _load_content_asset_catalog(
+    engine: EngineBridge,
+) -> dict[str, ContentImageAsset]:
+    assets: dict[str, ContentImageAsset] = {}
+    for path in _content_asset_catalog_paths(engine):
+        try:
+            if not path.exists():
+                continue
+            assets.update(load_asset_catalog(path))
+        except Exception:
+            logger.exception("content asset catalog load failed: %s", path)
+    return assets
+
+
+def _content_asset_roots(
+    engine: EngineBridge,
+    payload: SafeAssetRevealPayload,
+    *,
+    attr_name: str,
+    env_name: str,
+    defaults: Sequence[Path],
+) -> dict[str, list[Path]]:
+    configured = getattr(engine, attr_name, None)
+    pack_id = payload.pack_id.strip()
+    roots: list[Path] = []
+
+    if isinstance(configured, Mapping):
+        raw = configured.get(pack_id)
+        if raw is not None:
+            if isinstance(raw, str | Path):
+                roots.append(Path(raw))
+            else:
+                roots.extend(Path(value) for value in raw)
+    elif configured:
+        raw_values = [configured] if isinstance(configured, str | Path) else configured
+        roots.extend(Path(value) for value in raw_values)
+
+    env_value = os.getenv(env_name, "").strip()
+    if env_value:
+        roots.extend(
+            Path(value)
+            for value in env_value.split(os.pathsep)
+            if value.strip()
+        )
+
+    roots.extend(defaults)
+    expanded: list[Path] = []
+    for root in roots:
+        expanded.append(root / pack_id)
+        expanded.append(root)
+    return {pack_id: list(dict.fromkeys(expanded))}
+
+
+def _safe_asset_caption(payload: SafeAssetRevealPayload) -> str | None:
+    caption = " ".join((payload.caption or "").split())
+    return caption or None
+
+
+def _safe_asset_alt_text(payload: SafeAssetRevealPayload) -> str | None:
+    alt_text = " ".join((payload.alt_text or "").split())
+    if not alt_text:
+        return None
+    return alt_text[:1024]
+
+
+def _resolve_safe_discord_asset(
+    payload: SafeAssetRevealPayload,
+    *,
+    engine: EngineBridge,
+    catalog: Mapping[str, ContentImageAsset],
+) -> ResolvedAssetBytes:
+    asset = catalog.get(_asset_key(payload.pack_id, payload.asset_id))
+    if asset is None:
+        asset = catalog.get(payload.asset_id.strip())
+    if asset is None:
+        raise AssetByteResolutionError(
+            "missing_asset_catalog_row",
+            pack_id=payload.pack_id,
+            asset_id=payload.asset_id,
+        )
+
+    media_roots = _content_asset_roots(
+        engine,
+        payload,
+        attr_name="content_asset_media_roots",
+        env_name="AYOA_CONTENT_ASSET_MEDIA_ROOTS",
+        defaults=(
+            Path("private_extractions/media"),
+            Path("private_extractions/compiled/media"),
+            Path("app/storage/content_assets/media"),
+        ),
+    )
+    cache_roots = _content_asset_roots(
+        engine,
+        payload,
+        attr_name="content_asset_cache_roots",
+        env_name="AYOA_CONTENT_ASSET_CACHE_ROOTS",
+        defaults=(Path("app/storage/content_assets/cache"),),
+    )
+    return resolve_asset_bytes(
+        payload,
+        asset,
+        media_roots=media_roots,
+        cache_roots=cache_roots,
+    )
+
+
+async def _send_private_asset_failure_notice(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    user: discord.abc.User | None,
+    recipient_user_id: int,
+    session_id: str,
+    turn_index: Optional[int],
+) -> None:
+    notice = (
+        "A private image for this turn could not be delivered. "
+        "The asset was withheld."
+    )
+    invoker_notice = (
+        "A private image for this turn could not be delivered to one "
+        "intended recipient. The asset was withheld."
+    )
+
+    if getattr(inter.user, "id", None) == recipient_user_id:
+        try:
+            await inter.followup.send(
+                notice,
+                ephemeral=True,
+            )
+        except Exception:
+            logger.debug("asset failure ephemeral notice failed", exc_info=True)
+        return
+
+    if user is not None:
+        try:
+            msg = await user.send(notice)
+            await _record_turn_message(
+                smap=smap,
+                session_channel_id=_session_channel_id(inter),
+                session_id=session_id,
+                turn_index=turn_index,
+                message=msg,
+                delivery="dm",
+                recipient_user_id=recipient_user_id,
+            )
+            return
+        except Exception:
+            logger.debug("asset failure DM notice failed", exc_info=True)
+
+    try:
+        await inter.followup.send(
+            invoker_notice,
+            ephemeral=True,
+        )
+    except Exception:
+        logger.debug("asset failure invoker notice failed", exc_info=True)
+
+
+async def _post_assets_to_pov(
+    *,
+    inter: discord.Interaction,
+    smap: SessionMap,
+    user_id: int,
+    character_id: str,
+    char_name: str,
+    asset_reveals: Sequence[SafeAssetRevealPayload],
+    bot: discord.Client,
+    engine: EngineBridge,
+    session_id: str = "",
+    turn_index: Optional[int] = None,
+    catalog: Mapping[str, ContentImageAsset] | None = None,
+) -> bool:
+    """Privately send safe asset reveals to one POV, with no public fallback."""
+    if not asset_reveals:
+        return True
+
+    user = bot.get_user(user_id)
+    if user is None:
+        try:
+            user = await bot.fetch_user(user_id)
+        except Exception:
+            logger.exception(
+                "post_assets_to_pov: fetch_user(%s) failed; withholding assets",
+                user_id,
+            )
+            await _send_private_asset_failure_notice(
+                inter=inter,
+                smap=smap,
+                user=None,
+                recipient_user_id=user_id,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+            return False
+
+    asset_catalog = (
+        catalog if catalog is not None else _load_content_asset_catalog(engine)
+    )
+    channel = _session_text_channel(inter)
+    session_chan_id = _session_channel_id(inter)
+    delivered_all = True
+    thread: Optional[discord.Thread] = None
+    if channel is not None:
+        thread = await _ensure_pov_thread(
+            channel=channel,
+            user=user,
+            smap=smap,
+            character_id=character_id,
+            char_name=char_name,
+        )
+
+    for payload in asset_reveals:
+        try:
+            resolved = _resolve_safe_discord_asset(
+                payload,
+                engine=engine,
+                catalog=asset_catalog,
+            )
+        except AssetByteResolutionError:
+            logger.exception(
+                "post_assets_to_pov: asset resolution failed; withholding"
+            )
+            delivered_all = False
+            await _send_private_asset_failure_notice(
+                inter=inter,
+                smap=smap,
+                user=user,
+                recipient_user_id=user_id,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+            continue
+        except Exception:
+            logger.exception(
+                "post_assets_to_pov: unexpected asset resolution failure; "
+                "withholding"
+            )
+            delivered_all = False
+            await _send_private_asset_failure_notice(
+                inter=inter,
+                smap=smap,
+                user=user,
+                recipient_user_id=user_id,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+            continue
+
+        def _file() -> discord.File:
+            return discord.File(
+                BytesIO(resolved.data),
+                filename=resolved.filename,
+                description=_safe_asset_alt_text(payload),
+            )
+
+        caption = _safe_asset_caption(payload)
+        sent = False
+        if thread is not None:
+            try:
+                msg = await thread.send(content=caption, file=_file())
+                await _record_turn_message(
+                    smap=smap,
+                    session_channel_id=session_chan_id,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                    message=msg,
+                    delivery="thread_asset",
+                    discord_channel_id=thread.id,
+                    recipient_user_id=user_id,
+                )
+                sent = True
+            except Exception:
+                logger.exception(
+                    "post_assets_to_pov: thread.send to %s failed; "
+                    "falling back to DM",
+                    thread.id,
+                )
+                await smap.clear_pov_thread(session_chan_id, user_id)
+                thread = None
+
+        if not sent:
+            try:
+                msg = await user.send(content=caption, file=_file())
+                await _record_turn_message(
+                    smap=smap,
+                    session_channel_id=session_chan_id,
+                    session_id=session_id,
+                    turn_index=turn_index,
+                    message=msg,
+                    delivery="dm_asset",
+                    recipient_user_id=user_id,
+                )
+                sent = True
+            except Exception:
+                logger.exception(
+                    "post_assets_to_pov: DM fallback to user %s failed; "
+                    "withholding asset",
+                    user_id,
+                )
+
+        if not sent:
+            delivered_all = False
+            await _send_private_asset_failure_notice(
+                inter=inter,
+                smap=smap,
+                user=user,
+                recipient_user_id=user_id,
+                session_id=session_id,
+                turn_index=turn_index,
+            )
+
+    return delivered_all
+
+
 class _PendingRollView(discord.ui.View):
     def __init__(
         self,
@@ -1695,6 +2056,65 @@ async def _deliver_turn_response_to_povs(
                 turn_index=turn_index,
             )
 
+    def _asset_reveals_by_pov(
+        turn_response: TurnResponse,
+        *,
+        fallback_character_id: str,
+    ) -> dict[str, list[SafeAssetRevealPayload]]:
+        per_player_assets = {
+            cid: list(payloads or [])
+            for cid, payloads in (
+                turn_response.per_player_asset_reveals or {}
+            ).items()
+            if cid and payloads
+        }
+        if per_player_assets:
+            return per_player_assets
+        if turn_response.asset_reveals:
+            return {fallback_character_id: list(turn_response.asset_reveals)}
+        return {}
+
+    async def _deliver_assets_to_povs(
+        turn_response: TurnResponse,
+        *,
+        fallback_character_id: str,
+    ) -> None:
+        assets_by_pov = _asset_reveals_by_pov(
+            turn_response,
+            fallback_character_id=fallback_character_id,
+        )
+        if not assets_by_pov:
+            return
+        catalog = _load_content_asset_catalog(engine)
+        for cid, asset_reveals in assets_by_pov.items():
+            if not asset_reveals:
+                continue
+            if cid == actor_character_id:
+                uid = int(actor_user.id)
+            else:
+                uid_str = bindings.get(cid, "")
+                if not uid_str:
+                    continue
+                try:
+                    uid = int(uid_str)
+                except ValueError:
+                    continue
+            char = next((c for c in roster if c.character_id == cid), None)
+            char_name = char.name if char else cid
+            await _post_assets_to_pov(
+                inter=inter,
+                smap=smap,
+                user_id=uid,
+                character_id=cid,
+                char_name=char_name,
+                asset_reveals=asset_reveals,
+                bot=inter.client,
+                engine=engine,
+                session_id=session_id,
+                turn_index=turn_response.turn_index,
+                catalog=catalog,
+            )
+
     async def _deliver_experience_awards(
         awards: list[Any],
         *,
@@ -1770,6 +2190,10 @@ async def _deliver_turn_response_to_povs(
             commitment_revision_prompts=(
                 pre_resp.commitment_revision_prompts or {}
             ),
+        )
+        await _deliver_assets_to_povs(
+            pre_resp,
+            fallback_character_id=actor_character_id,
         )
         await _deliver_loot_prompts(
             inter=inter,
@@ -2025,6 +2449,11 @@ async def _deliver_turn_response_to_povs(
                 )
             except Exception:
                 logger.exception("per-POV fan-out: ephemeral ack failed")
+
+    await _deliver_assets_to_povs(
+        response,
+        fallback_character_id=actor_character_id,
+    )
 
     if pending_rolls:
         await _deliver_pending_roll_prompts(

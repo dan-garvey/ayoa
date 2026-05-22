@@ -26,6 +26,7 @@ from app.bot.engine_bridge import EngineBridge
 from app.engine.frontend_views import RetryRenderResult
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 from app.schemas.state import (
@@ -747,6 +748,79 @@ class TestTurnResponseDelivery:
         clear.assert_awaited_once_with(inter)
         public_fallback.assert_not_awaited()
         inter.followup.send.assert_not_awaited()
+
+    def test_actor_asset_failure_does_not_trigger_public_render(
+        self, monkeypatch,
+    ):
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0003",
+            turn_index=3,
+            output_text="The answer lands as narrator prose.",
+            per_player_renders={"alice": "The answer lands as narrator prose."},
+            per_player_asset_reveals={"alice": [_asset_payload()]},
+            beat_ended_reason="query_response",
+        )
+
+        engine = MagicMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+        )
+
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.channel = object()
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        smap = MagicMock()
+        thread = MagicMock()
+        thread.id = 999
+        events: list[str] = []
+
+        async def _fake_post_actor_render(**_kwargs):
+            events.append("render")
+            return ("thread", thread)
+
+        async def _fake_post_assets_to_pov(**kwargs):
+            events.append("assets")
+            assert kwargs["user_id"] == 42
+            assert kwargs["character_id"] == "alice"
+            assert kwargs["asset_reveals"] == response.per_player_asset_reveals[
+                "alice"
+            ]
+            return False
+
+        clear = AsyncMock()
+        public_fallback = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands, "_post_actor_render", _fake_post_actor_render,
+        )
+        monkeypatch.setattr(
+            bot_commands, "_post_assets_to_pov", _fake_post_assets_to_pov,
+        )
+        monkeypatch.setattr(bot_commands, "_clear_interaction_response", clear)
+        monkeypatch.setattr(
+            bot_commands, "_send_public_turn_render", public_fallback,
+        )
+
+        asyncio.run(bot_commands._deliver_turn_response_to_povs(
+            inter=inter,
+            smap=smap,
+            engine=engine,
+            session_id="s",
+            story_id="story",
+            actor_character_id="alice",
+            actor_user=inter.user,
+            response=response,
+        ))
+
+        assert events == ["render", "assets"]
+        clear.assert_awaited_once_with(inter)
+        public_fallback.assert_not_awaited()
 
     def test_actor_auto_rolls_deliver_before_render(self, monkeypatch):
         roll = DiceRollDisplay(
@@ -1818,6 +1892,170 @@ class TestPostActorRenderCascade:
         ))
         assert venue == "none"
         assert returned_thread is None
+
+
+def _asset_payload(**overrides) -> SafeAssetRevealPayload:
+    values = {
+        "pack_id": "synthetic",
+        "asset_id": "map-room",
+        "kind": "map",
+        "title": "Safe Map Title",
+        "mime_type": "image/png",
+        "width": 64,
+        "height": 64,
+        "sha256": "a" * 64,
+        "delivery_ref": "asset://synthetic/map-room",
+        "presentation": "attachment",
+        "caption": "A safe caption.",
+        "alt_text": "Safe alt text.",
+    }
+    values.update(overrides)
+    return SafeAssetRevealPayload(**values)
+
+
+class TestPostAssetsToPov:
+    def _resolved_asset(self):
+        return bot_commands.ResolvedAssetBytes(
+            pack_id="synthetic",
+            asset_id="map-room",
+            delivery_ref="asset://synthetic/map-room",
+            filename="asset-aaaaaaaaaaaaaaaa.png",
+            mime_type="image/png",
+            data=b"\x89PNG\r\n",
+            sha256="a" * 64,
+            byte_count=6,
+            width=64,
+            height=64,
+        )
+
+    def _env(self, monkeypatch):
+        channel = MagicMock()
+        channel.id = 777
+        channel.send = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands,
+            "_session_text_channel",
+            lambda inter: channel,
+        )
+
+        inter = MagicMock()
+        inter.channel = channel
+        inter.channel_id = 777
+        inter.user = MagicMock()
+        inter.user.id = 42
+        inter.followup.send = AsyncMock()
+
+        user = MagicMock()
+        user.id = 42
+        user.send = AsyncMock()
+
+        bot = MagicMock()
+        bot.get_user.return_value = user
+        bot.fetch_user = AsyncMock()
+
+        smap = MagicMock()
+        smap.record_turn_message = AsyncMock()
+        smap.clear_pov_thread = AsyncMock()
+
+        engine = MagicMock()
+        return inter, channel, user, bot, smap, engine
+
+    def test_thread_asset_success_records_rewind_message(self, monkeypatch):
+        inter, _channel, user, bot, smap, engine = self._env(monkeypatch)
+        thread = MagicMock()
+        thread.id = 999
+        thread_msg = SimpleNamespace(id=555, channel=SimpleNamespace(id=999))
+        thread.send = AsyncMock(return_value=thread_msg)
+
+        async def _ensure(**_kwargs):
+            return thread
+
+        monkeypatch.setattr(bot_commands, "_ensure_pov_thread", _ensure)
+        monkeypatch.setattr(
+            bot_commands,
+            "_resolve_safe_discord_asset",
+            lambda *_args, **_kwargs: self._resolved_asset(),
+        )
+
+        ok = asyncio.run(bot_commands._post_assets_to_pov(
+            inter=inter,
+            smap=smap,
+            user_id=42,
+            character_id="alice",
+            char_name="Alice",
+            asset_reveals=[_asset_payload()],
+            bot=bot,
+            engine=engine,
+            session_id="s",
+            turn_index=7,
+            catalog={},
+        ))
+
+        assert ok is True
+        thread.send.assert_awaited_once()
+        _, kwargs = thread.send.await_args
+        assert kwargs["content"] == "A safe caption."
+        assert kwargs["file"].filename == "asset-aaaaaaaaaaaaaaaa.png"
+        assert kwargs["file"].description == "Safe alt text."
+        user.send.assert_not_awaited()
+        smap.record_turn_message.assert_awaited_once()
+        record_kwargs = smap.record_turn_message.await_args.kwargs
+        assert record_kwargs["channel_id"] == 777
+        assert record_kwargs["session_id"] == "s"
+        assert record_kwargs["turn_index"] == 7
+        assert record_kwargs["discord_channel_id"] == 999
+        assert record_kwargs["message_id"] == 555
+        assert record_kwargs["delivery"] == "thread_asset"
+        assert record_kwargs["recipient_user_id"] == 42
+
+    def test_private_asset_failure_withholds_without_public_channel(
+        self, monkeypatch,
+    ):
+        inter, channel, user, bot, smap, engine = self._env(monkeypatch)
+        thread = MagicMock()
+        thread.id = 999
+        thread.send = AsyncMock(side_effect=RuntimeError("upload failed"))
+        user.send = AsyncMock(side_effect=RuntimeError("dm failed"))
+
+        async def _ensure(**_kwargs):
+            return thread
+
+        monkeypatch.setattr(bot_commands, "_ensure_pov_thread", _ensure)
+        monkeypatch.setattr(
+            bot_commands,
+            "_resolve_safe_discord_asset",
+            lambda *_args, **_kwargs: self._resolved_asset(),
+        )
+
+        ok = asyncio.run(bot_commands._post_assets_to_pov(
+            inter=inter,
+            smap=smap,
+            user_id=42,
+            character_id="alice",
+            char_name="Alice",
+            asset_reveals=[_asset_payload(
+                caption="Spoiler-safe but still private.",
+                title="Private title",
+                asset_id="hidden-map",
+                delivery_ref="asset://synthetic/hidden-map",
+            )],
+            bot=bot,
+            engine=engine,
+            session_id="s",
+            turn_index=8,
+            catalog={},
+        ))
+
+        assert ok is False
+        channel.send.assert_not_awaited()
+        inter.followup.send.assert_awaited_once()
+        _, notice_kwargs = inter.followup.send.await_args
+        notice_text = inter.followup.send.await_args.args[0]
+        assert notice_kwargs["ephemeral"] is True
+        assert "withheld" in notice_text
+        assert "hidden-map" not in notice_text
+        assert "Private title" not in notice_text
+        assert "Spoiler-safe" not in notice_text
 
 
 # ---- rewind Discord message cleanup ---------------------------------------
