@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.content import ContentPackState
 from app.schemas.dnd_inventory import DndLootOffer
-from app.schemas.dnd_spatial import DndBattleMapState
+from app.schemas.dnd_spatial import DndBattleMapRuntimeState, DndBattleMapState
 
 
 class ModelConfig(BaseModel):
@@ -502,11 +502,23 @@ class DndCombatState(BaseModel):
     )
     # Adapter-owned tactical map for active D&D combat. Generic narrative
     # location state remains an opaque label and has no topology.
-    battle_map: DndBattleMapState | None = None
+    battle_map: DndBattleMapRuntimeState | None = None
     # Combat-manager selected narrative continuity to carry back to generic
     # routing when active initiative ends. Routine damage, ammo, and unnamed
     # defeat bookkeeping stay out of this list.
     router_observed_facts: list[DndRouterObservedFact] = Field(default_factory=list)
+
+    @field_validator("battle_map", mode="before")
+    @classmethod
+    def _coerce_battle_map(
+        cls,
+        value: DndBattleMapRuntimeState | DndBattleMapState | dict[str, Any] | None,
+    ) -> DndBattleMapRuntimeState | dict[str, Any] | None:
+        if value is None or isinstance(value, DndBattleMapRuntimeState):
+            return value
+        if isinstance(value, DndBattleMapState):
+            return DndBattleMapRuntimeState.model_validate(value.model_dump())
+        return value
 
 
 class RenderBufferEntry(BaseModel):

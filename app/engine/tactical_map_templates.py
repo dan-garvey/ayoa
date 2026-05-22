@@ -12,7 +12,12 @@ from app.schemas.content_pack import (
     TacticalMapTemplateRecord,
 )
 from app.schemas.dnd_spatial import (
-    DndBattleMapState,
+    DndBattleMapAreaLink as RuntimeBattleMapAreaLink,
+    DndBattleMapFeature as RuntimeBattleMapFeature,
+    DndBattleMapRuntimeState,
+    DndBattleMapSpawnAnchor as RuntimeBattleMapSpawnAnchor,
+    DndMapPoint,
+    DndMapRect,
     DndTerrainZone,
     MAX_BATTLE_MAP_HEIGHT,
     MAX_BATTLE_MAP_WIDTH,
@@ -132,20 +137,13 @@ class CompiledTacticalMapTemplate:
             feature for feature in self.terrain_features if feature.is_vertical_link
         )
 
-    def to_battle_map_state(self) -> DndBattleMapState:
-        """Project to the current advisory combat-map surface if lossless enough."""
-        blockers = _battle_map_projection_blockers(self)
-        if blockers:
-            raise TacticalMapTemplateCompileError(
-                "cannot project tactical map template to DndBattleMapState",
-                reasons=blockers,
-            )
-
+    def to_battle_map_state(self) -> DndBattleMapRuntimeState:
+        """Compile reviewed imported geometry into runtime combat-map state."""
         terrain: list[DndTerrainZone] = []
         for feature in self.terrain_features:
             terrain.extend(_terrain_zones_for_feature(feature))
 
-        return DndBattleMapState(
+        return DndBattleMapRuntimeState(
             present=True,
             map_name=self.title or self.ref or "Battle map",
             width=self.grid_width,
@@ -155,6 +153,29 @@ class CompiledTacticalMapTemplate:
             terrain=terrain,
             areas=[],
             notes="",
+            source_template_ref=self.ref,
+            source_content_hash=self.content_hash,
+            orientation=self.orientation,
+            spawn_anchors=[
+                RuntimeBattleMapSpawnAnchor(
+                    anchor_id=anchor.anchor_id,
+                    anchor_kind=anchor.anchor_kind,
+                    cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in anchor.cells],
+                    label=anchor.label,
+                    linked_ref=anchor.linked_ref,
+                )
+                for anchor in self.spawn_anchors
+            ],
+            features=[_runtime_feature(feature) for feature in self.terrain_features],
+            area_links=[
+                RuntimeBattleMapAreaLink(
+                    area_id=link.area_id,
+                    location_ref=link.location_ref,
+                    cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in link.cells],
+                    bounds=_runtime_rect(link.bounds),
+                )
+                for link in self.area_links
+            ],
         )
 
 
@@ -236,7 +257,7 @@ def compile_tactical_map_template(
 def compile_tactical_map_template_battle_map_state(
     template: TacticalMapTemplateRecord | Mapping[str, Any],
     **kwargs: Any,
-) -> DndBattleMapState:
+) -> DndBattleMapRuntimeState:
     compiled = compile_tactical_map_template(template, **kwargs)
     return compiled.to_battle_map_state()
 
@@ -253,7 +274,7 @@ def _validate_runtime_ready(
     record: TacticalMapTemplateRecord,
     blockers: list[str],
 ) -> None:
-    if record.target_runtime_schema != "DndBattleMapState":
+    if record.target_runtime_schema != "DndBattleMapRuntimeState":
         blockers.append(
             f"target_runtime_schema {record.target_runtime_schema!r} is unsupported"
         )
@@ -305,12 +326,12 @@ def _validate_grid(
 ) -> None:
     if record.grid_width > MAX_BATTLE_MAP_WIDTH:
         blockers.append(
-            f"grid_width {record.grid_width} exceeds DndBattleMapState cap "
+            f"grid_width {record.grid_width} exceeds DndBattleMapRuntimeState cap "
             f"{MAX_BATTLE_MAP_WIDTH}"
         )
     if record.grid_height > MAX_BATTLE_MAP_HEIGHT:
         blockers.append(
-            f"grid_height {record.grid_height} exceeds DndBattleMapState cap "
+            f"grid_height {record.grid_height} exceeds DndBattleMapRuntimeState cap "
             f"{MAX_BATTLE_MAP_HEIGHT}"
         )
 
@@ -612,36 +633,18 @@ def _asset_key(pack_id: str, asset_id: str) -> str:
     return f"{pack_id.strip()}::{asset_id.strip()}"
 
 
-def _battle_map_projection_blockers(
-    compiled: CompiledTacticalMapTemplate,
-) -> list[str]:
-    blockers: list[str] = []
-    if compiled.spawn_anchors:
-        blockers.append("DndBattleMapState cannot preserve spawn anchors")
-    if compiled.area_links:
-        blockers.append("DndBattleMapState cannot preserve keyed-area links")
-    for feature in compiled.terrain_features:
-        if feature.secret:
-            blockers.append(
-                f"DndBattleMapState cannot preserve secret feature "
-                f"{feature.feature_id!r} without leaking or dropping it"
-            )
-        if feature.difficult_terrain:
-            blockers.append(
-                f"DndBattleMapState cannot preserve difficult-terrain semantics "
-                f"for feature {feature.feature_id!r}"
-            )
-        if feature.is_vertical_link:
-            blockers.append(
-                f"DndBattleMapState cannot preserve vertical-link semantics "
-                f"for feature {feature.feature_id!r}"
-            )
-    return blockers
-
-
 def _terrain_zones_for_feature(
     feature: CompiledMapFeature,
 ) -> list[DndTerrainZone]:
+    if feature.secret:
+        return []
+    if (
+        not feature.blocks_movement
+        and not feature.blocks_line_of_sight
+        and not feature.difficult_terrain
+        and feature.cover == "none"
+    ):
+        return []
     if feature.bounds is not None:
         return [
             _terrain_zone(
@@ -678,4 +681,32 @@ def _terrain_zone(
         blocks_line_of_sight=feature.blocks_line_of_sight,
         cover=feature.cover or "none",
         notes="",
+    )
+
+
+def _runtime_feature(feature: CompiledMapFeature) -> RuntimeBattleMapFeature:
+    return RuntimeBattleMapFeature(
+        feature_id=feature.feature_id,
+        feature_kind=feature.feature_kind,
+        cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in feature.cells],
+        bounds=_runtime_rect(feature.bounds),
+        label=feature.label,
+        blocks_movement=feature.blocks_movement,
+        blocks_line_of_sight=feature.blocks_line_of_sight,
+        difficult_terrain=feature.difficult_terrain,
+        cover=feature.cover,
+        secret=feature.secret,
+        reveal_trigger=feature.reveal_trigger,
+        linked_refs=list(feature.linked_refs),
+    )
+
+
+def _runtime_rect(rect: CompiledGridRect | None) -> DndMapRect | None:
+    if rect is None:
+        return None
+    return DndMapRect(
+        x=rect.x,
+        y=rect.y,
+        width=rect.width,
+        height=rect.height,
     )

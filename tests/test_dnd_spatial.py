@@ -1,6 +1,7 @@
 from app.engine import dnd_combat, dnd_spatial
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
+    DndBattleMapRuntimeState,
     DndBattleMapState,
     DndBattleMapToken,
     DndSpatialDelta,
@@ -92,6 +93,79 @@ def test_duplicate_character_combatants_keep_distinct_tokens():
         "wolf_a": ("wolf", 1, 1),
         "wolf_b": ("wolf", 5, 5),
     }
+
+
+def test_normalize_preserves_imported_runtime_geometry_without_status_leak():
+    combatants = [_combatant("alice")]
+    seed = DndBattleMapRuntimeState(
+        present=True,
+        map_name="Crypt",
+        width=6,
+        height=6,
+        tokens=[],
+        source_template_ref="map.crypt",
+        source_content_hash="hash-crypt",
+        spawn_anchors=[
+            {
+                "anchor_id": "spawn.enemies",
+                "anchor_kind": "enemies",
+                "cells": [{"x": 4, "y": 4}],
+                "label": "Ghoul start",
+                "linked_ref": "enc.ghouls",
+            }
+        ],
+        features=[
+            {
+                "feature_id": "secret.door",
+                "feature_kind": "secret_feature",
+                "cells": [{"x": 5, "y": 1}],
+                "secret": True,
+                "reveal_trigger": "A character studies the north wall.",
+                "linked_refs": ["area.hidden"],
+            },
+            {
+                "feature_id": "mud.floor",
+                "feature_kind": "difficult_ground",
+                "bounds": {"x": 1, "y": 1, "width": 2, "height": 2},
+                "difficult_terrain": True,
+                "label": "Slick mud",
+            },
+        ],
+        area_links=[
+            {
+                "area_id": "area.crypt",
+                "location_ref": "loc.crypt",
+                "bounds": {"x": 0, "y": 0, "width": 6, "height": 6},
+            }
+        ],
+    )
+
+    battle_map = dnd_spatial.normalize_battle_map_seed(seed, combatants)
+
+    assert battle_map is not None
+    assert battle_map.source_template_ref == "map.crypt"
+    assert battle_map.spawn_anchors[0].anchor_id == "spawn.enemies"
+    assert battle_map.area_links[0].location_ref == "loc.crypt"
+    assert {feature.feature_id for feature in battle_map.features} == {
+        "secret.door",
+        "mud.floor",
+    }
+
+    public_payload = dnd_spatial.battle_map_status(battle_map)
+    public_text = repr(public_payload)
+    assert "mud.floor" in public_text
+    assert "secret.door" not in public_text
+    assert "A character studies" not in public_text
+    assert "spawn.enemies" not in public_text
+    assert "loc.crypt" not in public_text
+
+    combat = DndCombatState(combatants=combatants, battle_map=battle_map)
+    packet = dnd_spatial.combat_packet_context(combat, "alice")
+    packet_text = repr(packet["battle_map"])
+    assert "mud.floor" in packet_text
+    assert "secret.door" not in packet_text
+    assert "spawn.enemies" not in packet_text
+    assert "loc.crypt" not in packet_text
 
 
 def test_remove_token_uses_character_id_when_unambiguous():

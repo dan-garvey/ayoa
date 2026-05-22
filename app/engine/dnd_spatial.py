@@ -6,6 +6,8 @@ from typing import Any, Iterable
 from app.engine.dnd_combat_access import obj_get as _obj_get
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
+    DndBattleMapFeature,
+    DndBattleMapRuntimeState,
     DndBattleMapState,
     DndBattleMapToken,
     DndSpatialDelta,
@@ -25,14 +27,11 @@ SUMMARY_LABEL_MAX = 32
 def normalize_battle_map_seed(
     seed: DndBattleMapState | dict[str, Any] | None,
     combatants: Iterable[Any],
-) -> DndBattleMapState | None:
+) -> DndBattleMapRuntimeState | None:
     """Validate a router-seeded map and fill missing participant tokens."""
     if seed is None:
         return None
-    battle_map = (
-        seed if isinstance(seed, DndBattleMapState)
-        else DndBattleMapState.model_validate(seed)
-    )
+    battle_map = _coerce_runtime_battle_map(seed)
     if not battle_map.present:
         return None
 
@@ -128,7 +127,7 @@ def normalize_battle_map_seed(
         if area.template_id or area.label
     ]
 
-    return DndBattleMapState(
+    return DndBattleMapRuntimeState(
         present=True,
         map_name=battle_map.map_name or "Battle map",
         width=width,
@@ -138,6 +137,12 @@ def normalize_battle_map_seed(
         terrain=terrain,
         areas=areas,
         notes=battle_map.notes,
+        source_template_ref=battle_map.source_template_ref,
+        source_content_hash=battle_map.source_content_hash,
+        orientation=battle_map.orientation,
+        spawn_anchors=battle_map.spawn_anchors,
+        features=battle_map.features,
+        area_links=battle_map.area_links,
     )
 
 
@@ -156,7 +161,7 @@ def combat_packet_context(
             "area_targeting_advisories": [],
         }
     return {
-        "battle_map": battle_map.model_dump(),
+        "battle_map": battle_map_status(battle_map),
         "spatial_advisories": spatial_advisories(combat, actor_id),
         "area_targeting_advisories": area_targeting_advisories(
             combat,
@@ -364,9 +369,13 @@ def tick_area_durations(combat: Any) -> list[str]:
     ]
 
 
-def battle_map_status(combat: Any) -> dict[str, Any]:
+def battle_map_status(combat: Any, *, include_hidden: bool = False) -> dict[str, Any]:
     battle_map = _battle_map(combat)
-    return battle_map.model_dump() if battle_map is not None else {}
+    if battle_map is None:
+        return {}
+    if include_hidden:
+        return battle_map.model_dump()
+    return _player_safe_battle_map(battle_map).model_dump()
 
 
 def render_battle_map_summary(
@@ -376,7 +385,7 @@ def render_battle_map_summary(
     max_lines: int = 8,
 ) -> list[str]:
     battle_map = (
-        combat_or_map
+        _coerce_runtime_battle_map(combat_or_map)
         if isinstance(combat_or_map, DndBattleMapState)
         else _battle_map(combat_or_map)
     )
@@ -427,6 +436,18 @@ def render_battle_map_summary(
         if omitted > 0:
             areas.append(f"... {omitted} more")
         lines.append("Areas: " + "; ".join(areas) + ".")
+    visible_features = [
+        feature for feature in battle_map.features if not feature.secret
+    ]
+    if visible_features:
+        features = [
+            _feature_summary(feature)
+            for feature in visible_features[:SUMMARY_AREA_LIMIT]
+        ]
+        omitted = len(visible_features) - SUMMARY_AREA_LIMIT
+        if omitted > 0:
+            features.append(f"... {omitted} more")
+        lines.append("Features: " + "; ".join(features) + ".")
     if actor_id:
         advisory_text = [
             f"{item['to']} {item['distance_ft']} ft, "
@@ -753,11 +774,12 @@ def _token_center(token: DndBattleMapToken) -> tuple[float, float]:
     return token.x + offset, token.y + offset
 
 
-def _battle_map(combat: Any) -> DndBattleMapState | None:
+def _battle_map(combat: Any) -> DndBattleMapRuntimeState | None:
     if combat is None:
         return None
     if isinstance(combat, DndBattleMapState):
-        return combat if combat.present else None
+        battle_map = _coerce_runtime_battle_map(combat)
+        return battle_map if battle_map.present else None
     if isinstance(combat, dict):
         raw = combat if "present" in combat and "tokens" in combat else combat.get(
             "battle_map"
@@ -766,11 +788,52 @@ def _battle_map(combat: Any) -> DndBattleMapState | None:
         raw = getattr(combat, "battle_map", None)
     if not raw:
         return None
-    battle_map = (
-        raw if isinstance(raw, DndBattleMapState)
-        else DndBattleMapState.model_validate(raw)
-    )
+    battle_map = _coerce_runtime_battle_map(raw)
+    if battle_map is not raw and not isinstance(combat, dict):
+        try:
+            setattr(combat, "battle_map", battle_map)
+        except (AttributeError, TypeError, ValueError):
+            pass
     return battle_map if battle_map.present else None
+
+
+def _coerce_runtime_battle_map(
+    raw: DndBattleMapState | dict[str, Any],
+) -> DndBattleMapRuntimeState:
+    if isinstance(raw, DndBattleMapRuntimeState):
+        return raw
+    if isinstance(raw, DndBattleMapState):
+        return DndBattleMapRuntimeState.model_validate(raw.model_dump())
+    return DndBattleMapRuntimeState.model_validate(raw)
+
+
+def _player_safe_battle_map(
+    battle_map: DndBattleMapRuntimeState,
+) -> DndBattleMapRuntimeState:
+    return battle_map.model_copy(
+        deep=True,
+        update={
+            "source_template_ref": "",
+            "source_content_hash": "",
+            "spawn_anchors": [],
+            "features": [
+                _player_safe_feature(feature)
+                for feature in battle_map.features
+                if not feature.secret
+            ],
+            "area_links": [],
+        },
+    )
+
+
+def _player_safe_feature(feature: DndBattleMapFeature) -> DndBattleMapFeature:
+    return feature.model_copy(
+        deep=True,
+        update={
+            "reveal_trigger": "",
+            "linked_refs": [],
+        },
+    )
 
 
 def _participant_records(combatants: Iterable[Any]) -> list[dict[str, str]]:
@@ -856,6 +919,26 @@ def _short_text(text: str, limit: int = SUMMARY_LABEL_MAX) -> str:
     if len(clean) <= limit:
         return clean
     return clean[: max(0, limit - 3)].rstrip() + "..."
+
+
+def _feature_summary(feature: DndBattleMapFeature) -> str:
+    label = _short_text(feature.label or feature.feature_id)
+    bits = [label, feature.feature_kind.replace("_", " ")]
+    if feature.bounds is not None:
+        bits.append(
+            f"at ({feature.bounds.x}, {feature.bounds.y}) "
+            f"{feature.bounds.width}x{feature.bounds.height}"
+        )
+    elif feature.cells:
+        first = feature.cells[0]
+        bits.append(f"at ({first.x}, {first.y})")
+    if feature.difficult_terrain:
+        bits.append("difficult terrain")
+    if feature.cover != "none":
+        bits.append(f"cover {feature.cover}")
+    if feature.blocks_line_of_sight:
+        bits.append("blocks sight")
+    return ", ".join(bits)
 
 
 def _token_gap_squares(

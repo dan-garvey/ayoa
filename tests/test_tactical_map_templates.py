@@ -4,6 +4,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from app.engine import dnd_spatial
 from app.engine.tactical_map_templates import (
     TacticalMapTemplateCompileError,
     compile_tactical_map_template,
@@ -109,23 +110,44 @@ def test_required_future_layers_fail_loudly_until_schema_exists():
     assert "does not represent floors/submaps" in message
 
 
-def test_battle_map_state_projection_blocks_unrepresented_layers():
+def test_compiled_runtime_map_state_preserves_imported_template_semantics():
     compiled = compile_tactical_map_template(
         _template(),
         map_assets=[_asset()],
         authored_refs={"loc.entry", "area.upper", "trap.panel"},
     )
 
-    with pytest.raises(TacticalMapTemplateCompileError) as exc:
-        compiled.to_battle_map_state()
+    battle_map = compiled.to_battle_map_state()
 
-    message = str(exc.value)
-    assert "cannot preserve spawn anchors" in message
-    assert "cannot preserve keyed-area links" in message
-    assert "cannot preserve secret feature 'secret.panel'" in message
-    assert (
-        "cannot preserve vertical-link semantics for feature 'stairs.upper'" in message
+    assert battle_map.source_template_ref == "map.entry"
+    assert battle_map.spawn_anchors[0].anchor_id == "spawn.players"
+    assert battle_map.area_links[0].location_ref == "loc.entry"
+    secret = next(
+        feature for feature in battle_map.features
+        if feature.feature_id == "secret.panel"
     )
+    assert secret.secret is True
+    assert secret.reveal_trigger == "A character searches the east wall."
+    difficult = next(
+        feature for feature in battle_map.features
+        if feature.feature_id == "rubble.slope"
+    )
+    assert difficult.difficult_terrain is True
+    stairs = next(
+        feature for feature in battle_map.features
+        if feature.feature_id == "stairs.upper"
+    )
+    assert stairs.linked_refs == ["area.upper"]
+
+    player_payload = dnd_spatial.battle_map_status(battle_map)
+    player_text = repr(player_payload)
+    assert "secret.panel" not in player_text
+    assert "A character searches" not in player_text
+    assert "spawn.players" not in player_text
+    assert "loc.entry" not in player_text
+    assert "area.upper" not in player_text
+    assert "hash-map-entry" not in player_text
+    assert "rubble.slope" in player_text
 
 
 def test_simple_visible_template_projects_to_battle_map_state():
@@ -153,6 +175,7 @@ def test_simple_visible_template_projects_to_battle_map_state():
     assert battle_map.width == 12
     assert battle_map.terrain[0].zone_id == "crate"
     assert battle_map.terrain[0].cover == "half"
+    assert battle_map.features[0].feature_id == "crate"
     assert battle_map.tokens == []
     assert battle_map.areas == []
     assert "asset.map.entry.player" not in battle_map.model_dump_json()
@@ -206,6 +229,13 @@ def _template(**overrides) -> TacticalMapTemplateRecord:
                 "bounds": {"x": 0, "y": 0, "width": 12, "height": 1},
                 "blocks_movement": True,
                 "blocks_line_of_sight": True,
+            },
+            {
+                "feature_id": "rubble.slope",
+                "feature_kind": "difficult_ground",
+                "bounds": {"x": 4, "y": 4, "width": 2, "height": 2},
+                "label": "Loose rubble",
+                "difficult_terrain": True,
             },
             {
                 "feature_id": "secret.panel",

@@ -1153,10 +1153,14 @@ adjudication.
   ordinary observable facts after combat advancement, and combat-end paths
   drain the queue into the same visible event before clearing combat.
 * `DndCombatState.battle_map` is an optional adapter-owned tactical grid
-  for active D&D combat. It stores token coordinates, visible terrain,
-  and visible area templates. It is advisory context for D&D combat routing
-  and status surfaces; it does not change generic `world_state.locations`
-  or `CharacterRecord.location`.
+  for active D&D combat. Runtime checkpoints store `DndBattleMapRuntimeState`,
+  a successor to the router's simpler `DndBattleMapState` seed. It carries
+  token coordinates, visible terrain, visible area templates, and imported
+  tactical geometry such as spawn anchors, keyed-area links, secret features,
+  difficult terrain, and vertical links. Player/model-facing projections
+  strip hidden anchors, keyed refs, reveal triggers, source hashes, and secret
+  features before rendering status or combat-manager packets. It does not
+  change generic `world_state.locations` or `CharacterRecord.location`.
 * `DndCombatState.router_observed_facts` stores combat-manager selected
   continuity facts until initiative ends. Each item is only `fact`,
   `salience`, and `reason`; subject ids and event ids stay out of the
@@ -1590,14 +1594,15 @@ genuinely bloats and let that shape the answer.
 
 ### 20.3 D&D spatial/grid modeling
 
-D&D combat now has a v1 adapter-owned tactical grid for active combat:
+D&D combat now has an adapter-owned tactical grid for active combat:
 router-seeded map state, participant tokens, visible terrain/areas,
-advisory distances, line-of-sight, cover context, and router-authored
-spatial deltas. It is intentionally advisory; code persists and
-summarizes map state, while the D&D combat manager still decides action
-legality and outcome. Future work may add manual map authoring, image
-rendering, strict movement/path validation, elevation, hidden tokens,
-lighting, and richer area-template geometry.
+imported runtime geometry, advisory distances, line-of-sight, cover
+context, and router-authored spatial deltas. It is intentionally
+advisory; code persists and summarizes map state, while the D&D combat
+manager still decides action legality and outcome from player-safe map
+projections. Future work may add manual map authoring, image rendering,
+strict movement/path validation, elevation, hidden tokens, lighting, and
+richer area-template geometry.
 
 Image rendering here means player-facing presentation of already reviewed
 assets or authored geometry. It must not introduce runtime image analysis
