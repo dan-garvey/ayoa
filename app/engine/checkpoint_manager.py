@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION, CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,12 @@ class CheckpointManager:
         fd, tmp_path = tempfile.mkstemp(dir=session_dir, suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
-                f.write(state.model_dump_json(indent=2))
+                f.write(
+                    state.model_dump_json(
+                        indent=2,
+                        context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+                    )
+                )
             os.replace(tmp_path, checkpoint_path)
         except Exception:
             # Clean up temp file on failure

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from app.engine.checkpoint_manager import CheckpointManager
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import (
     ContentFrontState,
@@ -130,6 +131,30 @@ def test_default_checkpoint_dump_omits_imported_asset_source_sentinels():
     ):
         assert sentinel not in dumped
     assert "safe_status" in dumped
+
+
+def test_checkpoint_manager_save_preserves_private_runtime_metadata(tmp_path):
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "pack": ContentPackState(
+            pack_id="pack",
+            metadata={
+                "db_path": str(tmp_path / "compiled.sqlite"),
+                "asset_media_root": str(tmp_path / "media"),
+            },
+        )
+    }
+    manager = CheckpointManager(str(tmp_path / "sessions"))
+
+    manager.save(ckpt)
+    loaded = manager.load_latest("s")
+
+    assert loaded.session.content_state["pack"].metadata["db_path"] == str(
+        tmp_path / "compiled.sqlite"
+    )
+    assert loaded.session.content_state["pack"].metadata["asset_media_root"] == str(
+        tmp_path / "media"
+    )
 
 
 def test_introduced_refs_are_dedup_friendly_by_pack_ref_and_hash():

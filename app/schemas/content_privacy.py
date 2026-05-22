@@ -6,6 +6,7 @@ from typing import Any
 
 
 REDACTED_IMPORT_SENTINEL = "[redacted private module material]"
+PRIVATE_RUNTIME_METADATA_CONTEXT = "include_private_runtime_metadata"
 
 FORBIDDEN_MODULE_METADATA_KEYS = {
     "asset_cache_root",
@@ -48,7 +49,7 @@ _PRIVATE_STORAGE_RE = re.compile(r"\bprivate_extractions/[^\s\"')\]}]*", re.IGNO
 _FORBIDDEN_FIELD_RE = re.compile(
     r"\b(?:"
     + "|".join(re.escape(key) for key in sorted(FORBIDDEN_MODULE_METADATA_KEYS))
-    + r")\b(?:\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;)}\]]+))?",
+    + r")\b\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;)}\]]+)",
     re.IGNORECASE,
 )
 _UNSAFE_TEXT_PATTERNS = (
@@ -112,3 +113,10 @@ def sanitize_module_metadata(value: Any) -> Any:
             return None
         return " ".join(value.split())
     return value
+
+
+def should_include_private_runtime_metadata(context: Any) -> bool:
+    return (
+        isinstance(context, Mapping)
+        and context.get(PRIVATE_RUNTIME_METADATA_CONTEXT) is True
+    )

@@ -192,14 +192,11 @@ def _merge_content_context_records(
     records: list[str],
 ) -> None:
     existing = context.get("content_context")
-    merged = [
-        str(record)
-        for record in (existing if isinstance(existing, list) else [])
-        if str(record).strip()
-    ]
+    merged = cat._safe_content_context_records([
+        str(record) for record in (existing if isinstance(existing, list) else [])
+    ])
     seen = set(merged)
-    for record in records:
-        text = str(record or "").strip()
+    for text in cat._safe_content_context_records(records):
         if text and text not in seen:
             merged.append(text)
             seen.add(text)

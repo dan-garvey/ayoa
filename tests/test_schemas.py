@@ -1092,6 +1092,20 @@ class TestTurnResponse:
         assert response.asset_reveals[0].caption == ""
         assert response.per_player_asset_reveals["alice"][0].alt_text == ""
 
+    def test_player_output_does_not_redact_ordinary_path_word(self):
+        response = TurnResponse(
+            session_id="abc",
+            output_text="The path winds north toward a safe clearing.",
+            per_player_renders={
+                "alice": "Alice follows the path and keeps watch.",
+            },
+        )
+
+        assert response.output_text == "The path winds north toward a safe clearing."
+        assert response.per_player_renders["alice"] == (
+            "Alice follows the path and keeps watch."
+        )
+
 
 class TestCheckpointFile:
     def test_construct(self):

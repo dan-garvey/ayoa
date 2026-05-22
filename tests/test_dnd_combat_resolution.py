@@ -9,6 +9,7 @@ from app.engine.dnd_combat_resolution import (
     COMBAT_MANAGER_FINALIZE_MAX_TOKENS,
     COMBAT_MANAGER_PLAN_MAX_TOKENS,
     DndCombatResolver,
+    _merge_content_context_records,
     _scrub_visible_bookkeeping,
     _scrub_private_outcome_leaks,
 )
@@ -25,6 +26,7 @@ from app.schemas.dnd_cat_ii import (
     PlannedRoll,
     RulesAdjudication,
 )
+from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.dnd_spatial import (
     DndAreaTemplate,
     DndBattleMapState,
@@ -65,6 +67,32 @@ _SPELL_SOURCE_IDS = {
     "misty_step",
     "scorching_ray",
 }
+
+
+def test_combat_content_context_merge_redacts_imported_asset_sentinels():
+    sentinels = [
+        "delivery_ref=asset://synthetic/hidden-map",
+        "/private/table/source-map.png",
+        "raw_ocr=PROTECTED_SOURCE_EXCERPT",
+    ]
+    context = {
+        "content_context": [
+            "content_known ref=room summary=\"Existing surface\" "
+            + " ".join(sentinels[:1])
+        ]
+    }
+
+    _merge_content_context_records(
+        context,
+        ["front_signal ref=front summary=\"Visible pressure\" " + " ".join(sentinels)],
+    )
+    flat = json.dumps(context, sort_keys=True)
+
+    for sentinel in sentinels:
+        assert sentinel not in flat
+    assert REDACTED_IMPORT_SENTINEL in flat
+    assert "Existing surface" in flat
+    assert "Visible pressure" in flat
 
 
 def test_scrub_private_outcome_leaks_removes_public_and_router_duplicates():

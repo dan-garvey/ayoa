@@ -1,6 +1,8 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock
 
+from app.engine import dnd_cat_ii as cat
 from app.engine.dnd_cat_ii import (
     DndCatIIRollsPending,
     DndCatIIResolver,
@@ -18,6 +20,7 @@ from app.schemas.dnd_cat_ii import (
     RollPlan,
     RulesAdjudication,
 )
+from app.schemas.content_privacy import REDACTED_IMPORT_SENTINEL
 from app.schemas.state import DndCombatState, OpenCatIIEvent
 from tests.support.factories import (
     character_record,
@@ -201,6 +204,30 @@ def _open_event() -> OpenCatIIEvent:
             "Alice lunges toward Pip at the doorway.",
         ],
     )
+
+
+def test_dnd_cat_ii_content_context_redacts_imported_asset_sentinels():
+    sentinels = [
+        "delivery_ref=asset://synthetic/hidden-map",
+        "/private/table/source-map.png",
+        "raw_ocr=PROTECTED_SOURCE_EXCERPT",
+    ]
+
+    packet = cat._build_contested_packet(
+        _ckpt(),
+        _open_event(),
+        content_context_records=[
+            "content_known ref=room summary=\"Visible surface\" "
+            + " ".join(sentinels)
+        ],
+    )
+    decoded = json.loads(packet)
+    flat = json.dumps(decoded, sort_keys=True)
+
+    for sentinel in sentinels:
+        assert sentinel not in flat
+    assert REDACTED_IMPORT_SENTINEL in flat
+    assert "Visible surface" in flat
 
 
 def test_dnd_combat_turn_plan_accepts_nested_no_roll_action():

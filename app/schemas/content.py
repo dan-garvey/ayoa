@@ -2,9 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    field_serializer,
+    model_validator,
+)
 
-from app.schemas.content_privacy import sanitize_module_metadata
+from app.schemas.content_privacy import (
+    sanitize_module_metadata,
+    should_include_private_runtime_metadata,
+)
 
 
 ContentSignalStatus = Literal["pending", "resolved", "dismissed"]
@@ -93,7 +103,13 @@ class PendingContentSignal(BaseModel):
         return content_ref_key(self.pack_id, self.ref_id, self.content_hash)
 
     @field_serializer("metadata")
-    def _serialize_metadata(self, value: dict[str, Any]) -> dict[str, Any]:
+    def _serialize_metadata(
+        self,
+        value: dict[str, Any],
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        if should_include_private_runtime_metadata(info.context):
+            return value
         return sanitize_module_metadata(value) or {}
 
 
@@ -191,5 +207,11 @@ class ContentPackState(BaseModel):
         return self
 
     @field_serializer("metadata")
-    def _serialize_metadata(self, value: dict[str, Any]) -> dict[str, Any]:
+    def _serialize_metadata(
+        self,
+        value: dict[str, Any],
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        if should_include_private_runtime_metadata(info.context):
+            return value
         return sanitize_module_metadata(value) or {}

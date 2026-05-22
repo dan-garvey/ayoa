@@ -18,6 +18,7 @@ from app.engine.dnd_combat_access import (
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.event_router import (
     DndEventRouterOutput,
     DndObserverEntry,
@@ -2634,7 +2635,9 @@ def _build_contested_packet(
         "participants": participants,
     }
     if content_context_records:
-        payload["content_context"] = list(content_context_records)
+        payload["content_context"] = _safe_content_context_records(
+            content_context_records
+        )
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
@@ -2757,8 +2760,18 @@ def _build_combat_packet(
         **spatial_context,
     }
     if content_context_records:
-        payload["content_context"] = list(content_context_records)
+        payload["content_context"] = _safe_content_context_records(
+            content_context_records
+        )
     return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _safe_content_context_records(records: list[str]) -> list[str]:
+    return [
+        cleaned
+        for record in records
+        if (cleaned := redact_imported_asset_text(record))
+    ]
 
 
 def _combat_public_faction(character: object | None) -> str:
