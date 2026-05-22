@@ -196,7 +196,7 @@ def test_drain_prunes_non_pending_signals_without_introducing_refs():
     assert "room/dismissed" not in records[0]
 
 
-def test_load_content_cards_reads_simple_sqlite_rows(tmp_path):
+def test_load_content_cards_rejects_simple_sqlite_rows_by_default(tmp_path):
     import sqlite3
 
     db_path = tmp_path / "pack.sqlite"
@@ -226,7 +226,14 @@ def test_load_content_cards_reads_simple_sqlite_rows(tmp_path):
             """
         )
 
-    cards = load_content_cards(db_path, refs=["room/1"], pack_id="pack")
+    assert load_content_cards(db_path, refs=["room/1"], pack_id="pack") == []
+
+    cards = load_content_cards(
+        db_path,
+        refs=["room/1"],
+        pack_id="pack",
+        runtime_only=False,
+    )
 
     assert len(cards) == 1
     assert cards[0].ref == "room/1"

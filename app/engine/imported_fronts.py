@@ -132,7 +132,6 @@ def front_dossier_router_payload(
         "actor": villain_refs[0] if villain_refs else "",
         "villains": villain_refs,
         "knows": _safe_items(front.initial_knowledge),
-        "summary": _safe_text(front.summary),
         "goals": _safe_items(front.goals),
         "constraints": _safe_items(front.constraints),
         "knowledge_channels": _safe_items(front.knowledge_channels),
@@ -168,7 +167,10 @@ def queue_front_dossier_signal(
         pack_id=resolved_pack_id,
         ref_id=front_ref,
         content_hash=str(payload["content_hash"]),
-        reason=_safe_text(reason) or _safe_text(payload.get("summary", "")),
+        reason=(
+            _safe_text(reason)
+            or "Reviewed front dossier is ready for router use."
+        ),
         status="pending",
         priority=max(0, int(priority or 0)),
         requested_fields=["front_signal"],

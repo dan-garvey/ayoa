@@ -13,10 +13,17 @@ from app.engine.content_resolver import (
     load_content_cards,
     mark_ref_introduced,
 )
+from app.engine.content_pack_compiler import (
+    CompiledContentPackMismatchError,
+    CompiledContentPackReader,
+    SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
+)
 from app.schemas.conversation import ConversationMessage
 
 
 _REF_RE = re.compile(r"\bref=([A-Za-z0-9_.:/@+-]+)")
+_APPROVED_REVIEW_STATUSES = {"approved", "reviewed"}
+_MIN_ALIAS_CONFIDENCE = 0.70
 
 
 @dataclass(frozen=True)
@@ -176,7 +183,7 @@ def _fetch_lookup_records(
     for request in requests:
         by_pack.setdefault(request.pack_id, []).append(request)
 
-    records: list[str] = []
+    resolved: list[tuple[Any, Any, str]] = []
     missing: list[ContentLookupRequest] = []
     for pack_id, pack_requests in by_pack.items():
         pack_state = pack_states.get(pack_id)
@@ -186,8 +193,18 @@ def _fetch_lookup_records(
                 request for request in pack_requests if not request.already_known
             )
             continue
+        _assert_pack_runtime_identity(
+            db_path,
+            pack_id=pack_id,
+            pack_state=pack_state,
+        )
         refs = [request.ref for request in pack_requests]
-        cards = load_content_cards(db_path, refs=refs, pack_id=pack_id)
+        cards = load_content_cards(
+            db_path,
+            refs=refs,
+            pack_id=pack_id,
+            runtime_only=True,
+        )
         cards_by_ref = {card.ref: card for card in cards}
         for request in pack_requests:
             card = cards_by_ref.get(request.ref)
@@ -202,20 +219,46 @@ def _fetch_lookup_records(
                 content_hash=card.content_hash,
             ):
                 continue
-            records.append(format_compact_record(card, pack_id=pack_id))
-            mark_ref_introduced(
-                pack_state,
-                card,
-                pack_id=pack_id,
-                content_hash=card.content_hash,
-                kind=card.kind,
-                visibility=card.visibility,
-                summary=card.summary,
-            )
+            resolved.append((pack_state, card, pack_id))
 
     if missing:
         raise MissingContentError(missing)
+
+    records: list[str] = []
+    for pack_state, card, pack_id in resolved:
+        records.append(format_compact_record(card, pack_id=pack_id))
+        mark_ref_introduced(
+            pack_state,
+            card,
+            pack_id=pack_id,
+            content_hash=card.content_hash,
+            kind=card.kind,
+            visibility=card.visibility,
+            summary=card.summary,
+        )
     return records
+
+
+def _assert_pack_runtime_identity(
+    db_path: Path,
+    *,
+    pack_id: str,
+    pack_state: Any,
+) -> None:
+    metadata = _metadata(pack_state)
+    source_fingerprint = str(metadata.get("source_fingerprint") or "").strip()
+    if not source_fingerprint:
+        raise CompiledContentPackMismatchError(
+            f"Compiled pack source_fingerprint is missing for pack={pack_id or '-'}"
+        )
+    CompiledContentPackReader(db_path).assert_pack_identity(
+        pack_id=pack_id,
+        pack_version=str(metadata.get("pack_version") or "").strip(),
+        source_fingerprint=source_fingerprint,
+        schema_version=str(
+            metadata.get("schema_version") or CONTENT_PACK_SCHEMA_VERSION
+        ).strip(),
+    )
 
 
 def _lookup_search_text(ckpt: Any, actor_id: str, current_input: str) -> str:
@@ -298,12 +341,23 @@ def _iter_sqlite_aliases(
         if not alias_col or not ref_col:
             return
         selected = [alias_col, ref_col]
-        where = ""
+        where_parts: list[str] = []
         params: list[Any] = []
         if pack_id and "pack_id" in columns:
             selected.append("pack_id")
-            where = " WHERE pack_id = ?"
+            where_parts.append("pack_id = ?")
             params.append(pack_id)
+        if "review_status" in columns:
+            where_parts.append(
+                "review_status IN ("
+                + ",".join("?" for _ in _APPROVED_REVIEW_STATUSES)
+                + ")"
+            )
+            params.extend(sorted(_APPROVED_REVIEW_STATUSES))
+        if "confidence" in columns:
+            where_parts.append("confidence >= ?")
+            params.append(_MIN_ALIAS_CONFIDENCE)
+        where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         sql = f"SELECT {', '.join(selected)} FROM content_aliases{where}"
         rows = conn.execute(sql, params).fetchall()
     for row in rows:

@@ -9,6 +9,10 @@ from collections.abc import MutableMapping, MutableSequence
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.schemas.conversation import ConversationMessage
+from app.schemas.content_privacy import (
+    contains_imported_asset_sentinel,
+    sanitize_module_metadata,
+)
 
 try:  # The content schemas may land after this scaffold.
     from app.schemas.content import IntroducedContentRef as _IntroducedContentRef
@@ -28,6 +32,8 @@ _PENDING_ATTRS = (
     "pending_content_signals",
     "content_signals",
 )
+_APPROVED_REVIEW_STATUSES = {"approved", "reviewed"}
+_RUNTIME_GATE_STATUS = "runtime_ready"
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,8 @@ class ContentCard:
     title: str = ""
     body: str = ""
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    review_status: str = ""
+    gate_status: str = ""
 
 
 def format_content_known_record(
@@ -327,6 +335,7 @@ def load_content_cards(
     refs: Iterable[str] | None = None,
     pack_id: str | None = None,
     limit: int | None = None,
+    runtime_only: bool = True,
 ) -> list[ContentCard]:
     path = Path(db_path)
     if not path.exists():
@@ -338,6 +347,8 @@ def load_content_cards(
         if not _table_exists(conn, "content_cards"):
             return []
         columns = _table_columns(conn, "content_cards")
+        if runtime_only and not _has_runtime_gate_columns(columns):
+            return []
         select_columns = [
             col
             for col in (
@@ -351,6 +362,8 @@ def load_content_cards(
                 "body",
                 "metadata",
                 "metadata_json",
+                "review_status",
+                "gate_status",
             )
             if col in columns
         ]
@@ -365,6 +378,16 @@ def load_content_cards(
         if wanted_refs:
             where.append(f"ref IN ({','.join('?' for _ in wanted_refs)})")
             params.extend(wanted_refs)
+        if runtime_only:
+            where.append("gate_status = ?")
+            params.append(_RUNTIME_GATE_STATUS)
+            where.append(
+                "review_status IN ("
+                + ",".join("?" for _ in _APPROVED_REVIEW_STATUSES)
+                + ")"
+            )
+            params.extend(sorted(_APPROVED_REVIEW_STATUSES))
+            where.append("content_hash != ''")
 
         sql = f"SELECT {', '.join(select_columns)} FROM content_cards"
         if where:
@@ -375,7 +398,10 @@ def load_content_cards(
             params.append(max(0, int(limit)))
 
         rows = conn.execute(sql, params).fetchall()
-    return [_card_from_row(row) for row in rows]
+    cards = [_card_from_row(row) for row in rows]
+    if runtime_only:
+        cards = [card for card in cards if _is_runtime_safe_card(card)]
+    return cards
 
 
 def _base_fields(
@@ -651,6 +677,30 @@ def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {str(row[1]) for row in rows}
 
 
+def _has_runtime_gate_columns(columns: set[str]) -> bool:
+    return {
+        "content_hash",
+        "gate_status",
+        "review_status",
+    }.issubset(columns)
+
+
+def _is_runtime_safe_card(card: ContentCard) -> bool:
+    if not card.content_hash:
+        return False
+    if card.gate_status != _RUNTIME_GATE_STATUS:
+        return False
+    if card.review_status not in _APPROVED_REVIEW_STATUSES:
+        return False
+    if any(
+        contains_imported_asset_sentinel(value)
+        for value in (card.title, card.summary, card.body)
+        if value
+    ):
+        return False
+    return sanitize_module_metadata(card.metadata) == card.metadata
+
+
 def _card_from_row(row: sqlite3.Row) -> ContentCard:
     metadata_raw = row["metadata"] if "metadata" in row.keys() else None
     if metadata_raw is None and "metadata_json" in row.keys():
@@ -675,4 +725,10 @@ def _card_from_row(row: sqlite3.Row) -> ContentCard:
         title=str(row["title"] or "") if "title" in row.keys() else "",
         body=str(row["body"] or "") if "body" in row.keys() else "",
         metadata=metadata,
+        review_status=str(row["review_status"] or "")
+        if "review_status" in row.keys()
+        else "",
+        gate_status=str(row["gate_status"] or "")
+        if "gate_status" in row.keys()
+        else "",
     )

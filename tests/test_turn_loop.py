@@ -11,6 +11,7 @@ import asyncio
 
 import pytest
 
+from app.engine.content_resolver import append_pending_router_content_records
 from app.engine.turn_loop import (
     SessionLockManager,
     SlotConflict,
@@ -31,6 +32,8 @@ from app.engine.turn_loop import (
 )
 from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
 from app.schemas.conversation import ConversationMessage
+from app.schemas.content import ContentPackState
+from app.schemas.content_pack import FrontDossierRecord
 from app.schemas.event_router import (
     DndObserverEntry,
     EventRouterOutput,
@@ -63,6 +66,32 @@ from tests.support.factories import (
 
 def _ckpt(bindings: dict[str, str] | None = None):
     return gatehouse_checkpoint(bindings=bindings)
+
+
+def _hidden_front_dossier(
+    private_dossier_text: str,
+    hidden_plan: str,
+) -> FrontDossierRecord:
+    return FrontDossierRecord(
+        ref="front.strahd",
+        content_hash="hash-front-strahd",
+        title="Strahd Front",
+        summary=private_dossier_text,
+        review_status="approved",
+        gate_status="runtime_ready",
+        villain_refs=["npc.strahd"],
+        goals=[hidden_plan],
+        initial_knowledge=["The tavern sheltering Ireena matters."],
+        action_palette=[
+            {
+                "action_id": "test_tavern",
+                "action_kind": "spy",
+                "priority": 5,
+                "trigger": "Ireena is sheltered in public.",
+                "summary": "Summon wolves to test the tavern road.",
+            }
+        ],
+    )
 
 
 class TestCheckActSlot:
@@ -626,6 +655,75 @@ class TestBeatCascade:
         agent_output = fake.agent_output_calls[0]
         assert agent_output["character_id"] == "pip"
         assert "prior_result" not in agent_output
+
+    def test_public_front_signal_does_not_leak_hidden_plan_to_surfaces(
+        self, caplog,
+    ):
+        private_dossier_text = (
+            "PRIVATE DOSSIER: Strahd prepares the dinner ambush."
+        )
+        hidden_plan = "HIDDEN PLAN: abduct Ireena before dawn."
+        public_fact = "A courier announces Ireena is sheltered in the tavern."
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.content_state = {
+            "curse": ContentPackState(
+                pack_id="curse",
+                metadata={
+                    "domain_catalog": {
+                        "pack_id": "curse",
+                        "front_dossiers": [
+                            _hidden_front_dossier(
+                                private_dossier_text,
+                                hidden_plan,
+                            ).model_dump(mode="json")
+                        ],
+                    }
+                },
+            )
+        }
+        fake = FakeDispatcher()
+        fake.queue_route(
+            _router_out(
+                event_kind="public_fact",
+                agent_ids=["pip"],
+                observer_ids=["alice", "pip"],
+                facts=[ObservableFact.all(public_fact)],
+            )
+        )
+        fake.queue_agent("Pip sends a public warning.")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        with caplog.at_level("INFO", logger="app.engine.turn_loop"):
+            result = asyncio.run(
+                run_beat(
+                    ckpt=ckpt,
+                    dispatcher=fake,
+                    actor_id="alice",
+                    intention="wait",
+                )
+            )
+
+        pip = next(c for c in ckpt.characters if c.character_id == "pip")
+        joined_inbox = "\n".join(pip.pending_observations)
+        joined_renders = "\n".join(result.renders.values())
+        agent_context = "\n".join(
+            str(call.get("local_context", ""))
+            for call in fake.agent_calls
+        )
+        for hidden_text in (private_dossier_text, hidden_plan):
+            assert hidden_text not in joined_inbox
+            assert hidden_text not in joined_renders
+            assert hidden_text not in agent_context
+            assert hidden_text not in caplog.text
+        assert public_fact in joined_inbox
+        assert result.renders == {"alice": "RENDER"}
+
+        records = append_pending_router_content_records(ckpt)
+
+        assert len(records) == 1
+        assert 'pressure="Summon wolves to test the tavern road."' in records[0]
+        assert private_dossier_text not in records[0]
+        assert hidden_plan not in records[0]
 
     def test_background_thread_cap_limits_public_fact_cascades(self):
         ckpt = _ckpt({"alice": "1"})

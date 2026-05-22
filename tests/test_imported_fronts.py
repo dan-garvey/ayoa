@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -11,9 +13,20 @@ from app.engine.imported_fronts import (
     front_dossier_router_payload,
     queue_front_dossier_signal,
 )
+from app.engine.narrator import compose_pov_render
+from app.engine.prompt_manager import PromptManager
+from app.llm.client import LLMClient
 from app.schemas.content import ContentPackState
+from app.schemas.conversation import ConversationMessage
 from app.schemas.content_pack import FrontDossierRecord
-from tests.support.factories import checkpoint
+from app.schemas.events import ObservableFact
+from app.schemas.state import RenderBufferEntry
+from tests.support.factories import (
+    character_record,
+    checkpoint,
+    narrator_llm_response,
+    router_output,
+)
 
 
 def test_front_dossier_projects_to_router_only_action_palette_signal() -> None:
@@ -74,7 +87,6 @@ def test_front_dossier_signal_drains_to_router_history_without_default_leakage()
     assert "visibility=hidden" in record
     assert "hash=hash-front-strahd" in record
     assert "pack=curse" in record
-    assert 'summary="Reviewed Strahd pressure dossier."' in record
     assert 'goals=["Isolate Ireena"]' in record
     assert 'constraints=["must preserve plausible deniability"]' in record
     assert 'knowledge_channels=["spies in taverns"]' in record
@@ -91,6 +103,114 @@ def test_front_dossier_signal_drains_to_router_history_without_default_leakage()
     assert "spy network" not in default_dump
     assert "send_spies" not in default_dump
     assert "avoid direct violence before dinner" not in default_dump
+
+
+def test_front_dossier_pending_signal_default_dump_excludes_private_dossier_text() -> None:
+    private_dossier_text = "PRIVATE DOSSIER: Strahd intends the dinner ambush."
+    hidden_plan = "HIDDEN PLAN: abduct Ireena before dawn."
+    ckpt = checkpoint()
+    pack_state = ContentPackState(pack_id="curse")
+    ckpt.session.content_state = {"curse": pack_state}
+    front = _front()
+    front.summary = private_dossier_text
+    front.goals = [hidden_plan]
+
+    signal = queue_front_dossier_signal(
+        pack_state,
+        front,
+        pack_id="curse",
+    )
+
+    private_dump = json.dumps(
+        signal.model_dump(
+            mode="json",
+            context={"include_private_runtime_metadata": True},
+        ),
+        sort_keys=True,
+    )
+    assert private_dossier_text in front.model_dump_json()
+    assert private_dossier_text not in private_dump
+    assert hidden_plan in private_dump
+
+    default_dump = json.dumps(ckpt.model_dump(mode="json"), sort_keys=True)
+    assert "Reviewed front dossier is ready for router use." in default_dump
+    assert private_dossier_text not in default_dump
+    assert hidden_plan not in default_dump
+    assert "send_spies" not in default_dump
+    assert "spy network" not in default_dump
+
+    records = append_pending_router_content_records(ckpt)
+
+    assert len(records) == 1
+    router_record = records[0]
+    assert router_record.startswith(
+        "front_signal ref=front.strahd actor=npc.strahd"
+    )
+    assert hidden_plan in router_record
+    assert '"summary":"Send spies to observe the party."' in router_record
+    assert private_dossier_text not in router_record
+
+
+def test_front_signal_router_history_does_not_reach_narrator_prompt() -> None:
+    hidden_plan = "HIDDEN PLAN: send Rahadin through the servant stairs."
+    ckpt = checkpoint(
+        bindings={"alice": "1"},
+        player_character_id="alice",
+        characters=[
+            character_record(
+                "alice",
+                name="Alice",
+                role="player",
+                is_playable=True,
+            )
+        ],
+    )
+    router_record = (
+        'front_signal ref=front.strahd actor=npc.strahd '
+        f'pressure="{hidden_plan}" visibility=hidden hash=hash-front pack=curse'
+    )
+    ckpt.session_conversation.append(
+        ConversationMessage(role="assistant", content=router_record)
+    )
+    ckpt.canonical_events.append(
+        router_output(
+            event_id="evt_public_wolves",
+            observer_ids=["alice"],
+            facts=[
+                ObservableFact.all(
+                    "Wolves are seen pacing the ridge above the road."
+                )
+            ],
+        )
+    )
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=narrator_llm_response("RENDERED"))
+
+    asyncio.run(
+        compose_pov_render(
+            client=client,
+            prompt_mgr=PromptManager("app/prompts"),
+            ckpt=ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_public_wolves",
+                    observation_level="direct",
+                )
+            ],
+            partial_mode=False,
+        )
+    )
+
+    messages = client.complete.call_args.kwargs["messages"]
+    flat = "\n".join(
+        message["content"]
+        for message in messages
+        if isinstance(message.get("content"), str)
+    )
+    assert "Wolves are seen pacing the ridge above the road." in flat
+    assert "front_signal ref=front.strahd" not in flat
+    assert hidden_plan not in flat
 
 
 def test_front_catalog_rejects_unreviewed_or_blocked_dossiers() -> None:
