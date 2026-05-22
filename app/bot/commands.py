@@ -1018,7 +1018,7 @@ def _load_content_asset_catalog(
                 continue
             assets.update(load_asset_catalog(path))
         except Exception:
-            logger.exception("content asset catalog load failed: %s", path)
+            logger.exception("content asset catalog load failed")
     return assets
 
 

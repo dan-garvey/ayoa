@@ -199,6 +199,58 @@ def test_renderer_never_uses_legacy_merged_asset_reveals(tmp_path):
     ) == {}
 
 
+def test_resolution_failure_log_omits_pack_and_asset_ids(caplog, tmp_path):
+    secret_pack_id = "privatepack"
+    secret_asset_id = "secretroom"
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="cli_test"),
+        world_state=WorldState(),
+        characters=[],
+    )
+    response = TurnResponse(
+        session_id="cli_test",
+        per_player_asset_reveals={
+            "rogue": [
+                SafeAssetRevealPayload(
+                    pack_id=secret_pack_id,
+                    asset_id=secret_asset_id,
+                    kind="player_safe_map",
+                    title="Safe title",
+                    mime_type="image/png",
+                    width=64,
+                    height=64,
+                    sha256="a" * 64,
+                    delivery_ref=f"asset://{secret_pack_id}/{secret_asset_id}",
+                    presentation="map_overlay",
+                    caption="Safe caption.",
+                    alt_text="Safe alt text.",
+                )
+            ],
+        },
+    )
+    renderer = CliImageDisplayRenderer(
+        backend=Iterm2InlineImageBackend(
+            output=BytesIO(),
+            environ={"TERM": "xterm-256color", "TERM_PROGRAM": "iTerm.app"},
+            is_tty=True,
+        ),
+        options=CliImageDisplayOptions(cache_root=tmp_path / "runtime_cache"),
+    )
+
+    with caplog.at_level("WARNING", logger="app.engine.cli_image_display"):
+        prepared = renderer.prepare_reveals(
+            response,
+            ckpt=ckpt,
+            session_id="cli_test",
+            character_ids={"rogue"},
+        )
+
+    assert prepared["rogue"][0].error_code == "resolution_failed"
+    assert "missing_pack_catalog" in caplog.text
+    assert secret_pack_id not in caplog.text
+    assert secret_asset_id not in caplog.text
+
+
 def _write_pack_fixture(
     tmp_path,
     asset_id: str,

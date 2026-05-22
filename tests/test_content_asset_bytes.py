@@ -145,6 +145,8 @@ def test_invalid_assets_fail_loudly_with_typed_non_spoiling_errors(
     assert error.code == expected_code
     assert error.pack_id == PACK_ID
     assert error.asset_id == ASSET_ID
+    assert PACK_ID not in str(error)
+    assert ASSET_ID not in str(error)
     assert "source-map" not in str(error)
     assert "/private/table" not in str(error)
 

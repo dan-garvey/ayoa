@@ -63,8 +63,7 @@ class AssetByteResolutionError(RuntimeError):
         self.code = code
         self.pack_id = pack_id
         self.asset_id = asset_id
-        detail = f" pack={pack_id or '-'} asset={asset_id or '-'}"
-        super().__init__(f"Asset byte resolution failed ({code}).{detail}")
+        super().__init__(f"Asset byte resolution failed ({code}).")
 
 
 def resolve_asset_bytes(

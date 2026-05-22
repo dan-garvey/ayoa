@@ -171,11 +171,7 @@ class CliImageDisplayRenderer:
                     )
                 except AssetByteResolutionError as exc:
                     logger.warning(
-                        "cli image reveal resolution failed: pov=%s pack=%s "
-                        "asset=%s code=%s",
-                        cid,
-                        exc.pack_id or "-",
-                        exc.asset_id or "-",
+                        "cli image reveal resolution failed: code=%s",
                         exc.code,
                     )
                     item = CliImageDisplayResult(
