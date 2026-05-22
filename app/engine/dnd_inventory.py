@@ -4,7 +4,7 @@ from copy import deepcopy
 import re
 from typing import Any, Iterable
 
-from app.engine import dnd_runtime
+from app.engine import dnd_runtime, imported_treasure
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_inventory import (
@@ -80,6 +80,9 @@ def apply_loot_offers_from_events(
         for cid in offer.eligible_character_ids:
             if cid in bindings:
                 prompts.setdefault(cid, []).append(offer.offer_id)
+    imported_prompts = imported_treasure.apply_revealed_treasure_offers(ckpt)
+    for cid, offer_ids in imported_prompts.items():
+        prompts.setdefault(cid, []).extend(offer_ids)
     return prompts
 
 
@@ -169,6 +172,12 @@ def claim_loot(
         inventory["currency"] = currency
         offer.currency_claimed = True
 
+    imported_treasure.update_treasure_claim_state_from_offer(
+        ckpt,
+        offer,
+        claimed_item_ids=selected,
+        currency_claimed=take_currency,
+    )
     _close_offer_if_empty_or_declined(ckpt, offer)
     prune_inventory_offers(ckpt)
     return {
@@ -219,6 +228,11 @@ def split_loot_currency(
         inventory["currency"] = currency
 
     offer.currency_claimed = True
+    imported_treasure.update_treasure_claim_state_from_offer(
+        ckpt,
+        offer,
+        currency_claimed=True,
+    )
     _close_offer_if_empty_or_declined(ckpt, offer)
     prune_inventory_offers(ckpt)
     return {
@@ -459,6 +473,9 @@ def _inventory_item_from_offer(
         "item_id": item_id,
         "source_item_id": item.item_id,
         "source_offer_id": offer.offer_id,
+        "source_pack_id": offer.source_pack_id,
+        "source_treasure_ref": offer.source_ref,
+        "source_content_hash": offer.source_content_hash,
         "name": item.name,
         "kind": item.kind,
         "quantity": item.quantity,

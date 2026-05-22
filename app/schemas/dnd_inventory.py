@@ -140,6 +140,10 @@ class DndLootOffer(BaseModel):
     source_event_id: str
     source_kind: DndLootSourceKind = "other"
     source_label: str = ""
+    source_pack_id: str = ""
+    source_ref: str = ""
+    source_content_hash: str = ""
+    source_depletion_ref: str = ""
     visibility: DndLootVisibility = "table"
     eligible_character_ids: list[str] = Field(default_factory=list)
     items: list[DndLootOfferItem] = Field(default_factory=list)
@@ -176,6 +180,10 @@ class DndLootOffer(BaseModel):
         self.offer_id = self.offer_id.strip()
         self.source_event_id = self.source_event_id.strip()
         self.source_label = self.source_label.strip()
+        self.source_pack_id = self.source_pack_id.strip()
+        self.source_ref = self.source_ref.strip()
+        self.source_content_hash = self.source_content_hash.strip()
+        self.source_depletion_ref = self.source_depletion_ref.strip()
         self.eligible_character_ids = [
             cid.strip()
             for cid in dict.fromkeys(self.eligible_character_ids)
