@@ -7,11 +7,14 @@ import pytest
 from app.engine import dnd_monsters, mechanics
 from app.engine.imported_statblocks import (
     ImportedStatBlockCatalog,
+    ImportedStatBlockNotFoundError,
     ImportedStatBlockSpawnSpec,
     ImportedStatBlockValidationError,
+    resolve_spawn_character_from_content_state,
     statblock_override_provider,
 )
 from app.schemas.content_pack import ContentPackDomainCatalog
+from app.schemas.content import ContentPackState
 from app.schemas.dnd_cat_ii import PlannedRoll
 from app.schemas.dnd_monsters import DndCombatantSpawn
 
@@ -140,6 +143,80 @@ def test_spawn_override_provider_resolves_ref_and_propagates_blockers():
             dnd_monsters.resolve_statblock(spawn)
     finally:
         dnd_monsters.clear_statblock_override_providers()
+
+
+def test_ref_only_spawn_resolves_from_content_state_catalog():
+    spawn = DndCombatantSpawn(
+        character_id="guardian_1",
+        statblock_ref="stat.guardian",
+        description="/private/source.pdf raw_ocr=PROTECTED_SOURCE_EXCERPT",
+    )
+    content_state = {
+        "synthetic-pack": ContentPackState(
+            pack_id="synthetic-pack",
+            metadata={"statblocks": [_statblock()]},
+        )
+    }
+
+    character = resolve_spawn_character_from_content_state(
+        spawn,
+        content_state=content_state,
+        default_location="entry hall",
+    )
+
+    assert character is not None
+    assert character.character_id == "guardian_1"
+    assert character.name == "Synthetic Guardian"
+    assert character.location == "entry hall"
+    assert character.descriptions.public == "A combat-ready synthetic guardian."
+    assert character.mechanics["source"] == "imported_statblock_catalog"
+    assert character.mechanics["armor_class"] == 15
+    assert character.mechanics["imported_statblock"]["ref"] == "stat.guardian"
+    dumped = json.dumps(character.model_dump(mode="json"), sort_keys=True)
+    for forbidden in (
+        "/private/source.pdf",
+        "PROTECTED_SOURCE_EXCERPT",
+        "raw_ocr",
+        "source_path",
+    ):
+        assert forbidden not in dumped
+
+
+def test_ref_only_spawn_blocks_missing_and_unreviewed_refs():
+    missing = DndCombatantSpawn(
+        character_id="guardian_1",
+        statblock_ref="stat.missing",
+    )
+    content_state = {
+        "synthetic-pack": ContentPackState(
+            pack_id="synthetic-pack",
+            metadata={"statblocks": [_statblock()]},
+        )
+    }
+
+    with pytest.raises(ImportedStatBlockNotFoundError, match="stat.missing"):
+        resolve_spawn_character_from_content_state(
+            missing,
+            content_state=content_state,
+        )
+
+    unreviewed = _statblock()
+    unreviewed["review_status"] = "needs_review"
+    unreviewed["gate_status"] = "flagged"
+    unsafe_state = {
+        "synthetic-pack": ContentPackState(
+            pack_id="synthetic-pack",
+            metadata={"statblocks": [unreviewed]},
+        )
+    }
+    with pytest.raises(ImportedStatBlockValidationError, match="review_status"):
+        resolve_spawn_character_from_content_state(
+            DndCombatantSpawn(
+                character_id="guardian_1",
+                statblock_ref="stat.guardian",
+            ),
+            content_state=unsafe_state,
+        )
 
 
 def _spawn_spec() -> ImportedStatBlockSpawnSpec:

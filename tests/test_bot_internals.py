@@ -2076,21 +2076,36 @@ class TestPostAssetsToPov:
 
 
 class _FakeDiscordMessage:
-    def __init__(self, message_id: int, *, delete_raises: bool = False):
+    def __init__(
+        self,
+        message_id: int,
+        *,
+        delete_raises: bool = False,
+        delete_error: Exception | None = None,
+        supports_attachments: bool = True,
+    ):
         self.id = message_id
         self.delete_raises = delete_raises
+        self.delete_error = delete_error
+        self.supports_attachments = supports_attachments
         self.deleted = False
         self.edited_content = None
         self.edited_embeds = None
+        self.edited_attachments = None
 
     async def delete(self):
+        if self.delete_error is not None:
+            raise self.delete_error
         if self.delete_raises:
             raise RuntimeError("delete denied")
         self.deleted = True
 
-    async def edit(self, *, content=None, embeds=None):
+    async def edit(self, *, content=None, embeds=None, attachments=None):
+        if attachments is not None and not self.supports_attachments:
+            raise TypeError("unexpected keyword argument 'attachments'")
         self.edited_content = content
         self.edited_embeds = embeds
+        self.edited_attachments = attachments
 
 
 class _FakeDiscordChannel:
@@ -2282,10 +2297,91 @@ class TestRewindDiscordCleanup:
         assert cleanup.hidden == 1
         assert msg.edited_content == "_Rewound turn hidden._"
         assert msg.edited_embeds == []
+        assert msg.edited_attachments == []
         remaining = asyncio.run(smap.list_turn_messages(
             channel_id=10, session_id="sess", turns=[4],
         ))
         assert remaining == []
+
+    def test_asset_edit_fallback_clears_attachment_without_private_logs(
+        self, tmp_path: Path, caplog,
+    ):
+        smap = self._smap()
+        msg = _FakeDiscordMessage(
+            4000,
+            delete_error=RuntimeError(
+                "delete denied for /private/table/source-map.png "
+                "delivery_ref=asset://synthetic/hidden-map"
+            ),
+        )
+        channel = _FakeDiscordChannel(900, {4000: msg})
+        client = _FakeDiscordClient(channels={900: channel})
+
+        async def _run():
+            await smap.record_turn_message(
+                channel_id=10,
+                session_id="sess",
+                turn_index=4,
+                discord_channel_id=900,
+                message_id=4000,
+                delivery="thread_asset",
+                recipient_user_id=42,
+            )
+            return await bot_commands._delete_rewound_turn_messages(
+                client=client,
+                smap=smap,
+                channel_id=10,
+                session_id="sess",
+                deleted_turns=[4],
+            )
+
+        with caplog.at_level("WARNING", logger="app.bot.commands"):
+            cleanup = asyncio.run(_run())
+
+        assert cleanup.deleted == 0
+        assert cleanup.hidden == 1
+        assert msg.edited_content == "_Rewound turn hidden._"
+        assert msg.edited_embeds == []
+        assert msg.edited_attachments == []
+        assert "/private/table/source-map.png" not in caplog.text
+        assert "asset://synthetic/hidden-map" not in caplog.text
+
+    def test_edit_fallback_hides_when_attachment_clear_is_unsupported(
+        self, tmp_path: Path,
+    ):
+        smap = self._smap()
+        msg = _FakeDiscordMessage(
+            4000,
+            delete_raises=True,
+            supports_attachments=False,
+        )
+        channel = _FakeDiscordChannel(900, {4000: msg})
+        client = _FakeDiscordClient(channels={900: channel})
+
+        async def _run():
+            await smap.record_turn_message(
+                channel_id=10,
+                session_id="sess",
+                turn_index=4,
+                discord_channel_id=900,
+                message_id=4000,
+                delivery="thread_asset",
+                recipient_user_id=42,
+            )
+            return await bot_commands._delete_rewound_turn_messages(
+                client=client,
+                smap=smap,
+                channel_id=10,
+                session_id="sess",
+                deleted_turns=[4],
+            )
+
+        cleanup = asyncio.run(_run())
+
+        assert cleanup.hidden == 1
+        assert msg.edited_content == "_Rewound turn hidden._"
+        assert msg.edited_embeds == []
+        assert msg.edited_attachments is None
 
     def test_dm_refs_resolve_through_recipient_user(self, tmp_path: Path):
         smap = self._smap()

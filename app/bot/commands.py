@@ -80,6 +80,7 @@ from app.bot.session_map import SessionMap, TurnMessageRef
 from app.llm.client import TransientLLMError
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 
@@ -264,6 +265,11 @@ class TurnMessageCleanup:
     hidden: int = 0
     missing: int = 0
     failed: int = 0
+
+
+def _safe_cleanup_error(exc: BaseException) -> str:
+    text = redact_imported_asset_text(f"{type(exc).__name__}: {exc}")
+    return text or type(exc).__name__
 
 
 def _roll_result_line(result: CompletedPendingRoll) -> str:
@@ -2482,20 +2488,20 @@ async def _message_channel_for_ref(
         if user is None:
             try:
                 user = await client.fetch_user(ref.recipient_user_id)
-            except Exception:
-                logger.exception(
-                    "rewind cleanup: fetch_user(%s) failed",
-                    ref.recipient_user_id,
+            except Exception as e:
+                logger.warning(
+                    "rewind cleanup: fetch_user(%s) failed (%s)",
+                    ref.recipient_user_id, _safe_cleanup_error(e),
                 )
                 return None
         dm_channel = getattr(user, "dm_channel", None)
         if dm_channel is None:
             try:
                 dm_channel = await user.create_dm()
-            except Exception:
-                logger.exception(
-                    "rewind cleanup: create_dm(%s) failed",
-                    ref.recipient_user_id,
+            except Exception as e:
+                logger.warning(
+                    "rewind cleanup: create_dm(%s) failed (%s)",
+                    ref.recipient_user_id, _safe_cleanup_error(e),
                 )
                 return None
         return dm_channel
@@ -2507,12 +2513,25 @@ async def _message_channel_for_ref(
         return await client.fetch_channel(ref.discord_channel_id)
     except discord.NotFound:
         return None
-    except Exception:
-        logger.exception(
-            "rewind cleanup: fetch_channel(%s) failed",
-            ref.discord_channel_id,
+    except Exception as e:
+        logger.warning(
+            "rewind cleanup: fetch_channel(%s) failed (%s)",
+            ref.discord_channel_id, _safe_cleanup_error(e),
         )
         return None
+
+
+async def _hide_rewound_turn_message(msg: object) -> None:
+    try:
+        await msg.edit(
+            content="_Rewound turn hidden._",
+            embeds=[],
+            attachments=[],
+        )
+    except TypeError as e:
+        if "attachments" not in str(e):
+            raise
+        await msg.edit(content="_Rewound turn hidden._", embeds=[])
 
 
 async def _delete_rewound_turn_messages(
@@ -2543,11 +2562,12 @@ async def _delete_rewound_turn_messages(
             cleanup.missing += 1
             handled.append(ref)
             continue
-        except Exception:
+        except Exception as e:
             cleanup.failed += 1
-            logger.exception(
-                "rewind cleanup: fetch_message(%s) failed in channel %s",
+            logger.warning(
+                "rewind cleanup: fetch_message(%s) failed in channel %s (%s)",
                 ref.message_id, ref.discord_channel_id,
+                _safe_cleanup_error(e),
             )
             continue
 
@@ -2560,27 +2580,28 @@ async def _delete_rewound_turn_messages(
             cleanup.missing += 1
             handled.append(ref)
             continue
-        except Exception:
+        except Exception as e:
             logger.warning(
                 "rewind cleanup: delete failed for message %s in channel %s; "
-                "trying edit fallback",
+                "trying edit fallback (%s)",
                 ref.message_id, ref.discord_channel_id,
-                exc_info=True,
+                _safe_cleanup_error(e),
             )
 
         try:
-            await msg.edit(content="_Rewound turn hidden._", embeds=[])
+            await _hide_rewound_turn_message(msg)
             cleanup.hidden += 1
             handled.append(ref)
         except discord.NotFound:
             cleanup.missing += 1
             handled.append(ref)
-        except Exception:
+        except Exception as e:
             cleanup.failed += 1
-            logger.exception(
+            logger.warning(
                 "rewind cleanup: edit fallback failed for message %s "
-                "in channel %s",
+                "in channel %s (%s)",
                 ref.message_id, ref.discord_channel_id,
+                _safe_cleanup_error(e),
             )
 
     if handled:

@@ -641,6 +641,31 @@ class TestDndEventRouterOutput:
         assert out.combatant_spawns[0].statblock.challenge_rating == "0"
         assert out.combatant_spawns[0].statblock.xp == 10
 
+    def test_combat_start_accepts_ref_only_imported_statblock_spawns(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "dnd_combat_start",
+            "combatant_ids": ["alice"],
+            "combatant_spawns": [
+                {
+                    "character_id": "guardian_1",
+                    "monster_key": "",
+                    "statblock_ref": "stat.guardian",
+                    "name": "",
+                    "location": "",
+                    "description": "",
+                    "statblock": None,
+                }
+            ],
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.combatant_ids == ["alice", "guardian_1"]
+        assert out.combatant_spawns[0].statblock_ref == "stat.guardian"
+        assert out.combatant_spawns[0].monster_key == "stat_guardian"
+        assert out.combatant_spawns[0].statblock is None
+
     def test_combat_start_tolerates_surplus_spawn_statblock_fields(self):
         spawn = json.loads(json.dumps(RAT_COMBATANT_SPAWN))
         spawn["unexpected_spawn_note"] = "hungry"

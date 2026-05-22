@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.engine import dnd_monsters
 from app.schemas.dnd_monsters import DndCombatantSpawn
 
@@ -109,3 +111,17 @@ def test_registered_statblock_provider_overrides_router_fallback():
     assert rat.mechanics["hit_points"]["max"] == 2
     assert rat.mechanics["challenge_rating"] == "1/8"
     assert rat.mechanics["xp_value"] == 25
+
+
+def test_ref_only_spawn_requires_reviewed_resolver():
+    dnd_monsters.clear_statblock_override_providers()
+    spawn = DndCombatantSpawn(
+        character_id="guardian_1",
+        statblock_ref="stat.guardian",
+    )
+
+    assert spawn.monster_key == "stat_guardian"
+    assert spawn.statblock is None
+
+    with pytest.raises(dnd_monsters.StatblockResolutionError, match="stat.guardian"):
+        dnd_monsters.character_from_combatant_spawn(spawn)

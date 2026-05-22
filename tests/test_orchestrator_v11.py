@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.engine import dice, dnd_experience, dnd_monsters
 from app.engine.dnd_combat import apply_damage, current_combatant
+from app.engine.imported_statblocks import ImportedStatBlockNotFoundError
 from app.engine.orchestrator import Orchestrator, _with_pre_turn_resolutions
 from app.engine.turn_loop import BeatResult, broadcast_event
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content import ContentPackState
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.event_router import (
     DndEventRouterOutput,
@@ -102,6 +105,55 @@ def _rat_combatant_spawn() -> dict:
                 }
             ],
         },
+    }
+
+
+def _guardian_statblock() -> dict:
+    return {
+        "ref": "stat.guardian",
+        "content_hash": "sha256:stat-guardian",
+        "title": "Synthetic Guardian",
+        "summary": "A combat-ready synthetic guardian.",
+        "body": "Private source notes at /private/source.pdf must not be copied.",
+        "confidence": 0.98,
+        "review_status": "approved",
+        "gate_status": "runtime_ready",
+        "automation_scope": "combat",
+        "size": "Medium",
+        "creature_type": "Construct",
+        "alignment": "Unaligned",
+        "armor_class": 15,
+        "hit_points": 33,
+        "hit_dice": "6d8+6",
+        "speed_ft_by_mode": {"walk": 30},
+        "ability_scores": {
+            "strength": 16,
+            "dexterity": 14,
+            "constitution": 13,
+            "intelligence": 8,
+            "wisdom": 12,
+            "charisma": 7,
+        },
+        "proficiency_bonus": 2,
+        "senses": ["darkvision 60 ft."],
+        "passive_perception": 15,
+        "languages": ["understands its creator"],
+        "challenge_rating": "2",
+        "xp": 450,
+        "actions": [
+            {
+                "feature_id": "slam",
+                "name": "Slam",
+                "economy": "action",
+                "attack_bonus": 5,
+                "reach_ft": 5,
+                "target": "one target",
+                "damage": [
+                    {"expression": "1d8+3", "damage_type": "bludgeoning"}
+                ],
+                "description": "Melee Weapon Attack.",
+            }
+        ],
     }
 
 
@@ -713,6 +765,105 @@ class TestCombatTurnGating:
             assert combat.xp_awarded_combatant_ids == ["rat_1"]
         finally:
             dnd_monsters.clear_statblock_override_providers()
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_materializes_ref_only_imported_statblock(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10, 10])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.content_state = {
+            "synthetic-pack": ContentPackState(
+                pack_id="synthetic-pack",
+                metadata={"statblocks": [_guardian_statblock()]},
+            )
+        }
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        spawn = {
+            "character_id": "guardian_1",
+            "monster_key": "",
+            "statblock_ref": "stat.guardian",
+            "name": "",
+            "location": "",
+            "description": "",
+            "statblock": None,
+        }
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice"],
+            combatant_spawns=[spawn],
+            facts=[ObservableFact.all("Alice strikes the guardian.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I strike the guardian",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        guardian = next(c for c in ckpt.characters if c.character_id == "guardian_1")
+        assert guardian.name == "Synthetic Guardian"
+        assert guardian.location == "gatehouse"
+        assert guardian.mechanics["source"] == "imported_statblock_catalog"
+        assert guardian.mechanics["armor_class"] == 15
+        assert guardian.mechanics["hit_points"]["max"] == 33
+        assert guardian.mechanics["imported_statblock"]["ref"] == "stat.guardian"
+        combat = ckpt.session.active_combat
+        assert combat is not None
+        guardian_combatant = next(
+            c for c in combat.combatants if c.character_id == "guardian_1"
+        )
+        assert guardian_combatant.armor_class == 15
+        assert guardian_combatant.hit_points_max == 33
+        event = ckpt.canonical_events[-1]
+        assert event.combatant_spawns[0].statblock_ref == "stat.guardian"
+        assert event.combatant_spawns[0].statblock is None
+        dumped = json.dumps(guardian.model_dump(mode="json"), sort_keys=True)
+        assert "/private/source.pdf" not in dumped
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_missing_imported_statblock_ref_errors(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.session.content_state = {
+            "synthetic-pack": ContentPackState(
+                pack_id="synthetic-pack",
+                metadata={"statblocks": [_guardian_statblock()]},
+            )
+        }
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        spawn = {
+            "character_id": "guardian_1",
+            "statblock_ref": "stat.missing",
+            "statblock": None,
+        }
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice"],
+            combatant_spawns=[spawn],
+            facts=[ObservableFact.all("Alice strikes the guardian.")],
+        ))
+
+        with pytest.raises(ImportedStatBlockNotFoundError, match="stat.missing"):
+            await orch.process_turn(TurnRequest(
+                session_id="s",
+                user_input="I strike the guardian",
+                acting_character_id="alice",
+            ))
+
+        assert ckpt.session.active_combat is None
+        assert all(c.character_id != "guardian_1" for c in ckpt.characters)
 
     @pytest.mark.asyncio
     async def test_failed_dnd_combat_start_rolls_back_spawned_monsters(

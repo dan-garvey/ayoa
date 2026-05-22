@@ -13,6 +13,7 @@ from app.schemas.content import (
     ContentModuleOverrideState,
     ContentOverlayState,
     ContentPackState,
+    ContentPovRevealState,
     ContentSpawnOverlayState,
     ContentTrapOverlayState,
     ContentTreasureOverlayState,
@@ -77,6 +78,28 @@ def test_content_overlay_round_trips_through_checkpoint_dump() -> None:
                         visible_spawn_ref_ids=["spawn/wight-1"],
                     )
                 },
+                pov_reveals={
+                    "stale": ContentPovRevealState(
+                        viewer_id=" alice ",
+                        revealed_handout_ref_ids=[
+                            "handout/letter",
+                            "handout/letter",
+                        ],
+                        revealed_asset_ids=["asset.handout.letter"],
+                        reveal_ref_ids=["reveal.letter"],
+                        map_overlays={
+                            "map": ContentCombatMapOverlayState(
+                                map_id="map/crypt",
+                                content_hash="sha256:map",
+                                revealed_area_ref_ids=[
+                                    "area/entry",
+                                    "area/entry",
+                                ],
+                                fogged_area_ref_ids=["area/altar"],
+                            )
+                        },
+                    )
+                },
                 front_knowledge={
                     "front": ContentFrontKnowledgeState(
                         front_id="front/curse",
@@ -128,6 +151,12 @@ def test_content_overlay_round_trips_through_checkpoint_dump() -> None:
     assert overlay.combat_maps["map/crypt::sha256:map"].fogged_area_ref_ids == [
         "area/altar"
     ]
+    alice_reveals = overlay.pov_reveals["alice"]
+    assert alice_reveals.revealed_handout_ref_ids == ["handout/letter"]
+    assert alice_reveals.revealed_asset_ids == ["asset.handout.letter"]
+    assert alice_reveals.map_overlays[
+        "map/crypt::sha256:map"
+    ].revealed_area_ref_ids == ["area/entry"]
     assert overlay.front_knowledge["front/curse::sha256:front"].status == "known"
     plan = overlay.active_plans["plan/midnight-rite::sha256:plan"]
     assert plan.status == "active"
@@ -159,6 +188,23 @@ def test_content_overlay_default_dump_omits_private_module_material() -> None:
                         ],
                     )
                 },
+                pov_reveals={
+                    "alice": ContentPovRevealState(
+                        viewer_id="alice",
+                        revealed_handout_ref_ids=[
+                            "handout/letter",
+                            "/private/table/letter.pdf",
+                        ],
+                        revealed_asset_ids=[
+                            "asset.handout.letter",
+                            "asset://synthetic/hidden-handout",
+                        ],
+                        reveal_ref_ids=[
+                            "reveal.letter",
+                            "private_extractions/page-1",
+                        ],
+                    )
+                },
                 module_overrides={
                     "unsafe": ContentModuleOverrideState(
                         override_id="override/main",
@@ -186,14 +232,17 @@ def test_content_overlay_default_dump_omits_private_module_material() -> None:
         "/private/table/source-map.png",
         "private_extractions/page-1",
         "asset://secret/hidden-map",
+        "asset://synthetic/hidden-handout",
         "protected_excerpt",
         "source_path",
         "raw text",
         "/private/source.pdf",
+        "/private/table/letter.pdf",
         "raw_text",
     ):
         assert sentinel not in dumped
     assert "door/north-open" in dumped
+    assert "asset.handout.letter" in dumped
     assert '"opened": true' in dumped
 
 

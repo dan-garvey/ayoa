@@ -13,9 +13,14 @@ MAX_BATTLE_MAP_AREAS = 40
 MAX_BATTLE_MAP_ANCHORS = 40
 MAX_BATTLE_MAP_FEATURES = 120
 MAX_BATTLE_MAP_AREA_LINKS = 80
+MAX_BATTLE_MAP_FLOORS = 24
+MAX_BATTLE_MAP_FOG_MASKS = 120
+MAX_BATTLE_MAP_REVEAL_REGIONS = 120
 
 TerrainCover = Literal["none", "half", "three_quarters", "total"]
 AreaShape = Literal["square", "circle", "cone", "line"]
+DndBattleMapFloorKind = Literal["floor", "submap"]
+DndRevealAudience = Literal["router", "players", "character", "host"]
 DndSpawnAnchorKind = Literal[
     "players",
     "enemies",
@@ -93,6 +98,7 @@ class DndTerrainZone(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     zone_id: str
+    floor_id: str
     label: str
     x: int
     y: int
@@ -110,6 +116,7 @@ class DndTerrainZone(BaseModel):
             return data
         data = dict(data)
         data.setdefault("zone_id", "")
+        data.setdefault("floor_id", "")
         data.setdefault("label", "")
         data.setdefault("x", 0)
         data.setdefault("y", 0)
@@ -126,6 +133,7 @@ class DndTerrainZone(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "DndTerrainZone":
         self.zone_id = self.zone_id.strip()
+        self.floor_id = self.floor_id.strip()
         self.label = self.label.strip()
         self.notes = self.notes.strip()
         if self.x < 0:
@@ -234,6 +242,7 @@ class DndBattleMapSpawnAnchor(BaseModel):
 
     anchor_id: str
     anchor_kind: DndSpawnAnchorKind
+    floor_id: str
     cells: list[DndMapPoint]
     label: str
     linked_ref: str
@@ -246,6 +255,7 @@ class DndBattleMapSpawnAnchor(BaseModel):
         data = dict(data)
         data.setdefault("anchor_id", "")
         data.setdefault("anchor_kind", "other")
+        data.setdefault("floor_id", "")
         data.setdefault("cells", [])
         data.setdefault("label", "")
         data.setdefault("linked_ref", "")
@@ -264,6 +274,7 @@ class DndBattleMapSpawnAnchor(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "DndBattleMapSpawnAnchor":
         self.anchor_id = self.anchor_id.strip()
+        self.floor_id = self.floor_id.strip()
         self.label = self.label.strip()
         self.linked_ref = self.linked_ref.strip()
         return self
@@ -274,6 +285,7 @@ class DndBattleMapFeature(BaseModel):
 
     feature_id: str
     feature_kind: DndMapFeatureKind
+    floor_id: str
     cells: list[DndMapPoint]
     bounds: DndMapRect | None
     label: str
@@ -293,6 +305,7 @@ class DndBattleMapFeature(BaseModel):
         data = dict(data)
         data.setdefault("feature_id", "")
         data.setdefault("feature_kind", "other")
+        data.setdefault("floor_id", "")
         data.setdefault("cells", [])
         data.setdefault("bounds", None)
         data.setdefault("label", "")
@@ -310,6 +323,7 @@ class DndBattleMapFeature(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "DndBattleMapFeature":
         self.feature_id = self.feature_id.strip()
+        self.floor_id = self.floor_id.strip()
         self.label = self.label.strip()
         self.reveal_trigger = self.reveal_trigger.strip()
         self.linked_refs = _clean_unique_strings(self.linked_refs)
@@ -323,6 +337,7 @@ class DndBattleMapAreaLink(BaseModel):
 
     area_id: str
     location_ref: str
+    floor_id: str
     cells: list[DndMapPoint]
     bounds: DndMapRect | None
 
@@ -334,6 +349,7 @@ class DndBattleMapAreaLink(BaseModel):
         data = dict(data)
         data.setdefault("area_id", "")
         data.setdefault("location_ref", "")
+        data.setdefault("floor_id", "")
         data.setdefault("cells", [])
         data.setdefault("bounds", None)
         return data
@@ -342,6 +358,155 @@ class DndBattleMapAreaLink(BaseModel):
     def _clean(self) -> "DndBattleMapAreaLink":
         self.area_id = self.area_id.strip()
         self.location_ref = self.location_ref.strip()
+        self.floor_id = self.floor_id.strip()
+        return self
+
+
+class DndBattleMapFloor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    floor_id: str
+    floor_kind: DndBattleMapFloorKind
+    label: str
+    grid_width: int
+    grid_height: int
+    square_size_ft: int
+    level_index: int
+    elevation_ft: int
+    parent_floor_id: str
+    parent_bounds: DndMapRect | None
+    map_asset_id: str
+    area_refs: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        data.setdefault("floor_id", "")
+        data.setdefault("floor_kind", "floor")
+        data.setdefault("label", "")
+        data.setdefault("grid_width", 1)
+        data.setdefault("grid_height", 1)
+        data.setdefault("square_size_ft", 5)
+        data.setdefault("level_index", 0)
+        data.setdefault("elevation_ft", 0)
+        data.setdefault("parent_floor_id", "")
+        data.setdefault("parent_bounds", None)
+        data.setdefault("map_asset_id", "")
+        data.setdefault("area_refs", [])
+        if data.get("floor_kind") not in {"floor", "submap"}:
+            data["floor_kind"] = "floor"
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndBattleMapFloor":
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.grid_width = max(1, min(int(self.grid_width or 1), MAX_BATTLE_MAP_WIDTH))
+        self.grid_height = max(
+            1,
+            min(int(self.grid_height or 1), MAX_BATTLE_MAP_HEIGHT),
+        )
+        if self.square_size_ft <= 0:
+            self.square_size_ft = 5
+        self.level_index = int(self.level_index or 0)
+        self.elevation_ft = int(self.elevation_ft or 0)
+        self.parent_floor_id = self.parent_floor_id.strip()
+        self.map_asset_id = self.map_asset_id.strip()
+        self.area_refs = _clean_unique_strings(self.area_refs)
+        return self
+
+
+class DndBattleMapFogMask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mask_id: str
+    floor_id: str
+    cells: list[DndMapPoint]
+    bounds: DndMapRect | None
+    label: str
+    area_refs: list[str]
+    revealed_by_region_refs: list[str]
+    initially_hidden: bool
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        data.setdefault("mask_id", "")
+        data.setdefault("floor_id", "")
+        data.setdefault("cells", [])
+        data.setdefault("bounds", None)
+        data.setdefault("label", "")
+        data.setdefault("area_refs", [])
+        data.setdefault("revealed_by_region_refs", [])
+        data.setdefault("initially_hidden", True)
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndBattleMapFogMask":
+        self.mask_id = self.mask_id.strip()
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.area_refs = _clean_unique_strings(self.area_refs)
+        self.revealed_by_region_refs = _clean_unique_strings(
+            self.revealed_by_region_refs
+        )
+        return self
+
+
+class DndBattleMapRevealRegion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reveal_id: str
+    floor_id: str
+    cells: list[DndMapPoint]
+    bounds: DndMapRect | None
+    label: str
+    reveal_trigger: str
+    audience: DndRevealAudience
+    initially_revealed: bool
+    pov_character_ids: list[str]
+    pov_area_refs: list[str]
+    revealed_area_refs: list[str]
+    fog_mask_refs: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        data.setdefault("reveal_id", "")
+        data.setdefault("floor_id", "")
+        data.setdefault("cells", [])
+        data.setdefault("bounds", None)
+        data.setdefault("label", "")
+        data.setdefault("reveal_trigger", "")
+        data.setdefault("audience", "players")
+        data.setdefault("initially_revealed", False)
+        data.setdefault("pov_character_ids", [])
+        data.setdefault("pov_area_refs", [])
+        data.setdefault("revealed_area_refs", [])
+        data.setdefault("fog_mask_refs", [])
+        if data.get("audience") not in {"router", "players", "character", "host"}:
+            data["audience"] = "players"
+        return data
+
+    @model_validator(mode="after")
+    def _clean(self) -> "DndBattleMapRevealRegion":
+        self.reveal_id = self.reveal_id.strip()
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.reveal_trigger = self.reveal_trigger.strip()
+        self.pov_character_ids = _clean_unique_strings(self.pov_character_ids)
+        self.pov_area_refs = _clean_unique_strings(self.pov_area_refs)
+        self.revealed_area_refs = _clean_unique_strings(self.revealed_area_refs)
+        self.fog_mask_refs = _clean_unique_strings(self.fog_mask_refs)
         return self
 
 
@@ -420,6 +585,9 @@ class DndBattleMapState(DndBattleMapSeed):
     spawn_anchors: list[DndBattleMapSpawnAnchor]
     features: list[DndBattleMapFeature]
     area_links: list[DndBattleMapAreaLink]
+    floors: list[DndBattleMapFloor]
+    fog_masks: list[DndBattleMapFogMask]
+    reveal_regions: list[DndBattleMapRevealRegion]
 
     @model_validator(mode="before")
     @classmethod
@@ -432,6 +600,9 @@ class DndBattleMapState(DndBattleMapSeed):
             data.setdefault("spawn_anchors", [])
             data.setdefault("features", [])
             data.setdefault("area_links", [])
+            data.setdefault("floors", [])
+            data.setdefault("fog_masks", [])
+            data.setdefault("reveal_regions", [])
         return data
 
     @model_validator(mode="after")
@@ -442,16 +613,68 @@ class DndBattleMapState(DndBattleMapSeed):
         self.spawn_anchors = self.spawn_anchors[:MAX_BATTLE_MAP_ANCHORS]
         self.features = self.features[:MAX_BATTLE_MAP_FEATURES]
         self.area_links = self.area_links[:MAX_BATTLE_MAP_AREA_LINKS]
+        self.floors = self.floors[:MAX_BATTLE_MAP_FLOORS]
+        self.fog_masks = self.fog_masks[:MAX_BATTLE_MAP_FOG_MASKS]
+        self.reveal_regions = self.reveal_regions[:MAX_BATTLE_MAP_REVEAL_REGIONS]
 
         if self.width > 0 and self.height > 0:
+            floor_limits = {
+                floor.floor_id: (floor.grid_width, floor.grid_height)
+                for floor in self.floors
+                if floor.floor_id
+            }
+            for floor in self.floors:
+                width, height = _runtime_floor_limits(
+                    floor.parent_floor_id,
+                    floor_limits,
+                    self.width,
+                    self.height,
+                )
+                _clamp_rect(floor.parent_bounds, width, height)
             for anchor in self.spawn_anchors:
-                _clamp_points(anchor.cells, self.width, self.height)
+                width, height = _runtime_floor_limits(
+                    anchor.floor_id,
+                    floor_limits,
+                    self.width,
+                    self.height,
+                )
+                _clamp_points(anchor.cells, width, height)
             for feature in self.features:
-                _clamp_points(feature.cells, self.width, self.height)
-                _clamp_rect(feature.bounds, self.width, self.height)
+                width, height = _runtime_floor_limits(
+                    feature.floor_id,
+                    floor_limits,
+                    self.width,
+                    self.height,
+                )
+                _clamp_points(feature.cells, width, height)
+                _clamp_rect(feature.bounds, width, height)
             for link in self.area_links:
-                _clamp_points(link.cells, self.width, self.height)
-                _clamp_rect(link.bounds, self.width, self.height)
+                width, height = _runtime_floor_limits(
+                    link.floor_id,
+                    floor_limits,
+                    self.width,
+                    self.height,
+                )
+                _clamp_points(link.cells, width, height)
+                _clamp_rect(link.bounds, width, height)
+            for mask in self.fog_masks:
+                width, height = _runtime_floor_limits(
+                    mask.floor_id,
+                    floor_limits,
+                    self.width,
+                    self.height,
+                )
+                _clamp_points(mask.cells, width, height)
+                _clamp_rect(mask.bounds, width, height)
+            for region in self.reveal_regions:
+                width, height = _runtime_floor_limits(
+                    region.floor_id,
+                    floor_limits,
+                    self.width,
+                    self.height,
+                )
+                _clamp_points(region.cells, width, height)
+                _clamp_rect(region.bounds, width, height)
         return self
 
 
@@ -545,6 +768,9 @@ def empty_battle_map_state() -> dict[str, Any]:
         "spawn_anchors": [],
         "features": [],
         "area_links": [],
+        "floors": [],
+        "fog_masks": [],
+        "reveal_regions": [],
     })
     return data
 
@@ -572,3 +798,14 @@ def _clamp_rect(rect: DndMapRect | None, width: int, height: int) -> None:
     rect.y = min(rect.y, max(0, height - 1))
     rect.width = max(1, min(rect.width, width - rect.x))
     rect.height = max(1, min(rect.height, height - rect.y))
+
+
+def _runtime_floor_limits(
+    floor_id: str,
+    floor_limits: dict[str, tuple[int, int]],
+    width: int,
+    height: int,
+) -> tuple[int, int]:
+    if floor_id and floor_id in floor_limits:
+        return floor_limits[floor_id]
+    return width, height

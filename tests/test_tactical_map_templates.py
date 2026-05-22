@@ -97,7 +97,7 @@ def test_rejects_out_of_bounds_geometry_and_missing_refs():
     assert "missing content ref 'area.upper'" in message
 
 
-def test_required_future_layers_fail_loudly_until_schema_exists():
+def test_required_floor_and_reveal_layers_fail_loudly_when_missing():
     with pytest.raises(TacticalMapTemplateCompileError) as exc:
         compile_tactical_map_template(
             _template(),
@@ -106,8 +106,189 @@ def test_required_future_layers_fail_loudly_until_schema_exists():
         )
 
     message = str(exc.value)
-    assert "does not represent fog/reveal regions" in message
-    assert "does not represent floors/submaps" in message
+    assert "required fog-mask layer is missing" in message
+    assert "required reveal-region layer is missing" in message
+    assert "required floors/submaps layer is missing" in message
+
+
+def test_compiles_multi_floor_fog_and_reveal_regions_to_runtime_state():
+    compiled = compile_tactical_map_template(
+        _template(
+            floors=[
+                {
+                    "floor_id": "floor.ground",
+                    "label": "Ground floor",
+                    "grid_width": 12,
+                    "grid_height": 8,
+                    "area_refs": ["loc.entry"],
+                },
+                {
+                    "floor_id": "floor.upper",
+                    "floor_kind": "submap",
+                    "label": "Upper landing",
+                    "grid_width": 6,
+                    "grid_height": 4,
+                    "level_index": 1,
+                    "elevation_ft": 10,
+                    "parent_floor_id": "floor.ground",
+                    "parent_bounds": {"x": 8, "y": 5, "width": 3, "height": 2},
+                    "map_asset_id": "asset.map.upper.player",
+                    "area_refs": ["area.upper"],
+                },
+            ],
+            spawn_anchors=[
+                {
+                    "anchor_id": "spawn.players",
+                    "anchor_kind": "players",
+                    "floor_id": "floor.ground",
+                    "cells": [{"x": 1, "y": 2}, {"x": 1, "y": 3}],
+                    "label": "Player start",
+                }
+            ],
+            terrain_features=[
+                {
+                    "feature_id": "stairs.upper",
+                    "feature_kind": "stairs",
+                    "floor_id": "floor.ground",
+                    "cells": [{"x": 10, "y": 6}],
+                    "label": "Upper stairs",
+                    "linked_refs": ["area.upper"],
+                },
+                {
+                    "feature_id": "balcony.rail",
+                    "feature_kind": "cover",
+                    "floor_id": "floor.upper",
+                    "bounds": {"x": 2, "y": 1, "width": 2, "height": 1},
+                    "label": "Balcony rail",
+                    "cover": "half",
+                },
+            ],
+            area_links=[
+                {
+                    "area_id": "area.entry",
+                    "location_ref": "loc.entry",
+                    "floor_id": "floor.ground",
+                    "bounds": {"x": 0, "y": 0, "width": 12, "height": 8},
+                },
+                {
+                    "area_id": "area.upper",
+                    "location_ref": "area.upper",
+                    "floor_id": "floor.upper",
+                    "bounds": {"x": 0, "y": 0, "width": 6, "height": 4},
+                },
+            ],
+            fog_masks=[
+                {
+                    "mask_id": "fog.upper",
+                    "floor_id": "floor.upper",
+                    "bounds": {"x": 0, "y": 0, "width": 6, "height": 4},
+                    "label": "Upper landing fog",
+                    "area_refs": ["area.upper"],
+                    "revealed_by_region_refs": ["reveal.upper"],
+                }
+            ],
+            reveal_regions=[
+                {
+                    "reveal_id": "reveal.upper",
+                    "floor_id": "floor.ground",
+                    "cells": [{"x": 10, "y": 6}],
+                    "label": "View up the stairs",
+                    "reveal_trigger": "A character reaches the stair landing.",
+                    "pov_character_ids": ["pc.rogue", "pc.rogue"],
+                    "pov_area_refs": ["loc.entry"],
+                    "revealed_area_refs": ["area.upper"],
+                    "fog_mask_refs": ["fog.upper"],
+                }
+            ],
+        ),
+        map_assets=[_asset(), _asset(asset_id="asset.map.upper.player")],
+        authored_refs={"loc.entry", "area.upper"},
+        required_layers=[
+            "map_ref",
+            "floors_submaps",
+            "fog_reveal_regions",
+            "vertical_links",
+        ],
+    )
+
+    assert [floor.floor_id for floor in compiled.floors] == [
+        "floor.ground",
+        "floor.upper",
+    ]
+    assert compiled.floors[1].parent_bounds is not None
+    assert compiled.floors[1].parent_bounds.x == 8
+    assert compiled.fog_masks[0].revealed_by_region_refs == ("reveal.upper",)
+    assert compiled.reveal_regions[0].pov_character_ids == ("pc.rogue",)
+    assert compiled.terrain_features[1].floor_id == "floor.upper"
+
+    battle_map = compiled.to_battle_map_state()
+
+    assert battle_map.floors[1].parent_floor_id == "floor.ground"
+    assert battle_map.fog_masks[0].mask_id == "fog.upper"
+    assert battle_map.reveal_regions[0].revealed_area_refs == ["area.upper"]
+    assert battle_map.features[1].floor_id == "floor.upper"
+
+    public_text = repr(dnd_spatial.battle_map_status(battle_map))
+    assert "A character reaches the stair landing" not in public_text
+    assert "fog.upper" not in public_text
+    assert "asset.map.upper.player" not in public_text
+    assert RAW_SOURCE_PATH not in battle_map.model_dump_json()
+
+
+def test_rejects_invalid_floor_and_reveal_refs_or_unsafe_shapes():
+    with pytest.raises(TacticalMapTemplateCompileError) as exc:
+        compile_tactical_map_template(
+            _template(
+                floors=[
+                    {
+                        "floor_id": "floor.ground",
+                        "label": "Ground floor",
+                        "grid_width": 12,
+                        "grid_height": 8,
+                    },
+                    {
+                        "floor_id": "floor.upper",
+                        "floor_kind": "submap",
+                        "grid_width": 6,
+                        "grid_height": 4,
+                        "parent_floor_id": "floor.missing",
+                        "parent_bounds": {"x": 99, "y": 0, "width": 1, "height": 1},
+                    },
+                ],
+                fog_masks=[
+                    {
+                        "mask_id": "fog.upper",
+                        "floor_id": "floor.upper",
+                        "cells": [{"x": 0, "y": 0}],
+                        "bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
+                        "revealed_by_region_refs": ["reveal.missing"],
+                    }
+                ],
+                reveal_regions=[
+                    {
+                        "reveal_id": "reveal.upper",
+                        "floor_id": "floor.missing",
+                        "bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
+                        "reveal_trigger": f"Open {RAW_SOURCE_PATH}",
+                        "revealed_area_refs": ["area.missing"],
+                        "fog_mask_refs": ["fog.missing"],
+                    }
+                ],
+            ),
+            map_assets=[_asset()],
+            authored_refs={"loc.entry", "area.upper", "trap.panel"},
+            required_layers=["floors_submaps", "fog_reveal_regions"],
+        )
+
+    message = str(exc.value)
+    assert "references missing parent floor 'floor.missing'" in message
+    assert "parent_bounds bounds origin is outside map bounds" in message
+    assert "must use cells or bounds, not both" in message
+    assert "references missing map floor 'floor.missing'" in message
+    assert "must not contain raw source paths" in message
+    assert "references missing content ref 'area.missing'" in message
+    assert "references missing reveal region 'reveal.missing'" in message
+    assert "references missing fog mask 'fog.missing'" in message
 
 
 def test_compiled_runtime_map_state_preserves_imported_template_semantics():

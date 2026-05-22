@@ -55,7 +55,10 @@ class ImportedStatBlockError(ValueError):
     """Base error for reviewed imported statblock resolution."""
 
 
-class ImportedStatBlockNotFoundError(ImportedStatBlockError):
+class ImportedStatBlockNotFoundError(
+    ImportedStatBlockError,
+    dnd_monsters.StatblockResolutionError,
+):
     """Raised when a requested statblock ref is not in the catalog."""
 
 
@@ -192,10 +195,10 @@ class ImportedStatBlockCatalog:
 def statblock_override_provider(
     catalog: ImportedStatBlockCatalog,
 ) -> Callable[[DndCombatantSpawn], DndMonsterStatBlock | None]:
-    """Return an existing dnd_monsters provider keyed by spawn.monster_key."""
+    """Return an existing dnd_monsters provider keyed by spawn ref."""
 
     def _provider(spawn: DndCombatantSpawn) -> DndMonsterStatBlock | None:
-        ref = str(spawn.monster_key or "").strip()
+        ref = str(spawn.statblock_ref or spawn.monster_key or "").strip()
         if not ref:
             return None
         try:
@@ -205,6 +208,54 @@ def statblock_override_provider(
         return catalog.resolve_monster_statblock(ref)
 
     return _provider
+
+
+def catalog_from_content_state(content_state: Any) -> ImportedStatBlockCatalog | None:
+    """Build a statblock catalog from checkpoint content-pack runtime metadata."""
+
+    if not isinstance(content_state, Mapping):
+        return None
+    records: list[DndStatBlockRecord | Mapping[str, Any]] = []
+    for pack_key, pack_state in content_state.items():
+        pack_id = _pack_id(pack_key, pack_state)
+        metadata = _pack_metadata(pack_state)
+        records.extend(_metadata_statblock_records(metadata, pack_id=pack_id))
+    if not records:
+        return None
+    return ImportedStatBlockCatalog(records)
+
+
+def resolve_spawn_character_from_content_state(
+    spawn: DndCombatantSpawn,
+    *,
+    content_state: Any,
+    default_location: str = "",
+) -> CharacterRecord | None:
+    """Resolve a ref-only combatant spawn from checkpoint content state.
+
+    Returns None for ordinary inline-statblock spawns. Ref-bearing spawns are
+    required to resolve through a reviewed imported statblock catalog.
+    """
+
+    ref = str(spawn.statblock_ref or "").strip()
+    if not ref:
+        return None
+    catalog = catalog_from_content_state(content_state)
+    if catalog is None:
+        raise ImportedStatBlockNotFoundError(
+            "Imported D&D statblock ref cannot be resolved because no runtime "
+            f"statblock catalog is available: {ref}"
+        )
+    return catalog.resolve_character(
+        ImportedStatBlockSpawnSpec(
+            statblock_ref=ref,
+            character_id=spawn.character_id,
+            name=spawn.name,
+            location=spawn.location,
+            description=spawn.description,
+        ),
+        default_location=default_location,
+    )
 
 
 def character_from_statblock_record(
@@ -465,6 +516,60 @@ def _coerce_record_with_fields(
         DndStatBlockRecord.model_validate(record),
         frozenset(str(key) for key in record),
     )
+
+
+def _pack_metadata(pack_state: Any) -> Mapping[str, Any]:
+    metadata = (
+        pack_state.get("metadata")
+        if isinstance(pack_state, Mapping)
+        else getattr(pack_state, "metadata", None)
+    )
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
+def _pack_id(pack_key: Any, pack_state: Any) -> str:
+    raw = (
+        pack_state.get("pack_id")
+        if isinstance(pack_state, Mapping)
+        else getattr(pack_state, "pack_id", "")
+    )
+    return str(raw or pack_key or "").strip()
+
+
+def _metadata_statblock_records(
+    metadata: Mapping[str, Any],
+    *,
+    pack_id: str,
+) -> list[DndStatBlockRecord | Mapping[str, Any]]:
+    records: list[DndStatBlockRecord | Mapping[str, Any]] = []
+    for key in ("domain_catalog", "content_pack_domain_catalog"):
+        raw_catalog = metadata.get(key)
+        if raw_catalog is None:
+            continue
+        if isinstance(raw_catalog, ContentPackDomainCatalog):
+            records.extend(raw_catalog.statblocks)
+        elif isinstance(raw_catalog, Mapping):
+            raw_records = raw_catalog.get("statblocks") or ()
+            records.extend(_records_with_pack(raw_records, pack_id=pack_id))
+    for key in ("statblocks", "dnd_statblocks", "imported_statblocks"):
+        records.extend(_records_with_pack(metadata.get(key) or (), pack_id=pack_id))
+    return records
+
+
+def _records_with_pack(
+    raw_records: Any,
+    *,
+    pack_id: str,
+) -> list[DndStatBlockRecord | Mapping[str, Any]]:
+    if not isinstance(raw_records, Sequence) or isinstance(raw_records, (str, bytes)):
+        return []
+    records: list[DndStatBlockRecord | Mapping[str, Any]] = []
+    for raw in raw_records:
+        if isinstance(raw, Mapping) and pack_id and not raw.get("pack_id"):
+            records.append({**raw, "pack_id": pack_id})
+        elif isinstance(raw, (DndStatBlockRecord, Mapping)):
+            records.append(raw)
+    return records
 
 
 def _defenses(

@@ -415,6 +415,34 @@ class ContentCombatMapOverlayState(BaseModel):
         return content_overlay_key(self.map_id, self.content_hash)
 
 
+class ContentPovRevealState(BaseModel):
+    """Pack-local asset/handout/map visibility for one player POV."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    viewer_id: str = ""
+    revealed_handout_ref_ids: list[str] = Field(default_factory=list)
+    revealed_asset_ids: list[str] = Field(default_factory=list)
+    reveal_ref_ids: list[str] = Field(default_factory=list)
+    map_overlays: dict[str, ContentCombatMapOverlayState] = Field(
+        default_factory=dict
+    )
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentPovRevealState":
+        self.viewer_id = _clean_overlay_token(self.viewer_id)
+        self.revealed_handout_ref_ids = _clean_overlay_tokens(
+            self.revealed_handout_ref_ids
+        )
+        self.revealed_asset_ids = _clean_overlay_tokens(self.revealed_asset_ids)
+        self.reveal_ref_ids = _clean_overlay_tokens(self.reveal_ref_ids)
+        self.map_overlays = _rekey_overlay_records(self.map_overlays)
+        return self
+
+    def overlay_key(self) -> str:
+        return _clean_overlay_token(self.viewer_id)
+
+
 class ContentFrontKnowledgeState(BaseModel):
     """Mutable party-facing knowledge about a module front."""
 
@@ -515,6 +543,7 @@ class ContentOverlayState(BaseModel):
     treasures: dict[str, ContentTreasureOverlayState] = Field(default_factory=dict)
     spawn_refs: dict[str, ContentSpawnOverlayState] = Field(default_factory=dict)
     combat_maps: dict[str, ContentCombatMapOverlayState] = Field(default_factory=dict)
+    pov_reveals: dict[str, ContentPovRevealState] = Field(default_factory=dict)
     front_knowledge: dict[str, ContentFrontKnowledgeState] = Field(
         default_factory=dict
     )
@@ -531,6 +560,7 @@ class ContentOverlayState(BaseModel):
         self.treasures = _rekey_overlay_records(self.treasures)
         self.spawn_refs = _rekey_overlay_records(self.spawn_refs)
         self.combat_maps = _rekey_overlay_records(self.combat_maps)
+        self.pov_reveals = _rekey_overlay_records(self.pov_reveals)
         self.front_knowledge = _rekey_overlay_records(self.front_knowledge)
         self.active_plans = _rekey_overlay_records(self.active_plans)
         self.module_overrides = _rekey_overlay_records(self.module_overrides)

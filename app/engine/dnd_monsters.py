@@ -53,6 +53,7 @@ def clear_statblock_override_providers() -> None:
 def resolve_statblock(spawn: DndCombatantSpawn) -> DndMonsterStatBlock:
     """Return the best stat block for a router combatant spawn."""
 
+    required_ref = str(getattr(spawn, "statblock_ref", "") or "").strip()
     for provider in reversed(_STATBLOCK_OVERRIDE_PROVIDERS):
         try:
             candidate = provider(spawn)
@@ -71,8 +72,23 @@ def resolve_statblock(spawn: DndCombatantSpawn) -> DndMonsterStatBlock:
         except Exception:
             logger.exception(
                 "D&D statblock override provider returned invalid data for %s",
-                spawn.monster_key or spawn.character_id,
+                required_ref or spawn.monster_key or spawn.character_id,
             )
+            if required_ref:
+                raise StatblockResolutionError(
+                    "D&D combatant spawn statblock_ref could not be "
+                    f"resolved safely: {required_ref}"
+                )
+    if required_ref:
+        raise StatblockResolutionError(
+            "D&D combatant spawn statblock_ref is not available in a "
+            f"reviewed runtime catalog: {required_ref}"
+        )
+    if spawn.statblock is None:
+        raise StatblockResolutionError(
+            "D&D combatant spawn requires either a resolved statblock_ref "
+            "or an inline fallback statblock."
+        )
     return spawn.statblock
 
 

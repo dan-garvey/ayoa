@@ -23,6 +23,12 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content import (
+    ContentCombatMapOverlayState,
+    ContentOverlayState,
+    ContentPackState,
+    ContentPovRevealState,
+)
 from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import (
     SessionState,
@@ -41,6 +47,7 @@ def _make_ckpt(
     location: str = "hall",
     actor_id: str = "aldric",
     extra_chars: list[CharacterRecord] | None = None,
+    content_state: dict[str, ContentPackState] | None = None,
 ) -> CheckpointFile:
     """Build a single checkpoint at a given turn_index. Each canonical
     event is unique enough that round-trip checks can verify the right
@@ -75,6 +82,7 @@ def _make_ckpt(
             turn_index=turn_index,
             player_character_id=actor_id,
             character_bindings={actor_id: "12345"},
+            content_state=content_state or {},
         ),
         world_state=WorldState(
             facts=facts,
@@ -82,6 +90,41 @@ def _make_ckpt(
         characters=chars,
         canonical_events=events,
     )
+
+
+def _pov_content_state(
+    *,
+    handouts: list[str],
+    revealed_areas: list[str],
+    fogged_areas: list[str],
+    assets: list[str] | None = None,
+    reveal_refs: list[str] | None = None,
+) -> dict[str, ContentPackState]:
+    return {
+        "pack": ContentPackState(
+            pack_id="pack",
+            overlay=ContentOverlayState(
+                pov_reveals={
+                    "alice": ContentPovRevealState(
+                        viewer_id="alice",
+                        revealed_handout_ref_ids=handouts,
+                        revealed_asset_ids=assets or [],
+                        reveal_ref_ids=reveal_refs or [],
+                        map_overlays={
+                            "map": ContentCombatMapOverlayState(
+                                map_id="map/crypt",
+                                content_hash="sha256:map",
+                                fog_of_war=True,
+                                fully_revealed=False,
+                                revealed_area_ref_ids=revealed_areas,
+                                fogged_area_ref_ids=fogged_areas,
+                            )
+                        },
+                    )
+                }
+            ),
+        )
+    }
 
 
 @pytest.fixture
@@ -264,6 +307,49 @@ class TestRewindSessionCull:
         loaded_dump = json.loads(loaded.model_dump_json())
         original = json.loads(original_bytes)
         assert loaded_dump == original
+
+    def test_rewind_restores_per_pov_reveal_and_fog_state(
+        self, bridge: EngineBridge,
+    ):
+        bridge.checkpoint_mgr.save(_make_ckpt(turn_index=0))
+        bridge.checkpoint_mgr.save(_make_ckpt(
+            turn_index=1,
+            content_state=_pov_content_state(
+                handouts=["handout/entry-letter"],
+                assets=["asset.handout.entry-letter"],
+                reveal_refs=["reveal.entry-letter"],
+                revealed_areas=["area/entry"],
+                fogged_areas=["area/altar", "area/balcony"],
+            ),
+        ))
+        bridge.checkpoint_mgr.save(_make_ckpt(
+            turn_index=2,
+            content_state=_pov_content_state(
+                handouts=["handout/entry-letter", "handout/altar-note"],
+                assets=["asset.handout.entry-letter", "asset.map.crypt"],
+                reveal_refs=["reveal.entry-letter", "reveal.altar-map"],
+                revealed_areas=["area/entry", "area/altar"],
+                fogged_areas=["area/balcony"],
+            ),
+        ))
+        target = bridge.checkpoint_mgr.load(SESSION_ID, "ckpt_0001")
+        target_state = target.session.content_state["pack"].overlay.pov_reveals[
+            "alice"
+        ].model_dump(mode="json")
+
+        asyncio.run(bridge.rewind_session(SESSION_ID, 1))
+
+        loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
+        restored = loaded.session.content_state["pack"].overlay.pov_reveals[
+            "alice"
+        ]
+        assert restored.model_dump(mode="json") == target_state
+        assert restored.revealed_handout_ref_ids == ["handout/entry-letter"]
+        assert restored.revealed_asset_ids == ["asset.handout.entry-letter"]
+        assert restored.reveal_ref_ids == ["reveal.entry-letter"]
+        map_state = restored.map_overlays["map/crypt::sha256:map"]
+        assert map_state.revealed_area_ref_ids == ["area/entry"]
+        assert map_state.fogged_area_ref_ids == ["area/altar", "area/balcony"]
 
 
 class TestRewindSessionValidation:

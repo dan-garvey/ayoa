@@ -58,6 +58,7 @@ AdventureTableKind = Literal[
     "other",
 ]
 TacticalMapKind = Literal["battle_map", "exploration_map", "region_map", "theater"]
+TacticalMapFloorKind = Literal["floor", "submap"]
 TacticalFeatureKind = Literal[
     "wall",
     "door",
@@ -466,11 +467,108 @@ class GridRect(BaseModel):
         return self
 
 
+class TacticalMapFloor(BaseModel):
+    """Reviewed tactical map plane, including floors and submaps."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    floor_id: str
+    floor_kind: TacticalMapFloorKind = "floor"
+    label: str = ""
+    grid_width: int
+    grid_height: int
+    square_size_ft: int | None = None
+    level_index: int = 0
+    elevation_ft: int = 0
+    parent_floor_id: str = ""
+    parent_bounds: GridRect | None = None
+    map_asset_id: str = ""
+    area_refs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "TacticalMapFloor":
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.grid_width = _positive_int(self.grid_width, "grid_width")
+        self.grid_height = _positive_int(self.grid_height, "grid_height")
+        if self.square_size_ft is not None:
+            self.square_size_ft = _positive_int(
+                self.square_size_ft,
+                "square_size_ft",
+            )
+        self.level_index = int(self.level_index or 0)
+        self.elevation_ft = int(self.elevation_ft or 0)
+        self.parent_floor_id = self.parent_floor_id.strip()
+        self.map_asset_id = self.map_asset_id.strip()
+        self.area_refs = _clean_unique_strings(self.area_refs)
+        return self
+
+
+class TacticalMapFogMask(BaseModel):
+    """Reviewed fog mask over authored tactical geometry."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mask_id: str
+    floor_id: str = ""
+    cells: list[GridPoint] = Field(default_factory=list)
+    bounds: GridRect | None = None
+    label: str = ""
+    area_refs: list[str] = Field(default_factory=list)
+    revealed_by_region_refs: list[str] = Field(default_factory=list)
+    initially_hidden: bool = True
+
+    @model_validator(mode="after")
+    def _clean(self) -> "TacticalMapFogMask":
+        self.mask_id = self.mask_id.strip()
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.area_refs = _clean_unique_strings(self.area_refs)
+        self.revealed_by_region_refs = _clean_unique_strings(
+            self.revealed_by_region_refs
+        )
+        return self
+
+
+class TacticalMapRevealRegion(BaseModel):
+    """Reviewed reveal metadata keyed by POV and authored areas."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reveal_id: str
+    floor_id: str = ""
+    cells: list[GridPoint] = Field(default_factory=list)
+    bounds: GridRect | None = None
+    label: str = ""
+    reveal_trigger: str = ""
+    audience: RevealAudience = "players"
+    initially_revealed: bool = False
+    pov_character_ids: list[str] = Field(default_factory=list)
+    pov_area_refs: list[str] = Field(default_factory=list)
+    revealed_area_refs: list[str] = Field(default_factory=list)
+    fog_mask_refs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "TacticalMapRevealRegion":
+        self.reveal_id = self.reveal_id.strip()
+        self.floor_id = self.floor_id.strip()
+        self.label = self.label.strip()
+        self.reveal_trigger = self.reveal_trigger.strip()
+        self.pov_character_ids = _clean_unique_strings(self.pov_character_ids)
+        self.pov_area_refs = _clean_unique_strings(self.pov_area_refs)
+        self.revealed_area_refs = _clean_unique_strings(self.revealed_area_refs)
+        self.fog_mask_refs = _clean_unique_strings(self.fog_mask_refs)
+        if not self.initially_revealed and not self.reveal_trigger:
+            raise ValueError("map reveal regions need reveal_trigger")
+        return self
+
+
 class TacticalMapSpawnAnchor(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     anchor_id: str
     anchor_kind: SpawnAnchorKind = "other"
+    floor_id: str = ""
     cells: list[GridPoint] = Field(default_factory=list)
     label: str = ""
     linked_ref: str = ""
@@ -478,6 +576,7 @@ class TacticalMapSpawnAnchor(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "TacticalMapSpawnAnchor":
         self.anchor_id = self.anchor_id.strip()
+        self.floor_id = self.floor_id.strip()
         self.label = self.label.strip()
         self.linked_ref = self.linked_ref.strip()
         return self
@@ -488,6 +587,7 @@ class TacticalMapFeature(BaseModel):
 
     feature_id: str
     feature_kind: TacticalFeatureKind
+    floor_id: str = ""
     cells: list[GridPoint] = Field(default_factory=list)
     bounds: GridRect | None = None
     label: str = ""
@@ -502,6 +602,7 @@ class TacticalMapFeature(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "TacticalMapFeature":
         self.feature_id = self.feature_id.strip()
+        self.floor_id = self.floor_id.strip()
         self.label = self.label.strip()
         self.cover = self.cover.strip()
         self.reveal_trigger = self.reveal_trigger.strip()
@@ -516,6 +617,7 @@ class TacticalMapAreaLink(BaseModel):
 
     area_id: str
     location_ref: str
+    floor_id: str = ""
     cells: list[GridPoint] = Field(default_factory=list)
     bounds: GridRect | None = None
 
@@ -523,6 +625,7 @@ class TacticalMapAreaLink(BaseModel):
     def _clean(self) -> "TacticalMapAreaLink":
         self.area_id = self.area_id.strip()
         self.location_ref = self.location_ref.strip()
+        self.floor_id = self.floor_id.strip()
         return self
 
 
@@ -539,9 +642,12 @@ class TacticalMapTemplateRecord(ContentPackDomainRecord):
     square_size_ft: int = 5
     origin_notes: str = ""
     orientation: str = ""
+    floors: list[TacticalMapFloor] = Field(default_factory=list)
     spawn_anchors: list[TacticalMapSpawnAnchor] = Field(default_factory=list)
     terrain_features: list[TacticalMapFeature] = Field(default_factory=list)
     area_links: list[TacticalMapAreaLink] = Field(default_factory=list)
+    fog_masks: list[TacticalMapFogMask] = Field(default_factory=list)
+    reveal_regions: list[TacticalMapRevealRegion] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _clean_map_template(self) -> "TacticalMapTemplateRecord":

@@ -8,12 +8,19 @@ from app.schemas.content_pack import (
     ContentImageAsset,
     TacticalMapAreaLink,
     TacticalMapFeature,
+    TacticalMapFogMask,
+    TacticalMapFloor,
+    TacticalMapRevealRegion,
     TacticalMapSpawnAnchor,
     TacticalMapTemplateRecord,
 )
+from app.schemas.content_privacy import contains_imported_asset_sentinel
 from app.schemas.dnd_spatial import (
     DndBattleMapAreaLink,
     DndBattleMapFeature,
+    DndBattleMapFloor,
+    DndBattleMapFogMask,
+    DndBattleMapRevealRegion,
     DndBattleMapState,
     DndBattleMapSpawnAnchor,
     DndMapPoint,
@@ -26,18 +33,9 @@ from app.schemas.dnd_spatial import (
 
 REVIEW_READY_STATUSES = {"reviewed", "approved"}
 _ASSET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_RUNTIME_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@+-]*$")
 _TERRAIN_COVER = {"none", "half", "three_quarters", "total"}
 _VERTICAL_FEATURE_KINDS = {"stairs"}
-_SCHEMA_GAP_LAYERS = {
-    "floors_submaps": (
-        "TacticalMapTemplateRecord does not represent floors/submaps; "
-        "strict multi-plane automation needs a successor schema."
-    ),
-    "fog_reveal_regions": (
-        "TacticalMapTemplateRecord does not represent fog/reveal regions; "
-        "strict fog/reveal automation needs a successor schema."
-    ),
-}
 
 RequiredTacticalMapLayer = Literal[
     "map_ref",
@@ -78,6 +76,7 @@ class CompiledGridRect:
 class CompiledSpawnAnchor:
     anchor_id: str
     anchor_kind: str
+    floor_id: str
     cells: tuple[CompiledGridPoint, ...]
     label: str
     linked_ref: str
@@ -87,6 +86,7 @@ class CompiledSpawnAnchor:
 class CompiledMapFeature:
     feature_id: str
     feature_kind: str
+    floor_id: str
     cells: tuple[CompiledGridPoint, ...]
     bounds: CompiledGridRect | None
     label: str
@@ -107,8 +107,53 @@ class CompiledMapFeature:
 class CompiledAreaLink:
     area_id: str
     location_ref: str
+    floor_id: str
     cells: tuple[CompiledGridPoint, ...]
     bounds: CompiledGridRect | None
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledMapFloor:
+    floor_id: str
+    floor_kind: str
+    label: str
+    grid_width: int
+    grid_height: int
+    square_size_ft: int
+    level_index: int
+    elevation_ft: int
+    parent_floor_id: str
+    parent_bounds: CompiledGridRect | None
+    map_asset_id: str
+    area_refs: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledFogMask:
+    mask_id: str
+    floor_id: str
+    cells: tuple[CompiledGridPoint, ...]
+    bounds: CompiledGridRect | None
+    label: str
+    area_refs: tuple[str, ...]
+    revealed_by_region_refs: tuple[str, ...]
+    initially_hidden: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledRevealRegion:
+    reveal_id: str
+    floor_id: str
+    cells: tuple[CompiledGridPoint, ...]
+    bounds: CompiledGridRect | None
+    label: str
+    reveal_trigger: str
+    audience: str
+    initially_revealed: bool
+    pov_character_ids: tuple[str, ...]
+    pov_area_refs: tuple[str, ...]
+    revealed_area_refs: tuple[str, ...]
+    fog_mask_refs: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,9 +168,12 @@ class CompiledTacticalMapTemplate:
     grid_height: int
     square_size_ft: int
     orientation: str
+    floors: tuple[CompiledMapFloor, ...]
     spawn_anchors: tuple[CompiledSpawnAnchor, ...]
     terrain_features: tuple[CompiledMapFeature, ...]
     area_links: tuple[CompiledAreaLink, ...]
+    fog_masks: tuple[CompiledFogMask, ...]
+    reveal_regions: tuple[CompiledRevealRegion, ...]
 
     @property
     def secret_features(self) -> tuple[CompiledMapFeature, ...]:
@@ -160,6 +208,7 @@ class CompiledTacticalMapTemplate:
                 DndBattleMapSpawnAnchor(
                     anchor_id=anchor.anchor_id,
                     anchor_kind=anchor.anchor_kind,
+                    floor_id=anchor.floor_id,
                     cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in anchor.cells],
                     label=anchor.label,
                     linked_ref=anchor.linked_ref,
@@ -171,10 +220,60 @@ class CompiledTacticalMapTemplate:
                 DndBattleMapAreaLink(
                     area_id=link.area_id,
                     location_ref=link.location_ref,
+                    floor_id=link.floor_id,
                     cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in link.cells],
                     bounds=_runtime_rect(link.bounds),
                 )
                 for link in self.area_links
+            ],
+            floors=[
+                DndBattleMapFloor(
+                    floor_id=floor.floor_id,
+                    floor_kind=floor.floor_kind,
+                    label=floor.label,
+                    grid_width=floor.grid_width,
+                    grid_height=floor.grid_height,
+                    square_size_ft=floor.square_size_ft,
+                    level_index=floor.level_index,
+                    elevation_ft=floor.elevation_ft,
+                    parent_floor_id=floor.parent_floor_id,
+                    parent_bounds=_runtime_rect(floor.parent_bounds),
+                    map_asset_id=floor.map_asset_id,
+                    area_refs=list(floor.area_refs),
+                )
+                for floor in self.floors
+            ],
+            fog_masks=[
+                DndBattleMapFogMask(
+                    mask_id=mask.mask_id,
+                    floor_id=mask.floor_id,
+                    cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in mask.cells],
+                    bounds=_runtime_rect(mask.bounds),
+                    label=mask.label,
+                    area_refs=list(mask.area_refs),
+                    revealed_by_region_refs=list(mask.revealed_by_region_refs),
+                    initially_hidden=mask.initially_hidden,
+                )
+                for mask in self.fog_masks
+            ],
+            reveal_regions=[
+                DndBattleMapRevealRegion(
+                    reveal_id=region.reveal_id,
+                    floor_id=region.floor_id,
+                    cells=[
+                        DndMapPoint(x=cell.x, y=cell.y) for cell in region.cells
+                    ],
+                    bounds=_runtime_rect(region.bounds),
+                    label=region.label,
+                    reveal_trigger=region.reveal_trigger,
+                    audience=region.audience,
+                    initially_revealed=region.initially_revealed,
+                    pov_character_ids=list(region.pov_character_ids),
+                    pov_area_refs=list(region.pov_area_refs),
+                    revealed_area_refs=list(region.revealed_area_refs),
+                    fog_mask_refs=list(region.fog_mask_refs),
+                )
+                for region in self.reveal_regions
             ],
         )
 
@@ -209,10 +308,22 @@ def compile_tactical_map_template(
     _validate_grid(record, blockers)
     _validate_map_asset(record, asset_lookup, blockers)
 
+    floors = _compile_floors(
+        record.floors,
+        record.grid_width,
+        record.grid_height,
+        record.square_size_ft,
+        record.pack_id,
+        asset_lookup,
+        authored_ref_set,
+        blockers,
+    )
+    floor_lookup = {floor.floor_id: floor for floor in floors}
     spawn_anchors = _compile_spawn_anchors(
         record.spawn_anchors,
         record.grid_width,
         record.grid_height,
+        floor_lookup,
         authored_ref_set,
         blockers,
     )
@@ -220,6 +331,7 @@ def compile_tactical_map_template(
         record.terrain_features,
         record.grid_width,
         record.grid_height,
+        floor_lookup,
         authored_ref_set,
         blockers,
     )
@@ -227,9 +339,27 @@ def compile_tactical_map_template(
         record.area_links,
         record.grid_width,
         record.grid_height,
+        floor_lookup,
         authored_ref_set,
         blockers,
     )
+    fog_masks = _compile_fog_masks(
+        record.fog_masks,
+        record.grid_width,
+        record.grid_height,
+        floor_lookup,
+        authored_ref_set,
+        blockers,
+    )
+    reveal_regions = _compile_reveal_regions(
+        record.reveal_regions,
+        record.grid_width,
+        record.grid_height,
+        floor_lookup,
+        authored_ref_set,
+        blockers,
+    )
+    _validate_reveal_cross_refs(record.fog_masks, record.reveal_regions, blockers)
 
     if blockers:
         raise TacticalMapTemplateCompileError(
@@ -248,9 +378,12 @@ def compile_tactical_map_template(
         grid_height=record.grid_height,
         square_size_ft=record.square_size_ft,
         orientation=record.orientation,
+        floors=floors,
         spawn_anchors=spawn_anchors,
         terrain_features=terrain_features,
         area_links=area_links,
+        fog_masks=fog_masks,
+        reveal_regions=reveal_regions,
     )
 
 
@@ -299,9 +432,7 @@ def _validate_required_layers(
 ) -> None:
     required = tuple(dict.fromkeys(required_layers))
     for layer in required:
-        if layer in _SCHEMA_GAP_LAYERS:
-            blockers.append(_SCHEMA_GAP_LAYERS[layer])
-        elif layer == "map_ref" and not record.derived_from_map_asset_id:
+        if layer == "map_ref" and not record.derived_from_map_asset_id:
             blockers.append("required map_ref layer is missing")
         elif layer == "spawn_anchors" and not record.spawn_anchors:
             blockers.append("required spawn_anchors layer is missing")
@@ -318,6 +449,13 @@ def _validate_required_layers(
             for feature in record.terrain_features
         ):
             blockers.append("required vertical-link layer is missing")
+        elif layer == "floors_submaps" and not record.floors:
+            blockers.append("required floors/submaps layer is missing")
+        elif layer == "fog_reveal_regions":
+            if not record.fog_masks:
+                blockers.append("required fog-mask layer is missing")
+            if not record.reveal_regions:
+                blockers.append("required reveal-region layer is missing")
 
 
 def _validate_grid(
@@ -341,28 +479,43 @@ def _validate_map_asset(
     asset_lookup: dict[str, ContentImageAsset] | None,
     blockers: list[str],
 ) -> None:
-    asset_id = record.derived_from_map_asset_id
+    _validate_map_asset_id(
+        record.pack_id,
+        record.derived_from_map_asset_id,
+        asset_lookup,
+        "derived_from_map_asset_id",
+        blockers,
+    )
+
+
+def _validate_map_asset_id(
+    pack_id: str,
+    asset_id: str,
+    asset_lookup: dict[str, ContentImageAsset] | None,
+    context: str,
+    blockers: list[str],
+) -> None:
     if not asset_id:
         return
     if not _ASSET_ID_RE.fullmatch(asset_id):
         blockers.append(
-            f"derived_from_map_asset_id {asset_id!r} must be a logical asset id, "
+            f"{context} {asset_id!r} must be a logical asset id, "
             "not a path, URL, source page, OCR block, or image payload"
         )
         return
     if asset_lookup is None:
         return
 
-    asset = asset_lookup.get(_asset_key(record.pack_id, asset_id)) or asset_lookup.get(
+    asset = asset_lookup.get(_asset_key(pack_id, asset_id)) or asset_lookup.get(
         asset_id
     )
     if asset is None:
         blockers.append(f"map asset {asset_id!r} is missing from the asset catalog")
         return
-    if record.pack_id and asset.pack_id and asset.pack_id != record.pack_id:
+    if pack_id and asset.pack_id and asset.pack_id != pack_id:
         blockers.append(
             f"map asset {asset_id!r} belongs to pack {asset.pack_id!r}, "
-            f"not {record.pack_id!r}"
+            f"not {pack_id!r}"
         )
     if asset.review_status not in REVIEW_READY_STATUSES:
         blockers.append(
@@ -371,10 +524,107 @@ def _validate_map_asset(
         )
 
 
+def _compile_floors(
+    floors: Iterable[TacticalMapFloor],
+    default_width: int,
+    default_height: int,
+    default_square_size_ft: int,
+    pack_id: str,
+    asset_lookup: dict[str, ContentImageAsset] | None,
+    authored_refs: set[str] | None,
+    blockers: list[str],
+) -> tuple[CompiledMapFloor, ...]:
+    floor_records = tuple(floors)
+    floor_by_id = {
+        floor.floor_id: floor for floor in floor_records if floor.floor_id
+    }
+    compiled: list[CompiledMapFloor] = []
+    seen: set[str] = set()
+    for floor in floor_records:
+        context = f"map floor {floor.floor_id!r}" if floor.floor_id else "map floor"
+        if not floor.floor_id:
+            blockers.append("map floor id is empty")
+            continue
+        _validate_runtime_id(floor.floor_id, "map floor id", blockers)
+        if floor.floor_id in seen:
+            blockers.append(f"duplicate map floor id {floor.floor_id!r}")
+        seen.add(floor.floor_id)
+        _validate_runtime_text(floor.label, f"{context} label", blockers)
+        if floor.grid_width > MAX_BATTLE_MAP_WIDTH:
+            blockers.append(
+                f"{context} grid_width {floor.grid_width} exceeds "
+                f"DndBattleMapState cap {MAX_BATTLE_MAP_WIDTH}"
+            )
+        if floor.grid_height > MAX_BATTLE_MAP_HEIGHT:
+            blockers.append(
+                f"{context} grid_height {floor.grid_height} exceeds "
+                f"DndBattleMapState cap {MAX_BATTLE_MAP_HEIGHT}"
+            )
+        if floor.map_asset_id:
+            _validate_map_asset_id(
+                pack_id,
+                floor.map_asset_id,
+                asset_lookup,
+                f"{context} map_asset_id",
+                blockers,
+            )
+        for area_ref in floor.area_refs:
+            _validate_authored_ref(area_ref, authored_refs, context, blockers)
+        if floor.parent_floor_id:
+            _validate_runtime_id(
+                floor.parent_floor_id,
+                f"{context} parent_floor_id",
+                blockers,
+            )
+            if floor.parent_floor_id == floor.floor_id:
+                blockers.append(f"{context} cannot parent itself")
+            elif floor.parent_floor_id not in floor_by_id:
+                blockers.append(
+                    f"{context} references missing parent floor "
+                    f"{floor.parent_floor_id!r}"
+                )
+        if floor.floor_kind == "submap":
+            if not floor.parent_floor_id:
+                blockers.append(f"submap {floor.floor_id!r} needs parent_floor_id")
+            if floor.parent_bounds is None:
+                blockers.append(f"submap {floor.floor_id!r} needs parent_bounds")
+        parent_width, parent_height = _floor_record_dimensions(
+            floor.parent_floor_id,
+            floor_by_id,
+            default_width,
+            default_height,
+        )
+        parent_bounds = _compile_rect(
+            floor.parent_bounds,
+            parent_width,
+            parent_height,
+            f"{context} parent_bounds",
+            blockers,
+        )
+        compiled.append(
+            CompiledMapFloor(
+                floor_id=floor.floor_id,
+                floor_kind=floor.floor_kind,
+                label=floor.label,
+                grid_width=floor.grid_width,
+                grid_height=floor.grid_height,
+                square_size_ft=floor.square_size_ft or default_square_size_ft,
+                level_index=floor.level_index,
+                elevation_ft=floor.elevation_ft,
+                parent_floor_id=floor.parent_floor_id,
+                parent_bounds=parent_bounds,
+                map_asset_id=floor.map_asset_id,
+                area_refs=tuple(floor.area_refs),
+            )
+        )
+    return tuple(compiled)
+
+
 def _compile_spawn_anchors(
     anchors: Iterable[TacticalMapSpawnAnchor],
     width: int,
     height: int,
+    floors: Mapping[str, CompiledMapFloor],
     authored_refs: set[str] | None,
     blockers: list[str],
 ) -> tuple[CompiledSpawnAnchor, ...]:
@@ -384,15 +634,33 @@ def _compile_spawn_anchors(
         if not anchor.anchor_id:
             blockers.append("spawn anchor id is empty")
             continue
+        _validate_runtime_id(anchor.anchor_id, "spawn anchor id", blockers)
         if anchor.anchor_id in seen:
             blockers.append(f"duplicate spawn anchor id {anchor.anchor_id!r}")
         seen.add(anchor.anchor_id)
+        _validate_floor_id(
+            anchor.floor_id,
+            floors,
+            f"spawn anchor {anchor.anchor_id!r}",
+            blockers,
+        )
+        anchor_width, anchor_height = _geometry_dimensions(
+            anchor.floor_id,
+            floors,
+            width,
+            height,
+        )
+        _validate_runtime_text(
+            anchor.label,
+            f"spawn anchor {anchor.anchor_id!r} label",
+            blockers,
+        )
         if not anchor.cells:
             blockers.append(f"spawn anchor {anchor.anchor_id!r} has no cells")
         cells = _compile_points(
             anchor.cells,
-            width,
-            height,
+            anchor_width,
+            anchor_height,
             f"spawn anchor {anchor.anchor_id!r}",
             blockers,
         )
@@ -407,6 +675,7 @@ def _compile_spawn_anchors(
             CompiledSpawnAnchor(
                 anchor_id=anchor.anchor_id,
                 anchor_kind=anchor.anchor_kind,
+                floor_id=anchor.floor_id,
                 cells=cells,
                 label=anchor.label,
                 linked_ref=anchor.linked_ref,
@@ -419,6 +688,7 @@ def _compile_features(
     features: Iterable[TacticalMapFeature],
     width: int,
     height: int,
+    floors: Mapping[str, CompiledMapFloor],
     authored_refs: set[str] | None,
     blockers: list[str],
 ) -> tuple[CompiledMapFeature, ...]:
@@ -428,9 +698,32 @@ def _compile_features(
         if not feature.feature_id:
             blockers.append("terrain feature id is empty")
             continue
+        _validate_runtime_id(feature.feature_id, "terrain feature id", blockers)
         if feature.feature_id in seen:
             blockers.append(f"duplicate terrain feature id {feature.feature_id!r}")
         seen.add(feature.feature_id)
+        _validate_floor_id(
+            feature.floor_id,
+            floors,
+            f"terrain feature {feature.feature_id!r}",
+            blockers,
+        )
+        feature_width, feature_height = _geometry_dimensions(
+            feature.floor_id,
+            floors,
+            width,
+            height,
+        )
+        _validate_runtime_text(
+            feature.label,
+            f"terrain feature {feature.feature_id!r} label",
+            blockers,
+        )
+        _validate_runtime_text(
+            feature.reveal_trigger,
+            f"terrain feature {feature.feature_id!r} reveal_trigger",
+            blockers,
+        )
         if not feature.cells and feature.bounds is None:
             blockers.append(f"terrain feature {feature.feature_id!r} has no geometry")
         if feature.cells and feature.bounds is not None:
@@ -454,15 +747,15 @@ def _compile_features(
             )
         cells = _compile_points(
             feature.cells,
-            width,
-            height,
+            feature_width,
+            feature_height,
             f"terrain feature {feature.feature_id!r}",
             blockers,
         )
         bounds = _compile_rect(
             feature.bounds,
-            width,
-            height,
+            feature_width,
+            feature_height,
             f"terrain feature {feature.feature_id!r}",
             blockers,
         )
@@ -477,6 +770,7 @@ def _compile_features(
             CompiledMapFeature(
                 feature_id=feature.feature_id,
                 feature_kind=feature.feature_kind,
+                floor_id=feature.floor_id,
                 cells=cells,
                 bounds=bounds,
                 label=feature.label,
@@ -496,6 +790,7 @@ def _compile_area_links(
     links: Iterable[TacticalMapAreaLink],
     width: int,
     height: int,
+    floors: Mapping[str, CompiledMapFloor],
     authored_refs: set[str] | None,
     blockers: list[str],
 ) -> tuple[CompiledAreaLink, ...]:
@@ -505,9 +800,22 @@ def _compile_area_links(
         if not link.area_id:
             blockers.append("keyed-area link id is empty")
             continue
+        _validate_runtime_id(link.area_id, "keyed-area link id", blockers)
         if link.area_id in seen:
             blockers.append(f"duplicate keyed-area link id {link.area_id!r}")
         seen.add(link.area_id)
+        _validate_floor_id(
+            link.floor_id,
+            floors,
+            f"keyed-area link {link.area_id!r}",
+            blockers,
+        )
+        link_width, link_height = _geometry_dimensions(
+            link.floor_id,
+            floors,
+            width,
+            height,
+        )
         if not link.location_ref:
             blockers.append(f"keyed-area link {link.area_id!r} has no location_ref")
         if not link.cells and link.bounds is None:
@@ -518,15 +826,15 @@ def _compile_area_links(
             )
         cells = _compile_points(
             link.cells,
-            width,
-            height,
+            link_width,
+            link_height,
             f"keyed-area link {link.area_id!r}",
             blockers,
         )
         bounds = _compile_rect(
             link.bounds,
-            width,
-            height,
+            link_width,
+            link_height,
             f"keyed-area link {link.area_id!r}",
             blockers,
         )
@@ -541,11 +849,166 @@ def _compile_area_links(
             CompiledAreaLink(
                 area_id=link.area_id,
                 location_ref=link.location_ref,
+                floor_id=link.floor_id,
                 cells=cells,
                 bounds=bounds,
             )
         )
     return tuple(compiled)
+
+
+def _compile_fog_masks(
+    masks: Iterable[TacticalMapFogMask],
+    width: int,
+    height: int,
+    floors: Mapping[str, CompiledMapFloor],
+    authored_refs: set[str] | None,
+    blockers: list[str],
+) -> tuple[CompiledFogMask, ...]:
+    compiled: list[CompiledFogMask] = []
+    seen: set[str] = set()
+    for mask in masks:
+        if not mask.mask_id:
+            blockers.append("fog mask id is empty")
+            continue
+        context = f"fog mask {mask.mask_id!r}"
+        _validate_runtime_id(mask.mask_id, "fog mask id", blockers)
+        if mask.mask_id in seen:
+            blockers.append(f"duplicate fog mask id {mask.mask_id!r}")
+        seen.add(mask.mask_id)
+        _validate_floor_id(mask.floor_id, floors, context, blockers)
+        mask_width, mask_height = _geometry_dimensions(
+            mask.floor_id,
+            floors,
+            width,
+            height,
+        )
+        _validate_runtime_text(mask.label, f"{context} label", blockers)
+        _validate_region_shape(mask.cells, mask.bounds, context, blockers)
+        cells = _compile_points(mask.cells, mask_width, mask_height, context, blockers)
+        bounds = _compile_rect(mask.bounds, mask_width, mask_height, context, blockers)
+        for area_ref in mask.area_refs:
+            _validate_authored_ref(area_ref, authored_refs, context, blockers)
+        for reveal_ref in mask.revealed_by_region_refs:
+            _validate_runtime_id(
+                reveal_ref,
+                f"{context} revealed_by_region_refs",
+                blockers,
+            )
+        compiled.append(
+            CompiledFogMask(
+                mask_id=mask.mask_id,
+                floor_id=mask.floor_id,
+                cells=cells,
+                bounds=bounds,
+                label=mask.label,
+                area_refs=tuple(mask.area_refs),
+                revealed_by_region_refs=tuple(mask.revealed_by_region_refs),
+                initially_hidden=mask.initially_hidden,
+            )
+        )
+    return tuple(compiled)
+
+
+def _compile_reveal_regions(
+    regions: Iterable[TacticalMapRevealRegion],
+    width: int,
+    height: int,
+    floors: Mapping[str, CompiledMapFloor],
+    authored_refs: set[str] | None,
+    blockers: list[str],
+) -> tuple[CompiledRevealRegion, ...]:
+    compiled: list[CompiledRevealRegion] = []
+    seen: set[str] = set()
+    for region in regions:
+        if not region.reveal_id:
+            blockers.append("reveal region id is empty")
+            continue
+        context = f"reveal region {region.reveal_id!r}"
+        _validate_runtime_id(region.reveal_id, "reveal region id", blockers)
+        if region.reveal_id in seen:
+            blockers.append(f"duplicate reveal region id {region.reveal_id!r}")
+        seen.add(region.reveal_id)
+        _validate_floor_id(region.floor_id, floors, context, blockers)
+        region_width, region_height = _geometry_dimensions(
+            region.floor_id,
+            floors,
+            width,
+            height,
+        )
+        _validate_runtime_text(region.label, f"{context} label", blockers)
+        _validate_runtime_text(
+            region.reveal_trigger,
+            f"{context} reveal_trigger",
+            blockers,
+        )
+        if not region.initially_revealed and not region.reveal_trigger:
+            blockers.append(f"{context} needs reveal_trigger")
+        _validate_region_shape(region.cells, region.bounds, context, blockers)
+        cells = _compile_points(
+            region.cells,
+            region_width,
+            region_height,
+            context,
+            blockers,
+        )
+        bounds = _compile_rect(
+            region.bounds,
+            region_width,
+            region_height,
+            context,
+            blockers,
+        )
+        for character_id in region.pov_character_ids:
+            _validate_runtime_id(
+                character_id,
+                f"{context} pov_character_ids",
+                blockers,
+            )
+        for area_ref in [*region.pov_area_refs, *region.revealed_area_refs]:
+            _validate_authored_ref(area_ref, authored_refs, context, blockers)
+        for mask_ref in region.fog_mask_refs:
+            _validate_runtime_id(mask_ref, f"{context} fog_mask_refs", blockers)
+        compiled.append(
+            CompiledRevealRegion(
+                reveal_id=region.reveal_id,
+                floor_id=region.floor_id,
+                cells=cells,
+                bounds=bounds,
+                label=region.label,
+                reveal_trigger=region.reveal_trigger,
+                audience=region.audience,
+                initially_revealed=region.initially_revealed,
+                pov_character_ids=tuple(region.pov_character_ids),
+                pov_area_refs=tuple(region.pov_area_refs),
+                revealed_area_refs=tuple(region.revealed_area_refs),
+                fog_mask_refs=tuple(region.fog_mask_refs),
+            )
+        )
+    return tuple(compiled)
+
+
+def _validate_reveal_cross_refs(
+    fog_masks: Iterable[TacticalMapFogMask],
+    reveal_regions: Iterable[TacticalMapRevealRegion],
+    blockers: list[str],
+) -> None:
+    fog_mask_ids = {mask.mask_id for mask in fog_masks if mask.mask_id}
+    reveal_ids = {region.reveal_id for region in reveal_regions if region.reveal_id}
+    for mask in fog_masks:
+        for reveal_ref in mask.revealed_by_region_refs:
+            if reveal_ref not in reveal_ids:
+                blockers.append(
+                    f"fog mask {mask.mask_id!r} references missing reveal region "
+                    f"{reveal_ref!r}"
+                )
+    for region in reveal_regions:
+        for mask_ref in region.fog_mask_refs:
+            if mask_ref not in fog_mask_ids:
+                blockers.append(
+                    f"reveal region {region.reveal_id!r} references missing "
+                    f"fog mask {mask_ref!r}"
+                )
 
 
 def _compile_points(
@@ -592,6 +1055,81 @@ def _compile_rect(
         width=rect.width,
         height=rect.height,
     )
+
+
+def _validate_region_shape(
+    cells: Sequence[Any],
+    bounds: Any | None,
+    context: str,
+    blockers: list[str],
+) -> None:
+    if not cells and bounds is None:
+        blockers.append(f"{context} has no geometry")
+    if cells and bounds is not None:
+        blockers.append(f"{context} must use cells or bounds, not both")
+
+
+def _validate_floor_id(
+    floor_id: str,
+    floors: Mapping[str, CompiledMapFloor],
+    context: str,
+    blockers: list[str],
+) -> None:
+    if not floor_id:
+        return
+    _validate_runtime_id(floor_id, f"{context} floor_id", blockers)
+    if floor_id not in floors:
+        blockers.append(f"{context} references missing map floor {floor_id!r}")
+
+
+def _geometry_dimensions(
+    floor_id: str,
+    floors: Mapping[str, CompiledMapFloor],
+    width: int,
+    height: int,
+) -> tuple[int, int]:
+    if floor_id and floor_id in floors:
+        floor = floors[floor_id]
+        return floor.grid_width, floor.grid_height
+    return width, height
+
+
+def _floor_record_dimensions(
+    floor_id: str,
+    floors: Mapping[str, TacticalMapFloor],
+    width: int,
+    height: int,
+) -> tuple[int, int]:
+    if floor_id and floor_id in floors:
+        floor = floors[floor_id]
+        return floor.grid_width, floor.grid_height
+    return width, height
+
+
+def _validate_runtime_id(
+    value: str,
+    context: str,
+    blockers: list[str],
+) -> None:
+    if not value:
+        return
+    if not _RUNTIME_ID_RE.fullmatch(value):
+        blockers.append(
+            f"{context} {value!r} must be a runtime-safe id, not a path, URL, "
+            "source page, OCR block, or image payload"
+        )
+
+
+def _validate_runtime_text(
+    value: str,
+    context: str,
+    blockers: list[str],
+) -> None:
+    if value and contains_imported_asset_sentinel(value):
+        blockers.append(
+            f"{context} must not contain raw source paths, image payloads, "
+            "asset URLs, or source metadata"
+        )
 
 
 def _validate_authored_ref(
@@ -672,6 +1210,7 @@ def _terrain_zone(
 ) -> DndTerrainZone:
     return DndTerrainZone(
         zone_id=zone_id,
+        floor_id=feature.floor_id,
         label=feature.label or feature.feature_id,
         x=x,
         y=y,
@@ -688,6 +1227,7 @@ def _runtime_feature(feature: CompiledMapFeature) -> DndBattleMapFeature:
     return DndBattleMapFeature(
         feature_id=feature.feature_id,
         feature_kind=feature.feature_kind,
+        floor_id=feature.floor_id,
         cells=[DndMapPoint(x=cell.x, y=cell.y) for cell in feature.cells],
         bounds=_runtime_rect(feature.bounds),
         label=feature.label,

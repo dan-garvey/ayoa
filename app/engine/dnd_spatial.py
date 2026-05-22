@@ -143,6 +143,9 @@ def normalize_battle_map_seed(
         spawn_anchors=battle_map.spawn_anchors,
         features=battle_map.features,
         area_links=battle_map.area_links,
+        floors=battle_map.floors,
+        fog_masks=battle_map.fog_masks,
+        reveal_regions=battle_map.reveal_regions,
     )
 
 
@@ -822,6 +825,22 @@ def _player_safe_battle_map(
                 if not feature.secret
             ],
             "area_links": [],
+            "floors": [
+                _player_safe_floor(floor)
+                for floor in battle_map.floors
+            ],
+            "fog_masks": [],
+            "reveal_regions": [],
+        },
+    )
+
+
+def _player_safe_floor(floor: Any) -> Any:
+    return floor.model_copy(
+        deep=True,
+        update={
+            "map_asset_id": "",
+            "area_refs": [],
         },
     )
 
@@ -1060,6 +1079,7 @@ def _clamp_terrain(zone: DndTerrainZone, width: int, height: int) -> DndTerrainZ
     y = _clamp(zone.y, 0, max(0, height - 1))
     return DndTerrainZone(
         zone_id=zone.zone_id,
+        floor_id=zone.floor_id,
         label=zone.label,
         x=x,
         y=y,

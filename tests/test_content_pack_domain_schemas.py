@@ -19,6 +19,7 @@ from app.schemas.content_pack import (
     LocationRecord,
     RevealGraphEdge,
     TacticalMapFeature,
+    TacticalMapRevealRegion,
     TacticalMapTemplateRecord,
     TrapHazardRecord,
     TreasureRecord,
@@ -73,6 +74,11 @@ def test_domain_catalog_accepts_prioritized_module_records():
     ]
     assert catalog.tables[0].rows[0].range_start == 1
     assert catalog.tactical_map_templates[0].pack_id == "synthetic-pack"
+    assert catalog.tactical_map_templates[0].floors[0].floor_id == "floor.ground"
+    assert catalog.tactical_map_templates[0].fog_masks[0].mask_id == "fog.entry"
+    assert catalog.tactical_map_templates[0].reveal_regions[0].reveal_id == (
+        "reveal.entry"
+    )
     assert catalog.statblocks[0].automation_scope == "combat"
     assert catalog.trap_hazards[0].mechanics is not None
     assert catalog.treasures[0].items[0].name == "Synthetic key"
@@ -259,6 +265,12 @@ def test_adapter_schema_guards_combat_and_tactical_map_invariants():
             secret=True,
         )
 
+    with pytest.raises(ValidationError, match="reveal_trigger"):
+        TacticalMapRevealRegion(
+            reveal_id="reveal.bad",
+            bounds=GridRect(x=0, y=0, width=1, height=1),
+        )
+
     with pytest.raises(ValidationError, match="width must be positive"):
         GridRect(x=0, y=0, width=0, height=2)
 
@@ -435,10 +447,20 @@ def _map_template() -> TacticalMapTemplateRecord:
         grid_width=12,
         grid_height=8,
         square_size_ft=5,
+        floors=[
+            {
+                "floor_id": "floor.ground",
+                "label": "Ground floor",
+                "grid_width": 12,
+                "grid_height": 8,
+                "area_refs": ["loc.entry"],
+            }
+        ],
         spawn_anchors=[
             {
                 "anchor_id": "spawn.players",
                 "anchor_kind": "players",
+                "floor_id": "floor.ground",
                 "cells": [{"x": 1, "y": 2}, {"x": 1, "y": 3}],
                 "label": "Player start",
             }
@@ -447,6 +469,7 @@ def _map_template() -> TacticalMapTemplateRecord:
             {
                 "feature_id": "wall.north",
                 "feature_kind": "wall",
+                "floor_id": "floor.ground",
                 "bounds": {"x": 0, "y": 0, "width": 12, "height": 1},
                 "blocks_movement": True,
                 "blocks_line_of_sight": True,
@@ -454,6 +477,7 @@ def _map_template() -> TacticalMapTemplateRecord:
             {
                 "feature_id": "secret.panel",
                 "feature_kind": "secret_feature",
+                "floor_id": "floor.ground",
                 "cells": [{"x": 9, "y": 2}],
                 "secret": True,
                 "reveal_trigger": "A character searches the east wall.",
@@ -464,7 +488,28 @@ def _map_template() -> TacticalMapTemplateRecord:
             {
                 "area_id": "area.entry",
                 "location_ref": "loc.entry",
+                "floor_id": "floor.ground",
                 "bounds": {"x": 0, "y": 0, "width": 12, "height": 8},
+            }
+        ],
+        fog_masks=[
+            {
+                "mask_id": "fog.entry",
+                "floor_id": "floor.ground",
+                "bounds": {"x": 8, "y": 0, "width": 4, "height": 3},
+                "area_refs": ["area.entry"],
+                "revealed_by_region_refs": ["reveal.entry"],
+            }
+        ],
+        reveal_regions=[
+            {
+                "reveal_id": "reveal.entry",
+                "floor_id": "floor.ground",
+                "cells": [{"x": 8, "y": 2}],
+                "reveal_trigger": "A character searches the east wall.",
+                "pov_area_refs": ["loc.entry"],
+                "revealed_area_refs": ["area.entry"],
+                "fog_mask_refs": ["fog.entry"],
             }
         ],
     )

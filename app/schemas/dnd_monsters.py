@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from app.schemas.content_privacy import sanitize_player_safe_text
+
 
 def _clean_id(value: object) -> str:
     text = str(value or "").strip().lower()
@@ -179,11 +181,12 @@ class DndCombatantSpawn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     character_id: str
-    monster_key: str
-    name: str
-    location: str
-    description: str
-    statblock: DndMonsterStatBlock
+    monster_key: str = ""
+    statblock_ref: str = ""
+    name: str = ""
+    location: str = ""
+    description: str = ""
+    statblock: DndMonsterStatBlock | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -193,10 +196,17 @@ class DndCombatantSpawn(BaseModel):
     @model_validator(mode="after")
     def _clean(self) -> "DndCombatantSpawn":
         self.character_id = _clean_id(self.character_id)
-        self.monster_key = _clean_id(self.monster_key or self.name)
-        self.name = self.name.strip()
-        self.location = self.location.strip()
-        self.description = self.description.strip()
+        self.statblock_ref = sanitize_player_safe_text(self.statblock_ref)
+        self.monster_key = _clean_id(
+            self.monster_key or self.statblock_ref or self.name
+        )
+        self.name = sanitize_player_safe_text(self.name)
+        self.location = sanitize_player_safe_text(self.location)
+        self.description = sanitize_player_safe_text(self.description)
+        if not self.statblock_ref and self.statblock is None:
+            raise ValueError(
+                "D&D combatant spawn requires statblock_ref or statblock."
+            )
         return self
 
 

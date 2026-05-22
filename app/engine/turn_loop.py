@@ -61,7 +61,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
 
-from app.engine import dnd_combat, dnd_monsters, dnd_spatial
+from app.engine import dnd_combat, dnd_monsters, dnd_spatial, imported_statblocks
 from app.engine.dnd_cat_ii import DndCatIIRollsPending
 from app.engine.dnd_combat_access import (
     checkpoint_active_combat,
@@ -1672,10 +1672,16 @@ def _materialize_dnd_combatant_spawns(
             )
             spawn_id = _unique_spawn_character_id(by_id, base)
             spawn = spawn.model_copy(update={"character_id": spawn_id})
-        character = dnd_monsters.character_from_combatant_spawn(
+        character = imported_statblocks.resolve_spawn_character_from_content_state(
             spawn,
+            content_state=getattr(ckpt.session, "content_state", {}),
             default_location=default_location,
         )
+        if character is None:
+            character = dnd_monsters.character_from_combatant_spawn(
+                spawn,
+                default_location=default_location,
+            )
         ckpt.characters.append(character)
         by_id[character.character_id] = character
         combatant_ids.append(character.character_id)

@@ -20,17 +20,22 @@ spell effects before initiative.
 
 If a fight starts against a hostile creature that is not already in the roster,
 add it to `combatant_spawns`, include the new `character_id` in `combatant_ids`,
-and fill the compact stat block from your best D&D 5e rules knowledge. Use this
-only for combat-ready creatures such as rats, wolves, goblins, bandits, guards,
-summoned creatures, or other standard hostile participants. Do not use it for
-named story NPCs, player characters, allies whose identity should persist as a
-full character, or ordinary bystanders.
+and provide combat mechanics in exactly one of two ways. If the current content
+context gives a reviewed imported statblock ref for that creature, put that ref
+in `statblock_ref`, set `statblock=null`, and do not copy source paths,
+protected excerpts, or hidden module notes into any spawn field. If no reviewed
+imported ref is present, set `statblock_ref=""` and fill the compact stat block
+from your best D&D 5e rules knowledge. Use spawns only for combat-ready
+creatures such as rats, wolves, goblins, bandits, guards, summoned creatures, or
+other standard hostile participants. Do not use them for named story NPCs,
+player characters, allies whose identity should persist as a full character, or
+ordinary bystanders.
 
 For spawned combatants, use a stable snake_case `monster_key` for the standard
-creature name when one is implied, such as `rat`. The stat block must include
-armor class, hit points, ability scores, senses, actions, challenge rating, and
-XP. Keep the values conservative when uncertain. Use empty lists/strings for
-parts that do not apply.
+creature name when one is implied, such as `rat`. Inline stat blocks must
+include armor class, hit points, ability scores, senses, actions, challenge
+rating, and XP. Keep the values conservative when uncertain. Use empty
+lists/strings for parts that do not apply.
 
 Also seed `battle_map_seed` for `dnd_combat_start` when the fiction gives enough
 spatial context to establish a tactical grid. Use a simple square battle map:

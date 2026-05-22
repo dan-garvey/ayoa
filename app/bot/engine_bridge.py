@@ -448,7 +448,8 @@ class EngineBridge:
         replay needed — checkpoints are atomic per-turn snapshots
         capturing canonical_events, all rolling conversations,
         world_state, every CharacterRecord (with its pending_observations
-        queue), render_buffers, slot/Cat-II state, recap, and bindings.
+        queue), render_buffers, slot/Cat-II state, content_state overlays,
+        recap, and bindings.
 
         What this does NOT touch:
 
