@@ -19,6 +19,10 @@ legality and outcome.
 The content-pack decisions add stricter authority boundaries:
 
 - runtime content comes only from reviewed compiled pack rows
+- the router may receive reviewed adapter-private geometry and secret map
+  records as router-only adjudication context
+- narrator prompts, character-agent prompts, player output, ordinary logs, and
+  default checkpoint exports receive only POV-safe projections
 - tactical map templates are D&D adapter payloads, not generic engine fields
 - images are private assets until safely revealed through the asset sidecar
 - checkpoints store refs, hashes, reveal/fog state, and adapter state, not raw
@@ -242,10 +246,13 @@ Each region records:
 - whether region text/caption is safe for narrator or player display
 - relation to secret features and keyed areas
 
-Fog hides player display and model/front-end payloads. It does not erase
-adapter-private geometry needed to adjudicate hidden doors, traps, or blockers.
-The router and narrator see only revealed, player-safe facts and captions unless
-a separate hidden-router lookup explicitly introduces sanitized private content.
+Fog hides player display, narrator prompts, character-agent prompts, and
+front-end payloads. It does not erase adapter-private geometry needed to
+adjudicate hidden doors, traps, blockers, or enemy movement. The router may
+receive reviewed hidden geometry and secret-feature records as router-only
+adjudication context when needed to DM the map properly. Those records are not
+observable facts by themselves; they reach players only after the router emits
+canonical visible facts or an asset reveal with normal visibility.
 
 ### Secret Areas
 
@@ -279,8 +286,10 @@ Map asset refs use the existing asset authority:
 
 - `asset://<pack_id>/<asset_id>` for safe delivery refs
 - reviewed player-safe derivatives for player display
-- optional host/private refs only inside the compiled pack or private review
-  tooling, never in prompts, checkpoints, normal logs, or player payloads
+- optional host/private refs only inside the compiled pack, private review
+  tooling, or router-only adjudication context after sanitization to reviewed
+  logical ids; never in narrator prompts, character-agent prompts, player
+  payloads, default checkpoint exports, or ordinary logs
 - asset alignment transforms reviewed separately from topology
 
 If an image is missing, unsafe, unreviewed, hash-mismatched, or not aligned to
@@ -359,9 +368,11 @@ The D&D combat adapter may report, without enforcing:
 - narrative affordances such as chandeliers, loose rubble, furniture use, noise,
   smell, morale, tactics, or monster intent unless they have typed mechanics
 - approximate positions in theater-of-the-mind or sketch-map combat
-- hidden/private geometry to the router only through sanitized content lookup or
-  compact adapter context that does not leak unrevealed labels, asset refs, or
-  source metadata
+- reviewed hidden/private geometry to the router through router-only content
+  lookup or compact adapter context. The same geometry must not leak unrevealed
+  labels, private asset refs, source metadata, or secret display regions to
+  narrator prompts, character-agent prompts, player payloads, ordinary logs, or
+  default checkpoint exports.
 
 The narrator receives visible canonical facts and safe display captions. It does
 not inspect geometry, recompute D&D mechanics, or reveal hidden map state.

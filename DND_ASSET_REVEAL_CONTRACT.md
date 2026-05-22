@@ -37,10 +37,15 @@ loot prompts, dice rolls, XP awards, and pre-turn `TurnResponse` objects; it has
 no asset field yet. `frontend_views.py` currently has no asset-specific DTO.
 
 `DND_MODULE_IMPORT.md` is the upstream policy: adventure images are private table
-assets, humans see images only after a router-owned reveal, LLMs receive only
-small curated reveal-scoped metadata, checkpoints store refs and reveal state but
-not raw image bytes, and metadata such as filenames, ids, captions, alt text,
-OCR, paths, and map labels obey the same spoiler boundary as the image.
+assets, humans see images only after a router-owned reveal, runtime LLMs never
+process image bytes or source page scans, and checkpoints store refs and reveal
+state but not raw image bytes. The module privacy boundary has three surfaces:
+the router may receive reviewed router-only asset candidates needed for
+adjudication; narrator and character-agent prompts receive only POV-safe facts,
+observations, and safe captions; output/log/export surfaces receive only
+post-filter player-safe payloads and sanitized diagnostics. Metadata such as
+filenames, ids, captions, alt text, OCR, paths, and map labels obey the strictest
+boundary that can contain them.
 
 ## Decision
 
@@ -52,7 +57,7 @@ For ordinary rules-neutral sessions with no active reveal-capable content pack,
 the router output schema remains the current `EventRouterOutput` or
 `DndEventRouterOutput`; no asset field, no asset prompt rules, and no empty
 asset arrays are added. When a session has an active content pack that exposes
-sanitized reveal-capable asset candidates, the dispatcher may select a
+reviewed router-only reveal-capable asset candidates, the dispatcher may select a
 content-enabled router output schema that extends the active router schema with
 one required sibling field:
 
@@ -67,10 +72,11 @@ cannot reveal pack assets.
 ## Reveal Authority
 
 The router authors reveal requests. A content lookup or resolver may make
-sanitized asset candidates available to the router, but it does not reveal them
-to players by itself. The narrator cannot authorize a reveal. Character agents
-cannot authorize a reveal. Frontends cannot infer a reveal from prose. D&D
-combat, maps, handouts, portraits, and item art must use this same generic
+reviewed hidden asset candidates available to the router as router-only
+adjudication context, but those candidates are not observable facts and do not
+reveal themselves to players. The narrator cannot authorize a reveal. Character
+agents cannot authorize a reveal. Frontends cannot infer a reveal from prose.
+D&D combat, maps, handouts, portraits, and item art must use this same generic
 content reveal sidecar rather than a D&D-specific delivery channel.
 
 Adapter-owned resolvers that produce canonical events, including D&D combat
@@ -163,8 +169,10 @@ store raw images, page scans, source paths, full OCR, DM notes, or protected
 source excerpts.
 
 Router history should preserve reveal continuity compactly only when content
-packs are active. A prior-event record may include a terse non-spoiling marker
-such as:
+packs are active. Router-only history may include hidden reviewed reveal state
+needed for future adjudication, but the projection must remain authored text or
+structured ids rather than source images, page scans, OCR dumps, raw paths, or
+protected excerpts. A prior-event record may include a terse marker such as:
 
 ```text
 asset reveal pack=<pack_id> asset=<asset_id> audience=only[alice] presentation=attachment caption="A folded note with a wax mark."
@@ -172,7 +180,8 @@ asset reveal pack=<pack_id> asset=<asset_id> audience=only[alice] presentation=a
 
 That history marker is for router continuity only. Narrator and agent prompt
 builders must not receive delivery refs, source refs, local paths, hidden map
-labels, unredacted filenames, raw OCR, or asset catalog metadata.
+labels, unredacted filenames, raw OCR, asset catalog metadata, or router-only
+asset candidates.
 
 ## Response And Frontend Contract
 
@@ -284,6 +293,9 @@ Before implementation is accepted, tests should cover:
 - narrator prompt contains safe caption/text only, never asset refs or source
   metadata
 - agent prompts contain text observations only
+- reviewed hidden asset candidates can be projected into router-only
+  adjudication context without appearing in narrator prompts, agent prompts,
+  player output, ordinary logs, or default checkpoint exports
 - two player-bound characters can receive different asset payloads from the same
   event
 - pre-turn asset reveals stay on their pre-turn `TurnResponse`

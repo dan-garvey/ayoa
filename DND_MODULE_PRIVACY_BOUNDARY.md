@@ -44,7 +44,7 @@ It also matches the current code surfaces:
 
 ## Decision
 
-Protected module data has three storage classes:
+Protected module data has three runtime boundaries:
 
 1. `Local-only raw artifacts`: original PDFs, rendered pages, extracted image
    streams, OCR text, layout JSON, raw source paths, DM map labels, review
@@ -52,16 +52,30 @@ Protected module data has three storage classes:
    derivatives. They may exist only in ignored local storage such as
    `private_extractions/raw/`, `private_extractions/review/`, or a user-owned
    path outside the repo.
-2. `Private compiled pack`: reviewed, redacted, runtime-readable SQLite data and
-   media addressed by stable ids and content hashes. The current default path
-   is `private_extractions/compiled/`, which is gitignored. A compiled pack may
-   contain provenance ids, page ids, span ids, image ids, hashes, confidence,
-   review state, redacted summaries/bodies, reveal triggers, safe captions, and
-   safe delivery refs. It must not contain raw PDF text/images or protected
-   excerpts in runtime card text.
-3. `Runtime public surface`: hosted LLM prompts, checkpoints, logs, CLI output,
-   Discord output, Beads/GitHub text, and normal test reports. These surfaces
-   receive only the allowlisted projections below.
+2. `Router-only adjudication context`: reviewed authored or compiled module
+   records selected for the event router, D&D combat manager, or another
+   router-equivalent adjudicator. This context may include hidden module facts
+   needed to DM properly: keyed-area summaries, secret-feature state, trap or
+   hazard summaries, front dossiers, unrevealed reveal candidates, reviewed
+   tactical geometry summaries, refs, hashes, visibility gates, and safe asset
+   candidates. These records are not observable facts by themselves and are not
+   safe for narrator prompts, character-agent prompts, player output, ordinary
+   logs, or default checkpoint exports.
+3. `POV-safe projection surface`: narrator prompts, character-agent prompts,
+   Discord output, CLI output, player-facing responses, ordinary logs, default
+   checkpoint exports, Beads/GitHub text, and normal test reports. These
+   surfaces receive only canonical visible facts, text observations, refs,
+   hashes, reveal state, player-safe asset payloads, aggregate diagnostics, and
+   other allowlisted fields below.
+
+The private compiled pack is the storage substrate for the second boundary. It
+is reviewed, redacted, runtime-readable SQLite data and media addressed by
+stable ids and content hashes. The current default path is
+`private_extractions/compiled/`, which is gitignored. A compiled pack may contain
+provenance ids, page ids, span ids, image ids, hashes, confidence, review state,
+redacted summaries/bodies, reveal triggers, safe captions, and safe delivery
+refs. It must not contain raw PDF text/images or protected excerpts in runtime
+card text.
 
 No runtime path may fall back to raw OCR JSONL, raw PDF pages, extracted images,
 or unreviewed review artifacts. If a compiled ref, pack hash, safe asset, or
@@ -72,7 +86,7 @@ instead of asking the router to improvise from raw source material.
 
 | Destination | Allowed source-derived fields | Forbidden fields/material |
 | --- | --- | --- |
-| Hosted LLM prompts: event router runtime history | `content_known`: `ref`, `scope=router`, `visibility`, `hash`, `kind`, `pack`, `summary`. `location_card`: `ref`, `exits`, `hazards`, `clues`, `visibility`, `hash`, `pack`, `summary`. `front_signal`: `ref`, `actor`, `knows`, `pressure`, `visibility`, `hash`, `pack`, `summary`. D&D Cat II `content_context` may contain only these same compact record strings. | Raw PDF text, rendered page images, extracted images, OCR/layout JSON, source paths, page screenshots, provenance JSON, card `body`, card `metadata`, page inventory notes, DM-only map labels, unrevealed asset refs, `delivery_ref`, protected excerpts, raw review notes. |
+| Hosted LLM prompts: event router or router-equivalent adjudicator | Reviewed router-only compiled records needed for adjudication: `content_known`, `location_card`, `front_signal`, keyed-area summaries, secret-feature refs, trap/hazard summaries, front dossiers, unrevealed reveal candidates, reviewed tactical geometry summaries, visibility gates, refs, hashes, pack ids, and safe asset candidate ids/captions. The current compact-record projection is listed below; any larger projection must name exact fields and tests before implementation. | Raw PDF text, rendered page images, extracted images, OCR/layout JSON, source paths, page screenshots, raw provenance JSON, unredacted card `body`, unredacted card `metadata`, page inventory notes, raw DM-only map labels, unsafe `delivery_ref`, protected excerpts, raw review notes, image bytes or image-understanding payloads. |
 | Hosted LLM prompts: narrator | Canonical observable facts already visible to that POV. After a router-owned asset reveal, a player-safe caption may be converted into visible prose. | `pack_id`, `asset_id`, `source_ref`, `delivery_ref`, hidden captions, hidden image refs, map labels, DM notes, raw source text/images, protected excerpts, compact hidden router records. |
 | Hosted LLM prompts: character agents | Text observations the character can perceive, plus ordinary character state. If an image matters to an NPC, the router must canonicalize the perceivable content as text first. | Asset reveal structs, `SafeAssetRevealPayload`, `delivery_ref`, source refs, hidden content records, raw source material, protected excerpts, DM-only labels. |
 | Hosted LLM prompts: import helpers | Only redacted candidate fields whose text has already passed the same `protected_terms` and absolute-path checks as compiled card text. | Raw PDF text/images, OCR dumps, source page images, source paths, protected excerpts, unattended OCR-RAG prompts. Hosted import over raw protected source remains blocked by this decision. |
@@ -91,19 +105,19 @@ These rules are testable as deny lists using synthetic sentinel values.
 
 | Material | Allowed only in | Forbidden everywhere else, specifically |
 | --- | --- | --- |
-| Raw PDF bytes, rendered page images, extracted source images, raw page thumbnails, crop masks | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled runtime card text, CLI, Discord, normal test reports |
-| Raw OCR/generic PDF text, raw layout JSON, raw text spans | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled runtime card text, CLI, Discord, normal test reports |
-| Absolute source paths and raw local paths | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled packs, asset catalogs, `SafeAssetRevealPayload`, CLI, Discord |
+| Raw PDF bytes, rendered page images, extracted source images, raw page thumbnails, crop masks | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts including router prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled runtime card text, CLI, Discord, normal test reports |
+| Raw OCR/generic PDF text, raw layout JSON, raw text spans | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts including router prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled runtime card text, CLI, Discord, normal test reports |
+| Absolute source paths and raw local paths | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts including router prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled packs, asset catalogs, `SafeAssetRevealPayload`, CLI, Discord |
 | DM-only labels, hidden map labels, unrevealed room names, secret labels | Local-only raw artifacts, private review exports, or compiled pack internals only after transformation into redacted refs/summaries with explicit visibility | Narrator prompts, character-agent prompts, player CLI/Discord output, Beads/GitHub, normal logs, public review exports, safe asset captions/alt text |
-| Protected excerpts from module prose | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled card `title`/`summary`/`body`/`reveal_trigger`, CLI, Discord, normal test reports |
-| Unsafe asset refs: absolute paths, unreviewed `delivery_ref`, DM/source image refs, hidden asset ids, non-player-safe assets | Local-only raw artifacts, private asset catalog internals before sanitization, and private review exports | `SafeAssetRevealPayload`, CLI, Discord, narrator/agent prompts, public router records, logs, Beads/GitHub, checkpoints unless represented only as hidden reveal state ids |
+| Protected excerpts from module prose | Local-only raw artifacts and private review exports under ignored storage | Hosted LLM prompts including router prompts, checkpoints, logs, Beads/GitHub, git-tracked files, compiled card `title`/`summary`/`body`/`reveal_trigger`, CLI, Discord, normal test reports |
+| Unsafe asset refs: absolute paths, unreviewed `delivery_ref`, DM/source image refs, hidden asset ids, non-player-safe assets | Local-only raw artifacts, private asset catalog internals before sanitization, private review exports, and router-only adjudication context after sanitization to reviewed ids/captions | `SafeAssetRevealPayload`, CLI, Discord, narrator/agent prompts, POV-safe logs, Beads/GitHub, checkpoints unless represented only as hidden reveal state ids |
 
 ## Field-Level Projection Contracts
 
 ### Runtime Content Records
 
-`format_compact_record()` and callers may project only these fields into router
-history:
+The first router projection is `format_compact_record()`. It and callers may
+project only these fields into compact router history:
 
 ```text
 content_known ref scope visibility hash kind pack summary
@@ -111,14 +125,16 @@ location_card ref exits hazards clues visibility hash pack summary
 front_signal ref actor knows pressure visibility hash pack summary
 ```
 
-The router may use these as hidden analysis/adjudication context, but they are
-not observable facts by themselves. To become player-visible, the router must
-emit a canonical observable fact or an `AssetReveal` with normal visibility.
+The router may use these records, and any later reviewed router-only compiled
+record projection, as hidden adjudication context. They are not observable facts
+by themselves. To become player-visible, the router must emit a canonical
+observable fact or an `AssetReveal` with normal visibility.
 
 `CompiledContentCard.body`, `metadata`, `provenance`, page inventory rows, and
-asset catalog rows are not part of the current hosted runtime prompt contract.
-A later decision may add a larger compiled-card projection, but it must name the
-exact fields and tests before implementation.
+asset catalog rows are not part of the current compact-record prompt contract.
+A later router-only projection may add reviewed fields from those records, but
+it must name the exact fields, prove they are not raw source/protected excerpts,
+and add prompt hygiene tests before implementation.
 
 ### Checkpoint Content State
 
@@ -182,7 +198,9 @@ Required tests:
 
 - Prompt hygiene: scan rendered router, narrator, character-agent, and D&D Cat
   II prompts with sentinel values for raw OCR, source path, protected excerpt,
-  DM label, unsafe asset ref, and private `delivery_ref`.
+  unsafe asset ref, private `delivery_ref`, and image payloads. Also assert that
+  reviewed hidden router records stay out of narrator, character-agent, player
+  output, ordinary logs, and default checkpoint exports.
 - Router compact-record allowlist: assert only the named fields in
   `content_known`, `location_card`, and `front_signal` survive formatting.
 - Lookup failure rollback: missing refs must leave `session_conversation` and
@@ -221,9 +239,11 @@ These items are intentionally not decided here:
 - Pack locator/registry: current lookup scaffolding accepts local paths such as
   `metadata.db_path`. Release-quality private packs need a local-only registry
   so portable checkpoints do not persist absolute pack paths.
-- Larger runtime card projection: current hosted runtime prompts receive compact
+- Larger router-only card projection: current router prompts receive compact
   record strings, not full `CompiledContentCard.body` or provenance. A future
-  projection must name exact fields and tests first.
+  projection may provide more reviewed compiled fields to the router, but must
+  name exact fields and tests first and must not widen narrator, agent, player,
+  log, or checkpoint surfaces.
 - Asset delivery integration: `SafeAssetRevealPayload` exists, but Discord and
   CLI asset transport still need concrete wiring and no-public-fallback tests.
 - Local private model policy: raw OCR/page-image assistance is allowed only as a

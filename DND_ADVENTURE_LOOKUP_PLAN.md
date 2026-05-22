@@ -4,8 +4,14 @@
 
 Ayoa should not import a large adventure module into checkpoint lore or repeat a
 large router packet every turn. The compiled module pack should behave as a
-private content oracle. The router receives only content it has not already been
+private content oracle. The router is allowed to be omniscient over reviewed
+authored or compiled module records needed to DM the next event, including
+hidden records. It receives only the reviewed content it has not already been
 given, plus short signals that new module knowledge has become relevant.
+Narrators, character agents, players, ordinary logs, and default checkpoint
+exports receive only POV-safe projections of the router's decisions. Runtime
+LLMs never process raw source images, source page scans, OCR dumps, source
+paths, or protected source excerpts.
 
 The runtime needs two related ledgers:
 
@@ -53,8 +59,12 @@ Use a bounded two-phase router path for unique player choices:
    loudly with an auditable missing-content error instead of improvising from
    nothing.
 
-The final event schema stays clean. The ordinary router still outputs canonical
-events, observers, routing roles, spawns, commitments, and location updates.
+The fetched records are router-only adjudication context. Hidden records do not
+become observable/player facts simply because they entered a router prompt. The
+final event schema stays clean: the ordinary router still outputs canonical
+events, observers, routing roles, spawns, commitments, asset reveals, and
+location updates. Only those outputs, after POV filtering, reach narrators,
+agents, players, logs, and checkpoint/export surfaces.
 
 ## Villains And Fronts
 
@@ -93,14 +103,16 @@ Runtime lookup reads compiled records, not raw OCR/page files.
 
 Pack artifacts:
 
-- raw source catalog refs and compiled page/source chunks with private citations
+- local-only raw source catalog refs outside the runtime pack, plus compiled
+  page/source records with private provenance ids
 - section/outline hierarchy
 - location and keyed-area cards
 - NPC, monster, faction, item, trap, table, stat block, and handout cards
 - map assets with reviewed topology, fog/reveal regions, and player-safe
   derivatives
-- image assets for maps, handouts, portraits, item art, mood plates, source
-  pages, table pages, stat block pages, and decorative art
+- image assets for maps, handouts, portraits, item art, mood plates, table
+  views, stat block views, and decorative art. Runtime LLMs receive reviewed
+  text/structured projections only, never the image bytes.
 - reveal/clue graph with spoilage boundaries
 - front dossiers and action palettes
 - import warnings and human-review flags
@@ -122,12 +134,13 @@ authored records. Automated extraction can be added later only as a drafting aid
 and its output must still be reviewed and accepted by an import agent before the
 runtime resolver may serve it.
 
-Images are private table assets. Lookup may return image refs alongside text
-refs, but not raw bytes. The router may reveal player-safe assets as sibling
-payloads to canonical facts using the same `all_observers` / `only` visibility
-semantics. Narrator prompts receive visible facts and safe captions only, never
-hidden image refs, source paths, DM notes, map labels, or unrevealed metadata.
-Agents receive text observations only.
+Images are private table assets. Lookup may return reviewed router-only image
+candidate refs alongside text refs, but not raw bytes or source page scans. The
+router may reveal player-safe assets as sibling payloads to canonical facts
+using the same `all_observers` / `only` visibility semantics. Narrator prompts
+receive visible facts and safe captions only, never hidden image refs, source
+paths, DM notes, map labels, or unrevealed metadata. Agents receive text
+observations only.
 
 ## Test Plan
 
@@ -136,7 +149,8 @@ Agents receive text observations only.
 - Verify newly relevant deltas are introduced exactly once.
 - Verify router lookup preflight fetches a requested off-path room, entity, or
   reveal before adjudication.
-- Verify hidden content never reaches narrator prompts.
+- Verify reviewed hidden content can reach router-only adjudication context and
+  never reaches narrator prompts.
 - Verify DM-only or hidden image refs, source paths, map labels, and protected
   excerpts never reach narrator prompts, agent inboxes, player responses, logs,
   or default checkpoints.
@@ -238,9 +252,9 @@ maps, malformed tables, and unverified spoiler boundaries.
 - How will visible read-aloud text, hidden DM-only facts, traps, treasure,
   monster tactics, future reveals, and spoiler boundaries be separated when the
   source PDF interleaves them or loses typography during extraction?
-- What is the exact privacy boundary for protected module content once pack
-  records are sent to hosted LLM providers, stored in checkpoints, included in
-  logs, written to review artifacts, or mentioned in Beads/GitHub issues?
+- What exact field list is large enough for router-only compiled record
+  projection without widening narrator prompts, character-agent prompts,
+  checkpoints, logs, player output, or Beads/GitHub surfaces?
 - Should raw PDFs, derived SQLite packs, extracted images, OCR text, handouts,
   and review exports be forced outside the git repo or ignored explicitly before
   any importer is run?
