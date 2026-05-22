@@ -13,6 +13,8 @@ Every feature change must survive two questions before implementation:
 
 D&D mechanics must remain modular adapters around the narrative engine, not assumptions baked into generic router, narrator, or character-agent behavior.
 
+Runtime LLMs must never process images. Vision/image-understanding calls are too expensive and outside this project's scope. If a source module includes maps, art, scanned pages, or other image-only information, a coding agent must inspect those images manually during import time and author the resulting text, geometry, asset metadata, or checkpoint data. Router, narrator, character-agent, and rules-adapter prompts may receive only that authored text or structured representation, never the image itself.
+
 Until Ayoa reaches a release-candidate migration posture, prefer retiring changed schema/prompt fields directly over maintaining compatibility with old saves. Avoid adding compatibility shims for obsolete checkpoint shapes unless the user explicitly requests them.
 
 After completing an implementation or bugfix, commit the verified changes and push the branch before handing the work back to the user unless the user explicitly says not to.

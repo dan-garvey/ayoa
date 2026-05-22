@@ -219,6 +219,26 @@ and character-agent prompts stay rules-neutral with adapter
 behavior delivered through addons rather than baked into the base
 templates. The full current adapter surface lives in §15.
 
+### 4.8 Runtime LLMs Never Process Images
+
+No live model role in Ayoa processes images. Router, narrator,
+character-agent, takeover, convenience, and rules-adapter calls receive
+text and structured data only. Vision/image-understanding calls are
+expensive, hard to cache, and outside the project's runtime scope.
+
+Image-bearing source material is handled at authoring/import time. If a
+D&D module includes a scanned page, combat map, illustration, symbol,
+handout, or any other image-only information that matters to play, a
+coding agent manually inspects that image during import and authors the
+resulting checkpoint data, map geometry, room descriptions, asset
+metadata, labels, secret notes, or tactical representation. Runtime
+models then consume those authored artifacts; they never receive the
+source image or a request to infer from it.
+
+Player-facing image display is presentation only. Discord or CLI views
+may reveal reviewed image assets to players, but model-facing state must
+remain the text/structured representation produced during import.
+
 ## 5. Runtime Components
 
 ### 5.1 Discord Bot And EngineBridge
@@ -425,6 +445,12 @@ Story authoring now starts from a checkpoint template instead of an LLM
 importer. A coding agent fills a synthetic `ckpt_0000.json`, validates it
 against `CheckpointFile`, and places it under
 `app/storage/stories/<story_id>/ckpt_0000.json`.
+
+Module imports that depend on images follow the same authoring boundary:
+the coding agent manually reviews source images at import time and writes
+the usable text, structured state, geometry, and asset metadata into the
+story/checkpoint artifacts. The runtime never sends source images or
+player-visible asset images to an LLM for interpretation.
 
 The authoring template lives at
 `app/storage/story_templates/synthetic_checkpoint/ckpt_0000.json`, with
@@ -1572,6 +1598,11 @@ summarizes map state, while the D&D combat manager still decides action
 legality and outcome. Future work may add manual map authoring, image
 rendering, strict movement/path validation, elevation, hidden tokens,
 lighting, and richer area-template geometry.
+
+Image rendering here means player-facing presentation of already reviewed
+assets or authored geometry. It must not introduce runtime image analysis
+by any LLM; map features, hidden areas, monster placement, and secret
+annotations must come from manual import artifacts.
 
 ### 20.4 Public information for off-screen saliency
 
