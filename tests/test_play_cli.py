@@ -20,6 +20,7 @@ from scripts.play import (
     _ConsoleInput,
     _cli_log_level,
     _default_history_path,
+    _format_missing_llm_credentials,
     _split_combat_ids,
 )
 from app.engine.cli_image_display import CliImageDisplayResult
@@ -32,6 +33,7 @@ from app.engine.frontend_views import (
     PendingRollPrompt,
     TurnHistoryEntry,
 )
+from app.llm.config import MissingLLMCredential
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
@@ -117,6 +119,22 @@ def test_default_history_path_uses_xdg_state_home(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
 
     assert _default_history_path() == tmp_path / "ayoa" / "play_history"
+
+
+def test_format_missing_llm_credentials_names_roles_and_envs():
+    text = _format_missing_llm_credentials((
+        MissingLLMCredential(
+            role="event_router",
+            provider="openai",
+            env_names=("OPEN_AI_ROUTER", "OPENAI_API_KEY"),
+        ),
+    ))
+
+    assert "event_router (openai)" in text
+    assert "OPEN_AI_ROUTER" in text
+    assert "OPENAI_API_KEY" in text
+    assert "LLM_ROLE_MODELS" in text
+    assert "dnd_combat_manager=anthropic:claude-sonnet-4-6" in text
 
 
 def _empty_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:

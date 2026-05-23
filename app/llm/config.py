@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import os
 import re
@@ -145,6 +146,13 @@ def _openai_role_api_key_env_names(role: str) -> tuple[str, ...]:
         ))
 
     return tuple(dict.fromkeys(names))
+
+
+@dataclass(frozen=True)
+class MissingLLMCredential:
+    role: str
+    provider: str
+    env_names: tuple[str, ...]
 
 
 class LLMConfig(BaseModel):
@@ -313,6 +321,39 @@ class LLMConfig(BaseModel):
                 return self.openai_api_key_for_role(role)
             return self.openai_api_key
         raise AssertionError(f"unreachable provider {provider!r}")
+
+    def missing_credentials(
+        self,
+        roles: set[str] | tuple[str, ...] | list[str] | None = None,
+    ) -> tuple[MissingLLMCredential, ...]:
+        """Return live-call roles whose configured provider has no credential."""
+        role_names = (
+            set(roles)
+            if roles is not None
+            else set(self.role_models) | set(self.role_providers)
+        )
+        missing: list[MissingLLMCredential] = []
+        for role in sorted(role_names):
+            provider = self.provider_for_role(role)
+            if self.api_key_for_provider(provider, role=role):
+                continue
+            if provider == "anthropic":
+                env_names = ("ANTHROPIC_API_KEY",)
+            elif provider == "openai":
+                env_names = (
+                    *self.openai_role_api_key_env_names(role),
+                    "OPENAI_API_KEY",
+                )
+            else:
+                raise AssertionError(f"unreachable provider {provider!r}")
+            missing.append(
+                MissingLLMCredential(
+                    role=role,
+                    provider=provider,
+                    env_names=tuple(dict.fromkeys(env_names)),
+                )
+            )
+        return tuple(missing)
 
     def thinking_budget_for_role(self, role: str) -> int:
         """Per-role extended-thinking budget in tokens. 0 means no

@@ -8,17 +8,21 @@
   sourcing the virtualenv activate script.
 * Provider API keys belong in `.env`, never committed. The Anthropic
   client reads `ANTHROPIC_API_KEY`; the OpenAI client reads
-  `OPENAI_API_KEY`. Both are required at startup when the default mixed
-  provider role configuration is active (`app/bot/__main__.py` fails
-  fast on missing keys).
+  `OPENAI_API_KEY` plus role-specific OpenAI key aliases such as
+  `OPEN_AI_ROUTER`. Startup and live-playtest preflights fail fast on
+  missing credentials for the configured live roles.
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
   Responses API) with per-role provider/model dispatch. Default models
-  are `gpt-5.2` for `event_router`, `claude-sonnet-4-6` for `narrator`,
-  and `claude-opus-4-6` for `agent` and `character_gen`. Per-role
+  are `gpt-5.2` for `event_router` and `narrator`, `gpt-5-mini` for
+  `dnd_combat_manager`, and Claude-family models for `agent`,
+  `agent_standard`, `agent_convenience`, and `character_gen`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
   model string (for example `anthropic:claude-sonnet-4-6`) also works.
+  When the default local smoke path only lacks the combat-manager
+  OpenAI role key, prefix the CLI/harness command with
+  `LLM_ROLE_MODELS='dnd_combat_manager=anthropic:claude-sonnet-4-6'`.
 
 ### Code Layout
 

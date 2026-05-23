@@ -96,6 +96,7 @@ from app.engine.cli_image_display import (
     CliImageDisplayResult,
 )
 from app.engine.text_safety import strip_terminal_control
+from app.llm.config import LLMConfig, MissingLLMCredential
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -3013,10 +3014,39 @@ def _configure_cli_logging(*, verbose: bool) -> None:
     )
 
 
+_LOCAL_SMOKE_OVERRIDE = (
+    "LLM_ROLE_MODELS='dnd_combat_manager=anthropic:claude-sonnet-4-6'"
+)
+
+
+def _format_missing_llm_credentials(
+    missing: tuple[MissingLLMCredential, ...],
+) -> str:
+    lines = ["Missing LLM credentials for live CLI play:"]
+    for item in missing:
+        env_names = ", ".join(item.env_names)
+        lines.append(f"  - {item.role} ({item.provider}): set one of {env_names}")
+    lines.extend((
+        "",
+        "For the default local smoke path with only the combat-manager "
+        "OpenAI key absent, prefix the command with:",
+        f"  {_LOCAL_SMOKE_OVERRIDE}",
+    ))
+    return "\n".join(lines)
+
+
+def _stored_session_ids(sessions_dir: Path = Path("app/storage/sessions")) -> list[str]:
+    if not sessions_dir.exists():
+        return []
+    return sorted(
+        path.name
+        for path in sessions_dir.iterdir()
+        if path.is_dir()
+    )
+
+
 async def main_async(args: argparse.Namespace) -> int:
     _configure_cli_logging(verbose=args.verbose)
-
-    engine = EngineBridge()
 
     session_id: str | None = args.session
 
@@ -3026,11 +3056,18 @@ async def main_async(args: argparse.Namespace) -> int:
         print(
             "--session <name> is required. Pick an existing save or a new "
             f"name.\nExisting sessions: "
-            f"{', '.join(engine.list_session_ids()) or '(none)'}",
+            f"{', '.join(_stored_session_ids()) or '(none)'}",
             file=sys.stderr,
         )
-        await engine.close()
         return 2
+
+    llm_config = LLMConfig.from_env()
+    missing_credentials = llm_config.missing_credentials()
+    if missing_credentials:
+        print(_format_missing_llm_credentials(missing_credentials), file=sys.stderr)
+        return 2
+
+    engine = EngineBridge(llm_config=llm_config)
 
     try:
         # Resolve story_id from the latest checkpoint if the session already

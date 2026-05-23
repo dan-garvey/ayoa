@@ -2359,12 +2359,10 @@ def _usage_totals(calls: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def _preflight_api_keys(config: LLMConfig, roles: set[str]) -> list[str]:
-    missing: list[str] = []
-    for role in sorted(roles):
-        provider = config.provider_for_role(role)
-        if not config.api_key_for_provider(provider, role=role):
-            missing.append(f"{role} ({provider})")
-    return missing
+    return [
+        f"{item.role} ({item.provider}; set one of {', '.join(item.env_names)})"
+        for item in config.missing_credentials(roles)
+    ]
 
 
 def _role_label(config: LLMConfig, role: str) -> str:

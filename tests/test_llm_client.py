@@ -216,6 +216,54 @@ class TestLLMConfig:
             == "combat-manager-key"
         )
 
+    def test_missing_credentials_reports_role_env_names(self):
+        config = LLMConfig(
+            api_key="anthropic-key",
+            openai_role_api_keys={"narrator": "narrator-key"},
+        )
+
+        missing = config.missing_credentials(
+            {"agent", "event_router", "narrator"}
+        )
+
+        assert len(missing) == 1
+        assert missing[0].role == "event_router"
+        assert missing[0].provider == "openai"
+        assert "OPEN_AI_ROUTER" in missing[0].env_names
+        assert "OPENAI_API_KEY" in missing[0].env_names
+        assert "narrator-key" not in missing[0].env_names
+
+    def test_missing_credentials_reports_anthropic_role(self):
+        config = LLMConfig(openai_api_key="openai-key")
+
+        missing = config.missing_credentials({"agent", "event_router"})
+
+        assert len(missing) == 1
+        assert missing[0].role == "agent"
+        assert missing[0].provider == "anthropic"
+        assert missing[0].env_names == ("ANTHROPIC_API_KEY",)
+
+    def test_missing_credentials_respects_anthropic_role_model_override(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "ANTHROPIC_API_KEY": "anthropic-key",
+                "LLM_ROLE_MODELS": ",".join((
+                    "event_router=anthropic:claude-sonnet-4-6",
+                    "narrator=anthropic:claude-sonnet-4-6",
+                    "dnd_combat_manager=anthropic:claude-sonnet-4-6",
+                )),
+            },
+            clear=True,
+        ):
+            config = LLMConfig.from_env()
+
+        assert config.missing_credentials({
+            "event_router",
+            "narrator",
+            "dnd_combat_manager",
+        }) == ()
+
 # --- LLMClient unit tests (mocked API) ---
 
 def _make_mock_response(

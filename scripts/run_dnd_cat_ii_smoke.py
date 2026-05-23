@@ -555,12 +555,10 @@ def _markdown(report: dict[str, Any]) -> str:
 
 
 def _preflight_api_keys(config: LLMConfig) -> list[str]:
-    missing: list[str] = []
-    for role in ("event_router", "narrator"):
-        provider = config.provider_for_role(role)
-        if not config.api_key_for_provider(provider, role=role):
-            missing.append(f"{role} ({provider})")
-    return missing
+    return [
+        f"{item.role} ({item.provider}; set one of {', '.join(item.env_names)})"
+        for item in config.missing_credentials(("event_router", "narrator"))
+    ]
 
 
 def _role_label(config: LLMConfig, role: str) -> str:

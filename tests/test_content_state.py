@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 
+from app.bot.engine_bridge import EngineBridge
 from app.engine.checkpoint_manager import CheckpointManager
+from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import (
     ContentFrontState,
@@ -11,6 +13,7 @@ from app.schemas.content import (
     IntroducedContentRef,
     PendingContentSignal,
 )
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.state import SessionState
 from tests.support.factories import checkpoint
 
@@ -148,6 +151,47 @@ def test_checkpoint_manager_save_preserves_private_runtime_metadata(tmp_path):
 
     manager.save(ckpt)
     loaded = manager.load_latest("s")
+
+    assert loaded.session.content_state["pack"].metadata["db_path"] == str(
+        tmp_path / "compiled.sqlite"
+    )
+    assert loaded.session.content_state["pack"].metadata["asset_media_root"] == str(
+        tmp_path / "media"
+    )
+
+
+def test_story_start_preserves_private_runtime_content_pack_metadata(tmp_path):
+    stories_dir = tmp_path / "stories"
+    sessions_dir = tmp_path / "sessions"
+    story_id = "content_seed"
+    story_dir = stories_dir / story_id
+    story_dir.mkdir(parents=True)
+    bridge = EngineBridge(
+        stories_dir=str(stories_dir),
+        sessions_dir=str(sessions_dir),
+        llm_config=LLMConfig(api_key="anthropic-key", openai_api_key="openai-key"),
+    )
+    ckpt = checkpoint(session_id=story_id)
+    ckpt.session.story_id = story_id
+    ckpt.session.content_state = {
+        "pack": ContentPackState(
+            pack_id="pack",
+            metadata={
+                "db_path": str(tmp_path / "compiled.sqlite"),
+                "asset_media_root": str(tmp_path / "media"),
+                "pack_version": "1.0.0",
+            },
+        )
+    }
+    (story_dir / "ckpt_0000.json").write_text(
+        ckpt.model_dump_json(
+            indent=2,
+            context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+        )
+    )
+
+    bridge.create_empty_session("session_1")
+    loaded = bridge.load_story_into_session("session_1", story_id)
 
     assert loaded.session.content_state["pack"].metadata["db_path"] == str(
         tmp_path / "compiled.sqlite"

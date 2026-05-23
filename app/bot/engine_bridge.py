@@ -66,6 +66,7 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import (
     EventRouterOutput,
@@ -330,7 +331,12 @@ class EngineBridge:
         data.pop("import_analysis", None)
         ckpt = CheckpointFile.model_validate(data)
         sync_checkpoint_runtime_models(ckpt, self.client.config)
-        (dst_dir / "ckpt_0000.json").write_text(ckpt.model_dump_json(indent=2))
+        (dst_dir / "ckpt_0000.json").write_text(
+            ckpt.model_dump_json(
+                indent=2,
+                context={PRIVATE_RUNTIME_METADATA_CONTEXT: True},
+            )
+        )
         ckpt = self.checkpoint_mgr.load(session_id, "ckpt_0000")
         if ckpt.session.turn_index == 0:
             ckpt.session.turn_index = 1
