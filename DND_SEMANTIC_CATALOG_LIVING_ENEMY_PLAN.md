@@ -8,6 +8,19 @@ from session start. The open question is not only token cost. It is whether the
 runtime can give the villain real strategic agency without creating two
 independent versions of the same character.
 
+Later design discussion sharpened the conflict:
+
+- Ayoa is built around character agents with enough context and freedom to drive
+  the story.
+- Published modules are built around a single omniscient table runner who owns
+  scenario truth, pacing, and hidden constraints.
+- The import layer must preserve agent-driven story while maintaining module
+  cohesion when agents go off script.
+
+This points toward a different responsibility split than "DM layer owns truth,
+characters get small slices." Major characters need rich role context. The hard
+boundary is not context size; it is decision ownership and state authority.
+
 ## Why The Page-Card Measurement Was Misleading
 
 The full OCR extraction measured about 235k tokens of raw page text. The later
@@ -123,6 +136,137 @@ decision makers:
 
 If those surfaces can diverge, the villain stops being a coherent character.
 The issue is not just cost. It is authorship and continuity.
+
+There is a second problem: giving a bad guy a turn gives them power. If the
+central villain can simply choose to appear immediately and crush unprepared
+players, the engine has produced agency but destroyed the table experience. If
+the router blocks every surprising villain choice, the villain becomes scripted.
+
+So the router cannot merely canonicalize submitted intentions. For module play,
+it must also orchestrate who gets turns, when they get them, how those turns
+interact with the setting, and whether attempted intents are appropriate for
+the current fiction, pacing, knowledge, and balance.
+
+The engine should own anything that is not a decision:
+
+- pack identity, refs, hashes, and runtime gates
+- deterministic state mutation and rollback
+- D&D mechanics, resources, rolls, combat state, and inventory
+- topology, location adjacency, safe asset state, and reveal overlays
+- front clocks, cooldowns, introduced-ref ledgers, and required-ref validation
+- knowledge graph edges and reachability rules once those exist
+
+Characters should own character decisions. The router should own turn
+orchestration and adjudication. The engine should own non-decision state.
+
+## Module-Derived Design Examples
+
+These are sanitized patterns pulled from the private module OCR and range
+reviews. They are not source excerpts and should be treated as design evidence,
+not reviewed runtime content.
+
+### Overwhelming Villain Agency
+
+The module contains a recurring central antagonist with direct appearances,
+remote influence, powerful minions, and the ability to apply pressure far above
+what starting characters can handle.
+
+Design implication: a major villain agent can want a proactive turn from the
+start, but the router must decide whether granting that turn is appropriate.
+Direct lethal intervention against low-level players is usually not just a
+character choice; it is a pacing and encounter-balance decision. The router
+needs enough context to distinguish "advance pressure through spies, invitations,
+threats, tests, or minions" from "end the campaign immediately."
+
+### Knowledge Channels And Reports
+
+The module repeatedly uses indirect knowledge channels: servants, spies,
+watchers, rumors, supernatural awareness, public consequences, and minion
+reports. These determine what distant antagonists can plausibly know.
+
+Design implication: the villain should not be omniscient just because the
+router is. A knowledge graph needs to track who can learn what through which
+channel, with latency and reliability. The router can use omniscient module
+authority to validate the channel, but the villain agent should receive the
+result as belief, suspicion, report, or uncertainty.
+
+### Social Authority Clocks
+
+Several settlements and factions have public authority figures, law/punishment
+machinery, festival or morale clocks, hidden factions, and consequences that
+can escalate without a dungeon-room trigger.
+
+Design implication: agents can drive these clocks by making choices, but the
+router must schedule turns so one faction does not monopolize the story. The
+engine should track clock state and public consequences; characters should
+decide how they react to those consequences.
+
+### Scripted Trigger Meets Free Agency
+
+The module has many "if/when the characters do X" trigger patterns. Ayoa
+characters may instead leave, bargain, send minions, lie, investigate out of
+order, destroy a premise, or create a public consequence that the module did
+not script directly.
+
+Design implication: triggers should compile into condition/response records,
+not hard rails. The router and lookup role need enough catalog knowledge to
+find relevant condition records when agents go off script, then adjudicate a
+cohesive consequence instead of forcing the scripted branch.
+
+### Protected Secrets And Relics
+
+The module contains hidden objects, thefts, clue chains, sacred/protective
+assets, and location-bound secrets that matter to NPC motives and front
+pressure.
+
+Design implication: character dossiers need secrets that the character actually
+knows or believes. The exact placement, reveal status, mechanics, and depletion
+state belong to module authority and engine overlay. When an agent acts on a
+secret, code must validate that the secret exists, is reviewed, and is reachable
+through that character's knowledge.
+
+### Hard Location Constraints
+
+The module includes locks, traps, secret routes, vertical movement, hazardous
+travel constraints, teleport-like links, bridges/gates, and map-only topology.
+
+Design implication: these are not character decisions. They are setting facts
+and mechanics. Agents may decide to exploit, avoid, or test them, but engine and
+router validation must decide whether the attempt is physically and mechanically
+coherent.
+
+### Random Tables And Fortune-Like Setup
+
+The module uses randomized setup, tables, and outcome anchors that affect where
+important content lives and what future scenes mean.
+
+Design implication: initial checkpoint creation must resolve and store random
+setup as durable state. Character agents may know selected outcomes only when
+their role justifies that knowledge. The router and lookup role need the
+resolved anchors to retrieve the right records later.
+
+## Knowledge Graph Direction
+
+A knowledge graph is likely necessary for module imports of this size. The
+router should not need the entire graph in prompt context, but it needs enough
+index and lookup support to ask for more information when a turn requires it.
+
+The graph should represent at least:
+
+- content containment: region, site, level, keyed area, room, encounter
+- character knowledge: knows, suspects, believes falsely, can learn through
+  channel
+- faction/front reach: controls, can influence, can observe, can dispatch
+- reveal and clue dependencies
+- resource ownership and depletion
+- topology and travel constraints
+- trigger conditions and response records
+- active clocks, cooldowns, and consequences
+
+This probably requires a dedicated LLM role for deciding when the router needs
+more information, but that role should not be the authority. It should propose
+candidate refs or graph queries. Code validates them, fetches reviewed packets,
+and only then does the router adjudicate.
 
 ## Candidate Designs For Villain Agency
 
