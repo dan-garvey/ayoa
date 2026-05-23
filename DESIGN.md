@@ -20,9 +20,9 @@
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
   model string (for example `anthropic:claude-sonnet-4-6`) also works.
-  When the default local smoke path only lacks the combat-manager
-  OpenAI role key, prefix the CLI/harness command with
-  `LLM_ROLE_MODELS='dnd_combat_manager=anthropic:claude-sonnet-4-6'`.
+  Normal D&D playtests should keep `dnd_combat_manager` on the default
+  OpenAI `gpt-5-mini` path; if its preflight fails, configure the
+  missing OpenAI role key rather than downgrading the role.
 
 ### Code Layout
 

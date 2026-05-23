@@ -251,7 +251,6 @@ class TestLLMConfig:
                 "LLM_ROLE_MODELS": ",".join((
                     "event_router=anthropic:claude-sonnet-4-6",
                     "narrator=anthropic:claude-sonnet-4-6",
-                    "dnd_combat_manager=anthropic:claude-sonnet-4-6",
                 )),
             },
             clear=True,
@@ -261,7 +260,6 @@ class TestLLMConfig:
         assert config.missing_credentials({
             "event_router",
             "narrator",
-            "dnd_combat_manager",
         }) == ()
 
 # --- LLMClient unit tests (mocked API) ---

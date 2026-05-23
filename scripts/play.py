@@ -3014,11 +3014,6 @@ def _configure_cli_logging(*, verbose: bool) -> None:
     )
 
 
-_LOCAL_SMOKE_OVERRIDE = (
-    "LLM_ROLE_MODELS='dnd_combat_manager=anthropic:claude-sonnet-4-6'"
-)
-
-
 def _format_missing_llm_credentials(
     missing: tuple[MissingLLMCredential, ...],
 ) -> str:
@@ -3026,12 +3021,6 @@ def _format_missing_llm_credentials(
     for item in missing:
         env_names = ", ".join(item.env_names)
         lines.append(f"  - {item.role} ({item.provider}): set one of {env_names}")
-    lines.extend((
-        "",
-        "For the default local smoke path with only the combat-manager "
-        "OpenAI key absent, prefix the command with:",
-        f"  {_LOCAL_SMOKE_OVERRIDE}",
-    ))
     return "\n".join(lines)
 
 

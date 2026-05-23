@@ -133,8 +133,8 @@ def test_format_missing_llm_credentials_names_roles_and_envs():
     assert "event_router (openai)" in text
     assert "OPEN_AI_ROUTER" in text
     assert "OPENAI_API_KEY" in text
-    assert "LLM_ROLE_MODELS" in text
-    assert "dnd_combat_manager=anthropic:claude-sonnet-4-6" in text
+    assert "LLM_ROLE_MODELS" not in text
+    assert "dnd_combat_manager=anthropic" not in text
 
 
 def _empty_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:
