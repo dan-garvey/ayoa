@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from app.bot.commands import register
 from app.bot.engine_bridge import EngineBridge
 from app.bot.session_map import SessionMap
-from app.llm.config import LLMConfig
+from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig
 
 _LOG_FILE = Path(".bot.log")
 _LOG_FMT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -50,20 +50,12 @@ async def _run() -> int:
         print("ERROR: DISCORD_BOT_TOKEN not set", file=sys.stderr)
         return 1
     llm_config = LLMConfig.from_env()
-    providers = llm_config.providers_in_use()
-    missing_llm_keys: list[str] = []
-    if "anthropic" in providers and not llm_config.api_key_for_provider("anthropic"):
-        missing_llm_keys.append("ANTHROPIC_API_KEY")
-    if "openai" in providers:
-        openai_roles = llm_config.roles_for_provider("openai")
-        if openai_roles:
-            for role in sorted(openai_roles):
-                if llm_config.api_key_for_provider("openai", role=role):
-                    continue
-                role_env = llm_config.openai_role_api_key_env_names(role)[0]
-                missing_llm_keys.append(f"{role_env} or OPENAI_API_KEY for {role}")
-        elif not llm_config.api_key_for_provider("openai"):
-            missing_llm_keys.append("OPENAI_API_KEY")
+    missing_llm_keys = [
+        f"{item.env_names[0]} or {item.env_names[-1]} for {item.role}"
+        if item.provider == "openai"
+        else f"{item.env_names[0]} for {item.role}"
+        for item in llm_config.missing_credentials(LIVE_PLAY_REQUIRED_ROLES)
+    ]
     if missing_llm_keys:
         missing = ", ".join(missing_llm_keys)
         print(f"ERROR: {missing} not set (engine needs it)", file=sys.stderr)

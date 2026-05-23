@@ -33,7 +33,7 @@ from app.engine.frontend_views import (
     PendingRollPrompt,
     TurnHistoryEntry,
 )
-from app.llm.config import MissingLLMCredential
+from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig, MissingLLMCredential
 from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
@@ -135,6 +135,22 @@ def test_format_missing_llm_credentials_names_roles_and_envs():
     assert "OPENAI_API_KEY" in text
     assert "LLM_ROLE_MODELS" not in text
     assert "dnd_combat_manager=anthropic" not in text
+
+
+def test_live_play_preflight_does_not_require_content_manager_key():
+    config = LLMConfig(
+        api_key="anthropic-key",
+        openai_role_api_keys={
+            "event_router": "router-key",
+            "narrator": "narrator-key",
+            "dnd_combat_manager": "combat-key",
+        },
+    )
+
+    missing = config.missing_credentials(LIVE_PLAY_REQUIRED_ROLES)
+
+    assert missing == ()
+    assert "content_manager" not in LIVE_PLAY_REQUIRED_ROLES
 
 
 def _empty_ckpt(bindings: dict[str, str] | None = None) -> CheckpointFile:

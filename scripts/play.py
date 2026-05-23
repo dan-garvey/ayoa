@@ -96,7 +96,7 @@ from app.engine.cli_image_display import (
     CliImageDisplayResult,
 )
 from app.engine.text_safety import strip_terminal_control
-from app.llm.config import LLMConfig, MissingLLMCredential
+from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig, MissingLLMCredential
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -3051,7 +3051,7 @@ async def main_async(args: argparse.Namespace) -> int:
         return 2
 
     llm_config = LLMConfig.from_env()
-    missing_credentials = llm_config.missing_credentials()
+    missing_credentials = llm_config.missing_credentials(LIVE_PLAY_REQUIRED_ROLES)
     if missing_credentials:
         print(_format_missing_llm_credentials(missing_credentials), file=sys.stderr)
         return 2

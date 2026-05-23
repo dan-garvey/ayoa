@@ -98,6 +98,7 @@ class TestLLMConfig:
         assert config.role_models["event_router"] == "gpt-5.2"
         assert config.role_models["narrator"] == "gpt-5.2"
         assert config.role_models["dnd_combat_manager"] == "gpt-5-mini"
+        assert config.role_models["content_manager"] == "gpt-5-mini"
         assert config.role_models["agent"] == "claude-opus-4-6"
         assert config.role_models["agent_standard"] == "claude-haiku-4-5"
         assert config.role_models["agent_convenience"] == "claude-sonnet-4-6"
@@ -105,6 +106,7 @@ class TestLLMConfig:
         assert config.provider_for_role("event_router") == "openai"
         assert config.provider_for_role("narrator") == "openai"
         assert config.provider_for_role("dnd_combat_manager") == "openai"
+        assert config.provider_for_role("content_manager") == "openai"
         assert config.provider_for_role("agent") == "anthropic"
         assert config.provider_for_role("agent_standard") == "anthropic"
         assert config.provider_for_role("agent_convenience") == "anthropic"
@@ -147,6 +149,7 @@ class TestLLMConfig:
                 "OPEN_AI_ROUTER": "router-openai-key",
                 "OPEN_AI_AGENT": "agent-openai-key",
                 "OPEN_AI_COMBAT_MANAGER": "combat-manager-openai-key",
+                "OPEN_AI_CONTENT_MANAGER": "content-manager-openai-key",
                 "LLM_PROVIDER_ROUTER": "openai",
                 "LLM_PROVIDER_NARRATOR": "openai",
                 "LLM_MODEL_NARRATOR": "gpt-5.4-mini",
@@ -175,6 +178,10 @@ class TestLLMConfig:
             assert (
                 config.api_key_for_provider("openai", role="dnd_combat_manager")
                 == "combat-manager-openai-key"
+            )
+            assert (
+                config.api_key_for_provider("openai", role="content_manager")
+                == "content-manager-openai-key"
             )
             assert config.provider_for_role("event_router") == "openai"
             assert config.provider_for_role("narrator") == "openai"
@@ -232,6 +239,17 @@ class TestLLMConfig:
         assert "OPEN_AI_ROUTER" in missing[0].env_names
         assert "OPENAI_API_KEY" in missing[0].env_names
         assert "narrator-key" not in missing[0].env_names
+
+    def test_missing_credentials_reports_content_manager_env_name(self):
+        config = LLMConfig(api_key="anthropic-key")
+
+        missing = config.missing_credentials({"content_manager"})
+
+        assert len(missing) == 1
+        assert missing[0].role == "content_manager"
+        assert missing[0].provider == "openai"
+        assert "OPEN_AI_CONTENT_MANAGER" in missing[0].env_names
+        assert "OPENAI_API_KEY" in missing[0].env_names
 
     def test_missing_credentials_reports_anthropic_role(self):
         config = LLMConfig(openai_api_key="openai-key")
@@ -714,6 +732,9 @@ class TestLLMClientComplete:
 
         with pytest.raises(RuntimeError, match="OPEN_AI_COMBAT_MANAGER"):
             client._get_openai_client("dnd_combat_manager")
+
+        with pytest.raises(RuntimeError, match="OPEN_AI_CONTENT_MANAGER"):
+            client._get_openai_client("content_manager")
 
     @pytest.mark.asyncio
     async def test_openai_structured_output_passes_json_schema(self):
