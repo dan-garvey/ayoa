@@ -107,6 +107,45 @@ FrontActionKind = Literal[
     "environment",
     "other",
 ]
+ActorDossierKind = Literal[
+    "npc",
+    "villain",
+    "faction_role",
+    "monster_persona",
+    "patron",
+    "other",
+]
+AgentContextSliceKind = Literal[
+    "startup",
+    "strategic",
+    "local",
+    "embodied",
+    "handoff",
+]
+KnowledgeGraphRelation = Literal[
+    "knows",
+    "suspects",
+    "believes_false",
+    "can_learn",
+    "observes",
+    "reports_to",
+    "controls",
+    "can_influence",
+    "can_dispatch",
+    "owns",
+    "guards",
+    "seeks",
+    "opposes",
+    "located_at",
+    "contains",
+    "blocks",
+    "reveals",
+    "requires",
+    "triggers",
+    "uses",
+    "depletes",
+    "changes_state",
+]
 AutomationScope = Literal["combat", "noncombat_lookup", "blocked"]
 DndEconomyKind = Literal[
     "action",
@@ -791,6 +830,149 @@ class FrontDossierRecord(ContentPackDomainRecord):
         return self
 
 
+class ActorRelationship(BaseModel):
+    """How one imported actor relates to another actor or module ref."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_ref: str
+    stance: str = ""
+    summary: str = ""
+    public: bool = False
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ActorRelationship":
+        self.target_ref = self.target_ref.strip()
+        self.stance = self.stance.strip()
+        self.summary = self.summary.strip()
+        if not self.target_ref:
+            raise ValueError("actor relationships need target_ref")
+        return self
+
+
+class ActorDossierRecord(ContentPackDomainRecord):
+    """Reviewed role context for a story-driving imported actor."""
+
+    record_kind: Literal["actor_dossier"] = "actor_dossier"
+    actor_kind: ActorDossierKind = "npc"
+    character_id_hint: str = ""
+    faction_refs: list[str] = Field(default_factory=list)
+    front_refs: list[str] = Field(default_factory=list)
+    home_location_refs: list[str] = Field(default_factory=list)
+    statblock_ref: str = ""
+    agent_context_slice_ref: str = ""
+    goals: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    resources: list[str] = Field(default_factory=list)
+    knowledge_channel_refs: list[str] = Field(default_factory=list)
+    relationship_edges: list[ActorRelationship] = Field(default_factory=list)
+    initiative_triggers: list[str] = Field(default_factory=list)
+    escalation_limits: list[str] = Field(default_factory=list)
+    secrets_known_refs: list[str] = Field(default_factory=list)
+    secrets_withheld_refs: list[str] = Field(default_factory=list)
+    decision_authority: str = "agent_proposes_router_adjudicates"
+
+    @model_validator(mode="after")
+    def _clean_actor_dossier(self) -> "ActorDossierRecord":
+        self.character_id_hint = self.character_id_hint.strip()
+        self.statblock_ref = self.statblock_ref.strip()
+        self.agent_context_slice_ref = self.agent_context_slice_ref.strip()
+        self.decision_authority = (
+            self.decision_authority.strip()
+            or "agent_proposes_router_adjudicates"
+        )
+        for field_name in (
+            "faction_refs",
+            "front_refs",
+            "home_location_refs",
+            "goals",
+            "constraints",
+            "resources",
+            "knowledge_channel_refs",
+            "initiative_triggers",
+            "escalation_limits",
+            "secrets_known_refs",
+            "secrets_withheld_refs",
+        ):
+            setattr(self, field_name, _clean_unique_strings(getattr(self, field_name)))
+        return self
+
+
+class AgentContextSliceRecord(ContentPackDomainRecord):
+    """Reviewed projection for seeding or refreshing one character agent."""
+
+    record_kind: Literal["agent_context_slice"] = "agent_context_slice"
+    actor_ref: str
+    slice_kind: AgentContextSliceKind = "startup"
+    known_context: str = ""
+    private_state: str = ""
+    backstory: str = ""
+    personality: str = ""
+    current_agenda: list[str] = Field(default_factory=list)
+    beliefs: list[str] = Field(default_factory=list)
+    uncertainties: list[str] = Field(default_factory=list)
+    hard_boundaries: list[str] = Field(default_factory=list)
+    local_context_refs: list[str] = Field(default_factory=list)
+    graph_edge_refs: list[str] = Field(default_factory=list)
+    refresh_triggers: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean_agent_context_slice(self) -> "AgentContextSliceRecord":
+        self.actor_ref = self.actor_ref.strip()
+        self.known_context = self.known_context.strip()
+        self.private_state = self.private_state.strip()
+        self.backstory = self.backstory.strip()
+        self.personality = self.personality.strip()
+        if not self.actor_ref:
+            raise ValueError("agent context slices need actor_ref")
+        for field_name in (
+            "current_agenda",
+            "beliefs",
+            "uncertainties",
+            "hard_boundaries",
+            "local_context_refs",
+            "graph_edge_refs",
+            "refresh_triggers",
+        ):
+            setattr(self, field_name, _clean_unique_strings(getattr(self, field_name)))
+        return self
+
+
+class KnowledgeGraphEdgeRecord(ContentPackDomainRecord):
+    """Reviewed semantic edge for knowledge, reach, ownership, and triggers."""
+
+    record_kind: Literal["knowledge_graph_edge"] = "knowledge_graph_edge"
+    from_ref: str
+    relation: KnowledgeGraphRelation
+    to_ref: str = ""
+    object_kind: str = ""
+    object_summary: str = ""
+    channel: str = ""
+    condition: str = ""
+    reliability: float = 1.0
+    latency: str = ""
+    mutable: bool = False
+    engine_owned: bool = False
+    required: bool = True
+    external: bool = False
+
+    @model_validator(mode="after")
+    def _clean_knowledge_graph_edge(self) -> "KnowledgeGraphEdgeRecord":
+        self.from_ref = self.from_ref.strip()
+        self.to_ref = self.to_ref.strip()
+        self.object_kind = self.object_kind.strip()
+        self.object_summary = self.object_summary.strip()
+        self.channel = self.channel.strip()
+        self.condition = self.condition.strip()
+        self.latency = self.latency.strip()
+        self.reliability = _clamp_confidence(self.reliability)
+        if not self.from_ref:
+            raise ValueError("knowledge graph edges need from_ref")
+        if not self.to_ref and not self.object_summary:
+            raise ValueError("knowledge graph edges need to_ref or object_summary")
+        return self
+
+
 class DndAbilityScores(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1201,6 +1383,13 @@ class ContentPackDomainCatalog(BaseModel):
         default_factory=list
     )
     front_dossiers: list[FrontDossierRecord] = Field(default_factory=list)
+    actor_dossiers: list[ActorDossierRecord] = Field(default_factory=list)
+    agent_context_slices: list[AgentContextSliceRecord] = Field(
+        default_factory=list
+    )
+    knowledge_graph_edges: list[KnowledgeGraphEdgeRecord] = Field(
+        default_factory=list
+    )
     statblocks: list[DndStatBlockRecord] = Field(default_factory=list)
     trap_hazards: list[TrapHazardRecord] = Field(default_factory=list)
     treasures: list[TreasureRecord] = Field(default_factory=list)
@@ -1252,6 +1441,42 @@ class ContentPackDomainCatalog(BaseModel):
             if edge.to_ref not in known_refs:
                 raise ValueError(f"reveal edge target is not authored: {edge.to_ref}")
 
+        for edge in self.knowledge_graph_edges:
+            if edge.gate_status == "blocked":
+                continue
+            if edge.from_ref not in known_refs:
+                raise ValueError(
+                    f"knowledge graph edge source is not authored: {edge.from_ref}"
+                )
+            if edge.to_ref and edge.required and not edge.external:
+                if edge.to_ref not in known_refs:
+                    raise ValueError(
+                        f"knowledge graph edge target is not authored: {edge.to_ref}"
+                    )
+
+        for actor in self.actor_dossiers:
+            if actor.gate_status == "blocked":
+                continue
+            if actor.agent_context_slice_ref:
+                if actor.agent_context_slice_ref not in known_refs:
+                    raise ValueError(
+                        f"actor context slice is not authored: "
+                        f"{actor.agent_context_slice_ref}"
+                    )
+            if actor.statblock_ref and actor.statblock_ref not in known_refs:
+                raise ValueError(
+                    f"actor statblock ref is not authored: {actor.statblock_ref}"
+                )
+
+        for context_slice in self.agent_context_slices:
+            if context_slice.gate_status == "blocked":
+                continue
+            if context_slice.actor_ref not in known_refs:
+                raise ValueError(
+                    f"agent context actor is not authored: "
+                    f"{context_slice.actor_ref}"
+                )
+
         for location in [*self.locations, *self.keyed_areas]:
             if location.gate_status == "blocked":
                 continue
@@ -1274,6 +1499,9 @@ class ContentPackDomainCatalog(BaseModel):
             *self.tables,
             *self.tactical_map_templates,
             *self.front_dossiers,
+            *self.actor_dossiers,
+            *self.agent_context_slices,
+            *self.knowledge_graph_edges,
             *self.statblocks,
             *self.trap_hazards,
             *self.treasures,

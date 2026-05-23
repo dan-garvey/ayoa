@@ -69,6 +69,63 @@ The same semantic catalog should compile into three different runtime products:
 - `checkpoint_seed_slices`: initial checkpoint state, roster, active fronts,
   public lore, locations, and per-character agent context.
 
+## Ideal Knowledge Structure V0
+
+The imported module knowledge model should separate authored content, character
+agency, turn orchestration, and engine-owned state.
+
+### Authored Domain Records
+
+These records describe what exists in the module and what can become runtime
+authority after review:
+
+- `locations` and `keyed_areas`: where play can happen, including adjacency,
+  local clues, hazards, encounters, handouts, maps, and front links.
+- `encounter_templates`: reusable conflict or scene seeds, including triggers,
+  participants, location refs, possible noncombat resolutions, and reward
+  policy.
+- `trap_hazards`, `treasures`, `handouts`, `tables`, `statblocks`, and
+  `tactical_map_templates`: typed operational records owned by the engine or
+  D&D adapter when the fact is not a character decision.
+- `front_dossiers`: pressure systems, clocks, resources, escalation palette,
+  and constraints.
+- `actor_dossiers`: role context for NPCs, villains, faction roles, and major
+  monster personas that may drive story.
+- `agent_context_slices`: reviewed projections for `CharacterRecord`
+  `known_context`, `private_state`, personality, agenda, beliefs,
+  uncertainties, and hard boundaries.
+- `knowledge_graph_edges`: semantic links for knowledge, reach, ownership,
+  containment, triggers, depletion, and influence.
+
+### Responsibility Split
+
+- Character agents own decisions, performance, voice, motive, beliefs, agendas,
+  and relationship-driven initiative.
+- The router owns turn orchestration: who gets a turn, when they get it, what
+  setting/context it interacts with, and whether the attempted intent should be
+  denied, delayed, redirected, or adjudicated.
+- The engine owns non-decisions: refs, hashes, runtime gates, graph edges,
+  topology, inventories, resources, combat state, clocks, roll math, asset
+  state, reveal ledgers, and checkpoint mutation.
+- A dedicated lookup role may propose missing refs or graph queries when the
+  router lacks enough information, but code validates those refs before the
+  router sees compact packets.
+
+### Required Projections
+
+Each authored catalog should be able to produce these projections without
+duplicating truth:
+
+- Router index: hierarchical heads, hot local refs, active clocks, relevant
+  actor/front heads, and enough graph metadata to know when lookup is needed.
+- Router packets: compact validated packets for the current turn.
+- Agent slices: role-rich context for characters, especially major story
+  drivers, without dumping DM-operational records into their prompt.
+- Engine overlay: durable mutable state for clocks, depletion, reveals,
+  location changes, active plans, and graph-state changes.
+- Checkpoint seed: starting public lore, roster, live/dormant actors, selected
+  randomized anchors, active front state, and queued start-relevant signals.
+
 ## Router Catalog Policy
 
 The router should not see the full authored pack every turn. The default

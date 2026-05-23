@@ -4,7 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.content_pack import (
+    ActorDossierRecord,
     AdventureTableRecord,
+    AgentContextSliceRecord,
     ContentCrossReference,
     ContentPackDomainCatalog,
     ContentSectionRecord,
@@ -15,6 +17,7 @@ from app.schemas.content_pack import (
     GridRect,
     HandoutRecord,
     KeyedAreaRecord,
+    KnowledgeGraphEdgeRecord,
     LocationExit,
     LocationRecord,
     RevealGraphEdge,
@@ -44,6 +47,9 @@ def test_domain_catalog_accepts_prioritized_module_records():
         trap_hazards=[_trap()],
         treasures=[_treasure()],
         front_dossiers=[_front()],
+        actor_dossiers=[_actor()],
+        agent_context_slices=[_agent_context_slice()],
+        knowledge_graph_edges=[_knowledge_edge()],
         encounter_templates=[_encounter()],
         cross_refs=[
             _cross_ref(
@@ -86,6 +92,11 @@ def test_domain_catalog_accepts_prioritized_module_records():
         "The entry alarm draws a patrol."
     ]
     assert catalog.treasures[0].items[0].name == "Synthetic key"
+    assert catalog.actor_dossiers[0].agent_context_slice_ref == (
+        "agent_context.villain.startup"
+    )
+    assert catalog.agent_context_slices[0].actor_ref == "actor.villain"
+    assert catalog.knowledge_graph_edges[0].relation == "can_dispatch"
     assert catalog.treasures[0].field_provenance["summary"][0].span_id == (
         "span.treasure.summary"
     )
@@ -224,6 +235,42 @@ def test_catalog_validates_location_and_reveal_graph_targets():
         )
 
 
+def test_catalog_validates_actor_context_and_knowledge_graph_targets():
+    with pytest.raises(ValidationError, match="knowledge graph edge target"):
+        ContentPackDomainCatalog(
+            pack_id="synthetic-pack",
+            actor_dossiers=[_actor()],
+            agent_context_slices=[_agent_context_slice()],
+            knowledge_graph_edges=[
+                KnowledgeGraphEdgeRecord(
+                    **{
+                        **_knowledge_edge().model_dump(),
+                        "to_ref": "loc.missing",
+                    }
+                )
+            ],
+        )
+
+    with pytest.raises(ValidationError, match="actor context slice"):
+        ContentPackDomainCatalog(
+            pack_id="synthetic-pack",
+            actor_dossiers=[
+                ActorDossierRecord(
+                    **{
+                        **_actor().model_dump(),
+                        "agent_context_slice_ref": "agent_context.missing",
+                    }
+                )
+            ],
+        )
+
+    with pytest.raises(ValidationError, match="agent context actor"):
+        ContentPackDomainCatalog(
+            pack_id="synthetic-pack",
+            agent_context_slices=[_agent_context_slice()],
+        )
+
+
 def test_added_domain_schema_invariants_are_strict():
     with pytest.raises(ValidationError, match="keyed_label"):
         KeyedAreaRecord(
@@ -252,6 +299,23 @@ def test_added_domain_schema_invariants_are_strict():
                         "result_summary": "Bad synthetic range.",
                     }
                 ],
+            }
+        )
+
+    with pytest.raises(ValidationError, match="to_ref or object_summary"):
+        KnowledgeGraphEdgeRecord(
+            **{
+                **_knowledge_edge().model_dump(),
+                "to_ref": "",
+                "object_summary": "",
+            }
+        )
+
+    with pytest.raises(ValidationError, match="actor_ref"):
+        AgentContextSliceRecord(
+            **{
+                **_agent_context_slice().model_dump(),
+                "actor_ref": " ",
             }
         )
 
@@ -676,6 +740,82 @@ def _front() -> FrontDossierRecord:
                 "statblock_refs": ["stat.guardian"],
             }
         ],
+    )
+
+
+def _actor() -> ActorDossierRecord:
+    return ActorDossierRecord(
+        ref="actor.villain",
+        content_hash="hash-actor-villain",
+        title="Synthetic Villain Actor",
+        summary="A reviewed actor dossier for a story-driving antagonist.",
+        confidence=0.92,
+        review_status="approved",
+        gate_status="runtime_ready",
+        actor_kind="villain",
+        character_id_hint="villain",
+        front_refs=["front.clock"],
+        home_location_refs=["loc.entry"],
+        statblock_ref="stat.guardian",
+        agent_context_slice_ref="agent_context.villain.startup",
+        goals=["Recover the synthetic key"],
+        constraints=["Do not reveal the key's purpose too early"],
+        resources=["scouts", "informants"],
+        knowledge_channel_refs=["kg.villain.can_dispatch_scouts"],
+        relationship_edges=[
+            {
+                "target_ref": "actor.scout",
+                "stance": "commands",
+                "summary": "Uses scouts to gather reports.",
+            }
+        ],
+        initiative_triggers=["The cache is disturbed"],
+        escalation_limits=["Avoid direct lethal pressure at campaign start"],
+        secrets_known_refs=["treasure.cache"],
+    )
+
+
+def _agent_context_slice() -> AgentContextSliceRecord:
+    return AgentContextSliceRecord(
+        ref="agent_context.villain.startup",
+        content_hash="hash-agent-context-villain-startup",
+        title="Synthetic Villain Startup Context",
+        summary="Reviewed startup context for a synthetic antagonist agent.",
+        confidence=0.91,
+        review_status="approved",
+        gate_status="runtime_ready",
+        actor_ref="actor.villain",
+        slice_kind="strategic",
+        known_context="The antagonist knows the entry cache is important.",
+        private_state="The antagonist wants reports before acting directly.",
+        current_agenda=["Watch the entry", "Recover the key"],
+        beliefs=["The entry has been quiet recently"],
+        uncertainties=["Who disturbed the cache"],
+        hard_boundaries=["Do not act on unauthored rooms"],
+        local_context_refs=["loc.entry"],
+        graph_edge_refs=["kg.villain.can_dispatch_scouts"],
+        refresh_triggers=["A scout reports new visitors"],
+    )
+
+
+def _knowledge_edge() -> KnowledgeGraphEdgeRecord:
+    return KnowledgeGraphEdgeRecord(
+        ref="kg.villain.can_dispatch_scouts",
+        content_hash="hash-kg-villain-dispatch",
+        title="Synthetic Villain Dispatch Edge",
+        summary="The synthetic villain can dispatch scouts to the entry.",
+        confidence=0.9,
+        review_status="approved",
+        gate_status="runtime_ready",
+        from_ref="actor.villain",
+        relation="can_dispatch",
+        to_ref="loc.entry",
+        object_kind="location",
+        channel="scouts",
+        condition="The entry cache is disturbed.",
+        reliability=0.8,
+        latency="next background beat",
+        mutable=True,
     )
 
 
