@@ -38,6 +38,7 @@ ContentModuleOverrideKind = Literal[
     "visibility",
     "other",
 ]
+ContentKnowledgeUpdateOperation = Literal["mark_known", "mark_suspected", "forget"]
 
 _CONTENT_OVERLAY_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
 
@@ -269,6 +270,36 @@ class ContentVillainState(BaseModel):
         ]
         self.notes = self.notes.strip()
         return self
+
+
+class ContentKnowledgeEntityState(BaseModel):
+    """Engine-owned compact knowledge map for one content-aware entity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str = ""
+    known_refs: list[str] = Field(default_factory=list)
+    suspected_refs: list[str] = Field(default_factory=list)
+    notes: str = ""
+    last_source_fact_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentKnowledgeEntityState":
+        self.entity_id = _clean_overlay_token(self.entity_id)
+        self.known_refs = _clean_overlay_tokens(self.known_refs)
+        self.suspected_refs = [
+            ref
+            for ref in _clean_overlay_tokens(self.suspected_refs)
+            if ref not in self.known_refs
+        ]
+        self.notes = " ".join(self.notes.split())
+        if contains_imported_asset_sentinel(self.notes):
+            self.notes = ""
+        self.last_source_fact_ids = _clean_overlay_tokens(self.last_source_fact_ids)
+        return self
+
+    def overlay_key(self) -> str:
+        return self.entity_id
 
 
 class ContentLocationOverlayState(BaseModel):
@@ -578,12 +609,16 @@ class ContentPackState(BaseModel):
     pending_signals: dict[str, PendingContentSignal] = Field(default_factory=dict)
     fronts: dict[str, ContentFrontState] = Field(default_factory=dict)
     villains: dict[str, ContentVillainState] = Field(default_factory=dict)
+    knowledge_map: dict[str, ContentKnowledgeEntityState] = Field(
+        default_factory=dict
+    )
     overlay: ContentOverlayState = Field(default_factory=ContentOverlayState)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _clean(self) -> "ContentPackState":
         self.pack_id = self.pack_id.strip()
+        self.knowledge_map = _rekey_overlay_records(self.knowledge_map)
         return self
 
     @field_serializer("metadata")

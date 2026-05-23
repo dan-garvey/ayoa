@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.content import ContentKnowledgeUpdateOperation
 from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
@@ -21,20 +22,14 @@ def _clean_token(value: Any) -> str:
     return text if text and _SAFE_TOKEN_RE.fullmatch(text) else ""
 
 
-class ContentManagerContentUpdate(BaseModel):
-    """One reviewed content ref that should become router-available."""
-
-    model_config = ConfigDict(extra="forbid")
-
+class _ContentManagerRefMixin(BaseModel):
     pack_id: str
     ref: str
     content_hash: str = ""
-    update_kind: Literal["introduce", "refresh"] = "introduce"
     reason: str = ""
     source_fact_ids: list[str] = Field(default_factory=list)
 
-    @model_validator(mode="after")
-    def _clean(self) -> "ContentManagerContentUpdate":
+    def _clean_ref_fields(self) -> None:
         self.pack_id = _clean_token(self.pack_id)
         self.ref = _clean_token(self.ref)
         self.content_hash = _clean_token(self.content_hash)
@@ -45,17 +40,54 @@ class ContentManagerContentUpdate(BaseModel):
             if (fact_id := _clean_token(value))
         ]
         if not self.pack_id:
-            raise ValueError("Content manager content update requires pack_id")
+            raise ValueError("Content manager ref requires pack_id")
         if not self.ref:
-            raise ValueError("Content manager content update requires ref")
+            raise ValueError("Content manager ref requires ref")
+
+    def compact_ref(self) -> str:
+        return (
+            f"{self.pack_id}:{self.ref}@{self.content_hash}"
+            if self.content_hash
+            else f"{self.pack_id}:{self.ref}"
+        )
+
+
+class ContentManagerKnowledgeUpdate(_ContentManagerRefMixin):
+    """Patch operation against the engine-owned knowledge map."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    operation: ContentKnowledgeUpdateOperation = "mark_known"
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentManagerKnowledgeUpdate":
+        self.entity_id = _clean_token(self.entity_id)
+        self._clean_ref_fields()
+        if not self.entity_id:
+            raise ValueError("Content manager knowledge update requires entity_id")
         return self
 
-    def dedupe_key(self) -> tuple[str, str, str]:
-        return (self.pack_id, self.ref, self.update_kind)
+    def dedupe_key(self) -> tuple[str, str, str, str]:
+        return (self.entity_id, self.pack_id, self.ref, self.operation)
 
 
-class ContentManagerTurnHint(BaseModel):
-    """A non-binding hint that a candidate character may want router attention."""
+class ContentManagerRouterRequiredKnowledge(_ContentManagerRefMixin):
+    """Reviewed content ref required by the router for the next call."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentManagerRouterRequiredKnowledge":
+        self._clean_ref_fields()
+        return self
+
+    def dedupe_key(self) -> tuple[str, str]:
+        return (self.pack_id, self.ref)
+
+
+class ContentManagerRouterTurnCandidate(BaseModel):
+    """Non-binding hint that a candidate character may want router attention."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -66,7 +98,7 @@ class ContentManagerTurnHint(BaseModel):
     related_content_refs: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _clean(self) -> "ContentManagerTurnHint":
+    def _clean(self) -> "ContentManagerRouterTurnCandidate":
         self.character_id = _clean_token(self.character_id)
         self.reason = _clean_text(self.reason)
         self.source_fact_ids = [
@@ -80,11 +112,30 @@ class ContentManagerTurnHint(BaseModel):
             if (ref := _clean_token(value))
         ]
         if not self.character_id:
-            raise ValueError("Content manager turn hint requires character_id")
+            raise ValueError("Content manager router candidate requires character_id")
         return self
 
     def dedupe_key(self) -> str:
         return self.character_id
+
+
+class ContentManagerAgentContextBroadcast(_ContentManagerRefMixin):
+    """Rare validated ref that should be broadcast to a character agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentManagerAgentContextBroadcast":
+        self.character_id = _clean_token(self.character_id)
+        self._clean_ref_fields()
+        if not self.character_id:
+            raise ValueError("Content manager agent broadcast requires character_id")
+        return self
+
+    def dedupe_key(self) -> tuple[str, str, str]:
+        return (self.character_id, self.pack_id, self.ref)
 
 
 class ContentManagerOutput(BaseModel):
@@ -92,23 +143,34 @@ class ContentManagerOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    content_updates: list[ContentManagerContentUpdate] = Field(default_factory=list)
-    turn_hints: list[ContentManagerTurnHint] = Field(default_factory=list)
+    knowledge_updates: list[ContentManagerKnowledgeUpdate] = Field(
+        default_factory=list
+    )
+    router_required_knowledge: list[ContentManagerRouterRequiredKnowledge] = Field(
+        default_factory=list
+    )
+    router_turn_candidates: list[ContentManagerRouterTurnCandidate] = Field(
+        default_factory=list
+    )
+    agent_context_broadcasts: list[ContentManagerAgentContextBroadcast] = Field(
+        default_factory=list
+    )
     no_update_reason: str = ""
 
     @model_validator(mode="after")
     def _clean(self) -> "ContentManagerOutput":
         self.no_update_reason = _clean_text(self.no_update_reason)
-        content_updates: dict[
-            tuple[str, str, str],
-            ContentManagerContentUpdate,
-        ] = {}
-        for update in self.content_updates:
-            content_updates.setdefault(update.dedupe_key(), update)
-        self.content_updates = list(content_updates.values())
-
-        turn_hints: dict[str, ContentManagerTurnHint] = {}
-        for hint in self.turn_hints:
-            turn_hints.setdefault(hint.dedupe_key(), hint)
-        self.turn_hints = list(turn_hints.values())
+        self.knowledge_updates = list({
+            update.dedupe_key(): update for update in self.knowledge_updates
+        }.values())
+        self.router_required_knowledge = list({
+            item.dedupe_key(): item for item in self.router_required_knowledge
+        }.values())
+        self.router_turn_candidates = list({
+            candidate.dedupe_key(): candidate
+            for candidate in self.router_turn_candidates
+        }.values())
+        self.agent_context_broadcasts = list({
+            item.dedupe_key(): item for item in self.agent_context_broadcasts
+        }.values())
         return self

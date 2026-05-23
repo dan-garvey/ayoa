@@ -7,10 +7,14 @@ import pytest
 
 from app.engine.content_manager import (
     ContentManagerValidationError,
+    append_content_manager_router_records,
+    apply_content_manager_knowledge_updates,
     build_candidate_turn_entities_block,
+    build_content_knowledge_map_block,
     build_content_manager_messages,
     build_known_router_refs_block,
     build_recent_canonical_facts_block,
+    content_manager_required_lookup_requests,
     format_content_manager_router_records,
     plan_content_manager_updates,
     validate_content_manager_output,
@@ -21,7 +25,11 @@ from app.engine.content_pack_compiler import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
-from app.schemas.content import ContentPackState, IntroducedContentRef
+from app.schemas.content import (
+    ContentKnowledgeEntityState,
+    ContentPackState,
+    IntroducedContentRef,
+)
 from app.schemas.content_manager import ContentManagerOutput
 from app.schemas.events import ObservableFact
 from tests.support.factories import checkpoint, llm_response, router_output
@@ -58,10 +66,11 @@ def _pack_db(tmp_path, rows: list[tuple[str, str, str, str, str, str]]):
     return db_path
 
 
-def _pack_state(db_path, introduced_refs=None):
+def _pack_state(db_path, introduced_refs=None, knowledge_map=None):
     return ContentPackState(
         pack_id="pack",
         introduced_refs=introduced_refs or {},
+        knowledge_map=knowledge_map or {},
         metadata={
             "db_path": str(db_path),
             "pack_version": PACK_VERSION,
@@ -71,7 +80,7 @@ def _pack_state(db_path, introduced_refs=None):
     )
 
 
-def test_content_manager_prompt_uses_deltas_not_entity_knowledge_dump(tmp_path):
+def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -94,6 +103,15 @@ def test_content_manager_prompt_uses_deltas_not_entity_knowledge_dump(tmp_path):
                     pack_id="pack",
                     ref_id="front/old",
                     content_hash="hash-old",
+                )
+            },
+            knowledge_map={
+                "strahd": ContentKnowledgeEntityState(
+                    entity_id="strahd",
+                    known_refs=["pack:front/old@hash-old"],
+                    suspected_refs=["pack:rumor/wolves@hash-wolves"],
+                    notes="Watching for public unrest.",
+                    last_source_fact_ids=["f07"],
                 )
             },
         )
@@ -119,6 +137,7 @@ def test_content_manager_prompt_uses_deltas_not_entity_knowledge_dump(tmp_path):
     }
 
     facts_block = build_recent_canonical_facts_block(ckpt, limit=12)
+    knowledge_block = build_content_knowledge_map_block(ckpt)
     candidates_block = build_candidate_turn_entities_block(candidates)
     known_refs_block = build_known_router_refs_block(ckpt)
     messages = build_content_manager_messages(
@@ -143,6 +162,10 @@ def test_content_manager_prompt_uses_deltas_not_entity_knowledge_dump(tmp_path):
     assert "/private" not in facts_block
     assert ".pdf" not in facts_block
 
+    assert "pack=pack entity=strahd" in knowledge_block
+    assert "known=pack:front/old@hash-old" in knowledge_block
+    assert "suspected=pack:rumor/wolves@hash-wolves" in knowledge_block
+
     assert "character=strahd" in candidates_block
     assert "role=antagonist" in candidates_block
     assert "location=castle" in candidates_block
@@ -158,14 +181,16 @@ def test_content_manager_prompt_uses_deltas_not_entity_knowledge_dump(tmp_path):
     user = messages[1]["content"]
     assert "public fact 13" not in system
     assert "strahd" not in system
+    assert "engine_knowledge_map" in user
     assert "public fact 13" in user
+    assert "pack=pack entity=strahd" in user
     assert "character=strahd" in user
     assert "everything_he_knows" not in user
     assert "/private" not in user
     assert ".pdf" not in user
 
 
-def test_plan_content_manager_updates_uses_role_and_validates_router_packet(tmp_path):
+def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -180,30 +205,57 @@ def test_plan_content_manager_updates_uses_role_and_validates_router_packet(tmp_
         ],
     )
     ckpt = checkpoint()
-    ckpt.session.content_state = {"pack": _pack_state(db_path)}
+    ckpt.session.content_state = {
+        "pack": _pack_state(
+            db_path,
+            knowledge_map={
+                "strahd": ContentKnowledgeEntityState(entity_id="strahd")
+            },
+        )
+    }
     ckpt.canonical_events = [
         router_output(facts=[ObservableFact.all("The party lights the beacon.")])
     ]
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(return_value=llm_response(
         ContentManagerOutput(
-            content_updates=[
+            knowledge_updates=[
                 {
+                    "entity_id": "strahd",
                     "pack_id": "pack",
                     "ref": "front/strahd",
                     "content_hash": "",
-                    "update_kind": "introduce",
+                    "operation": "mark_known",
                     "reason": "f01 makes the front relevant",
                     "source_fact_ids": ["f01"],
                 }
             ],
-            turn_hints=[
+            router_required_knowledge=[
+                {
+                    "pack_id": "pack",
+                    "ref": "front/strahd",
+                    "content_hash": "",
+                    "reason": "The router needs the active front.",
+                    "source_fact_ids": ["f01"],
+                }
+            ],
+            router_turn_candidates=[
                 {
                     "character_id": "strahd",
                     "priority": "high",
                     "reason": "The front may want attention.",
                     "source_fact_ids": ["f01"],
                     "related_content_refs": ["pack:front/strahd"],
+                }
+            ],
+            agent_context_broadcasts=[
+                {
+                    "character_id": "strahd",
+                    "pack_id": "pack",
+                    "ref": "front/strahd",
+                    "content_hash": "",
+                    "reason": "Refresh the antagonist context.",
+                    "source_fact_ids": ["f01"],
                 }
             ],
         )
@@ -220,17 +272,24 @@ def test_plan_content_manager_updates_uses_role_and_validates_router_packet(tmp_
 
     assert client.complete.await_args.kwargs["role"] == "content_manager"
     assert client.complete.await_args.kwargs["response_model"] is ContentManagerOutput
-    assert output.content_updates[0].content_hash == "hash-front"
+    assert output.knowledge_updates[0].content_hash == "hash-front"
+    assert output.router_required_knowledge[0].content_hash == "hash-front"
+    assert output.agent_context_broadcasts[0].content_hash == "hash-front"
+    assert content_manager_required_lookup_requests(output)[0].ref == "front/strahd"
     assert format_content_manager_router_records(output) == [
-        (
-            "content_update kind=introduce pack=pack ref=front/strahd "
-            "hash=hash-front facts=f01 reason=\"f01 makes the front relevant\""
-        ),
         (
             "turn_hint character=strahd priority=high refs=pack:front/strahd "
             "facts=f01 reason=\"The front may want attention.\""
         ),
     ]
+
+    apply_content_manager_knowledge_updates(ckpt, output)
+
+    state = ckpt.session.content_state["pack"].knowledge_map["strahd"]
+    assert state.known_refs == ["pack:front/strahd@hash-front"]
+    assert state.suspected_refs == []
+    assert state.notes == "f01 makes the front relevant"
+    assert state.last_source_fact_ids == ["f01"]
 
 
 def test_content_manager_validation_rejects_missing_ref(tmp_path):
@@ -238,12 +297,11 @@ def test_content_manager_validation_rejects_missing_ref(tmp_path):
     ckpt = checkpoint()
     ckpt.session.content_state = {"pack": _pack_state(db_path)}
     output = ContentManagerOutput(
-        content_updates=[
+        router_required_knowledge=[
             {
                 "pack_id": "pack",
                 "ref": "front/missing",
                 "content_hash": "",
-                "update_kind": "introduce",
                 "reason": "",
                 "source_fact_ids": ["f01"],
             }
@@ -258,7 +316,7 @@ def test_content_manager_validation_rejects_missing_ref(tmp_path):
         )
 
 
-def test_content_manager_validation_rejects_unknown_turn_hint_character(tmp_path):
+def test_content_manager_validation_rejects_unknown_candidates(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -275,7 +333,7 @@ def test_content_manager_validation_rejects_unknown_turn_hint_character(tmp_path
     ckpt = checkpoint()
     ckpt.session.content_state = {"pack": _pack_state(db_path)}
     output = ContentManagerOutput(
-        turn_hints=[
+        router_turn_candidates=[
             {
                 "character_id": "rahadin",
                 "priority": "high",
@@ -283,18 +341,31 @@ def test_content_manager_validation_rejects_unknown_turn_hint_character(tmp_path
                 "source_fact_ids": [],
                 "related_content_refs": ["pack:front/strahd"],
             }
-        ]
+        ],
+        agent_context_broadcasts=[
+            {
+                "character_id": "rahadin",
+                "pack_id": "pack",
+                "ref": "front/strahd",
+                "content_hash": "",
+                "reason": "",
+                "source_fact_ids": [],
+            }
+        ],
     )
 
-    with pytest.raises(ContentManagerValidationError, match="unknown character_id"):
+    with pytest.raises(ContentManagerValidationError) as exc:
         validate_content_manager_output(
             ckpt,
             output,
             candidate_entities={"strahd": {"role": "antagonist"}},
         )
 
+    assert "unknown character_id" in str(exc.value)
+    assert "unknown broadcast character_id" in str(exc.value)
 
-def test_content_manager_validation_rejects_hash_mismatch_and_bad_hint_ref(tmp_path):
+
+def test_content_manager_validation_rejects_hash_mismatch_and_bad_refs(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -311,17 +382,18 @@ def test_content_manager_validation_rejects_hash_mismatch_and_bad_hint_ref(tmp_p
     ckpt = checkpoint()
     ckpt.session.content_state = {"pack": _pack_state(db_path)}
     output = ContentManagerOutput(
-        content_updates=[
+        knowledge_updates=[
             {
+                "entity_id": "strahd",
                 "pack_id": "pack",
                 "ref": "front/strahd",
                 "content_hash": "hash-stale",
-                "update_kind": "introduce",
+                "operation": "mark_known",
                 "reason": "source /private/module.pdf",
                 "source_fact_ids": [],
             }
         ],
-        turn_hints=[
+        router_turn_candidates=[
             {
                 "character_id": "strahd",
                 "priority": "high",
@@ -332,7 +404,7 @@ def test_content_manager_validation_rejects_hash_mismatch_and_bad_hint_ref(tmp_p
         ],
     )
 
-    assert output.content_updates[0].reason == ""
+    assert output.knowledge_updates[0].reason == ""
     with pytest.raises(ContentManagerValidationError) as exc:
         validate_content_manager_output(
             ckpt,
@@ -341,4 +413,87 @@ def test_content_manager_validation_rejects_hash_mismatch_and_bad_hint_ref(tmp_p
         )
 
     assert "content hash mismatch" in str(exc.value)
-    assert "invalid hint refs" in str(exc.value)
+    assert "invalid candidate refs" in str(exc.value)
+
+
+def test_append_content_manager_router_records_projects_only_router_deltas(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "front/strahd",
+                "hash-front",
+                "front_signal",
+                "hidden",
+                "The antagonist tracks public trouble.",
+            ),
+            (
+                "pack",
+                "room/entry",
+                "hash-entry",
+                "location_card",
+                "hidden",
+                "Entry chamber context.",
+            ),
+        ],
+    )
+    ckpt = checkpoint(
+        characters=[],
+    )
+    ckpt.session.content_state = {
+        "pack": _pack_state(
+            db_path,
+            knowledge_map={
+                "strahd": ContentKnowledgeEntityState(entity_id="strahd")
+            },
+        )
+    }
+    client = MagicMock(spec=LLMClient)
+    client.complete = AsyncMock(return_value=llm_response(
+        ContentManagerOutput(
+            knowledge_updates=[
+                {
+                    "entity_id": "strahd",
+                    "pack_id": "pack",
+                    "ref": "front/strahd",
+                    "operation": "mark_known",
+                    "reason": "The party is close enough to matter.",
+                    "source_fact_ids": ["f01"],
+                }
+            ],
+            router_required_knowledge=[
+                {
+                    "pack_id": "pack",
+                    "ref": "room/entry",
+                    "reason": "The next decision touches the room.",
+                    "source_fact_ids": ["f01"],
+                }
+            ],
+            router_turn_candidates=[],
+        )
+    ))
+
+    records = asyncio.run(
+        append_content_manager_router_records(
+            ckpt,
+            actor_id="alice",
+            current_input="I inspect the entry.",
+            client=client,
+            prompt_mgr=PromptManager("app/prompts"),
+        )
+    )
+
+    assert records == [
+        (
+            "location_card ref=room/entry visibility=hidden hash=hash-entry "
+            "pack=pack summary=\"Entry chamber context.\""
+        )
+    ]
+    assert ckpt.session.content_state["pack"].knowledge_map["strahd"].known_refs == [
+        "pack:front/strahd@hash-front"
+    ]
+    history_text = "\n".join(message.content for message in ckpt.session_conversation)
+    assert "location_card ref=room/entry" in history_text
+    assert "engine_knowledge_map" not in history_text
+    assert "pack=pack entity=strahd" not in history_text

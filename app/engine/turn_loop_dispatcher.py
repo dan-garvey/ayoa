@@ -300,8 +300,20 @@ async def _append_router_content_lookup_records(
     prompt_mgr: PromptManager,
 ) -> list[str]:
     """Append bounded preflight content records to router history."""
+    from app.engine.content_manager import (
+        append_content_manager_router_records,
+        content_manager_enabled,
+    )
     from app.engine.content_lookup import append_router_content_lookup_records_with_llm
 
+    if content_manager_enabled(ckpt):
+        return await append_content_manager_router_records(
+            ckpt,
+            actor_id=actor_id,
+            current_input=current_input,
+            client=client,
+            prompt_mgr=prompt_mgr,
+        )
     return await append_router_content_lookup_records_with_llm(
         ckpt,
         actor_id=actor_id,

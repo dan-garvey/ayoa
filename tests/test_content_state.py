@@ -8,6 +8,7 @@ from app.llm.config import LLMConfig
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import (
     ContentFrontState,
+    ContentKnowledgeEntityState,
     ContentPackState,
     ContentVillainState,
     IntroducedContentRef,
@@ -27,6 +28,7 @@ def test_content_state_defaults_are_empty():
     assert pack.pending_signals == {}
     assert pack.fronts == {}
     assert pack.villains == {}
+    assert pack.knowledge_map == {}
     assert IntroducedContentRef().dedupe_key() == "::::"
     assert PendingContentSignal().content_key() == "::::"
 
@@ -70,12 +72,23 @@ def test_content_state_round_trips_through_checkpoint_dump():
         goals=["Preserve control"],
         introduced_ref_keys=[signal.content_key()],
     )
+    knowledge = ContentKnowledgeEntityState(
+        entity_id="warden",
+        known_refs=["pack:villain/warden@sha256:def"],
+        suspected_refs=[
+            "pack:villain/warden@sha256:def",
+            "pack:room/escape@sha256:ghi",
+        ],
+        notes="Tracks the party's prison movements.",
+        last_source_fact_ids=["f01", "f01", "bad value"],
+    )
     pack = ContentPackState(
         pack_id="pack",
         introduced_refs={ref.dedupe_key(): ref},
         pending_signals={signal.signal_id: signal},
         fronts={front.front_id: front},
         villains={villain.villain_id: villain},
+        knowledge_map={"stale_key": knowledge},
         metadata={"source": "fixture"},
     )
     ckpt = checkpoint()
@@ -93,6 +106,10 @@ def test_content_state_round_trips_through_checkpoint_dump():
     ]
     assert rebuilt_pack.fronts["front_prison"].status == "active"
     assert rebuilt_pack.villains["warden"].status == "hidden"
+    assert sorted(rebuilt_pack.knowledge_map) == ["warden"]
+    assert rebuilt_pack.knowledge_map["warden"].suspected_refs == [
+        "pack:room/escape@sha256:ghi"
+    ]
 
 
 def test_default_checkpoint_dump_omits_imported_asset_source_sentinels():

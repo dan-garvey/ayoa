@@ -23,7 +23,12 @@ from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
-from app.schemas.content import ContentPackState, PendingContentSignal
+from app.schemas.content import (
+    ContentKnowledgeEntityState,
+    ContentPackState,
+    PendingContentSignal,
+)
+from app.schemas.content_manager import ContentManagerOutput
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
     DndEventRouterOutput,
@@ -706,6 +711,114 @@ class TestRouteIntention:
         assert ckpt.session_conversation[0].content.startswith(
             "location_card ref=room/secret "
         )
+        assert ckpt.session_conversation[-1].content.startswith("prior_event ")
+
+    def test_content_manager_preflight_projects_only_router_packet(
+        self, prompt_mgr, mock_client, tmp_path,
+    ):
+        db_path = _content_pack_db(
+            tmp_path,
+            [
+                (
+                    "pack",
+                    "front/strahd",
+                    "hash-front",
+                    "front_signal",
+                    "hidden",
+                    "The antagonist tracks public trouble.",
+                ),
+                (
+                    "pack",
+                    "room/secret",
+                    "hash-secret",
+                    "location_card",
+                    "hidden",
+                    "Reviewed secret latch context.",
+                ),
+            ],
+        )
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.content_state = {
+            "pack": ContentPackState(
+                pack_id="pack",
+                knowledge_map={
+                    "pip": ContentKnowledgeEntityState(
+                        entity_id="pip",
+                        suspected_refs=["pack:front/old@hash-old"],
+                        notes="full private knowledge",
+                    )
+                },
+                metadata=_content_pack_metadata(db_path),
+            )
+        }
+        mock_client.complete.side_effect = [
+            _llm_response(
+                ContentManagerOutput(
+                    knowledge_updates=[
+                        {
+                            "entity_id": "pip",
+                            "pack_id": "pack",
+                            "ref": "front/strahd",
+                            "operation": "mark_known",
+                            "reason": "f01 makes Pip relevant.",
+                            "source_fact_ids": ["f01"],
+                        }
+                    ],
+                    router_required_knowledge=[
+                        {
+                            "pack_id": "pack",
+                            "ref": "room/secret",
+                            "reason": "The router needs the secret room context.",
+                            "source_fact_ids": ["f01"],
+                        }
+                    ],
+                    router_turn_candidates=[
+                        {
+                            "character_id": "pip",
+                            "priority": "medium",
+                            "reason": "Pip may react to the discovery.",
+                            "source_fact_ids": ["f01"],
+                            "related_content_refs": ["pack:front/strahd"],
+                        }
+                    ],
+                )
+            ),
+            _llm_response(_router_output()),
+        ]
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I investigate the odd draft in the wall.",
+        ))
+
+        assert mock_client.complete.await_count == 2
+        content_call = mock_client.complete.await_args_list[0].kwargs
+        router_call = mock_client.complete.await_args_list[1].kwargs
+        assert content_call["role"] == "content_manager"
+        assert content_call["response_model"] is ContentManagerOutput
+        assert router_call["role"] == "event_router"
+        assert router_call["response_model"] is EventRouterOutput
+
+        content_text = "\n".join(
+            message["content"] for message in content_call["messages"]
+        )
+        assert "engine_knowledge_map" in content_text
+        assert "pack=pack entity=pip" in content_text
+
+        router_text = "\n".join(
+            str(message.get("content", ""))
+            for message in router_call["messages"]
+        )
+        assert "location_card ref=room/secret" in router_text
+        assert "turn_hint character=pip priority=medium" in router_text
+        assert "engine_knowledge_map" not in router_text
+        assert "pack=pack entity=pip" not in router_text
+        assert "suspected=pack:front/old@hash-old" not in router_text
+        assert "full private knowledge" not in router_text
+        assert ckpt.session.content_state["pack"].knowledge_map["pip"].known_refs == [
+            "pack:front/strahd@hash-front"
+        ]
         assert ckpt.session_conversation[-1].content.startswith("prior_event ")
 
     def test_dnd_cat_ii_packet_receives_pending_content_context(
