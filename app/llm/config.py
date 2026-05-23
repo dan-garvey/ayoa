@@ -232,7 +232,7 @@ class LLMConfig(BaseModel):
         "event_router": "medium",
         "narrator": "medium",
         "dnd_combat_manager": "medium",
-        "content_manager": "medium",
+        "content_manager": "low",
         "agent": "medium",
         "character_gen": "medium",
     })

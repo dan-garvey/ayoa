@@ -113,9 +113,11 @@ class TestLLMConfig:
         assert config.thinking_budget_for_role("agent_standard") == 0
         assert config.thinking_budget_for_role("agent_convenience") == 0
         assert config.enable_anthropic_compaction is False
+        assert config.openai_reasoning_effort_for_role("content_manager") == "low"
         assert all(
             effort == "medium"
-            for effort in config.openai_reasoning_efforts.values()
+            for role, effort in config.openai_reasoning_efforts.items()
+            if role != "content_manager"
         )
         assert config.openai_reasoning_summary_for_role("event_router") == "auto"
         assert config.openai_reasoning_summary_for_role("narrator") == ""

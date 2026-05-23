@@ -30,6 +30,7 @@ from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
 _SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
+CONTENT_MANAGER_MAX_TOKENS = 4000
 _CANDIDATE_KEYS = frozenset((
     "front",
     "faction",
@@ -101,7 +102,7 @@ async def plan_content_manager_updates(
         messages=messages,
         response_model=ContentManagerOutput,
         temperature=0.1,
-        max_tokens=1200,
+        max_tokens=CONTENT_MANAGER_MAX_TOKENS,
         cache=True,
         compact=True,
     )

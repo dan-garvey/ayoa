@@ -272,6 +272,7 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
 
     assert client.complete.await_args.kwargs["role"] == "content_manager"
     assert client.complete.await_args.kwargs["response_model"] is ContentManagerOutput
+    assert client.complete.await_args.kwargs["max_tokens"] == 4000
     assert output.knowledge_updates[0].content_hash == "hash-front"
     assert output.router_required_knowledge[0].content_hash == "hash-front"
     assert output.agent_context_broadcasts[0].content_hash == "hash-front"
