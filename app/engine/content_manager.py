@@ -7,6 +7,7 @@ from typing import Any
 
 from app.engine.content_lookup import (
     _assert_pack_runtime_identity,
+    _known_router_content_refs,
     _pack_db_path,
     _pack_id,
     build_router_content_lookup_catalog_block,
@@ -15,52 +16,61 @@ from app.engine.content_resolver import ContentCard, load_content_cards
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
 from app.schemas.content_manager import (
-    ContentManagerEntityUpdate,
+    ContentManagerContentUpdate,
     ContentManagerOutput,
+    ContentManagerTurnHint,
 )
 from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
 _SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
+_CANDIDATE_KEYS = frozenset((
+    "front",
+    "faction",
+    "location",
+    "name",
+    "role",
+    "status",
+    "current_objective",
+    "stance",
+))
 
 
 class ContentManagerValidationError(RuntimeError):
-    """Raised when proposed entity knowledge updates fail runtime validation."""
+    """Raised when proposed router content updates fail validation."""
 
 
 async def plan_content_manager_updates(
     ckpt: Any,
     *,
-    entity_knowledge: Mapping[str, Any],
+    candidate_entities: Mapping[str, Any] | Sequence[str],
     client: LLMClient,
     prompt_mgr: PromptManager,
     max_recent_facts: int = 12,
     max_catalog_cards_per_pack: int = 120,
 ) -> ContentManagerOutput:
-    """Ask the content manager for entity knowledge updates, then validate refs."""
+    """Ask for router content deltas and optional turn hints, then validate."""
 
     catalog_block = build_content_manager_catalog_block(
         ckpt,
         max_cards_per_pack=max_catalog_cards_per_pack,
     )
-    entity_knowledge_block = build_entity_knowledge_block(entity_knowledge)
+    candidate_entities_block = build_candidate_turn_entities_block(
+        candidate_entities,
+    )
     if not catalog_block:
         return ContentManagerOutput(
-            updates=[],
+            content_updates=[],
+            turn_hints=[],
             no_update_reason="No reviewed content catalog is available.",
-        )
-    if not _entity_ids_from_knowledge(entity_knowledge):
-        return ContentManagerOutput(
-            updates=[],
-            no_update_reason="No entity knowledge map is available.",
         )
 
     messages = build_content_manager_messages(
         ckpt,
-        entity_knowledge=entity_knowledge,
+        candidate_entities=candidate_entities,
         prompt_mgr=prompt_mgr,
         catalog_block=catalog_block,
-        entity_knowledge_block=entity_knowledge_block,
+        candidate_entities_block=candidate_entities_block,
         max_recent_facts=max_recent_facts,
     )
     response = await client.complete(
@@ -80,17 +90,17 @@ async def plan_content_manager_updates(
     return validate_content_manager_output(
         ckpt,
         parsed,
-        entity_knowledge=entity_knowledge,
+        candidate_entities=candidate_entities,
     )
 
 
 def build_content_manager_messages(
     ckpt: Any,
     *,
-    entity_knowledge: Mapping[str, Any],
+    candidate_entities: Mapping[str, Any] | Sequence[str],
     prompt_mgr: PromptManager,
     catalog_block: str | None = None,
-    entity_knowledge_block: str | None = None,
+    candidate_entities_block: str | None = None,
     max_recent_facts: int = 12,
 ) -> list[dict[str, str]]:
     return prompt_mgr.render_messages(
@@ -100,10 +110,11 @@ def build_content_manager_messages(
             ckpt,
             limit=max_recent_facts,
         ),
-        entity_knowledge_block=(
-            entity_knowledge_block
-            if entity_knowledge_block is not None
-            else build_entity_knowledge_block(entity_knowledge)
+        known_router_refs_block=build_known_router_refs_block(ckpt),
+        candidate_entities_block=(
+            candidate_entities_block
+            if candidate_entities_block is not None
+            else build_candidate_turn_entities_block(candidate_entities)
         ),
         available_catalog_block=(
             catalog_block
@@ -148,17 +159,36 @@ def build_recent_canonical_facts_block(ckpt: Any, *, limit: int = 12) -> str:
     return "\n".join(formatted) or "-"
 
 
-def build_entity_knowledge_block(entity_knowledge: Mapping[str, Any]) -> str:
+def build_known_router_refs_block(ckpt: Any) -> str:
+    rows = [
+        f"pack={_safe_token(pack_id)} ref={_safe_token(ref)}"
+        for pack_id, ref in sorted(_known_router_content_refs(ckpt))
+        if _safe_token(pack_id) and _safe_token(ref)
+    ]
+    return "\n".join(rows) or "-"
+
+
+def build_candidate_turn_entities_block(
+    candidate_entities: Mapping[str, Any] | Sequence[str],
+) -> str:
     rows: list[str] = []
-    for raw_entity_id, raw_value in sorted(
-        entity_knowledge.items(),
-        key=lambda item: str(item[0]),
-    ):
+    for raw_entity_id, raw_value in _iter_candidate_entities(candidate_entities):
         entity_id = _safe_token(raw_entity_id)
         if not entity_id:
             continue
-        value = _format_entity_value(raw_value)
-        rows.append(f"entity={entity_id}" + (f" {value}" if value else " knows=[]"))
+        parts = [f"character={entity_id}"]
+        if isinstance(raw_value, Mapping):
+            for raw_key, raw_item in sorted(
+                raw_value.items(),
+                key=lambda item: str(item[0]),
+            ):
+                key = _safe_token(raw_key)
+                if key not in _CANDIDATE_KEYS:
+                    continue
+                value = _format_value(raw_item)
+                if value:
+                    parts.append(f"{key}={value}")
+        rows.append(" ".join(parts))
     return "\n".join(rows) or "-"
 
 
@@ -166,26 +196,20 @@ def validate_content_manager_output(
     ckpt: Any,
     output: ContentManagerOutput,
     *,
-    entity_knowledge: Mapping[str, Any],
+    candidate_entities: Mapping[str, Any] | Sequence[str],
 ) -> ContentManagerOutput:
-    entity_ids = _entity_ids_from_knowledge(entity_knowledge)
+    candidate_ids = _candidate_entity_ids(candidate_entities)
     errors: list[str] = []
-    validated: list[ContentManagerEntityUpdate] = []
     cards: dict[tuple[str, str], ContentCard | None] = {}
+    validated_updates: list[ContentManagerContentUpdate] = []
 
-    for update in output.updates:
-        if update.entity_id not in entity_ids:
-            errors.append(f"unknown entity_id={update.entity_id or '-'}")
-            continue
-
-        key = (update.pack_id, update.ref)
-        if key not in cards:
-            cards[key] = _resolve_runtime_card(
-                ckpt,
-                pack_id=update.pack_id,
-                ref=update.ref,
-            )
-        card = cards[key]
+    for update in output.content_updates:
+        card = _runtime_card_or_none(
+            ckpt,
+            update.pack_id,
+            update.ref,
+            cards,
+        )
         if card is None:
             errors.append(f"missing content pack={update.pack_id} ref={update.ref}")
             continue
@@ -196,47 +220,102 @@ def validate_content_manager_output(
                 f"expected={card.content_hash} actual={update.content_hash}"
             )
             continue
-        validated.append(
+        validated_updates.append(
             update.model_copy(update={"content_hash": card.content_hash})
         )
+
+    validated_hints: list[ContentManagerTurnHint] = []
+    for hint in output.turn_hints:
+        if hint.character_id not in candidate_ids:
+            errors.append(f"unknown character_id={hint.character_id or '-'}")
+            continue
+        bad_refs = [
+            ref
+            for ref in hint.related_content_refs
+            if _runtime_card_from_compact_ref(ckpt, ref, cards) is None
+        ]
+        if bad_refs:
+            errors.append(
+                f"invalid hint refs character_id={hint.character_id} "
+                f"refs={','.join(bad_refs)}"
+            )
+            continue
+        validated_hints.append(hint)
 
     if errors:
         raise ContentManagerValidationError("; ".join(errors))
 
-    return output.model_copy(update={"updates": _dedupe_updates(validated)})
+    return output.model_copy(update={
+        "content_updates": _dedupe_updates(validated_updates),
+        "turn_hints": _dedupe_hints(validated_hints),
+    })
 
 
-def format_content_manager_update_records(
+def format_content_manager_router_records(
     output: ContentManagerOutput,
 ) -> list[str]:
     records: list[str] = []
-    for update in output.updates:
+    for update in output.content_updates:
         parts = [
             "content_update",
-            f"entity={_safe_token(update.entity_id)}",
-            f"state={_safe_token(update.knowledge_state)}",
+            f"kind={_safe_token(update.update_kind)}",
             f"pack={_safe_token(update.pack_id)}",
             f"ref={_safe_token(update.ref)}",
         ]
         if update.content_hash:
             parts.append(f"hash={_safe_token(update.content_hash)}")
         if update.source_fact_ids:
-            facts = ",".join(
-                fact_id
-                for fact_id in (
-                    _safe_token(value) for value in update.source_fact_ids
-                )
-                if fact_id
-            )
-            parts.append(
-                f"facts={facts}"
-            )
+            parts.append(f"facts={_join_tokens(update.source_fact_ids)}")
         if update.reason:
             parts.append(f"reason={_quote_value(update.reason)}")
         records.append(
             " ".join(part for part in parts if part and not part.endswith("="))
         )
+
+    for hint in output.turn_hints:
+        parts = [
+            "turn_hint",
+            f"character={_safe_token(hint.character_id)}",
+            f"priority={_safe_token(hint.priority)}",
+        ]
+        if hint.related_content_refs:
+            parts.append(f"refs={_join_tokens(hint.related_content_refs)}")
+        if hint.source_fact_ids:
+            parts.append(f"facts={_join_tokens(hint.source_fact_ids)}")
+        if hint.reason:
+            parts.append(f"reason={_quote_value(hint.reason)}")
+        records.append(
+            " ".join(part for part in parts if part and not part.endswith("="))
+        )
+
     return records
+
+
+def _runtime_card_or_none(
+    ckpt: Any,
+    pack_id: str,
+    ref: str,
+    cache: dict[tuple[str, str], ContentCard | None],
+) -> ContentCard | None:
+    key = (pack_id, ref)
+    if key not in cache:
+        cache[key] = _resolve_runtime_card(
+            ckpt,
+            pack_id=pack_id,
+            ref=ref,
+        )
+    return cache[key]
+
+
+def _runtime_card_from_compact_ref(
+    ckpt: Any,
+    value: str,
+    cache: dict[tuple[str, str], ContentCard | None],
+) -> ContentCard | None:
+    pack_id, ref = _split_compact_ref(value)
+    if not pack_id or not ref:
+        return None
+    return _runtime_card_or_none(ckpt, pack_id, ref, cache)
 
 
 def _resolve_runtime_card(
@@ -274,20 +353,41 @@ def _content_pack_states_by_id(ckpt: Any) -> dict[str, Any]:
     }
 
 
-def _entity_ids_from_knowledge(entity_knowledge: Mapping[str, Any]) -> set[str]:
+def _iter_candidate_entities(
+    candidate_entities: Mapping[str, Any] | Sequence[str],
+) -> Iterable[tuple[Any, Any]]:
+    if isinstance(candidate_entities, Mapping):
+        yield from sorted(candidate_entities.items(), key=lambda item: str(item[0]))
+        return
+    for entity_id in candidate_entities:
+        yield entity_id, {}
+
+
+def _candidate_entity_ids(
+    candidate_entities: Mapping[str, Any] | Sequence[str],
+) -> set[str]:
     return {
         entity_id
-        for raw_entity_id in entity_knowledge
+        for raw_entity_id, _ in _iter_candidate_entities(candidate_entities)
         if (entity_id := _safe_token(raw_entity_id))
     }
 
 
 def _dedupe_updates(
-    updates: Iterable[ContentManagerEntityUpdate],
-) -> list[ContentManagerEntityUpdate]:
-    deduped: dict[tuple[str, str, str, str], ContentManagerEntityUpdate] = {}
+    updates: Iterable[ContentManagerContentUpdate],
+) -> list[ContentManagerContentUpdate]:
+    deduped: dict[tuple[str, str, str], ContentManagerContentUpdate] = {}
     for update in updates:
         deduped.setdefault(update.dedupe_key(), update)
+    return list(deduped.values())
+
+
+def _dedupe_hints(
+    hints: Iterable[ContentManagerTurnHint],
+) -> list[ContentManagerTurnHint]:
+    deduped: dict[str, ContentManagerTurnHint] = {}
+    for hint in hints:
+        deduped.setdefault(hint.dedupe_key(), hint)
     return list(deduped.values())
 
 
@@ -318,20 +418,12 @@ def _fact_audience(fact: Any) -> str:
     return "all"
 
 
-def _format_entity_value(value: Any) -> str:
-    if isinstance(value, Mapping):
-        parts = []
-        for raw_key, raw_item in sorted(value.items(), key=lambda item: str(item[0])):
-            key = _safe_token(raw_key)
-            item = _format_entity_value(raw_item)
-            if key and item:
-                parts.append(f"{key}={item}")
-        return " ".join(parts)
+def _format_value(value: Any) -> str:
     if isinstance(value, (list, tuple, set, frozenset)):
         values = [
             formatted
             for item in value
-            if (formatted := _format_entity_value(item))
+            if (formatted := _format_value(item))
         ]
         if not values:
             return "[]"
@@ -344,6 +436,18 @@ def _format_entity_value(value: Any) -> str:
     if _SAFE_TOKEN_RE.fullmatch(text):
         return text
     return json.dumps(text, ensure_ascii=True, separators=(",", ":"))
+
+
+def _split_compact_ref(value: str) -> tuple[str, str]:
+    text = _safe_token(value)
+    if ":" not in text:
+        return "", ""
+    pack_id, ref = text.split(":", 1)
+    return _safe_token(pack_id), _safe_token(ref)
+
+
+def _join_tokens(values: Iterable[str]) -> str:
+    return ",".join(token for value in values if (token := _safe_token(value)))
 
 
 def _safe_token(value: Any) -> str:

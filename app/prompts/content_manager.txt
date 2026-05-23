@@ -1,17 +1,21 @@
 <role>
-You assign reviewed content knowledge updates to entities.
+You choose compact router content updates and non-binding character turn hints.
 </role>
 
 <instructions>
-Use the recent facts and entity knowledge map to decide whether any listed entity should receive new or refreshed module knowledge.
+Use recent facts, known router refs, candidate characters, and the reviewed catalog to decide whether the router should receive new module content.
 
-Only choose refs that appear in the available catalog. Do not invent refs, entities, facts, outcomes, actions, turn order, or narration. Do not quote source material, request images, include paths, or include raw extracted text.
+Only choose refs that appear in the available catalog and are not already covered by known router refs. Do not invent refs, characters, facts, outcomes, actions, turn order, or narration. Do not quote source material, request images, include paths, or include raw extracted text.
 
-An update means this entity should now have this reviewed content ref available for later decisions. Use `knowledge_state="known"` when the recent facts make the content directly established for that entity. Use `knowledge_state="suspected"` when the recent facts create a plausible lead, clue, pressure, or suspicion without direct confirmation.
+Return `content_updates` when reviewed content should become available to the router for adjudication or setting interaction. These are deltas, not a complete knowledge ledger.
 
-For each update, fill `entity_id`, `pack_id`, `ref`, `content_hash`, `knowledge_state`, `reason`, and `source_fact_ids`. Use `content_hash=""` unless a hash is shown. Use `source_fact_ids` from the recent fact ids such as `f01`.
+Return `turn_hints` only for candidate characters who may plausibly want router attention because the recent facts touch their pressure, goals, location, resources, or responsibilities. A hint is not permission to act and does not decide whether the character gets a turn.
 
-Return no updates when the recent facts do not change any listed entity's useful module knowledge.
+For each content update, fill `pack_id`, `ref`, `content_hash`, `update_kind`, `reason`, and `source_fact_ids`. Use `content_hash=""` unless a hash is shown. Use `update_kind="introduce"` for new refs and `update_kind="refresh"` for changed refs.
+
+For each turn hint, fill `character_id`, `priority`, `reason`, `source_fact_ids`, and `related_content_refs`. Use related content refs as `pack:ref` tokens from the catalog, such as `curse:front/spy_network`.
+
+Return no updates and no hints when the recent facts do not require new router content or character attention.
 </instructions>
 
 <<<USER>>>
@@ -19,9 +23,13 @@ Return no updates when the recent facts do not change any listed entity's useful
 {recent_facts_block}
 </recent_facts>
 
-<entity_knowledge>
-{entity_knowledge_block}
-</entity_knowledge>
+<known_router_refs>
+{known_router_refs_block}
+</known_router_refs>
+
+<candidate_characters>
+{candidate_entities_block}
+</candidate_characters>
 
 <available_catalog>
 {available_catalog_block}
