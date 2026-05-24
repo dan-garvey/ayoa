@@ -445,6 +445,14 @@ def build_router_content_lookup_catalog_block(
         if db_path is None:
             continue
         _assert_pack_runtime_identity(db_path, pack_id=pack_id, pack_state=pack_state)
+        projected_lines = _projected_router_lookup_catalog_lines(
+            pack_state,
+            pack_id=pack_id,
+            max_cards=max_cards_per_pack,
+        )
+        if projected_lines:
+            lines.extend(projected_lines)
+            continue
         aliases_by_ref = _aliases_by_ref(pack_state)
         cards = load_content_cards(
             db_path,
@@ -470,6 +478,60 @@ def build_router_content_lookup_catalog_block(
                 parts.append("summary=" + _quote_value(card.summary))
             lines.append(" ".join(parts))
     return "\n".join(lines)
+
+
+def _projected_router_lookup_catalog_lines(
+    pack_state: Any,
+    *,
+    pack_id: str,
+    max_cards: int,
+) -> list[str]:
+    metadata = _metadata(pack_state)
+    raw = metadata.get("router_lookup_catalog") or metadata.get("catalog")
+    if not isinstance(raw, list):
+        return []
+    rows: list[str] = []
+    for item in raw[: max(0, int(max_cards))]:
+        if not isinstance(item, Mapping):
+            continue
+        ref = _safe_token(item.get("ref") or item.get("ref_id"))
+        if not ref:
+            continue
+        parts = [f"pack={_safe_token(pack_id)}", f"ref={ref}"]
+        kind = _safe_token(item.get("kind") or item.get("card_kind"))
+        visibility = _safe_token(item.get("visibility"))
+        if kind:
+            parts.append(f"kind={kind}")
+        if visibility:
+            parts.append(f"visibility={visibility}")
+        aliases = [
+            alias
+            for alias in (
+                _safe_catalog_text(alias)
+                for alias in _catalog_alias_values(
+                    item.get("aliases") or item.get("names") or []
+                )
+            )
+            if alias
+        ]
+        if aliases:
+            parts.append("aliases=" + _quote_value(", ".join(aliases[:8])))
+        title = _safe_catalog_text(item.get("title") or item.get("label") or "")
+        summary = _safe_catalog_text(item.get("summary") or "")
+        if title:
+            parts.append("title=" + _quote_value(title))
+        if summary:
+            parts.append("summary=" + _quote_value(summary))
+        rows.append(" ".join(part for part in parts if part))
+    return rows
+
+
+def _catalog_alias_values(raw: Any) -> list[Any]:
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return list(raw)
+    return []
 
 
 def _aliases_by_ref(pack_state: Any) -> dict[str, list[str]]:

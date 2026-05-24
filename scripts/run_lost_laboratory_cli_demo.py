@@ -17,11 +17,9 @@ import json
 import logging
 import os
 import shutil
-import sqlite3
 import sys
 import traceback
 from contextlib import redirect_stdout
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,8 +30,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from app.engine import dnd_combat
-from app.engine.content_pack_compiler import (
-    SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
+from app.engine.content_pack_projections import (
+    apply_checkpoint_projection,
+    apply_field_start_projection,
+    character_record_from_projection,
+    content_pack_state_from_projection,
 )
 from app.bot.engine_bridge import EngineBridge
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig
@@ -45,13 +46,11 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.content import (
-    ContentFrontState,
-    ContentKnowledgeEntityState,
-    ContentPackState,
-    PendingContentSignal,
-)
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
+from app.schemas.content_projection import (
+    ContentCharacterProjection,
+    ContentPackProjectionArtifact,
+)
 from app.schemas.state import (
     PhysicsRuleset,
     SessionConfig,
@@ -63,8 +62,7 @@ from scripts.play import CLIState
 
 
 PACK_ARTIFACT_DIR = REPO_ROOT / "private_extractions/lost_laboratory_of_kwalish"
-CATALOG_PATH = PACK_ARTIFACT_DIR / "manual_semantic_catalog_full_reviewed_v1.json"
-SEED_INPUTS_PATH = PACK_ARTIFACT_DIR / "full_checkpoint_seed_inputs_v1.json"
+PROJECTION_PATH = PACK_ARTIFACT_DIR / "semantic_projections_full_reviewed_v1.json"
 COMPILED_PACK_PATH = (
     REPO_ROOT
     / "private_extractions/compiled/lost_laboratory_kwalish_full_reviewed_v1.sqlite"
@@ -283,15 +281,6 @@ SOAK_EXPLORATION_COMMANDS = (
     ),
 )
 
-
-@dataclass(frozen=True)
-class RefCard:
-    ref: str
-    content_hash: str
-    kind: str
-    summary: str
-
-
 def _weapon_action(
     action_id: str,
     name: str,
@@ -414,115 +403,22 @@ def _npc_demo_mechanics(character_id: str) -> dict[str, Any]:
     return {}
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _load_cards() -> dict[str, RefCard]:
-    if not COMPILED_PACK_PATH.exists():
-        raise FileNotFoundError(f"compiled pack not found: {COMPILED_PACK_PATH}")
-    with sqlite3.connect(COMPILED_PACK_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT ref, content_hash, kind, summary
-            FROM content_cards
-            WHERE gate_status = 'runtime_ready'
-            ORDER BY ref
-            """
-        ).fetchall()
-    return {
-        row["ref"]: RefCard(
-            ref=row["ref"],
-            content_hash=row["content_hash"],
-            kind=row["kind"],
-            summary=row["summary"],
+def _read_projection() -> ContentPackProjectionArtifact:
+    if not PROJECTION_PATH.exists():
+        raise FileNotFoundError(
+            "Lost Laboratory projection artifact is missing. Re-run the reviewed "
+            f"import promoter to create {PROJECTION_PATH}."
         )
-        for row in rows
-    }
-
-
-def _compact_ref(pack_id: str, ref: str, cards: dict[str, RefCard]) -> str:
-    card = cards[ref]
-    return f"{pack_id}:{ref}@{card.content_hash}"
-
-
-def _refs_for_actor(
-    actor: dict[str, Any],
-    context_slice: dict[str, Any],
-) -> list[str]:
-    refs = [
-        actor["ref"],
-        actor.get("agent_context_slice_ref", ""),
-        *actor.get("home_location_refs", []),
-        *actor.get("front_refs", []),
-        *actor.get("knowledge_channel_refs", []),
-        *context_slice.get("local_context_refs", []),
-        *context_slice.get("graph_edge_refs", []),
-    ]
-    return [ref for ref in dict.fromkeys(refs) if ref]
-
-
-def _npc_character(
-    *,
-    actor: dict[str, Any],
-    context_slice: dict[str, Any],
-) -> CharacterRecord:
-    character_id = actor.get("character_id_hint") or actor["ref"].replace(".", "_")
-    display_name = {
-        "npc_cartophile": "The Cartophile",
-        "npc_ctenmiir": "Ctenmiir",
-        "npc_garret": "Garret Levistusson",
-        "npc_gearbox": "Gearbox",
-        "npc_mary": "Mary Greymalkin",
-    }.get(character_id, character_id.replace("_", " ").title())
-    active = character_id in {"npc_cartophile", "npc_garret", "npc_gearbox"}
-    beliefs = "; ".join(context_slice.get("beliefs", []))
-    uncertainties = "; ".join(context_slice.get("uncertainties", []))
-    boundaries = "; ".join(context_slice.get("hard_boundaries", []))
-    known_context = " ".join(
-        part
-        for part in (
-            context_slice.get("known_context", ""),
-            f"Beliefs: {beliefs}." if beliefs else "",
-            f"Uncertainties: {uncertainties}." if uncertainties else "",
-            f"Boundaries: {boundaries}." if boundaries else "",
-        )
-        if part
+    return ContentPackProjectionArtifact.model_validate_json(
+        PROJECTION_PATH.read_text(encoding="utf-8")
     )
-    secrets = []
-    private_text = context_slice.get("private_state", "")
-    if private_text:
-        secrets.append(private_text)
-    constraints = actor.get("constraints", [])
-    if constraints:
-        secrets.append("Constraints: " + "; ".join(constraints))
-    return CharacterRecord(
-        character_id=character_id,
-        name=display_name,
-        status=CharacterStatus.active if active else CharacterStatus.dormant,
-        location="loc.cartophile_collection",
-        is_playable=False,
+
+
+def _npc_character(projection: ContentCharacterProjection) -> CharacterRecord:
+    return character_record_from_projection(
+        projection,
+        mechanics=_npc_demo_mechanics(projection.character_id),
         agent_tier=CharacterAgentTier.standard,
-        public_sheet=PublicSheet(
-            role=actor.get("actor_kind", "npc").replace("_", " "),
-            appearance="A reviewed NPC from the imported Lost Laboratory module.",
-            faction="Lost Laboratory expedition",
-        ),
-        private_state=PrivateState(
-            goals=actor.get("goals", []),
-            current_objectives=context_slice.get("current_agenda", []),
-            secrets=secrets,
-            intentions_enabled=character_id in {"npc_cartophile", "npc_garret"},
-            tick_cues=actor.get("initiative_triggers", []),
-        ),
-        backstory=actor.get("summary", ""),
-        personality=(
-            "Play the reviewed module role concretely. Keep pressure social "
-            "and contractual unless the router frames a contested escalation."
-        ),
-        known_context=known_context,
-        mechanics=_npc_demo_mechanics(character_id),
     )
 
 
@@ -584,231 +480,23 @@ def _player_character() -> CharacterRecord:
     )
 
 
-def _content_state(
-    *,
-    seed_inputs: dict[str, Any],
-    catalog: dict[str, Any],
-    cards: dict[str, RefCard],
-) -> dict[str, ContentPackState]:
-    pack_id = seed_inputs["pack_id"]
-    pending: dict[str, PendingContentSignal] = {}
-    for index, ref in enumerate(
-        seed_inputs.get("initial_router_lookup_refs", []),
-        start=1,
-    ):
-        if ref not in cards:
-            continue
-        card = cards[ref]
-        pending[f"startup_{index:02d}"] = PendingContentSignal(
-            signal_id=f"startup_{index:02d}",
-            pack_id=pack_id,
-            ref_id=ref,
-            content_hash=card.content_hash,
-            reason="reviewed pack startup router context",
-            priority=10,
-            requested_fields=["summary"],
-            metadata={
-                "kind": card.kind,
-                "visibility": "router_hidden",
-                "summary": card.summary,
-            },
-        )
-
-    active_fronts: dict[str, ContentFrontState] = {}
-    for front_ref in seed_inputs.get("active_front_refs", []):
-        if front_ref in cards:
-            active_fronts[front_ref] = ContentFrontState(
-                front_id=front_ref,
-                label=front_ref,
-                status="active",
-                notes=cards[front_ref].summary,
-            )
-
-    contexts = {
-        item["actor_ref"]: item
-        for item in catalog.get("agent_context_slices", [])
-    }
-    knowledge_map: dict[str, ContentKnowledgeEntityState] = {}
-    for actor in catalog.get("actor_dossiers", []):
-        context_slice = contexts.get(actor["ref"], {})
-        character_id = actor.get("character_id_hint")
-        if not character_id:
-            continue
-        known_refs = [
-            _compact_ref(pack_id, ref, cards)
-            for ref in _refs_for_actor(actor, context_slice)
-            if ref in cards
-        ]
-        knowledge_map[character_id] = ContentKnowledgeEntityState(
-            entity_id=character_id,
-            known_refs=known_refs,
-            notes="Reviewed module knowledge map seed.",
-        )
-
-    return {
-        pack_id: ContentPackState(
-            pack_id=pack_id,
-            pending_signals=pending,
-            fronts=active_fronts,
-            knowledge_map=knowledge_map,
-            metadata={
-                "db_path": str(COMPILED_PACK_PATH.relative_to(REPO_ROOT)),
-                "pack_version": seed_inputs["pack_version"],
-                "source_fingerprint": seed_inputs["source_fingerprint"],
-                "schema_version": CONTENT_PACK_SCHEMA_VERSION,
-                "active_front_refs": seed_inputs.get("active_front_refs", []),
-                "domain_catalog": catalog,
-                "catalog": [
-                    {
-                        "ref": card.ref,
-                        "kind": card.kind,
-                        "aliases": [card.ref.replace(".", " ")],
-                        "summary": card.summary[:160],
-                    }
-                    for card in cards.values()
-                ],
-            },
-        )
-    }
-
-
-def _field_start_checkpoint(
-    ckpt: CheckpointFile,
-    *,
-    seed_inputs: dict[str, Any],
-    cards: dict[str, RefCard],
-) -> None:
-    pack_id = seed_inputs["pack_id"]
-    route_ref = "loc.barrier_peaks_route"
-    field_refs = [
-        ref
-        for ref in seed_inputs.get("field_start_router_lookup_refs", [])
-        if ref in cards
-    ]
-    pack_state = ckpt.session.content_state.get(pack_id)
-    if pack_state is not None:
-        for index, ref in enumerate(field_refs, start=1):
-            card = cards[ref]
-            signal_id = f"field_{index:02d}"
-            pack_state.pending_signals[signal_id] = PendingContentSignal(
-                signal_id=signal_id,
-                pack_id=pack_id,
-                ref_id=ref,
-                content_hash=card.content_hash,
-                reason="field-start reviewed module context",
-                priority=30 - index,
-                requested_fields=["summary"],
-                metadata={
-                    "kind": card.kind,
-                    "visibility": "router_hidden",
-                    "summary": card.summary,
-                },
-            )
-        for entity_id in ("npc_garret", "npc_gearbox"):
-            state = pack_state.knowledge_map.get(entity_id)
-            if state is None:
-                state = ContentKnowledgeEntityState(entity_id=entity_id)
-            known_refs = list(state.known_refs)
-            for ref in [*field_refs, "handout.cartophile_maps"]:
-                if ref in cards:
-                    compact = _compact_ref(pack_id, ref, cards)
-                    if compact not in known_refs:
-                        known_refs.append(compact)
-            pack_state.knowledge_map[entity_id] = state.model_copy(
-                update={
-                    "known_refs": known_refs,
-                    "notes": (
-                        "Field-start seed: expedition has route folios, "
-                        "reviewed route tables, and the route pressure "
-                        "encounter available."
-                    ),
-                }
-            )
-
-    for char in ckpt.characters:
-        if char.character_id in {PLAYER_ID, "npc_garret", "npc_gearbox"}:
-            char.status = CharacterStatus.active
-            char.location = route_ref
-        else:
-            char.status = CharacterStatus.dormant
-        if char.character_id == PLAYER_ID:
-            char.known_context = (
-                "You accepted the Cartophile's return-documentation terms. "
-                "Garret carries the route folios as custodian, Gearbox travels "
-                "as technical support, and the party has reached the wooded "
-                "foothills on the Barrier Peaks route."
-            )
-            char.private_state.current_objectives = [
-                "Scout the wooded foothills without losing the route.",
-                "Protect the expedition from reviewed route pressure and terrain hazards.",
-            ]
-        elif char.character_id == "npc_garret":
-            char.private_state.current_objectives = [
-                "Keep the route folios dry, intact, and useful.",
-                "Warn the expedition when terrain does not match the page.",
-            ]
-        elif char.character_id == "npc_gearbox":
-            char.private_state.current_objectives = [
-                "Support the expedition as a technical specialist.",
-                "Watch for unstable terrain and mechanical anomalies.",
-            ]
-
-    ckpt.player_primer = (
-        "You are already in the wooded foothills of the Barrier Peaks route "
-        "with Garret as map custodian and Gearbox as technical support."
-    )
-    ckpt.world_state.facts = [
-        "The expedition accepted the Cartophile's terms before departure.",
-        "Garret is custodian of the route folios.",
-        "Gearbox accompanies the expedition as technical support.",
-        "The party is scouting the wooded foothills before the cave approach.",
-    ]
-    ckpt.session.config.narrative_rules = (
-        "Start in the field at loc.barrier_peaks_route. Keep play grounded in "
-        "route scouting, terrain choices, and immediate expedition hazards. "
-        "Do not reopen the Cartophile negotiation unless the player sends a "
-        "message back."
-    )
-
-
 def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
-    catalog = _read_json(CATALOG_PATH)
-    seed_inputs = _read_json(SEED_INPUTS_PATH)
-    cards = _load_cards()
-    context_by_actor = {
-        item["actor_ref"]: item
-        for item in catalog.get("agent_context_slices", [])
-    }
-    npcs = [
-        _npc_character(
-            actor=actor,
-            context_slice=context_by_actor.get(actor["ref"], {}),
-        )
-        for actor in catalog.get("actor_dossiers", [])
-    ]
+    projection = _read_projection()
+    npcs = [_npc_character(character) for character in projection.characters]
     ckpt = CheckpointFile(
         session=SessionState(
             session_id=STORY_ID,
             story_id=STORY_ID,
             config=SessionConfig(),
-            content_state=_content_state(
-                seed_inputs=seed_inputs,
-                catalog=catalog,
-                cards=cards,
+            content_state=content_pack_state_from_projection(
+                projection,
+                db_path=str(COMPILED_PACK_PATH.relative_to(REPO_ROOT)),
+                start_mode=start_mode,
             ),
         ),
-        player_primer=(
-            "You are opening a Lost Laboratory expedition from the patron's "
-            "map collection. The immediate job is to secure terms, understand "
-            "the loaned route material, and decide who will accompany or "
-            "safeguard the expedition records."
-        ),
+        player_primer=projection.checkpoint.player_primer,
         world_state=WorldState(
-            facts=[
-                "The expedition is still in its startup negotiation phase.",
-                "The patron can provide route material but expects recovered documentation.",
-                "Candidate custodians and specialists may be negotiated before travel.",
-            ],
+            facts=list(projection.checkpoint.world_facts),
             physics_ruleset=PhysicsRuleset(
                 strength_limits="dnd5e_basic",
                 magic_enabled=True,
@@ -822,24 +510,15 @@ def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
                     "a lost inventor's laboratory."
                 ),
             ),
-            lore=(
-                "The expedition follows incomplete Barrier Peaks route lore "
-                "toward a lost inventor's laboratory. Downstream places, "
-                "threats, treasures, and strange technologies become concrete "
-                "only when the party reaches them or uncovers reliable notes."
-            ),
+            lore=projection.checkpoint.world_lore,
         ),
         characters=[_player_character(), *npcs],
     )
     ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
     ckpt.session.config.settings.player_roll_mode = "auto"
-    ckpt.session.config.narrative_rules = (
-        "Keep the startup scene grounded in negotiation, route preparation, "
-        "and choosing expedition support. Use reviewed module knowledge before "
-        "introducing downstream locations, hazards, or encounters."
-    )
+    apply_checkpoint_projection(ckpt, projection.checkpoint)
     if start_mode == "field":
-        _field_start_checkpoint(ckpt, seed_inputs=seed_inputs, cards=cards)
+        apply_field_start_projection(ckpt, projection)
     return ckpt
 
 
