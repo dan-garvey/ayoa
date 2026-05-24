@@ -2,20 +2,19 @@
 
 Status: decided for the protected module import path.
 
-This decision closes the privacy boundary question left open in
-`DND_ADVENTURE_LOOKUP_PLAN.md`. It applies to protected or privately owned
-adventure modules, including scanned PDFs, extracted text/images, manual import
-notes, compiled packs, runtime lookup records, checkpoints, logs, Discord, CLI,
-review exports, and project task tracking.
+This decision applies to protected or privately owned adventure modules,
+including scanned PDFs, extracted text/images, manual import notes, compiled
+packs, runtime lookup records, projection/application profiles, checkpoints,
+logs, Discord, CLI, review exports, and project task tracking.
 
 ## Current Grounding
 
-This policy follows the current module direction in `DND_MODULE_IMPORT.md` and
-`DND_ADVENTURE_LOOKUP_PLAN.md`:
+This policy follows the current module direction in `DND_MODULE_IMPORT.md`:
 
-- module import is a compiler and review workflow, not turn-time raw OCR RAG
-- runtime lookup reads compiled SQLite records, not raw OCR/page files
-- checkpoints store refs, hashes, reveal state, and campaign mutations
+- module import is a compiler/review workflow, not turn-time raw OCR RAG
+- modules are reviewed content packs with projection/application profiles
+- runtime lookup reads compiled records and profile projections, not raw pages
+- checkpoints store refs, hashes, reveal state, projections, and mutations
 - images are private table assets; players receive only reviewed player-safe
   reveals
 - narrator prompts receive visible facts and safe captions only

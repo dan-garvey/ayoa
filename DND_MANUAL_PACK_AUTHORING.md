@@ -2,8 +2,8 @@
 
 Status: initial workflow for manually authored protected module packs.
 
-This document defines the first D&D module import path: coding agents author
-redacted compiled pack records by hand. OCR, extraction helpers, local vision
+This document defines the manual authoring path for D&D module content packs
+and projection/application profiles. OCR, extraction helpers, local vision
 tools, and LLM drafts may assist in private review, but they are never
 runtime-authoritative. A record becomes runtime data only after a coding agent
 has inspected the private source, rewritten the material into redacted pack
@@ -57,9 +57,15 @@ compiled pack metadata, asset delivery refs, or test artifacts. If a helper
 prints raw OCR, source paths, protected excerpts, or DM-only labels, treat that
 output as private scratch and rewrite from it into redacted records.
 
-## Record Format
+## Record And Projection Format
 
-The initial manual authoring target is the existing compiled-pack vocabulary:
+Manual authoring has two outputs:
+
+1. Reviewed content-pack records: the stable module authority.
+2. Projection/application profiles: import-authored slices that create a seed
+   checkpoint or apply the module to an existing checkpoint.
+
+The compiled-pack vocabulary includes:
 
 - `PageInventoryRecord`
 - `ContentProvenance`
@@ -70,10 +76,10 @@ The initial manual authoring target is the existing compiled-pack vocabulary:
 - asset catalog rows and reviewed derivative media
 
 Domain-specific records such as encounters, traps, stat blocks, front dossiers,
-handouts, tables, and tactical map templates may start as
-`CompiledContentCard` rows with typed `card_kind` values and redacted structured
-metadata. When a dedicated schema lands, migrate directly rather than keeping
-compatibility shims for obsolete record shapes.
+handouts, tables, tactical map templates, actor dossiers, agent context slices,
+and knowledge graph edges should use the typed content-pack schemas when they
+exist. Temporary draft formats are authoring aids only; migrate directly rather
+than keeping compatibility shims for obsolete record shapes.
 
 Every runtime candidate record must carry these authoring fields:
 
@@ -136,6 +142,24 @@ Synthetic example:
   }
 }
 ```
+
+Projection/application profiles use `ContentPackProjectionArtifact` and related
+schemas. Every accepted module handoff should include at least one explicit
+profile or a blocker explaining why no profile is runtime-ready. A profile must
+state whether it is for seed creation, existing-checkpoint application, or both,
+and must include only reviewed/runtime-ready refs.
+
+Profile outputs may include:
+
+- router startup lookup refs and compact lookup catalog entries
+- character-agent initial context projections
+- initial engine-owned knowledge map
+- active fronts and pressure state
+- checkpoint seed text and optional field-start patches
+- private D&D adapter overlay data
+
+The engine consumes these profiles. It should not rediscover semantic slice
+boundaries from raw domain records on every session.
 
 ## Record Lifecycle
 
@@ -408,6 +432,7 @@ features are unavailable.
 When handing off manual authoring work, provide only sanitized information:
 
 - changed compiled-pack files or docs by path category, not private source paths
+- changed projection/application profile artifacts by path category
 - synthetic or redacted record ids
 - aggregate coverage counts
 - review states and gate reason codes

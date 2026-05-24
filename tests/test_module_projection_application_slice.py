@@ -14,7 +14,10 @@ from app.engine.content_lookup import (
 )
 from app.engine.content_pack_compiler import (
     CompiledContentPackWriter,
-    SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
+)
+from app.engine.content_pack_projections import (
+    build_content_pack_projection_artifact,
+    content_pack_state_from_projection,
 )
 from app.engine.content_resolver import append_pending_router_content_records
 from app.engine.imported_encounters import (
@@ -29,10 +32,13 @@ from app.llm.client import LLMClient
 from app.schemas.content import (
     ContentCombatMapOverlayState,
     ContentOverlayState,
-    ContentPackState,
     ContentPovRevealState,
     ContentTrapOverlayState,
     ContentTreasureOverlayState,
+)
+from app.schemas.content_pack import (
+    CompiledContentCard,
+    ContentPackDomainCatalog,
 )
 from app.schemas.dnd_monsters import DndCombatantSpawn
 from app.schemas.events import ObservableFact
@@ -50,7 +56,7 @@ PACK_VERSION = "1.0.0"
 SOURCE_FINGERPRINT = "sha256:synthetic-source"
 
 
-def test_redacted_manual_module_vertical_slice(tmp_path):
+def test_module_projection_application_vertical_slice(tmp_path):
     db_path = _compiled_pack(tmp_path)
     ckpt = checkpoint(
         session_id="slice",
@@ -90,7 +96,12 @@ def test_redacted_manual_module_vertical_slice(tmp_path):
     )
     assert lookup_records == [
         (
-            "location_card ref=loc.secret visibility=hidden "
+            "location_card ref=loc.entry visibility=router_hidden "
+            "hash=hash-loc-entry pack=synthetic-pack "
+            'summary="A reviewed entry location record."'
+        ),
+        (
+            "location_card ref=loc.secret visibility=router_hidden "
             "hash=hash-loc-secret pack=synthetic-pack "
             'summary="A reviewed hidden alcove record."'
         )
@@ -158,11 +169,11 @@ def test_redacted_manual_module_vertical_slice(tmp_path):
     front_records = append_pending_router_content_records(ckpt)
     assert len(front_records) == 1
     assert front_records[0].startswith(
-        "front_signal ref=front.strahd actor=npc.strahd"
+        "front_signal ref=front.watchers actor=npc.overseer"
     )
     front_runtime = ckpt.session.content_state[PACK_ID].metadata[
         FRONT_RUNTIME_METADATA_KEY
-    ]["fronts"]["front.strahd"]
+    ]["fronts"]["front.watchers"]
     assert front_runtime["known_facts"] == [
         "The entry bell rings loud enough for spies."
     ]
@@ -198,8 +209,76 @@ def test_redacted_manual_module_vertical_slice(tmp_path):
         assert forbidden not in default_dump
 
 
+def _domain_catalog() -> ContentPackDomainCatalog:
+    return ContentPackDomainCatalog(
+        pack_id=PACK_ID,
+        pack_version=PACK_VERSION,
+        source_fingerprint=SOURCE_FINGERPRINT,
+        locations=[
+            {
+                "pack_id": PACK_ID,
+                "ref": "loc.entry",
+                "content_hash": "hash-loc-entry",
+                "record_kind": "location",
+                "visibility": "router_hidden",
+                "title": "Entry",
+                "summary": "A reviewed entry location record.",
+                "review_status": "approved",
+                "gate_status": "runtime_ready",
+                "confidence": 0.95,
+            },
+            {
+                "pack_id": PACK_ID,
+                "ref": "loc.secret",
+                "content_hash": "hash-loc-secret",
+                "record_kind": "location",
+                "visibility": "router_hidden",
+                "title": "Secret Alcove",
+                "summary": "A reviewed hidden alcove record.",
+                "review_status": "approved",
+                "gate_status": "runtime_ready",
+                "confidence": 0.95,
+            },
+        ],
+        front_dossiers=[_front_dossier()],
+        encounter_templates=[_encounter()],
+        statblocks=[_statblock()],
+        tactical_map_templates=[_map_template()],
+        trap_hazards=[_trap_hazard()],
+        treasures=[_treasure()],
+    )
+
+
+def _compiled_cards(catalog: ContentPackDomainCatalog) -> list[CompiledContentCard]:
+    cards: list[CompiledContentCard] = []
+    for record in catalog._domain_records():
+        card_kind = (
+            "location_card"
+            if record.record_kind == "location"
+            else "front_signal"
+            if record.record_kind == "front_dossier"
+            else record.record_kind
+        )
+        cards.append(
+            CompiledContentCard(
+                pack_id=PACK_ID,
+                ref=record.ref,
+                content_hash=record.content_hash,
+                card_kind=card_kind,
+                visibility=record.visibility,
+                title=record.title,
+                summary=record.summary,
+                review_status="approved",
+                gate_status="runtime_ready",
+                confidence=record.confidence,
+            )
+        )
+    return cards
+
+
 def _compiled_pack(tmp_path):
     db_path = tmp_path / "synthetic_pack.sqlite"
+    catalog = _domain_catalog()
     writer = CompiledContentPackWriter(
         db_path,
         pack_id=PACK_ID,
@@ -208,29 +287,12 @@ def _compiled_pack(tmp_path):
     )
     writer.write_pack(
         pages=[],
-        cards=[
-            {
-                "ref": "loc.entry",
-                "content_hash": "hash-loc-entry",
-                "card_kind": "location_card",
-                "visibility": "hidden",
-                "summary": "A reviewed entry location record.",
-                "review_status": "approved",
-            },
-            {
-                "ref": "loc.secret",
-                "content_hash": "hash-loc-secret",
-                "card_kind": "location_card",
-                "visibility": "hidden",
-                "summary": "A reviewed hidden alcove record.",
-                "review_status": "approved",
-            },
-        ],
+        cards=_compiled_cards(catalog),
     )
     return db_path
 
 
-def _content_state(db_path) -> dict[str, ContentPackState]:
+def _content_state(db_path):
     treasure_overlay = ContentTreasureOverlayState(
         treasure_id="treasure.cache",
         content_hash="hash-treasure-cache",
@@ -240,45 +302,36 @@ def _content_state(db_path) -> dict[str, ContentPackState]:
         trap_id="trap.floor",
         content_hash="hash-trap-floor",
     )
-    return {
-        PACK_ID: ContentPackState(
-            pack_id=PACK_ID,
-            metadata={
-                "db_path": str(db_path),
-                "pack_version": PACK_VERSION,
-                "source_fingerprint": SOURCE_FINGERPRINT,
-                "schema_version": CONTENT_PACK_SCHEMA_VERSION,
-                "locations": [{"ref": "loc.entry"}],
-                "encounter_templates": [_encounter()],
-                "statblocks": [_statblock()],
-                "tactical_map_templates": [_map_template()],
-                "trap_hazards": [_trap_hazard()],
-                "treasures": [_treasure()],
-                "domain_catalog": {
-                    "pack_id": PACK_ID,
-                    "front_dossiers": [_front_dossier()],
-                },
-                "active_front_refs": ["front.strahd"],
-            },
-            overlay=ContentOverlayState(
-                traps={trap_overlay.overlay_key(): trap_overlay},
-                treasures={treasure_overlay.overlay_key(): treasure_overlay},
-                pov_reveals={
-                    "alice": ContentPovRevealState(
-                        viewer_id="alice",
-                        revealed_asset_ids=["asset.map.entry"],
-                        map_overlays={
-                            "map.entry::hash-map-entry": ContentCombatMapOverlayState(
-                                map_id="map.entry",
-                                content_hash="hash-map-entry",
-                                revealed_area_ref_ids=["area.entry"],
-                                fogged_area_ref_ids=["area.secret"],
-                            )
-                        },
+    projection = build_content_pack_projection_artifact(
+        _domain_catalog(),
+        runtime_cards=_compiled_cards(_domain_catalog()),
+        initial_router_lookup_refs=["loc.entry"],
+        active_front_refs=["front.watchers"],
+    )
+    state = content_pack_state_from_projection(
+        projection,
+        db_path=str(db_path),
+    )[PACK_ID]
+    state.overlay = ContentOverlayState(
+        traps={trap_overlay.overlay_key(): trap_overlay},
+        treasures={treasure_overlay.overlay_key(): treasure_overlay},
+        pov_reveals={
+            "alice": ContentPovRevealState(
+                viewer_id="alice",
+                revealed_asset_ids=["asset.map.entry"],
+                map_overlays={
+                    "map.entry::hash-map-entry": ContentCombatMapOverlayState(
+                        map_id="map.entry",
+                        content_hash="hash-map-entry",
+                        revealed_area_ref_ids=["area.entry"],
+                        fogged_area_ref_ids=["area.secret"],
                     )
                 },
-            ),
-        )
+            )
+        },
+    )
+    return {
+        PACK_ID: state,
     }
 
 
@@ -469,13 +522,13 @@ def _treasure() -> dict:
 def _front_dossier() -> dict:
     return {
         "pack_id": PACK_ID,
-        "ref": "front.strahd",
-        "content_hash": "hash-front-strahd",
-        "title": "Strahd Front",
+        "ref": "front.watchers",
+        "content_hash": "hash-front-watchers",
+        "title": "Watcher Front",
         "summary": "Reviewed pressure dossier.",
         "review_status": "approved",
         "gate_status": "runtime_ready",
-        "villain_refs": ["npc.strahd"],
+        "villain_refs": ["npc.overseer"],
         "initial_knowledge": ["The entry alarm matters."],
         "action_palette": [
             {

@@ -5,7 +5,7 @@ Status: accepted decision for the asset backing and delivery slice.
 This document decides how player-safe image assets are backed, resolved to
 bytes, delivered to Discord and CLI surfaces, and unwound during rewind. It is
 grounded in the current asset catalog, reveal schema, Discord delivery helpers,
-and module-import plan, but it deliberately does not implement the runtime
+and module-import contract, but it deliberately does not implement the runtime
 patch.
 
 ## Current Surfaces

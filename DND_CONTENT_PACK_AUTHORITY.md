@@ -8,6 +8,9 @@ schema, or delivery changes.
 
 This decision sits downstream of:
 
+- `DND_MODULE_IMPORT.md`, which defines modules as reviewed content packs with
+  projection/application profiles that can create seed checkpoints or apply to
+  existing checkpoints.
 - `DND_MODULE_PRIVACY_BOUNDARY.md`, which separates raw/private artifacts,
   compiled private packs, runtime prompt surfaces, checkpoints, logs, CLI, and
   Discord output.
@@ -15,11 +18,6 @@ This decision sits downstream of:
   and keeps player-visible assets filtered through safe payloads.
 - `DND_ASSET_BACKING_AND_DELIVERY.md`, which makes `asset://<pack>/<asset>` the
   canonical runtime delivery ref and rejects source paths as delivery refs.
-- `DND_ADVENTURE_LOOKUP_PLAN.md`, which says runtime lookup reads compiled
-  SQLite records, not raw OCR or page files.
-- `DND_MODULE_IMPORT.md`, which treats initial module imports as manual
-  coding-agent-authored records compiled and reviewed into structured local
-  runtime data.
 
 The rules-neutral engine remains router-centered. The router canonicalizes
 events, the narrator renders visible facts, character agents receive text
@@ -52,17 +50,20 @@ Runtime uses these authority layers:
 1. Compiled SQLite pack: immutable reviewed module data and indexes served to
    runtime by stable `pack_id`, version, schema version, refs, content hashes,
    review gates, and safe asset ids.
-2. Checkpoint/session overlay: mutable campaign state, revealed/introduced refs,
+2. Projection/application profile: import-authored slices that decide what
+   router, character-agent, engine, and seed/application packets are available
+   for a specific use case.
+3. Checkpoint/session overlay: mutable campaign state, revealed/introduced refs,
    per-pack overlay progress, active D&D adapter state, and player/session
    mutations.
-3. Router history: compact assistant-side records that summarize already
+4. Router history: compact assistant-side records that summarize already
    introduced pack facts for router continuity. These are projections, not a
    second content database.
-4. Canonical event log: story-time truth authored by the router, including
+5. Canonical event log: story-time truth authored by the router, including
    visible facts and content-enabled side effects such as asset reveal requests.
-5. Private raw/review artifacts: local-only authoring evidence, never queried by
+6. Private raw/review artifacts: local-only authoring evidence, never queried by
    turn-time runtime.
-6. Safe player asset payloads: delivery-ready projections validated from pack
+7. Safe player asset payloads: delivery-ready projections validated from pack
    asset catalog rows and filtered per POV.
 
 ## Pack Database Authority
@@ -102,6 +103,8 @@ Checkpoints own mutable play state and portable recovery state:
 
 - installed/active pack identity by `pack_id`, expected pack version, schema
   version, build/content hash, and local locator key
+- selected projection/application profile identity and profile hash when the
+  checkpoint was seeded or mutated by a module profile
 - introduced content refs by `pack_id`, `ref_id`, `content_hash`, label, kind,
   source event id, and introduction time
 - pending content signals queued by event consequences, lookup needs, fronts,

@@ -8,7 +8,7 @@ or test changes.
 
 This decision extends:
 
-- `DND_ADVENTURE_LOOKUP_PLAN.md`
+- `DND_MODULE_IMPORT.md`
 - `DND_CONTENT_PACK_AUTHORITY.md`
 - `DND_MODULE_PRIVACY_BOUNDARY.md`
 - `DND_ASSET_REVEAL_CONTRACT.md`
