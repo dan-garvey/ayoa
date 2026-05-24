@@ -30,7 +30,7 @@ from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
 _SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
-CONTENT_MANAGER_MAX_TOKENS = 4000
+CONTENT_MANAGER_MAX_TOKENS = 8000
 _CANDIDATE_KEYS = frozenset((
     "front",
     "faction",
@@ -250,17 +250,20 @@ def build_candidate_turn_entities_from_checkpoint(
         character_id = _safe_token(getattr(character, "character_id", ""))
         if not character_id:
             continue
+        status = getattr(character, "status", "")
+        status_value = getattr(status, "value", status)
+        if status_value != "active":
+            continue
         private_state = getattr(character, "private_state", None)
         public_sheet = getattr(character, "public_sheet", None)
         current_objectives = list(
             getattr(private_state, "current_objectives", []) or []
         )
-        status = getattr(character, "status", "")
         data: dict[str, Any] = {
             "name": getattr(character, "name", ""),
             "role": getattr(public_sheet, "role", ""),
             "location": getattr(character, "location", ""),
-            "status": getattr(status, "value", status),
+            "status": status_value,
         }
         if current_objectives:
             data["current_objective"] = current_objectives[:2]
@@ -353,18 +356,13 @@ def validate_content_manager_output(
         if candidate.character_id not in candidate_ids:
             errors.append(f"unknown character_id={candidate.character_id or '-'}")
             continue
-        bad_refs = [
-            ref
-            for ref in candidate.related_content_refs
-            if _runtime_card_from_compact_ref(ckpt, ref, cards) is None
+        valid_refs = [
+            ref for ref in candidate.related_content_refs
+            if _runtime_card_from_compact_ref(ckpt, ref, cards) is not None
         ]
-        if bad_refs:
-            errors.append(
-                f"invalid candidate refs character_id={candidate.character_id} "
-                f"refs={','.join(bad_refs)}"
-            )
-            continue
-        validated_candidates.append(candidate)
+        validated_candidates.append(
+            candidate.model_copy(update={"related_content_refs": valid_refs})
+        )
 
     validated_broadcasts: list[ContentManagerAgentContextBroadcast] = []
     for broadcast in output.agent_context_broadcasts:

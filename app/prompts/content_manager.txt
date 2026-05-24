@@ -19,6 +19,8 @@ For each ref-bearing item, fill `pack_id`, `ref`, `content_hash`, `reason`, and 
 
 For each router turn candidate, fill `character_id`, `priority`, `reason`, `source_fact_ids`, and `related_content_refs`. Use related content refs as `pack:ref` tokens from the catalog, such as `curse:front/spy_network`.
 
+Keep reasons concise: one short clause or sentence. Do not restate the full recent-fact history, current knowledge map, or catalog.
+
 Return empty arrays and a concise `no_update_reason` when recent facts do not require knowledge changes, router content, agent context, or character attention.
 </instructions>
 

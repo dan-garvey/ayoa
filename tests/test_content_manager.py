@@ -9,6 +9,7 @@ from app.engine.content_manager import (
     ContentManagerValidationError,
     append_content_manager_router_records,
     apply_content_manager_knowledge_updates,
+    build_candidate_turn_entities_from_checkpoint,
     build_candidate_turn_entities_block,
     build_content_knowledge_map_block,
     build_content_manager_messages,
@@ -25,6 +26,7 @@ from app.engine.content_pack_compiler import (
 )
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
+from app.schemas.characters import CharacterStatus
 from app.schemas.content import (
     ContentKnowledgeEntityState,
     ContentPackState,
@@ -32,7 +34,12 @@ from app.schemas.content import (
 )
 from app.schemas.content_manager import ContentManagerOutput
 from app.schemas.events import ObservableFact
-from tests.support.factories import checkpoint, llm_response, router_output
+from tests.support.factories import (
+    character_record,
+    checkpoint,
+    llm_response,
+    router_output,
+)
 
 
 PACK_VERSION = "1.0.0"
@@ -78,6 +85,20 @@ def _pack_state(db_path, introduced_refs=None, knowledge_map=None):
             "schema_version": CONTENT_PACK_SCHEMA_VERSION,
         },
     )
+
+
+def test_candidate_turn_entities_include_only_active_roster_characters():
+    ckpt = checkpoint(
+        characters=[
+            character_record("active_npc", status=CharacterStatus.active),
+            character_record("dormant_npc", status=CharacterStatus.dormant),
+            character_record("culled_npc", status=CharacterStatus.culled),
+        ],
+    )
+
+    candidates = build_candidate_turn_entities_from_checkpoint(ckpt)
+
+    assert set(candidates) == {"active_npc"}
 
 
 def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
@@ -272,7 +293,7 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
 
     assert client.complete.await_args.kwargs["role"] == "content_manager"
     assert client.complete.await_args.kwargs["response_model"] is ContentManagerOutput
-    assert client.complete.await_args.kwargs["max_tokens"] == 4000
+    assert client.complete.await_args.kwargs["max_tokens"] == 8000
     assert output.knowledge_updates[0].content_hash == "hash-front"
     assert output.router_required_knowledge[0].content_hash == "hash-front"
     assert output.agent_context_broadcasts[0].content_hash == "hash-front"
@@ -366,7 +387,7 @@ def test_content_manager_validation_rejects_unknown_candidates(tmp_path):
     assert "unknown broadcast character_id" in str(exc.value)
 
 
-def test_content_manager_validation_rejects_hash_mismatch_and_bad_refs(tmp_path):
+def test_content_manager_validation_rejects_hash_mismatch(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -414,7 +435,50 @@ def test_content_manager_validation_rejects_hash_mismatch_and_bad_refs(tmp_path)
         )
 
     assert "content hash mismatch" in str(exc.value)
-    assert "invalid candidate refs" in str(exc.value)
+    assert "invalid candidate refs" not in str(exc.value)
+
+
+def test_content_manager_validation_drops_invalid_candidate_related_refs(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "front/strahd",
+                "hash-front",
+                "front_signal",
+                "hidden",
+                "The antagonist tracks public trouble.",
+            )
+        ],
+    )
+    ckpt = checkpoint()
+    ckpt.session.content_state = {"pack": _pack_state(db_path)}
+    output = ContentManagerOutput(
+        router_turn_candidates=[
+            {
+                "character_id": "strahd",
+                "priority": "high",
+                "reason": "The front may want attention.",
+                "source_fact_ids": ["f01"],
+                "related_content_refs": [
+                    "pack:front/strahd",
+                    "pack:front/missing",
+                    "wrong_pack:front/strahd",
+                ],
+            }
+        ],
+    )
+
+    validated = validate_content_manager_output(
+        ckpt,
+        output,
+        candidate_entities={"strahd": {"role": "antagonist"}},
+    )
+
+    assert validated.router_turn_candidates[0].related_content_refs == [
+        "pack:front/strahd"
+    ]
 
 
 def test_append_content_manager_router_records_projects_only_router_deltas(tmp_path):

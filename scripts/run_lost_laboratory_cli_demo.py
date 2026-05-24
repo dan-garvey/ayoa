@@ -31,6 +31,10 @@ from dotenv import load_dotenv
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from app.engine import dnd_combat
+from app.engine.content_pack_compiler import (
+    SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
+)
 from app.bot.engine_bridge import EngineBridge
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig
 from app.schemas.characters import (
@@ -46,9 +50,6 @@ from app.schemas.content import (
     ContentKnowledgeEntityState,
     ContentPackState,
     PendingContentSignal,
-)
-from app.engine.content_pack_compiler import (
-    SCHEMA_VERSION as CONTENT_PACK_SCHEMA_VERSION,
 )
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
 from app.schemas.state import (
@@ -86,11 +87,97 @@ ISSUES_FIXED = [
     (
         "Content-manager live calls were truncated before JSON parsing with "
         "OpenAI incomplete max_output_tokens errors.",
-        "Raised the content-manager completion cap to 4000 tokens and set the "
+        "Raised the content-manager completion cap to 8000 tokens and set the "
         "content-manager OpenAI reasoning default to low so lookup/ref "
         "selection does not consume router-grade hidden reasoning budget.",
     ),
+    (
+        "Deep playtest combat failed because the manual demo checkpoint gave "
+        "characters HP/AC but no listed attack sources for the combat manager "
+        "to select.",
+        "Added minimal reviewed-demo combat scaffolding to the manual "
+        "checkpoint: the player has a longsword action and the two expedition "
+        "companions have simple field-ready actions with HP/AC.",
+    ),
+    (
+        "Content-manager candidate hints could fail the whole turn when a "
+        "non-authoritative related_content_refs token had a typoed pack id.",
+        "Kept validation strict for required router knowledge, knowledge-map "
+        "updates, and agent broadcasts, but now strips invalid related refs "
+        "from router turn-candidate hints.",
+    ),
+    (
+        "Content-manager turn candidates included dormant imported NPCs; the "
+        "router then tried to spawn those existing ids when it wanted to bring "
+        "them into the scene.",
+        "Restricted router turn-candidate hints to active roster characters. "
+        "Dormant/off-stage entities still remain in the knowledge map, but "
+        "they are not advertised as immediate router turn candidates yet.",
+    ),
 ]
+SCENARIO_COMMANDS = {
+    "startup": [
+        f"/story start {STORY_ID}",
+        "/characters",
+        f"/join {PLAYER_ID}",
+        "/begin",
+        (
+            "I ask the Cartophile what terms he requires before he "
+            "releases the maps, and which custodian he recommends."
+        ),
+        (
+            "I turn to Garret and ask him to make his case for joining "
+            "as custodian, including what risks he thinks the route hides."
+        ),
+    ],
+    "deep": [
+        f"/story start {STORY_ID}",
+        "/characters",
+        f"/join {PLAYER_ID}",
+        "/begin",
+        (
+            "I ask the Cartophile what terms he requires before he "
+            "releases the maps, and which custodian he recommends."
+        ),
+        (
+            "I accept the return-documentation terms, appoint Garret as "
+            "custodian of the maps, and ask Gearbox to accompany us as a "
+            "technical specialist. Then I ask the Cartophile to release "
+            "the route materials for the wooded foothills and cave approach."
+        ),
+        (
+            "I confirm the return-documentation terms are fair. We leave at "
+            "first light and follow the maps toward the Barrier Peaks route, "
+            "comparing ridgelines and watching for the cave approach."
+        ),
+        (
+            "At the wooded foothills, I scout ahead carefully with the map "
+            "open, checking loose rock, tracks, and sightlines before we move "
+            "toward the cave approach."
+        ),
+        (
+            "A hostile mountain predator bursts from the rocks and charges "
+            "Garret; I draw my longsword and intercept it."
+        ),
+        "If the predator is still fighting, I attack it with my longsword.",
+    ],
+    "field": [
+        f"/story start {STORY_ID}",
+        "/characters",
+        f"/join {PLAYER_ID}",
+        "/begin",
+        (
+            "At the wooded foothills, I scout ahead carefully with the map "
+            "open, checking loose rock, tracks, and sightlines before we move "
+            "toward the cave approach."
+        ),
+        (
+            "A hostile mountain predator bursts from the rocks and charges "
+            "Garret; I draw my longsword and intercept it."
+        ),
+        "If the predator is still fighting, I attack it with my longsword.",
+    ],
+}
 
 
 @dataclass(frozen=True)
@@ -99,6 +186,128 @@ class RefCard:
     content_hash: str
     kind: str
     summary: str
+
+
+def _weapon_action(
+    action_id: str,
+    name: str,
+    *,
+    attack_bonus: int,
+    damage: str,
+    damage_type: str,
+    notes: str = "",
+    attack_range: str = "5 ft",
+) -> dict[str, Any]:
+    return {
+        "id": action_id,
+        "name": name,
+        "kind": "attack",
+        "attack": {
+            "bonus": attack_bonus,
+            "damage": f"{damage} {damage_type}",
+            "range": attack_range,
+        },
+        "damage": [{"formula": damage, "damage_type": damage_type}],
+        "notes": notes,
+    }
+
+
+def _dnd_mechanics(
+    *,
+    level: int,
+    proficiency_bonus: int,
+    ability_scores: dict[str, int],
+    armor_class: int,
+    hp: int,
+    actions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "ruleset_id": "dnd5e_basic",
+        "level": level,
+        "proficiency_bonus": proficiency_bonus,
+        "ability_scores": {
+            "str": ability_scores.get("str", 10),
+            "dex": ability_scores.get("dex", 10),
+            "con": ability_scores.get("con", 10),
+            "int": ability_scores.get("int", 10),
+            "wis": ability_scores.get("wis", 10),
+            "cha": ability_scores.get("cha", 10),
+        },
+        "skill_proficiencies": [],
+        "saving_throw_proficiencies": [],
+        "armor_class": armor_class,
+        "hit_points": {"current": hp, "max": hp, "temporary": 0},
+        "conditions": [],
+        "resources": {},
+        "dnd5e_sheet": {
+            "statblock": {
+                "actions": actions,
+                "spellcasting": {},
+                "defenses": {},
+            },
+        },
+        "raw": {},
+    }
+
+
+def _npc_demo_mechanics(character_id: str) -> dict[str, Any]:
+    if character_id == "npc_garret":
+        return _dnd_mechanics(
+            level=3,
+            proficiency_bonus=2,
+            ability_scores={
+                "str": 12,
+                "dex": 14,
+                "con": 12,
+                "int": 11,
+                "wis": 14,
+                "cha": 10,
+            },
+            armor_class=13,
+            hp=20,
+            actions=[
+                _weapon_action(
+                    "short_blade",
+                    "Short Blade",
+                    attack_bonus=4,
+                    damage="1d6+2",
+                    damage_type="piercing",
+                    notes=(
+                        "Demo combat scaffold for the reviewed startup slice; "
+                        "represents Garret's practical field knife."
+                    ),
+                ),
+            ],
+        )
+    if character_id == "npc_gearbox":
+        return _dnd_mechanics(
+            level=3,
+            proficiency_bonus=2,
+            ability_scores={
+                "str": 13,
+                "dex": 12,
+                "con": 14,
+                "int": 15,
+                "wis": 10,
+                "cha": 9,
+            },
+            armor_class=12,
+            hp=22,
+            actions=[
+                _weapon_action(
+                    "weighted_wrench",
+                    "Weighted Wrench",
+                    attack_bonus=3,
+                    damage="1d6+1",
+                    damage_type="bludgeoning",
+                    notes=(
+                        "Demo combat scaffold for the reviewed startup slice; "
+                        "represents Gearbox's tool used defensively."
+                    ),
+                ),
+            ],
+        )
+    return {}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -217,7 +426,7 @@ def _npc_character(
             "and contractual unless the router frames a contested escalation."
         ),
         known_context=known_context,
-        mechanics={},
+        mechanics=_npc_demo_mechanics(character_id),
     )
 
 
@@ -248,24 +457,34 @@ def _player_character() -> CharacterRecord:
             "expedition needs route material, terms, and a decision about who "
             "will safeguard the loaned documents."
         ),
-        mechanics={
-            "ruleset_id": "dnd5e_basic",
-            "level": 5,
-            "proficiency_bonus": 3,
-            "ability_scores": {
-                "str": 12,
+        mechanics=_dnd_mechanics(
+            level=5,
+            proficiency_bonus=3,
+            ability_scores={
+                "str": 14,
                 "dex": 14,
                 "con": 14,
                 "int": 13,
                 "wis": 12,
                 "cha": 10,
             },
-            "armor_class": 15,
-            "hit_points": {"current": 38, "max": 38, "temporary": 0},
-            "conditions": [],
-            "resources": {},
-            "raw": {},
-        },
+            armor_class=15,
+            hp=38,
+            actions=[
+                _weapon_action(
+                    "longsword",
+                    "Longsword",
+                    attack_bonus=5,
+                    damage="1d8+2",
+                    damage_type="slashing",
+                    notes=(
+                        "Demo combat scaffold for the reviewed startup slice; "
+                        "the expedition leader is visibly armed with this "
+                        "weapon when they intercept the predator."
+                    ),
+                ),
+            ],
+        ),
     )
 
 
@@ -349,7 +568,99 @@ def _content_state(
     }
 
 
-def _story_checkpoint() -> CheckpointFile:
+def _field_start_checkpoint(
+    ckpt: CheckpointFile,
+    *,
+    seed_inputs: dict[str, Any],
+    cards: dict[str, RefCard],
+) -> None:
+    pack_id = seed_inputs["pack_id"]
+    route_ref = "loc.barrier_peaks_route"
+    route_card = cards.get(route_ref)
+    if route_card is not None:
+        pack_state = ckpt.session.content_state.get(pack_id)
+        if pack_state is not None:
+            pack_state.pending_signals["field_route"] = PendingContentSignal(
+                signal_id="field_route",
+                pack_id=pack_id,
+                ref_id=route_ref,
+                content_hash=route_card.content_hash,
+                reason="field-start router context",
+                priority=20,
+                requested_fields=["summary"],
+                metadata={
+                    "kind": route_card.kind,
+                    "visibility": "router_hidden",
+                    "summary": route_card.summary,
+                },
+            )
+            for entity_id in ("npc_garret", "npc_gearbox"):
+                state = pack_state.knowledge_map.get(entity_id)
+                if state is None:
+                    state = ContentKnowledgeEntityState(entity_id=entity_id)
+                known_refs = list(state.known_refs)
+                for ref in (route_ref, "handout.cartophile_maps"):
+                    if ref in cards:
+                        compact = _compact_ref(pack_id, ref, cards)
+                        if compact not in known_refs:
+                            known_refs.append(compact)
+                pack_state.knowledge_map[entity_id] = state.model_copy(
+                    update={
+                        "known_refs": known_refs,
+                        "notes": (
+                            "Field-start seed: expedition has route folios "
+                            "and has reached the wooded foothills."
+                        ),
+                    }
+                )
+
+    for char in ckpt.characters:
+        if char.character_id in {PLAYER_ID, "npc_garret", "npc_gearbox"}:
+            char.status = CharacterStatus.active
+            char.location = route_ref
+        else:
+            char.status = CharacterStatus.dormant
+        if char.character_id == PLAYER_ID:
+            char.known_context = (
+                "You accepted the Cartophile's return-documentation terms. "
+                "Garret carries the route folios as custodian, Gearbox travels "
+                "as technical support, and the party has reached the wooded "
+                "foothills on the Barrier Peaks route."
+            )
+            char.private_state.current_objectives = [
+                "Scout the wooded foothills without losing the route.",
+                "Protect the expedition from terrain and wildlife hazards.",
+            ]
+        elif char.character_id == "npc_garret":
+            char.private_state.current_objectives = [
+                "Keep the route folios dry, intact, and useful.",
+                "Warn the expedition when terrain does not match the page.",
+            ]
+        elif char.character_id == "npc_gearbox":
+            char.private_state.current_objectives = [
+                "Support the expedition as a technical specialist.",
+                "Watch for unstable terrain and mechanical anomalies.",
+            ]
+
+    ckpt.player_primer = (
+        "You are already in the wooded foothills of the Barrier Peaks route "
+        "with Garret as map custodian and Gearbox as technical support."
+    )
+    ckpt.world_state.facts = [
+        "The expedition accepted the Cartophile's terms before departure.",
+        "Garret is custodian of the route folios.",
+        "Gearbox accompanies the expedition as technical support.",
+        "The party is scouting the wooded foothills before the cave approach.",
+    ]
+    ckpt.session.config.narrative_rules = (
+        "Start in the field at loc.barrier_peaks_route. Keep play grounded in "
+        "route scouting, terrain choices, and immediate expedition hazards. "
+        "Do not reopen the Cartophile negotiation unless the player sends a "
+        "message back."
+    )
+
+
+def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
     catalog = _read_json(CATALOG_PATH)
     seed_inputs = _read_json(SEED_INPUTS_PATH)
     cards = _load_cards()
@@ -418,13 +729,15 @@ def _story_checkpoint() -> CheckpointFile:
         "and choosing expedition support. Do not invent downstream locations "
         "or encounters beyond reviewed runtime-ready content."
     )
+    if start_mode == "field":
+        _field_start_checkpoint(ckpt, seed_inputs=seed_inputs, cards=cards)
     return ckpt
 
 
-def _write_story(stories_dir: Path) -> Path:
+def _write_story(stories_dir: Path, *, start_mode: str = "startup") -> Path:
     story_dir = stories_dir / STORY_ID
     story_dir.mkdir(parents=True, exist_ok=True)
-    ckpt = _story_checkpoint()
+    ckpt = _story_checkpoint(start_mode=start_mode)
     path = story_dir / "ckpt_0000.json"
     path.write_text(
         ckpt.model_dump_json(
@@ -470,6 +783,134 @@ def _role_label(config: LLMConfig, role: str) -> str:
     return f"{config.provider_for_role(role)}:{config.model_for_role(role)}"
 
 
+def _tag_block(text: str, tag: str) -> str:
+    start_marker = f"<{tag}"
+    end_marker = f"</{tag}>"
+    start = text.find(start_marker)
+    if start < 0:
+        return ""
+    start = text.find(">", start)
+    if start < 0:
+        return ""
+    end = text.find(end_marker, start)
+    if end < 0:
+        return ""
+    return text[start + 1:end].strip()
+
+
+def _tag_lines(text: str, tag: str, *, limit: int = 24) -> list[str]:
+    block = _tag_block(text, tag)
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    return lines[:limit]
+
+
+def _content_catalog_refs(text: str, *, limit: int = 80) -> list[dict[str, str]]:
+    refs: list[dict[str, str]] = []
+    for line in _tag_lines(text, "available_catalog", limit=300):
+        item: dict[str, str] = {}
+        for key in ("pack", "ref", "kind", "visibility"):
+            marker = f"{key}="
+            value = ""
+            for part in line.split():
+                if part.startswith(marker):
+                    value = part.removeprefix(marker).strip()
+                    break
+            if value:
+                item[key] = value
+        if item:
+            refs.append(item)
+        if len(refs) >= limit:
+            break
+    return refs
+
+
+def _content_manager_prompt_audit(prompt_text: str) -> dict[str, Any]:
+    return {
+        "recent_facts": _tag_lines(prompt_text, "recent_facts"),
+        "knowledge_map": _tag_lines(prompt_text, "engine_knowledge_map"),
+        "known_router_refs": _tag_lines(prompt_text, "known_router_refs"),
+        "candidate_characters": _tag_lines(prompt_text, "candidate_characters"),
+        "available_catalog_refs": _content_catalog_refs(prompt_text),
+    }
+
+
+def _content_manager_output_audit(parsed: Any) -> dict[str, Any]:
+    if not hasattr(parsed, "model_dump"):
+        return {}
+    data = parsed.model_dump(mode="json")
+    return {
+        "knowledge_updates": data.get("knowledge_updates", []),
+        "router_required_knowledge": data.get("router_required_knowledge", []),
+        "router_turn_candidates": data.get("router_turn_candidates", []),
+        "agent_context_broadcasts": data.get("agent_context_broadcasts", []),
+        "no_update_reason": data.get("no_update_reason", ""),
+    }
+
+
+def _router_output_audit(parsed: Any) -> dict[str, Any]:
+    if not hasattr(parsed, "model_dump"):
+        return {}
+    observers = []
+    for observer in getattr(parsed, "observers", []) or []:
+        observers.append({
+            "character_id": getattr(observer, "character_id", ""),
+            "routing_role": getattr(observer, "routing_role", ""),
+            "observation_level": getattr(observer, "observation_level", ""),
+        })
+    return {
+        "event_kind": getattr(parsed, "event_kind", ""),
+        "interaction_mode": getattr(parsed, "interaction_mode", ""),
+        "combatant_ids": list(getattr(parsed, "combatant_ids", []) or []),
+        "combatant_spawns": [
+            {
+                "character_id": getattr(spawn, "character_id", ""),
+                "monster_key": getattr(spawn, "monster_key", ""),
+                "statblock_ref": getattr(spawn, "statblock_ref", ""),
+                "name": getattr(spawn, "name", ""),
+            }
+            for spawn in getattr(parsed, "combatant_spawns", []) or []
+        ],
+        "observers": observers,
+        "decision_rationale": getattr(parsed, "decision_rationale", ""),
+    }
+
+
+def _combat_state_summary(checkpoint: CheckpointFile | None) -> dict[str, Any]:
+    if checkpoint is None:
+        return {"active": False}
+    combat = getattr(checkpoint.session, "active_combat", None)
+    if combat is None:
+        return {"active": False}
+    public = dnd_combat.public_status(checkpoint.session)
+    return {
+        "active": True,
+        "status": getattr(combat, "status", ""),
+        "round_number": getattr(combat, "round_number", 0),
+        "turn_index": getattr(combat, "turn_index", 0),
+        "public_status": public,
+        "combatants": [
+            {
+                "character_id": getattr(combatant, "character_id", ""),
+                "name": getattr(combatant, "name", ""),
+                "hp": {
+                    "current": getattr(combatant, "hit_points_current", 0),
+                    "max": getattr(combatant, "hit_points_max", 0),
+                    "temporary": getattr(combatant, "hit_points_temporary", 0),
+                },
+                "initiative_total": getattr(combatant, "initiative_total", 0),
+                "defeat_state": getattr(combatant, "defeat_state", ""),
+                "pending_initiating_action": getattr(
+                    combatant,
+                    "pending_initiating_action",
+                    "",
+                ),
+            }
+            for combatant in getattr(combat, "combatants", []) or []
+        ],
+        "audit_tail": list(getattr(combat, "audit_lines", []) or [])[-12:],
+    }
+
+
 async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
     load_dotenv()
     os.environ.setdefault("LLM_MODEL_AGENT", "claude-haiku-4-5")
@@ -495,7 +936,10 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
 
     stories_dir = RUN_DIR / "stories"
     sessions_dir = RUN_DIR / "sessions"
-    story_path = _write_story(stories_dir)
+    story_path = _write_story(
+        stories_dir,
+        start_mode="field" if args.scenario == "field" else "startup",
+    )
     if args.install_story:
         installed_dir = REPO_ROOT / "app/storage/stories" / STORY_ID
         if installed_dir.exists():
@@ -533,6 +977,10 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             "contains_turn_hint": "turn_hint " in prompt_text,
             "contains_private_path": "private_extractions/" in prompt_text,
         }
+        if role == "content_manager":
+            record["content_manager_input"] = _content_manager_prompt_audit(
+                prompt_text
+            )
         try:
             response = await real_complete(*call_args, **kwargs)
         except Exception:
@@ -540,6 +988,12 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             role_calls.append(record)
             raise
         record["model"] = response.model
+        if role == "content_manager":
+            record["content_manager_output"] = _content_manager_output_audit(
+                response.parsed
+            )
+        elif role == "event_router":
+            record["router_output"] = _router_output_audit(response.parsed)
         role_calls.append(record)
         return response
 
@@ -550,25 +1004,12 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
     try:
         engine.create_empty_session(session_id)
         state = CLIState(engine, session_id, "")
-        lines = [
-            f"/story start {STORY_ID}",
-            "/characters",
-            f"/join {PLAYER_ID}",
-            "/begin",
-            (
-                "I ask the Cartophile what terms he requires before he "
-                "releases the maps, and which custodian he recommends."
-            ),
-            (
-                "I turn to Garret and ask him to make his case for joining "
-                "as custodian, including what risks he thinks the route hides."
-            ),
-        ]
+        lines = SCENARIO_COMMANDS[args.scenario]
         for line in lines:
-            transcript.append({
-                "input": line,
-                "output": await _run_cli_line(state, line),
-            })
+            output = await _run_cli_line(state, line)
+            transcript.append({"input": line, "output": output})
+            if "error:" in output.lower():
+                break
         ckpt = engine.load_latest(session_id)
         return _build_report(
             args=args,
@@ -629,6 +1070,18 @@ def _build_report(
     content_calls = [
         call for call in role_calls if call["role"] == "content_manager"
     ]
+    router_modes = [
+        call.get("router_output", {}).get("interaction_mode", "")
+        for call in router_calls
+    ]
+    content_requested_refs = [
+        item.get("ref", "")
+        for call in content_calls
+        for item in call.get("content_manager_output", {}).get(
+            "router_required_knowledge",
+            [],
+        )
+    ]
     agent_calls = [
         call
         for call in role_calls
@@ -676,9 +1129,40 @@ def _build_report(
             "npc_cartophile" in knowledge_entities,
             knowledge_entities,
         ),
+        _check(
+            "content_manager_outputs_recorded",
+            bool(content_calls)
+            and all("content_manager_output" in call for call in content_calls),
+            content_calls,
+        ),
     ]
+    if args.scenario in {"deep", "field"}:
+        checks.extend([
+            _check(
+                "route_exploration_content_introduced",
+                any("loc.barrier_peaks_route" in ref for ref in introduced_refs),
+                introduced_refs,
+            ),
+        ])
+    if args.scenario == "deep":
+        checks.extend([
+            _check(
+                "content_manager_requested_route_context",
+                "loc.barrier_peaks_route" in content_requested_refs,
+                content_requested_refs,
+            ),
+        ])
+    if args.scenario in {"deep", "field"}:
+        checks.extend([
+            _check(
+                "combat_path_exercised",
+                any(mode == "dnd_combat_start" for mode in router_modes),
+                router_modes,
+            ),
+        ])
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "scenario": args.scenario,
         "run_dir": str(RUN_DIR.relative_to(REPO_ROOT)),
         "session_id": session_id,
         "story_id": STORY_ID,
@@ -699,6 +1183,7 @@ def _build_report(
         "canonical_fact_count": canonical_fact_count,
         "introduced_refs": introduced_refs,
         "knowledge_entities": knowledge_entities,
+        "combat": _combat_state_summary(checkpoint),
         "transcript": transcript,
         "role_calls": role_calls,
         "issues_fixed": [
@@ -721,6 +1206,7 @@ def _markdown(report: dict[str, Any]) -> str:
         "# Lost Laboratory CLI Demo Report",
         "",
         f"Generated: `{report['generated_at']}`",
+        f"Scenario: `{report['scenario']}`",
         f"Run directory: `{report['run_dir']}`",
         f"Story: `{report['story_id']}`",
         f"Session: `{report['session_id']}`",
@@ -761,6 +1247,68 @@ def _markdown(report: dict[str, Any]) -> str:
         )
     lines.append("")
 
+    lines.extend(["## Content Manager Audit", ""])
+    for index, call in enumerate(
+        [
+            item for item in report["role_calls"]
+            if item["role"] == "content_manager"
+        ],
+        start=1,
+    ):
+        output = call.get("content_manager_output", {})
+        input_summary = call.get("content_manager_input", {})
+        requested = [
+            item.get("ref", "")
+            for item in output.get("router_required_knowledge", [])
+            if item.get("ref", "")
+        ]
+        updates = [
+            item.get("ref", "")
+            for item in output.get("knowledge_updates", [])
+            if item.get("ref", "")
+        ]
+        candidates = [
+            item.get("character_id", "")
+            for item in output.get("router_turn_candidates", [])
+            if item.get("character_id", "")
+        ]
+        lines.append(
+            "- "
+            f"{index}. recent_facts={len(input_summary.get('recent_facts', []))} "
+            f"known_entities={len(input_summary.get('knowledge_map', []))} "
+            f"known_router_refs={len(input_summary.get('known_router_refs', []))} "
+            f"catalog_refs={len(input_summary.get('available_catalog_refs', []))} "
+            f"required_refs={requested or '-'} "
+            f"knowledge_updates={updates or '-'} "
+            f"turn_candidates={candidates or '-'} "
+            f"no_update={output.get('no_update_reason') or '-'}"
+        )
+    lines.append("")
+
+    lines.extend(["## Combat State", ""])
+    combat = report.get("combat", {})
+    if not combat.get("active"):
+        lines.append("No active D&D combat at final checkpoint.")
+    else:
+        lines.append(
+            f"Active combat: status=`{combat.get('status', '')}` "
+            f"round=`{combat.get('round_number', 0)}`."
+        )
+        for combatant in combat.get("combatants", []):
+            hp = combatant.get("hp", {})
+            lines.append(
+                "- "
+                f"`{combatant.get('character_id', '')}` "
+                f"hp={hp.get('current', 0)}/{hp.get('max', 0)} "
+                f"init={combatant.get('initiative_total', 0)} "
+                f"state={combatant.get('defeat_state', '')}"
+            )
+        if combat.get("audit_tail"):
+            lines.append("Audit tail:")
+            for audit in combat["audit_tail"]:
+                lines.append(f"- {audit}")
+    lines.append("")
+
     lines.extend(["## CLI Transcript", ""])
     for item in report["transcript"]:
         lines.extend(["```text", f"> {item['input']}"])
@@ -797,6 +1345,12 @@ def _markdown(report: dict[str, Any]) -> str:
 
 async def main_async() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--scenario",
+        choices=sorted(SCENARIO_COMMANDS),
+        default="startup",
+        help="Which scripted CLI playtest sequence to run.",
+    )
     parser.add_argument(
         "--session",
         default="",
