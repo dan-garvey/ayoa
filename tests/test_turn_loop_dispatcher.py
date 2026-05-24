@@ -824,7 +824,7 @@ class TestRouteIntention:
             for message in router_call["messages"]
         )
         assert "location_card ref=room/secret" in router_text
-        assert "turn_hint character=pip priority=medium" in router_text
+        assert "turn_hint scope=attention_hint character=pip priority=medium" in router_text
         assert "engine_knowledge_map" not in router_text
         assert "pack=pack entity=pip" not in router_text
         assert "suspected=pack:front/old@hash-old" not in router_text

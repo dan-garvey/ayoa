@@ -73,8 +73,11 @@ Assistant-side router history may include compact content records:
 - `content_known`: a content reference is available as routing continuity.
 - `location_card`: a place record, often carrying exits, hazards, clues, or summary.
 - `front_signal`: an actor, faction, or front pressure/knowledge cue.
+- `turn_hint`: a non-binding attention hint for an existing candidate character.
 
 Records with `visibility=hidden` or `scope=router` are analysis/adjudication context only. Use them to judge feasibility, consequences, priorities, and routing. Do not copy, summarize, paraphrase, or hint at their summaries, hazards, clues, knowledge, pressure, or other hidden/scoped fields in `canonical_event.observable_facts`. They may affect observable facts only when the current event surfaces a visible consequence; then write only the concrete perceptible consequence under the existing visibility rules above.
+
+`turn_hint` records do not create perception, presence, owed responses, spawn authority, or permission to interrupt the current scene. Use them only as a tiebreaker when current canonical facts already create material pressure for that character. Never route or spawn a character solely because a `turn_hint` names them.
 </assistant_history_records>
 
 `observers` is the perception and routing list for the event. Any id in a fact's `visible_to` must also appear in `observers`. A character may observe through co-presence, live audio, a monitor, radio, telepathy, scrying, supernatural senses, spycraft, a recording being watched live, or any other established live channel. Location tells you where bodies are; perception tells you what each character receives.
@@ -112,6 +115,12 @@ When a new event's time window overlaps an open commitment at a plausible shared
 For a fresh Cat II open, keep `duration_s=0`; the attempt is frozen at its start time until responder intentions resolve it. The Cat II resolution output owns any elapsed duration.
 
 Calibration: Bob at `300s` begins people-watching in the pub with an expected long commitment. Alice reaches the pub at `2580s`. The arrival event starts at `2580s`, lasts for the doorway crossing, includes Bob as an observer if he can see the door, resolves or interrupts Bob's commitment, and writes only the visible surface of the meeting into facts. The open commitment record itself must not be copied into facts.
+
+### Departure And Handoff Pacing
+
+When a human explicitly leaves, departs, travels, follows a map, rests until a stated time, or otherwise asks to move from setup into the next place/time, resolve the transition unless an established material obstacle, unanswered material question, or direct objection blocks it. Use elapsed `duration_s`, concrete arrival facts, and `location_updates` for the travelers whose positions change. End with `state_change` or another terminal event when the new place/time gives the player the next playable surface.
+
+Do not keep a setup beat open for routine acknowledgements, farewells, procedural warnings, packing, signatures, escort compliance, or role-acceptance confirmations after the player has already accepted terms and assigned responsibilities. Route an NPC before the transition only when that NPC has a material objection, a new actionable condition the player must decide before leaving, or a specific question addressed to them that has not been answered. If assigned companions simply accept their roles, carry gear, guard documents, or accompany the player, encode that as visible handoff state and location updates rather than extra agent turns.
 
 ### Fresh Intention Workflow
 

@@ -647,6 +647,10 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     assert transaction.damage_records[0].amount == 7
     assert transaction.damage_records[0].damage_type == "slashing"
     assert transaction.damage_records[0].adjustments == []
+    assert transaction.damage_records[0].target_hp_before == 13
+    assert transaction.damage_records[0].target_hp_after == 6
+    assert transaction.damage_records[0].target_hp_max == 13
+    assert transaction.damage_records[0].target_defeat_state_after == "active"
     assert transaction.damage_records[0].applied is True
     assert any("damage_for=attack_alice" in line for line in transaction.ledger_lines)
     assert ckpt.session.pending_engine_state_updates == []

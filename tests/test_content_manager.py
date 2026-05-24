@@ -266,6 +266,29 @@ def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
     assert ".pdf" not in user
 
 
+def test_content_manager_prompt_scopes_knowledge_updates_to_entities():
+    messages = PromptManager("app/prompts").render_messages(
+        "content_manager",
+        recent_fact_limit="12",
+        recent_facts_block='f01 audience=all text="Maps were released."',
+        engine_knowledge_map_block="pack=pack entity=garret known=- suspected=- facts=-",
+        known_router_refs_block="-",
+        candidate_entities_block="character=garret role=custodian",
+        available_catalog_block=(
+            'pack=pack ref=handout.cartophile_maps kind=handout '
+            'visibility=router_hidden summary="Route handout."'
+        ),
+    )
+
+    system = messages[0]["content"]
+
+    assert "`entity_id` is required" in system
+    assert "exactly match an entity" in system
+    assert "never use a blank" in system
+    assert "scene, party, global" in system
+    assert "put it in `router_required_knowledge`, not `knowledge_updates`" in system
+
+
 def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_path):
     db_path = _pack_db(
         tmp_path,
@@ -355,8 +378,9 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
     assert content_manager_required_lookup_requests(output)[0].ref == "front/strahd"
     assert format_content_manager_router_records(output) == [
         (
-            "turn_hint character=strahd priority=high refs=pack:front/strahd "
-            "facts=f01 reason=\"The front may want attention.\""
+            "turn_hint scope=attention_hint character=strahd priority=high "
+            "refs=pack:front/strahd facts=f01 "
+            "reason=\"The front may want attention.\""
         ),
     ]
 

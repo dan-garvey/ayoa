@@ -480,6 +480,7 @@ def format_content_manager_router_records(
     for hint in output.router_turn_candidates:
         parts = [
             "turn_hint",
+            "scope=attention_hint",
             f"character={_safe_token(hint.character_id)}",
             f"priority={_safe_token(hint.priority)}",
         ]

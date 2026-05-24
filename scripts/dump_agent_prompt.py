@@ -62,8 +62,8 @@ def _render_system_and_user_template(checkpoint, character) -> tuple[str, str]:
     from app.engine.prompt_manager import PromptManager
 
     pm = PromptManager()
-    char_identity = build_character_packet(character)
-    char_state = build_character_state(character)
+    char_identity = build_character_packet(character, checkpoint)
+    char_state = build_character_state(character, checkpoint)
     pending_block = (
         format_elapsed_agent_turn_block(character, checkpoint)
         + format_pending_observations_block(character)

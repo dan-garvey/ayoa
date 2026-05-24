@@ -1709,16 +1709,66 @@ def _apply_combat_damage_records(
     for damage in transaction.damage_records:
         if damage.applied:
             continue
+        before = _combat_damage_target_snapshot(ckpt, damage.target_id)
         if damage.amount <= 0:
+            _record_combat_damage_target_snapshot(damage, before, before)
             damage.applied = True
             continue
-        dnd_combat.apply_damage(
+        target = dnd_combat.apply_damage(
             ckpt.session,
             damage.target_id,
             damage.amount,
             characters=ckpt.characters,
         )
+        after = _combatant_damage_snapshot(target)
+        _record_combat_damage_target_snapshot(damage, before, after)
         damage.applied = True
+
+
+def _combat_damage_target_snapshot(
+    ckpt: CheckpointFile,
+    target_id: str,
+) -> dict[str, Any] | None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    target = str(target_id or "").strip()
+    if combat is None or not target:
+        return None
+    for combatant in getattr(combat, "combatants", []) or []:
+        if (
+            getattr(combatant, "combatant_id", "") == target
+            or getattr(combatant, "character_id", "") == target
+        ):
+            return _combatant_damage_snapshot(combatant)
+    return None
+
+
+def _combatant_damage_snapshot(combatant: object) -> dict[str, Any]:
+    return {
+        "hp_current": int(getattr(combatant, "hit_points_current", 0) or 0),
+        "hp_max": int(getattr(combatant, "hit_points_max", 0) or 0),
+        "temp_hp": int(getattr(combatant, "hit_points_temporary", 0) or 0),
+        "defeat_state": str(getattr(combatant, "defeat_state", "") or ""),
+    }
+
+
+def _record_combat_damage_target_snapshot(
+    damage: CatIIRollDamageRecord,
+    before: dict[str, Any] | None,
+    after: dict[str, Any] | None,
+) -> None:
+    if before is not None:
+        damage.target_hp_before = int(before.get("hp_current") or 0)
+        damage.target_temp_hp_before = int(before.get("temp_hp") or 0)
+        damage.target_hp_max = int(before.get("hp_max") or 0)
+    if after is not None:
+        damage.target_hp_after = int(after.get("hp_current") or 0)
+        damage.target_temp_hp_after = int(after.get("temp_hp") or 0)
+        damage.target_hp_max = int(
+            after.get("hp_max") or damage.target_hp_max or 0
+        )
+        damage.target_defeat_state_after = str(
+            after.get("defeat_state") or ""
+        ).strip()
 
 
 def _apply_combat_resource_spends(

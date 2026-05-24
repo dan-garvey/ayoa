@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping
+from typing import Any
 
 from app.engine import dnd_presentation, dnd_runtime
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
-from app.schemas.content_privacy import redact_imported_asset_text
+from app.schemas.content_privacy import (
+    REDACTED_IMPORT_SENTINEL,
+    redact_imported_content_metadata_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,15 +94,31 @@ def build_character_packet(
     )
     if dnd_identity:
         backstory = f"{dnd_identity}\n{backstory}"
+    protected_terms = _imported_content_metadata_terms(checkpoint)
 
     return {
         "character_id": char.character_id,
         "character_name": char.name,
-        "character_role": char.public_sheet.role or "unspecified",
-        "character_appearance": char.public_sheet.appearance or "unremarkable",
-        "character_faction": char.public_sheet.faction or "unaffiliated",
-        "character_backstory": backstory,
-        "character_personality": char.personality or "No detailed personality notes.",
+        "character_role": _sanitize_character_prompt_text(
+            char.public_sheet.role or "unspecified",
+            protected_terms=protected_terms,
+        ),
+        "character_appearance": _sanitize_character_prompt_text(
+            char.public_sheet.appearance or "unremarkable",
+            protected_terms=protected_terms,
+        ),
+        "character_faction": _sanitize_character_prompt_text(
+            char.public_sheet.faction or "unaffiliated",
+            protected_terms=protected_terms,
+        ),
+        "character_backstory": _sanitize_character_prompt_text(
+            backstory,
+            protected_terms=protected_terms,
+        ),
+        "character_personality": _sanitize_character_prompt_text(
+            char.personality or "No detailed personality notes.",
+            protected_terms=protected_terms,
+        ),
     }
 
 
@@ -128,21 +149,37 @@ def replace_character_ids_with_names(
     return out
 
 
-def build_character_state(char: CharacterRecord) -> dict[str, str]:
+def build_character_state(
+    char: CharacterRecord,
+    checkpoint: CheckpointFile | None = None,
+) -> dict[str, str]:
     """Build the per-turn dynamic state variables for the agent user message."""
+    protected_terms = _imported_content_metadata_terms(checkpoint)
+    clean_goals = _sanitize_character_prompt_items(
+        char.private_state.goals,
+        protected_terms=protected_terms,
+    )
+    clean_objectives = _sanitize_character_prompt_items(
+        char.private_state.current_objectives,
+        protected_terms=protected_terms,
+    )
+    clean_secrets = _sanitize_character_prompt_items(
+        char.private_state.secrets,
+        protected_terms=protected_terms,
+    )
     goals = (
-        "\n".join(f"- {g}" for g in char.private_state.goals)
-        if char.private_state.goals
+        "\n".join(f"- {g}" for g in clean_goals)
+        if clean_goals
         else "None specified."
     )
     objectives = (
-        "\n".join(f"- {o}" for o in char.private_state.current_objectives)
-        if char.private_state.current_objectives
+        "\n".join(f"- {o}" for o in clean_objectives)
+        if clean_objectives
         else "None active — let your response emerge from your goals and the moment."
     )
     secrets = (
-        "\n".join(f"- {s}" for s in char.private_state.secrets)
-        if char.private_state.secrets
+        "\n".join(f"- {s}" for s in clean_secrets)
+        if clean_secrets
         else "None."
     )
 
@@ -274,8 +311,12 @@ def build_world_context(
     and narrator (omniscient roles) still get the premise through their
     own setting summaries.
     """
+    protected_terms = _imported_content_metadata_terms(checkpoint)
     if character.known_context:
-        return character.known_context
+        return _sanitize_character_prompt_text(
+            character.known_context,
+            protected_terms=protected_terms,
+        )
 
     setting = checkpoint.world_state.setting
     parts: list[str] = []
@@ -292,7 +333,107 @@ def build_world_context(
     if checkpoint.world_state.lore:
         parts.append(f"\nWorld lore:\n{checkpoint.world_state.lore}")
 
-    return "\n".join(parts) if parts else "No world context available."
+    return _sanitize_character_prompt_text(
+        "\n".join(parts) if parts else "No world context available.",
+        protected_terms=protected_terms,
+    )
+
+
+def _sanitize_character_prompt_text(
+    value: str,
+    *,
+    protected_terms: tuple[str, ...] = (),
+) -> str:
+    return redact_imported_content_metadata_text(
+        value,
+        protected_terms=protected_terms,
+    )
+
+
+def format_character_location_for_agent(
+    location: str,
+    checkpoint: CheckpointFile | None = None,
+) -> str:
+    """Render a prose-facing location label for character-agent prompts."""
+
+    raw = str(location or "").strip()
+    if not raw:
+        return ""
+    cleaned = redact_imported_content_metadata_text(
+        raw,
+        protected_terms=_imported_content_metadata_terms(checkpoint),
+    )
+    if REDACTED_IMPORT_SENTINEL not in cleaned:
+        return cleaned
+    return _humanize_content_ref_label(raw)
+
+
+def _sanitize_character_prompt_items(
+    values: list[str],
+    *,
+    protected_terms: tuple[str, ...] = (),
+) -> list[str]:
+    return [
+        cleaned
+        for value in values
+        if (
+            cleaned := _sanitize_character_prompt_text(
+                value,
+                protected_terms=protected_terms,
+            )
+        )
+    ]
+
+
+def _imported_content_metadata_terms(
+    checkpoint: CheckpointFile | None,
+) -> tuple[str, ...]:
+    if checkpoint is None:
+        return ()
+    session = getattr(checkpoint, "session", None)
+    content_state = getattr(session, "content_state", None) if session else None
+    if not isinstance(content_state, Mapping):
+        return ()
+
+    terms: set[str] = set()
+    for pack_key, pack_state in content_state.items():
+        _add_metadata_term(terms, pack_key)
+        _add_metadata_term(terms, getattr(pack_state, "pack_id", ""))
+        metadata = getattr(pack_state, "metadata", None)
+        if isinstance(metadata, Mapping):
+            for key in ("pack_id", "source_fingerprint", "build_hash"):
+                _add_metadata_term(terms, metadata.get(key))
+        knowledge_map = getattr(pack_state, "knowledge_map", None)
+        if isinstance(knowledge_map, Mapping):
+            for state in knowledge_map.values():
+                for attr in ("known_refs", "suspected_refs"):
+                    for ref in getattr(state, attr, []) or []:
+                        _add_metadata_term(terms, ref)
+
+    return tuple(sorted(terms, key=len, reverse=True))
+
+
+def _add_metadata_term(terms: set[str], value: Any) -> None:
+    text = " ".join(str(value or "").split())
+    if len(text) >= 8:
+        terms.add(text)
+
+
+def _humanize_content_ref_label(value: str) -> str:
+    text = str(value or "").strip()
+    if ":" in text:
+        text = text.split(":", 1)[1]
+    if "@" in text:
+        text = text.split("@", 1)[0]
+    text = text.rsplit("/", 1)[-1]
+    if "." in text:
+        text = text.split(".", 1)[1]
+    words = [
+        word
+        for word in re.split(r"[_\-\s]+", text)
+        if word
+    ]
+    return " ".join(word.upper() if word.isupper() else word.title() for word in words)
 
 
 def resolve_acting_character(
@@ -667,7 +808,7 @@ def format_pending_observations_block(character: CharacterRecord) -> str:
 
     lines = ["## Since your last response"]
     for entry in character.pending_observations:
-        cleaned = redact_imported_asset_text(entry)
+        cleaned = redact_imported_content_metadata_text(entry)
         if cleaned:
             lines.append(f"- {cleaned}")
     lines.append("")  # trailing blank line before next section

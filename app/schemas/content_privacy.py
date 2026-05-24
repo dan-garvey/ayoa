@@ -73,6 +73,31 @@ _FORBIDDEN_FIELD_RE = re.compile(
     + r")\b\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;)}\]]+)",
     re.IGNORECASE,
 )
+_COMPACT_CONTENT_REF_RE = re.compile(
+    r"(?<![A-Za-z0-9_.:/@+-])"
+    r"[A-Za-z][A-Za-z0-9_.-]*:"
+    r"[A-Za-z][A-Za-z0-9_.\/-]+@(?:sha256:)?[A-Za-z0-9_.:-]+",
+    re.IGNORECASE,
+)
+_CONTENT_RECORD_REF_RE = re.compile(
+    r"(?<![A-Za-z0-9_.-])"
+    r"(?:actor|agent_context|area|enc|front|handout|hazard|loc|map|stat|table|"
+    r"treasure|trap)\.[A-Za-z0-9_.-]+"
+    r"(?![A-Za-z0-9_.-])",
+    re.IGNORECASE,
+)
+_SHA256_HASH_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])sha256:[A-Za-z0-9_.:-]{8,}"
+    r"|(?<![A-Fa-f0-9])[A-Fa-f0-9]{64}(?![A-Fa-f0-9])",
+    re.IGNORECASE,
+)
+_CONTENT_METADATA_SENTENCE_RE = re.compile(
+    r"(?:^|(?<=[.!?])\s+)"
+    r"(?:Reviewed\s+)?(?:content\s+refs?|known_refs|content_hash(?:es)?|"
+    r"pack_id|source_fingerprint|agent_context(?:_slice)?(?:_ref)?)"
+    r"[^.!?\n]*(?:[.!?]|$)",
+    re.IGNORECASE,
+)
 _UNSAFE_TEXT_PATTERNS = (
     _FILE_URI_RE,
     _ASSET_REF_RE,
@@ -81,6 +106,11 @@ _UNSAFE_TEXT_PATTERNS = (
     _SOURCE_PDF_RE,
     _FORBIDDEN_FIELD_RE,
     _ABSOLUTE_PATH_RE,
+)
+_UNSAFE_CONTENT_METADATA_PATTERNS = (
+    _COMPACT_CONTENT_REF_RE,
+    _CONTENT_RECORD_REF_RE,
+    _SHA256_HASH_RE,
 )
 
 
@@ -93,6 +123,29 @@ def redact_imported_asset_text(value: str) -> str:
     if not text:
         return ""
     for pattern in _UNSAFE_TEXT_PATTERNS:
+        text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
+    return " ".join(text.split())
+
+
+def redact_imported_content_metadata_text(
+    value: str,
+    *,
+    protected_terms: Sequence[str] = (),
+) -> str:
+    """Remove source-tracking metadata from prose-facing agent context."""
+
+    text = str(value or "")
+    if not text:
+        return ""
+    protected = {str(item or "").strip() for item in protected_terms}
+    for term in sorted(protected, key=len, reverse=True):
+        if len(term) < 8:
+            continue
+        text = re.sub(re.escape(term), REDACTED_IMPORT_SENTINEL, text)
+    for pattern in _UNSAFE_TEXT_PATTERNS:
+        text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
+    text = _CONTENT_METADATA_SENTENCE_RE.sub(" ", text)
+    for pattern in _UNSAFE_CONTENT_METADATA_PATTERNS:
         text = pattern.sub(REDACTED_IMPORT_SENTINEL, text)
     return " ".join(text.split())
 

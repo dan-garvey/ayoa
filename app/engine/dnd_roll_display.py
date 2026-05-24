@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from app.engine.dnd_combat_access import target_armor_class
@@ -11,6 +12,22 @@ from app.schemas.state import CatIIRollRecord, CatIIRollTransaction
 
 
 RollKey = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class _DamageSummary:
+    target_id: str = ""
+    raw_total: int = 0
+    total: int = 0
+    damage_type: str = ""
+    expression: str = ""
+    detail: str = ""
+    target_hp_before: int = 0
+    target_hp_after: int = 0
+    target_hp_max: int = 0
+    target_temp_hp_before: int = 0
+    target_temp_hp_after: int = 0
+    target_defeat_state: str = ""
 
 
 def completed_automatic_roll_keys(ckpt: CheckpointFile) -> set[RollKey]:
@@ -49,13 +66,14 @@ def dice_roll_display_for_record(
     target_id = request.target_id if request is not None else _request_text(
         record.request, "target_id"
     )
+    damage = _damage_summary(transaction, record.roll_id)
+    if not target_id and damage.target_id:
+        target_id = damage.target_id
     dc = _roll_dc(ckpt, transaction, request, target_id)
     total = _int(result.get("total"))
     crit = str(result.get("crit") or "none")
     kind = str(getattr(request, "kind", "") or "")
-    damage_total, damage_type, damage_detail = _damage_summary(
-        transaction, record.roll_id,
-    )
+    display_total = damage.total if kind == "damage_roll" and damage.total else total
     return DiceRollDisplay(
         transaction_id=transaction.transaction_id,
         event_id=transaction.event_id,
@@ -76,13 +94,21 @@ def dice_roll_display_for_record(
         die_values=dice,
         kept_die_values=kept,
         modifier=int(record.modifier or 0),
-        total=total,
+        total=display_total,
         dc=dc,
         outcome=_roll_outcome(kind=kind, total=total, dc=dc, crit=crit),
         crit=crit,
-        damage_total=damage_total,
-        damage_type=damage_type,
-        damage_detail=damage_detail,
+        damage_raw_total=damage.raw_total,
+        damage_total=damage.total,
+        damage_type=damage.damage_type,
+        damage_expression=damage.expression,
+        damage_detail=damage.detail,
+        target_hp_before=damage.target_hp_before,
+        target_hp_after=damage.target_hp_after,
+        target_hp_max=damage.target_hp_max,
+        target_temp_hp_before=damage.target_temp_hp_before,
+        target_temp_hp_after=damage.target_temp_hp_after,
+        target_defeat_state=damage.target_defeat_state,
         automatic=record.completed_by_user_id == "engine",
     )
 
@@ -217,21 +243,62 @@ def _roll_outcome(*, kind: str, total: int, dc: int, crit: str) -> str:
 def _damage_summary(
     transaction: CatIIRollTransaction,
     roll_id: str,
-) -> tuple[int, str, str]:
+) -> _DamageSummary:
     matching = [
         damage for damage in transaction.damage_records or []
         if damage.roll_id == roll_id
     ]
     if not matching:
-        return 0, "", ""
+        return _DamageSummary()
+    raw_total = sum(int(damage.raw_amount or 0) for damage in matching)
     total = sum(int(damage.amount or 0) for damage in matching)
     types = sorted({
         damage.damage_type for damage in matching if damage.damage_type
     })
+    expressions = [
+        damage.expression for damage in matching if damage.expression
+    ]
     details = [
         damage.detail for damage in matching if damage.detail
     ]
-    return total, ", ".join(types), "; ".join(details)
+    hp_records = [
+        damage for damage in matching
+        if damage.target_hp_max
+        or damage.target_hp_before
+        or damage.target_hp_after
+    ]
+    first_hp = hp_records[0] if hp_records else None
+    last_hp = hp_records[-1] if hp_records else None
+    return _DamageSummary(
+        target_id=str(matching[0].target_id or ""),
+        raw_total=raw_total,
+        total=total,
+        damage_type=", ".join(types),
+        expression=" + ".join(expressions),
+        detail="; ".join(details),
+        target_hp_before=(
+            int(first_hp.target_hp_before or 0) if first_hp is not None else 0
+        ),
+        target_hp_after=(
+            int(last_hp.target_hp_after or 0) if last_hp is not None else 0
+        ),
+        target_hp_max=(
+            int(last_hp.target_hp_max or 0)
+            if last_hp is not None else 0
+        ),
+        target_temp_hp_before=(
+            int(first_hp.target_temp_hp_before or 0)
+            if first_hp is not None else 0
+        ),
+        target_temp_hp_after=(
+            int(last_hp.target_temp_hp_after or 0)
+            if last_hp is not None else 0
+        ),
+        target_defeat_state=(
+            str(last_hp.target_defeat_state_after or "")
+            if last_hp is not None else ""
+        ),
+    )
 
 
 def _character_name(ckpt: CheckpointFile, character_id: str) -> str:

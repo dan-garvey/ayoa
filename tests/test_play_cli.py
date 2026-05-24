@@ -21,6 +21,7 @@ from scripts.play import (
     _cli_log_level,
     _default_history_path,
     _format_missing_llm_credentials,
+    _print_dice_roll_displays,
     _split_combat_ids,
 )
 from app.engine.cli_image_display import CliImageDisplayResult
@@ -39,6 +40,7 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.dnd_inventory import DndLootOffer, DndLootOfferItem
 from app.schemas.narrator import TranscriptEntry
+from app.schemas.responses import DiceRollDisplay
 from app.schemas.state import SessionState, SlotEntry, WorldState
 
 
@@ -1244,6 +1246,56 @@ class TestCombatCommand:
 
 
 class TestRollCommand:
+    def test_cli_damage_roll_display_uses_damage_formula_not_d20(
+        self, capsys,
+    ):
+        _print_dice_roll_displays([
+            DiceRollDisplay(
+                actor_id="mon_mountain_lion_1",
+                actor_name="Mountain Lion",
+                target_id="pc_expedition_leader",
+                target_name="Demo Expedition Leader",
+                label="Damage (Claw)",
+                kind="damage_roll",
+                modifier=2,
+                total=4,
+                damage_raw_total=4,
+                damage_total=4,
+                damage_type="slashing",
+                damage_expression="1d4+2",
+                damage_detail="1d4 (2) + 2 = `4`",
+                target_hp_before=33,
+                target_hp_after=29,
+                target_hp_max=38,
+                target_defeat_state="active",
+            )
+        ])
+
+        out = capsys.readouterr().out
+        assert "--- D&D Damage · Mountain Lion: Damage (Claw)" in out
+        assert "d20 ?" not in out
+        assert "Damage: 1d4 (2) + 2 = 4 slashing" in out
+        assert "Target HP: Demo Expedition Leader 33/38 -> 29/38" in out
+
+    def test_cli_damage_roll_display_has_total_only_fallback(self, capsys):
+        _print_dice_roll_displays([
+            DiceRollDisplay(
+                actor_id="trap",
+                actor_name="Trap",
+                target_id="aldric",
+                target_name="Aldric",
+                label="Damage",
+                kind="damage_roll",
+                total=6,
+                damage_total=6,
+                damage_type="fire",
+            )
+        ])
+
+        out = capsys.readouterr().out
+        assert "d20 ?" not in out
+        assert "Damage: 6 fire" in out
+
     def test_act_surfaces_pending_rolls(self, run, capsys):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(

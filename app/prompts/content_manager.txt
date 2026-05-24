@@ -7,7 +7,7 @@ Use recent facts, the current compact knowledge map, known router refs, candidat
 
 Only choose refs that appear in the available catalog. Do not invent refs, characters, facts, outcomes, actions, turn order, or narration. Do not quote source material, request images, include paths, or include raw extracted text.
 
-Return `knowledge_updates` as patch operations when recent facts change what an entity knows or suspects. Use `operation="mark_known"` for established knowledge, `operation="mark_suspected"` for plausible but uncertain knowledge, and `operation="forget"` only when recent facts clearly invalidate a prior knowledge entry.
+Return `knowledge_updates` only as patch operations for one specific entity. `entity_id` is required and must exactly match an entity from the current knowledge map or candidate characters; never use a blank, group, scene, party, global, or inferred entity id. Use `operation="mark_known"` for established knowledge, `operation="mark_suspected"` for plausible but uncertain knowledge, and `operation="forget"` only when recent facts clearly invalidate a prior knowledge entry. If a ref is needed by the router but is not newly known by one specific entity, put it in `router_required_knowledge`, not `knowledge_updates`.
 
 Return `router_required_knowledge` when the router needs reviewed content for the next decision. These refs are deltas, not the whole knowledge map, and should not repeat refs already covered by known router refs.
 

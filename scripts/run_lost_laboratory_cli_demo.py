@@ -467,8 +467,6 @@ def _npc_character(
     *,
     actor: dict[str, Any],
     context_slice: dict[str, Any],
-    pack_id: str,
-    cards: dict[str, RefCard],
 ) -> CharacterRecord:
     character_id = actor.get("character_id_hint") or actor["ref"].replace(".", "_")
     display_name = {
@@ -479,11 +477,6 @@ def _npc_character(
         "npc_mary": "Mary Greymalkin",
     }.get(character_id, character_id.replace("_", " ").title())
     active = character_id in {"npc_cartophile", "npc_garret", "npc_gearbox"}
-    known_refs = [
-        _compact_ref(pack_id, ref, cards)
-        for ref in _refs_for_actor(actor, context_slice)
-        if ref in cards
-    ]
     beliefs = "; ".join(context_slice.get("beliefs", []))
     uncertainties = "; ".join(context_slice.get("uncertainties", []))
     boundaries = "; ".join(context_slice.get("hard_boundaries", []))
@@ -494,7 +487,6 @@ def _npc_character(
             f"Beliefs: {beliefs}." if beliefs else "",
             f"Uncertainties: {uncertainties}." if uncertainties else "",
             f"Boundaries: {boundaries}." if boundaries else "",
-            f"Reviewed content refs known to this agent: {', '.join(known_refs)}.",
         )
         if part
     )
@@ -791,8 +783,6 @@ def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
         _npc_character(
             actor=actor,
             context_slice=context_by_actor.get(actor["ref"], {}),
-            pack_id=seed_inputs["pack_id"],
-            cards=cards,
         )
         for actor in catalog.get("actor_dossiers", [])
     ]
@@ -833,10 +823,10 @@ def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
                 ),
             ),
             lore=(
-                "Use reviewed runtime-ready Lost Laboratory content. Route, "
-                "monastery, ooze-city, laboratory, encounter, statblock, "
-                "hazard, treasure, and abstract theater-map records must "
-                "enter play through imported content refs or domain metadata."
+                "The expedition follows incomplete Barrier Peaks route lore "
+                "toward a lost inventor's laboratory. Downstream places, "
+                "threats, treasures, and strange technologies become concrete "
+                "only when the party reaches them or uncovers reliable notes."
             ),
         ),
         characters=[_player_character(), *npcs],
@@ -845,7 +835,7 @@ def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
     ckpt.session.config.settings.player_roll_mode = "auto"
     ckpt.session.config.narrative_rules = (
         "Keep the startup scene grounded in negotiation, route preparation, "
-        "and choosing expedition support. Use reviewed imported refs before "
+        "and choosing expedition support. Use reviewed module knowledge before "
         "introducing downstream locations, hazards, or encounters."
     )
     if start_mode == "field":
@@ -1353,10 +1343,15 @@ def _build_report(
             ),
         ])
     if args.scenario == "deep":
+        route_context_refs = {
+            "loc.barrier_peaks_route",
+            "enc.route_wilderness_pressure",
+            "hazard.cliff_approach",
+        }
         checks.extend([
             _check(
                 "content_manager_requested_route_context",
-                "loc.barrier_peaks_route" in content_requested_refs,
+                bool(route_context_refs.intersection(content_requested_refs)),
                 content_requested_refs,
             ),
         ])

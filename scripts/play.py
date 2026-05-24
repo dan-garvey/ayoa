@@ -390,7 +390,97 @@ def _roll_formula_line(roll: Any) -> str:
     return line
 
 
+def _has_d20_roll_evidence(roll: Any) -> bool:
+    if list(getattr(roll, "die_values", ()) or ()):
+        return True
+    expression = str(getattr(roll, "expression", "") or "").strip()
+    if expression.startswith("1d20"):
+        return True
+    detail = str(getattr(roll, "detail", "") or "")
+    return "1d20" in detail
+
+
+def _is_damage_only_roll(roll: Any) -> bool:
+    kind = str(getattr(roll, "kind", "") or "")
+    if kind == "damage_roll":
+        return True
+    return bool(getattr(roll, "damage_total", 0) or 0) and not _has_d20_roll_evidence(
+        roll
+    )
+
+
+def _plain_roll_detail(text: str) -> str:
+    return " ".join(str(text or "").replace("`", "").replace("**", "").split())
+
+
+def _damage_roll_line(roll: Any) -> str:
+    total = int(
+        getattr(roll, "damage_total", 0)
+        or getattr(roll, "total", 0)
+        or 0
+    )
+    raw_total = int(getattr(roll, "damage_raw_total", 0) or 0)
+    damage_type = str(getattr(roll, "damage_type", "") or "")
+    suffix = f" {damage_type}" if damage_type else ""
+    detail = _plain_roll_detail(str(getattr(roll, "damage_detail", "") or ""))
+    expression = str(getattr(roll, "damage_expression", "") or "").strip()
+    if detail:
+        line = f"Damage: {detail}{suffix}"
+    elif expression:
+        line = f"Damage: {expression} = {total}{suffix}"
+    else:
+        line = f"Damage: {total}{suffix}"
+    if raw_total and raw_total != total:
+        line = f"{line}; applied {total}{suffix} after adjustments"
+    return line
+
+
+def _hp_text(current: int, maximum: int, temporary: int = 0) -> str:
+    text = f"{current}/{maximum}" if maximum else str(current)
+    if temporary:
+        text = f"{text} (+{temporary} temp)"
+    return text
+
+
+def _damage_target_status_line(roll: Any) -> str:
+    maximum = int(getattr(roll, "target_hp_max", 0) or 0)
+    before = int(getattr(roll, "target_hp_before", 0) or 0)
+    after = int(getattr(roll, "target_hp_after", 0) or 0)
+    temp_before = int(getattr(roll, "target_temp_hp_before", 0) or 0)
+    temp_after = int(getattr(roll, "target_temp_hp_after", 0) or 0)
+    if not any((maximum, before, after, temp_before, temp_after)):
+        return ""
+    target = (
+        getattr(roll, "target_name", "")
+        or getattr(roll, "target_id", "")
+        or "Target"
+    )
+    before_text = _hp_text(before, maximum, temp_before)
+    after_text = _hp_text(after, maximum, temp_after)
+    state = str(getattr(roll, "target_defeat_state", "") or "")
+    state_text = (
+        f"; {state}" if state and state not in {"active", "unknown"} else ""
+    )
+    return f"Target HP: {target} {before_text} -> {after_text}{state_text}"
+
+
+def _print_damage_roll_display(roll: Any, *, include_reason: bool = False) -> None:
+    print()
+    print(f"--- D&D Damage · {_roll_heading(roll)} ---")
+    print(f"  {_damage_roll_line(roll)}")
+    status = _damage_target_status_line(roll)
+    if status:
+        print(f"  {status}")
+    if include_reason:
+        reason = str(getattr(roll, "reason", "") or "")
+        if reason:
+            print(f"  {reason}")
+
+
 def _print_d20_roll_display(roll: Any, *, include_reason: bool = False) -> None:
+    if _is_damage_only_roll(roll):
+        _print_damage_roll_display(roll, include_reason=include_reason)
+        return
     print()
     print(f"--- D&D Roll · {_roll_heading(roll)} ---")
     animate = sys.stdout.isatty()
@@ -410,9 +500,10 @@ def _print_d20_roll_display(roll: Any, *, include_reason: bool = False) -> None:
         print("  Natural 1.")
     damage_total = int(getattr(roll, "damage_total", 0) or 0)
     if damage_total > 0:
-        damage_type = str(getattr(roll, "damage_type", "") or "")
-        suffix = f" {damage_type}" if damage_type else ""
-        print(f"  Damage: {damage_total}{suffix}")
+        print(f"  {_damage_roll_line(roll)}")
+        status = _damage_target_status_line(roll)
+        if status:
+            print(f"  {status}")
     if include_reason:
         reason = str(getattr(roll, "reason", "") or "")
         if reason:

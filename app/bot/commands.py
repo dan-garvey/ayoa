@@ -364,17 +364,107 @@ def _dice_roll_formula(
     return line
 
 
+def _dice_has_d20_roll_evidence(
+    roll: DiceRollDisplay | CompletedPendingRoll,
+) -> bool:
+    if list(getattr(roll, "die_values", ()) or ()):
+        return True
+    expression = str(getattr(roll, "expression", "") or "").strip()
+    if expression.startswith("1d20"):
+        return True
+    detail = str(getattr(roll, "detail", "") or "")
+    return "1d20" in detail
+
+
+def _dice_is_damage_only_roll(
+    roll: DiceRollDisplay | CompletedPendingRoll,
+) -> bool:
+    kind = str(getattr(roll, "kind", "") or "")
+    if kind == "damage_roll":
+        return True
+    return bool(getattr(roll, "damage_total", 0) or 0) and not (
+        _dice_has_d20_roll_evidence(roll)
+    )
+
+
+def _plain_dice_detail(text: str) -> str:
+    return " ".join(str(text or "").replace("`", "").replace("**", "").split())
+
+
+def _dice_damage_formula(roll: DiceRollDisplay | CompletedPendingRoll) -> str:
+    total = int(
+        getattr(roll, "damage_total", 0)
+        or getattr(roll, "total", 0)
+        or 0
+    )
+    raw_total = int(getattr(roll, "damage_raw_total", 0) or 0)
+    damage_type = str(getattr(roll, "damage_type", "") or "")
+    suffix = f" {damage_type}" if damage_type else ""
+    detail = _plain_dice_detail(str(getattr(roll, "damage_detail", "") or ""))
+    expression = str(getattr(roll, "damage_expression", "") or "").strip()
+    if detail:
+        line = f"Damage: {detail}{suffix}"
+    elif expression:
+        line = f"Damage: {expression} = {total}{suffix}"
+    else:
+        line = f"Damage: {total}{suffix}"
+    if raw_total and raw_total != total:
+        line = f"{line}; applied {total}{suffix} after adjustments"
+    return line
+
+
+def _dice_hp_text(current: int, maximum: int, temporary: int = 0) -> str:
+    text = f"{current}/{maximum}" if maximum else str(current)
+    if temporary:
+        text = f"{text} (+{temporary} temp)"
+    return text
+
+
+def _dice_damage_target_status(
+    roll: DiceRollDisplay | CompletedPendingRoll,
+) -> str:
+    maximum = int(getattr(roll, "target_hp_max", 0) or 0)
+    before = int(getattr(roll, "target_hp_before", 0) or 0)
+    after = int(getattr(roll, "target_hp_after", 0) or 0)
+    temp_before = int(getattr(roll, "target_temp_hp_before", 0) or 0)
+    temp_after = int(getattr(roll, "target_temp_hp_after", 0) or 0)
+    if not any((maximum, before, after, temp_before, temp_after)):
+        return ""
+    target = (
+        getattr(roll, "target_name", "")
+        or getattr(roll, "target_id", "")
+        or "Target"
+    )
+    before_text = _dice_hp_text(before, maximum, temp_before)
+    after_text = _dice_hp_text(after, maximum, temp_after)
+    state = str(getattr(roll, "target_defeat_state", "") or "")
+    state_text = (
+        f"; {state}" if state and state not in {"active", "unknown"} else ""
+    )
+    return f"Target HP: {target} {before_text} -> {after_text}{state_text}"
+
+
 def _dice_roll_content(
     roll: DiceRollDisplay | CompletedPendingRoll,
     *,
     stage: str = "final",
     interpreting: bool = False,
 ) -> str:
-    heading = f"**D&D Roll: {_dice_roll_heading(roll)}**"
+    damage_only = _dice_is_damage_only_roll(roll)
+    heading_kind = "D&D Damage" if damage_only else "D&D Roll"
+    heading = f"**{heading_kind}: {_dice_roll_heading(roll)}**"
     if stage == "rolling":
-        lines = [heading, "`d20 rolling...`"]
+        lines = [heading, "`damage rolling...`" if damage_only else "`d20 rolling...`"]
     elif stage == "settled":
-        lines = [heading, f"`d20 {_dice_d20_text(roll)}`"]
+        settled = _dice_damage_formula(roll) if damage_only else (
+            f"d20 {_dice_d20_text(roll)}"
+        )
+        lines = [heading, f"`{settled}`"]
+    elif damage_only:
+        lines = [heading, f"`{_dice_damage_formula(roll)}`"]
+        status = _dice_damage_target_status(roll)
+        if status:
+            lines.append(status)
     else:
         lines = [heading, f"`{_dice_roll_formula(roll)}`"]
         outcome = str(getattr(roll, "outcome", "") or "")
@@ -387,9 +477,10 @@ def _dice_roll_content(
             lines.append("_Natural 1._")
         damage_total = int(getattr(roll, "damage_total", 0) or 0)
         if damage_total > 0:
-            damage_type = str(getattr(roll, "damage_type", "") or "")
-            suffix = f" {damage_type}" if damage_type else ""
-            lines.append(f"Damage: `{damage_total}{suffix}`")
+            lines.append(f"`{_dice_damage_formula(roll)}`")
+            status = _dice_damage_target_status(roll)
+            if status:
+                lines.append(status)
     if interpreting:
         lines.append("")
         lines.append("_Resolving..._")

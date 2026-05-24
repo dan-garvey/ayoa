@@ -38,6 +38,7 @@ from app.engine.context_builder import (
     build_world_context,
     clear_character_inbox,
     conversation_turn_messages,
+    format_character_location_for_agent,
     format_elapsed_agent_turn_block,
     format_pending_observations_block,
 )
@@ -374,7 +375,7 @@ class CharacterAgent:
         # color their visual loadout. The resulting loadout is appended
         # after the call so future beats remember what was established.
         char_identity = build_character_packet(character, checkpoint)
-        char_state = build_character_state(character)
+        char_state = build_character_state(character, checkpoint)
 
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
@@ -433,9 +434,13 @@ class CharacterAgent:
         frame = (frame or "foreground").strip().lower()
         if frame not in {"foreground", "private", "background"}:
             frame = "foreground"
+        location_label = format_character_location_for_agent(
+            character.location,
+            checkpoint,
+        )
         location_context = (
-            f"Location: {character.location}"
-            if character.location else "Location: Off-screen / unspecified location."
+            f"Location: {location_label}"
+            if location_label else "Location: Off-screen / unspecified location."
         )
         foreground_block = (
             self._dnd_combat_mode_block(character, checkpoint)
@@ -517,7 +522,7 @@ class CharacterAgent:
         )
 
         char_identity = build_character_packet(character, checkpoint)
-        char_state = build_character_state(character)
+        char_state = build_character_state(character, checkpoint)
 
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(

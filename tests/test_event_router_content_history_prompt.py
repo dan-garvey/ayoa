@@ -42,7 +42,12 @@ def test_event_router_defines_content_history_record_contract():
 
     contract = _contract_section(messages[0]["content"])
 
-    for record_kind in ("content_known", "location_card", "front_signal"):
+    for record_kind in (
+        "content_known",
+        "location_card",
+        "front_signal",
+        "turn_hint",
+    ):
         assert record_kind in contract
     assert "visibility=hidden" in contract
     assert "scope=router" in contract
@@ -50,6 +55,20 @@ def test_event_router_defines_content_history_record_contract():
     assert "canonical_event.observable_facts" in contract
     assert "visible consequence" in contract
     assert "existing visibility rules" in contract
+    assert "non-binding attention hint" in contract
+    assert "spawn authority" in contract
+    assert "Never route or spawn" in contract
+
+
+def test_event_router_defines_departure_handoff_contract():
+    messages = _render_router_conversation()
+    system_content = messages[0]["content"]
+
+    assert "Departure And Handoff Pacing" in system_content
+    assert "location_updates" in system_content
+    assert "accepted terms and assigned responsibilities" in system_content
+    assert "material objection" in system_content
+    assert "extra agent turns" in system_content
 
 
 def test_content_history_records_stay_assistant_side_not_current_turn_packet():
@@ -80,6 +99,24 @@ def test_content_history_records_stay_assistant_side_not_current_turn_packet():
     assert "front_signal ref=front/strahd" not in current_user
     assert "Trapdoor under the altar" not in current_user
     assert "summon wolves" not in current_user
+
+
+def test_turn_hint_records_stay_assistant_side_not_current_turn_packet():
+    turn_hint = (
+        "turn_hint scope=attention_hint character=strahd priority=high "
+        'refs=strahd:front/hunt facts=f03 reason="May react."'
+    )
+    messages = _render_router_conversation(
+        history=[ConversationMessage(role="assistant", content=turn_hint)],
+        router_input_block="I leave town before dawn.",
+    )
+
+    assert messages[1] == {"role": "assistant", "content": turn_hint}
+
+    current_user = messages[-1]["content"]
+    assert "I leave town before dawn." in current_user
+    assert "turn_hint" not in current_user
+    assert "front/hunt" not in current_user
 
 
 def test_event_router_without_content_history_has_no_current_turn_content_packet():

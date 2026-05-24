@@ -27,6 +27,7 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
+from app.schemas.content import ContentKnowledgeEntityState, ContentPackState
 from app.schemas.dnd_spatial import DndBattleMapState, DndBattleMapToken
 from app.schemas.state import (
     DndCombatantState,
@@ -388,6 +389,81 @@ class TestCharacterAgent:
             assert sentinel not in flat
         assert REDACTED_IMPORT_SENTINEL in flat
         assert "Visible surface." in flat
+
+    @pytest.mark.asyncio
+    async def test_imported_content_metadata_does_not_reach_agent_prompt(
+        self, mock_client, prompt_manager, guard_character, sample_checkpoint,
+        sample_agent_text,
+    ):
+        pack_id = "lost_laboratory_kwalish_full_reviewed_v1"
+        content_hash = (
+            "sha256:0123456789abcdef0123456789abcdef"
+            "0123456789abcdef0123456789abcdef"
+        )
+        compact_ref = (
+            f"{pack_id}:agent_context.garret.strategic@{content_hash}"
+        )
+        sample_checkpoint.session.content_state = {
+            pack_id: ContentPackState(
+                pack_id=pack_id,
+                knowledge_map={
+                    "guard_17": ContentKnowledgeEntityState(
+                        entity_id="guard_17",
+                        known_refs=[compact_ref],
+                    )
+                },
+                metadata={
+                    "source_fingerprint": content_hash,
+                },
+            )
+        }
+        guard_character.backstory = (
+            "A careful expedition custodian. Pack marker "
+            f"{pack_id}; stat.garret_levistusson."
+        )
+        guard_character.personality = (
+            f"Uses reviewed notes, not {compact_ref}, to stay grounded."
+        )
+        guard_character.known_context = (
+            "Garret knows the party route. Reviewed content refs known to this "
+            f"agent: {compact_ref}. Start near loc.barrier_peaks_route."
+        )
+        guard_character.location = "loc.barrier_peaks_route"
+        guard_character.private_state.goals = [
+            f"Protect the folios tied to {pack_id}.",
+        ]
+        guard_character.private_state.current_objectives = [
+            "Use area.c2_enhanced_sphinx only when the route reaches it.",
+        ]
+        guard_character.private_state.secrets = [
+            f"The source fingerprint is {content_hash}.",
+        ]
+        mock_client.complete.return_value = _llm_response(sample_agent_text)
+        agent = CharacterAgent(mock_client, prompt_manager)
+
+        await agent.turn(guard_character, sample_checkpoint, frame="background")
+
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        flat = "\n".join(
+            message["content"]
+            for message in messages
+            if isinstance(message.get("content"), str)
+        )
+        assert "Garret knows the party route" in flat
+        assert "Location: Barrier Peaks Route" in flat
+        forbidden = [
+            pack_id,
+            compact_ref,
+            content_hash,
+            "sha256:",
+            "agent_context.garret.strategic",
+            "stat.garret_levistusson",
+            "loc.barrier_peaks_route",
+            "area.c2_enhanced_sphinx",
+            "Reviewed content refs",
+        ]
+        leaks = [term for term in forbidden if term in flat]
+        assert not leaks, "Imported metadata leaked into agent prompt: " + ", ".join(leaks)
 
     @pytest.mark.asyncio
     async def test_character_id_always_actor(

@@ -7,6 +7,7 @@ from app.bot.engine_bridge import EngineBridge
 from app.engine.frontend_views import CompletedPendingRoll
 from app.schemas.characters import CharacterRecord, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.responses import DiceRollDisplay
 from app.schemas.state import (
     CatIIRollRecord,
     CatIIRollTransaction,
@@ -274,3 +275,31 @@ def test_dice_roll_content_formats_d20_equation_for_discord_ui():
     assert "D&D Roll: alice - Attack" in content
     assert "`d20 15 + 4 = 19 vs DC 12`" in content
     assert "**Hit**" in content
+
+
+def test_dice_roll_content_formats_damage_roll_without_d20_for_discord_ui():
+    content = _dice_roll_content(
+        DiceRollDisplay(
+            actor_id="mon_mountain_lion_1",
+            actor_name="Mountain Lion",
+            target_id="pc_expedition_leader",
+            target_name="Demo Expedition Leader",
+            label="Damage (Claw)",
+            kind="damage_roll",
+            total=4,
+            damage_raw_total=4,
+            damage_total=4,
+            damage_type="slashing",
+            damage_expression="1d4+2",
+            damage_detail="1d4 (2) + 2 = `4`",
+            target_hp_before=33,
+            target_hp_after=29,
+            target_hp_max=38,
+            target_defeat_state="active",
+        )
+    )
+
+    assert "D&D Damage: Mountain Lion - Damage (Claw)" in content
+    assert "d20 ?" not in content
+    assert "`Damage: 1d4 (2) + 2 = 4 slashing`" in content
+    assert "Target HP: Demo Expedition Leader 33/38 -> 29/38" in content

@@ -19,7 +19,7 @@ _ASSET_DELIVERY_REF_RE = re.compile(
 
 
 class DiceRollDisplay(BaseModel):
-    """Runtime UI payload for an already executed d20 roll.
+    """Runtime UI payload for an already executed D&D roll.
 
     This is intentionally presentation-shaped rather than prompt-shaped:
     durable mechanics details stay in checkpoint roll transactions, and LLM
@@ -49,9 +49,17 @@ class DiceRollDisplay(BaseModel):
     dc: int = 0
     outcome: str = ""
     crit: str = "none"
+    damage_raw_total: int = 0
     damage_total: int = 0
     damage_type: str = ""
+    damage_expression: str = ""
     damage_detail: str = ""
+    target_hp_before: int = 0
+    target_hp_after: int = 0
+    target_hp_max: int = 0
+    target_temp_hp_before: int = 0
+    target_temp_hp_after: int = 0
+    target_defeat_state: str = ""
     automatic: bool = True
 
 

@@ -122,6 +122,102 @@ def test_dice_roll_displays_since_projects_completed_engine_roll():
     assert display.damage_type == "piercing"
 
 
+def test_dice_roll_displays_since_projects_damage_roll_without_d20():
+    record = CatIIRollRecord(
+        roll_id="damage_rat",
+        actor_id="alice",
+        actor_control="agent",
+        status="completed",
+        request={
+            "roll_id": "damage_rat",
+            "actor_id": "alice",
+            "kind": "damage_roll",
+            "ability": "str",
+            "skill": "",
+            "dc": 0,
+            "opposed_by": "",
+            "advantage_state": "normal",
+            "reason": "Alice's trap burns the rat.",
+            "action_id": "burning_trap",
+            "target_id": "rat",
+            "damage_adjustments": [],
+        },
+        modifier=2,
+        label="Damage (Burning Trap)",
+        reason="Alice's trap burns the rat.",
+        result={
+            "roll_id": "damage_rat",
+            "actor_id": "alice",
+            "kind": "damage_roll",
+            "total": 0,
+            "detail": "direct damage roll queued",
+            "crit": "none",
+        },
+        completed_by_user_id="engine",
+        completed_at="2026-05-15T12:00:00Z",
+    )
+    ckpt = CheckpointFile(
+        session=SessionState(session_id="s"),
+        world_state=WorldState(),
+        characters=[CharacterRecord(character_id="alice", name="Alice")],
+    )
+    ckpt.session.active_combat = DndCombatState(
+        combatants=[
+            DndCombatantState(
+                combatant_id="rat",
+                character_id="rat",
+                name="Giant Rat",
+                armor_class=12,
+                hit_points_current=4,
+                hit_points_max=7,
+            ),
+        ]
+    )
+    ckpt.session.cat_ii_roll_transactions.append(
+        CatIIRollTransaction(
+            transaction_id="rolltxn_damage",
+            event_id="evt_damage",
+            source="combat",
+            actor_id="alice",
+            status="finalized",
+            rolls=[record],
+            damage_records=[
+                CatIIRollDamageRecord(
+                    roll_id="damage_rat",
+                    target_id="rat",
+                    raw_amount=3,
+                    amount=3,
+                    damage_type="fire",
+                    expression="1d4+1",
+                    detail="1d4 (2) + 1 = `3`",
+                    target_hp_before=7,
+                    target_hp_after=4,
+                    target_hp_max=7,
+                    target_defeat_state_after="active",
+                    applied=True,
+                )
+            ],
+        )
+    )
+
+    displays = dice_roll_displays_since(ckpt, before=set())
+
+    assert len(displays) == 1
+    display = displays[0]
+    assert display.kind == "damage_roll"
+    assert display.die_values == []
+    assert display.total == 3
+    assert display.damage_total == 3
+    assert display.damage_raw_total == 3
+    assert display.damage_type == "fire"
+    assert display.damage_expression == "1d4+1"
+    assert display.damage_detail == "1d4 (2) + 1 = `3`"
+    assert display.target_name == "Giant Rat"
+    assert display.target_hp_before == 7
+    assert display.target_hp_after == 4
+    assert display.target_hp_max == 7
+
+
 def test_dice_roll_displays_since_ignores_seen_and_player_rolls():
     engine_ckpt = _checkpoint(_completed_attack_record())
     before = completed_automatic_roll_keys(engine_ckpt)
