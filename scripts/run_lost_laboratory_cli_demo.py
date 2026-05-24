@@ -122,6 +122,22 @@ ISSUES_FIXED = [
         "cycles still drain pending/deterministic content but only call the "
         "manager every few eligible cycles.",
     ),
+    (
+        "Extended route exploration could fail when the OpenAI event-router "
+        "call hit the 5000-token output cap before returning structured JSON.",
+        "Raised the shared event-router output cap to 8000 tokens so long "
+        "medium-reasoning router calls have room for hidden reasoning plus "
+        "the visible schema response.",
+    ),
+    (
+        "A D&D combat-start router output could include the same creature in "
+        "both combatant_spawns and the generic spawn list, causing the "
+        "orchestrator to materialize the combatant and then try to spawn the "
+        "same id again.",
+        "After combatant_spawns are materialized for D&D combat, duplicate "
+        "generic spawn requests for those ids are stripped before normal "
+        "roster side effects run.",
+    ),
 ]
 SCENARIO_COMMANDS = {
     "startup": [
@@ -185,7 +201,84 @@ SCENARIO_COMMANDS = {
         ),
         "If the predator is still fighting, I attack it with my longsword.",
     ],
+    "soak": [
+        f"/story start {STORY_ID}",
+        "/characters",
+        f"/join {PLAYER_ID}",
+        "/begin",
+        (
+            "At the wooded foothills, I scout ahead carefully with the map "
+            "open, checking loose rock, tracks, and sightlines before we move "
+            "toward the cave approach."
+        ),
+        (
+            "A hostile mountain predator bursts from the rocks and charges "
+            "Garret; I draw my longsword and intercept it."
+        ),
+        "If the predator is still fighting, I attack it with my longsword.",
+    ],
 }
+SOAK_COMBAT_COMMANDS = (
+    (
+        "If the predator is still standing, I press the attack with my "
+        "longsword; otherwise I check Garret and Gearbox for injuries and "
+        "secure the route folios."
+    ),
+    (
+        "I keep myself between the predator and the expedition, striking it "
+        "with my longsword if it is still a threat."
+    ),
+    (
+        "I look for an opening, call the target clearly for Garret and "
+        "Gearbox, and attack the predator again."
+    ),
+    (
+        "I hold the line at the rocky approach and make another measured "
+        "longsword attack if the beast remains in the fight."
+    ),
+)
+SOAK_EXPLORATION_COMMANDS = (
+    (
+        "I take a minute to check Garret and Gearbox for injuries, then "
+        "recover and sort the route folios."
+    ),
+    (
+        "I search the cleft and nearby stones for tracks, scat, claw marks, "
+        "or signs that the predator had a den nearby."
+    ),
+    (
+        "I compare the foothill ridges against the Cartophile's notes and "
+        "mark the safest path forward."
+    ),
+    (
+        "I ask Garret what dangers on the route match this ambush, and ask "
+        "Gearbox what equipment we should recheck before pressing on."
+    ),
+    (
+        "I advance to the best nearby overlook and study the cave approach "
+        "before committing the group."
+    ),
+    (
+        "I organize our marching order, with Gearbox protected in the middle "
+        "and Garret watching the rear."
+    ),
+    (
+        "I inspect the predator's approach path to decide whether this was a "
+        "random attack or a creature guarding something."
+    ),
+    (
+        "I listen for water, machinery, wind movement, or voices from deeper "
+        "in the rocks."
+    ),
+    (
+        "I pause to update our route notes for the Cartophile's required "
+        "return report."
+    ),
+    (
+        "We continue cautiously toward the cave approach, stopping whenever "
+        "the map details no longer match the terrain."
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -919,6 +1012,47 @@ def _combat_state_summary(checkpoint: CheckpointFile | None) -> dict[str, Any]:
     }
 
 
+def _checkpoint_turn_index(checkpoint: CheckpointFile | None) -> int:
+    if checkpoint is None:
+        return 0
+    return int(getattr(checkpoint.session, "turn_index", 0) or 0)
+
+
+def _next_soak_command(checkpoint: CheckpointFile | None, index: int) -> str:
+    combat = (
+        getattr(checkpoint.session, "active_combat", None)
+        if checkpoint is not None else None
+    )
+    if combat is not None:
+        return SOAK_COMBAT_COMMANDS[index % len(SOAK_COMBAT_COMMANDS)]
+    return SOAK_EXPLORATION_COMMANDS[index % len(SOAK_EXPLORATION_COMMANDS)]
+
+
+def _soak_defeated_spawned_hostiles_active(
+    checkpoint: CheckpointFile | None,
+) -> bool:
+    combat = (
+        getattr(checkpoint.session, "active_combat", None)
+        if checkpoint is not None else None
+    )
+    if combat is None:
+        return False
+    spawned_hostiles = []
+    for combatant in getattr(combat, "combatants", []) or []:
+        character_id = str(getattr(combatant, "character_id", "") or "")
+        combatant_id = str(getattr(combatant, "combatant_id", "") or "")
+        if character_id.startswith("mon_") or combatant_id.startswith("mon_"):
+            spawned_hostiles.append(combatant)
+    if not spawned_hostiles:
+        return False
+    return all(
+        str(getattr(combatant, "defeat_state", "") or "") != "active"
+        or int(getattr(combatant, "hit_points_current", 0) or 0) <= 0
+        or bool(getattr(combatant, "removed", False))
+        for combatant in spawned_hostiles
+    )
+
+
 async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
     load_dotenv()
     os.environ.setdefault("LLM_MODEL_AGENT", "claude-haiku-4-5")
@@ -946,7 +1080,7 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
     sessions_dir = RUN_DIR / "sessions"
     story_path = _write_story(
         stories_dir,
-        start_mode="field" if args.scenario == "field" else "startup",
+        start_mode="field" if args.scenario in {"field", "soak"} else "startup",
     )
     if args.install_story:
         installed_dir = REPO_ROOT / "app/storage/stories" / STORY_ID
@@ -1018,6 +1152,26 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             transcript.append({"input": line, "output": output})
             if "error:" in output.lower():
                 break
+        if args.scenario == "soak" and (
+            not transcript or "error:" not in transcript[-1]["output"].lower()
+        ):
+            soak_index = 0
+            while len(transcript) < args.max_soak_commands:
+                current_ckpt = engine.load_latest(session_id)
+                if _checkpoint_turn_index(current_ckpt) >= args.target_turns:
+                    break
+                pending_rolls = state._joined_pending_roll_prompts()
+                if _soak_defeated_spawned_hostiles_active(current_ckpt):
+                    line = "/combat end"
+                elif pending_rolls:
+                    line = "/roll all"
+                else:
+                    line = _next_soak_command(current_ckpt, soak_index)
+                    soak_index += 1
+                output = await _run_cli_line(state, line)
+                transcript.append({"input": line, "output": output})
+                if "error:" in output.lower():
+                    break
         ckpt = engine.load_latest(session_id)
         return _build_report(
             args=args,
@@ -1146,7 +1300,7 @@ def _build_report(
             content_calls,
         ),
     ]
-    if args.scenario in {"deep", "field"}:
+    if args.scenario in {"deep", "field", "soak"}:
         checks.extend([
             _check(
                 "content_manager_throttled_below_router_calls",
@@ -1162,6 +1316,24 @@ def _build_report(
                 introduced_refs,
             ),
         ])
+    if args.scenario == "soak":
+        checks.extend([
+            _check(
+                "soak_target_turns_reached",
+                turn_index >= args.target_turns,
+                {
+                    "turn_index": turn_index,
+                    "target_turns": args.target_turns,
+                    "commands": len(transcript),
+                    "max_soak_commands": args.max_soak_commands,
+                },
+            ),
+            _check(
+                "soak_not_left_in_defeated_combat_loop",
+                not _soak_defeated_spawned_hostiles_active(checkpoint),
+                _combat_state_summary(checkpoint),
+            ),
+        ])
     if args.scenario == "deep":
         checks.extend([
             _check(
@@ -1170,7 +1342,7 @@ def _build_report(
                 content_requested_refs,
             ),
         ])
-    if args.scenario in {"deep", "field"}:
+    if args.scenario in {"deep", "field", "soak"}:
         checks.extend([
             _check(
                 "combat_path_exercised",
@@ -1186,6 +1358,15 @@ def _build_report(
         "story_id": STORY_ID,
         "story_path": str(story_path.relative_to(REPO_ROOT)),
         "installed_story": bool(args.install_story),
+        "target_turns": args.target_turns if args.scenario == "soak" else None,
+        "max_soak_commands": (
+            args.max_soak_commands if args.scenario == "soak" else None
+        ),
+        "command_count": len(transcript),
+        "manual_combat_end_used": any(
+            item["input"].strip().lower() == "/combat end"
+            for item in transcript
+        ),
         "roles": {
             role: _role_label(config, role)
             for role in (
@@ -1233,11 +1414,18 @@ def _markdown(report: dict[str, Any]) -> str:
         f"Run directory: `{report['run_dir']}`",
         f"Story: `{report['story_id']}`",
         f"Session: `{report['session_id']}`",
+    ]
+    if report.get("target_turns"):
+        lines.append(f"Target turns: `{report['target_turns']}`")
+    lines.extend([
         f"Checks: `{passed}/{total}`",
+        f"Turn index: `{report.get('turn_index', 0)}`",
+        f"CLI commands: `{report.get('command_count', 0)}`",
+        f"Manual combat end used: `{report.get('manual_combat_end_used', False)}`",
         "",
         "## Result",
         "",
-    ]
+    ])
     if report.get("error"):
         lines.extend(["The run ended with an exception:", "", "```text"])
         lines.append(report["error"].strip())
@@ -1394,6 +1582,24 @@ async def main_async() -> int:
         help=(
             "Also copy the generated story seed into app/storage/stories for "
             "manual scripts/play.py replay."
+        ),
+    )
+    parser.add_argument(
+        "--target-turns",
+        type=int,
+        default=35,
+        help=(
+            "For --scenario soak, continue scripted play until the checkpoint "
+            "turn index reaches this value."
+        ),
+    )
+    parser.add_argument(
+        "--max-soak-commands",
+        type=int,
+        default=60,
+        help=(
+            "For --scenario soak, stop after this many total CLI commands even "
+            "if the target turn index has not been reached."
         ),
     )
     args = parser.parse_args()

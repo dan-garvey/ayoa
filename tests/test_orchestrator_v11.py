@@ -869,6 +869,52 @@ class TestCombatTurnGating:
             dnd_monsters.clear_statblock_override_providers()
 
     @pytest.mark.asyncio
+    async def test_dnd_combat_start_drops_duplicate_generic_spawn(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10, 10])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        combatant_spawn = _rat_combatant_spawn()
+        generic_spawn = {
+            "character_id": combatant_spawn["character_id"],
+            "seed": {
+                "role": "hostile combatant",
+                "reason": (
+                    "duplicate generic spawn emitted alongside combatant_spawns"
+                ),
+                "location": "gatehouse",
+                "objectives": ["fight the party"],
+            },
+        }
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice"],
+            combatant_spawns=[combatant_spawn],
+            spawn=[generic_spawn],
+            facts=[ObservableFact.all("Alice kicks at the rat under the table.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I kick the rat",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        assert [c.character_id for c in ckpt.characters].count("rat_1") == 1
+        event = ckpt.canonical_events[-1]
+        assert event.spawn == []
+        assert event.combatant_spawns[0].character_id == "rat_1"
+
+    @pytest.mark.asyncio
     async def test_dnd_combat_start_materializes_ref_only_imported_statblock(
         self, patched_orchestrator, monkeypatch,
     ):

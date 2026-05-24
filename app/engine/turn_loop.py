@@ -1837,6 +1837,12 @@ def _start_dnd_combat_from_router_signal(
         result,
         actor_id=actor_id,
     )
+    if spawned_ids and getattr(result, "spawn", None):
+        spawned_set = set(spawned_ids)
+        result.spawn = [
+            spawn for spawn in result.spawn
+            if spawn.character_id not in spawned_set
+        ]
     combatant_ids = list(getattr(result, "combatant_ids", []) or [])
     participants = _dnd_combat_start_participants(
         ckpt, actor_id, combatant_ids,

@@ -19,7 +19,11 @@ from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
     ROUTER_CONTINUATION_HEADER,
 )
-from app.engine.turn_loop_dispatcher import LLMDispatcher, _build_router_context
+from app.engine.turn_loop_dispatcher import (
+    EVENT_ROUTER_MAX_TOKENS,
+    LLMDispatcher,
+    _build_router_context,
+)
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
 from app.schemas.characters import CharacterRecord, PublicSheet
@@ -362,6 +366,10 @@ class TestRouteIntention:
         assert "alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
         assert "## Intention" not in user_content
+        assert (
+            mock_client.complete.await_args.kwargs["max_tokens"]
+            == EVENT_ROUTER_MAX_TOKENS
+        )
 
     def test_pending_inventory_update_precedes_next_intention(
         self, prompt_mgr, mock_client,

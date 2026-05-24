@@ -58,6 +58,9 @@ from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 logger = logging.getLogger(__name__)
 
 
+EVENT_ROUTER_MAX_TOKENS = 8000
+
+
 def _session_ruleset_id(ckpt: CheckpointFile) -> str:
     return str(getattr(ckpt.session.config.settings, "ruleset_id", "") or "")
 
@@ -822,7 +825,7 @@ class LLMDispatcher:
                     DndEventRouterOutput if dnd_fresh else EventRouterOutput
                 ),
                 temperature=0.35,
-                max_tokens=5000,
+                max_tokens=EVENT_ROUTER_MAX_TOKENS,
                 cache=True,
                 compact=True,
             )
@@ -1002,7 +1005,7 @@ class LLMDispatcher:
                 messages=messages,
                 response_model=EventRouterOutput,
                 temperature=0.35,
-                max_tokens=5000,
+                max_tokens=EVENT_ROUTER_MAX_TOKENS,
                 cache=True,
                 compact=True,
             )
@@ -1091,7 +1094,7 @@ class LLMDispatcher:
                 messages=messages,
                 response_model=EventRouterOutput,
                 temperature=0.35,
-                max_tokens=5000,
+                max_tokens=EVENT_ROUTER_MAX_TOKENS,
                 cache=True,
                 compact=True,
             )
