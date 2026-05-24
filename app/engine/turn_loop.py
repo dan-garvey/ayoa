@@ -1691,6 +1691,11 @@ def _materialize_dnd_combatant_spawns(
                 spawn,
                 default_location=default_location,
             )
+        _mark_dnd_combat_spawn_character(
+            character,
+            spawn=spawn,
+            source_event_id=str(getattr(result, "event_id", "") or ""),
+        )
         ckpt.characters.append(character)
         by_id[character.character_id] = character
         combatant_ids.append(character.character_id)
@@ -1706,6 +1711,27 @@ def _materialize_dnd_combatant_spawns(
             ", ".join(spawned_ids),
         )
     return spawned_ids, prior_combatant_ids
+
+
+def _mark_dnd_combat_spawn_character(
+    character: Any,
+    *,
+    spawn: Any,
+    source_event_id: str,
+) -> None:
+    mechanics = dict(getattr(character, "mechanics", {}) or {})
+    marker = {
+        "spawned": True,
+        "source_event_id": source_event_id,
+        "monster_key": str(getattr(spawn, "monster_key", "") or ""),
+        "statblock_ref": str(getattr(spawn, "statblock_ref", "") or ""),
+    }
+    mechanics["combat_spawn"] = {
+        key: value for key, value in marker.items() if value or key == "spawned"
+    }
+    if not mechanics.get("source"):
+        mechanics["source"] = "router_combatant_spawn"
+    character.mechanics = mechanics
 
 
 def _unique_spawn_character_id(

@@ -327,6 +327,10 @@ async def _append_router_content_lookup_records(
     )
     from app.engine.content_lookup import append_router_content_lookup_records_with_llm
 
+    if getattr(ckpt.session, "active_combat", None) is not None:
+        logger.info("Skipping router content preflight during active combat")
+        return _append_pending_router_content_records(ckpt)
+
     if content_manager_enabled(ckpt):
         return await append_content_manager_router_records(
             ckpt,

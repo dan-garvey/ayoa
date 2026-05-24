@@ -271,6 +271,8 @@ def build_candidate_turn_entities_from_checkpoint(
         character_id = _safe_token(getattr(character, "character_id", ""))
         if not character_id:
             continue
+        if _character_is_unresolved_combat_spawn(ckpt, character, character_id):
+            continue
         status = getattr(character, "status", "")
         status_value = getattr(status, "value", status)
         if status_value != "active":
@@ -292,6 +294,45 @@ def build_candidate_turn_entities_from_checkpoint(
             data["stance"] = "intentions_enabled"
         candidates[character_id] = data
     return candidates
+
+
+def _character_is_unresolved_combat_spawn(
+    ckpt: Any,
+    character: Any,
+    character_id: str,
+) -> bool:
+    if not _character_has_combat_spawn_marker(character):
+        return False
+    session = getattr(ckpt, "session", None)
+    combat = getattr(session, "active_combat", None)
+    if combat is None:
+        return False
+    for combatant in getattr(combat, "combatants", []) or []:
+        if character_id in _combatant_identity_set(combatant):
+            return True
+    return False
+
+
+def _character_has_combat_spawn_marker(character: Any) -> bool:
+    mechanics = getattr(character, "mechanics", None)
+    if not isinstance(mechanics, Mapping):
+        return False
+    marker = mechanics.get("combat_spawn")
+    if isinstance(marker, Mapping) and bool(marker.get("spawned")):
+        return True
+    return str(mechanics.get("source") or "").strip() == "router_combatant_spawn"
+
+
+def _combatant_identity_set(combatant: Any) -> set[str]:
+    return {
+        text
+        for text in (
+            str(getattr(combatant, "combatant_id", "") or "").strip(),
+            str(getattr(combatant, "character_id", "") or "").strip(),
+            str(getattr(combatant, "name", "") or "").strip(),
+        )
+        if text
+    }
 
 
 def build_candidate_turn_entities_block(
@@ -481,6 +522,14 @@ async def append_content_manager_router_records(
 ) -> list[str]:
     """Run content-manager preflight and append only router-facing records."""
 
+    if _checkpoint_has_active_combat(ckpt):
+        logger.info("Skipping content-manager preflight during active combat")
+        return append_router_content_lookup_records(
+            ckpt,
+            actor_id=actor_id,
+            current_input=current_input,
+        )
+
     if not should_run_content_manager_preflight(ckpt):
         logger.info("Skipping content-manager preflight on throttled cycle")
         return append_router_content_lookup_records(
@@ -542,6 +591,11 @@ def _has_recent_canonical_facts(ckpt: Any) -> bool:
         if any(_fact_text(fact) for fact in facts or []):
             return True
     return False
+
+
+def _checkpoint_has_active_combat(ckpt: Any) -> bool:
+    session = getattr(ckpt, "session", None)
+    return getattr(session, "active_combat", None) is not None
 
 
 def apply_content_manager_knowledge_updates(

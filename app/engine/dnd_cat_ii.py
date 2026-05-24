@@ -619,7 +619,7 @@ def _validate_combat_action_actor(
         return
     if _is_readied_release_action(ckpt, action):
         return
-    if _looks_like_opportunity_action(action):
+    if _is_legal_opportunity_action(ckpt, current_actor_id, action):
         return
     raise ValueError(
         "D&D combat action actor must be the current actor unless it is a "
@@ -639,6 +639,41 @@ def _looks_like_opportunity_action(action: DndCombatActionUse) -> bool:
         and action.economy in {"reaction", "none"}
         and "opportunity" in text
     )
+
+
+def _is_legal_opportunity_action(
+    ckpt: CheckpointFile,
+    current_actor_id: str,
+    action: DndCombatActionUse,
+) -> bool:
+    if not _looks_like_opportunity_action(action):
+        return False
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return False
+    if not _combatants_are_enemies(ckpt, action.actor_id, current_actor_id):
+        return False
+    target_ids = _combat_action_target_ids(action)
+    if not target_ids:
+        return True
+    if not any(
+        _combat_target_ids_overlap(combat, target_id, current_actor_id)
+        for target_id in target_ids
+    ):
+        return False
+    return all(
+        _combatants_are_enemies(ckpt, action.actor_id, target_id)
+        for target_id in target_ids
+    )
+
+
+def _combat_action_target_ids(action: DndCombatActionUse) -> set[str]:
+    target_ids = set(action.targeting.target_ids)
+    target_ids.update(action.targeting.included_target_ids)
+    for roll in action.rolls:
+        if roll.target_id:
+            target_ids.add(roll.target_id)
+    return {target_id for target_id in target_ids if target_id}
 
 
 def _is_readied_release_action(
@@ -2869,9 +2904,11 @@ def _relationship_to_current_actor(
     if character_id == actor_id:
         return "self"
     character_is_player = character_id in bindings
+    character_faction = _combat_public_faction(character)
+    if actor_faction and character_faction:
+        return "ally" if actor_faction == character_faction else "enemy"
     if character_is_player != actor_is_player:
         return "enemy"
-    character_faction = _combat_public_faction(character)
     if (
         not character_is_player
         and actor_faction
@@ -2880,6 +2917,76 @@ def _relationship_to_current_actor(
     ):
         return "unknown"
     return "ally"
+
+
+def _combatants_are_enemies(
+    ckpt: CheckpointFile,
+    left_id: str,
+    right_id: str,
+) -> bool:
+    combat = getattr(ckpt.session, "active_combat", None)
+    left_combatant = _combatant_for_target(combat, left_id)
+    right_combatant = _combatant_for_target(combat, right_id)
+    left = _combatant_character_id_from_object(left_combatant)
+    right = _combatant_character_id_from_object(right_combatant)
+    if not left:
+        left = _combatant_character_id_for_target(combat, left_id)
+    if not right:
+        right = _combatant_character_id_for_target(combat, right_id)
+    if not left or not right or left == right:
+        return False
+    if left_combatant is not None and right_combatant is not None:
+        if _combatant_is_party_aligned(ckpt, left_combatant):
+            return _combatant_is_hostile_to_party(ckpt, right_combatant)
+        if _combatant_is_party_aligned(ckpt, right_combatant):
+            return _combatant_is_hostile_to_party(ckpt, left_combatant)
+    by_id = {character.character_id: character for character in ckpt.characters}
+    bindings = ckpt.session.character_bindings or {}
+    left_character = by_id.get(left)
+    relationship = _relationship_to_current_actor(
+        actor_id=left,
+        actor_is_player=left in bindings,
+        actor_faction=_combat_public_faction(left_character),
+        character_id=right,
+        character=by_id.get(right),
+        bindings=bindings,
+    )
+    return relationship == "enemy"
+
+
+def _combatant_for_target(
+    combat: object | None,
+    target_id: str,
+) -> object | None:
+    target = str(target_id or "").strip()
+    if not target or combat is None:
+        return None
+    for combatant in _combatants(combat):
+        if target in _combatant_identity_set(combatant):
+            return combatant
+    return None
+
+
+def _combatant_character_id_from_object(combatant: object | None) -> str:
+    if combatant is None:
+        return ""
+    return str(
+        getattr(combatant, "character_id", "")
+        or getattr(combatant, "combatant_id", "")
+        or ""
+    ).strip()
+
+
+def _combatant_character_id_for_target(
+    combat: object | None,
+    target_id: str,
+) -> str:
+    target = str(target_id or "").strip()
+    if not target:
+        return ""
+    if combatant := _combatant_for_target(combat, target):
+        return _combatant_character_id_from_object(combatant)
+    return target
 
 
 def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
@@ -4118,6 +4225,139 @@ def _sync_combat_effects(ckpt: CheckpointFile) -> None:
         getattr(ckpt.session, "active_combat", None),
         ckpt.characters,
     )
+
+
+def _auto_end_if_spawned_hostiles_defeated(
+    ckpt: CheckpointFile,
+    adjudication: RulesAdjudication,
+) -> None:
+    if adjudication.combat_status == "ended":
+        return
+    if not _spawned_hostile_combat_is_defeated(ckpt):
+        return
+    adjudication.combat_status = "ended"
+    note = (
+        "All hostile combat-spawned monsters are defeated; initiative ends "
+        "automatically."
+    )
+    if note not in adjudication.rules_notes:
+        adjudication.rules_notes.append(note)
+
+
+def _spawned_hostile_combat_is_defeated(ckpt: CheckpointFile) -> bool:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return False
+    spawned_hostiles = [
+        combatant for combatant in _combatants(combat)
+        if _combatant_is_combat_spawn(ckpt, combatant)
+        and _combatant_is_hostile_to_party(ckpt, combatant)
+    ]
+    if not spawned_hostiles:
+        return False
+    if any(
+        _combatant_defeat_state(combatant) == "active"
+        for combatant in spawned_hostiles
+    ):
+        return False
+    return not any(
+        _combatant_defeat_state(combatant) == "active"
+        and _combatant_is_hostile_to_party(ckpt, combatant)
+        for combatant in _combatants(combat)
+    )
+
+
+def _combatant_is_combat_spawn(
+    ckpt: CheckpointFile,
+    combatant: object,
+) -> bool:
+    cid = str(
+        getattr(combatant, "character_id", "")
+        or getattr(combatant, "combatant_id", "")
+        or ""
+    ).strip()
+    character = next(
+        (
+            candidate for candidate in ckpt.characters
+            if candidate.character_id == cid
+        ),
+        None,
+    )
+    mechanics_state = getattr(character, "mechanics", {}) if character else {}
+    if not isinstance(mechanics_state, dict):
+        return False
+    marker = mechanics_state.get("combat_spawn")
+    if isinstance(marker, dict) and bool(marker.get("spawned")):
+        return True
+    return str(mechanics_state.get("source") or "") == "router_combatant_spawn"
+
+
+def _combatant_is_hostile_to_party(
+    ckpt: CheckpointFile,
+    combatant: object,
+) -> bool:
+    cid = str(
+        getattr(combatant, "character_id", "")
+        or getattr(combatant, "combatant_id", "")
+        or ""
+    ).strip()
+    if not cid:
+        return False
+    bindings = ckpt.session.character_bindings or {}
+    if cid in bindings or bool(getattr(combatant, "player_controlled", False)):
+        return False
+    by_id = {character.character_id: character for character in ckpt.characters}
+    character = by_id.get(cid)
+    faction = _combat_public_faction(character)
+    party_factions = _party_factions(ckpt)
+    return not (faction and faction in party_factions)
+
+
+def _combatant_is_party_aligned(
+    ckpt: CheckpointFile,
+    combatant: object,
+) -> bool:
+    cid = str(
+        getattr(combatant, "character_id", "")
+        or getattr(combatant, "combatant_id", "")
+        or ""
+    ).strip()
+    if not cid:
+        return False
+    bindings = ckpt.session.character_bindings or {}
+    if cid in bindings or bool(getattr(combatant, "player_controlled", False)):
+        return True
+    by_id = {character.character_id: character for character in ckpt.characters}
+    faction = _combat_public_faction(by_id.get(cid))
+    return bool(faction and faction in _party_factions(ckpt))
+
+
+def _party_factions(ckpt: CheckpointFile) -> set[str]:
+    combat = getattr(ckpt.session, "active_combat", None)
+    bindings = ckpt.session.character_bindings or {}
+    by_id = {character.character_id: character for character in ckpt.characters}
+    factions: set[str] = set()
+    if combat is not None:
+        for combatant in _combatants(combat):
+            cid = str(
+                getattr(combatant, "character_id", "")
+                or getattr(combatant, "combatant_id", "")
+                or ""
+            ).strip()
+            if not cid:
+                continue
+            if cid not in bindings and not bool(
+                getattr(combatant, "player_controlled", False)
+            ):
+                continue
+            faction = _combat_public_faction(by_id.get(cid))
+            if faction:
+                factions.add(faction)
+    for cid in bindings:
+        faction = _combat_public_faction(by_id.get(cid))
+        if faction:
+            factions.add(faction)
+    return factions
 
 
 def _apply_condition_delta(

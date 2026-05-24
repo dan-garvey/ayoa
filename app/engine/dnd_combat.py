@@ -65,6 +65,14 @@ def end_combat(
     combat = _require_combat(session)
     if characters is not None:
         sync_combat_effects_to_characters(combat, characters)
+        retired = _retire_defeated_combat_spawns(combat, characters)
+        if retired:
+            append_audit_line(
+                combat,
+                "Retired defeated combat-spawned character(s): "
+                + ", ".join(retired)
+                + ".",
+            )
     combat.status = "ended"
     combat.ended_at_turn_index = session.turn_index
     combat.pending_advance_actor_id = ""
@@ -72,6 +80,32 @@ def end_combat(
     _clear_combat_slots(session)
     session.active_combat = None
     return combat
+
+
+def _retire_defeated_combat_spawns(
+    combat: DndCombatState,
+    characters: Iterable[CharacterRecord],
+) -> list[str]:
+    by_id = {character.character_id: character for character in characters}
+    retired: list[str] = []
+    for combatant in combat.combatants:
+        if _defeat_state(combatant) not in {"dead", "defeated"}:
+            continue
+        cid = combatant.character_id or combatant.combatant_id
+        character = by_id.get(cid)
+        if character is None or not _character_is_combat_spawn(character):
+            continue
+        character.status = CharacterStatus.culled
+        retired.append(character.character_id)
+    return retired
+
+
+def _character_is_combat_spawn(character: CharacterRecord) -> bool:
+    mechanics_state = character.mechanics or {}
+    marker = mechanics_state.get("combat_spawn")
+    if isinstance(marker, dict) and bool(marker.get("spawned")):
+        return True
+    return str(mechanics_state.get("source") or "") == "router_combatant_spawn"
 
 
 def record_router_observed_facts(

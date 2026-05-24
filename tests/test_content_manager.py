@@ -34,6 +34,7 @@ from app.schemas.content import (
 )
 from app.schemas.content_manager import ContentManagerOutput
 from app.schemas.events import ObservableFact
+from app.schemas.state import DndCombatantState, DndCombatState
 from tests.support.factories import (
     character_record,
     checkpoint,
@@ -99,6 +100,60 @@ def test_candidate_turn_entities_include_only_active_roster_characters():
     candidates = build_candidate_turn_entities_from_checkpoint(ckpt)
 
     assert set(candidates) == {"active_npc"}
+
+
+def test_candidate_turn_entities_skip_unresolved_combat_spawns():
+    spawned = character_record("mon_panther_1", status=CharacterStatus.active)
+    spawned.mechanics = {
+        "ruleset_id": "dnd5e_basic",
+        "combat_spawn": {"spawned": True, "monster_key": "panther"},
+    }
+    ckpt = checkpoint(
+        characters=[
+            character_record("active_npc", status=CharacterStatus.active),
+            spawned,
+        ],
+    )
+    ckpt.session.active_combat = DndCombatState(
+        combat_id="combat",
+        combatants=[
+            DndCombatantState(
+                combatant_id="mon_panther_1",
+                character_id="mon_panther_1",
+            ),
+        ],
+    )
+
+    candidates = build_candidate_turn_entities_from_checkpoint(ckpt)
+
+    assert set(candidates) == {"active_npc"}
+
+    ckpt.session.active_combat = None
+
+    assert set(build_candidate_turn_entities_from_checkpoint(ckpt)) == {
+        "active_npc",
+        "mon_panther_1",
+    }
+
+
+def test_append_content_manager_router_records_skips_llm_during_combat():
+    ckpt = checkpoint()
+    ckpt.session.active_combat = DndCombatState(combat_id="combat")
+    client = MagicMock()
+    client.complete = AsyncMock()
+
+    records = asyncio.run(
+        append_content_manager_router_records(
+            ckpt,
+            actor_id="active_npc",
+            current_input="watch the corridor",
+            client=client,
+            prompt_mgr=MagicMock(),
+        )
+    )
+
+    assert records == []
+    client.complete.assert_not_awaited()
 
 
 def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):

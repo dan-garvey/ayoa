@@ -14,7 +14,7 @@ from app.engine.dnd_combat_resolution import (
     _scrub_private_outcome_leaks,
 )
 from app.llm.client import LLMResponse
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterRecord, CharacterStatus, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.dnd_cat_ii import (
     DndCombatActionUse,
@@ -2026,6 +2026,74 @@ def test_combat_resolver_can_end_combat_from_adjudication():
     facts = [fact.text for fact in routed.canonical_event.observable_facts]
     assert "Bob drops his blade and Alice lowers hers." in facts
     assert any("D&D combat ends" in fact for fact in facts)
+
+
+def test_combat_resolver_auto_ends_when_spawned_hostile_is_defeated(monkeypatch):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        attack_bonus=5,
+        damage="1d8+3 slashing",
+        faction="expedition",
+    )
+    panther = _character("mon_panther_1", "Panther")
+    panther.mechanics["combat_spawn"] = {
+        "spawned": True,
+        "monster_key": "panther",
+    }
+    ckpt.characters[1] = panther
+    ckpt.session.active_combat = DndCombatState(
+        combat_id="test",
+        round_number=1,
+        turn_index=0,
+        combatants=[
+            DndCombatantState(
+                combatant_id="alice",
+                character_id="alice",
+                name="Alice",
+                player_controlled=True,
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            ),
+            DndCombatantState(
+                combatant_id="mon_panther_1",
+                character_id="mon_panther_1",
+                name="Panther",
+                armor_class=12,
+                hit_points_current=5,
+                hit_points_max=5,
+            ),
+        ],
+    )
+    values = iter([9, 3])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client, prompt_mgr = _basic_attack_mocks(_planned_attack(
+        target_id="mon_panther_1",
+        reason="Alice attacks the panther with a blade.",
+    ))
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cut down the panther.",
+        )
+    )
+
+    assert ckpt.session.active_combat is None
+    assert panther.status == CharacterStatus.culled
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert "D&D combat ends." in facts
+    assert any(
+        "All hostile combat-spawned monsters are defeated" in note
+        for note in routed.decision_rationale.split("; ")
+    )
 
 
 def test_combat_end_queues_router_observed_continuity():
@@ -4565,3 +4633,184 @@ def test_combat_resolver_executes_opportunity_attack_roll(monkeypatch):
         "attack_alice",
         "oa_bob",
     }
+
+
+def test_combat_resolver_allows_hostile_spawn_opportunity_against_party_npc(
+    monkeypatch,
+):
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character("alice", "Alice", faction="expedition")
+    ckpt.characters[1] = _character(
+        "npc_gearbox",
+        "Gearbox",
+        faction="expedition",
+    )
+    panther = _character(
+        "mon_panther_1",
+        "Panther",
+        attack_bonus=4,
+        damage="1d4+2 slashing",
+    )
+    panther.mechanics["combat_spawn"] = {
+        "spawned": True,
+        "monster_key": "panther",
+    }
+    ckpt.characters.append(panther)
+    ckpt.session.active_combat = DndCombatState(
+        combat_id="test",
+        round_number=1,
+        turn_index=1,
+        combatants=[
+            DndCombatantState(
+                combatant_id="alice",
+                character_id="alice",
+                name="Alice",
+                player_controlled=True,
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            ),
+            DndCombatantState(
+                combatant_id="npc_gearbox",
+                character_id="npc_gearbox",
+                name="Gearbox",
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            ),
+            DndCombatantState(
+                combatant_id="mon_panther_1",
+                character_id="mon_panther_1",
+                name="Panther",
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            ),
+        ],
+    )
+    values = iter([13, 2])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(_turn_plan(
+            needs_rolls=True,
+            roll_requests=[
+                PlannedRoll(
+                    roll_id="oa_panther",
+                    actor_id="mon_panther_1",
+                    kind="attack_roll",
+                    ability="str",
+                    skill="",
+                    dc=12,
+                    opposed_by="",
+                    advantage_state="normal",
+                    reason="Panther makes an opportunity attack with a claw.",
+                    action_id="blade",
+                    target_id="npc_gearbox",
+                )
+            ],
+            no_roll_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            mechanical_summary="Panther lashes out as Gearbox leaves reach.",
+            visible_outcome_facts=["The panther claws at Gearbox."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="npc_gearbox",
+            intention="Gearbox backs away from the panther.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [roll.roll_id for roll in transaction.rolls] == ["oa_panther"]
+    assert {damage.roll_id for damage in transaction.damage_records} == {
+        "oa_panther",
+    }
+
+
+def test_combat_resolver_rejects_same_faction_opportunity_attack():
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        attack_bonus=5,
+        damage="1d8+3 slashing",
+        faction="expedition",
+    )
+    ckpt.characters[1] = _character("npc_gearbox", "Gearbox", faction="expedition")
+    ckpt.session.active_combat = DndCombatState(
+        combat_id="test",
+        round_number=1,
+        turn_index=1,
+        combatants=[
+            DndCombatantState(
+                combatant_id="alice",
+                character_id="alice",
+                name="Alice",
+                player_controlled=True,
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            ),
+            DndCombatantState(
+                combatant_id="npc_gearbox",
+                character_id="npc_gearbox",
+                name="Gearbox",
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            ),
+        ],
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(return_value=_llm_response(_turn_plan(
+        needs_rolls=True,
+        roll_requests=[
+            PlannedRoll(
+                roll_id="friendly_oa",
+                actor_id="alice",
+                kind="attack_roll",
+                ability="str",
+                skill="",
+                dc=12,
+                opposed_by="",
+                advantage_state="normal",
+                reason="Alice makes an opportunity attack with a blade.",
+                action_id="blade",
+                target_id="npc_gearbox",
+            ),
+        ],
+        no_roll_reason="",
+    )))
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.return_value = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "plan"},
+    ]
+
+    with pytest.raises(ValueError, match="legal readied release"):
+        asyncio.run(
+            DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+                ckpt=ckpt,
+                actor_id="npc_gearbox",
+                intention="Gearbox withdraws toward Garret.",
+            )
+        )

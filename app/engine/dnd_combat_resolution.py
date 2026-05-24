@@ -128,6 +128,7 @@ class DndCombatResolver:
         adjudication.rules_notes.extend(effect_notes)
         adjudication.rules_notes.extend(spatial_notes)
         cat._sync_combat_effects(ckpt)
+        cat._auto_end_if_spawned_hostiles_defeated(ckpt, adjudication)
         result = cat._compile_combat_router_output(
             ckpt=ckpt,
             transaction=transaction,
