@@ -49,6 +49,11 @@ def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
     return pinned
 
 
+def _dnd_ruleset_enabled(checkpoint: CheckpointFile) -> bool:
+    settings = getattr(checkpoint.session.config, "settings", None)
+    return str(getattr(settings, "ruleset_id", "") or "") == "dnd5e_basic"
+
+
 class CharacterManager:
     """Manages character registry and state updates."""
 
@@ -271,6 +276,13 @@ class CharacterManager:
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
         char.agent_tier = CharacterAgentTier.utility
+        if _dnd_ruleset_enabled(checkpoint):
+            from app.engine import dnd_combat
+
+            dnd_combat.ensure_default_combatant_mechanics(
+                char,
+                source="character_gen",
+            )
         # Override the LLM's authored.location only when the router or
         # caller supplied a concrete location label. When neither is set,
         # trust the LLM.

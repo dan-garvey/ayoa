@@ -125,6 +125,44 @@ class TestCharacterSpawn:
         assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
 
     @pytest.mark.asyncio
+    async def test_dnd_spawn_character_gets_default_combat_stats(
+        self, mock_client, sample_checkpoint,
+    ):
+        from app.schemas.takeover import AuthoredCharacter
+
+        sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
+        mock_client.complete = AsyncMock()
+        authored = AuthoredCharacter(
+            name="Meris Venn",
+            location="courtyard",
+            role="custodian",
+            appearance="",
+            default_loadout="",
+            faction="",
+            backstory="",
+            personality="",
+            known_context="",
+            goals=[],
+            current_objectives=[],
+            secrets=[],
+            intentions_enabled=False,
+            router_summary="Custodian at the courtyard.",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [_spawn_request(character_id="npc_meris", seed={"role": "custodian"})],
+        )
+
+        assert len(spawned) == 1
+        mechanics = spawned[0].mechanics
+        assert mechanics["ruleset_id"] == "dnd5e_basic"
+        assert mechanics["source"] == "dnd_default_combatant_profile"
+        assert mechanics["hit_points"] == {"current": 4, "max": 4, "temporary": 0}
+
+    @pytest.mark.asyncio
     async def test_existing_character_spawn_raises(
         self, mock_client, sample_checkpoint,
     ):

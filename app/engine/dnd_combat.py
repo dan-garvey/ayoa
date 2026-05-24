@@ -17,6 +17,14 @@ from app.schemas.state import (
 
 
 DND_ACTIVE_EFFECTS_KEY = "active_effects"
+DND_DEFAULT_COMBATANT_SOURCE = "dnd_default_combatant_profile"
+DEFAULT_COMBATANT_HIT_POINTS = 4
+DEFAULT_COMBATANT_ARMOR_CLASS = 10
+DEFAULT_COMBATANT_PROFICIENCY_BONUS = 2
+_AUTHORITATIVE_COMBAT_SOURCES = {
+    "imported_statblock_catalog",
+    "router_combatant_spawn",
+}
 
 
 def _utcnow_iso() -> str:
@@ -254,10 +262,11 @@ def build_combatant(
     session: SessionState | None = None,
     combatant_id: str | None = None,
 ) -> DndCombatantState:
+    ensure_default_combatant_mechanics(character, source="combat_start")
     mechanics_state = character.mechanics or {}
     hp = _hit_points(mechanics_state)
-    hp_current = _safe_int(hp.get("current"), 0)
-    hp_max = _safe_int(hp.get("max"), hp_current)
+    hp_max = _safe_int(hp.get("max"), 0)
+    hp_current = _safe_int(hp.get("current"), hp_max)
     hp_temp = _safe_int(hp.get("temporary"), 0)
     active_effects = runtime_effects_for_character(character)
     combatant = DndCombatantState(
@@ -289,6 +298,33 @@ def build_combatant(
         uses_death_saves=_uses_death_saves(session, combatant),
     )
     return combatant
+
+
+def ensure_default_combatant_mechanics(
+    character: CharacterRecord,
+    *,
+    source: str,
+) -> bool:
+    """Attach a minimal D&D combat profile when a story character lacks HP."""
+
+    mechanics_state = dict(character.mechanics or {})
+    if _has_valid_combat_hit_points(mechanics_state):
+        return False
+
+    authority = str(mechanics_state.get("source") or "").strip()
+    if authority in _AUTHORITATIVE_COMBAT_SOURCES:
+        raise ValueError(
+            "D&D combatant "
+            f"{character.character_id or character.name!r} has invalid hit "
+            f"points from authoritative mechanics source {authority!r}."
+        )
+
+    character.mechanics = _default_combatant_mechanics(
+        character,
+        mechanics_state,
+        source=source,
+    )
+    return True
 
 
 def roll_initiative(combat: DndCombatState) -> DndCombatState:
@@ -1654,14 +1690,171 @@ def _effect_display_name(effect: DndRuntimeEffect) -> str:
 
 def _hit_points(mechanics_state: dict[str, Any]) -> dict[str, Any]:
     hp = mechanics_state.get("hit_points")
-    if isinstance(hp, dict):
+    if isinstance(hp, dict) and _valid_hit_points(hp):
         return hp
     sheet_hp = (
         ((mechanics_state.get("dnd5e_sheet") or {}).get("statblock") or {})
         .get("defenses", {})
         .get("hit_points")
     )
-    return sheet_hp if isinstance(sheet_hp, dict) else {}
+    if isinstance(sheet_hp, dict) and _valid_hit_points(sheet_hp):
+        return sheet_hp
+    return hp if isinstance(hp, dict) else {}
+
+
+def _has_valid_combat_hit_points(mechanics_state: dict[str, Any]) -> bool:
+    return _valid_hit_points(_hit_points(mechanics_state))
+
+
+def _valid_hit_points(hit_points: dict[str, Any]) -> bool:
+    return _safe_int(hit_points.get("max"), 0) > 0
+
+
+def _default_combatant_mechanics(
+    character: CharacterRecord,
+    existing: dict[str, Any],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    out = dict(existing)
+    hit_points = _default_hit_points(existing)
+    ability_scores = _default_ability_scores(existing)
+    detailed_scores = {
+        key: {
+            "score": value,
+            "modifier": mechanics.ability_modifier(value),
+        }
+        for key, value in ability_scores.items()
+    }
+    armor_class = _armor_class(existing)
+    if armor_class <= 0:
+        armor_class = DEFAULT_COMBATANT_ARMOR_CLASS
+    proficiency_bonus = _safe_int(
+        existing.get("proficiency_bonus"),
+        DEFAULT_COMBATANT_PROFICIENCY_BONUS,
+    )
+    if proficiency_bonus <= 0:
+        proficiency_bonus = DEFAULT_COMBATANT_PROFICIENCY_BONUS
+
+    out["ruleset_id"] = str(out.get("ruleset_id") or "dnd5e_basic")
+    out["armor_class"] = armor_class
+    out["hit_points"] = hit_points
+    out["ability_scores"] = ability_scores
+    out["proficiency_bonus"] = proficiency_bonus
+    conditions = out.get("conditions")
+    if not isinstance(conditions, list):
+        conditions = []
+    out["conditions"] = conditions
+    out.setdefault("source", DND_DEFAULT_COMBATANT_SOURCE)
+    out["default_combatant_profile"] = {
+        "source": source,
+        "reason": "missing_dnd_hit_points",
+    }
+
+    sheet = dict(out.get("dnd5e_sheet") or {})
+    identity = dict(sheet.get("identity") or {})
+    identity.setdefault("name", character.name)
+    identity.setdefault("total_level", 0)
+    identity.setdefault("experience_points", 0)
+    identity.setdefault("classes", [])
+    sheet["identity"] = identity
+
+    statblock = dict(sheet.get("statblock") or {})
+    statblock.setdefault("size", "Medium")
+    statblock.setdefault("creature_type", _default_creature_type(character))
+    statblock.setdefault("alignment", "unaligned")
+    statblock.setdefault("speed", "30 ft.")
+    statblock["ability_scores"] = detailed_scores
+    statblock["proficiency_bonus"] = proficiency_bonus
+    statblock.setdefault("skills", {})
+    statblock.setdefault("saves", {})
+    statblock.setdefault("senses", [])
+    statblock.setdefault(
+        "passive_perception",
+        10 + mechanics.ability_modifier(ability_scores["wis"]),
+    )
+    statblock.setdefault("languages", [])
+    statblock.setdefault("challenge", {"rating": "", "xp": 0})
+    statblock.setdefault("challenge_rating", "")
+    statblock.setdefault("xp", 0)
+    statblock.setdefault("features", [])
+    statblock.setdefault("actions", [])
+
+    defenses = dict(statblock.get("defenses") or {})
+    defenses["armor_class"] = {"value": armor_class}
+    defenses["hit_points"] = hit_points
+    defenses.setdefault(
+        "initiative",
+        {
+            "value": mechanics.ability_modifier(ability_scores["dex"]),
+            "advantage_state": "normal",
+        },
+    )
+    defenses["conditions"] = conditions
+    statblock["defenses"] = defenses
+
+    sheet["statblock"] = statblock
+    out["dnd5e_sheet"] = sheet
+    return out
+
+
+def _default_hit_points(existing: dict[str, Any]) -> dict[str, int]:
+    existing_hp = _hit_points(existing)
+    maximum = _safe_int(
+        existing_hp.get("max"),
+        DEFAULT_COMBATANT_HIT_POINTS,
+    )
+    if maximum <= 0:
+        maximum = DEFAULT_COMBATANT_HIT_POINTS
+    current = _safe_int(existing_hp.get("current"), maximum)
+    temporary = _safe_int(existing_hp.get("temporary"), 0)
+    return {
+        "current": max(0, min(current, maximum)),
+        "max": maximum,
+        "temporary": max(0, temporary),
+    }
+
+
+def _default_ability_scores(existing: dict[str, Any]) -> dict[str, int]:
+    scores = existing.get("ability_scores")
+    if not isinstance(scores, dict):
+        scores = {}
+    aliases = {
+        "str": ("str", "strength"),
+        "dex": ("dex", "dexterity"),
+        "con": ("con", "constitution"),
+        "int": ("int", "intelligence"),
+        "wis": ("wis", "wisdom"),
+        "cha": ("cha", "charisma"),
+    }
+    out: dict[str, int] = {}
+    for short, names in aliases.items():
+        raw: Any = 10
+        for name in names:
+            if name in scores:
+                raw = scores[name]
+                break
+        if isinstance(raw, dict):
+            raw = raw.get("score", 10)
+        out[short] = max(1, _safe_int(raw, 10))
+    return out
+
+
+def _default_creature_type(character: CharacterRecord) -> str:
+    role = str(getattr(character.public_sheet, "role", "") or "").lower()
+    for marker, creature_type in (
+        ("beast", "beast"),
+        ("animal", "beast"),
+        ("undead", "undead"),
+        ("construct", "construct"),
+        ("elemental", "elemental"),
+        ("fiend", "fiend"),
+        ("celestial", "celestial"),
+        ("fey", "fey"),
+    ):
+        if marker in role:
+            return creature_type
+    return "humanoid"
 
 
 def _armor_class(mechanics_state: dict[str, Any]) -> int:

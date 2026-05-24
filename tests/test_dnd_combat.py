@@ -102,6 +102,53 @@ def test_start_combat_builds_snapshots_rolls_initiative_and_persists(monkeypatch
     assert SessionState(**session.model_dump()).active_combat.combat_id == "ambush"
 
 
+def test_start_combat_assigns_default_stats_to_story_character(monkeypatch):
+    values = iter([9])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    session = SessionState(session_id="s")
+    meris = CharacterRecord(
+        character_id="npc_meris",
+        name="Meris Venn",
+        public_sheet=PublicSheet(role="custodian"),
+    )
+
+    combat = start_combat(session, [meris], combat_id="ambush")
+
+    assert meris.mechanics["ruleset_id"] == "dnd5e_basic"
+    assert meris.mechanics["source"] == "dnd_default_combatant_profile"
+    assert meris.mechanics["hit_points"] == {
+        "current": 4,
+        "max": 4,
+        "temporary": 0,
+    }
+    assert meris.mechanics["dnd5e_sheet"]["statblock"]["xp"] == 0
+    combatant = combat.combatants[0]
+    assert combatant.character_id == "npc_meris"
+    assert combatant.hit_points_current == 4
+    assert combatant.hit_points_max == 4
+
+
+def test_start_combat_rejects_invalid_authoritative_spawn_stats():
+    session = SessionState(session_id="s")
+    broken = CharacterRecord(
+        character_id="broken_spawn",
+        name="Broken Spawn",
+        public_sheet=PublicSheet(role="spawned monster"),
+        mechanics={
+            "ruleset_id": "dnd5e_basic",
+            "source": "router_combatant_spawn",
+            "hit_points": {"current": 0, "max": 0, "temporary": 0},
+        },
+    )
+
+    with pytest.raises(ValueError, match="invalid hit points"):
+        start_combat(session, [broken], combat_id="ambush")
+
+
 def test_turn_advancement_skips_defeated_and_removed_and_wraps_round(monkeypatch):
     values = iter([14, 13, 12])
     monkeypatch.setattr(

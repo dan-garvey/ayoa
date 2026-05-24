@@ -41,6 +41,7 @@ from app.schemas.state import (
 from app.schemas.responses import TurnResponse
 from tests.support.factories import (
     ClassFakeDispatcher as FakeDispatcher,
+    character_record,
     dnd5e_mechanics as _dnd_mechanics,
     dnd_router_output as _dnd_router_out,
     gatehouse_checkpoint,
@@ -913,6 +914,52 @@ class TestCombatTurnGating:
         event = ckpt.canonical_events[-1]
         assert event.spawn == []
         assert event.combatant_spawns[0].character_id == "rat_1"
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_defaults_existing_story_npc_stats(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        ckpt.characters.append(
+            character_record(
+                "npc_meris",
+                name="Meris Venn",
+                role="custodian",
+                location="gatehouse",
+            )
+        )
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice", "npc_meris"],
+            facts=[ObservableFact.all("Alice draws Meris into the fight.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I protect Meris as the fight starts",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        meris = next(c for c in ckpt.characters if c.character_id == "npc_meris")
+        assert meris.mechanics["source"] == "dnd_default_combatant_profile"
+        assert meris.mechanics["hit_points"]["max"] == 4
+        combat = ckpt.session.active_combat
+        assert combat is not None
+        meris_combatant = next(
+            c for c in combat.combatants if c.character_id == "npc_meris"
+        )
+        assert meris_combatant.hit_points_current == 4
+        assert meris_combatant.hit_points_max == 4
 
     @pytest.mark.asyncio
     async def test_dnd_combat_start_materializes_ref_only_imported_statblock(
