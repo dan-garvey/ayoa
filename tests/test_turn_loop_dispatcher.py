@@ -751,6 +751,11 @@ class TestRouteIntention:
                 metadata=_content_pack_metadata(db_path),
             )
         }
+        ckpt.canonical_events = [
+            router_output(
+                facts=[ObservableFact.all("Alice notices a cold draft.")]
+            )
+        ]
         mock_client.complete.side_effect = [
             _llm_response(
                 ContentManagerOutput(
@@ -820,6 +825,155 @@ class TestRouteIntention:
             "pack:front/strahd@hash-front"
         ]
         assert ckpt.session_conversation[-1].content.startswith("prior_event ")
+
+    def test_content_manager_preflight_throttles_between_cycles(
+        self, prompt_mgr, mock_client, tmp_path,
+    ):
+        db_path = _content_pack_db(
+            tmp_path,
+            [
+                (
+                    "pack",
+                    "front/strahd",
+                    "hash-front",
+                    "front_signal",
+                    "hidden",
+                    "The antagonist tracks public trouble.",
+                ),
+            ],
+        )
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.config.settings.content_manager_refresh_interval = 3
+        ckpt.session.content_state = {
+            "pack": ContentPackState(
+                pack_id="pack",
+                knowledge_map={
+                    "pip": ContentKnowledgeEntityState(entity_id="pip")
+                },
+                metadata=_content_pack_metadata(db_path),
+            )
+        }
+        ckpt.canonical_events = [
+            router_output(
+                facts=[ObservableFact.all("Alice spots old wolf tracks.")]
+            )
+        ]
+        mock_client.complete.side_effect = [
+            _llm_response(
+                ContentManagerOutput(
+                    router_turn_candidates=[
+                        {
+                            "character_id": "pip",
+                            "priority": "medium",
+                            "reason": "Pip may react.",
+                            "source_fact_ids": ["f01"],
+                            "related_content_refs": ["pack:front/strahd"],
+                        }
+                    ],
+                )
+            ),
+            _llm_response(_router_output()),
+            _llm_response(_router_output()),
+        ]
+
+        dispatcher = LLMDispatcher(mock_client, prompt_mgr)
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I check the tracks.",
+        ))
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I keep moving carefully.",
+        ))
+
+        roles = [
+            call.kwargs["role"]
+            for call in mock_client.complete.await_args_list
+        ]
+        assert roles == ["content_manager", "event_router", "event_router"]
+        assert ckpt.session.content_manager_preflight_cycle == 2
+        assert ckpt.session.content_manager_last_run_cycle == 0
+
+    def test_content_manager_throttle_still_drains_pending_content(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.config.settings.content_manager_refresh_interval = 3
+        ckpt.session.content_manager_preflight_cycle = 1
+        ckpt.session.content_manager_last_run_cycle = 0
+        ckpt.canonical_events = [
+            router_output(
+                facts=[ObservableFact.all("Alice hears stone scrape.")]
+            )
+        ]
+        _queue_content_signal(ckpt)
+        ckpt.session.content_state["pack"].knowledge_map = {
+            "pip": ContentKnowledgeEntityState(entity_id="pip")
+        }
+        mock_client.complete.return_value = _llm_response(_router_output())
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I push the entry door open.",
+        ))
+
+        assert mock_client.complete.await_count == 1
+        router_call = mock_client.complete.await_args_list[0].kwargs
+        assert router_call["role"] == "event_router"
+        router_text = "\n".join(
+            str(message.get("content", ""))
+            for message in router_call["messages"]
+        )
+        assert "location_card ref=room/entry" in router_text
+        assert ckpt.session.content_state["pack"].pending_signals == {}
+        assert ckpt.session.content_manager_preflight_cycle == 2
+        assert ckpt.session.content_manager_last_run_cycle == 0
+
+    def test_content_manager_throttle_counter_rolls_back_on_failure(
+        self, prompt_mgr, mock_client, tmp_path,
+    ):
+        db_path = _content_pack_db(
+            tmp_path,
+            [
+                (
+                    "pack",
+                    "front/strahd",
+                    "hash-front",
+                    "front_signal",
+                    "hidden",
+                    "The antagonist tracks public trouble.",
+                ),
+            ],
+        )
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.session.content_state = {
+            "pack": ContentPackState(
+                pack_id="pack",
+                knowledge_map={
+                    "pip": ContentKnowledgeEntityState(entity_id="pip")
+                },
+                metadata=_content_pack_metadata(db_path),
+            )
+        }
+        ckpt.canonical_events = [
+            router_output(
+                facts=[ObservableFact.all("Alice spots old wolf tracks.")]
+            )
+        ]
+        mock_client.complete.side_effect = RuntimeError("content lookup failed")
+
+        with pytest.raises(RuntimeError, match="content lookup failed"):
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+                ckpt=ckpt,
+                actor_id="alice",
+                intention="I check the tracks.",
+            ))
+
+        assert ckpt.session.content_manager_preflight_cycle == 0
+        assert ckpt.session.content_manager_last_run_cycle == -1
 
     def test_dnd_cat_ii_packet_receives_pending_content_context(
         self, prompt_mgr, mock_client,

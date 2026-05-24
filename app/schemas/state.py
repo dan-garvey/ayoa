@@ -572,6 +572,11 @@ class SessionSettings(BaseModel):
     # player rolls are automatic by default for playtest speed, or can pause
     # for Discord UI when set to "interactive".
     player_roll_mode: str = "auto"
+    # Imported-content manager cadence. The manager sees recent canonical
+    # facts plus compact entity knowledge, so calling it every route cycle is
+    # usually redundant. Deterministic pending-content lookup still runs on
+    # skipped cycles.
+    content_manager_refresh_interval: int = 3
 
 
 class SessionConfig(BaseModel):
@@ -632,6 +637,10 @@ class SessionState(BaseModel):
     # Generic adapter/content-pack lookup state. Pack-specific meaning stays in
     # the content scaffold; the narrative engine only persists the slice.
     content_state: dict[str, ContentPackState] = Field(default_factory=dict)
+    # Private imported-content preflight cadence state. These counters are not
+    # model inputs; they only decide when the content manager gets called.
+    content_manager_preflight_cycle: int = 0
+    content_manager_last_run_cycle: int = -1
     # Private long-action state. These records are derived from router-authored
     # canonical events and are not narrator-visible facts.
     open_commitments: list[OpenCommitment] = Field(default_factory=list)

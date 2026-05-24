@@ -114,6 +114,14 @@ ISSUES_FIXED = [
         "Dormant/off-stage entities still remain in the knowledge map, but "
         "they are not advertised as immediate router turn candidates yet.",
     ),
+    (
+        "Route playtest latency was paying for content-manager calls on every "
+        "router pass, including cycles where deterministic pending content or "
+        "recently known refs were already enough.",
+        "Added a session-level content-manager refresh interval so route "
+        "cycles still drain pending/deterministic content but only call the "
+        "manager every few eligible cycles.",
+    ),
 ]
 SCENARIO_COMMANDS = {
     "startup": [
@@ -1070,6 +1078,8 @@ def _build_report(
     content_calls = [
         call for call in role_calls if call["role"] == "content_manager"
     ]
+    content_call_count = len(content_calls)
+    router_call_count = len(router_calls)
     router_modes = [
         call.get("router_output", {}).get("interaction_mode", "")
         for call in router_calls
@@ -1139,6 +1149,14 @@ def _build_report(
     if args.scenario in {"deep", "field"}:
         checks.extend([
             _check(
+                "content_manager_throttled_below_router_calls",
+                content_call_count < router_call_count,
+                {
+                    "content_manager_calls": content_call_count,
+                    "event_router_calls": router_call_count,
+                },
+            ),
+            _check(
                 "route_exploration_content_introduced",
                 any("loc.barrier_peaks_route" in ref for ref in introduced_refs),
                 introduced_refs,
@@ -1184,6 +1202,11 @@ def _build_report(
         "introduced_refs": introduced_refs,
         "knowledge_entities": knowledge_entities,
         "combat": _combat_state_summary(checkpoint),
+        "call_counts": {
+            "content_manager": content_call_count,
+            "event_router": router_call_count,
+            "role_calls_total": len(role_calls),
+        },
         "transcript": transcript,
         "role_calls": role_calls,
         "issues_fixed": [
@@ -1236,6 +1259,15 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.append("")
 
     lines.extend(["## Role Calls", ""])
+    call_counts = report.get("call_counts", {})
+    if call_counts:
+        lines.append(
+            "Call counts: "
+            f"content_manager={call_counts.get('content_manager', 0)}, "
+            f"event_router={call_counts.get('event_router', 0)}, "
+            f"total={call_counts.get('role_calls_total', 0)}."
+        )
+        lines.append("")
     for index, call in enumerate(report["role_calls"], start=1):
         lines.append(
             "- "

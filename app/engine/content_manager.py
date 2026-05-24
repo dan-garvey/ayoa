@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
@@ -31,6 +32,7 @@ from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 _SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
 CONTENT_MANAGER_MAX_TOKENS = 8000
+_DEFAULT_CONTENT_MANAGER_REFRESH_INTERVAL = 3
 _CANDIDATE_KEYS = frozenset((
     "front",
     "faction",
@@ -41,6 +43,7 @@ _CANDIDATE_KEYS = frozenset((
     "current_objective",
     "stance",
 ))
+logger = logging.getLogger(__name__)
 
 
 class ContentManagerValidationError(RuntimeError):
@@ -55,6 +58,24 @@ def content_manager_enabled(ckpt: Any) -> bool:
         if isinstance(knowledge_map, Mapping) and knowledge_map:
             return True
     return False
+
+
+def should_run_content_manager_preflight(ckpt: Any) -> bool:
+    """Advance the preflight cycle and decide whether the manager should run."""
+
+    if not _has_recent_canonical_facts(ckpt):
+        return False
+    session = getattr(ckpt, "session", None)
+    if session is None:
+        return True
+    interval = _content_manager_refresh_interval(ckpt)
+    cycle = max(0, int(getattr(session, "content_manager_preflight_cycle", 0)))
+    last_run = int(getattr(session, "content_manager_last_run_cycle", -1))
+    should_run = last_run < 0 or cycle - last_run >= interval
+    session.content_manager_preflight_cycle = cycle + 1
+    if should_run:
+        session.content_manager_last_run_cycle = cycle
+    return should_run
 
 
 async def plan_content_manager_updates(
@@ -460,6 +481,14 @@ async def append_content_manager_router_records(
 ) -> list[str]:
     """Run content-manager preflight and append only router-facing records."""
 
+    if not should_run_content_manager_preflight(ckpt):
+        logger.info("Skipping content-manager preflight on throttled cycle")
+        return append_router_content_lookup_records(
+            ckpt,
+            actor_id=actor_id,
+            current_input=current_input,
+        )
+
     candidate_entities = build_candidate_turn_entities_from_checkpoint(ckpt)
     output = await plan_content_manager_updates(
         ckpt,
@@ -484,6 +513,35 @@ async def append_content_manager_router_records(
             conversation.append(ConversationMessage(role="assistant", content=record))
     records.extend(hint_records)
     return records
+
+
+def _content_manager_refresh_interval(ckpt: Any) -> int:
+    session = getattr(ckpt, "session", None)
+    config = getattr(session, "config", None) if session is not None else None
+    settings = getattr(config, "settings", None) if config is not None else None
+    raw_value = getattr(
+        settings,
+        "content_manager_refresh_interval",
+        _DEFAULT_CONTENT_MANAGER_REFRESH_INTERVAL,
+    )
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        value = _DEFAULT_CONTENT_MANAGER_REFRESH_INTERVAL
+    return max(1, value)
+
+
+def _has_recent_canonical_facts(ckpt: Any) -> bool:
+    for event in getattr(ckpt, "canonical_events", []) or []:
+        canonical = getattr(event, "canonical_event", None)
+        if canonical is None and isinstance(event, Mapping):
+            canonical = event.get("canonical_event")
+        facts = getattr(canonical, "observable_facts", []) if canonical else []
+        if isinstance(canonical, Mapping):
+            facts = canonical.get("observable_facts") or []
+        if any(_fact_text(fact) for fact in facts or []):
+            return True
+    return False
 
 
 def apply_content_manager_knowledge_updates(

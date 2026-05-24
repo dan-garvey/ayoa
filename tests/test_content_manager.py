@@ -514,6 +514,9 @@ def test_append_content_manager_router_records_projects_only_router_deltas(tmp_p
             },
         )
     }
+    ckpt.canonical_events = [
+        router_output(facts=[ObservableFact.all("The party reaches the entry.")])
+    ]
     client = MagicMock(spec=LLMClient)
     client.complete = AsyncMock(return_value=llm_response(
         ContentManagerOutput(

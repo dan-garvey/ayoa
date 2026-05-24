@@ -268,6 +268,16 @@ def _router_call_snapshot(ckpt: CheckpointFile) -> dict[str, object]:
             ckpt.session.pending_engine_state_updates
         ),
         "content_state": deepcopy(getattr(ckpt.session, "content_state", {})),
+        "content_manager_preflight_cycle": getattr(
+            ckpt.session,
+            "content_manager_preflight_cycle",
+            0,
+        ),
+        "content_manager_last_run_cycle": getattr(
+            ckpt.session,
+            "content_manager_last_run_cycle",
+            -1,
+        ),
         "session_conversation_len": len(ckpt.session_conversation),
     }
 
@@ -281,6 +291,14 @@ def _restore_router_call_snapshot(
     )
     if hasattr(ckpt.session, "content_state"):
         ckpt.session.content_state = deepcopy(snapshot["content_state"])
+    if hasattr(ckpt.session, "content_manager_preflight_cycle"):
+        ckpt.session.content_manager_preflight_cycle = int(
+            snapshot["content_manager_preflight_cycle"]
+        )
+    if hasattr(ckpt.session, "content_manager_last_run_cycle"):
+        ckpt.session.content_manager_last_run_cycle = int(
+            snapshot["content_manager_last_run_cycle"]
+        )
     del ckpt.session_conversation[int(snapshot["session_conversation_len"]):]
 
 
