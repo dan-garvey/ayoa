@@ -492,7 +492,7 @@ def _combat_validation_problems(
         problems.append("armor_class")
     if statblock.hit_points <= 0:
         problems.append("hit_points")
-    if not any(value > 0 for value in statblock.speed_ft_by_mode.values()):
+    if not statblock.speed_ft_by_mode:
         problems.append("speed_ft_by_mode")
     if not statblock.actions:
         problems.append("actions")
@@ -812,6 +812,11 @@ def _speed_text(speed_ft_by_mode: Mapping[str, int]) -> str:
         for mode, value in speed_ft_by_mode.items()
         if value > 0
     ]
+    if not parts and speed_ft_by_mode:
+        parts = [
+            f"{mode} {value} ft."
+            for mode, value in speed_ft_by_mode.items()
+        ]
     return ", ".join(parts)
 
 

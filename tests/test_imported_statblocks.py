@@ -115,6 +115,44 @@ def test_imported_statblock_validation_blocks_noncombat_scope():
         catalog.resolve_character(_spawn_spec())
 
 
+def test_imported_statblock_allows_explicit_stationary_combatant():
+    data = _statblock()
+    data["ref"] = "stat.stationary_brain"
+    data["title"] = "Stationary Brain"
+    data["speed_ft_by_mode"] = {"walk": 0}
+    catalog = ImportedStatBlockCatalog([data])
+    spec = ImportedStatBlockSpawnSpec(
+        statblock_ref="stat.stationary_brain",
+        character_id="brain_1",
+        name="Stationary Brain",
+    )
+
+    character = catalog.resolve_character(spec)
+    combatant = catalog.resolve_combatant(spec)
+    monster = catalog.resolve_monster_statblock("stat.stationary_brain")
+
+    sheet_statblock = character.mechanics["dnd5e_sheet"]["statblock"]
+    assert sheet_statblock["speed"] == "walk 0 ft."
+    assert sheet_statblock["speed_ft_by_mode"] == {"walk": 0}
+    assert sheet_statblock["defenses"]["movement"] == {
+        "walk": {"value": 0, "unit": "ft"}
+    }
+    assert character.mechanics["defenses"]["movement"] == {
+        "walk": {"value": 0, "unit": "ft"}
+    }
+    assert monster.speed == "walk 0 ft."
+    assert combatant.character_id == "brain_1"
+
+
+def test_imported_statblock_validation_blocks_empty_speed_field():
+    data = _statblock()
+    data["speed_ft_by_mode"] = {}
+    catalog = ImportedStatBlockCatalog([data])
+
+    with pytest.raises(ImportedStatBlockValidationError, match="speed_ft_by_mode"):
+        catalog.resolve_character(_spawn_spec())
+
+
 def test_spawn_override_provider_resolves_ref_and_propagates_blockers():
     catalog = ImportedStatBlockCatalog([_statblock()])
     spawn = _router_spawn(monster_key="stat.guardian")
