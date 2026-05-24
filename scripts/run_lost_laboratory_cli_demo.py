@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live CLI demo for the Lost Laboratory imported-content startup slice.
+"""Live CLI demo for the Lost Laboratory reviewed imported-content pack.
 
 The script builds a temporary story from the reviewed private import artifacts,
 drives the same CLIState command handlers used by scripts/play.py, and writes a
@@ -63,11 +63,11 @@ from scripts.play import CLIState
 
 
 PACK_ARTIFACT_DIR = REPO_ROOT / "private_extractions/lost_laboratory_of_kwalish"
-CATALOG_PATH = PACK_ARTIFACT_DIR / "manual_semantic_catalog_startup_reviewed_v1.json"
-SEED_INPUTS_PATH = PACK_ARTIFACT_DIR / "startup_checkpoint_seed_inputs_v1.json"
+CATALOG_PATH = PACK_ARTIFACT_DIR / "manual_semantic_catalog_full_reviewed_v1.json"
+SEED_INPUTS_PATH = PACK_ARTIFACT_DIR / "full_checkpoint_seed_inputs_v1.json"
 COMPILED_PACK_PATH = (
     REPO_ROOT
-    / "private_extractions/compiled/lost_laboratory_kwalish_startup_reviewed_v1.sqlite"
+    / "private_extractions/compiled/lost_laboratory_kwalish_full_reviewed_v1.sqlite"
 )
 REPORT_ROOT = REPO_ROOT / "app/storage/playtest_reports"
 STORY_ID = "lost_laboratory_kwalish_cli_demo"
@@ -180,10 +180,11 @@ SCENARIO_COMMANDS = {
             "toward the cave approach."
         ),
         (
-            "A hostile mountain predator bursts from the rocks and charges "
-            "Garret; I draw my longsword and intercept it."
+            "A bandit captain and outlaws emerge from the rocks demanding "
+            "the route folios. I warn Garret and Gearbox behind me, draw my "
+            "longsword, and refuse."
         ),
-        "If the predator is still fighting, I attack it with my longsword.",
+        "If the outlaws are still fighting, I attack the nearest threat with my longsword.",
     ],
     "field": [
         f"/story start {STORY_ID}",
@@ -196,10 +197,11 @@ SCENARIO_COMMANDS = {
             "toward the cave approach."
         ),
         (
-            "A hostile mountain predator bursts from the rocks and charges "
-            "Garret; I draw my longsword and intercept it."
+            "A bandit captain and outlaws emerge from the rocks demanding "
+            "the route folios. I warn Garret and Gearbox behind me, draw my "
+            "longsword, and refuse."
         ),
-        "If the predator is still fighting, I attack it with my longsword.",
+        "If the outlaws are still fighting, I attack the nearest threat with my longsword.",
     ],
     "soak": [
         f"/story start {STORY_ID}",
@@ -212,25 +214,26 @@ SCENARIO_COMMANDS = {
             "toward the cave approach."
         ),
         (
-            "A hostile mountain predator bursts from the rocks and charges "
-            "Garret; I draw my longsword and intercept it."
+            "A bandit captain and outlaws emerge from the rocks demanding "
+            "the route folios. I warn Garret and Gearbox behind me, draw my "
+            "longsword, and refuse."
         ),
-        "If the predator is still fighting, I attack it with my longsword.",
+        "If the outlaws are still fighting, I attack the nearest threat with my longsword.",
     ],
 }
 SOAK_COMBAT_COMMANDS = (
     (
-        "If the predator is still standing, I press the attack with my "
+        "If any outlaw is still standing, I press the attack with my "
         "longsword; otherwise I check Garret and Gearbox for injuries and "
         "secure the route folios."
     ),
     (
-        "I keep myself between the predator and the expedition, striking it "
+        "I keep myself between the outlaws and the expedition, striking one "
         "with my longsword if it is still a threat."
     ),
     (
         "I look for an opening, call the target clearly for Garret and "
-        "Gearbox, and attack the predator again."
+        "Gearbox, and attack the outlaws again."
     ),
     (
         "I hold the line at the rocky approach and make another measured "
@@ -244,7 +247,7 @@ SOAK_EXPLORATION_COMMANDS = (
     ),
     (
         "I search the cleft and nearby stones for tracks, scat, claw marks, "
-        "or signs that the predator had a den nearby."
+        "or signs that the outlaws had a camp nearby."
     ),
     (
         "I compare the foothill ridges against the Cartophile's notes and "
@@ -263,8 +266,8 @@ SOAK_EXPLORATION_COMMANDS = (
         "and Garret watching the rear."
     ),
     (
-        "I inspect the predator's approach path to decide whether this was a "
-        "random attack or a creature guarding something."
+        "I inspect the outlaws' approach path to decide whether this was a "
+        "random ambush or a planned attempt to seize the maps."
     ),
     (
         "I listen for water, machinery, wind movement, or voices from deeper "
@@ -374,7 +377,7 @@ def _npc_demo_mechanics(character_id: str) -> dict[str, Any]:
                     damage="1d6+2",
                     damage_type="piercing",
                     notes=(
-                        "Demo combat scaffold for the reviewed startup slice; "
+                        "Demo combat scaffold for the reviewed module pack; "
                         "represents Garret's practical field knife."
                     ),
                 ),
@@ -402,7 +405,7 @@ def _npc_demo_mechanics(character_id: str) -> dict[str, Any]:
                     damage="1d6+1",
                     damage_type="bludgeoning",
                     notes=(
-                        "Demo combat scaffold for the reviewed startup slice; "
+                        "Demo combat scaffold for the reviewed module pack; "
                         "represents Gearbox's tool used defensively."
                     ),
                 ),
@@ -511,7 +514,7 @@ def _npc_character(
         agent_tier=CharacterAgentTier.standard,
         public_sheet=PublicSheet(
             role=actor.get("actor_kind", "npc").replace("_", " "),
-            appearance="A reviewed startup NPC from the expedition launch slice.",
+            appearance="A reviewed NPC from the imported Lost Laboratory module.",
             faction="Lost Laboratory expedition",
         ),
         private_state=PrivateState(
@@ -523,7 +526,7 @@ def _npc_character(
         ),
         backstory=actor.get("summary", ""),
         personality=(
-            "Play the reviewed startup role concretely. Keep pressure social "
+            "Play the reviewed module role concretely. Keep pressure social "
             "and contractual unless the router frames a contested escalation."
         ),
         known_context=known_context,
@@ -579,9 +582,9 @@ def _player_character() -> CharacterRecord:
                     damage="1d8+2",
                     damage_type="slashing",
                     notes=(
-                        "Demo combat scaffold for the reviewed startup slice; "
+                        "Demo combat scaffold for the reviewed module pack; "
                         "the expedition leader is visibly armed with this "
-                        "weapon when they intercept the predator."
+                        "weapon when they hold the line in the field."
                     ),
                 ),
             ],
@@ -597,7 +600,10 @@ def _content_state(
 ) -> dict[str, ContentPackState]:
     pack_id = seed_inputs["pack_id"]
     pending: dict[str, PendingContentSignal] = {}
-    for index, ref in enumerate(seed_inputs.get("initial_router_lookup_refs", []), start=1):
+    for index, ref in enumerate(
+        seed_inputs.get("initial_router_lookup_refs", []),
+        start=1,
+    ):
         if ref not in cards:
             continue
         card = cards[ref]
@@ -606,7 +612,7 @@ def _content_state(
             pack_id=pack_id,
             ref_id=ref,
             content_hash=card.content_hash,
-            reason="startup router context",
+            reason="reviewed pack startup router context",
             priority=10,
             requested_fields=["summary"],
             metadata={
@@ -644,7 +650,7 @@ def _content_state(
         knowledge_map[character_id] = ContentKnowledgeEntityState(
             entity_id=character_id,
             known_refs=known_refs,
-            notes="Reviewed startup knowledge map seed.",
+            notes="Reviewed module knowledge map seed.",
         )
 
     return {
@@ -659,10 +665,15 @@ def _content_state(
                 "source_fingerprint": seed_inputs["source_fingerprint"],
                 "schema_version": CONTENT_PACK_SCHEMA_VERSION,
                 "active_front_refs": seed_inputs.get("active_front_refs", []),
+                "domain_catalog": catalog,
                 "catalog": [
-                    {"ref": ref, "aliases": [ref.replace(".", " ")]}
-                    for ref in seed_inputs.get("initial_router_lookup_refs", [])
-                    if ref in cards
+                    {
+                        "ref": card.ref,
+                        "kind": card.kind,
+                        "aliases": [card.ref.replace(".", " ")],
+                        "summary": card.summary[:160],
+                    }
+                    for card in cards.values()
                 ],
             },
         )
@@ -677,43 +688,50 @@ def _field_start_checkpoint(
 ) -> None:
     pack_id = seed_inputs["pack_id"]
     route_ref = "loc.barrier_peaks_route"
-    route_card = cards.get(route_ref)
-    if route_card is not None:
-        pack_state = ckpt.session.content_state.get(pack_id)
-        if pack_state is not None:
-            pack_state.pending_signals["field_route"] = PendingContentSignal(
-                signal_id="field_route",
+    field_refs = [
+        ref
+        for ref in seed_inputs.get("field_start_router_lookup_refs", [])
+        if ref in cards
+    ]
+    pack_state = ckpt.session.content_state.get(pack_id)
+    if pack_state is not None:
+        for index, ref in enumerate(field_refs, start=1):
+            card = cards[ref]
+            signal_id = f"field_{index:02d}"
+            pack_state.pending_signals[signal_id] = PendingContentSignal(
+                signal_id=signal_id,
                 pack_id=pack_id,
-                ref_id=route_ref,
-                content_hash=route_card.content_hash,
-                reason="field-start router context",
-                priority=20,
+                ref_id=ref,
+                content_hash=card.content_hash,
+                reason="field-start reviewed module context",
+                priority=30 - index,
                 requested_fields=["summary"],
                 metadata={
-                    "kind": route_card.kind,
+                    "kind": card.kind,
                     "visibility": "router_hidden",
-                    "summary": route_card.summary,
+                    "summary": card.summary,
                 },
             )
-            for entity_id in ("npc_garret", "npc_gearbox"):
-                state = pack_state.knowledge_map.get(entity_id)
-                if state is None:
-                    state = ContentKnowledgeEntityState(entity_id=entity_id)
-                known_refs = list(state.known_refs)
-                for ref in (route_ref, "handout.cartophile_maps"):
-                    if ref in cards:
-                        compact = _compact_ref(pack_id, ref, cards)
-                        if compact not in known_refs:
-                            known_refs.append(compact)
-                pack_state.knowledge_map[entity_id] = state.model_copy(
-                    update={
-                        "known_refs": known_refs,
-                        "notes": (
-                            "Field-start seed: expedition has route folios "
-                            "and has reached the wooded foothills."
-                        ),
-                    }
-                )
+        for entity_id in ("npc_garret", "npc_gearbox"):
+            state = pack_state.knowledge_map.get(entity_id)
+            if state is None:
+                state = ContentKnowledgeEntityState(entity_id=entity_id)
+            known_refs = list(state.known_refs)
+            for ref in [*field_refs, "handout.cartophile_maps"]:
+                if ref in cards:
+                    compact = _compact_ref(pack_id, ref, cards)
+                    if compact not in known_refs:
+                        known_refs.append(compact)
+            pack_state.knowledge_map[entity_id] = state.model_copy(
+                update={
+                    "known_refs": known_refs,
+                    "notes": (
+                        "Field-start seed: expedition has route folios, "
+                        "reviewed route tables, and the route pressure "
+                        "encounter available."
+                    ),
+                }
+            )
 
     for char in ckpt.characters:
         if char.character_id in {PLAYER_ID, "npc_garret", "npc_gearbox"}:
@@ -730,7 +748,7 @@ def _field_start_checkpoint(
             )
             char.private_state.current_objectives = [
                 "Scout the wooded foothills without losing the route.",
-                "Protect the expedition from terrain and wildlife hazards.",
+                "Protect the expedition from reviewed route pressure and terrain hazards.",
             ]
         elif char.character_id == "npc_garret":
             char.private_state.current_objectives = [
@@ -815,10 +833,10 @@ def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
                 ),
             ),
             lore=(
-                "Use only reviewed runtime-ready Lost Laboratory startup "
-                "content. The downstream monastery, city, final laboratory, "
-                "tactical maps, statblocks, and appendices are not available "
-                "in this demo slice."
+                "Use reviewed runtime-ready Lost Laboratory content. Route, "
+                "monastery, ooze-city, laboratory, encounter, statblock, "
+                "hazard, treasure, and abstract theater-map records must "
+                "enter play through imported content refs or domain metadata."
             ),
         ),
         characters=[_player_character(), *npcs],
@@ -827,8 +845,8 @@ def _story_checkpoint(*, start_mode: str = "startup") -> CheckpointFile:
     ckpt.session.config.settings.player_roll_mode = "auto"
     ckpt.session.config.narrative_rules = (
         "Keep the startup scene grounded in negotiation, route preparation, "
-        "and choosing expedition support. Do not invent downstream locations "
-        "or encounters beyond reviewed runtime-ready content."
+        "and choosing expedition support. Use reviewed imported refs before "
+        "introducing downstream locations, hazards, or encounters."
     )
     if start_mode == "field":
         _field_start_checkpoint(ckpt, seed_inputs=seed_inputs, cards=cards)
@@ -1283,7 +1301,7 @@ def _build_report(
         ),
         _check("canonical_events_created", canonical_fact_count > 0, canonical_fact_count),
         _check(
-            "startup_content_introduced",
+            "module_startup_content_introduced",
             any("loc.cartophile_collection" in ref for ref in introduced_refs)
             and any("front.expedition_obligation" in ref for ref in introduced_refs),
             introduced_refs,
@@ -1553,8 +1571,9 @@ def _markdown(report: dict[str, Any]) -> str:
         "overrides them."
     )
     lines.append(
-        "- The reviewed startup slice intentionally excludes downstream sites, "
-        "combat statblocks, tactical maps, and player-safe image derivatives."
+        "- The reviewed full pack includes downstream semantic records, "
+        "encounter templates, statblocks, hazards, treasures, and abstract "
+        "theater-map templates; source images and raw OCR stay private."
     )
     lines.append(
         "- The report intentionally records only compact runtime refs and CLI "
