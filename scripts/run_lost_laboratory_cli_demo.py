@@ -578,59 +578,48 @@ def _assignment_value(line: str, key: str) -> str:
     return ""
 
 
-def _content_catalog_refs(
+def _content_dispatch_keys(
     text: str,
     *,
     limit: int = 500,
 ) -> list[dict[str, str]]:
-    refs: list[dict[str, str]] = []
-    for line in _all_tag_lines(text, "available_catalog", limit=limit):
+    keys: list[dict[str, str]] = []
+    for line in _all_tag_lines(text, "router_knowledge_dispatch_index", limit=limit):
         item: dict[str, str] = {}
-        for key in ("pack", "ref", "kind", "visibility"):
+        for key in ("key", "kind", "pack", "priority", "packets"):
             value = _assignment_value(line, key)
             if value:
                 item[key] = value
         if item:
-            refs.append(item)
-    return refs
+            keys.append(item)
+    return keys
 
 
 def _content_manager_prompt_audit(prompt_text: str) -> dict[str, Any]:
     recent_facts = _nonempty_rows(_all_tag_lines(prompt_text, "recent_facts"))
-    knowledge_rows = _nonempty_rows(
-        _all_tag_lines(prompt_text, "engine_knowledge_map")
-    )
-    known_router_refs = _nonempty_rows(
-        _all_tag_lines(prompt_text, "known_router_refs")
+    knowledge_state_rows = _nonempty_rows(
+        _all_tag_lines(prompt_text, "router_knowledge_state")
     )
     candidates = _nonempty_rows(
         _all_tag_lines(prompt_text, "candidate_characters")
     )
-    catalog_refs = _content_catalog_refs(prompt_text)
+    dispatch_keys = _content_dispatch_keys(prompt_text)
     kind_counts = Counter(
-        item.get("kind", "-") for item in catalog_refs if item.get("kind")
+        item.get("kind", "-") for item in dispatch_keys if item.get("kind")
     )
-    knowledge_ref_count = 0
-    for line in knowledge_rows:
-        for key in ("known", "suspected"):
-            value = _assignment_value(line, key)
-            if value and value != "-":
-                knowledge_ref_count += len([item for item in value.split(",") if item])
     return {
         "prompt_chars": len(prompt_text),
         "approx_prompt_tokens": _approx_tokens(prompt_text),
         "hash_like_token_count": _hash_like_count(prompt_text),
         "recent_fact_count": len(recent_facts),
-        "knowledge_entity_count": len(knowledge_rows),
-        "knowledge_ref_token_count": knowledge_ref_count,
-        "known_router_ref_count": len(known_router_refs),
+        "router_knowledge_state_rows": len(knowledge_state_rows),
         "candidate_character_count": len(candidates),
         "candidate_character_ids": [
             _assignment_value(line, "character") for line in candidates
         ][:12],
-        "available_catalog_ref_count": len(catalog_refs),
-        "available_catalog_kind_counts": dict(sorted(kind_counts.items())),
-        "available_catalog_sample": catalog_refs[:12],
+        "dispatch_key_count": len(dispatch_keys),
+        "dispatch_key_kind_counts": dict(sorted(kind_counts.items())),
+        "dispatch_key_sample": dispatch_keys[:12],
     }
 
 
@@ -640,7 +629,7 @@ def _content_manager_output_audit(parsed: Any) -> dict[str, Any]:
     data = parsed.model_dump(mode="json")
     return {
         "knowledge_updates": data.get("knowledge_updates", []),
-        "router_required_knowledge": data.get("router_required_knowledge", []),
+        "router_required_keys": data.get("router_required_keys", []),
         "router_turn_candidates": data.get("router_turn_candidates", []),
         "agent_context_broadcasts": data.get("agent_context_broadcasts", []),
         "no_update_reason": data.get("no_update_reason", ""),
@@ -792,11 +781,9 @@ def _content_manager_prompt_budgets(
             "prompt_chars": audit.get("prompt_chars", 0),
             "approx_prompt_tokens": audit.get("approx_prompt_tokens", 0),
             "hash_like_token_count": audit.get("hash_like_token_count", 0),
-            "knowledge_entities": audit.get("knowledge_entity_count", 0),
-            "knowledge_ref_tokens": audit.get("knowledge_ref_token_count", 0),
-            "known_router_refs": audit.get("known_router_ref_count", 0),
+            "router_knowledge_state_rows": audit.get("router_knowledge_state_rows", 0),
             "candidate_characters": audit.get("candidate_character_count", 0),
-            "available_catalog_refs": audit.get("available_catalog_ref_count", 0),
+            "dispatch_keys": audit.get("dispatch_key_count", 0),
             "usage": call.get("usage") or {},
         })
     return budgets
@@ -899,6 +886,8 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             "prompt_chars": len(prompt_text),
             "approx_prompt_tokens": _approx_tokens(prompt_text),
             "contains_engine_knowledge_map": "engine_knowledge_map" in prompt_text,
+            "contains_available_catalog": "available_catalog" in prompt_text,
+            "contains_dispatch_index": "router_knowledge_dispatch_index" in prompt_text,
             "contains_knowledge_entity_rows": " entity=npc_" in prompt_text,
             "contains_runtime_content_card": any(
                 marker in prompt_text
@@ -1031,11 +1020,11 @@ def _build_report(
         call.get("router_output", {}).get("interaction_mode", "")
         for call in router_calls
     ]
-    content_requested_refs = [
-        item.get("ref", "")
+    content_requested_keys = [
+        item.get("key", "")
         for call in content_calls
         for item in call.get("content_manager_output", {}).get(
-            "router_required_knowledge",
+            "router_required_keys",
             [],
         )
     ]
@@ -1058,13 +1047,21 @@ def _build_report(
             prompt_budgets,
         ),
         _check(
-            "content_manager_catalog_cap_observed",
+            "content_manager_dispatch_index_observed",
             bool(prompt_budgets)
             and all(
-                int(item.get("available_catalog_refs", 0)) <= 120
+                0 < int(item.get("dispatch_keys", 0)) <= 40
                 for item in prompt_budgets
             ),
             prompt_budgets,
+        ),
+        _check(
+            "content_manager_catalog_not_rendered",
+            all(
+                not call.get("contains_available_catalog", False)
+                for call in content_calls
+            ),
+            content_calls,
         ),
         _check(
             "content_manager_prompt_hashes_stripped",
@@ -1091,8 +1088,7 @@ def _build_report(
         ),
         _check(
             "character_agents_used_haiku_role",
-            bool(agent_calls)
-            and all(call["role"] != "agent" for call in agent_calls)
+            all(call["role"] != "agent" for call in agent_calls)
             and all("haiku" in str(call.get("model", "")).lower() for call in agent_calls),
             agent_calls,
         ),
@@ -1163,16 +1159,11 @@ def _build_report(
             ),
         ])
     if args.scenario == "deep":
-        route_context_refs = {
-            "loc.barrier_peaks_route",
-            "enc.route_wilderness_pressure",
-            "hazard.cliff_approach",
-        }
         checks.extend([
             _check(
                 "content_manager_requested_route_context",
-                bool(route_context_refs.intersection(content_requested_refs)),
-                content_requested_refs,
+                any("route" in key or "barrier_peaks" in key for key in content_requested_keys),
+                content_requested_keys,
             ),
         ])
     if args.scenario in COMBAT_SCENARIOS:
@@ -1313,6 +1304,7 @@ def _markdown(report: dict[str, Any]) -> str:
             f"full_in={usage.get('full_input_tokens', 0)} "
             f"out={usage.get('completion_tokens', 0)} "
             f"knowledge_map={call['contains_engine_knowledge_map']} "
+            f"dispatch_index={call.get('contains_dispatch_index', False)} "
             f"runtime_content={call['contains_runtime_content_card']} "
             f"turn_hint={call['contains_turn_hint']}"
         )
@@ -1329,9 +1321,9 @@ def _markdown(report: dict[str, Any]) -> str:
         output = call.get("content_manager_output", {})
         input_summary = call.get("content_manager_input", {})
         requested = [
-            item.get("ref", "")
-            for item in output.get("router_required_knowledge", [])
-            if item.get("ref", "")
+            item.get("key", "")
+            for item in output.get("router_required_keys", [])
+            if item.get("key", "")
         ]
         updates = [
             item.get("ref", "")
@@ -1348,11 +1340,9 @@ def _markdown(report: dict[str, Any]) -> str:
             f"{index}. approx_tokens={input_summary.get('approx_prompt_tokens', 0)} "
             f"hash_like={input_summary.get('hash_like_token_count', 0)} "
             f"recent_facts={input_summary.get('recent_fact_count', 0)} "
-            f"known_entities={input_summary.get('knowledge_entity_count', 0)} "
-            f"knowledge_refs={input_summary.get('knowledge_ref_token_count', 0)} "
-            f"known_router_refs={input_summary.get('known_router_ref_count', 0)} "
-            f"catalog_refs={input_summary.get('available_catalog_ref_count', 0)} "
-            f"required_refs={requested or '-'} "
+            f"router_state_rows={input_summary.get('router_knowledge_state_rows', 0)} "
+            f"dispatch_keys={input_summary.get('dispatch_key_count', 0)} "
+            f"required_keys={requested or '-'} "
             f"knowledge_updates={updates or '-'} "
             f"turn_candidates={candidates or '-'} "
             f"no_update={output.get('no_update_reason') or '-'}"

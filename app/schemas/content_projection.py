@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -9,6 +10,7 @@ from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 CONTENT_PACK_PROJECTION_SCHEMA_VERSION = "content-pack-projection-v1"
 ProjectionCharacterStatus = Literal["active", "dormant", "culled"]
+_SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
 
 
 def _clean_text(value: Any) -> str:
@@ -17,6 +19,11 @@ def _clean_text(value: Any) -> str:
 
 def _clean_unique_strings(values: list[str]) -> list[str]:
     return [item for item in dict.fromkeys(_clean_text(value) for value in values) if item]
+
+
+def _clean_token(value: Any) -> str:
+    text = _clean_text(value)
+    return text if text and _SAFE_TOKEN_RE.fullmatch(text) else ""
 
 
 def _reject_private_asset_text(value: str, *, field_name: str) -> str:
@@ -72,6 +79,114 @@ class ContentProjectionRef(BaseModel):
             "summary": self.summary,
         }
         return {key: value for key, value in entry.items() if value not in ("", [])}
+
+
+class ContentRouterKnowledgeScopeFacets(BaseModel):
+    """Small import-authored selectors for router knowledge dispatch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    location_refs: list[str] = Field(default_factory=list)
+    front_refs: list[str] = Field(default_factory=list)
+    actor_refs: list[str] = Field(default_factory=list)
+    character_ids: list[str] = Field(default_factory=list)
+    phase_tags: list[str] = Field(default_factory=list)
+    region_tags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentRouterKnowledgeScopeFacets":
+        self.location_refs = _clean_unique_strings(self.location_refs)
+        self.front_refs = _clean_unique_strings(self.front_refs)
+        self.actor_refs = _clean_unique_strings(self.actor_refs)
+        self.character_ids = _clean_unique_strings(self.character_ids)
+        self.phase_tags = _clean_unique_strings(self.phase_tags)
+        self.region_tags = _clean_unique_strings(self.region_tags)
+        return self
+
+    def compact_entry(self) -> dict[str, list[str]]:
+        return {
+            key: value
+            for key, value in {
+                "location_refs": list(self.location_refs),
+                "front_refs": list(self.front_refs),
+                "actor_refs": list(self.actor_refs),
+                "character_ids": list(self.character_ids),
+                "phase_tags": list(self.phase_tags),
+                "region_tags": list(self.region_tags),
+            }.items()
+            if value
+        }
+
+
+class ContentRouterKnowledgeKeyProjection(BaseModel):
+    """Tiny selector that expands to reviewed router content packets."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key: str
+    kind: str = "module_scope"
+    label: str = ""
+    summary: str = ""
+    scope_facets: ContentRouterKnowledgeScopeFacets = Field(
+        default_factory=ContentRouterKnowledgeScopeFacets
+    )
+    activation_hints: list[str] = Field(default_factory=list)
+    priority: int = 0
+    packet_refs: list[ContentProjectionRef] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _clean(self) -> "ContentRouterKnowledgeKeyProjection":
+        self.key = _clean_token(self.key)
+        self.kind = _clean_token(self.kind) or "module_scope"
+        self.label = _reject_private_asset_text(self.label or self.key, field_name="label")
+        self.summary = _reject_private_asset_text(self.summary, field_name="summary")
+        self.activation_hints = [
+            _reject_private_asset_text(hint, field_name="activation_hint")
+            for hint in _clean_unique_strings(self.activation_hints)
+        ]
+        self.priority = max(0, int(self.priority or 0))
+        self.packet_refs = _dedupe_refs(self.packet_refs)
+        if not self.key:
+            raise ValueError("router knowledge keys need key")
+        if not self.packet_refs:
+            raise ValueError(f"router knowledge key {self.key} needs packet_refs")
+        return self
+
+    def prompt_index_entry(self) -> dict[str, Any]:
+        packet_kinds = [
+            kind
+            for kind in dict.fromkeys(ref.kind for ref in self.packet_refs)
+            if kind
+        ]
+        entry: dict[str, Any] = {
+            "key": self.key,
+            "kind": self.kind,
+            "label": self.label,
+            "summary": self.summary,
+            "scope_facets": self.scope_facets.compact_entry(),
+            "activation_hints": list(self.activation_hints),
+            "priority": self.priority,
+            "packet_count": len(self.packet_refs),
+            "packet_kinds": packet_kinds,
+        }
+        return {key: value for key, value in entry.items() if value not in ("", [], {}, 0)}
+
+    def packet_metadata_entry(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "packet_refs": [
+                {
+                    "pack_id": ref.pack_id,
+                    "ref": ref.ref,
+                    "content_hash": ref.content_hash,
+                    "kind": ref.kind,
+                    "visibility": ref.visibility,
+                    "title": ref.title,
+                    "summary": ref.summary,
+                }
+                for ref in self.packet_refs
+            ],
+        }
 
 
 class ContentCharacterProjection(BaseModel):
@@ -194,16 +309,26 @@ class ContentRouterProjection(BaseModel):
     initial_lookup_refs: list[ContentProjectionRef] = Field(default_factory=list)
     field_start_lookup_refs: list[ContentProjectionRef] = Field(default_factory=list)
     lookup_catalog: list[ContentProjectionRef] = Field(default_factory=list)
+    knowledge_keys: list[ContentRouterKnowledgeKeyProjection] = Field(
+        default_factory=list
+    )
 
     @model_validator(mode="after")
     def _clean(self) -> "ContentRouterProjection":
         self.initial_lookup_refs = _dedupe_refs(self.initial_lookup_refs)
         self.field_start_lookup_refs = _dedupe_refs(self.field_start_lookup_refs)
         self.lookup_catalog = _dedupe_refs(self.lookup_catalog)
+        self.knowledge_keys = _dedupe_router_knowledge_keys(self.knowledge_keys)
         return self
 
     def router_catalog_metadata(self) -> list[dict[str, Any]]:
         return [ref.router_catalog_entry() for ref in self.lookup_catalog]
+
+    def router_knowledge_index_metadata(self) -> list[dict[str, Any]]:
+        return [item.prompt_index_entry() for item in self.knowledge_keys]
+
+    def router_knowledge_packet_metadata(self) -> list[dict[str, Any]]:
+        return [item.packet_metadata_entry() for item in self.knowledge_keys]
 
 
 class ContentCharacterPatchProjection(BaseModel):
@@ -351,6 +476,11 @@ class ContentPackProjectionArtifact(BaseModel):
             *self.router.initial_lookup_refs,
             *self.router.field_start_lookup_refs,
             *self.router.lookup_catalog,
+            *[
+                packet_ref
+                for key in self.router.knowledge_keys
+                for packet_ref in key.packet_refs
+            ],
             *self.field_start.router_lookup_refs,
         ]:
             if not ref.pack_id:
@@ -367,6 +497,17 @@ def _dedupe_refs(refs: list[ContentProjectionRef]) -> list[ContentProjectionRef]
     deduped: dict[str, ContentProjectionRef] = {}
     for ref in refs:
         deduped[ref.ref] = ref
+    return list(deduped.values())
+
+
+def _dedupe_router_knowledge_keys(
+    keys: list[ContentRouterKnowledgeKeyProjection],
+) -> list[ContentRouterKnowledgeKeyProjection]:
+    deduped: dict[str, ContentRouterKnowledgeKeyProjection] = {}
+    for item in keys:
+        if item.key in deduped:
+            raise ValueError(f"duplicate router knowledge key: {item.key}")
+        deduped[item.key] = item
     return list(deduped.values())
 
 

@@ -756,7 +756,37 @@ class TestRouteIntention:
                         notes="full private knowledge",
                     )
                 },
-                metadata=_content_pack_metadata(db_path),
+                metadata=_content_pack_metadata(
+                    db_path,
+                    router_knowledge_index=[
+                        {
+                            "key": "pack.room.secret",
+                            "kind": "location",
+                            "label": "Secret room",
+                            "summary": "Reviewed secret latch context.",
+                            "scope_facets": {"phase_tags": ["draft", "wall"]},
+                            "activation_hints": ["draft", "wall", "secret"],
+                            "priority": 100,
+                            "packet_count": 1,
+                            "packet_kinds": ["location_card"],
+                        }
+                    ],
+                    router_knowledge_packets=[
+                        {
+                            "key": "pack.room.secret",
+                            "packet_refs": [
+                                {
+                                    "pack_id": "pack",
+                                    "ref": "room/secret",
+                                    "content_hash": "hash-secret",
+                                    "kind": "location_card",
+                                    "visibility": "hidden",
+                                    "summary": "Reviewed secret latch context.",
+                                }
+                            ],
+                        }
+                    ],
+                ),
             )
         }
         ckpt.canonical_events = [
@@ -777,12 +807,10 @@ class TestRouteIntention:
                             "source_fact_ids": ["f01"],
                         }
                     ],
-                    router_required_knowledge=[
+                    router_required_keys=[
                         {
-                            "pack_id": "pack",
-                            "ref": "room/secret",
+                            "key": "pack.room.secret",
                             "reason": "The router needs the secret room context.",
-                            "source_fact_ids": ["f01"],
                         }
                     ],
                     router_turn_candidates=[
@@ -791,7 +819,7 @@ class TestRouteIntention:
                             "priority": "medium",
                             "reason": "Pip may react to the discovery.",
                             "source_fact_ids": ["f01"],
-                            "related_content_refs": ["pack:front/strahd"],
+                            "related_keys": ["pack.room.secret"],
                         }
                     ],
                 )
@@ -816,8 +844,10 @@ class TestRouteIntention:
         content_text = "\n".join(
             message["content"] for message in content_call["messages"]
         )
-        assert "engine_knowledge_map" in content_text
-        assert "pack=pack entity=pip" in content_text
+        assert "router_knowledge_state" in content_text
+        assert "router_knowledge_dispatch_index" in content_text
+        assert "engine_knowledge_map" not in content_text
+        assert "pack=pack entity=pip" not in content_text
 
         router_text = "\n".join(
             str(message.get("content", ""))
@@ -858,7 +888,37 @@ class TestRouteIntention:
                 knowledge_map={
                     "pip": ContentKnowledgeEntityState(entity_id="pip")
                 },
-                metadata=_content_pack_metadata(db_path),
+                metadata=_content_pack_metadata(
+                    db_path,
+                    router_knowledge_index=[
+                        {
+                            "key": "pack.front.strahd",
+                            "kind": "front",
+                            "label": "Strahd front",
+                            "summary": "The antagonist tracks public trouble.",
+                            "scope_facets": {"character_ids": ["pip"]},
+                            "activation_hints": ["wolf tracks"],
+                            "priority": 100,
+                            "packet_count": 1,
+                            "packet_kinds": ["front_signal"],
+                        }
+                    ],
+                    router_knowledge_packets=[
+                        {
+                            "key": "pack.front.strahd",
+                            "packet_refs": [
+                                {
+                                    "pack_id": "pack",
+                                    "ref": "front/strahd",
+                                    "content_hash": "hash-front",
+                                    "kind": "front_signal",
+                                    "visibility": "hidden",
+                                    "summary": "The antagonist tracks public trouble.",
+                                }
+                            ],
+                        }
+                    ],
+                ),
             )
         }
         ckpt.canonical_events = [
@@ -917,6 +977,36 @@ class TestRouteIntention:
             )
         ]
         _queue_content_signal(ckpt)
+        ckpt.session.content_state["pack"].metadata = {
+            "router_knowledge_index": [
+                {
+                    "key": "pack.room.entry",
+                    "kind": "location",
+                    "label": "Entry room",
+                    "summary": "Entry chamber context.",
+                    "scope_facets": {"phase_tags": ["entry"]},
+                    "activation_hints": ["entry", "door"],
+                    "priority": 100,
+                    "packet_count": 1,
+                    "packet_kinds": ["location_card"],
+                }
+            ],
+            "router_knowledge_packets": [
+                {
+                    "key": "pack.room.entry",
+                    "packet_refs": [
+                        {
+                            "pack_id": "pack",
+                            "ref": "room/entry",
+                            "content_hash": "hash-1",
+                            "kind": "location_card",
+                            "visibility": "hidden",
+                            "summary": "Entry chamber context.",
+                        }
+                    ],
+                }
+            ],
+        }
         ckpt.session.content_state["pack"].knowledge_map = {
             "pip": ContentKnowledgeEntityState(entity_id="pip")
         }

@@ -37,6 +37,7 @@ from app.schemas.content_projection import (
     ContentKnowledgeProjection,
     ContentPackProjectionArtifact,
     ContentProjectionRef,
+    ContentRouterKnowledgeKeyProjection,
     ContentRouterProjection,
 )
 
@@ -61,6 +62,9 @@ def build_content_pack_projection_artifact(
     character_overrides: Mapping[str, Mapping[str, Any]] | None = None,
     checkpoint: ContentCheckpointProjection | Mapping[str, Any] | None = None,
     field_start: ContentFieldStartProjection | Mapping[str, Any] | None = None,
+    router_knowledge_keys: Sequence[
+        ContentRouterKnowledgeKeyProjection | Mapping[str, Any]
+    ] = (),
     content_pack_schema_version: str = CONTENT_PACK_SCHEMA_VERSION,
     engine_overlay_notes: str = "",
 ) -> ContentPackProjectionArtifact:
@@ -147,21 +151,30 @@ def build_content_pack_projection_artifact(
             )
         )
 
+    initial_lookup_refs = [
+        _projection_ref(cards_by_ref, ref)
+        for ref in _unique_refs(initial_router_lookup_refs)
+    ]
+    field_start_lookup_refs = [
+        _projection_ref(cards_by_ref, ref)
+        for ref in _unique_refs(field_start_router_lookup_refs)
+    ]
     router = ContentRouterProjection(
-        initial_lookup_refs=[
-            _projection_ref(cards_by_ref, ref)
-            for ref in _unique_refs(initial_router_lookup_refs)
-        ],
-        field_start_lookup_refs=[
-            _projection_ref(cards_by_ref, ref)
-            for ref in _unique_refs(field_start_router_lookup_refs)
-        ],
+        initial_lookup_refs=initial_lookup_refs,
+        field_start_lookup_refs=field_start_lookup_refs,
         lookup_catalog=[
             _projection_ref(cards_by_ref, ref)
             for ref in sorted(cards_by_ref)
         ],
+        knowledge_keys=_coerce_router_knowledge_keys(
+            router_knowledge_keys,
+            cards_by_ref=cards_by_ref,
+            pack_id=domain_catalog.pack_id,
+            initial_refs=initial_lookup_refs,
+            field_start_refs=field_start_lookup_refs,
+            active_front_refs=active_front_refs,
+        ),
     )
-
     field_projection = _coerce_field_start(
         field_start,
         cards_by_ref=cards_by_ref,
@@ -259,6 +272,8 @@ def content_pack_state_from_projection(
         "active_front_refs": [front.front_id for front in projection.fronts],
         "catalog": projection.router.router_catalog_metadata(),
         "router_lookup_catalog": projection.router.router_catalog_metadata(),
+        "router_knowledge_index": projection.router.router_knowledge_index_metadata(),
+        "router_knowledge_packets": projection.router.router_knowledge_packet_metadata(),
         "engine_overlay": {
             "domain_groups": dict(projection.engine_overlay.domain_groups),
             "notes": projection.engine_overlay.notes,
@@ -634,6 +649,81 @@ def _coerce_checkpoint(
     if isinstance(checkpoint, ContentCheckpointProjection):
         return checkpoint
     return ContentCheckpointProjection.model_validate(checkpoint)
+
+
+def _coerce_router_knowledge_keys(
+    raw_keys: Sequence[ContentRouterKnowledgeKeyProjection | Mapping[str, Any]],
+    *,
+    cards_by_ref: Mapping[str, Any],
+    pack_id: str,
+    initial_refs: Sequence[ContentProjectionRef],
+    field_start_refs: Sequence[ContentProjectionRef],
+    active_front_refs: Sequence[str],
+) -> list[ContentRouterKnowledgeKeyProjection]:
+    if not raw_keys:
+        return _default_router_knowledge_keys(
+            pack_id=pack_id,
+            initial_refs=initial_refs,
+            field_start_refs=field_start_refs,
+            active_front_refs=active_front_refs,
+        )
+
+    keys: list[ContentRouterKnowledgeKeyProjection] = []
+    for raw in raw_keys:
+        if isinstance(raw, ContentRouterKnowledgeKeyProjection):
+            keys.append(raw)
+            continue
+        data = dict(raw)
+        refs = data.get("packet_refs", [])
+        if refs and all(isinstance(ref, str) for ref in refs):
+            data["packet_refs"] = [
+                _projection_ref(cards_by_ref, ref) for ref in _unique_refs(refs)
+            ]
+        keys.append(ContentRouterKnowledgeKeyProjection.model_validate(data))
+    return keys
+
+
+def _default_router_knowledge_keys(
+    *,
+    pack_id: str,
+    initial_refs: Sequence[ContentProjectionRef],
+    field_start_refs: Sequence[ContentProjectionRef],
+    active_front_refs: Sequence[str],
+) -> list[ContentRouterKnowledgeKeyProjection]:
+    keys: list[ContentRouterKnowledgeKeyProjection] = []
+    if initial_refs:
+        keys.append(
+            ContentRouterKnowledgeKeyProjection(
+                key=f"{pack_id}.startup",
+                kind="startup",
+                label="Startup router context",
+                summary="Reviewed content needed for the initial module setup.",
+                scope_facets={
+                    "front_refs": list(active_front_refs),
+                    "phase_tags": ["startup"],
+                },
+                activation_hints=["startup", "opening", "mission"],
+                priority=100,
+                packet_refs=list(initial_refs),
+            )
+        )
+    if field_start_refs:
+        keys.append(
+            ContentRouterKnowledgeKeyProjection(
+                key=f"{pack_id}.field_start",
+                kind="field_start",
+                label="Field-start router context",
+                summary="Reviewed content needed when the module starts in the field.",
+                scope_facets={
+                    "front_refs": list(active_front_refs),
+                    "phase_tags": ["field_start", "route", "travel"],
+                },
+                activation_hints=["field", "route", "travel", "exploration"],
+                priority=70,
+                packet_refs=list(field_start_refs),
+            )
+        )
+    return keys
 
 
 def _coerce_field_start(

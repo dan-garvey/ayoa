@@ -72,18 +72,24 @@ class ContentManagerKnowledgeUpdate(_ContentManagerRefMixin):
         return (self.entity_id, self.pack_id, self.ref, self.operation)
 
 
-class ContentManagerRouterRequiredKnowledge(_ContentManagerRefMixin):
-    """Reviewed content ref required by the router for the next call."""
+class ContentManagerRouterRequiredKey(BaseModel):
+    """Reviewed router knowledge key required for the next router call."""
 
     model_config = ConfigDict(extra="forbid")
 
+    key: str
+    reason: str = ""
+
     @model_validator(mode="after")
-    def _clean(self) -> "ContentManagerRouterRequiredKnowledge":
-        self._clean_ref_fields()
+    def _clean(self) -> "ContentManagerRouterRequiredKey":
+        self.key = _clean_token(self.key)
+        self.reason = _clean_text(self.reason)
+        if not self.key:
+            raise ValueError("Content manager router key requires key")
         return self
 
-    def dedupe_key(self) -> tuple[str, str]:
-        return (self.pack_id, self.ref)
+    def dedupe_key(self) -> str:
+        return self.key
 
 
 class ContentManagerRouterTurnCandidate(BaseModel):
@@ -96,6 +102,7 @@ class ContentManagerRouterTurnCandidate(BaseModel):
     reason: str = ""
     source_fact_ids: list[str] = Field(default_factory=list)
     related_content_refs: list[str] = Field(default_factory=list)
+    related_keys: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _clean(self) -> "ContentManagerRouterTurnCandidate":
@@ -110,6 +117,11 @@ class ContentManagerRouterTurnCandidate(BaseModel):
             ref
             for value in dict.fromkeys(self.related_content_refs)
             if (ref := _clean_token(value))
+        ]
+        self.related_keys = [
+            key
+            for value in dict.fromkeys(self.related_keys)
+            if (key := _clean_token(value))
         ]
         if not self.character_id:
             raise ValueError("Content manager router candidate requires character_id")
@@ -146,7 +158,7 @@ class ContentManagerOutput(BaseModel):
     knowledge_updates: list[ContentManagerKnowledgeUpdate] = Field(
         default_factory=list
     )
-    router_required_knowledge: list[ContentManagerRouterRequiredKnowledge] = Field(
+    router_required_keys: list[ContentManagerRouterRequiredKey] = Field(
         default_factory=list
     )
     router_turn_candidates: list[ContentManagerRouterTurnCandidate] = Field(
@@ -163,8 +175,8 @@ class ContentManagerOutput(BaseModel):
         self.knowledge_updates = list({
             update.dedupe_key(): update for update in self.knowledge_updates
         }.values())
-        self.router_required_knowledge = list({
-            item.dedupe_key(): item for item in self.router_required_knowledge
+        self.router_required_keys = list({
+            item.dedupe_key(): item for item in self.router_required_keys
         }.values())
         self.router_turn_candidates = list({
             candidate.dedupe_key(): candidate

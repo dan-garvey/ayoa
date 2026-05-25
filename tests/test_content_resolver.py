@@ -6,6 +6,7 @@ from app.engine.content_resolver import (
     append_pending_router_content_records,
     content_ref_needs_introduction,
     drain_pending_content_signals,
+    format_compact_record,
     format_front_signal_record,
     load_content_cards,
 )
@@ -239,6 +240,74 @@ def test_load_content_cards_rejects_simple_sqlite_rows_by_default(tmp_path):
     assert cards[0].ref == "room/1"
     assert cards[0].content_hash == "hash-a"
     assert cards[0].metadata == {"tier": "dm"}
+
+
+def test_load_content_cards_allows_reviewed_router_metadata(tmp_path):
+    import sqlite3
+
+    db_path = tmp_path / "pack.sqlite"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE content_cards (
+                pack_id TEXT,
+                ref TEXT,
+                content_hash TEXT,
+                kind TEXT,
+                visibility TEXT,
+                summary TEXT,
+                title TEXT,
+                body TEXT,
+                metadata_json TEXT,
+                review_status TEXT,
+                gate_status TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO content_cards VALUES (
+                'pack', 'front.villain', 'hash-front', 'front_signal',
+                'router_hidden', 'A front can react.', 'Front', 'Router packet.',
+                '{"actions":["apply pressure"],"goals":["recover maps"],"minions":["actor.guard"]}',
+                'approved', 'runtime_ready'
+            )
+            """
+        )
+
+    cards = load_content_cards(
+        db_path,
+        refs=["front.villain"],
+        pack_id="pack",
+        runtime_only=True,
+    )
+
+    assert len(cards) == 1
+    assert cards[0].metadata["actions"] == ["apply pressure"]
+    assert cards[0].metadata["goals"] == ["recover maps"]
+    record = format_compact_record(cards[0], pack_id="pack")
+    assert record.startswith("front_signal ")
+    assert 'goals=["recover maps"]' in record
+    assert 'actions=["apply pressure"]' in record
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE content_cards
+            SET metadata_json = '{"raw_source_path":"/private/module.pdf"}'
+            WHERE ref = 'front.villain'
+            """
+        )
+
+    assert (
+        load_content_cards(
+            db_path,
+            refs=["front.villain"],
+            pack_id="pack",
+            runtime_only=True,
+        )
+        == []
+    )
 
 
 def test_append_pending_router_content_records_noops_for_non_content_story():

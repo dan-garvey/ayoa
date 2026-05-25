@@ -11,10 +11,10 @@ from app.engine.content_manager import (
     apply_content_manager_knowledge_updates,
     build_candidate_turn_entities_from_checkpoint,
     build_candidate_turn_entities_block,
-    build_content_knowledge_map_block,
+    build_content_manager_dispatch_index_block,
     build_content_manager_messages,
-    build_known_router_refs_block,
     build_recent_canonical_facts_block,
+    build_router_knowledge_state_block,
     content_manager_required_lookup_requests,
     format_content_manager_router_records,
     plan_content_manager_updates,
@@ -74,18 +74,58 @@ def _pack_db(tmp_path, rows: list[tuple[str, str, str, str, str, str]]):
     return db_path
 
 
-def _pack_state(db_path, introduced_refs=None, knowledge_map=None):
+def _pack_state(db_path, introduced_refs=None, knowledge_map=None, router_keys=None):
+    metadata = {
+        "db_path": str(db_path),
+        "pack_version": PACK_VERSION,
+        "source_fingerprint": SOURCE_FINGERPRINT,
+        "schema_version": CONTENT_PACK_SCHEMA_VERSION,
+    }
+    if router_keys:
+        metadata.update(_router_key_metadata(router_keys))
     return ContentPackState(
         pack_id="pack",
         introduced_refs=introduced_refs or {},
         knowledge_map=knowledge_map or {},
-        metadata={
-            "db_path": str(db_path),
-            "pack_version": PACK_VERSION,
-            "source_fingerprint": SOURCE_FINGERPRINT,
-            "schema_version": CONTENT_PACK_SCHEMA_VERSION,
-        },
+        metadata=metadata,
     )
+
+
+def _router_key_metadata(keys):
+    index = []
+    packets = []
+    for item in keys:
+        key = item["key"]
+        packet_refs = item["packet_refs"]
+        index.append({
+            "key": key,
+            "kind": item.get("kind", "test_scope"),
+            "label": item.get("label", key),
+            "summary": item.get("summary", "Reviewed test router packet."),
+            "scope_facets": item.get("scope_facets", {}),
+            "activation_hints": item.get("activation_hints", []),
+            "priority": item.get("priority", 0),
+            "packet_count": len(packet_refs),
+            "packet_kinds": [
+                packet.get("kind", "content_known") for packet in packet_refs
+            ],
+        })
+        packets.append({"key": key, "packet_refs": packet_refs})
+    return {
+        "router_knowledge_index": index,
+        "router_knowledge_packets": packets,
+    }
+
+
+def _packet_ref(ref, content_hash, kind="front_signal", summary="Reviewed packet."):
+    return {
+        "pack_id": "pack",
+        "ref": ref,
+        "content_hash": content_hash,
+        "kind": kind,
+        "visibility": "hidden",
+        "summary": summary,
+    }
 
 
 def test_candidate_turn_entities_include_only_active_roster_characters():
@@ -156,7 +196,7 @@ def test_append_content_manager_router_records_skips_llm_during_combat():
     client.complete.assert_not_awaited()
 
 
-def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
+def test_content_manager_prompt_receives_compact_router_knowledge_state(tmp_path):
     db_path = _pack_db(
         tmp_path,
         [
@@ -190,6 +230,25 @@ def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
                     last_source_fact_ids=["f07"],
                 )
             },
+            router_keys=[
+                {
+                    "key": "pack.front.strahd",
+                    "summary": "The antagonist pressure may matter.",
+                    "scope_facets": {
+                        "character_ids": ["strahd"],
+                        "front_refs": ["front/strahd"],
+                    },
+                    "activation_hints": ["beacon", "antagonist pressure"],
+                    "priority": 100,
+                    "packet_refs": [
+                        _packet_ref(
+                            "front/strahd",
+                            "hash-front",
+                            summary="The antagonist tracks public trouble.",
+                        )
+                    ],
+                }
+            ],
         )
     }
     ckpt.canonical_events = [
@@ -213,17 +272,18 @@ def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
     }
 
     facts_block = build_recent_canonical_facts_block(ckpt, limit=12)
-    knowledge_block = build_content_knowledge_map_block(ckpt)
+    state_block = build_router_knowledge_state_block(ckpt)
+    dispatch_block = build_content_manager_dispatch_index_block(
+        ckpt,
+        candidate_entities=candidates,
+        current_input="The beacon flares.",
+    )
     candidates_block = build_candidate_turn_entities_block(candidates)
-    known_refs_block = build_known_router_refs_block(ckpt)
     messages = build_content_manager_messages(
         ckpt,
         candidate_entities=candidates,
         prompt_mgr=PromptManager("app/prompts"),
-        catalog_block=(
-            'pack=pack ref=front/strahd kind=front_signal '
-            'summary="The antagonist tracks public trouble."'
-        ),
+        dispatch_index_block=dispatch_block,
         candidate_entities_block=candidates_block,
         max_recent_facts=12,
     )
@@ -238,11 +298,15 @@ def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
     assert "/private" not in facts_block
     assert ".pdf" not in facts_block
 
-    assert "pack=pack entity=strahd" in knowledge_block
-    assert "known=pack:front/old" in knowledge_block
-    assert "suspected=pack:rumor/wolves" in knowledge_block
-    assert "hash-old" not in knowledge_block
-    assert "hash-wolves" not in knowledge_block
+    assert "pack=pack active_fronts" not in state_block
+    assert "front/old" not in state_block
+    assert "rumor/wolves" not in state_block
+    assert "hash-old" not in state_block
+    assert "hash-wolves" not in state_block
+
+    assert "key=pack.front.strahd" in dispatch_block
+    assert "front/strahd" in dispatch_block
+    assert "hash-front" not in dispatch_block
 
     assert "character=strahd" in candidates_block
     assert "role=antagonist" in candidates_block
@@ -253,15 +317,15 @@ def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
     assert "/private" not in candidates_block
     assert ".pdf" not in candidates_block
 
-    assert "pack=pack ref=front/old" in known_refs_block
-
     system = messages[0]["content"]
     user = messages[1]["content"]
     assert "public fact 13" not in system
     assert "strahd" not in system
-    assert "engine_knowledge_map" in user
+    assert "router_knowledge_state" in user
+    assert "engine_knowledge_map" not in user
+    assert "available_catalog" not in user
     assert "public fact 13" in user
-    assert "pack=pack entity=strahd" in user
+    assert "key=pack.front.strahd" in user
     assert "character=strahd" in user
     assert "everything_he_knows" not in user
     assert "/private" not in user
@@ -273,12 +337,10 @@ def test_content_manager_prompt_scopes_knowledge_updates_to_entities():
         "content_manager",
         recent_fact_limit="12",
         recent_facts_block='f01 audience=all text="Maps were released."',
-        engine_knowledge_map_block="pack=pack entity=garret known=- suspected=- facts=-",
-        known_router_refs_block="-",
+        router_knowledge_state_block="key=pack.route status=partial introduced=1/3",
         candidate_entities_block="character=garret role=custodian",
-        available_catalog_block=(
-            'pack=pack ref=handout.cartophile_maps kind=handout '
-            'visibility=router_hidden summary="Route handout."'
+        router_knowledge_dispatch_index_block=(
+            'key=pack.route kind=route summary="Route packet." packets=3'
         ),
     )
 
@@ -288,7 +350,56 @@ def test_content_manager_prompt_scopes_knowledge_updates_to_entities():
     assert "exactly match an entity" in system
     assert "never use a blank" in system
     assert "scene, party, global" in system
-    assert "put it in `router_required_knowledge`, not `knowledge_updates`" in system
+    assert "Dispatch keys are not content refs" in system
+    assert "must never appear in any `ref` field" in system
+    assert "put its dispatch key in `router_required_keys`, not `knowledge_updates`" in system
+
+
+def test_content_manager_dispatch_index_scales_with_active_scope(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "front/strahd",
+                "hash-front",
+                "front_signal",
+                "hidden",
+                "The antagonist tracks public trouble.",
+            )
+        ],
+    )
+    dormant_keys = [
+        {
+            "key": f"pack.dormant.{index:04d}",
+            "summary": "Dormant future packet.",
+            "scope_facets": {"region_tags": [f"future_region_{index}"]},
+            "priority": 0,
+            "packet_refs": [_packet_ref("front/strahd", "hash-front")],
+        }
+        for index in range(500)
+    ]
+    active_key = {
+        "key": "pack.route.active",
+        "summary": "Active route packet.",
+        "scope_facets": {"character_ids": ["active_npc"]},
+        "priority": 0,
+        "packet_refs": [_packet_ref("front/strahd", "hash-front")],
+    }
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "pack": _pack_state(db_path, router_keys=[*dormant_keys, active_key])
+    }
+
+    block = build_content_manager_dispatch_index_block(
+        ckpt,
+        candidate_entities={"active_npc": {"role": "guide"}},
+        current_input="Which route now?",
+    )
+
+    assert "key=pack.route.active" in block
+    assert "pack.dormant.0000" not in block
+    assert len([line for line in block.splitlines() if line]) == 1
 
 
 def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_path):
@@ -312,6 +423,19 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
             knowledge_map={
                 "strahd": ContentKnowledgeEntityState(entity_id="strahd")
             },
+            router_keys=[
+                {
+                    "key": "pack.front.strahd",
+                    "summary": "The active front packet.",
+                    "scope_facets": {
+                        "character_ids": ["strahd"],
+                        "phase_tags": ["beacon"],
+                    },
+                    "activation_hints": ["beacon"],
+                    "priority": 100,
+                    "packet_refs": [_packet_ref("front/strahd", "hash-front")],
+                }
+            ],
         )
     }
     ckpt.canonical_events = [
@@ -331,13 +455,10 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
                     "source_fact_ids": ["f01"],
                 }
             ],
-            router_required_knowledge=[
+            router_required_keys=[
                 {
-                    "pack_id": "pack",
-                    "ref": "front/strahd",
-                    "content_hash": "",
+                    "key": "pack.front.strahd",
                     "reason": "The router needs the active front.",
-                    "source_fact_ids": ["f01"],
                 }
             ],
             router_turn_candidates=[
@@ -346,7 +467,7 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
                     "priority": "high",
                     "reason": "The front may want attention.",
                     "source_fact_ids": ["f01"],
-                    "related_content_refs": ["pack:front/strahd"],
+                    "related_keys": ["pack.front.strahd"],
                 }
             ],
             agent_context_broadcasts=[
@@ -373,15 +494,15 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
 
     assert client.complete.await_args.kwargs["role"] == "content_manager"
     assert client.complete.await_args.kwargs["response_model"] is ContentManagerOutput
-    assert client.complete.await_args.kwargs["max_tokens"] == 8000
+    assert client.complete.await_args.kwargs["max_tokens"] == 16000
     assert output.knowledge_updates[0].content_hash == "hash-front"
-    assert output.router_required_knowledge[0].content_hash == "hash-front"
+    assert output.router_required_keys[0].key == "pack.front.strahd"
     assert output.agent_context_broadcasts[0].content_hash == "hash-front"
-    assert content_manager_required_lookup_requests(output)[0].ref == "front/strahd"
+    assert content_manager_required_lookup_requests(ckpt, output)[0].ref == "front/strahd"
     assert format_content_manager_router_records(output) == [
         (
             "turn_hint scope=attention_hint character=strahd priority=high "
-            "refs=pack:front/strahd facts=f01 "
+            "keys=pack.front.strahd facts=f01 "
             "reason=\"The front may want attention.\""
         ),
     ]
@@ -395,23 +516,61 @@ def test_plan_content_manager_updates_validates_and_applies_knowledge_map(tmp_pa
     assert state.last_source_fact_ids == ["f01"]
 
 
-def test_content_manager_validation_rejects_missing_ref(tmp_path):
+def test_content_manager_validation_rejects_unknown_router_key(tmp_path):
     db_path = _pack_db(tmp_path, [])
     ckpt = checkpoint()
     ckpt.session.content_state = {"pack": _pack_state(db_path)}
     output = ContentManagerOutput(
-        router_required_knowledge=[
+        router_required_keys=[
             {
-                "pack_id": "pack",
-                "ref": "front/missing",
-                "content_hash": "",
-                "reason": "",
-                "source_fact_ids": ["f01"],
+                "key": "pack.front.missing",
+                "reason": "Missing key should fail.",
             }
         ]
     )
 
-    with pytest.raises(ContentManagerValidationError, match="ref=front/missing"):
+    with pytest.raises(ContentManagerValidationError, match="unknown router knowledge key"):
+        validate_content_manager_output(
+            ckpt,
+            output,
+            candidate_entities={"strahd": {"role": "antagonist"}},
+        )
+
+
+def test_content_manager_validation_rejects_stale_router_key_packet(tmp_path):
+    db_path = _pack_db(
+        tmp_path,
+        [
+            (
+                "pack",
+                "front/strahd",
+                "hash-front",
+                "front_signal",
+                "hidden",
+                "The antagonist tracks public trouble.",
+            )
+        ],
+    )
+    ckpt = checkpoint()
+    ckpt.session.content_state = {
+        "pack": _pack_state(
+            db_path,
+            router_keys=[
+                {
+                    "key": "pack.front.strahd",
+                    "packet_refs": [_packet_ref("front/strahd", "hash-stale")],
+                    "priority": 100,
+                }
+            ],
+        )
+    }
+    output = ContentManagerOutput(
+        router_required_keys=[
+            {"key": "pack.front.strahd", "reason": "The router needs the front."}
+        ]
+    )
+
+    with pytest.raises(ContentManagerValidationError, match="router knowledge hash mismatch"):
         validate_content_manager_output(
             ckpt,
             output,
@@ -593,6 +752,24 @@ def test_append_content_manager_router_records_projects_only_router_deltas(tmp_p
             knowledge_map={
                 "strahd": ContentKnowledgeEntityState(entity_id="strahd")
             },
+            router_keys=[
+                {
+                    "key": "pack.room.entry",
+                    "kind": "location",
+                    "summary": "Entry chamber packet.",
+                    "scope_facets": {"phase_tags": ["entry"]},
+                    "activation_hints": ["entry", "inspect"],
+                    "priority": 50,
+                    "packet_refs": [
+                        _packet_ref(
+                            "room/entry",
+                            "hash-entry",
+                            kind="location_card",
+                            summary="Entry chamber context.",
+                        )
+                    ],
+                }
+            ],
         )
     }
     ckpt.canonical_events = [
@@ -611,12 +788,10 @@ def test_append_content_manager_router_records_projects_only_router_deltas(tmp_p
                     "source_fact_ids": ["f01"],
                 }
             ],
-            router_required_knowledge=[
+            router_required_keys=[
                 {
-                    "pack_id": "pack",
-                    "ref": "room/entry",
+                    "key": "pack.room.entry",
                     "reason": "The next decision touches the room.",
-                    "source_fact_ids": ["f01"],
                 }
             ],
             router_turn_candidates=[],

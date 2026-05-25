@@ -60,6 +60,8 @@ FORBIDDEN_MODULE_METADATA_KEYS = {
     "resources",
     "restraints",
     "router_lookup_catalog",
+    "router_knowledge_index",
+    "router_knowledge_packets",
     "villains",
     "sqlite_path",
     "source_path",

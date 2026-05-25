@@ -11,7 +11,6 @@ from typing import Any, Iterable, Mapping, Sequence
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content_privacy import (
     contains_imported_asset_sentinel,
-    sanitize_module_metadata,
 )
 
 try:  # The content schemas may land after this scaffold.
@@ -21,6 +20,29 @@ except Exception:  # pragma: no cover - defensive import boundary.
 
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
+_RUNTIME_UNSAFE_METADATA_KEYS = {
+    "asset_cache_root",
+    "asset_cache_roots",
+    "asset_media_root",
+    "asset_media_roots",
+    "cache_root",
+    "cache_roots",
+    "content_db_path",
+    "db_path",
+    "file_path",
+    "local_path",
+    "media_root",
+    "media_roots",
+    "pack_path",
+    "path",
+    "protected_excerpt",
+    "raw_bytes",
+    "raw_ocr",
+    "raw_source_path",
+    "raw_text",
+    "sqlite_path",
+    "source_path",
+}
 _INTRODUCED_ATTRS = (
     "introduced_refs",
     "router_content_memory",
@@ -303,7 +325,7 @@ def format_compact_record(
     pack_id: str | None = None,
     content_hash: str | None = None,
 ) -> str:
-    record_kind = _normalized_text(_value(record, "record_kind") or _value(record, "kind"))
+    record_kind = _normalized_text(_value(record, "kind") or _value(record, "record_kind"))
     if record_kind == "front_signal" or any(
         _value(record, key) not in (None, "", [], ())
         for key in ("actor", "knows", "pressure")
@@ -698,7 +720,27 @@ def _is_runtime_safe_card(card: ContentCard) -> bool:
         if value
     ):
         return False
-    return sanitize_module_metadata(card.metadata) == card.metadata
+    return not _contains_runtime_unsafe_metadata(card.metadata)
+
+
+def _contains_runtime_unsafe_metadata(value: Any) -> bool:
+    if hasattr(value, "model_dump") and callable(value.model_dump):
+        try:
+            return _contains_runtime_unsafe_metadata(value.model_dump(mode="json"))
+        except TypeError:
+            return _contains_runtime_unsafe_metadata(value.model_dump())
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if str(key).strip().lower() in _RUNTIME_UNSAFE_METADATA_KEYS:
+                return True
+            if _contains_runtime_unsafe_metadata(item):
+                return True
+        return False
+    if isinstance(value, list):
+        return any(_contains_runtime_unsafe_metadata(item) for item in value)
+    if isinstance(value, str):
+        return contains_imported_asset_sentinel(value)
+    return False
 
 
 def _card_from_row(row: sqlite3.Row) -> ContentCard:

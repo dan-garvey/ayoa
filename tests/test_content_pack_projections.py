@@ -74,6 +74,10 @@ def test_projection_builder_emits_import_owned_runtime_slices():
         "actor.villain",
     ]
     assert len(projection.router.lookup_catalog) == len(catalog._domain_records())
+    assert [key.key for key in projection.router.knowledge_keys] == [
+        "pack.startup",
+        "pack.field_start",
+    ]
 
     character = projection.characters[0]
     assert character.name == "The Villain"
@@ -99,14 +103,26 @@ def test_projection_builder_emits_import_owned_runtime_slices():
     )
     assert "domain_catalog" in private_dump["metadata"]
     assert "router_lookup_catalog" in private_dump["metadata"]
+    assert "router_knowledge_index" in private_dump["metadata"]
+    assert "router_knowledge_packets" in private_dump["metadata"]
     assert "content_hash" not in json.dumps(
         private_dump["metadata"]["router_lookup_catalog"],
+        sort_keys=True,
+    )
+    assert "hash-loc-route" in json.dumps(
+        private_dump["metadata"]["router_knowledge_packets"],
+        sort_keys=True,
+    )
+    assert "content_hash" not in json.dumps(
+        private_dump["metadata"]["router_knowledge_index"],
         sort_keys=True,
     )
 
     public_dump = json.dumps(state.model_dump(mode="json"), sort_keys=True)
     assert "domain_catalog" not in public_dump
     assert "router_lookup_catalog" not in public_dump
+    assert "router_knowledge_index" not in public_dump
+    assert "router_knowledge_packets" not in public_dump
     assert "private_extractions" not in public_dump
 
 
@@ -141,6 +157,38 @@ def test_projection_builder_rejects_blocked_or_unreviewed_records():
             runtime_cards=_cards(unreviewed_catalog),
             initial_router_lookup_refs=["actor.villain"],
         )
+
+
+def test_projection_builder_accepts_authored_router_knowledge_keys():
+    catalog = _catalog()
+    projection = build_content_pack_projection_artifact(
+        catalog,
+        runtime_cards=_cards(catalog),
+        initial_router_lookup_refs=["loc.entry"],
+        router_knowledge_keys=[
+            {
+                "key": "pack.route.entry",
+                "kind": "route",
+                "label": "Entry route context",
+                "summary": "A compact selector for entry-route knowledge.",
+                "scope_facets": {
+                    "location_refs": ["loc.entry"],
+                    "actor_refs": ["actor.villain"],
+                    "character_ids": ["villain"],
+                },
+                "activation_hints": ["entry", "route"],
+                "priority": 25,
+                "packet_refs": ["loc.entry", "front.clock"],
+            }
+        ],
+    )
+
+    key = projection.router.knowledge_keys[0]
+    assert key.key == "pack.route.entry"
+    assert [ref.ref for ref in key.packet_refs] == ["loc.entry", "front.clock"]
+    assert key.prompt_index_entry()["packet_count"] == 2
+    assert "content_hash" not in json.dumps(key.prompt_index_entry())
+    assert "hash-loc-entry" in json.dumps(key.packet_metadata_entry())
 
 
 def test_router_lookup_catalog_prefers_import_projection_packet(tmp_path):

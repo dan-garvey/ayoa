@@ -13,7 +13,6 @@ from app.engine.content_lookup import (
     _known_router_content_refs,
     _pack_db_path,
     _pack_id,
-    build_router_content_lookup_catalog_block,
 )
 from app.engine.content_resolver import ContentCard, load_content_cards
 from app.engine.prompt_manager import PromptManager
@@ -24,14 +23,14 @@ from app.schemas.content_manager import (
     ContentManagerAgentContextBroadcast,
     ContentManagerKnowledgeUpdate,
     ContentManagerOutput,
-    ContentManagerRouterRequiredKnowledge,
+    ContentManagerRouterRequiredKey,
     ContentManagerRouterTurnCandidate,
 )
 from app.schemas.content_privacy import contains_imported_asset_sentinel
 
 
 _SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
-CONTENT_MANAGER_MAX_TOKENS = 8000
+CONTENT_MANAGER_MAX_TOKENS = 16000
 _DEFAULT_CONTENT_MANAGER_REFRESH_INTERVAL = 3
 _CANDIDATE_KEYS = frozenset((
     "front",
@@ -51,11 +50,10 @@ class ContentManagerValidationError(RuntimeError):
 
 
 def content_manager_enabled(ckpt: Any) -> bool:
-    """Return true when a checkpoint carries a content-manager knowledge map."""
+    """Return true when a checkpoint carries content-manager dispatch state."""
 
     for pack_state in _content_pack_states_by_id(ckpt).values():
-        knowledge_map = getattr(pack_state, "knowledge_map", None)
-        if isinstance(knowledge_map, Mapping) and knowledge_map:
+        if _router_knowledge_index_entries(pack_state):
             return True
     return False
 
@@ -84,37 +82,40 @@ async def plan_content_manager_updates(
     client: LLMClient,
     prompt_mgr: PromptManager,
     candidate_entities: Mapping[str, Any] | Sequence[str] | None = None,
+    current_input: str = "",
     max_recent_facts: int = 12,
-    max_catalog_cards_per_pack: int = 120,
+    max_dispatch_keys_per_pack: int = 40,
 ) -> ContentManagerOutput:
     """Ask for knowledge-map patches and router deltas, then validate them."""
 
-    catalog_block = build_content_manager_catalog_block(
-        ckpt,
-        max_cards_per_pack=max_catalog_cards_per_pack,
-    )
     resolved_candidates = (
         build_candidate_turn_entities_from_checkpoint(ckpt)
         if candidate_entities is None
         else candidate_entities
     )
+    dispatch_index_block = build_content_manager_dispatch_index_block(
+        ckpt,
+        candidate_entities=resolved_candidates,
+        current_input=current_input,
+        max_keys_per_pack=max_dispatch_keys_per_pack,
+    )
     candidate_entities_block = build_candidate_turn_entities_block(
         resolved_candidates,
     )
-    if not catalog_block:
+    if not dispatch_index_block:
         return ContentManagerOutput(
             knowledge_updates=[],
-            router_required_knowledge=[],
+            router_required_keys=[],
             router_turn_candidates=[],
             agent_context_broadcasts=[],
-            no_update_reason="No reviewed content catalog is available.",
+            no_update_reason="No reviewed router knowledge dispatch index is available.",
         )
 
     messages = build_content_manager_messages(
         ckpt,
         candidate_entities=resolved_candidates,
         prompt_mgr=prompt_mgr,
-        catalog_block=catalog_block,
+        dispatch_index_block=dispatch_index_block,
         candidate_entities_block=candidate_entities_block,
         max_recent_facts=max_recent_facts,
     )
@@ -144,8 +145,9 @@ def build_content_manager_messages(
     *,
     candidate_entities: Mapping[str, Any] | Sequence[str] | None = None,
     prompt_mgr: PromptManager,
-    catalog_block: str | None = None,
+    dispatch_index_block: str | None = None,
     candidate_entities_block: str | None = None,
+    current_input: str = "",
     max_recent_facts: int = 12,
 ) -> list[dict[str, str]]:
     resolved_candidates = (
@@ -160,29 +162,40 @@ def build_content_manager_messages(
             ckpt,
             limit=max_recent_facts,
         ),
-        engine_knowledge_map_block=build_content_knowledge_map_block(ckpt),
-        known_router_refs_block=build_known_router_refs_block(ckpt),
+        router_knowledge_state_block=build_router_knowledge_state_block(ckpt),
         candidate_entities_block=(
             candidate_entities_block
             if candidate_entities_block is not None
             else build_candidate_turn_entities_block(resolved_candidates)
         ),
-        available_catalog_block=(
-            catalog_block
-            if catalog_block is not None
-            else build_content_manager_catalog_block(ckpt)
+        router_knowledge_dispatch_index_block=(
+            dispatch_index_block
+            if dispatch_index_block is not None
+            else build_content_manager_dispatch_index_block(
+                ckpt,
+                candidate_entities=resolved_candidates,
+                current_input=current_input,
+            )
         ),
     )
 
 
-def build_content_manager_catalog_block(
+def build_content_manager_dispatch_index_block(
     ckpt: Any,
     *,
-    max_cards_per_pack: int = 120,
+    candidate_entities: Mapping[str, Any] | Sequence[str] | None = None,
+    current_input: str = "",
+    max_keys_per_pack: int = 40,
 ) -> str:
-    return build_router_content_lookup_catalog_block(
+    return _build_router_knowledge_dispatch_index_block(
         ckpt,
-        max_cards_per_pack=max_cards_per_pack,
+        candidate_entities=(
+            build_candidate_turn_entities_from_checkpoint(ckpt)
+            if candidate_entities is None
+            else candidate_entities
+        ),
+        current_input=current_input,
+        max_keys_per_pack=max_keys_per_pack,
     )
 
 
@@ -210,13 +223,227 @@ def build_recent_canonical_facts_block(ckpt: Any, *, limit: int = 12) -> str:
     return "\n".join(formatted) or "-"
 
 
-def build_known_router_refs_block(ckpt: Any) -> str:
-    rows = [
-        f"pack={_safe_token(pack_id)} ref={_safe_token(ref)}"
-        for pack_id, ref in sorted(_known_router_content_refs(ckpt))
-        if _safe_token(pack_id) and _safe_token(ref)
-    ]
+def build_router_knowledge_state_block(ckpt: Any) -> str:
+    rows: list[str] = []
+    for pack_key, pack_state in _content_pack_states_by_id(ckpt).items():
+        pack_id = _safe_token(_pack_id(pack_key, pack_state))
+        if not pack_id:
+            continue
+        active_fronts = _active_front_refs(pack_state)
+        if active_fronts:
+            rows.append(
+                f"pack={pack_id} active_fronts={_join_tokens(active_fronts)}"
+            )
+    for key, status in sorted(_router_knowledge_key_statuses(ckpt).items()):
+        if status["status"] not in {"known", "partial"}:
+            continue
+        rows.append(
+            " ".join(
+                part
+                for part in (
+                    f"key={_safe_token(key)}",
+                    f"pack={_safe_token(status['pack_id'])}",
+                    f"status={_safe_token(status['status'])}",
+                    f"introduced={status['introduced']}/{status['total']}",
+                )
+                if part and not part.endswith("=")
+            )
+        )
     return "\n".join(rows) or "-"
+
+
+def _build_router_knowledge_dispatch_index_block(
+    ckpt: Any,
+    *,
+    candidate_entities: Mapping[str, Any] | Sequence[str],
+    current_input: str,
+    max_keys_per_pack: int,
+) -> str:
+    scope = _dispatch_scope(ckpt, candidate_entities, current_input)
+    statuses = _router_knowledge_key_statuses(ckpt)
+    rows: list[str] = []
+    for pack_key, pack_state in _content_pack_states_by_id(ckpt).items():
+        pack_id = _safe_token(_pack_id(pack_key, pack_state))
+        if not pack_id:
+            continue
+        db_path = _pack_db_path(pack_state)
+        if db_path is not None:
+            _assert_pack_runtime_identity(
+                db_path,
+                pack_id=pack_id,
+                pack_state=pack_state,
+            )
+        entries = _router_knowledge_index_entries(pack_state)
+        ranked: list[tuple[int, str, Mapping[str, Any]]] = []
+        for entry in entries:
+            key = _safe_token(entry.get("key"))
+            if not key:
+                continue
+            if statuses.get(key, {}).get("status") == "known":
+                continue
+            score = _dispatch_entry_score(entry, scope)
+            if score < 50:
+                continue
+            ranked.append((score, key, entry))
+        ranked.sort(key=lambda item: (-item[0], -int(item[2].get("priority") or 0), item[1]))
+        for _score, key, entry in ranked[: max(0, int(max_keys_per_pack))]:
+            rows.append(_format_dispatch_index_row(pack_id, key, entry, statuses.get(key)))
+    return "\n".join(row for row in rows if row)
+
+
+def _dispatch_scope(
+    ckpt: Any,
+    candidate_entities: Mapping[str, Any] | Sequence[str],
+    current_input: str,
+) -> dict[str, Any]:
+    candidate_ids = _candidate_entity_ids(candidate_entities)
+    active_front_refs: set[str] = set()
+    text_parts = [_safe_text(current_input)]
+    for _pack_key, pack_state in _content_pack_states_by_id(ckpt).items():
+        active_front_refs.update(_active_front_refs(pack_state))
+    for raw_entity_id, raw_value in _iter_candidate_entities(candidate_entities):
+        if entity_id := _safe_token(raw_entity_id):
+            text_parts.append(entity_id)
+        if isinstance(raw_value, Mapping):
+            for value in raw_value.values():
+                text_parts.append(_format_value(value))
+    for event in getattr(ckpt, "canonical_events", [])[-12:]:
+        canonical = getattr(event, "canonical_event", None)
+        if canonical is None and isinstance(event, Mapping):
+            canonical = event.get("canonical_event")
+        facts = getattr(canonical, "observable_facts", []) if canonical else []
+        if isinstance(canonical, Mapping):
+            facts = canonical.get("observable_facts") or []
+        for fact in facts or []:
+            text_parts.append(_fact_text(fact))
+    return {
+        "candidate_ids": candidate_ids,
+        "active_front_refs": active_front_refs,
+        "text": " ".join(part for part in text_parts if part).lower(),
+    }
+
+
+def _dispatch_entry_score(entry: Mapping[str, Any], scope: Mapping[str, Any]) -> int:
+    priority = int(entry.get("priority") or 0)
+    score = 100 if priority >= 100 else 0
+    facets = entry.get("scope_facets")
+    if not isinstance(facets, Mapping):
+        facets = {}
+    candidate_ids = set(scope.get("candidate_ids") or ())
+    active_fronts = set(scope.get("active_front_refs") or ())
+    text = str(scope.get("text") or "")
+
+    if set(_facet_values(facets, "front_refs")).intersection(active_fronts):
+        score += 25
+    if set(_facet_values(facets, "character_ids")).intersection(candidate_ids):
+        score += 80
+    for field_name, weight in (
+        ("location_refs", 60),
+        ("actor_refs", 45),
+        ("phase_tags", 35),
+        ("region_tags", 35),
+    ):
+        if any(_scope_token_matches_text(value, text) for value in _facet_values(facets, field_name)):
+            score += weight
+            break
+    if any(_hint_matches_text(hint, text) for hint in _list_values(entry.get("activation_hints"))):
+        score += 30
+    return score
+
+
+def _format_dispatch_index_row(
+    pack_id: str,
+    key: str,
+    entry: Mapping[str, Any],
+    status: Mapping[str, Any] | None,
+) -> str:
+    parts = [
+        f"key={_safe_token(key)}",
+        f"kind={_safe_token(entry.get('kind'))}",
+    ]
+    if label := _safe_text(entry.get("label")):
+        parts.append("label=" + _quote_value(label))
+    if summary := _safe_text(entry.get("summary")):
+        parts.append("summary=" + _quote_value(summary))
+    scope = _format_scope_facets(entry.get("scope_facets"))
+    if scope:
+        parts.append("scope=" + _quote_value(scope))
+    hints = [
+        hint for hint in (_safe_text(value) for value in _list_values(entry.get("activation_hints")))
+        if hint
+    ][:5]
+    if hints:
+        parts.append("hints=" + _quote_value("; ".join(hints)))
+    if priority := int(entry.get("priority") or 0):
+        parts.append(f"priority={priority}")
+    packet_count = int(entry.get("packet_count") or 0)
+    if packet_count:
+        parts.append(f"packets={packet_count}")
+    kinds = _join_tokens(_list_values(entry.get("packet_kinds")))
+    if kinds:
+        parts.append(f"packet_kinds={kinds}")
+    if status is not None and status.get("status"):
+        parts.append(f"status={_safe_token(status.get('status'))}")
+    parts.append(f"pack={_safe_token(pack_id)}")
+    return " ".join(part for part in parts if part and not part.endswith("="))
+
+
+def _format_scope_facets(raw: Any) -> str:
+    if not isinstance(raw, Mapping):
+        return ""
+    parts: list[str] = []
+    labels = {
+        "location_refs": "locations",
+        "front_refs": "fronts",
+        "actor_refs": "actors",
+        "character_ids": "characters",
+        "phase_tags": "phases",
+        "region_tags": "regions",
+    }
+    for key, label in labels.items():
+        values = _join_tokens(_facet_values(raw, key))
+        if values:
+            parts.append(f"{label}:{values}")
+    return " ".join(parts)
+
+
+def _facet_values(facets: Mapping[str, Any], key: str) -> list[str]:
+    return [
+        token for token in (_safe_token(value) for value in _list_values(facets.get(key)))
+        if token
+    ]
+
+
+def _list_values(raw: Any) -> list[Any]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, bytearray)):
+        return list(raw)
+    return [raw]
+
+
+def _scope_token_matches_text(value: str, text: str) -> bool:
+    token = _safe_token(value).lower()
+    if not token:
+        return False
+    candidates = {
+        token,
+        token.rsplit(".", 1)[-1],
+        token.rsplit("/", 1)[-1],
+        token.replace(".", " "),
+        token.replace("_", " "),
+    }
+    return any(candidate and candidate in text for candidate in candidates)
+
+
+def _hint_matches_text(hint: str, text: str) -> bool:
+    words = [
+        word.strip(".,;:!?()[]{}\"'").lower()
+        for word in str(hint or "").split()
+    ]
+    return any(len(word) >= 4 and word in text for word in words)
 
 
 def build_content_knowledge_map_block(ckpt: Any) -> str:
@@ -391,27 +618,23 @@ def validate_content_manager_output(
             update.model_copy(update={"content_hash": card.content_hash})
         )
 
-    validated_router_knowledge: list[ContentManagerRouterRequiredKnowledge] = []
-    for item in output.router_required_knowledge:
-        card = _runtime_card_or_none(
+    packet_index = _router_knowledge_packet_index(ckpt)
+    validated_required_keys: list[ContentManagerRouterRequiredKey] = []
+    for item in output.router_required_keys:
+        packet = packet_index.get(item.key)
+        if packet is None:
+            errors.append(f"unknown router knowledge key={item.key or '-'}")
+            continue
+        packet_errors = _validate_router_knowledge_packet_refs(
             ckpt,
-            item.pack_id,
-            item.ref,
+            item.key,
+            packet,
             cards,
         )
-        if card is None:
-            errors.append(f"missing content pack={item.pack_id} ref={item.ref}")
+        if packet_errors:
+            errors.extend(packet_errors)
             continue
-        if item.content_hash and item.content_hash != card.content_hash:
-            errors.append(
-                "content hash mismatch "
-                f"pack={item.pack_id} ref={item.ref} "
-                f"expected={card.content_hash} actual={item.content_hash}"
-            )
-            continue
-        validated_router_knowledge.append(
-            item.model_copy(update={"content_hash": card.content_hash})
-        )
+        validated_required_keys.append(item)
 
     validated_candidates: list[ContentManagerRouterTurnCandidate] = []
     for candidate in output.router_turn_candidates:
@@ -422,8 +645,15 @@ def validate_content_manager_output(
             ref for ref in candidate.related_content_refs
             if _runtime_card_from_compact_ref(ckpt, ref, cards) is not None
         ]
+        valid_keys = [
+            key for key in candidate.related_keys
+            if key in packet_index
+        ]
         validated_candidates.append(
-            candidate.model_copy(update={"related_content_refs": valid_refs})
+            candidate.model_copy(update={
+                "related_content_refs": valid_refs,
+                "related_keys": valid_keys,
+            })
         )
 
     validated_broadcasts: list[ContentManagerAgentContextBroadcast] = []
@@ -463,8 +693,8 @@ def validate_content_manager_output(
         "knowledge_updates": _dedupe_knowledge_updates(
             validated_knowledge_updates
         ),
-        "router_required_knowledge": _dedupe_router_required_knowledge(
-            validated_router_knowledge
+        "router_required_keys": _dedupe_router_required_keys(
+            validated_required_keys
         ),
         "router_turn_candidates": _dedupe_turn_candidates(validated_candidates),
         "agent_context_broadcasts": _dedupe_agent_context_broadcasts(
@@ -486,6 +716,8 @@ def format_content_manager_router_records(
         ]
         if hint.related_content_refs:
             parts.append(f"refs={_join_tokens(hint.related_content_refs)}")
+        if hint.related_keys:
+            parts.append(f"keys={_join_tokens(hint.related_keys)}")
         if hint.source_fact_ids:
             parts.append(f"facts={_join_tokens(hint.source_fact_ids)}")
         if hint.reason:
@@ -498,17 +730,31 @@ def format_content_manager_router_records(
 
 
 def content_manager_required_lookup_requests(
+    ckpt: Any,
     output: ContentManagerOutput,
 ) -> list[ContentLookupRequest]:
-    return [
-        ContentLookupRequest(
-            pack_id=item.pack_id,
-            ref=item.ref,
-            reason=item.reason,
-            urgency="required",
-        )
-        for item in output.router_required_knowledge
-    ]
+    packet_index = _router_knowledge_packet_index(ckpt)
+    requests: list[ContentLookupRequest] = []
+    for item in output.router_required_keys:
+        packet = packet_index.get(item.key)
+        if packet is None:
+            raise ContentManagerValidationError(
+                f"unknown router knowledge key={item.key or '-'}"
+            )
+        for packet_ref in packet["packet_refs"]:
+            pack_id = _safe_token(packet_ref.get("pack_id")) or packet["pack_id"]
+            ref = _safe_token(packet_ref.get("ref"))
+            if not pack_id or not ref:
+                continue
+            requests.append(
+                ContentLookupRequest(
+                    pack_id=pack_id,
+                    ref=ref,
+                    reason=item.reason or item.key,
+                    urgency="required",
+                )
+            )
+    return requests
 
 
 async def append_content_manager_router_records(
@@ -519,7 +765,7 @@ async def append_content_manager_router_records(
     client: LLMClient,
     prompt_mgr: PromptManager,
     max_recent_facts: int = 12,
-    max_catalog_cards_per_pack: int = 120,
+    max_dispatch_keys_per_pack: int = 40,
 ) -> list[str]:
     """Run content-manager preflight and append only router-facing records."""
 
@@ -543,10 +789,11 @@ async def append_content_manager_router_records(
     output = await plan_content_manager_updates(
         ckpt,
         candidate_entities=candidate_entities,
+        current_input=current_input,
         client=client,
         prompt_mgr=prompt_mgr,
         max_recent_facts=max_recent_facts,
-        max_catalog_cards_per_pack=max_catalog_cards_per_pack,
+        max_dispatch_keys_per_pack=max_dispatch_keys_per_pack,
     )
     apply_content_manager_knowledge_updates(ckpt, output)
 
@@ -554,7 +801,7 @@ async def append_content_manager_router_records(
         ckpt,
         actor_id=actor_id,
         current_input=current_input,
-        llm_requests=content_manager_required_lookup_requests(output),
+        llm_requests=content_manager_required_lookup_requests(ckpt, output),
     )
     hint_records = format_content_manager_router_records(output)
     conversation = getattr(ckpt, "session_conversation", None)
@@ -636,6 +883,126 @@ def apply_content_manager_knowledge_updates(
         pack_state.knowledge_map = knowledge_map
 
 
+def _router_knowledge_index_entries(pack_state: Any) -> list[Mapping[str, Any]]:
+    raw = _pack_metadata(pack_state).get("router_knowledge_index")
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, Mapping)]
+
+
+def _router_knowledge_packet_index(ckpt: Any) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    duplicate_keys: set[str] = set()
+    for pack_key, pack_state in _content_pack_states_by_id(ckpt).items():
+        pack_id = _safe_token(_pack_id(pack_key, pack_state))
+        if not pack_id:
+            continue
+        raw = _pack_metadata(pack_state).get("router_knowledge_packets")
+        if not isinstance(raw, list):
+            continue
+        for item in raw:
+            if not isinstance(item, Mapping):
+                continue
+            key = _safe_token(item.get("key"))
+            packet_refs = item.get("packet_refs")
+            if not key or not isinstance(packet_refs, list):
+                continue
+            if key in index:
+                duplicate_keys.add(key)
+                continue
+            refs = [
+                ref for ref in packet_refs
+                if isinstance(ref, Mapping) and _safe_token(ref.get("ref"))
+            ]
+            if refs:
+                index[key] = {
+                    "pack_id": pack_id,
+                    "packet_refs": refs,
+                }
+    if duplicate_keys:
+        raise ContentManagerValidationError(
+            "duplicate router knowledge key(s): " + ", ".join(sorted(duplicate_keys))
+        )
+    return index
+
+
+def _router_knowledge_key_statuses(ckpt: Any) -> dict[str, dict[str, Any]]:
+    known_refs = _known_router_content_refs(ckpt)
+    statuses: dict[str, dict[str, Any]] = {}
+    for key, packet in _router_knowledge_packet_index(ckpt).items():
+        refs = [
+            (
+                _safe_token(ref.get("pack_id")) or packet["pack_id"],
+                _safe_token(ref.get("ref")),
+            )
+            for ref in packet["packet_refs"]
+            if _safe_token(ref.get("ref"))
+        ]
+        total = len(refs)
+        introduced = sum(1 for ref in refs if ref in known_refs)
+        status = "missing"
+        if total and introduced == total:
+            status = "known"
+        elif introduced:
+            status = "partial"
+        statuses[key] = {
+            "pack_id": packet["pack_id"],
+            "status": status,
+            "introduced": introduced,
+            "total": total,
+        }
+    return statuses
+
+
+def _validate_router_knowledge_packet_refs(
+    ckpt: Any,
+    key: str,
+    packet: Mapping[str, Any],
+    cache: dict[tuple[str, str], ContentCard | None],
+) -> list[str]:
+    errors: list[str] = []
+    packet_refs = packet.get("packet_refs")
+    if not isinstance(packet_refs, list) or not packet_refs:
+        return [f"router knowledge key={key} has no packet refs"]
+    default_pack_id = _safe_token(packet.get("pack_id"))
+    for raw_ref in packet_refs:
+        if not isinstance(raw_ref, Mapping):
+            errors.append(f"router knowledge key={key} has malformed packet ref")
+            continue
+        pack_id = _safe_token(raw_ref.get("pack_id")) or default_pack_id
+        ref = _safe_token(raw_ref.get("ref"))
+        expected_hash = _safe_token(raw_ref.get("content_hash"))
+        if not pack_id or not ref:
+            errors.append(f"router knowledge key={key} has blank packet ref")
+            continue
+        card = _runtime_card_or_none(ckpt, pack_id, ref, cache)
+        if card is None:
+            errors.append(f"missing content key={key} pack={pack_id} ref={ref}")
+            continue
+        if expected_hash and expected_hash != card.content_hash:
+            errors.append(
+                "router knowledge hash mismatch "
+                f"key={key} pack={pack_id} ref={ref} "
+                f"expected={card.content_hash} actual={expected_hash}"
+            )
+    return errors
+
+
+def _active_front_refs(pack_state: Any) -> set[str]:
+    refs: set[str] = set()
+    fronts = getattr(pack_state, "fronts", None)
+    if isinstance(fronts, Mapping):
+        for raw_front_id, raw_state in fronts.items():
+            front_id = _safe_token(getattr(raw_state, "front_id", raw_front_id))
+            status = _safe_token(getattr(raw_state, "status", "")) or "active"
+            if front_id and status not in {"resolved", "abandoned"}:
+                refs.add(front_id)
+    metadata_refs = _pack_metadata(pack_state).get("active_front_refs")
+    if isinstance(metadata_refs, list):
+        refs.update(_safe_token(ref) for ref in metadata_refs if _safe_token(ref))
+    return refs
+
+
 def _runtime_card_or_none(
     ckpt: Any,
     pack_id: str,
@@ -703,6 +1070,15 @@ def _content_pack_states_by_id(ckpt: Any) -> dict[str, Any]:
     }
 
 
+def _pack_metadata(pack_state: Any) -> Mapping[str, Any]:
+    metadata = (
+        pack_state.get("metadata")
+        if isinstance(pack_state, Mapping)
+        else getattr(pack_state, "metadata", None)
+    )
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
 def _iter_candidate_entities(
     candidate_entities: Mapping[str, Any] | Sequence[str],
 ) -> Iterable[tuple[Any, Any]]:
@@ -732,10 +1108,10 @@ def _dedupe_knowledge_updates(
     return list(deduped.values())
 
 
-def _dedupe_router_required_knowledge(
-    updates: Iterable[ContentManagerRouterRequiredKnowledge],
-) -> list[ContentManagerRouterRequiredKnowledge]:
-    deduped: dict[tuple[str, str], ContentManagerRouterRequiredKnowledge] = {}
+def _dedupe_router_required_keys(
+    updates: Iterable[ContentManagerRouterRequiredKey],
+) -> list[ContentManagerRouterRequiredKey]:
+    deduped: dict[str, ContentManagerRouterRequiredKey] = {}
     for update in updates:
         deduped.setdefault(update.dedupe_key(), update)
     return list(deduped.values())
