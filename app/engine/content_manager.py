@@ -236,11 +236,11 @@ def build_content_knowledge_map_block(ckpt: Any) -> str:
             if not entity_id:
                 continue
             known = _join_tokens(
-                _safe_token(ref)
+                _prompt_ref_token(ref)
                 for ref in getattr(raw_state, "known_refs", []) or []
             ) or "-"
             suspected = _join_tokens(
-                _safe_token(ref)
+                _prompt_ref_token(ref)
                 for ref in getattr(raw_state, "suspected_refs", []) or []
             ) or "-"
             facts = _join_tokens(
@@ -850,6 +850,13 @@ def _replace_ref_by_base(values: Iterable[str], compact_ref: str) -> list[str]:
 
 def _join_tokens(values: Iterable[str]) -> str:
     return ",".join(token for value in values if (token := _safe_token(value)))
+
+
+def _prompt_ref_token(value: Any) -> str:
+    """Project persisted pack:ref@hash tokens into prompt-facing pack:ref tokens."""
+
+    token = _safe_token(value)
+    return _ref_base(token) if token else ""
 
 
 def _safe_token(value: Any) -> str:

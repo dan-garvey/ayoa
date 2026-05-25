@@ -16,9 +16,11 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import traceback
+from collections import Counter
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,69 +77,23 @@ RUN_DIR = REPORT_ROOT / f"lost_laboratory_cli_demo_{TS}"
 JSON_PATH = RUN_DIR / "report.json"
 MD_PATH = RUN_DIR / "report.md"
 LOG_PATH = RUN_DIR / "run.log"
-ISSUES_FIXED = [
-    (
-        "Demo runner imported the content-pack schema constant from the wrong "
-        "module.",
-        "Changed the import to use app.engine.content_pack_compiler, which is "
-        "where the compiler/runtime schema version is defined.",
-    ),
-    (
-        "Content-manager live calls were truncated before JSON parsing with "
-        "OpenAI incomplete max_output_tokens errors.",
-        "Raised the content-manager completion cap to 8000 tokens and set the "
-        "content-manager OpenAI reasoning default to low so lookup/ref "
-        "selection does not consume router-grade hidden reasoning budget.",
-    ),
-    (
-        "Deep playtest combat failed because the manual demo checkpoint gave "
-        "characters HP/AC but no listed attack sources for the combat manager "
-        "to select.",
-        "Added minimal reviewed-demo combat scaffolding to the manual "
-        "checkpoint: the player has a longsword action and the two expedition "
-        "companions have simple field-ready actions with HP/AC.",
-    ),
-    (
-        "Content-manager candidate hints could fail the whole turn when a "
-        "non-authoritative related_content_refs token had a typoed pack id.",
-        "Kept validation strict for required router knowledge, knowledge-map "
-        "updates, and agent broadcasts, but now strips invalid related refs "
-        "from router turn-candidate hints.",
-    ),
-    (
-        "Content-manager turn candidates included dormant imported NPCs; the "
-        "router then tried to spawn those existing ids when it wanted to bring "
-        "them into the scene.",
-        "Restricted router turn-candidate hints to active roster characters. "
-        "Dormant/off-stage entities still remain in the knowledge map, but "
-        "they are not advertised as immediate router turn candidates yet.",
-    ),
-    (
-        "Route playtest latency was paying for content-manager calls on every "
-        "router pass, including cycles where deterministic pending content or "
-        "recently known refs were already enough.",
-        "Added a session-level content-manager refresh interval so route "
-        "cycles still drain pending/deterministic content but only call the "
-        "manager every few eligible cycles.",
-    ),
-    (
-        "Extended route exploration could fail when the OpenAI event-router "
-        "call hit the 5000-token output cap before returning structured JSON.",
-        "Raised the shared event-router output cap to 8000 tokens so long "
-        "medium-reasoning router calls have room for hidden reasoning plus "
-        "the visible schema response.",
-    ),
-    (
-        "A D&D combat-start router output could include the same creature in "
-        "both combatant_spawns and the generic spawn list, causing the "
-        "orchestrator to materialize the combatant and then try to spawn the "
-        "same id again.",
-        "After combatant_spawns are materialized for D&D combat, duplicate "
-        "generic spawn requests for those ids are stripped before normal "
-        "roster side effects run.",
-    ),
-]
 SCENARIO_COMMANDS = {
+    "cgf": [
+        f"/story start {STORY_ID}",
+        "/characters",
+        f"/join {PLAYER_ID}",
+        "/begin",
+        (
+            "At the wooded foothills, I compare the route folios against the "
+            "ridge line and ask Garret whether the maps imply any immediate "
+            "route pressure before we commit to the cave approach."
+        ),
+        (
+            "I mark the safest line forward, ask Gearbox what equipment needs "
+            "checking against the terrain, and keep the group short of any "
+            "ambush point for now."
+        ),
+    ],
     "startup": [
         f"/story start {STORY_ID}",
         "/characters",
@@ -178,9 +134,10 @@ SCENARIO_COMMANDS = {
             "toward the cave approach."
         ),
         (
-            "A bandit captain and outlaws emerge from the rocks demanding "
-            "the route folios. I warn Garret and Gearbox behind me, draw my "
-            "longsword, and refuse."
+            "The route pressure turns hostile as armed figures move from the "
+            "rocks toward the route folios. I warn Garret and Gearbox behind "
+            "me, draw my longsword, and hold the line instead of yielding the "
+            "documents."
         ),
         "If the outlaws are still fighting, I attack the nearest threat with my longsword.",
     ],
@@ -195,9 +152,10 @@ SCENARIO_COMMANDS = {
             "toward the cave approach."
         ),
         (
-            "A bandit captain and outlaws emerge from the rocks demanding "
-            "the route folios. I warn Garret and Gearbox behind me, draw my "
-            "longsword, and refuse."
+            "The route pressure turns hostile as armed figures move from the "
+            "rocks toward the route folios. I warn Garret and Gearbox behind "
+            "me, draw my longsword, and hold the line instead of yielding the "
+            "documents."
         ),
         "If the outlaws are still fighting, I attack the nearest threat with my longsword.",
     ],
@@ -212,13 +170,17 @@ SCENARIO_COMMANDS = {
             "toward the cave approach."
         ),
         (
-            "A bandit captain and outlaws emerge from the rocks demanding "
-            "the route folios. I warn Garret and Gearbox behind me, draw my "
-            "longsword, and refuse."
+            "The route pressure turns hostile as armed figures move from the "
+            "rocks toward the route folios. I warn Garret and Gearbox behind "
+            "me, draw my longsword, and hold the line instead of yielding the "
+            "documents."
         ),
         "If the outlaws are still fighting, I attack the nearest threat with my longsword.",
     ],
 }
+FIELD_START_SCENARIOS = {"cgf", "field", "soak"}
+ROUTE_EXPLORATION_SCENARIOS = {"cgf", "deep", "field", "soak"}
+COMBAT_SCENARIOS = {"deep", "field", "soak"}
 SOAK_COMBAT_COMMANDS = (
     (
         "If any outlaw is still standing, I press the attack with my "
@@ -592,33 +554,83 @@ def _tag_lines(text: str, tag: str, *, limit: int = 24) -> list[str]:
     return lines[:limit]
 
 
-def _content_catalog_refs(text: str, *, limit: int = 80) -> list[dict[str, str]]:
+def _all_tag_lines(text: str, tag: str, *, limit: int = 500) -> list[str]:
+    return _tag_lines(text, tag, limit=limit)
+
+
+def _nonempty_rows(lines: list[str]) -> list[str]:
+    return [line for line in lines if line and line != "-"]
+
+
+def _approx_tokens(text: str) -> int:
+    return max(1, (len(text) + 3) // 4) if text else 0
+
+
+def _hash_like_count(text: str) -> int:
+    return len(re.findall(r"@[A-Fa-f0-9]{16,}\b|\b[A-Fa-f0-9]{64}\b", text))
+
+
+def _assignment_value(line: str, key: str) -> str:
+    marker = f"{key}="
+    for part in line.split():
+        if part.startswith(marker):
+            return part.removeprefix(marker).strip()
+    return ""
+
+
+def _content_catalog_refs(
+    text: str,
+    *,
+    limit: int = 500,
+) -> list[dict[str, str]]:
     refs: list[dict[str, str]] = []
-    for line in _tag_lines(text, "available_catalog", limit=300):
+    for line in _all_tag_lines(text, "available_catalog", limit=limit):
         item: dict[str, str] = {}
         for key in ("pack", "ref", "kind", "visibility"):
-            marker = f"{key}="
-            value = ""
-            for part in line.split():
-                if part.startswith(marker):
-                    value = part.removeprefix(marker).strip()
-                    break
+            value = _assignment_value(line, key)
             if value:
                 item[key] = value
         if item:
             refs.append(item)
-        if len(refs) >= limit:
-            break
     return refs
 
 
 def _content_manager_prompt_audit(prompt_text: str) -> dict[str, Any]:
+    recent_facts = _nonempty_rows(_all_tag_lines(prompt_text, "recent_facts"))
+    knowledge_rows = _nonempty_rows(
+        _all_tag_lines(prompt_text, "engine_knowledge_map")
+    )
+    known_router_refs = _nonempty_rows(
+        _all_tag_lines(prompt_text, "known_router_refs")
+    )
+    candidates = _nonempty_rows(
+        _all_tag_lines(prompt_text, "candidate_characters")
+    )
+    catalog_refs = _content_catalog_refs(prompt_text)
+    kind_counts = Counter(
+        item.get("kind", "-") for item in catalog_refs if item.get("kind")
+    )
+    knowledge_ref_count = 0
+    for line in knowledge_rows:
+        for key in ("known", "suspected"):
+            value = _assignment_value(line, key)
+            if value and value != "-":
+                knowledge_ref_count += len([item for item in value.split(",") if item])
     return {
-        "recent_facts": _tag_lines(prompt_text, "recent_facts"),
-        "knowledge_map": _tag_lines(prompt_text, "engine_knowledge_map"),
-        "known_router_refs": _tag_lines(prompt_text, "known_router_refs"),
-        "candidate_characters": _tag_lines(prompt_text, "candidate_characters"),
-        "available_catalog_refs": _content_catalog_refs(prompt_text),
+        "prompt_chars": len(prompt_text),
+        "approx_prompt_tokens": _approx_tokens(prompt_text),
+        "hash_like_token_count": _hash_like_count(prompt_text),
+        "recent_fact_count": len(recent_facts),
+        "knowledge_entity_count": len(knowledge_rows),
+        "knowledge_ref_token_count": knowledge_ref_count,
+        "known_router_ref_count": len(known_router_refs),
+        "candidate_character_count": len(candidates),
+        "candidate_character_ids": [
+            _assignment_value(line, "character") for line in candidates
+        ][:12],
+        "available_catalog_ref_count": len(catalog_refs),
+        "available_catalog_kind_counts": dict(sorted(kind_counts.items())),
+        "available_catalog_sample": catalog_refs[:12],
     }
 
 
@@ -699,6 +711,97 @@ def _combat_state_summary(checkpoint: CheckpointFile | None) -> dict[str, Any]:
     }
 
 
+def _log_warning_lines() -> list[str]:
+    if not LOG_PATH.exists():
+        return []
+    warnings: list[str] = []
+    for line in LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "WARNING" in line or "ERROR" in line:
+            warnings.append(line)
+    return warnings[-40:]
+
+
+def _imported_encounter_applied(checkpoint: CheckpointFile | None) -> bool:
+    combat = (
+        getattr(checkpoint.session, "active_combat", None)
+        if checkpoint is not None else None
+    )
+    if combat is None:
+        return False
+    return any(
+        "Imported encounter template applied:" in str(line)
+        for line in getattr(combat, "audit_lines", []) or []
+    )
+
+
+def _ad_hoc_spawn_ids_in_imported_combat(
+    checkpoint: CheckpointFile | None,
+) -> list[str]:
+    if checkpoint is None or not _imported_encounter_applied(checkpoint):
+        return []
+    combat = getattr(checkpoint.session, "active_combat", None)
+    if combat is None:
+        return []
+    characters = {
+        getattr(character, "character_id", ""): character
+        for character in getattr(checkpoint, "characters", []) or []
+    }
+    ids: list[str] = []
+    for combatant in getattr(combat, "combatants", []) or []:
+        character_id = str(getattr(combatant, "character_id", "") or "")
+        character = characters.get(character_id)
+        mechanics = getattr(character, "mechanics", {}) if character else {}
+        if not isinstance(mechanics, dict):
+            continue
+        combat_spawn = mechanics.get("combat_spawn")
+        source = str(mechanics.get("source") or "")
+        if isinstance(combat_spawn, dict) and combat_spawn.get("spawned"):
+            if source != "imported_statblock_catalog":
+                ids.append(character_id)
+                continue
+        if character_id == "npc_bandit_captain":
+            ids.append(character_id)
+    return ids
+
+
+def _usage_totals(role_calls: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    totals: dict[str, dict[str, int]] = {}
+    for call in role_calls:
+        role = str(call.get("role") or "")
+        usage = call.get("usage") or {}
+        if not role or not isinstance(usage, dict):
+            continue
+        target = totals.setdefault(role, {})
+        for key, value in usage.items():
+            if isinstance(value, int):
+                target[key] = target.get(key, 0) + value
+    return totals
+
+
+def _content_manager_prompt_budgets(
+    role_calls: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    budgets: list[dict[str, Any]] = []
+    for call in role_calls:
+        if call.get("role") != "content_manager":
+            continue
+        audit = call.get("content_manager_input") or {}
+        if not isinstance(audit, dict):
+            continue
+        budgets.append({
+            "prompt_chars": audit.get("prompt_chars", 0),
+            "approx_prompt_tokens": audit.get("approx_prompt_tokens", 0),
+            "hash_like_token_count": audit.get("hash_like_token_count", 0),
+            "knowledge_entities": audit.get("knowledge_entity_count", 0),
+            "knowledge_ref_tokens": audit.get("knowledge_ref_token_count", 0),
+            "known_router_refs": audit.get("known_router_ref_count", 0),
+            "candidate_characters": audit.get("candidate_character_count", 0),
+            "available_catalog_refs": audit.get("available_catalog_ref_count", 0),
+            "usage": call.get("usage") or {},
+        })
+    return budgets
+
+
 def _checkpoint_turn_index(checkpoint: CheckpointFile | None) -> int:
     if checkpoint is None:
         return 0
@@ -767,7 +870,7 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
     sessions_dir = RUN_DIR / "sessions"
     story_path = _write_story(
         stories_dir,
-        start_mode="field" if args.scenario in {"field", "soak"} else "startup",
+        start_mode="field" if args.scenario in FIELD_START_SCENARIOS else "startup",
     )
     if args.install_story:
         installed_dir = REPO_ROOT / "app/storage/stories" / STORY_ID
@@ -793,14 +896,16 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             "role": role,
             "response_model": response_model.__name__ if response_model else "",
             "message_count": len(messages),
+            "prompt_chars": len(prompt_text),
+            "approx_prompt_tokens": _approx_tokens(prompt_text),
             "contains_engine_knowledge_map": "engine_knowledge_map" in prompt_text,
             "contains_knowledge_entity_rows": " entity=npc_" in prompt_text,
             "contains_runtime_content_card": any(
                 marker in prompt_text
                 for marker in (
-                    "location_card ref=loc.cartophile_collection",
-                    "front_signal ref=front.expedition_obligation",
-                    "content_known ref=handout.cartophile_maps",
+                    "location_card ref=",
+                    "front_signal ref=",
+                    "content_known ref=",
                 )
             ),
             "contains_turn_hint": "turn_hint " in prompt_text,
@@ -817,6 +922,7 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             role_calls.append(record)
             raise
         record["model"] = response.model
+        record["usage"] = dict(response.usage or {})
         if role == "content_manager":
             record["content_manager_output"] = _content_manager_output_audit(
                 response.parsed
@@ -938,10 +1044,37 @@ def _build_report(
         for call in role_calls
         if call["role"] in {"agent", "agent_standard", "agent_convenience"}
     ]
+    prompt_budgets = _content_manager_prompt_budgets(role_calls)
+    log_warnings = _log_warning_lines()
+    ad_hoc_imported_combat_ids = _ad_hoc_spawn_ids_in_imported_combat(checkpoint)
     checks = [
         _check("story_seed_validated", story_path.exists(), str(story_path)),
         _check("cli_completed_without_error_output", not cli_errors, cli_errors),
         _check("content_manager_called", bool(content_calls), content_calls),
+        _check(
+            "content_manager_prompt_budgets_recorded",
+            bool(prompt_budgets)
+            and all((item.get("usage") or {}) for item in prompt_budgets),
+            prompt_budgets,
+        ),
+        _check(
+            "content_manager_catalog_cap_observed",
+            bool(prompt_budgets)
+            and all(
+                int(item.get("available_catalog_refs", 0)) <= 120
+                for item in prompt_budgets
+            ),
+            prompt_budgets,
+        ),
+        _check(
+            "content_manager_prompt_hashes_stripped",
+            bool(prompt_budgets)
+            and all(
+                int(item.get("hash_like_token_count", 0)) == 0
+                for item in prompt_budgets
+            ),
+            prompt_budgets,
+        ),
         _check(
             "router_never_received_full_knowledge_map",
             all(
@@ -987,8 +1120,16 @@ def _build_report(
             content_calls,
         ),
     ]
-    if args.scenario in {"deep", "field", "soak"}:
+    if args.scenario in ROUTE_EXPLORATION_SCENARIOS:
         checks.extend([
+            _check(
+                "no_unknown_agent_drop_warnings",
+                not any(
+                    "router picked unknown agent id" in line
+                    for line in log_warnings
+                ),
+                log_warnings,
+            ),
             _check(
                 "content_manager_throttled_below_router_calls",
                 content_call_count < router_call_count,
@@ -1034,12 +1175,20 @@ def _build_report(
                 content_requested_refs,
             ),
         ])
-    if args.scenario in {"deep", "field", "soak"}:
+    if args.scenario in COMBAT_SCENARIOS:
         checks.extend([
             _check(
                 "combat_path_exercised",
                 any(mode == "dnd_combat_start" for mode in router_modes),
                 router_modes,
+            ),
+            _check(
+                "imported_encounter_did_not_mix_ad_hoc_spawns",
+                not ad_hoc_imported_combat_ids,
+                {
+                    "ad_hoc_spawn_ids": ad_hoc_imported_combat_ids,
+                    "combat": _combat_state_summary(checkpoint),
+                },
             ),
         ])
     return {
@@ -1075,6 +1224,9 @@ def _build_report(
         "introduced_refs": introduced_refs,
         "knowledge_entities": knowledge_entities,
         "combat": _combat_state_summary(checkpoint),
+        "content_manager_prompt_budgets": prompt_budgets,
+        "usage_totals": _usage_totals(role_calls),
+        "log_warnings": log_warnings,
         "call_counts": {
             "content_manager": content_call_count,
             "event_router": router_call_count,
@@ -1082,10 +1234,6 @@ def _build_report(
         },
         "transcript": transcript,
         "role_calls": role_calls,
-        "issues_fixed": [
-            {"issue": issue, "fix": fix}
-            for issue, fix in ISSUES_FIXED
-        ],
         "checks": checks,
         "error": error,
     }
@@ -1132,12 +1280,6 @@ def _markdown(report: dict[str, Any]) -> str:
         lines.append(f"- {mark}: `{check['name']}`")
     lines.append("")
 
-    lines.extend(["## Issues Hit And Fixed", ""])
-    for item in report.get("issues_fixed", []):
-        lines.append(f"- Issue: {item['issue']}")
-        lines.append(f"  Fix: {item['fix']}")
-    lines.append("")
-
     lines.extend(["## Role Calls", ""])
     call_counts = report.get("call_counts", {})
     if call_counts:
@@ -1148,11 +1290,28 @@ def _markdown(report: dict[str, Any]) -> str:
             f"total={call_counts.get('role_calls_total', 0)}."
         )
         lines.append("")
+    usage_totals = report.get("usage_totals", {})
+    if usage_totals:
+        lines.append("Usage totals:")
+        for role, usage in sorted(usage_totals.items()):
+            lines.append(
+                "- "
+                f"`{role}` full_in={usage.get('full_input_tokens', 0)} "
+                f"prompt={usage.get('prompt_tokens', 0)} "
+                f"cache_read={usage.get('cache_read_input_tokens', 0)} "
+                f"out={usage.get('completion_tokens', 0)} "
+                f"reasoning={usage.get('reasoning_tokens', 0)} "
+                f"total={usage.get('total_tokens', 0)}"
+            )
+        lines.append("")
     for index, call in enumerate(report["role_calls"], start=1):
+        usage = call.get("usage") or {}
         lines.append(
             "- "
             f"{index}. role=`{call['role']}` model=`{call.get('model', '-')}` "
             f"schema=`{call['response_model']}` "
+            f"full_in={usage.get('full_input_tokens', 0)} "
+            f"out={usage.get('completion_tokens', 0)} "
             f"knowledge_map={call['contains_engine_knowledge_map']} "
             f"runtime_content={call['contains_runtime_content_card']} "
             f"turn_hint={call['contains_turn_hint']}"
@@ -1186,10 +1345,13 @@ def _markdown(report: dict[str, Any]) -> str:
         ]
         lines.append(
             "- "
-            f"{index}. recent_facts={len(input_summary.get('recent_facts', []))} "
-            f"known_entities={len(input_summary.get('knowledge_map', []))} "
-            f"known_router_refs={len(input_summary.get('known_router_refs', []))} "
-            f"catalog_refs={len(input_summary.get('available_catalog_refs', []))} "
+            f"{index}. approx_tokens={input_summary.get('approx_prompt_tokens', 0)} "
+            f"hash_like={input_summary.get('hash_like_token_count', 0)} "
+            f"recent_facts={input_summary.get('recent_fact_count', 0)} "
+            f"known_entities={input_summary.get('knowledge_entity_count', 0)} "
+            f"knowledge_refs={input_summary.get('knowledge_ref_token_count', 0)} "
+            f"known_router_refs={input_summary.get('known_router_ref_count', 0)} "
+            f"catalog_refs={input_summary.get('available_catalog_ref_count', 0)} "
             f"required_refs={requested or '-'} "
             f"knowledge_updates={updates or '-'} "
             f"turn_candidates={candidates or '-'} "
@@ -1220,6 +1382,12 @@ def _markdown(report: dict[str, Any]) -> str:
             for audit in combat["audit_tail"]:
                 lines.append(f"- {audit}")
     lines.append("")
+
+    if report.get("log_warnings"):
+        lines.extend(["## Log Warnings", ""])
+        for warning in report["log_warnings"]:
+            lines.append(f"- `{_safe_excerpt(warning, limit=260)}`")
+        lines.append("")
 
     lines.extend(["## CLI Transcript", ""])
     for item in report["transcript"]:

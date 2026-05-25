@@ -211,6 +211,19 @@ def apply_resolved_encounter_to_router_output(
     if resolved is None:
         return
     existing_spawns = list(getattr(result, "combatant_spawns", []) or [])
+    dropped_router_spawn_ids: set[str] = set()
+    if resolved.combatant_spawns:
+        # Once a reviewed encounter template applies, its authored participant
+        # list owns monster materialization for this combat start. Router
+        # decisions can still include existing story NPCs in combatant_ids, but
+        # ad-hoc router monster spawns would duplicate or contradict the
+        # reviewed module encounter.
+        dropped_router_spawn_ids = {
+            str(getattr(spawn, "character_id", "") or "")
+            for spawn in existing_spawns
+            if str(getattr(spawn, "character_id", "") or "")
+        }
+        existing_spawns = []
     seen_spawn_refs = {
         (
             str(getattr(spawn, "character_id", "") or ""),
@@ -226,6 +239,11 @@ def apply_resolved_encounter_to_router_output(
         seen_spawn_refs.add(key)
     result.combatant_spawns = existing_spawns
     combatant_ids = list(getattr(result, "combatant_ids", []) or [])
+    if dropped_router_spawn_ids:
+        combatant_ids = [
+            combatant_id for combatant_id in combatant_ids
+            if combatant_id not in dropped_router_spawn_ids
+        ]
     combatant_ids.extend(spawn.character_id for spawn in resolved.combatant_spawns)
     result.combatant_ids = [cid for cid in dict.fromkeys(combatant_ids) if cid]
     if resolved.battle_map is not None:

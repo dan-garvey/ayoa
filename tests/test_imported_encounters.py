@@ -42,6 +42,33 @@ def test_resolves_location_encounter_to_spawns_map_and_refs() -> None:
     assert result.battle_map_seed.present is True
 
 
+def test_imported_encounter_replaces_router_authored_monster_spawns() -> None:
+    result = dnd_router_output(
+        interaction_mode="dnd_combat_start",
+        combatant_ids=["alice", "rat_1"],
+        combatant_spawns=[
+            {
+                "character_id": "rat_1",
+                "monster_key": "rat",
+                "statblock_ref": "stat.rat",
+                "name": "Rat",
+            }
+        ],
+    )
+
+    resolved = resolve_combat_start_from_content_state(
+        _content_state(),
+        location_ref="loc.entry",
+    )
+    apply_resolved_encounter_to_router_output(result, resolved)
+
+    assert [spawn.character_id for spawn in result.combatant_spawns] == [
+        "guardian_1",
+        "guardian_2",
+    ]
+    assert result.combatant_ids == ["alice", "guardian_1", "guardian_2"]
+
+
 def test_missing_statblock_ref_blocks_encounter_resolution() -> None:
     content_state = _content_state(
         encounter={

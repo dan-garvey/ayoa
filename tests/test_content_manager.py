@@ -239,8 +239,10 @@ def test_content_manager_prompt_receives_compact_knowledge_map_only(tmp_path):
     assert ".pdf" not in facts_block
 
     assert "pack=pack entity=strahd" in knowledge_block
-    assert "known=pack:front/old@hash-old" in knowledge_block
-    assert "suspected=pack:rumor/wolves@hash-wolves" in knowledge_block
+    assert "known=pack:front/old" in knowledge_block
+    assert "suspected=pack:rumor/wolves" in knowledge_block
+    assert "hash-old" not in knowledge_block
+    assert "hash-wolves" not in knowledge_block
 
     assert "character=strahd" in candidates_block
     assert "role=antagonist" in candidates_block
