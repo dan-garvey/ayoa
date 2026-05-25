@@ -490,6 +490,7 @@ def _create_combat_transaction(
     packet: dict,
     plan: DndCombatTurnPlan,
 ) -> CatIIRollTransaction:
+    plan, plan_validation_notes = _normalize_combat_turn_plan(plan)
     _validate_combat_turn_plan(ckpt, current_actor_id=actor_id, plan=plan)
     bindings = ckpt.session.character_bindings or {}
     by_id = {c.character_id: c for c in ckpt.characters}
@@ -512,13 +513,77 @@ def _create_combat_transaction(
         context=packet,
         no_roll_reason=plan.no_action_reason,
         rolls=rolls,
-        ledger_lines=[] if has_rolls else _combat_no_roll_ledger(plan),
+        ledger_lines=(
+            list(plan_validation_notes)
+            if has_rolls
+            else [*plan_validation_notes, *_combat_no_roll_ledger(plan)]
+        ),
         resource_spends=resource_spends,
         created_at=now,
         updated_at=now,
     )
     ckpt.session.cat_ii_roll_transactions.append(transaction)
     return transaction
+
+
+def _normalize_combat_turn_plan(
+    plan: DndCombatTurnPlan,
+) -> tuple[DndCombatTurnPlan, list[str]]:
+    attack_keys: set[tuple[str, str, str, str, str]] = set()
+    for action in plan.actions:
+        for roll in action.rolls:
+            if roll.kind != "attack_roll" or not roll.target_id:
+                continue
+            attack_keys.add(_combat_roll_dependency_key(action, roll))
+
+    if not attack_keys:
+        return plan, []
+
+    notes: list[str] = []
+    actions: list[DndCombatActionUse] = []
+    changed = False
+    for action in plan.actions:
+        kept_rolls: list[DndPlannedActionRoll] = []
+        for roll in action.rolls:
+            if (
+                roll.kind == "damage_roll"
+                and roll.target_id
+                and _combat_roll_dependency_key(action, roll) in attack_keys
+            ):
+                changed = True
+                source = action.source_id or action.effect_id or action.source_type
+                notes.append(
+                    "Combat plan validation skipped conditional damage_roll "
+                    f"{roll.roll_id!r} for {action.actor_id!r} source "
+                    f"{source!r} against {roll.target_id!r}; attack_roll damage "
+                    "is hit-gated and owned by the engine."
+                )
+                continue
+            kept_rolls.append(roll)
+        if len(kept_rolls) == len(action.rolls):
+            actions.append(action)
+        else:
+            actions.append(action.model_copy(
+                update={"rolls": kept_rolls},
+                deep=True,
+            ))
+
+    if not changed:
+        return plan, []
+    return plan.model_copy(update={"actions": actions}, deep=True), notes
+
+
+def _combat_roll_dependency_key(
+    action: DndCombatActionUse,
+    roll: DndPlannedActionRoll,
+) -> tuple[str, str, str, str, str]:
+    return (
+        action.actor_id.strip(),
+        action.source_type.strip().lower(),
+        action.source_id.strip().lower(),
+        action.effect_id.strip(),
+        roll.target_id.strip(),
+    )
 
 
 def _combat_roll_requests_from_plan(

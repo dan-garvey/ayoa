@@ -675,6 +675,201 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     )
 
 
+def test_combat_resolver_dedupes_router_attack_damage_roll(monkeypatch):
+    ckpt = _ckpt()
+    values = iter([9, 4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="alice",
+                    source_type="action",
+                    source_id="blade",
+                    use_mode="attack",
+                    economy="action",
+                    resource_spends=[],
+                    rolls=[
+                        DndPlannedActionRoll(
+                            roll_id="attack_alice",
+                            kind="attack_roll",
+                            roller_id="alice",
+                            target_id="bob",
+                            ability="str",
+                            skill="",
+                            dc=12,
+                            opposed_by="",
+                            advantage_state="normal",
+                            reason="Alice attacks Bob with a blade.",
+                        ),
+                        DndPlannedActionRoll(
+                            roll_id="damage_alice",
+                            kind="damage_roll",
+                            roller_id="alice",
+                            target_id="bob",
+                            ability="str",
+                            skill="",
+                            dc=0,
+                            opposed_by="",
+                            advantage_state="normal",
+                            reason="Blade damage if the attack hits.",
+                        ),
+                    ],
+                    reason="Alice attacks Bob with a blade.",
+                )
+            ],
+            no_action_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice's attack hits Bob.",
+            visible_outcome_facts=["Alice cuts Bob across the guard."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+
+    bob = ckpt.session.active_combat.combatants[1]
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert bob.hit_points_current == 5
+    assert [record.roll_id for record in transaction.rolls] == ["attack_alice"]
+    assert [damage.roll_id for damage in transaction.damage_records] == [
+        "attack_alice"
+    ]
+    assert transaction.damage_records[0].amount == 8
+    assert any(
+        "skipped conditional damage_roll 'damage_alice'" in line
+        for line in transaction.ledger_lines
+    )
+    assert not any(
+        "damage_for=damage_alice" in line for line in transaction.ledger_lines
+    )
+    planned_actions = prompt_mgr.render_messages.call_args_list[1].kwargs[
+        "planned_actions_block"
+    ]
+    assert "damage_alice" not in planned_actions
+
+
+def test_combat_resolver_drops_router_damage_roll_when_attack_misses(monkeypatch):
+    ckpt = _ckpt()
+    values = iter([1])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(DndCombatTurnPlan(
+            feasible=True,
+            actions=[
+                DndCombatActionUse(
+                    actor_id="alice",
+                    source_type="action",
+                    source_id="blade",
+                    use_mode="attack",
+                    economy="action",
+                    resource_spends=[],
+                    rolls=[
+                        DndPlannedActionRoll(
+                            roll_id="attack_alice",
+                            kind="attack_roll",
+                            roller_id="alice",
+                            target_id="bob",
+                            ability="str",
+                            skill="",
+                            dc=12,
+                            opposed_by="",
+                            advantage_state="normal",
+                            reason="Alice attacks Bob with a blade.",
+                        ),
+                        DndPlannedActionRoll(
+                            roll_id="damage_alice",
+                            kind="damage_roll",
+                            roller_id="alice",
+                            target_id="bob",
+                            ability="str",
+                            skill="",
+                            dc=0,
+                            opposed_by="",
+                            advantage_state="normal",
+                            reason="Blade damage if the attack hits.",
+                        ),
+                    ],
+                    reason="Alice attacks Bob with a blade.",
+                )
+            ],
+            no_action_reason="",
+        )),
+        _llm_response(RulesAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice's attack misses Bob.",
+            visible_outcome_facts=["Alice's cut goes wide of Bob."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I slash Bob with my blade.",
+        )
+    )
+
+    bob = ckpt.session.active_combat.combatants[1]
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert bob.hit_points_current == 13
+    assert [record.roll_id for record in transaction.rolls] == ["attack_alice"]
+    assert transaction.damage_records == []
+    assert any(
+        "skipped conditional damage_roll 'damage_alice'" in line
+        for line in transaction.ledger_lines
+    )
+    assert any(
+        "attack total 7 vs AC 12 -> miss" in line
+        for line in transaction.ledger_lines
+    )
+    assert not any("damage_for=" in line for line in transaction.ledger_lines)
+
+
 @pytest.mark.parametrize(
     ("source_id", "use_mode", "intention"),
     [

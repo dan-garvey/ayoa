@@ -68,7 +68,10 @@ For phase PLAN_TURN, emit an action-first turn plan:
   reason. Leave modifier_bonus=0 unless the packet supplies a temporary
   attack-roll bonus or penalty that is not already part of the listed weapon,
   action, spell attack bonus, ability modifier, or proficiency bonus. Never put
-  the base weapon or spell attack bonus in modifier_bonus.
+  the base weapon or spell attack bonus in modifier_bonus. The attack_roll is
+  the complete declaration for listed damage that only happens on a hit. Do not
+  add a separate damage_roll for ordinary weapon, natural-weapon, or spell-attack
+  damage from the same attack.
 - For attack damage with situational resistance, immunity, or vulnerability
   that is visible in this packet and not already part of durable character
   mechanics, add damage_adjustments to that roll with kind, a non-empty
