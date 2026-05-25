@@ -117,12 +117,13 @@ def build_content_pack_projection_artifact(
             _assert_runtime_record(context)
         projection_refs = [
             _projection_ref(cards_by_ref, ref)
-            for ref in _refs_for_actor(actor, context)
+            for ref in _refs_for_actor(actor, context, records_by_ref=records_by_ref)
         ]
         known_refs = [ref.compact() for ref in projection_refs]
         character_projection = _character_projection(
             actor,
             context,
+            records_by_ref=records_by_ref,
             known_refs=known_refs,
             character_id=character_id,
             active_character_ids=active_ids,
@@ -542,6 +543,8 @@ def _context_for_actor(
 def _refs_for_actor(
     actor: ActorDossierRecord,
     context: AgentContextSliceRecord | None,
+    *,
+    records_by_ref: Mapping[str, ContentPackDomainRecord],
 ) -> list[str]:
     refs = [
         actor.ref,
@@ -549,6 +552,11 @@ def _refs_for_actor(
         *actor.home_location_refs,
         *actor.front_refs,
         *actor.knowledge_channel_refs,
+        *(
+            edge.target_ref
+            for edge in actor.relationship_edges
+            if edge.target_ref in records_by_ref
+        ),
     ]
     if context is not None:
         refs.extend(context.local_context_refs)
@@ -560,6 +568,7 @@ def _character_projection(
     actor: ActorDossierRecord,
     context: AgentContextSliceRecord | None,
     *,
+    records_by_ref: Mapping[str, ContentPackDomainRecord],
     known_refs: Sequence[str],
     character_id: str,
     active_character_ids: set[str],
@@ -581,6 +590,7 @@ def _character_projection(
     secrets: list[str] = []
     if context is not None and context.private_state:
         secrets.append(context.private_state)
+    secrets.extend(_relationship_context_lines(actor, records_by_ref, public=False))
     if actor.constraints:
         secrets.append("Constraints: " + "; ".join(actor.constraints))
     secrets.extend(_list_text(overrides.get("secrets")))
@@ -610,7 +620,11 @@ def _character_projection(
                 "bounded by the router's scene framing and table balance."
             )
         ),
-        known_context=_compose_known_context(context),
+        known_context=_compose_known_context(
+            context,
+            actor=actor,
+            records_by_ref=records_by_ref,
+        ),
         goals=list(actor.goals),
         current_objectives=current_objectives,
         secrets=[_safe_character_text(secret) for secret in secrets],
@@ -622,9 +636,26 @@ def _character_projection(
     )
 
 
-def _compose_known_context(context: AgentContextSliceRecord | None) -> str:
+def _compose_known_context(
+    context: AgentContextSliceRecord | None,
+    *,
+    actor: ActorDossierRecord,
+    records_by_ref: Mapping[str, ContentPackDomainRecord],
+) -> str:
+    relationships = "; ".join(
+        _relationship_context_lines(actor, records_by_ref, public=True)
+    )
+    resources = "; ".join(actor.resources)
     if context is None:
-        return ""
+        text = " ".join(
+            part
+            for part in (
+                f"Relationships: {relationships}." if relationships else "",
+                f"Useful assets include: {resources}." if resources else "",
+            )
+            if part
+        )
+        return _safe_character_text(text)
     beliefs = "; ".join(context.beliefs)
     uncertainties = "; ".join(context.uncertainties)
     boundaries = "; ".join(context.hard_boundaries)
@@ -632,6 +663,8 @@ def _compose_known_context(context: AgentContextSliceRecord | None) -> str:
         part
         for part in (
             context.known_context,
+            f"Relationships: {relationships}." if relationships else "",
+            f"Useful assets include: {resources}." if resources else "",
             f"Beliefs: {beliefs}." if beliefs else "",
             f"Uncertainties: {uncertainties}." if uncertainties else "",
             f"Boundaries: {boundaries}." if boundaries else "",
@@ -639,6 +672,33 @@ def _compose_known_context(context: AgentContextSliceRecord | None) -> str:
         if part
     )
     return _safe_character_text(text)
+
+
+def _relationship_context_lines(
+    actor: ActorDossierRecord,
+    records_by_ref: Mapping[str, ContentPackDomainRecord],
+    *,
+    public: bool,
+) -> list[str]:
+    lines: list[str] = []
+    for edge in actor.relationship_edges:
+        if edge.public is not public:
+            continue
+        target = records_by_ref.get(edge.target_ref)
+        target_label = _safe_character_text(_value(target, "title")) if target else ""
+        if not target_label:
+            target_label = "reviewed target"
+        stance = _safe_character_text(edge.stance)
+        summary = _safe_character_text(edge.summary).rstrip(".")
+        if stance and summary:
+            lines.append(f"{stance}: {summary}")
+        elif summary:
+            lines.append(summary)
+        elif stance:
+            lines.append(f"{target_label} ({stance})")
+        elif target_label:
+            lines.append(target_label)
+    return lines
 
 
 def _coerce_checkpoint(

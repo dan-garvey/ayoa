@@ -84,8 +84,15 @@ def test_projection_builder_emits_import_owned_runtime_slices():
     assert character.status == "active"
     assert character.intentions_enabled is True
     assert "pack:actor.villain@hash-actor-villain" in character.known_refs
+    assert "pack:actor.scout@hash-actor-scout" in character.known_refs
+    assert "pack:loc.route@hash-loc-route" in character.known_refs
     assert "pack:kg.villain.route@hash-kg-route" in character.known_refs
+    assert "commands: Scout supplies current reports." in character.known_context
+    assert "Useful assets include: informants." in character.known_context
+    assert "Route" not in character.known_context
+    assert "secret route" in character.secrets[1]
     assert "agent_context" not in character.known_context
+    assert "actor.scout" not in character.known_context
     assert "hash-" not in character.known_context
 
     state = content_pack_state_from_projection(
@@ -253,7 +260,22 @@ def _catalog(
         "agent_context_slice_ref": "agent_context.villain.startup",
         "goals": ["Recover the map"],
         "constraints": ["Do not overrun the startup scene"],
+        "resources": ["informants"],
         "knowledge_channel_refs": ["kg.villain.route"],
+        "relationship_edges": [
+            {
+                "target_ref": "actor.scout",
+                "stance": "commands",
+                "summary": "Scout supplies current reports.",
+                "public": True,
+            },
+            {
+                "target_ref": "loc.route",
+                "stance": "secret route",
+                "summary": "Knows the route cache matters more than admitted.",
+                "public": False,
+            },
+        ],
         "initiative_triggers": ["The map is disturbed"],
     }
     actor_data.update(actor_updates or {})
@@ -272,7 +294,20 @@ def _catalog(
         front_dossiers=[
             _front("front.clock", "hash-front-clock", "Clock", "Front context."),
         ],
-        actor_dossiers=[ActorDossierRecord(**actor_data)],
+        actor_dossiers=[
+            ActorDossierRecord(**actor_data),
+            ActorDossierRecord(
+                ref="actor.scout",
+                content_hash="hash-actor-scout",
+                title="Scout",
+                summary="A reviewed reporting scout.",
+                review_status="approved",
+                gate_status="runtime_ready",
+                spoiler_class="none",
+                actor_kind="npc",
+                character_id_hint="scout",
+            ),
+        ],
         agent_context_slices=[
             AgentContextSliceRecord(
                 ref="agent_context.villain.startup",

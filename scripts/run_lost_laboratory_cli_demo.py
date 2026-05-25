@@ -242,6 +242,8 @@ SOAK_EXPLORATION_COMMANDS = (
         "the map details no longer match the terrain."
     ),
 )
+UNREVIEWED_STARTUP_CUSTODIAN_NAMES = ("Merin", "Thess")
+STARTUP_SUPPORT_ROSTER_MARKER = "Startup support roster:"
 
 def _weapon_action(
     action_id: str,
@@ -899,6 +901,9 @@ async def _run_demo(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "contains_turn_hint": "turn_hint " in prompt_text,
             "contains_private_path": "private_extractions/" in prompt_text,
+            "contains_startup_support_roster": (
+                STARTUP_SUPPORT_ROSTER_MARKER in prompt_text
+            ),
         }
         if role == "content_manager":
             record["content_manager_input"] = _content_manager_prompt_audit(
@@ -1036,6 +1041,12 @@ def _build_report(
     prompt_budgets = _content_manager_prompt_budgets(role_calls)
     log_warnings = _log_warning_lines()
     ad_hoc_imported_combat_ids = _ad_hoc_spawn_ids_in_imported_combat(checkpoint)
+    transcript_text = "\n".join(item["output"] for item in transcript)
+    invented_startup_custodians = [
+        name
+        for name in UNREVIEWED_STARTUP_CUSTODIAN_NAMES
+        if re.search(rf"\b{re.escape(name)}\b", transcript_text)
+    ]
     checks = [
         _check("story_seed_validated", story_path.exists(), str(story_path)),
         _check("cli_completed_without_error_output", not cli_errors, cli_errors),
@@ -1164,6 +1175,22 @@ def _build_report(
                 "content_manager_requested_route_context",
                 any("route" in key or "barrier_peaks" in key for key in content_requested_keys),
                 content_requested_keys,
+            ),
+        ])
+    if args.scenario == "startup":
+        checks.extend([
+            _check(
+                "startup_agent_prompt_seeded_support_roster",
+                any(call.get("contains_startup_support_roster") for call in agent_calls),
+                agent_calls,
+            ),
+            _check(
+                "startup_no_unreviewed_custodian_names",
+                not invented_startup_custodians,
+                {
+                    "invented_names": invented_startup_custodians,
+                    "blocked_names": list(UNREVIEWED_STARTUP_CUSTODIAN_NAMES),
+                },
             ),
         ])
     if args.scenario in COMBAT_SCENARIOS:
