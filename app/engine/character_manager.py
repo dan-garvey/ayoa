@@ -30,6 +30,54 @@ MAX_SPAWNS_PER_TURN = 3
 # multi-paragraph backstory.
 ROUTER_SUMMARY_MAX_CHARS = 600
 
+DND_GENERATION_INSTRUCTIONS = """
+11. Because this session uses D&D 5e rules, also emit `dnd_statblock`. Build it
+    from this character's fiction: role, likely competence, physicality, gear,
+    threat level, and reason for appearing. Keep it modest unless the Spawn
+    Request clearly calls for a dangerous creature or trained combatant. Do not
+    quote or copy protected source text. Use an empty action list only for a
+    helpless or purely civilian character; otherwise include at least one
+    simple action they could take in combat.""".strip()
+
+DND_OUTPUT_SCHEMA_SUFFIX = r""",
+  "dnd_statblock": {
+    "size": "string - Tiny, Small, Medium, Large, Huge, or Gargantuan",
+    "creature_type": "string - humanoid, beast, construct, undead, etc.",
+    "alignment": "string - use unaligned if irrelevant",
+    "armor_class": 10,
+    "hit_points": 4,
+    "hit_dice": "string - compact formula such as 1d8 or 3d8+3",
+    "speed": "string - e.g. 30 ft.",
+    "ability_scores": {
+      "strength": 10,
+      "dexterity": 10,
+      "constitution": 10,
+      "intelligence": 10,
+      "wisdom": 10,
+      "charisma": 10
+    },
+    "proficiency_bonus": 2,
+    "skills": [{"name": "string", "value": 2}],
+    "senses": ["string"],
+    "passive_perception": 10,
+    "languages": ["string"],
+    "challenge_rating": "string - empty string if not a meaningful combat threat",
+    "xp": 0,
+    "traits": [{"name": "string", "description": "string"}],
+    "actions": [{
+      "action_id": "string",
+      "name": "string",
+      "attack_bonus": 0,
+      "reach_ft": 5,
+      "range_normal_ft": 0,
+      "range_long_ft": 0,
+      "target": "string",
+      "damage": "string",
+      "damage_type": "string",
+      "description": "string"
+    }]
+  }"""
+
 
 def _normalize_router_summary(summary: str) -> str:
     """Sanitize an LLM-authored one-line character summary."""
@@ -252,6 +300,7 @@ class CharacterManager:
         spawn_seed = "\n".join(seed_lines) if seed_lines else "No specific seed provided."
 
         existing = ", ".join(c.name for c in checkpoint.characters)
+        dnd_enabled = _dnd_ruleset_enabled(checkpoint)
 
         messages = self.prompt_manager.render_messages(
             "character_gen",
@@ -263,26 +312,32 @@ class CharacterManager:
             spawn_seed=spawn_seed,
             existing_characters=existing,
             location=location,
+            dnd_generation_instructions=(
+                DND_GENERATION_INSTRUCTIONS if dnd_enabled else ""
+            ),
+            dnd_output_schema_suffix=(
+                DND_OUTPUT_SCHEMA_SUFFIX if dnd_enabled else ""
+            ),
         )
 
         from app.schemas.takeover import AuthoredCharacter
+        response_model = AuthoredCharacter
+        if dnd_enabled:
+            from app.schemas.dnd_character_gen import AuthoredDndCharacter
+
+            response_model = AuthoredDndCharacter
         response = await self.client.complete(
             role="agent_convenience",
             messages=messages,
-            response_model=AuthoredCharacter,
+            response_model=response_model,
             temperature=0.6,
             max_tokens=3000,
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
         char.agent_tier = CharacterAgentTier.utility
-        if _dnd_ruleset_enabled(checkpoint):
-            from app.engine import dnd_combat
-
-            dnd_combat.ensure_default_combatant_mechanics(
-                char,
-                source="character_gen",
-            )
+        if dnd_enabled:
+            self._attach_dnd_spawn_mechanics(char, authored, req=req)
         # Override the LLM's authored.location only when the router or
         # caller supplied a concrete location label. When neither is set,
         # trust the LLM.
@@ -305,3 +360,29 @@ class CharacterManager:
             )
 
         return char, authored.router_summary
+
+    def _attach_dnd_spawn_mechanics(
+        self,
+        char: CharacterRecord,
+        authored: object,
+        *,
+        req: SpawnRequest,
+    ) -> None:
+        from app.engine import dnd_combat, dnd_monsters
+
+        statblock = getattr(authored, "dnd_statblock", None)
+        if statblock is None:
+            dnd_combat.ensure_default_combatant_mechanics(
+                char,
+                source="character_gen_missing_statblock",
+            )
+            return
+
+        char.mechanics = dnd_monsters.mechanics_from_statblock(
+            statblock,
+            monster_key=req.character_id,
+            source="character_gen_dnd_statblock",
+        )
+        char.mechanics["character_gen_dnd_statblock"] = {
+            "source": "character_gen",
+        }

@@ -58,6 +58,54 @@ def _llm_response(parsed) -> LLMResponse:
     return LLMResponse(parsed=parsed, raw_response=raw, content=text, model="claude-sonnet-4-6")
 
 
+def _messages_text(messages: list[dict]) -> str:
+    return "\n".join(str(message.get("content", "")) for message in messages)
+
+
+def _dnd_statblock(**overrides):
+    data = {
+        "size": "Medium",
+        "creature_type": "humanoid",
+        "alignment": "neutral",
+        "armor_class": 12,
+        "hit_points": 17,
+        "hit_dice": "3d8+3",
+        "speed": "30 ft.",
+        "ability_scores": {
+            "strength": 10,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 11,
+            "wisdom": 13,
+            "charisma": 10,
+        },
+        "proficiency_bonus": 2,
+        "skills": [{"name": "perception", "value": 3}],
+        "senses": ["passive Perception 13"],
+        "passive_perception": 13,
+        "languages": ["Common"],
+        "challenge_rating": "",
+        "xp": 0,
+        "traits": [],
+        "actions": [
+            {
+                "action_id": "ledger_cudgel",
+                "name": "Ledger Cudgel",
+                "attack_bonus": 2,
+                "reach_ft": 5,
+                "range_normal_ft": 0,
+                "range_long_ft": 0,
+                "target": "one target",
+                "damage": "1d4 bludgeoning",
+                "damage_type": "bludgeoning",
+                "description": "Swings a heavy ledger as an improvised club.",
+            }
+        ],
+    }
+    data.update(overrides)
+    return data
+
+
 def _spawn_request(
     character_id: str,
     *,
@@ -120,19 +168,22 @@ class TestCharacterSpawn:
         assert len(spawned) == 1
         assert spawned[0].name == "Tom the Stablehand"
         assert spawned[0].agent_tier == CharacterAgentTier.utility
-        assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
+        kwargs = mock_client.complete.call_args.kwargs
+        assert kwargs["role"] == "agent_convenience"
+        assert kwargs["response_model"] is AuthoredCharacter
+        assert "dnd_statblock" not in _messages_text(kwargs["messages"])
         # Should be added to checkpoint
         assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
 
     @pytest.mark.asyncio
-    async def test_dnd_spawn_character_gets_default_combat_stats(
+    async def test_dnd_spawn_character_uses_authored_statblock(
         self, mock_client, sample_checkpoint,
     ):
-        from app.schemas.takeover import AuthoredCharacter
+        from app.schemas.dnd_character_gen import AuthoredDndCharacter
 
         sample_checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
         mock_client.complete = AsyncMock()
-        authored = AuthoredCharacter(
+        authored = AuthoredDndCharacter(
             name="Meris Venn",
             location="courtyard",
             role="custodian",
@@ -147,6 +198,7 @@ class TestCharacterSpawn:
             secrets=[],
             intentions_enabled=False,
             router_summary="Custodian at the courtyard.",
+            dnd_statblock=_dnd_statblock(),
         )
         mock_client.complete.return_value = _llm_response(authored)
 
@@ -157,10 +209,24 @@ class TestCharacterSpawn:
         )
 
         assert len(spawned) == 1
+        kwargs = mock_client.complete.call_args.kwargs
+        assert kwargs["response_model"] is AuthoredDndCharacter
+        assert "dnd_statblock" in _messages_text(kwargs["messages"])
         mechanics = spawned[0].mechanics
         assert mechanics["ruleset_id"] == "dnd5e_basic"
-        assert mechanics["source"] == "dnd_default_combatant_profile"
-        assert mechanics["hit_points"] == {"current": 4, "max": 4, "temporary": 0}
+        assert mechanics["source"] == "character_gen_dnd_statblock"
+        assert mechanics["armor_class"] == 12
+        assert mechanics["hit_points"] == {
+            "current": 17,
+            "max": 17,
+            "temporary": 0,
+            "formula": "3d8+3",
+        }
+        assert mechanics["ability_scores"]["dex"] == 12
+        assert mechanics["dnd5e_sheet"]["statblock"]["actions"][0]["name"] == (
+            "Ledger Cudgel"
+        )
+        assert "default_combatant_profile" not in mechanics
 
     @pytest.mark.asyncio
     async def test_existing_character_spawn_raises(

@@ -28,6 +28,7 @@ Generate a new character who fits naturally into the established setting and has
 8. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
 9. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
 10. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
+{dnd_generation_instructions}
 </instructions>
 
 <output_schema>
@@ -47,7 +48,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "current_objectives": ["string — 1-3 actionable pursuits they're working on right now"],
   "secrets": ["string — private truths; empty array if none"],
   "intentions_enabled": true or false,
-  "router_summary": "string — emit an empty string for this prompt"
+  "router_summary": "string — emit an empty string for this prompt"{dnd_output_schema_suffix}
 }}
 
 **Every field in this schema is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**

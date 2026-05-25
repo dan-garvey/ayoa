@@ -117,6 +117,7 @@ def character_from_combatant_spawn(
         mechanics=mechanics_from_statblock(
             statblock,
             monster_key=spawn.monster_key,
+            source="router_combatant_spawn",
         ),
     )
 
@@ -125,6 +126,7 @@ def mechanics_from_statblock(
     statblock: DndMonsterStatBlock,
     *,
     monster_key: str = "",
+    source: str = "router_combatant_spawn",
 ) -> dict[str, Any]:
     scores = _flat_scores(statblock)
     detailed_scores = {
@@ -188,7 +190,7 @@ def mechanics_from_statblock(
     }
     return {
         "ruleset_id": "dnd5e_basic",
-        "source": "router_combatant_spawn",
+        "source": source,
         "monster_key": monster_key,
         "ability_scores": scores,
         "proficiency_bonus": statblock.proficiency_bonus,
