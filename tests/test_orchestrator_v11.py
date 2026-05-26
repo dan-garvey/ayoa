@@ -10,7 +10,11 @@ import pytest
 from app.engine import dice, dnd_experience, dnd_monsters
 from app.engine.dnd_combat import apply_damage, current_combatant
 from app.engine.imported_statblocks import ImportedStatBlockNotFoundError
-from app.engine.orchestrator import Orchestrator, _with_pre_turn_resolutions
+from app.engine.orchestrator import (
+    Orchestrator,
+    _turn_response_from_beat_results,
+    _with_pre_turn_resolutions,
+)
 from app.engine.turn_loop import BeatResult, broadcast_event
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import ContentPackState
@@ -33,6 +37,7 @@ from app.schemas.state import (
     CommitmentRevisionPrompt,
     DndCombatantState,
     DndCombatState,
+    DndExperienceAwardDisplay,
     OpenCatIIEvent,
     OpenCommitment,
     RenderBufferEntry,
@@ -313,6 +318,61 @@ def test_with_pre_turn_resolutions_preserves_asset_payloads_separately():
     assert response.pre_turn_resolutions[0].per_player_asset_reveals == {
         "bob": [pre_payload]
     }
+
+
+def test_turn_response_xp_award_drain_is_persisted(patched_orchestrator):
+    ckpt = _ckpt(bindings={"alice": "u1"})
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+    award = DndExperienceAwardDisplay(
+        character_id="alice",
+        character_name="Alice",
+        amount=25,
+        source="Rat",
+        experience_points=25,
+        total_level=1,
+        eligible_level=1,
+        next_level=2,
+        xp_to_next_level=275,
+    )
+    ckpt.session.active_combat = DndCombatState(
+        combat_id="combat-xp",
+        combatants=[
+            DndCombatantState(
+                combatant_id="alice",
+                character_id="alice",
+                name="Alice",
+                player_controlled=True,
+                armor_class=12,
+                hit_points_current=13,
+                hit_points_max=13,
+            )
+        ],
+        pending_experience_awards=[award],
+    )
+    orch, mgr = patched_orchestrator(ckpt)
+
+    response = _turn_response_from_beat_results(
+        session_id="s",
+        ckpt=ckpt,
+        acting_id="alice",
+        beat_results=[
+            BeatResult(
+                renders={"alice": "The combat quiets."},
+                events_closed=0,
+                ended_reason="ends_beat",
+                transcript_entries={},
+                event_actor_ids=[],
+            )
+        ],
+        roll_keys_before=set(),
+    )
+    assert response is not None
+    assert response.experience_awards == [award]
+    assert ckpt.session.active_combat.pending_experience_awards == []
+
+    orch._save_if_response_drained_runtime_state(ckpt, response)
+
+    mgr.save.assert_called_once_with(ckpt)
 
 
 @pytest.fixture

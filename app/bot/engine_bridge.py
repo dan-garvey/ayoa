@@ -2422,7 +2422,12 @@ class EngineBridge:
             raise ValueError("Heal amount must be positive.")
         module = self._dnd_combat_module()
         ckpt = self.checkpoint_mgr.load_latest(session_id)
-        module.apply_healing(ckpt.session, target_id, amount)
+        module.apply_healing(
+            ckpt.session,
+            target_id,
+            amount,
+            characters=ckpt.characters,
+        )
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
         return self._combat_view(ckpt)

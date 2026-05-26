@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine import dice, dnd_cat_ii as cat, dnd_combat
+from app.engine.dnd_roll_display import dice_roll_displays_since
 from app.engine.dnd_combat_resolution import (
     COMBAT_MANAGER_FINALIZE_MAX_TOKENS,
     COMBAT_MANAGER_PLAN_MAX_TOKENS,
@@ -436,6 +437,7 @@ def _spell(
     save_ability: str = "",
     dc: int = 0,
     damage: str = "",
+    healing: str = "",
     consumes_level: int | None = None,
     concentration: bool = False,
 ) -> dict:
@@ -455,7 +457,7 @@ def _spell(
         "attack": {"bonus": attack_bonus} if attack_bonus is not None else {},
         "save": {"ability": save_ability, "dc": dc} if save_ability else {},
         "damage": [{"formula": damage}] if damage else [],
-        "healing": [],
+        "healing": [{"formula": healing}] if healing else [],
         "consumes": consumes,
     }
 
@@ -2340,6 +2342,179 @@ def test_combat_resolver_auto_ends_when_spawned_hostile_is_defeated(monkeypatch)
     assert "D&D combat ends." in facts
     assert any(
         "All hostile combat-spawned monsters are defeated" in note
+        for note in routed.decision_rationale.split("; ")
+    )
+
+
+def test_combat_resolver_rolls_healing_and_syncs_character_hp(monkeypatch):
+    values = iter([0])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    ckpt = _ckpt()
+    ckpt.characters[0] = _character(
+        "alice",
+        "Alice",
+        spellcasting={
+            "profiles": [{"id": "cleric", "ability": "wis"}],
+            "slots": {"1": {"current": 1, "max": 1}},
+            "spells": [
+                _spell(
+                    "healing_word",
+                    "Healing Word",
+                    level=1,
+                    healing="1d4+3",
+                    consumes_level=1,
+                )
+            ],
+        },
+    )
+    ckpt.session.config.settings.player_roll_mode = "interactive"
+    bob = ckpt.characters[1]
+    bob.mechanics["hit_points"] = {"current": 5, "max": 13, "temporary": 0}
+    bob.mechanics["dnd5e_sheet"]["statblock"]["defenses"] = {
+        "hit_points": {"current": 5, "max": 13, "temporary": 0}
+    }
+    ckpt.session.active_combat.combatants[1].hit_points_current = 5
+
+    plan = DndCombatTurnPlan.model_validate({
+        "feasible": True,
+        "actions": [{
+            "actor_id": "alice",
+            "source_type": "spell",
+            "source_id": "healing_word",
+            "use_mode": "cast",
+            "economy": "bonus_action",
+            "casting": {"cast_level": 1},
+            "resource_spends": [{
+                "resource_id": "spell_slot_1",
+                "amount": 1,
+                "reason": "Healing Word spends a 1st-level slot.",
+            }],
+            "targeting": {"mode": "targets", "target_ids": ["bob"]},
+            "rolls": [],
+            "reason": "Alice heals Bob with Healing Word.",
+        }],
+        "no_action_reason": "",
+    })
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(plan),
+        _llm_response(DndCombatManagerAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice heals Bob.",
+            visible_outcome_facts=["Alice speaks a quick healing word to Bob."],
+            state_deltas=[],
+            combat_state_deltas=[{
+                "kind": "healing",
+                "target_id": "bob",
+                "amount": 99,
+                "condition": "",
+                "reason": "The manager restates the healing.",
+            }],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+            router_observed_facts=[],
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I cast Healing Word on Bob.",
+        )
+    )
+
+    transaction = ckpt.session.cat_ii_roll_transactions[0]
+    assert [roll.request["kind"] for roll in transaction.rolls] == [
+        "healing_roll"
+    ]
+    assert transaction.healing_records[0].amount == 4
+    bob_combatant = ckpt.session.active_combat.combatants[1]
+    assert bob_combatant.hit_points_current == 9
+    assert bob.mechanics["hit_points"]["current"] == 9
+    assert (
+        bob.mechanics["dnd5e_sheet"]["statblock"]["defenses"]["hit_points"]
+        ["current"]
+        == 9
+    )
+    assert ckpt.characters[0].mechanics["dnd5e_sheet"]["statblock"][
+        "spellcasting"
+    ]["slots"]["1"]["current"] == 0
+    displays = dice_roll_displays_since(ckpt, set())
+    assert displays[0].kind == "healing_roll"
+    assert displays[0].total == 4
+    assert displays[0].target_hp_before == 5
+    assert displays[0].target_hp_after == 9
+
+
+def test_combat_resolver_ends_when_hostile_disengages_and_party_does_not_pursue():
+    ckpt = _ckpt()
+    ckpt.session.active_combat.turn_index = 1
+    ckpt.characters[0].public_sheet.faction = "expedition"
+    ckpt.characters[1].public_sheet.faction = "bandits"
+
+    plan = DndCombatTurnPlan.model_validate({
+        "feasible": True,
+        "actions": [{
+            "actor_id": "bob",
+            "source_type": "movement",
+            "source_id": "move",
+            "use_mode": "move",
+            "economy": "movement",
+            "targeting": {"mode": "none", "target_ids": []},
+            "rolls": [],
+            "reason": "Bob flees out of sight down the passage.",
+        }],
+        "no_action_reason": "",
+    })
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(plan),
+        _llm_response(DndCombatManagerAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Bob flees out of sight.",
+            visible_outcome_facts=["Bob flees out of sight down the passage."],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+            router_observed_facts=[],
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="bob",
+            intention="Alice holds fire and does not pursue while Bob flees.",
+        )
+    )
+
+    assert ckpt.session.active_combat is None
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert "D&D combat ends." in facts
+    assert any(
+        "party is not pursuing" in note
         for note in routed.decision_rationale.split("; ")
     )
 

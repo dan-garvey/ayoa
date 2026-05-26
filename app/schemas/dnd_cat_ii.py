@@ -19,6 +19,7 @@ RollKind = Literal[
     "saving_throw",
     "attack_roll",
     "damage_roll",
+    "healing_roll",
 ]
 DamageAdjustmentKind = Literal[
     "resistance",

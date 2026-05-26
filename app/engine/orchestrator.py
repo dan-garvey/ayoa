@@ -514,6 +514,17 @@ def _turn_response_from_beat_results(
     )
 
 
+def _response_drained_runtime_state(response: TurnResponse | None) -> bool:
+    if response is None:
+        return False
+    if response.experience_awards:
+        return True
+    return any(
+        _response_drained_runtime_state(pre_response)
+        for pre_response in (response.pre_turn_resolutions or [])
+    )
+
+
 def _cat_ii_pending_rolls_response(
     *,
     session_id: str,
@@ -607,6 +618,14 @@ class Orchestrator:
         # One manager per Orchestrator. /acts in the same session
         # serialize here; perception fan-out is observer-driven.
         self.session_locks = SessionLockManager()
+
+    def _save_if_response_drained_runtime_state(
+        self,
+        ckpt: CheckpointFile,
+        response: TurnResponse | None,
+    ) -> None:
+        if _response_drained_runtime_state(response):
+            self.checkpoint_mgr.save(ckpt)
 
     def _install_pending_narrator_render_saver(
         self,
@@ -718,6 +737,7 @@ class Orchestrator:
             roll_keys_before=roll_keys_before,
         )
         assert response is not None
+        self._save_if_response_drained_runtime_state(ckpt, response)
         return response
 
     async def retry_pending_narrator_render(
@@ -969,6 +989,10 @@ class Orchestrator:
                     roll_keys_before=pre_roll_keys_before,
                 )
                 if pre_response is not None:
+                    self._save_if_response_drained_runtime_state(
+                        ckpt,
+                        pre_response,
+                    )
                     pre_turn_resolutions.append(pre_response)
                     if (
                         pre_response.output_text
@@ -1169,7 +1193,9 @@ class Orchestrator:
             roll_keys_before=roll_keys_before,
         )
         assert response is not None
-        return _with_pre_turn_resolutions(response, pre_turn_resolutions)
+        response = _with_pre_turn_resolutions(response, pre_turn_resolutions)
+        self._save_if_response_drained_runtime_state(ckpt, response)
+        return response
 
     def _defer_combat_reaction_locked(
         self,
@@ -1372,6 +1398,7 @@ class Orchestrator:
             fallback_to_first_render=True,
         )
         assert response is not None
+        self._save_if_response_drained_runtime_state(ckpt, response)
         return response
 
     async def resolve_cat_ii(
@@ -1508,6 +1535,7 @@ class Orchestrator:
             fallback_to_first_render=True,
         )
         assert response is not None
+        self._save_if_response_drained_runtime_state(ckpt, response)
         return response
 
     async def submit_cat_ii_roll(
@@ -1709,6 +1737,7 @@ class Orchestrator:
             fallback_to_first_render=True,
         )
         assert response is not None
+        self._save_if_response_drained_runtime_state(ckpt, response)
         return response
 
     def _stale_combat_roll_response(

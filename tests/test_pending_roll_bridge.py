@@ -303,3 +303,28 @@ def test_dice_roll_content_formats_damage_roll_without_d20_for_discord_ui():
     assert "d20 ?" not in content
     assert "`Damage: 1d4 (2) + 2 = 4 slashing`" in content
     assert "Target HP: Demo Expedition Leader 33/38 -> 29/38" in content
+
+
+def test_dice_roll_content_formats_healing_roll_without_d20_for_discord_ui():
+    content = _dice_roll_content(
+        DiceRollDisplay(
+            actor_id="ilyra",
+            actor_name="Ilyra",
+            target_id="marlowe",
+            target_name="Marlowe Vex",
+            label="Healing Word",
+            kind="healing_roll",
+            total=6,
+            expression="1d4+3",
+            detail="1d4 (3) + 3 = `6`",
+            target_hp_before=9,
+            target_hp_after=15,
+            target_hp_max=24,
+            target_defeat_state="active",
+        )
+    )
+
+    assert "D&D Healing: Ilyra - Healing Word" in content
+    assert "d20 ?" not in content
+    assert "`Healing: 1d4 (3) + 3 = 6`" in content
+    assert "Target HP: Marlowe Vex 9/24 -> 15/24" in content

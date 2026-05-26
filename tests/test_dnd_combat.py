@@ -209,6 +209,54 @@ def test_damage_and_healing_use_hp_snapshot_without_touching_character_mechanics
     assert healed.defeat_state == "active"
 
 
+def test_damage_and_healing_sync_to_character_mechanics_when_records_available(
+    monkeypatch,
+):
+    values = iter([4])
+    monkeypatch.setattr(
+        dice.d20.expression.random,
+        "randrange",
+        lambda _: next(values),
+    )
+    hero = _character("hero", "Hero", hp=10, temp=3)
+    hero.mechanics["dnd5e_sheet"] = {
+        "statblock": {
+            "defenses": {
+                "hit_points": {"current": 10, "max": 10, "temporary": 3}
+            }
+        }
+    }
+    session = SessionState(session_id="s", character_bindings={"hero": "u1"})
+    start_combat(session, [hero])
+
+    apply_damage(session, "hero", 8, characters=[hero])
+
+    assert hero.mechanics["hit_points"] == {
+        "current": 5,
+        "max": 10,
+        "temporary": 0,
+    }
+    assert (
+        hero.mechanics["dnd5e_sheet"]["statblock"]["defenses"]["hit_points"]
+        == {"current": 5, "max": 10, "temporary": 0}
+    )
+
+    apply_damage(session, "hero", 6, characters=[hero])
+
+    assert hero.mechanics["hit_points"]["current"] == 0
+    assert "unconscious" in hero.mechanics["conditions"]
+
+    apply_healing(session, "hero", 4, characters=[hero])
+
+    assert hero.mechanics["hit_points"]["current"] == 4
+    assert "unconscious" not in hero.mechanics["conditions"]
+    assert (
+        hero.mechanics["dnd5e_sheet"]["statblock"]["defenses"]["hit_points"]
+        ["current"]
+        == 4
+    )
+
+
 def test_legacy_defeated_field_migrates_to_defeat_state():
     combatant = DndCombatantState.model_validate({
         "combatant_id": "goblin",

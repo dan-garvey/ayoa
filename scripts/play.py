@@ -409,6 +409,10 @@ def _is_damage_only_roll(roll: Any) -> bool:
     )
 
 
+def _is_healing_roll(roll: Any) -> bool:
+    return str(getattr(roll, "kind", "") or "") == "healing_roll"
+
+
 def _plain_roll_detail(text: str) -> str:
     return " ".join(str(text or "").replace("`", "").replace("**", "").split())
 
@@ -464,6 +468,30 @@ def _damage_target_status_line(roll: Any) -> str:
     return f"Target HP: {target} {before_text} -> {after_text}{state_text}"
 
 
+def _healing_roll_line(roll: Any) -> str:
+    total = int(getattr(roll, "total", 0) or 0)
+    detail = _plain_roll_detail(str(getattr(roll, "detail", "") or ""))
+    expression = str(getattr(roll, "expression", "") or "").strip()
+    if detail:
+        return f"Healing: {detail}"
+    if expression:
+        return f"Healing: {expression} = {total}"
+    return f"Healing: {total}"
+
+
+def _print_healing_roll_display(roll: Any, *, include_reason: bool = False) -> None:
+    print()
+    print(f"--- D&D Healing · {_roll_heading(roll)} ---")
+    print(f"  {_healing_roll_line(roll)}")
+    status = _damage_target_status_line(roll)
+    if status:
+        print(f"  {status}")
+    if include_reason:
+        reason = str(getattr(roll, "reason", "") or "")
+        if reason:
+            print(f"  {reason}")
+
+
 def _print_damage_roll_display(roll: Any, *, include_reason: bool = False) -> None:
     print()
     print(f"--- D&D Damage · {_roll_heading(roll)} ---")
@@ -478,6 +506,9 @@ def _print_damage_roll_display(roll: Any, *, include_reason: bool = False) -> No
 
 
 def _print_d20_roll_display(roll: Any, *, include_reason: bool = False) -> None:
+    if _is_healing_roll(roll):
+        _print_healing_roll_display(roll, include_reason=include_reason)
+        return
     if _is_damage_only_roll(roll):
         _print_damage_roll_display(roll, include_reason=include_reason)
         return

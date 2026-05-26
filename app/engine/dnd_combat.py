@@ -72,7 +72,7 @@ def end_combat(
     """Clear active combat and return the ended snapshot."""
     combat = _require_combat(session)
     if characters is not None:
-        sync_combat_effects_to_characters(combat, characters)
+        sync_combat_state_to_characters(combat, characters)
         retired = _retire_defeated_combat_spawns(combat, characters)
         if retired:
             append_audit_line(
@@ -458,6 +458,13 @@ def sync_combat_effects_to_characters(
     combat: DndCombatState | SessionState | None,
     characters: Iterable[CharacterRecord],
 ) -> None:
+    sync_combat_state_to_characters(combat, characters)
+
+
+def sync_combat_state_to_characters(
+    combat: DndCombatState | SessionState | None,
+    characters: Iterable[CharacterRecord],
+) -> None:
     active = combat.active_combat if isinstance(combat, SessionState) else combat
     if active is None:
         return
@@ -467,11 +474,45 @@ def sync_combat_effects_to_characters(
         character = by_id.get(cid)
         if character is None:
             continue
+        _sync_combatant_hit_points_to_character(combatant, character)
+        _sync_combatant_conditions_to_character(combatant, character)
         effects = [
             effect for effect in combatant.active_effects
             if effect.target_id in {"", cid, combatant.combatant_id}
         ]
         set_runtime_effects_for_character(character, effects)
+
+
+def _sync_combatant_hit_points_to_character(
+    combatant: DndCombatantState,
+    character: CharacterRecord,
+) -> None:
+    mechanics_state = dict(character.mechanics or {})
+    hit_points = {
+        "current": max(0, int(combatant.hit_points_current or 0)),
+        "max": max(0, int(combatant.hit_points_max or 0)),
+        "temporary": max(0, int(combatant.hit_points_temporary or 0)),
+    }
+    mechanics_state["hit_points"] = dict(hit_points)
+    sheet = mechanics_state.get("dnd5e_sheet")
+    if isinstance(sheet, dict):
+        statblock = sheet.get("statblock")
+        if isinstance(statblock, dict):
+            defenses = statblock.setdefault("defenses", {})
+            if isinstance(defenses, dict):
+                defenses["hit_points"] = dict(hit_points)
+    character.mechanics = mechanics_state
+
+
+def _sync_combatant_conditions_to_character(
+    combatant: DndCombatantState,
+    character: CharacterRecord,
+) -> None:
+    mechanics_state = dict(character.mechanics or {})
+    mechanics_state["conditions"] = [
+        condition for condition in combatant.conditions if str(condition).strip()
+    ]
+    character.mechanics = mechanics_state
 
 
 def start_effect(
@@ -885,6 +926,7 @@ def apply_damage(
         _process_concentration_damage(
             active, combatant, amount, characters=characters,
         )
+        _sync_one_combatant_if_possible(combatant, characters)
         return combatant
 
     previous_hp = combatant.hit_points_current
@@ -917,6 +959,7 @@ def apply_damage(
         combatant,
         characters=characters,
     )
+    _sync_one_combatant_if_possible(combatant, characters)
     return combatant
 
 
@@ -924,6 +967,8 @@ def apply_healing(
     combat: DndCombatState | SessionState,
     combatant_id: str,
     amount: int,
+    *,
+    characters: Iterable[CharacterRecord] | None = None,
 ) -> DndCombatantState:
     if amount < 0:
         raise ValueError("Healing amount must be non-negative.")
@@ -934,7 +979,27 @@ def apply_healing(
     combatant.hit_points_current = min(cap, combatant.hit_points_current + amount)
     if combatant.hit_points_current > 0:
         _set_active(combatant)
+    _sync_one_combatant_if_possible(combatant, characters)
     return combatant
+
+
+def _sync_one_combatant_if_possible(
+    combatant: DndCombatantState,
+    characters: Iterable[CharacterRecord] | None,
+) -> None:
+    if characters is None:
+        return
+    target_id = combatant.character_id or combatant.combatant_id
+    for character in characters:
+        if character.character_id == target_id:
+            _sync_combatant_hit_points_to_character(combatant, character)
+            _sync_combatant_conditions_to_character(combatant, character)
+            effects = [
+                effect for effect in combatant.active_effects
+                if effect.target_id in {"", target_id, combatant.combatant_id}
+            ]
+            set_runtime_effects_for_character(character, effects)
+            return
 
 
 def roll_death_save(

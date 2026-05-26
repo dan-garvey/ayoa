@@ -387,6 +387,12 @@ def _dice_is_damage_only_roll(
     )
 
 
+def _dice_is_healing_roll(
+    roll: DiceRollDisplay | CompletedPendingRoll,
+) -> bool:
+    return str(getattr(roll, "kind", "") or "") == "healing_roll"
+
+
 def _plain_dice_detail(text: str) -> str:
     return " ".join(str(text or "").replace("`", "").replace("**", "").split())
 
@@ -444,22 +450,50 @@ def _dice_damage_target_status(
     return f"Target HP: {target} {before_text} -> {after_text}{state_text}"
 
 
+def _dice_healing_formula(roll: DiceRollDisplay | CompletedPendingRoll) -> str:
+    total = int(getattr(roll, "total", 0) or 0)
+    detail = _plain_dice_detail(str(getattr(roll, "detail", "") or ""))
+    expression = str(getattr(roll, "expression", "") or "").strip()
+    if detail:
+        return f"Healing: {detail}"
+    if expression:
+        return f"Healing: {expression} = {total}"
+    return f"Healing: {total}"
+
+
 def _dice_roll_content(
     roll: DiceRollDisplay | CompletedPendingRoll,
     *,
     stage: str = "final",
     interpreting: bool = False,
 ) -> str:
+    healing_roll = _dice_is_healing_roll(roll)
     damage_only = _dice_is_damage_only_roll(roll)
-    heading_kind = "D&D Damage" if damage_only else "D&D Roll"
+    heading_kind = (
+        "D&D Healing" if healing_roll
+        else "D&D Damage" if damage_only
+        else "D&D Roll"
+    )
     heading = f"**{heading_kind}: {_dice_roll_heading(roll)}**"
     if stage == "rolling":
-        lines = [heading, "`damage rolling...`" if damage_only else "`d20 rolling...`"]
+        rolling = (
+            "`healing rolling...`" if healing_roll
+            else "`damage rolling...`" if damage_only
+            else "`d20 rolling...`"
+        )
+        lines = [heading, rolling]
     elif stage == "settled":
-        settled = _dice_damage_formula(roll) if damage_only else (
-            f"d20 {_dice_d20_text(roll)}"
+        settled = (
+            _dice_healing_formula(roll) if healing_roll
+            else _dice_damage_formula(roll) if damage_only
+            else f"d20 {_dice_d20_text(roll)}"
         )
         lines = [heading, f"`{settled}`"]
+    elif healing_roll:
+        lines = [heading, f"`{_dice_healing_formula(roll)}`"]
+        status = _dice_damage_target_status(roll)
+        if status:
+            lines.append(status)
     elif damage_only:
         lines = [heading, f"`{_dice_damage_formula(roll)}`"]
         status = _dice_damage_target_status(roll)

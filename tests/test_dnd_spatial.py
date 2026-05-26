@@ -160,12 +160,12 @@ def test_normalize_preserves_imported_runtime_geometry_without_status_leak():
 
     combat = DndCombatState(combatants=combatants, battle_map=battle_map)
     packet = dnd_spatial.combat_packet_context(combat, "alice")
-    packet_text = repr(packet["battle_map"])
+    packet_text = repr(packet["tactical_map"])
     assert "mud.floor" in packet_text
     assert "secret.door" not in packet_text
     assert "spawn.enemies" not in packet_text
     assert "loc.crypt" not in packet_text
-    enforcement_text = repr(packet["tactical_map_enforcement"])
+    enforcement_text = repr(packet["tactical_map"])
     assert "reviewed_tactical_map" in enforcement_text
     assert "mud.floor" in enforcement_text
     assert "secret.door" not in enforcement_text

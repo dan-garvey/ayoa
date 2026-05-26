@@ -1296,6 +1296,31 @@ class TestRollCommand:
         assert "d20 ?" not in out
         assert "Damage: 6 fire" in out
 
+    def test_cli_healing_roll_display_uses_healing_formula(self, capsys):
+        _print_dice_roll_displays([
+            DiceRollDisplay(
+                actor_id="ilyra",
+                actor_name="Ilyra",
+                target_id="marlowe",
+                target_name="Marlowe Vex",
+                label="Healing Word",
+                kind="healing_roll",
+                total=6,
+                expression="1d4+3",
+                detail="1d4 (3) + 3 = `6`",
+                target_hp_before=9,
+                target_hp_after=15,
+                target_hp_max=24,
+                target_defeat_state="active",
+            )
+        ])
+
+        out = capsys.readouterr().out
+        assert "--- D&D Healing · Ilyra: Healing Word" in out
+        assert "d20 ?" not in out
+        assert "Healing: 1d4 (3) + 3 = 6" in out
+        assert "Target HP: Marlowe Vex 9/24 -> 15/24" in out
+
     def test_act_surfaces_pending_rolls(self, run, capsys):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(

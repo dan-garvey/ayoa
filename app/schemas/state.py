@@ -281,6 +281,53 @@ class CatIIRollDamageRecord(BaseModel):
         return self
 
 
+class CatIIRollHealingRecord(BaseModel):
+    """Structured D&D healing attached to a roll transaction."""
+
+    roll_id: str
+    target_id: str
+    raw_amount: int = 0
+    amount: int = 0
+    expression: str = ""
+    detail: str = ""
+    target_hp_before: int = 0
+    target_hp_after: int = 0
+    target_hp_max: int = 0
+    target_temp_hp_before: int = 0
+    target_temp_hp_after: int = 0
+    target_defeat_state_after: str = ""
+    applied: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_raw_amount(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "raw_amount" not in data:
+            data = dict(data)
+            data["raw_amount"] = data.get("amount", 0)
+        return data
+
+    @model_validator(mode="after")
+    def _clean_healing_snapshot(self) -> "CatIIRollHealingRecord":
+        self.expression = self.expression.strip()
+        self.detail = self.detail.strip()
+        self.target_defeat_state_after = self.target_defeat_state_after.strip()
+        if self.raw_amount < 0:
+            self.raw_amount = 0
+        if self.amount < 0:
+            self.amount = 0
+        if self.target_hp_before < 0:
+            self.target_hp_before = 0
+        if self.target_hp_after < 0:
+            self.target_hp_after = 0
+        if self.target_hp_max < 0:
+            self.target_hp_max = 0
+        if self.target_temp_hp_before < 0:
+            self.target_temp_hp_before = 0
+        if self.target_temp_hp_after < 0:
+            self.target_temp_hp_after = 0
+        return self
+
+
 class CatIIRollResourceSpendRecord(BaseModel):
     """One deterministic resource spend attached to a D&D roll transaction."""
 
@@ -323,6 +370,7 @@ class CatIIRollTransaction(BaseModel):
     rolls: list[CatIIRollRecord] = Field(default_factory=list)
     ledger_lines: list[str] = Field(default_factory=list)
     damage_records: list[CatIIRollDamageRecord] = Field(default_factory=list)
+    healing_records: list[CatIIRollHealingRecord] = Field(default_factory=list)
     resource_spends: list[CatIIRollResourceSpendRecord] = Field(
         default_factory=list
     )

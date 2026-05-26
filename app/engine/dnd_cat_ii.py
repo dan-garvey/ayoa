@@ -41,6 +41,7 @@ from app.schemas.state import (
     CatIIRollDamageAdjustmentRecord,
     CatIIRollDamageComponentRecord,
     CatIIRollDamageRecord,
+    CatIIRollHealingRecord,
     CatIIRollRecord,
     CatIIRollResourceSpendRecord,
     CatIIRollTransaction,
@@ -491,7 +492,7 @@ def _create_combat_transaction(
     by_id = {c.character_id: c for c in ckpt.characters}
     now = _utcnow_iso()
     rolls: list[CatIIRollRecord] = []
-    for request in _combat_roll_requests_from_plan(plan):
+    for request in _combat_roll_requests_from_plan(ckpt, plan):
         rolls.append(_roll_record_for_request(ckpt, request, bindings, by_id))
     resource_spends = _combat_resource_spend_records_from_plan(plan)
     has_rolls = bool(rolls)
@@ -582,13 +583,106 @@ def _combat_roll_dependency_key(
 
 
 def _combat_roll_requests_from_plan(
+    ckpt: CheckpointFile,
     plan: DndCombatTurnPlan,
 ) -> list[PlannedRoll]:
     requests: list[PlannedRoll] = []
     for action in plan.actions:
         for roll in action.rolls:
             requests.append(_planned_roll_from_action(action, roll))
+    requests.extend(_synthesized_healing_roll_requests(ckpt, plan, requests))
     return requests
+
+
+def _synthesized_healing_roll_requests(
+    ckpt: CheckpointFile,
+    plan: DndCombatTurnPlan,
+    existing_requests: list[PlannedRoll],
+) -> list[PlannedRoll]:
+    existing = {
+        (
+            request.actor_id,
+            request.action_id,
+            request.target_id,
+        )
+        for request in existing_requests
+        if request.kind == "healing_roll"
+    }
+    synthesized: list[PlannedRoll] = []
+    for action in plan.actions:
+        if not _healing_profile_for_action(ckpt, action).components:
+            continue
+        for index, target_id in enumerate(_healing_targets_for_action(action), start=1):
+            key = (action.actor_id, action.source_id, target_id)
+            if key in existing:
+                continue
+            synthesized.append(_healing_roll_request(
+                action=action,
+                target_id=target_id,
+                index=index,
+            ))
+            existing.add(key)
+    return synthesized
+
+
+def _healing_roll_request(
+    *,
+    action: DndCombatActionUse,
+    target_id: str,
+    index: int,
+) -> PlannedRoll:
+    source_id = action.source_id or action.effect_id or action.source_type
+    return PlannedRoll(
+        roll_id=_healing_roll_id(action, target_id=target_id, index=index),
+        actor_id=action.actor_id,
+        kind="healing_roll",
+        ability="wis",
+        skill="",
+        dc=0,
+        opposed_by="",
+        advantage_state="normal",
+        modifier_bonus=0,
+        modifier_bonus_reason="",
+        damage_on_save_success="none",
+        damage_adjustments=[],
+        reason=action.reason or f"{action.actor_id} uses {source_id} to heal.",
+        action_id=source_id,
+        target_id=target_id,
+        effect_id=action.effect_id,
+    )
+
+
+def _healing_roll_id(
+    action: DndCombatActionUse,
+    *,
+    target_id: str,
+    index: int,
+) -> str:
+    return "_".join(
+        part for part in (
+            "healing",
+            _slug(action.actor_id),
+            _slug(action.source_id or action.effect_id or action.source_type),
+            _slug(target_id),
+            str(index),
+        ) if part
+    )
+
+
+def _healing_targets_for_action(action: DndCombatActionUse) -> list[str]:
+    targeting = action.targeting
+    candidates = [
+        *list(targeting.target_ids or []),
+        *list(targeting.included_target_ids or []),
+    ]
+    if targeting.mode == "self" and action.actor_id:
+        candidates.append(action.actor_id)
+    out: list[str] = []
+    for target_id in candidates:
+        text = str(target_id or "").strip()
+        if text and text not in out:
+            out.append(text)
+    return out
 
 
 def _planned_roll_from_action(
@@ -1168,7 +1262,7 @@ def _execute_available_rolls(
         if (
             record.actor_control == "player"
             and player_roll_mode == "interactive"
-            and request.kind != "damage_roll"
+            and request.kind not in {"damage_roll", "healing_roll"}
         ):
             continue
         _execute_roll_record(transaction, record, completed_by_user_id="engine")
@@ -1188,24 +1282,30 @@ def _execute_roll_record(
     completed_by_user_id: str,
 ) -> None:
     request = PlannedRoll.model_validate(record.request)
-    if request.kind == "damage_roll":
+    if request.kind in {"damage_roll", "healing_roll"}:
+        label = (
+            "direct healing roll queued"
+            if request.kind == "healing_roll"
+            else "direct damage roll queued"
+        )
         record.status = "completed"
         record.result = {
             "roll_id": record.roll_id,
             "actor_id": record.actor_id,
-            "kind": "damage_roll",
+            "kind": request.kind,
             "total": 0,
-            "detail": "direct damage roll queued",
+            "detail": label,
             "crit": "none",
         }
         record.completed_by_user_id = completed_by_user_id
         record.completed_at = _utcnow_iso()
-        transaction.ledger_lines.append(
-            _format_direct_damage_roll_ledger_line(
-                request,
-                roller_id=record.actor_id,
+        if request.kind == "damage_roll":
+            transaction.ledger_lines.append(
+                _format_direct_damage_roll_ledger_line(
+                    request,
+                    roller_id=record.actor_id,
+                )
             )
-        )
         return
     result = dice.roll_d20_check(
         roll_id=record.roll_id,
@@ -1423,6 +1523,75 @@ def _execute_direct_damage_roll(
         request=request,
         source_record=damage_record,
     )
+
+
+def _execute_combat_healing_rolls(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+) -> None:
+    for record in transaction.rolls:
+        if record.status != "completed":
+            continue
+        request = PlannedRoll.model_validate(record.request)
+        if request.kind != "healing_roll":
+            continue
+        _execute_healing_roll(
+            ckpt,
+            transaction,
+            record=record,
+            request=request,
+        )
+
+
+def _execute_healing_roll(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    *,
+    record: CatIIRollRecord,
+    request: PlannedRoll,
+) -> None:
+    if not request.target_id:
+        _append_ledger_line_once(
+            transaction,
+            f"healing_for={record.roll_id}: skipped; target_id is required",
+        )
+        return
+    if any(healing.roll_id == record.roll_id for healing in transaction.healing_records):
+        return
+    healing_profile = _healing_profile_for_direct_healing(ckpt, request)
+    marker = f"healing_for={record.roll_id}"
+    if not healing_profile.components:
+        _append_ledger_line_once(
+            transaction,
+            f"{marker}: no code-readable healing expression for "
+            f"{request.actor_id} source {request.action_id or request.skill}",
+        )
+        return
+    healing = dice.roll_expression(
+        dice.RollRequest(
+            roll_id=record.roll_id,
+            expression=healing_profile.expression,
+            actor_id=request.actor_id,
+            reason=f"Healing for {record.reason}",
+        )
+    )
+    record.result = healing.model_dump()
+    _append_ledger_line_once(
+        transaction,
+        (
+            f"{marker}: {request.actor_id} restores {healing.detail} hit "
+            f"points to {request.target_id}; total {healing.total}"
+        ),
+    )
+    transaction.healing_records.append(CatIIRollHealingRecord(
+        roll_id=record.roll_id,
+        target_id=request.target_id,
+        raw_amount=healing.total,
+        amount=healing.total,
+        expression=healing.expression,
+        detail=healing.detail,
+        applied=False,
+    ))
 
 
 def _append_falling_split_damage_record(
@@ -1785,6 +1954,102 @@ def _apply_combat_damage_records(
         damage.applied = True
 
 
+def _ensure_combat_healing_rolls_for_deltas(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    deltas: list[CombatStateDelta],
+) -> None:
+    for delta in deltas:
+        if delta.kind != "healing" or not delta.target_id:
+            continue
+        if any(
+            _combat_target_ids_overlap(
+                getattr(ckpt.session, "active_combat", None),
+                healing.target_id,
+                delta.target_id,
+            )
+            for healing in transaction.healing_records
+        ):
+            continue
+        action = _healing_action_for_delta(ckpt, transaction, delta)
+        if action is None:
+            continue
+        request = _healing_roll_request(
+            action=action,
+            target_id=delta.target_id,
+            index=len(transaction.healing_records) + 1,
+        )
+        record = _roll_record_for_request(
+            ckpt,
+            request,
+            ckpt.session.character_bindings or {},
+            {character.character_id: character for character in ckpt.characters},
+        )
+        transaction.rolls.append(record)
+        _execute_roll_record(transaction, record, completed_by_user_id="engine")
+        _execute_healing_roll(
+            ckpt,
+            transaction,
+            record=record,
+            request=request,
+        )
+
+
+def _healing_action_for_delta(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    delta: CombatStateDelta,
+) -> DndCombatActionUse | None:
+    plan = transaction.plan or {}
+    actions = plan.get("actions") if isinstance(plan, dict) else []
+    if not isinstance(actions, list):
+        return None
+    fallback: DndCombatActionUse | None = None
+    for raw_action in actions:
+        try:
+            action = DndCombatActionUse.model_validate(raw_action)
+        except Exception:
+            continue
+        if not _healing_profile_for_action(ckpt, action).components:
+            continue
+        if fallback is None:
+            fallback = action
+        targets = _healing_targets_for_action(action)
+        if not targets or any(
+            _combat_target_ids_overlap(
+                getattr(ckpt.session, "active_combat", None),
+                target_id,
+                delta.target_id,
+            )
+            for target_id in targets
+        ):
+            return action
+    return fallback
+
+
+def _apply_combat_healing_records(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+) -> None:
+    for healing in transaction.healing_records:
+        if healing.applied:
+            continue
+        before = _combat_damage_target_snapshot(ckpt, healing.target_id)
+        if healing.amount <= 0:
+            _record_combat_healing_target_snapshot(healing, before, before)
+            healing.applied = True
+            continue
+        target = dnd_combat.apply_healing(
+            ckpt.session,
+            healing.target_id,
+            healing.amount,
+            characters=ckpt.characters,
+        )
+        after = _combatant_damage_snapshot(target)
+        _record_combat_healing_target_snapshot(healing, before, after)
+        healing.applied = True
+
+
 def _combat_damage_target_snapshot(
     ckpt: CheckpointFile,
     target_id: str,
@@ -1827,6 +2092,26 @@ def _record_combat_damage_target_snapshot(
             after.get("hp_max") or damage.target_hp_max or 0
         )
         damage.target_defeat_state_after = str(
+            after.get("defeat_state") or ""
+        ).strip()
+
+
+def _record_combat_healing_target_snapshot(
+    healing: CatIIRollHealingRecord,
+    before: dict[str, Any] | None,
+    after: dict[str, Any] | None,
+) -> None:
+    if before is not None:
+        healing.target_hp_before = int(before.get("hp_current") or 0)
+        healing.target_temp_hp_before = int(before.get("temp_hp") or 0)
+        healing.target_hp_max = int(before.get("hp_max") or 0)
+    if after is not None:
+        healing.target_hp_after = int(after.get("hp_current") or 0)
+        healing.target_temp_hp_after = int(after.get("temp_hp") or 0)
+        healing.target_hp_max = int(
+            after.get("hp_max") or healing.target_hp_max or 0
+        )
+        healing.target_defeat_state_after = str(
             after.get("defeat_state") or ""
         ).strip()
 
@@ -1999,6 +2284,8 @@ def _roll_modifier_for_request(
     character: object | None,
     request: PlannedRoll,
 ) -> int:
+    if request.kind in {"damage_roll", "healing_roll"}:
+        return 0
     if request.kind == "attack_roll" and character is not None:
         mechanics_state = getattr(character, "mechanics", None) or {}
         statblock = (
@@ -2106,6 +2393,56 @@ def _damage_profile_for_direct_damage(
     if spell_profile.components:
         return spell_profile
     return _damage_profile_for_action(ckpt, request)
+
+
+def _healing_profile_for_action(
+    ckpt: CheckpointFile,
+    action: DndCombatActionUse,
+) -> _DamageProfile:
+    if action.source_type == "spell":
+        character = _character_for_combat_target(ckpt, action.actor_id)
+        if character is None:
+            return _DamageProfile()
+        spell = _find_spell(character, action.source_id, reason=action.reason)
+        if spell is None:
+            return _DamageProfile()
+        return _spell_healing_profile(spell)
+    if action.source_type == "action":
+        character = _character_for_combat_target(ckpt, action.actor_id)
+        if character is None:
+            return _DamageProfile()
+        found = _find_action(
+            {"actions": _combat_actions_for_character(character)},
+            action.source_id,
+            reason=action.reason,
+        )
+        if found is None:
+            return _DamageProfile()
+        return _action_healing_profile(found)
+    return _DamageProfile()
+
+
+def _healing_profile_for_direct_healing(
+    ckpt: CheckpointFile,
+    request: PlannedRoll,
+) -> _DamageProfile:
+    spell = _spell_for_request(ckpt, request)
+    if spell is not None:
+        profile = _spell_healing_profile(spell)
+        if profile.components:
+            return profile
+    action = _action_for_request(ckpt, request)
+    if action is not None:
+        return _action_healing_profile(action)
+    return _DamageProfile()
+
+
+def _spell_healing_profile(spell: dict[str, object]) -> _DamageProfile:
+    return _healing_component_profile(spell.get("healing"))
+
+
+def _action_healing_profile(action: dict[str, object]) -> _DamageProfile:
+    return _healing_component_profile(action.get("healing"))
 
 
 def _find_spell(
@@ -2284,6 +2621,20 @@ def _damage_component_profile(value: object) -> _DamageProfile:
         components.append(
             _DamageComponent(expression=expression, damage_type=damage_type)
         )
+    return _DamageProfile(components=tuple(_merge_damage_components(components)))
+
+
+def _healing_component_profile(value: object) -> _DamageProfile:
+    if not isinstance(value, list):
+        return _DamageProfile()
+    components: list[_DamageComponent] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        formula = str(item.get("formula") or "").strip()
+        expression = _clean_damage_expression(formula)
+        if expression:
+            components.append(_DamageComponent(expression=expression))
     return _DamageProfile(components=tuple(_merge_damage_components(components)))
 
 
@@ -4017,6 +4368,9 @@ def _combat_affected_ids(
     for damage in transaction.damage_records:
         if damage.target_id:
             affected.add(damage.target_id)
+    for healing in transaction.healing_records:
+        if healing.target_id:
+            affected.add(healing.target_id)
     for delta in adjudication.combat_state_deltas:
         if delta.target_id:
             affected.add(delta.target_id)
@@ -4064,8 +4418,20 @@ def _apply_combat_state_deltas(
         return
     for delta in deltas:
         if delta.kind == "healing":
+            if _healing_engine_owns_delta(combat, delta, transaction):
+                dnd_combat.append_audit_line(
+                    combat,
+                    "Combat state delta skipped; healing roll ledger owns "
+                    f"healing on {delta.target_id!r}.",
+                )
+                continue
             if delta.amount:
-                dnd_combat.apply_healing(ckpt.session, delta.target_id, delta.amount)
+                dnd_combat.apply_healing(
+                    ckpt.session,
+                    delta.target_id,
+                    delta.amount,
+                    characters=ckpt.characters,
+                )
         elif delta.kind in {"condition_add", "condition_remove"}:
             if _damage_engine_owns_condition_delta(combat, delta, transaction):
                 dnd_combat.append_audit_line(
@@ -4075,6 +4441,20 @@ def _apply_combat_state_deltas(
                 )
                 continue
             _apply_condition_delta(ckpt, delta)
+
+
+def _healing_engine_owns_delta(
+    combat: object,
+    delta: CombatStateDelta,
+    transaction: CatIIRollTransaction | None,
+) -> bool:
+    if transaction is None or delta.kind != "healing":
+        return False
+    return any(
+        _combat_target_ids_overlap(combat, delta.target_id, healing.target_id)
+        for healing in transaction.healing_records
+        if healing.target_id
+    )
 
 
 def _damage_engine_owns_condition_delta(
@@ -4537,6 +4917,187 @@ def _auto_end_if_spawned_hostiles_defeated(
     )
     if note not in adjudication.rules_notes:
         adjudication.rules_notes.append(note)
+
+
+_COMBAT_DISENGAGED_MARKER = "combat_disengaged"
+
+
+def _auto_end_if_hostiles_disengaged(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> None:
+    if adjudication.combat_status == "ended":
+        return
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    _mark_disengaged_hostiles_from_adjudication(ckpt, transaction, adjudication)
+    if not _recent_party_declines_pursuit(ckpt, transaction, adjudication):
+        return
+    active_hostiles = [
+        combatant for combatant in _combatants(combat)
+        if _combatant_defeat_state(combatant) == "active"
+        and not bool(getattr(combatant, "removed", False))
+        and _combatant_is_hostile_to_party(ckpt, combatant)
+    ]
+    if not active_hostiles:
+        return
+    if not all(_combatant_is_marked_disengaged(c) for c in active_hostiles):
+        return
+    adjudication.combat_status = "ended"
+    note = (
+        "All active hostile combatants have disengaged or fled out of reach, "
+        "and the party is not pursuing; initiative ends automatically."
+    )
+    if note not in adjudication.rules_notes:
+        adjudication.rules_notes.append(note)
+
+
+def _mark_disengaged_hostiles_from_adjudication(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> None:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return
+    if not _adjudication_signals_disengagement(adjudication):
+        return
+    current = _find_combatant_by_any_id(combat, transaction.actor_id)
+    if (
+        current is not None
+        and _combatant_defeat_state(current) == "active"
+        and _combatant_is_hostile_to_party(ckpt, current)
+    ):
+        _mark_combatant_disengaged(current, reason="adjudicated withdrawal")
+        return
+    text = _adjudication_text(adjudication)
+    if any(term in text for term in ("bandits fled", "enemies fled", "hostiles fled")):
+        for combatant in _combatants(combat):
+            if (
+                _combatant_defeat_state(combatant) == "active"
+                and _combatant_is_hostile_to_party(ckpt, combatant)
+            ):
+                _mark_combatant_disengaged(combatant, reason="group withdrawal")
+
+
+def _adjudication_signals_disengagement(
+    adjudication: RulesAdjudication,
+) -> bool:
+    text = _adjudication_text(adjudication)
+    if not text:
+        return False
+    hostile_pressure_terms = (
+        "attacks ",
+        "attack roll",
+        "fires ",
+        "shoots ",
+        "slashes ",
+        "stabs ",
+        "casts ",
+    )
+    disengage_terms = (
+        "fled",
+        "flee",
+        "flees",
+        "withdraw",
+        "withdraws",
+        "retreat",
+        "retreats",
+        "pulls out",
+        "fall back",
+        "out of sight",
+        "vanishes",
+        "disappears",
+        "deeper into the passage",
+        "putting more rocky ground between",
+    )
+    return (
+        any(term in text for term in disengage_terms)
+        and not any(term in text for term in hostile_pressure_terms)
+    )
+
+
+def _recent_party_declines_pursuit(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> bool:
+    text = " ".join((
+        _recent_combat_fact_text(ckpt),
+        str(transaction.intention or ""),
+        _adjudication_text(adjudication),
+    )).lower()
+    decline_terms = (
+        "do not pursue",
+        "does not pursue",
+        "don't pursue",
+        "not pursue",
+        "do not chase",
+        "does not chase",
+        "don't chase",
+        "not chase",
+        "hold fire",
+        "holds fire",
+        "let the bandits go",
+        "let them go",
+        "leave alive",
+        "can leave alive",
+    )
+    return any(term in text for term in decline_terms)
+
+
+def _recent_combat_fact_text(ckpt: CheckpointFile, *, limit: int = 10) -> str:
+    facts: list[str] = []
+    for event in list(ckpt.canonical_events or [])[-limit:]:
+        canonical = getattr(event, "canonical_event", None)
+        for fact in getattr(canonical, "observable_facts", []) or []:
+            text = str(getattr(fact, "text", "") or "").strip()
+            if text:
+                facts.append(text)
+    return " ".join(facts)
+
+
+def _adjudication_text(adjudication: RulesAdjudication) -> str:
+    return " ".join(
+        str(part or "").lower()
+        for part in (
+            adjudication.mechanical_summary,
+            " ".join(adjudication.visible_outcome_facts or []),
+            " ".join(adjudication.rules_notes or []),
+        )
+    )
+
+
+def _find_combatant_by_any_id(
+    combat: object,
+    combatant_id: str,
+) -> object | None:
+    target = str(combatant_id or "").strip()
+    if not target:
+        return None
+    for combatant in _combatants(combat):
+        if (
+            str(getattr(combatant, "combatant_id", "") or "") == target
+            or str(getattr(combatant, "character_id", "") or "") == target
+        ):
+            return combatant
+    return None
+
+
+def _mark_combatant_disengaged(combatant: object, *, reason: str) -> None:
+    existing = str(getattr(combatant, "notes", "") or "").strip()
+    marker = f"{_COMBAT_DISENGAGED_MARKER}: {reason}"
+    if _COMBAT_DISENGAGED_MARKER in existing:
+        return
+    setattr(combatant, "notes", f"{existing}\n{marker}".strip())
+
+
+def _combatant_is_marked_disengaged(combatant: object) -> bool:
+    return _COMBAT_DISENGAGED_MARKER in str(
+        getattr(combatant, "notes", "") or ""
+    )
 
 
 def _spawned_hostile_combat_is_defeated(ckpt: CheckpointFile) -> bool:

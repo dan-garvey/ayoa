@@ -92,6 +92,10 @@ For phase PLAN_TURN, emit an action-first turn plan:
   damaged creature, and ability="str" as a required placeholder. Magic Missile
   should use one damage_roll per dart so each dart has its own target and damage
   record.
+- For listed healing formulas from an action or spell, use kind="healing_roll".
+  Set roller_id to the healing source, target_id to the healed creature, and
+  ability="wis" as a required placeholder. Do not average listed healing
+  formulas or put that healing in combat_state_deltas.
 - Roll reasons are player-facing dice/adjudication labels. Keep them short and
   rule-relevant, and do not include grid coordinates unless the coordinate
   itself is necessary to explain legality or targeting.
@@ -169,9 +173,10 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
   roster, tactical_map, and used_sources selected from the original planning
   context, not every available action or spell.
 - Use the roll ledger exactly as supplied. Ledger totals are authoritative for
-  dice, hit/miss results, damage arithmetic, and any special damage adjustment
-  recorded there. If the ledger says an attack or damage_roll applied damage,
-  treat that HP change as already accounted for.
+  dice, hit/miss results, damage arithmetic, healing arithmetic, and any special
+  damage adjustment recorded there. If the ledger says an attack or damage_roll
+  applied damage, or a healing_roll restored hit points, treat that HP change as
+  already accounted for.
 - Set combat_status="ended" only when active hostilities clearly stop through
   defeat, accepted surrender, flight, or mutual de-escalation. A unilateral
   surrender offer, ransom, threat, or mercy bargain usually leaves combat_status

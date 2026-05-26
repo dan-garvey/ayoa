@@ -30,6 +30,20 @@ class _DamageSummary:
     target_defeat_state: str = ""
 
 
+@dataclass(frozen=True)
+class _HealingSummary:
+    target_id: str = ""
+    total: int = 0
+    expression: str = ""
+    detail: str = ""
+    target_hp_before: int = 0
+    target_hp_after: int = 0
+    target_hp_max: int = 0
+    target_temp_hp_before: int = 0
+    target_temp_hp_after: int = 0
+    target_defeat_state: str = ""
+
+
 def completed_automatic_roll_keys(ckpt: CheckpointFile) -> set[RollKey]:
     return {
         (txn.transaction_id, record.roll_id)
@@ -61,19 +75,38 @@ def dice_roll_display_for_record(
 ) -> DiceRollDisplay:
     request = _planned_roll(record.request)
     result = record.result or {}
-    dice = _d20_values(result)
-    kept = _kept_d20_values(result) or dice
     target_id = request.target_id if request is not None else _request_text(
         record.request, "target_id"
     )
     damage = _damage_summary(transaction, record.roll_id)
+    healing = _healing_summary(transaction, record.roll_id)
     if not target_id and damage.target_id:
         target_id = damage.target_id
+    if not target_id and healing.target_id:
+        target_id = healing.target_id
     dc = _roll_dc(ckpt, transaction, request, target_id)
     total = _int(result.get("total"))
     crit = str(result.get("crit") or "none")
     kind = str(getattr(request, "kind", "") or "")
-    display_total = damage.total if kind == "damage_roll" and damage.total else total
+    display_total = total
+    if kind == "damage_roll" and damage.total:
+        display_total = damage.total
+    elif kind == "healing_roll" and healing.total:
+        display_total = healing.total
+    target_hp_before = damage.target_hp_before
+    target_hp_after = damage.target_hp_after
+    target_hp_max = damage.target_hp_max
+    target_temp_hp_before = damage.target_temp_hp_before
+    target_temp_hp_after = damage.target_temp_hp_after
+    target_defeat_state = damage.target_defeat_state
+    if kind == "healing_roll":
+        target_hp_before = healing.target_hp_before
+        target_hp_after = healing.target_hp_after
+        target_hp_max = healing.target_hp_max
+        target_temp_hp_before = healing.target_temp_hp_before
+        target_temp_hp_after = healing.target_temp_hp_after
+        target_defeat_state = healing.target_defeat_state
+    die_faces, die_values, kept_die_values = _roll_dice(result)
     return DiceRollDisplay(
         transaction_id=transaction.transaction_id,
         event_id=transaction.event_id,
@@ -90,9 +123,9 @@ def dice_roll_display_for_record(
         skill=str(getattr(request, "skill", "") or ""),
         expression=str(result.get("expression") or ""),
         detail=str(result.get("detail") or ""),
-        die_faces=20,
-        die_values=dice,
-        kept_die_values=kept,
+        die_faces=die_faces,
+        die_values=die_values,
+        kept_die_values=kept_die_values,
         modifier=int(record.modifier or 0),
         total=display_total,
         dc=dc,
@@ -103,12 +136,12 @@ def dice_roll_display_for_record(
         damage_type=damage.damage_type,
         damage_expression=damage.expression,
         damage_detail=damage.detail,
-        target_hp_before=damage.target_hp_before,
-        target_hp_after=damage.target_hp_after,
-        target_hp_max=damage.target_hp_max,
-        target_temp_hp_before=damage.target_temp_hp_before,
-        target_temp_hp_after=damage.target_temp_hp_after,
-        target_defeat_state=damage.target_defeat_state,
+        target_hp_before=target_hp_before,
+        target_hp_after=target_hp_after,
+        target_hp_max=target_hp_max,
+        target_temp_hp_before=target_temp_hp_before,
+        target_temp_hp_after=target_temp_hp_after,
+        target_defeat_state=target_defeat_state,
         automatic=record.completed_by_user_id == "engine",
     )
 
@@ -181,6 +214,26 @@ def _kept_d20_values(result: dict[str, Any]) -> list[int]:
             continue
         values.extend(_int(v) for v in die.get("values") or [])
     return values
+
+
+def _roll_dice(result: dict[str, Any]) -> tuple[int, list[int], list[int]]:
+    dice_items = [
+        die for die in result.get("dice") or []
+        if isinstance(die, dict)
+    ]
+    if not dice_items:
+        dice = _d20_values(result)
+        kept = _kept_d20_values(result) or dice
+        return 20, dice, kept
+    first_faces = _int(dice_items[0].get("size"), default=20)
+    all_values: list[int] = []
+    kept_values: list[int] = []
+    for die in dice_items:
+        values = [_int(value) for value in die.get("values") or []]
+        all_values.extend(values)
+        if bool(die.get("kept", True)):
+            kept_values.extend(values)
+    return first_faces, all_values, kept_values or all_values
 
 
 def _d20_values_from_detail(detail: str) -> list[int]:
@@ -298,6 +351,31 @@ def _damage_summary(
             str(last_hp.target_defeat_state_after or "")
             if last_hp is not None else ""
         ),
+    )
+
+
+def _healing_summary(
+    transaction: CatIIRollTransaction,
+    roll_id: str,
+) -> _HealingSummary:
+    matching = [
+        healing for healing in transaction.healing_records or []
+        if healing.roll_id == roll_id
+    ]
+    if not matching:
+        return _HealingSummary()
+    raw = matching[0]
+    return _HealingSummary(
+        target_id=str(raw.target_id or ""),
+        total=int(raw.amount or 0),
+        expression=str(raw.expression or ""),
+        detail=str(raw.detail or ""),
+        target_hp_before=int(raw.target_hp_before or 0),
+        target_hp_after=int(raw.target_hp_after or 0),
+        target_hp_max=int(raw.target_hp_max or 0),
+        target_temp_hp_before=int(raw.target_temp_hp_before or 0),
+        target_temp_hp_after=int(raw.target_temp_hp_after or 0),
+        target_defeat_state=str(raw.target_defeat_state_after or ""),
     )
 
 

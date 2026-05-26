@@ -97,6 +97,7 @@ class DndCombatResolver:
             raise cat.DndCatIIRollsPending(transaction)
 
         cat._execute_combat_damage_rolls(ckpt, transaction)
+        cat._execute_combat_healing_rolls(ckpt, transaction)
         cat._apply_combat_resource_spends(ckpt, transaction)
         packet = cat.build_combat_finalization_packet(transaction)
         adjudication = await self._finalize(
@@ -106,6 +107,12 @@ class DndCombatResolver:
         )
         cat._validate_and_apply_readied_releases(ckpt, transaction, adjudication)
         cat._apply_combat_damage_records(ckpt, transaction)
+        cat._ensure_combat_healing_rolls_for_deltas(
+            ckpt,
+            transaction,
+            adjudication.combat_state_deltas,
+        )
+        cat._apply_combat_healing_records(ckpt, transaction)
         cat._apply_combat_state_deltas(
             ckpt,
             adjudication.combat_state_deltas,
@@ -129,6 +136,7 @@ class DndCombatResolver:
         adjudication.rules_notes.extend(spatial_notes)
         cat._sync_combat_effects(ckpt)
         cat._auto_end_if_spawned_hostiles_defeated(ckpt, adjudication)
+        cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
         result = cat._compile_combat_router_output(
             ckpt=ckpt,
             transaction=transaction,
