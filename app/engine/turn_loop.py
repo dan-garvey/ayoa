@@ -87,6 +87,7 @@ from app.engine.visual_context import (
     plan_event_visual_introductions,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.characters import CharacterStatus
 from app.schemas.event_router import (
     EventRouterOutput,
     ObserverEntry,
@@ -1583,20 +1584,72 @@ def _dnd_combat_start_participants(
         *([actor_id] if actor_id else []),
         *[cid for cid in combatant_ids if cid],
     ]))
-    by_id = {
-        char.character_id: char
-        for char in ckpt.characters
-        if _character_status_value(char) == "active"
-    }
+    by_id = {char.character_id: char for char in ckpt.characters}
     selected: list[Any] = []
     seen: set[str] = set()
+    explicitly_selected = set(combatant_ids)
     for cid in seed_ids:
         char = by_id.get(cid)
         if char is None or cid in seen:
             continue
+        status = _character_status_value(char)
+        if status == "culled":
+            continue
+        if status == "dormant":
+            if cid not in explicitly_selected:
+                continue
+            if _dnd_character_defeated_by_mechanics(char):
+                if _dnd_character_is_combat_spawn(char):
+                    char.status = CharacterStatus.culled
+                continue
+            char.status = CharacterStatus.active
+        elif status != "active":
+            continue
         selected.append(char)
         seen.add(cid)
     return selected
+
+
+def _dnd_character_defeated_by_mechanics(character: Any) -> bool:
+    mechanics = getattr(character, "mechanics", {}) or {}
+    if not isinstance(mechanics, dict):
+        return False
+    hp = _dnd_character_hit_points(mechanics)
+    if hp is None:
+        return False
+    max_hp = _safe_int(hp.get("max"), 0)
+    if max_hp <= 0:
+        return False
+    return _safe_int(hp.get("current"), max_hp) <= 0
+
+
+def _dnd_character_hit_points(mechanics: dict[str, Any]) -> dict[str, Any] | None:
+    hp = mechanics.get("hit_points")
+    if isinstance(hp, dict):
+        return hp
+    sheet_hp = (
+        ((mechanics.get("dnd5e_sheet") or {}).get("statblock") or {})
+        .get("defenses", {})
+        .get("hit_points")
+    )
+    return sheet_hp if isinstance(sheet_hp, dict) else None
+
+
+def _dnd_character_is_combat_spawn(character: Any) -> bool:
+    mechanics = getattr(character, "mechanics", {}) or {}
+    if not isinstance(mechanics, dict):
+        return False
+    marker = mechanics.get("combat_spawn")
+    if isinstance(marker, dict) and bool(marker.get("spawned")):
+        return True
+    return str(mechanics.get("source") or "") == "router_combatant_spawn"
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _character_location(ckpt: CheckpointFile, character_id: str) -> str:

@@ -17,6 +17,7 @@ from app.engine.orchestrator import (
 )
 from app.engine.turn_loop import BeatResult, broadcast_event
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.characters import CharacterStatus
 from app.schemas.content import ContentPackState
 from app.schemas.content_pack import SafeAssetRevealPayload
 from app.schemas.event_router import (
@@ -1020,6 +1021,112 @@ class TestCombatTurnGating:
         )
         assert meris_combatant.hit_points_current == 4
         assert meris_combatant.hit_points_max == 4
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_reactivates_selected_dormant_combatants(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        bandit = character_record(
+            "bandit_01",
+            name="Bandit",
+            role="ambusher",
+            location="gatehouse",
+        )
+        bandit.status = CharacterStatus.dormant
+        bandit.mechanics = _dnd_mechanics(hp=11, ac=12)
+        ckpt.characters.append(bandit)
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice", "bandit_01"],
+            facts=[ObservableFact.all("The bandit steps back into the fight.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I keep moving while the bandit reengages.",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        assert bandit.status == CharacterStatus.active
+        combat = ckpt.session.active_combat
+        assert combat is not None
+        assert {
+            combatant.character_id for combatant in combat.combatants
+        } == {"alice", "bandit_01"}
+
+    @pytest.mark.asyncio
+    async def test_dnd_combat_start_culls_selected_defeated_dormant_spawn(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        values = iter([19, 0, 10, 5, 7])
+        monkeypatch.setattr(
+            dice.d20.expression.random,
+            "randrange",
+            lambda _: next(values),
+        )
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        ckpt.characters[0].mechanics = _dnd_mechanics()
+        defeated = character_record(
+            "bandit_defeated",
+            name="Defeated Bandit",
+            role="ambusher",
+            location="gatehouse",
+        )
+        defeated.status = CharacterStatus.dormant
+        defeated.mechanics = _dnd_mechanics(hp=11, ac=12)
+        defeated.mechanics["hit_points"]["current"] = 0
+        defeated.mechanics["combat_spawn"] = {
+            "spawned": True,
+            "source_event_id": "evt_prior_fight",
+            "monster_key": "bandit",
+        }
+        active = character_record(
+            "bandit_active",
+            name="Bandit",
+            role="ambusher",
+            location="gatehouse",
+        )
+        active.status = CharacterStatus.dormant
+        active.mechanics = _dnd_mechanics(hp=11, ac=12)
+        active.mechanics["combat_spawn"] = {
+            "spawned": True,
+            "source_event_id": "evt_prior_fight",
+            "monster_key": "bandit",
+        }
+        ckpt.characters.extend([defeated, active])
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["alice", "bandit_defeated", "bandit_active"],
+            facts=[ObservableFact.all("The surviving bandit reenters combat.")],
+        ))
+
+        response = await orch.process_turn(TurnRequest(
+            session_id="s",
+            user_input="I move under renewed pressure from the bandits.",
+            acting_character_id="alice",
+        ))
+
+        assert response.beat_ended_reason == "combat_started"
+        assert defeated.status == CharacterStatus.culled
+        assert active.status == CharacterStatus.active
+        combat = ckpt.session.active_combat
+        assert combat is not None
+        assert {
+            combatant.character_id for combatant in combat.combatants
+        } == {"alice", "bandit_active"}
 
     @pytest.mark.asyncio
     async def test_dnd_combat_start_materializes_ref_only_imported_statblock(
