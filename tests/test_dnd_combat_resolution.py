@@ -163,6 +163,41 @@ def test_scrub_visible_bookkeeping_removes_concentration_fact():
     ]
 
 
+def test_scrub_visible_bookkeeping_rewrites_save_and_dash_terms():
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="The action resolves.",
+        visible_outcome_facts=[
+            (
+                "The Void Intruder fails the Sickening Radiance Constitution "
+                "save and is seared by radiant light."
+            ),
+            (
+                "The Void Intruder succeeds on the Cloudkill Constitution "
+                "save and resists the cloud's poison."
+            ),
+            "Hurt but moving, the Void Intruder dashes toward the hatch.",
+        ],
+        private_outcome_facts=[],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[],
+    )
+
+    _scrub_visible_bookkeeping(adjudication)
+
+    assert adjudication.visible_outcome_facts == [
+        "The Void Intruder is seared by radiant light.",
+        "The Void Intruder resists the cloud's poison.",
+        "Hurt but moving, the Void Intruder rushes toward the hatch.",
+    ]
+
+
 def test_scrub_private_outcome_leaks_does_not_match_character_name_substrings():
     adjudication = DndCombatManagerAdjudication(
         feasible=True,
@@ -660,6 +695,13 @@ def test_combat_resolver_rolls_attack_damage_and_applies_hp(monkeypatch):
     ] == ["dnd_combat_manager", "dnd_combat_manager"]
     assert prompt_mgr.render_messages.call_args_list[0].kwargs["phase"] == "PLAN_TURN"
     assert "planned_actions_block" in prompt_mgr.render_messages.call_args_list[1].kwargs
+    final_packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[1].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    assert "mechanics" not in final_packet["combatants"][0]
+    assert final_packet["used_sources"][0]["source"]["id"] == "blade"
     assert [
         call.kwargs["role"] for call in client.complete.await_args_list
     ] == ["dnd_combat_manager", "dnd_combat_manager"]
@@ -1267,9 +1309,9 @@ def test_combat_packet_includes_battle_map_and_spatial_deltas_apply():
             "combat_action_packet"
         ]
     )
-    assert packet["battle_map"]["map_name"] == "Bridge"
-    assert packet["spatial_advisories"][0]["to"] == "bob"
-    assert packet["spatial_advisories"][0]["distance_ft"] == 25
+    assert packet["tactical_map"]["map_name"] == "Bridge"
+    assert packet["tactical_map"]["targets"][0]["character_id"] == "bob"
+    assert packet["tactical_map"]["targets"][0]["distance_ft"] == 25
     alice = next(
         token for token in ckpt.session.active_combat.battle_map.tokens
         if token.character_id == "alice"
@@ -1326,6 +1368,13 @@ def test_combat_packet_trims_non_actor_inventory_resources_and_raw():
         combatant["character_id"]: combatant
         for combatant in packet["combatants"]
     }
+    assert {action["id"] for action in packet["standard_combat_actions"]} >= {
+        "dash",
+        "dodge",
+        "grapple",
+    }
+    assert "dash" not in {action["id"] for action in by_id["alice"]["actions"]}
+    assert "dash" not in {action["id"] for action in by_id["bob"]["actions"]}
     assert "resources" in by_id["alice"]["mechanics"]
     assert "inventory" in by_id["alice"]["mechanics"]
     assert "raw" in by_id["alice"]["mechanics"]
@@ -2664,13 +2713,22 @@ def test_combat_packet_exposes_actions_and_empty_action_id_matches_reason(
         )
     )
 
-    first_packet = prompt_mgr.render_messages.call_args_list[0].kwargs[
-        "combat_action_packet"
-    ]
-    assert '"id": "shortbow"' in first_packet
-    assert '"damage": "1d6+4 piercing"' in first_packet
-    assert '"range": "80/320 ft"' in first_packet
-    assert '"notes": "Ranged weapon attack."' in first_packet
+    first_packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[0].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    alice = next(
+        combatant for combatant in first_packet["combatants"]
+        if combatant["character_id"] == "alice"
+    )
+    shortbow = next(
+        action for action in alice["actions"]
+        if action["id"] == "shortbow"
+    )
+    assert shortbow["damage"] == "1d6+4 piercing"
+    assert shortbow["range"] == "80/320 ft"
+    assert shortbow["notes"] == "Ranged weapon attack."
     transaction = ckpt.session.cat_ii_roll_transactions[0]
     assert transaction.rolls[0].modifier == 7
     assert transaction.damage_records[0].expression == "1d6+4"
@@ -2845,14 +2903,22 @@ def test_combat_packet_exposes_defenses_and_effect_break_triggers():
         )
     )
 
-    packet = prompt_mgr.render_messages.call_args_list[0].kwargs[
-        "combat_action_packet"
+    packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[0].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    by_id = {
+        combatant["character_id"]: combatant
+        for combatant in packet["combatants"]
+    }
+    assert by_id["bob"]["mechanics"]["defenses"]["damage_resistances"] == [
+        "nonmagical slashing"
     ]
-    assert '"damage_resistances": [' in packet
-    assert '"nonmagical slashing"' in packet
-    assert '"break_triggers": [' in packet
-    assert '"attack"' in packet
-    assert '"cast_spell"' in packet
+    assert by_id["alice"]["active_effects"][0]["break_triggers"] == [
+        "attack",
+        "cast_spell",
+    ]
 
 
 def test_invalid_action_id_does_not_fall_back_to_reason_weapon(monkeypatch):
@@ -3084,18 +3150,31 @@ def test_combat_packet_exposes_current_actor_spellcasting():
         )
     )
 
-    first_packet = prompt_mgr.render_messages.call_args_list[0].kwargs[
-        "combat_action_packet"
-    ]
-    assert '"name": "Hold Person"' in first_packet
-    assert '"spell_save_dc": 13' in first_packet
-    assert '"duration": {' in first_packet
-    assert '"slots": {' in first_packet
-    assert '"area_targeting_advisories": [' in first_packet
-    assert '"id": "dash"' in first_packet
-    assert '"action_id": "cone_of_cold"' in first_packet
-    assert '"id": "shove"' in first_packet
-    assert '"id": "grapple"' in first_packet
+    first_packet = json.loads(
+        prompt_mgr.render_messages.call_args_list[0].kwargs[
+            "combat_action_packet"
+        ]
+    )
+    alice = next(
+        combatant for combatant in first_packet["combatants"]
+        if combatant["character_id"] == "alice"
+    )
+    spell_names = {spell["name"] for spell in alice["spells"]}
+    assert "Hold Person" in spell_names
+    assert alice["spellcasting"]["profiles"][0]["spell_save_dc"] == 13
+    assert alice["spellcasting"]["slots"] == {"2": {"current": 1, "max": 2}}
+    hold_person = next(
+        spell for spell in alice["spells"]
+        if spell["id"] == "hold_person"
+    )
+    assert hold_person["duration"]["text"] == "Concentration, up to 1 minute"
+    assert first_packet["tactical_map"]["area_targeting"][0]["action_id"] == (
+        "cone_of_cold"
+    )
+    standard_ids = {
+        action["id"] for action in first_packet["standard_combat_actions"]
+    }
+    assert {"dash", "shove", "grapple"}.issubset(standard_ids)
 
 
 def test_concentration_only_self_effect_does_not_publish_condition_fact():

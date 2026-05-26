@@ -257,6 +257,9 @@ def _scenario_cache_key(context: dict[str, Any]) -> str:
     return f"{context.get('index', '')}:{context.get('name', '')}"
 
 
+_CACHE_READ_BLOCK_TOLERANCE_TOKENS = 256
+
+
 def _cache_watch_for_call(
     context: dict[str, Any],
     *,
@@ -277,10 +280,13 @@ def _cache_watch_for_call(
     plan_cache_read = plan_cache_reads_by_scenario.get(scenario_key)
     if plan_cache_read is None:
         return watch
+    delta = cache_read - plan_cache_read
     watch.update({
         "scenario_plan_cache_read_input_tokens": plan_cache_read,
-        "finalize_cache_read_delta_from_plan": cache_read - plan_cache_read,
-        "finalize_below_plan_cache_read": cache_read < plan_cache_read,
+        "finalize_cache_read_delta_from_plan": delta,
+        "finalize_below_plan_cache_read": (
+            delta < -_CACHE_READ_BLOCK_TOLERANCE_TOKENS
+        ),
     })
     return watch
 
@@ -2238,7 +2244,11 @@ def _cache_watch_findings(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for call in calls:
         watch = call.get("cache_watch") or {}
-        if not watch.get("finalize_below_plan_cache_read"):
+        try:
+            delta = int(watch.get("finalize_cache_read_delta_from_plan"))
+        except (TypeError, ValueError):
+            delta = 0
+        if delta >= -_CACHE_READ_BLOCK_TOLERANCE_TOKENS:
             continue
         findings.append({
             "call_index": call.get("raw_call_index"),
@@ -2250,7 +2260,7 @@ def _cache_watch_findings(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "finalize_cache_read_input_tokens": (
                 watch.get("cache_read_input_tokens")
             ),
-            "delta": watch.get("finalize_cache_read_delta_from_plan"),
+            "delta": delta,
         })
     return findings
 

@@ -1,4 +1,6 @@
 from app.engine.dnd_combat_harness import (
+    _cache_watch_findings,
+    _cache_watch_for_call,
     _event_summary,
     _fact_asserts_condition,
     _scenario_findings,
@@ -124,6 +126,54 @@ def test_private_fact_check_accepts_failed_save_targets_only():
             "private_fact_visible_to_non_failed_targets",
         }
     ]
+
+
+def test_cache_watch_allows_one_small_cache_block_variance():
+    plan_cache_reads_by_scenario = {}
+    context = {"index": 1, "name": "sample"}
+
+    _cache_watch_for_call(
+        context,
+        phase="plan_turn",
+        usage={"cache_read_input_tokens": 6016},
+        plan_cache_reads_by_scenario=plan_cache_reads_by_scenario,
+    )
+    watch = _cache_watch_for_call(
+        context,
+        phase="finalize_outcome",
+        usage={"cache_read_input_tokens": 5888},
+        plan_cache_reads_by_scenario=plan_cache_reads_by_scenario,
+    )
+
+    assert watch["finalize_cache_read_delta_from_plan"] == -128
+    assert watch["finalize_below_plan_cache_read"] is False
+    assert _cache_watch_findings([{"cache_watch": watch}]) == []
+
+
+def test_cache_watch_flags_large_finalize_cache_drop():
+    plan_cache_reads_by_scenario = {}
+    context = {"index": 1, "name": "sample"}
+
+    _cache_watch_for_call(
+        context,
+        phase="plan_turn",
+        usage={"cache_read_input_tokens": 6016},
+        plan_cache_reads_by_scenario=plan_cache_reads_by_scenario,
+    )
+    watch = _cache_watch_for_call(
+        context,
+        phase="finalize_outcome",
+        usage={"cache_read_input_tokens": 5500},
+        plan_cache_reads_by_scenario=plan_cache_reads_by_scenario,
+    )
+
+    assert watch["finalize_below_plan_cache_read"] is True
+    assert _cache_watch_findings([{
+        "raw_call_index": 2,
+        "phase": "finalize_outcome",
+        "scenario": {"name": "sample"},
+        "cache_watch": watch,
+    }])
 
 
 def test_private_fact_check_rejects_non_failed_recipients():

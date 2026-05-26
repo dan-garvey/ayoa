@@ -98,7 +98,7 @@ class DndCombatResolver:
 
         cat._execute_combat_damage_rolls(ckpt, transaction)
         cat._apply_combat_resource_spends(ckpt, transaction)
-        packet = json.dumps(transaction.context, indent=2, sort_keys=True)
+        packet = cat.build_combat_finalization_packet(transaction)
         adjudication = await self._finalize(
             packet,
             transaction.ledger_lines,
@@ -207,10 +207,17 @@ def _merge_content_context_records(
 
 _VISIBLE_BOOKKEEPING_TERMS = (
     "saving throw",
+    "strength save",
+    "dexterity save",
+    "constitution save",
+    "intelligence save",
+    "wisdom save",
+    "charisma save",
     "opportunity attack",
     "hit points",
     "spell slot",
     "concentrating",
+    "dash action",
     "roll ledger",
     "no attacks",
     "no attack was made",
@@ -231,16 +238,40 @@ _PRIVATE_OUTCOME_LEAK_WORDS = {
     "fake",
 }
 
+_VISIBLE_SAVE_RESULT_RE = re.compile(
+    r"\b(?:fails|failed|succeeds on|succeeds|succeeded on)\s+"
+    r"(?:the |a |an )?[^.;,]*?\s+"
+    r"(?:strength|dexterity|constitution|intelligence|wisdom|charisma)\s+"
+    r"save(?:\s+and\s+)?",
+    re.IGNORECASE,
+)
+
 
 def _scrub_visible_bookkeeping(
     adjudication: DndCombatManagerAdjudication,
 ) -> None:
+    rewritten = [
+        _rewrite_visible_bookkeeping(fact)
+        for fact in adjudication.visible_outcome_facts
+    ]
     adjudication.visible_outcome_facts = [
-        fact for fact in adjudication.visible_outcome_facts
+        fact for fact in rewritten
         if not _text_has_visible_bookkeeping(fact)
     ]
     if not adjudication.visible_outcome_facts:
         adjudication.visible_outcome_facts = ["The action resolves."]
+
+
+def _rewrite_visible_bookkeeping(text: str) -> str:
+    cleaned = _VISIBLE_SAVE_RESULT_RE.sub("", str(text or ""))
+    cleaned = re.sub(r"\b[Dd]ashes\b", "rushes", cleaned)
+    cleaned = re.sub(
+        r"\buses?\s+(?:the\s+)?Dash action\b",
+        "rushes",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return " ".join(cleaned.split())
 
 
 def _text_has_visible_bookkeeping(text: str) -> bool:

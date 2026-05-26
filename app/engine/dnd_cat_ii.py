@@ -224,6 +224,10 @@ _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
         ),
     },
 )
+_STANDARD_COMBAT_ACTION_IDS = frozenset(
+    str(action.get("id") or "").strip().lower()
+    for action in _STANDARD_COMBAT_ACTIONS
+)
 
 
 @dataclass(frozen=True)
@@ -653,7 +657,7 @@ def planned_actions_block(transaction: CatIIRollTransaction) -> str:
     if not actions:
         reason = str(transaction.no_roll_reason or "").strip()
         return f"No planned actions. {reason}".strip()
-    return json.dumps(actions, indent=2, sort_keys=True)
+    return json.dumps(actions, separators=(",", ":"), sort_keys=True)
 
 
 def _validate_combat_turn_plan(
@@ -2901,6 +2905,7 @@ def _build_combat_packet(
             character=char,
             bindings=bindings,
         )
+        is_current_actor = cid == actor_id
         participants.append({
             "combatant_id": str(getattr(combatant, "combatant_id", "") or cid),
             "character_id": cid,
@@ -2941,18 +2946,22 @@ def _build_combat_packet(
             "mechanics": (
                 mechanics.mechanics_summary(
                     char,
-                    include_inventory_resources=(cid == actor_id),
+                    include_inventory_resources=is_current_actor,
                 )
                 if char is not None else {}
             ),
-            "actions": _combat_action_summaries(char),
-            "spellcasting": (
-                _combat_spellcasting_summary(char) if cid == actor_id else {}
+            "actions": (
+                _combat_action_summaries(char, include_standard=False)
+                if is_current_actor
+                else _combat_reaction_action_summaries(char)
             ),
-            "spells": _combat_spell_summaries(char) if cid == actor_id else [],
+            "spellcasting": (
+                _combat_spellcasting_summary(char) if is_current_actor else {}
+            ),
+            "spells": _combat_spell_summaries(char) if is_current_actor else [],
             "pending_initiating_action": (
                 str(getattr(combatant, "pending_initiating_action", "") or "")
-                if cid == actor_id else ""
+                if is_current_actor else ""
             ),
         })
 
@@ -2984,6 +2993,7 @@ def _build_combat_packet(
             "Open optional player reaction prompts only for meaningful choices.",
             "Agents do not need roll details; expose dice only through player UI.",
         ],
+        "standard_combat_actions": _standard_combat_action_catalog(),
         "combatants": participants,
         **spatial_context,
     }
@@ -2991,7 +3001,148 @@ def _build_combat_packet(
         payload["content_context"] = _safe_content_context_records(
             content_context_records
         )
-    return json.dumps(payload, indent=2, sort_keys=True)
+    return _compact_json(payload)
+
+
+def build_combat_finalization_packet(
+    transaction: CatIIRollTransaction,
+) -> str:
+    context = transaction.context or {}
+    packet = {
+        "ruleset_id": context.get("ruleset_id", ""),
+        "player_roll_mode": context.get("player_roll_mode", ""),
+        "round_number": context.get("round_number", 0),
+        "current_turn": context.get("current_turn", {}),
+        "intention": context.get("intention", ""),
+        "combatants": _combat_finalization_roster(context),
+        "used_sources": _combat_finalization_used_sources(
+            context,
+            transaction.plan or {},
+        ),
+        "tactical_map": context.get("tactical_map", {}),
+    }
+    if content_context := context.get("content_context"):
+        packet["content_context"] = content_context
+    return _compact_json(packet)
+
+
+def _compact_json(value: object) -> str:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+
+
+def _combat_finalization_roster(context: dict[str, object]) -> list[dict[str, object]]:
+    roster: list[dict[str, object]] = []
+    for combatant in context.get("combatants") or []:
+        if not isinstance(combatant, dict):
+            continue
+        roster.append({
+            key: combatant.get(key)
+            for key in (
+                "combatant_id",
+                "character_id",
+                "name",
+                "role",
+                "faction",
+                "player_controlled",
+                "relationship_to_current_actor",
+                "enemy_to_current_actor",
+                "current",
+                "armor_class",
+                "hit_points",
+                "conditions",
+                "active_effects",
+                "defeat_state",
+                "death_saves",
+                "pending_initiating_action",
+            )
+            if key in combatant
+        })
+    return roster
+
+
+def _combat_finalization_used_sources(
+    context: dict[str, object],
+    plan: dict[str, object],
+) -> list[dict[str, object]]:
+    combatants = [
+        combatant for combatant in context.get("combatants") or []
+        if isinstance(combatant, dict)
+    ]
+    by_id: dict[str, dict[str, object]] = {}
+    for combatant in combatants:
+        for key in ("character_id", "combatant_id", "name"):
+            value = str(combatant.get(key) or "").strip()
+            if value:
+                by_id[value] = combatant
+
+    seen: set[tuple[str, str, str, str]] = set()
+    used: list[dict[str, object]] = []
+    for action in plan.get("actions") or []:
+        if not isinstance(action, dict):
+            continue
+        actor_id = str(action.get("actor_id") or "").strip()
+        source_type = str(action.get("source_type") or "").strip()
+        source_id = str(action.get("source_id") or "").strip()
+        effect_id = str(action.get("effect_id") or "").strip()
+        key = (actor_id, source_type, source_id, effect_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        source = _combat_source_from_packet(
+            by_id.get(actor_id),
+            source_id=source_id,
+            effect_id=effect_id,
+            source_type=source_type,
+        )
+        used.append({
+            "actor_id": actor_id,
+            "source_type": source_type,
+            "source_id": source_id,
+            "effect_id": effect_id,
+            "source": source or {},
+        })
+    return used
+
+
+def _combat_source_from_packet(
+    combatant: dict[str, object] | None,
+    *,
+    source_id: str,
+    effect_id: str,
+    source_type: str,
+) -> dict[str, object] | None:
+    if combatant is None:
+        return None
+    wanted = {
+        _normalize_action_text(source_id),
+        _normalize_action_text(effect_id),
+    }
+    wanted = {item for item in wanted if item}
+    if not wanted:
+        return None
+    if source_type == "effect":
+        for effect in combatant.get("active_effects") or []:
+            if not isinstance(effect, dict):
+                continue
+            keys = {
+                _normalize_action_text(effect.get("effect_id") or ""),
+                _normalize_action_text(effect.get("source_id") or ""),
+                _normalize_action_text(effect.get("slug") or ""),
+                _normalize_action_text(effect.get("name") or ""),
+            }
+            if wanted.intersection({key for key in keys if key}):
+                return effect
+    for collection_name in ("actions", "spells"):
+        for source in combatant.get(collection_name) or []:
+            if not isinstance(source, dict):
+                continue
+            keys = {
+                _normalize_action_text(source.get("id") or ""),
+                _normalize_action_text(source.get("name") or ""),
+            }
+            if wanted.intersection({key for key in keys if key}):
+                return source
+    return None
 
 
 def _safe_content_context_records(records: list[str]) -> list[str]:
@@ -3149,27 +3300,88 @@ def _combat_effect_summaries(combatant: object) -> list[dict[str, object]]:
     return effects
 
 
-def _combat_action_summaries(character: object | None) -> list[dict[str, object]]:
+def _standard_combat_action_catalog() -> list[dict[str, object]]:
+    return [
+        {
+            "id": str(action.get("id") or ""),
+            "name": str(action.get("name") or ""),
+            "range": str(action.get("range") or ""),
+        }
+        for action in _STANDARD_COMBAT_ACTIONS
+    ]
+
+
+def _combat_action_summaries(
+    character: object | None,
+    *,
+    include_standard: bool = True,
+) -> list[dict[str, object]]:
     if character is None:
         return []
     actions: list[dict[str, object]] = []
     for action in _combat_actions_for_character(character):
         if not isinstance(action, dict):
             continue
-        attack = action.get("attack") or {}
-        if not isinstance(attack, dict):
-            attack = {}
-        damage_profile = _action_damage_profile(action)
-        actions.append({
-            "id": str(action.get("id") or ""),
-            "name": str(action.get("name") or ""),
-            "attack_bonus": attack.get("bonus", ""),
-            "damage": _action_damage_summary(action),
-            "damage_type": damage_profile.damage_type,
-            "range": str(attack.get("range") or action.get("range") or ""),
-            "notes": str(action.get("notes") or ""),
-        })
+        if not include_standard and _is_standard_combat_action(action):
+            continue
+        actions.append(_combat_action_summary(action))
     return actions
+
+
+def _combat_reaction_action_summaries(
+    character: object | None,
+) -> list[dict[str, object]]:
+    if character is None:
+        return []
+    actions = [
+        action for action in _combat_actions_for_character(character)
+        if isinstance(action, dict)
+        and not _is_standard_combat_action(action)
+        and _is_reaction_relevant_action(action)
+    ]
+    return [
+        _combat_action_summary(action)
+        for action in actions
+    ]
+
+
+def _is_standard_combat_action(action: dict[str, object]) -> bool:
+    action_id = str(action.get("id") or "").strip().lower()
+    return action_id in _STANDARD_COMBAT_ACTION_IDS
+
+
+def _is_reaction_relevant_action(action: dict[str, object]) -> bool:
+    attack = action.get("attack") or {}
+    if isinstance(attack, dict) and attack:
+        return True
+    damage_profile = _action_damage_profile(action)
+    if damage_profile.expression:
+        return True
+    text = " ".join(
+        str(part or "")
+        for part in (
+            action.get("id"),
+            action.get("name"),
+            action.get("notes"),
+        )
+    ).lower()
+    return any(term in text for term in ("reaction", "opportunity", "readied"))
+
+
+def _combat_action_summary(action: dict[str, object]) -> dict[str, object]:
+    attack = action.get("attack") or {}
+    if not isinstance(attack, dict):
+        attack = {}
+    damage_profile = _action_damage_profile(action)
+    return {
+        "id": str(action.get("id") or ""),
+        "name": str(action.get("name") or ""),
+        "attack_bonus": attack.get("bonus", ""),
+        "damage": _action_damage_summary(action),
+        "damage_type": damage_profile.damage_type,
+        "range": str(attack.get("range") or action.get("range") or ""),
+        "notes": str(action.get("notes") or ""),
+    }
 
 
 def _combat_spellcasting_summary(character: object | None) -> dict[str, object]:

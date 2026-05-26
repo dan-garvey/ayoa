@@ -161,26 +161,37 @@ def combat_packet_context(
 ) -> dict[str, Any]:
     battle_map = _battle_map(combat)
     if battle_map is None:
-        return {
-            "battle_map": {},
-            "tactical_map_enforcement": {},
-            "spatial_advisories": [],
-            "area_targeting_advisories": [],
-        }
+        return {"tactical_map": {}}
+
+    relationships = relationships_by_id or {}
+    enforcement = tactical_map_enforcement_context(
+        combat,
+        actor_id,
+        relationships_by_id=relationships,
+    )
     return {
-        "battle_map": battle_map_status(battle_map),
-        "tactical_map_enforcement": tactical_map_enforcement_context(
-            combat,
-            actor_id,
-            relationships_by_id=relationships_by_id or {},
-        ),
-        "spatial_advisories": spatial_advisories(combat, actor_id),
-        "area_targeting_advisories": area_targeting_advisories(
-            combat,
-            actor_id,
-            area_templates or [],
-            relationships_by_id=relationships_by_id or {},
-        ),
+        "tactical_map": {
+            "map_name": battle_map.map_name,
+            "notes": battle_map.notes,
+            "orientation": battle_map.orientation,
+            "authority": enforcement.get("authority", {}),
+            "grid": enforcement.get("grid", {}),
+            "actor": enforcement.get("actor", {}),
+            "tokens": enforcement.get("occupancy", []),
+            "terrain": enforcement.get("terrain", {}),
+            "active_areas": enforcement.get("active_areas", []),
+            "verticality": enforcement.get("verticality", {}),
+            "targets": enforcement.get("targets", []),
+            "movement": enforcement.get("movement", {}),
+            "hard_gates": enforcement.get("hard_gates", []),
+            "advisories": enforcement.get("advisories", []),
+            "area_targeting": area_targeting_advisories(
+                combat,
+                actor_id,
+                area_templates or [],
+                relationships_by_id=relationships,
+            ),
+        }
     }
 
 

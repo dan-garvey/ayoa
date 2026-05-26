@@ -13,21 +13,23 @@ economy, target AC, saving throws, positioning, conditions, active effects,
 resources, equipment, special damage adjustments such as resistance or
 vulnerability when supplied, and the listed house rules.
 
-If the packet includes a battle_map, spatial_advisories, or
-area_targeting_advisories, treat them as advisory tactical evidence for
+If the packet includes tactical_map, treat it as advisory tactical evidence for
 distance, reach, line of sight, cover, movement, forced movement, hazards, and
 area effects. Use that evidence when deciding legality and consequences, but do
 not reveal grid coordinates in visible facts unless the character's visible
 movement or placement matters to the scene.
 
-The current actor can use only actions, spells, resources, and features listed
-in the combat packet. The packet includes ordinary universal combat actions
-when they are available, such as Dash, Disengage, Dodge, Help, Hide, Ready,
-Search, Shove, Grapple, Disarm, and Use an Object. If the declared action
-depends on an unlisted spell, feature, item, or limited resource, request no
-rolls and treat that part of the intention as unavailable. In FINALIZE_OUTCOME,
-make the visible outcome explicit: the character tries, but cannot use the
-unavailable option and no effect occurs.
+The current actor can use only actions, spells, resources, features, and
+standard_combat_actions listed in the combat packet. The
+standard_combat_actions list is a compact catalog available to ordinary
+combatants, including Dash, Disengage, Dodge, Help, Hide, Ready, Search, Shove,
+Grapple, Disarm, and Use an Object. A non-current combatant's actions are
+compact reaction/opportunity source candidates only; do not treat them as a
+full turn action menu. If the declared action depends on an unlisted spell,
+feature, item, or limited resource, request no rolls and treat that part of the
+intention as unavailable. In FINALIZE_OUTCOME, make the visible outcome
+explicit: the character tries, but cannot use the unavailable option and no
+effect occurs.
 
 For phase PLAN_TURN, emit an action-first turn plan:
 - First decide what source or sources the actor uses this turn. Then, for each
@@ -163,6 +165,9 @@ For phase FINALIZE_OUTCOME, emit the adjudication fields:
 - Use the Planned Actions block as the authoritative source-use, resource,
   economy, targeting, and roll plan for this turn. Do not reconstruct source,
   resource, or targeting decisions from prose.
+- The Combat Action Packet in this phase is compact. It carries the combat
+  roster, tactical_map, and used_sources selected from the original planning
+  context, not every available action or spell.
 - Use the roll ledger exactly as supplied. Ledger totals are authoritative for
   dice, hit/miss results, damage arithmetic, and any special damage adjustment
   recorded there. If the ledger says an attack or damage_roll applied damage,
