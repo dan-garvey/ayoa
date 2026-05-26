@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -375,12 +377,70 @@ class DndCombatTurnPlan(BaseModel):
             data = dict(data)
             data.setdefault("actions", [])
             data.setdefault("no_action_reason", "")
+            data["actions"] = _fill_missing_combat_roll_ids(data["actions"])
         return data
 
     @model_validator(mode="after")
     def _clean(self) -> "DndCombatTurnPlan":
         self.no_action_reason = self.no_action_reason.strip()
         return self
+
+
+def _fill_missing_combat_roll_ids(actions: object) -> object:
+    if not isinstance(actions, list):
+        return actions
+    normalized: list[object] = []
+    for action_index, action in enumerate(actions, start=1):
+        if not isinstance(action, dict):
+            normalized.append(action)
+            continue
+        action_data = dict(action)
+        rolls = action_data.get("rolls")
+        if isinstance(rolls, list):
+            action_data["rolls"] = [
+                _fill_missing_combat_roll_id(
+                    action_data,
+                    roll,
+                    action_index=action_index,
+                    roll_index=roll_index,
+                )
+                for roll_index, roll in enumerate(rolls, start=1)
+            ]
+        normalized.append(action_data)
+    return normalized
+
+
+def _fill_missing_combat_roll_id(
+    action: dict,
+    roll: object,
+    *,
+    action_index: int,
+    roll_index: int,
+) -> object:
+    if not isinstance(roll, dict):
+        return roll
+    roll_data = dict(roll)
+    if str(roll_data.get("roll_id") or "").strip():
+        return roll_data
+    parts = [
+        "roll",
+        action.get("actor_id"),
+        action.get("source_id") or action.get("source_type"),
+        roll_data.get("kind"),
+        roll_data.get("target_id") or roll_data.get("roller_id"),
+        action_index,
+        roll_index,
+    ]
+    roll_data["roll_id"] = "_".join(
+        part for part in (_roll_id_part(value) for value in parts) if part
+    )
+    return roll_data
+
+
+def _roll_id_part(value: object) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    return text.strip("_")
 
 
 CombatStateDeltaKind = Literal[

@@ -464,6 +464,42 @@ def test_dnd_combat_turn_plan_accepts_nested_multi_roll_spell_action():
     assert [roll.roll_id for roll in plan.actions[0].rolls] == ["ray_1", "ray_2"]
 
 
+def test_dnd_combat_turn_plan_fills_missing_action_roll_ids():
+    plan = DndCombatTurnPlan.model_validate({
+        "feasible": True,
+        "actions": [
+            {
+                "actor_id": "pc_marlowe_hexblade",
+                "source_type": "spell",
+                "source_id": "eldritch_blast",
+                "use_mode": "cast",
+                "economy": "action",
+                "rolls": [
+                    {
+                        "roll_id": "",
+                        "kind": "attack_roll",
+                        "roller_id": "pc_marlowe_hexblade",
+                        "target_id": "bandit_ambusher_03",
+                        "ability": "cha",
+                        "skill": "",
+                        "dc": 12,
+                        "opposed_by": "",
+                        "advantage_state": "normal",
+                        "reason": "Marlowe blasts the wounded ambusher.",
+                    }
+                ],
+                "reason": "Marlowe casts Eldritch Blast.",
+            }
+        ],
+        "no_action_reason": "",
+    })
+
+    assert plan.actions[0].rolls[0].roll_id == (
+        "roll_pc_marlowe_hexblade_eldritch_blast_attack_roll_"
+        "bandit_ambusher_03_1_1"
+    )
+
+
 def test_dnd_combat_action_roll_reuses_planned_roll_shape():
     action_roll = DndPlannedActionRoll(
         roll_id=" save_bob ",
