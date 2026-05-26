@@ -34,6 +34,7 @@ from app.schemas.dnd_spatial import (
     DndBattleMapToken,
 )
 from app.schemas.state import (
+    CatIIRollTransaction,
     DndCombatantState,
     DndCombatState,
     DndRuntimeEffect,
@@ -2516,6 +2517,129 @@ def test_combat_resolver_ends_when_hostile_disengages_and_party_does_not_pursue(
     assert any(
         "party is not pursuing" in note
         for note in routed.decision_rationale.split("; ")
+    )
+
+
+def test_group_withdrawal_auto_ends_when_party_declines_pursuit():
+    ckpt = _ckpt()
+    ckpt.characters[0].public_sheet.faction = "expedition"
+    ckpt.characters[1].public_sheet.faction = "bandits"
+    ckpt.characters.append(
+        _character("bandit_ambusher_01", "Bandit Ambusher", faction="bandits")
+    )
+    ckpt.session.active_combat.combatants = [
+        DndCombatantState(
+            combatant_id="alice",
+            character_id="alice",
+            name="Alice",
+            player_controlled=True,
+            armor_class=12,
+            hit_points_current=13,
+            hit_points_max=13,
+        ),
+        DndCombatantState(
+            combatant_id="bob",
+            character_id="bob",
+            name="Bandit Leader",
+            armor_class=12,
+            hit_points_current=13,
+            hit_points_max=13,
+        ),
+        DndCombatantState(
+            combatant_id="bandit_ambusher_01",
+            character_id="bandit_ambusher_01",
+            name="Bandit Ambusher",
+            armor_class=12,
+            hit_points_current=11,
+            hit_points_max=11,
+        ),
+        DndCombatantState(
+            combatant_id="bandit_ambusher_02",
+            character_id="bandit_ambusher_02",
+            name="Bandit Ambusher",
+            armor_class=12,
+            hit_points_current=0,
+            hit_points_max=11,
+            defeat_state="defeated",
+        ),
+    ]
+    transaction = CatIIRollTransaction(
+        transaction_id="txn",
+        event_id="evt",
+        source="combat",
+        actor_id="bandit_ambusher_02",
+        intention=(
+            "Marlowe holds fire and does not pursue while the bandits withdrew "
+            "toward the tree line."
+        ),
+    )
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="The last ambusher falls after an opportunity attack.",
+        visible_outcome_facts=[
+            (
+                "The remaining bandits have withdrawn toward the tree line and "
+                "none of them have doubled back."
+            )
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[],
+    )
+
+    cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
+
+    assert adjudication.combat_status == "ended"
+    active_hostiles = [
+        combatant for combatant in ckpt.session.active_combat.combatants
+        if combatant.defeat_state == "active" and not combatant.player_controlled
+    ]
+    assert active_hostiles
+    assert all(cat._combatant_is_marked_disengaged(c) for c in active_hostiles)
+    assert any("party is not pursuing" in note for note in adjudication.rules_notes)
+
+
+def test_current_withdrawal_ignores_negated_attack_pressure():
+    ckpt = _ckpt()
+    ckpt.session.active_combat.turn_index = 1
+    ckpt.characters[0].public_sheet.faction = "expedition"
+    ckpt.characters[1].public_sheet.faction = "bandits"
+    transaction = CatIIRollTransaction(
+        transaction_id="txn",
+        event_id="evt",
+        source="combat",
+        actor_id="bob",
+        intention="Alice tells everyone to hold position and not fire as Bob pulls back.",
+    )
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary=(
+            "Bob spends his movement to withdraw into the cleft, breaking clear "
+            "line of sight. No attacks or attack rolls were required."
+        ),
+        visible_outcome_facts=[
+            "Bob backs into the shadowed corridor and vanishes from clear sight."
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[],
+    )
+
+    cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
+
+    assert adjudication.combat_status == "ended"
+    assert cat._combatant_is_marked_disengaged(
+        ckpt.session.active_combat.combatants[1]
     )
 
 

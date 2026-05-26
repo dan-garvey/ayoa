@@ -4962,6 +4962,15 @@ def _mark_disengaged_hostiles_from_adjudication(
     combat = getattr(ckpt.session, "active_combat", None)
     if combat is None:
         return
+    scene_text = _disengagement_scene_text(ckpt, transaction, adjudication)
+    if _scene_signals_group_disengagement(scene_text):
+        for combatant in _combatants(combat):
+            if (
+                _combatant_defeat_state(combatant) == "active"
+                and _combatant_is_hostile_to_party(ckpt, combatant)
+            ):
+                _mark_combatant_disengaged(combatant, reason="group withdrawal")
+        return
     if not _adjudication_signals_disengagement(adjudication):
         return
     current = _find_combatant_by_any_id(combat, transaction.actor_id)
@@ -4972,14 +4981,60 @@ def _mark_disengaged_hostiles_from_adjudication(
     ):
         _mark_combatant_disengaged(current, reason="adjudicated withdrawal")
         return
-    text = _adjudication_text(adjudication)
-    if any(term in text for term in ("bandits fled", "enemies fled", "hostiles fled")):
-        for combatant in _combatants(combat):
-            if (
-                _combatant_defeat_state(combatant) == "active"
-                and _combatant_is_hostile_to_party(ckpt, combatant)
-            ):
-                _mark_combatant_disengaged(combatant, reason="group withdrawal")
+
+
+def _disengagement_scene_text(
+    ckpt: CheckpointFile,
+    transaction: CatIIRollTransaction,
+    adjudication: RulesAdjudication,
+) -> str:
+    return " ".join((
+        _recent_combat_fact_text(ckpt),
+        str(transaction.intention or ""),
+        _adjudication_text(adjudication),
+    )).lower()
+
+
+def _scene_signals_group_disengagement(text: str) -> bool:
+    if not text:
+        return False
+    group_withdrawal_terms = (
+        "bandits withdrew",
+        "bandits withdraw",
+        "bandits have withdrawn",
+        "bandits withdrawn",
+        "bandits fled",
+        "bandits have fled",
+        "enemies fled",
+        "hostiles fled",
+        "remaining bandits",
+        "surviving bandits",
+        "none of them have doubled back",
+        "empty firing line",
+        "firing line is empty",
+        "empty mouth of the cleft",
+    )
+    if any(term in text for term in group_withdrawal_terms):
+        return True
+    group_subject_terms = (
+        "bandits",
+        "enemies",
+        "hostiles",
+        "remaining foes",
+        "surviving foes",
+    )
+    group_subject = any(term in text for term in group_subject_terms)
+    if not group_subject:
+        return False
+    return any(
+        term in text
+        for term in (
+            "out of sight",
+            "toward the tree line",
+            "toward the treeline",
+            "toward the trees",
+        )
+    )
 
 
 def _adjudication_signals_disengagement(
@@ -4988,15 +5043,6 @@ def _adjudication_signals_disengagement(
     text = _adjudication_text(adjudication)
     if not text:
         return False
-    hostile_pressure_terms = (
-        "attacks ",
-        "attack roll",
-        "fires ",
-        "shoots ",
-        "slashes ",
-        "stabs ",
-        "casts ",
-    )
     disengage_terms = (
         "fled",
         "flee",
@@ -5011,11 +5057,49 @@ def _adjudication_signals_disengagement(
         "vanishes",
         "disappears",
         "deeper into the passage",
+        "deeper into the cleft",
+        "into the cleft",
+        "behind terrain",
+        "breaking clear line of sight",
+        "blocks clear line of sight",
+        "no longer in clear sight",
+        "shadowed corridor",
         "putting more rocky ground between",
     )
     return (
         any(term in text for term in disengage_terms)
-        and not any(term in text for term in hostile_pressure_terms)
+        and not _text_signals_hostile_pressure(text)
+    )
+
+
+def _text_signals_hostile_pressure(text: str) -> bool:
+    cleaned = text
+    for harmless in (
+        "no attacks or attack rolls",
+        "no attack rolls or attacks",
+        "no attacks",
+        "no attack rolls",
+        "no attack roll",
+        "no opportunity attacks",
+        "no opportunity attack",
+        "without attacking",
+        "did not attack",
+        "does not attack",
+        "opportunity attack",
+        "opportunity attacks",
+    ):
+        cleaned = cleaned.replace(harmless, "")
+    return any(
+        term in cleaned
+        for term in (
+            "attacks ",
+            "attack roll",
+            "fires ",
+            "shoots ",
+            "slashes ",
+            "stabs ",
+            "casts ",
+        )
     )
 
 
@@ -5040,6 +5124,23 @@ def _recent_party_declines_pursuit(
         "not chase",
         "hold fire",
         "holds fire",
+        "hold position",
+        "holds position",
+        "holding position",
+        "do not fire",
+        "does not fire",
+        "don't fire",
+        "not fire",
+        "do not attack",
+        "does not attack",
+        "don't attack",
+        "not attack",
+        "watch the cleft until",
+        "until the attackers go",
+        "until the bandits go",
+        "until the bandits leave",
+        "until the riders leave",
+        "until they leave",
         "let the bandits go",
         "let them go",
         "leave alive",
