@@ -8,6 +8,8 @@ Cases:
 - non-combat consent/contact contest: should open ordinary Cat II, not combat
 - hostile attack declaration against a claimed target: should start D&D
   initiative, not open Cat II
+- training/sparring weapon exchange: should start D&D initiative, not open
+  Cat II
 - hostile attack declaration against an unclaimed enemy: should start D&D
   initiative and leave NPC automation in charge of the enemy
 """
@@ -85,6 +87,16 @@ CASES = [
         user_input=(
             "I don't wait for Ironjaw to swing first; I draw my longsword "
             "and swing at Ironjaw Captain."
+        ),
+        expected="combat",
+    ),
+    SmokeCase(
+        name="training_spar_starts_combat",
+        actor_id="seren",
+        responder_id="ironjaw",
+        user_input=(
+            "I square up for a training spar with Ironjaw Captain, draw my "
+            "longsword, and make one clean exchange."
         ),
         expected="combat",
     ),
@@ -453,6 +465,7 @@ def _case_checks(
             ),
         ]
 
+    initiator = _combatant_dump(ckpt, case.actor_id)
     checks = [
         _check("dnd_fresh_router_schema_used", dnd_schema_used, role_calls),
         _check("active_combat_started", active_combat, _combat_dump(ckpt)),
@@ -469,9 +482,13 @@ def _case_checks(
         ),
         _check(
             "cli_showed_combat_start",
-            "combat begins" in latest_cli.lower()
-            and "initiating action has not resolved" in latest_cli.lower(),
+            "combat begins" in latest_cli.lower(),
             latest_cli,
+        ),
+        _check(
+            "initiating_action_pending",
+            bool(initiator.get("pending_initiating_action")),
+            initiator,
         ),
     ]
     responder = _combatant_dump(ckpt, case.responder_id)

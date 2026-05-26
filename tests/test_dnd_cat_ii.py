@@ -235,7 +235,7 @@ def test_dnd_cat_ii_content_context_redacts_imported_asset_sentinels():
     assert "Visible surface" in flat
 
 
-def test_dnd_cat_ii_packet_includes_identity_and_training_spar_hints():
+def test_dnd_cat_ii_packet_includes_identity_without_training_spar_hints():
     lyra = character_record(
         "lyra",
         name="Lyra",
@@ -284,10 +284,7 @@ def test_dnd_cat_ii_packet_includes_identity_and_training_spar_hints():
         "classes": "Cleric 3",
         "background": "Acolyte",
     }
-    assert packet["adjudication_hints"]["training_spar"]["present"] is True
-    assert "training-safe consequences" in " ".join(
-        packet["adjudication_hints"]["training_spar"]["mechanics_options"]
-    )
+    assert "training_spar" not in packet.get("adjudication_hints", {})
 
 
 def test_hidden_observer_who_beats_player_stealth_gets_next_output():

@@ -12,12 +12,12 @@ timing, leverage, position, ability, surprise, equipment, conditions, active
 effects, special damage adjustments such as resistance or vulnerability when
 supplied, and the established situation.
 
-Rules exist to serve the table experience. Compute checks, attacks, geometry,
+Rules exist to serve the table experience. Compute checks, geometry,
 resources, and odds as accurately as the packet allows, then use that rules
 context to make a flexible adjudication that leaves the next interesting choice
-alive. Do not turn a training drill, scouting beat, or social pressure moment
-into a fully deterministic simulator unless safety, privacy, missing authority,
-or impossible state requires a hard stop.
+alive. This resolver is for non-combat contested actions; weapon exchanges,
+attack spells, grapples, shoves, strikes, and other initiative-scale actions
+should have started active combat instead of arriving here.
 
 For phase PLAN_ROLLS, emit RollPlan:
 - If dice matter, set needs_rolls=true and list the d20 rolls needed.
@@ -33,11 +33,6 @@ For phase PLAN_ROLLS, emit RollPlan:
 - Use opposed rolls when two characters' active skill matters. Use a fixed DC
   when only the attempt's difficulty matters. Do not ask for dice when the
   request is plainly impossible, plainly accepted, or has no meaningful cost.
-- For explicit training sparring, pick rolls that match the stated purpose:
-  footing and balance can use Athletics or Acrobatics; reading an opening can
-  use Insight, Perception, or a weapon-relevant check; one real exchange can
-  use an attack roll or opposed martial check. Keep it non-hostile unless the
-  submitted intentions escalate beyond training.
 - Set action_id="" and target_id="" unless this is a D&D combat attack roll
   with a known action/target.
 - For attack damage with situational resistance, immunity, or vulnerability
@@ -53,7 +48,9 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   authoritative for dice, hit/miss results, damage arithmetic, and any special
   damage adjustment recorded there.
 - Set combat_status="ongoing"; ordinary Cat II resolution does not start or
-  end initiative.
+  end initiative. If the packet describes an initiative-scale combat action,
+  mark the attempted Cat II resolution infeasible instead of resolving it as a
+  non-combat sparring exchange.
 - visible_outcome_facts are public, concrete facts of the resolved contest.
 - private_outcome_facts are concrete facts perceived only by the named
   characters in visible_to. Use them for social pressure, fear, credibility,
@@ -65,11 +62,6 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   choice was already part of a submitted intention. Leave the target's next
   choice for that character; use private_outcome_facts to frame what now feels
   credible, frightening, plausible, costly, hollow, or hard to dismiss.
-- In training sparring, visible_outcome_facts should expose the meaningful
-  mechanical result as fiction: shifted footing, a clean touch, a checked
-  blade, a forced retreat, a revealed opening, or the partner's guard holding.
-  Do not spend hit points, apply combat damage, or start initiative unless the
-  intentions explicitly made the exchange real and harmful.
 - If a hidden or watchful observer beats a player-controlled stealth or recon
   attempt, make the result actionable. Either write a concrete consequence that
   changes the situation now, or leave the observer's next choice alive through

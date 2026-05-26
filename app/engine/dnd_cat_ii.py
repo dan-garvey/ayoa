@@ -94,15 +94,6 @@ _STEALTH_RECON_COUNTER_SKILLS = {
     "stealth",
     "survival",
 }
-_TRAINING_SPAR_CONTEXT_TERMS = {
-    "bout",
-    "drill",
-    "practice",
-    "spar",
-    "sparring",
-    "train",
-    "training",
-}
 _STANDARD_COMBAT_ACTIONS: tuple[dict[str, object], ...] = (
     {
         "id": "dash",
@@ -2838,29 +2829,6 @@ def _contested_adjudication_hints(
     cat_ii_event: OpenCatIIEvent,
 ) -> dict[str, object]:
     hints: dict[str, object] = {}
-    if _training_spar_context_present(cat_ii_event):
-        hints["training_spar"] = {
-            "present": True,
-            "stakes": (
-                "Non-hostile D&D drill or spar. Use rules to clarify the "
-                "exchange, not to force full initiative."
-            ),
-            "mechanics_options": [
-                (
-                    "Testing footing or balance can use opposed Athletics, "
-                    "Acrobatics, or another fitting ability check."
-                ),
-                (
-                    "Reading an opening can use Insight, Perception, or a "
-                    "weapon-relevant check against the partner's guard."
-                ),
-                (
-                    "One real exchange can use an attack roll or opposed "
-                    "martial check, with training-safe consequences unless "
-                    "the fiction explicitly escalates."
-                ),
-            ],
-        }
     if _stealth_recon_context_present(cat_ii_event):
         hints["stealth_recon"] = {
             "present": True,
@@ -4887,24 +4855,6 @@ def _dedupe(ids: list[str]) -> list[str]:
             seen.add(cid)
             out.append(cid)
     return out
-
-
-def _training_spar_context_present(cat_ii_event: OpenCatIIEvent) -> bool:
-    text = _cat_ii_event_context_text(cat_ii_event)
-    if _text_contains_terms(text, _TRAINING_SPAR_CONTEXT_TERMS):
-        return True
-    return any(
-        phrase in text
-        for phrase in (
-            "test my footing",
-            "test footing",
-            "read an opening",
-            "reading an opening",
-            "one real exchange",
-            "one clean exchange",
-            "make one exchange",
-        )
-    )
 
 
 def _stealth_recon_context_present(cat_ii_event: OpenCatIIEvent) -> bool:
