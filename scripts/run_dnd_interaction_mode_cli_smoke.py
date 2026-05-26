@@ -10,6 +10,8 @@ Cases:
   initiative, not open Cat II
 - training/sparring weapon exchange: should start D&D initiative, not open
   Cat II
+- hidden or established ambush pressure: should start D&D initiative before
+  the player sees an attack
 - hostile attack declaration against an unclaimed enemy: should start D&D
   initiative and leave NPC automation in charge of the enemy
 """
@@ -53,7 +55,7 @@ from scripts.play import CLIState
 
 
 REPORT_DIR = REPO_ROOT / "app/storage/playtest_reports"
-TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 RUN_DIR = REPORT_DIR / f"dnd_interaction_mode_cli_smoke_{TS}"
 JSON_PATH = RUN_DIR / "report.json"
 MD_PATH = RUN_DIR / "report.md"
@@ -70,6 +72,7 @@ class SmokeCase:
     join_responder: bool = True
     starts_in_combat: bool = False
     default: bool = True
+    hidden_ambush_pressure: bool = False
 
 
 CASES = [
@@ -99,6 +102,17 @@ CASES = [
             "longsword, and make one clean exchange."
         ),
         expected="combat",
+    ),
+    SmokeCase(
+        name="ambush_pressure_starts_combat_before_attack",
+        actor_id="seren",
+        responder_id="ironjaw",
+        user_input=(
+            "I step onto the bridge and ask Ironjaw Captain if he means to "
+            "parley."
+        ),
+        expected="combat",
+        hidden_ambush_pressure=True,
     ),
     SmokeCase(
         name="attack_unbound_enemy_starts_combat",
@@ -280,6 +294,19 @@ def _story_checkpoint(story_id: str, case: SmokeCase) -> CheckpointFile:
             lore=(
                 "The bridge is cracked and exposed. Everyone can see and hear "
                 "each other clearly."
+            ),
+            hidden_lore=(
+                "Ironjaw Captain has already chosen to spring the ambush as "
+                "Seren steps onto the bridge; weapons are coming up now, before "
+                "Seren can confirm whether this is parley."
+                if case.hidden_ambush_pressure else ""
+            ),
+            hidden_facts=(
+                [
+                    "Ironjaw Captain's ambush is in motion now; roll initiative "
+                    "before resolving any attack or parley response."
+                ]
+                if case.hidden_ambush_pressure else []
             ),
         ),
         characters=_characters_for(case),

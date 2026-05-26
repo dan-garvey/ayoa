@@ -120,7 +120,9 @@ class TestPromptManagerWithRealTemplates:
                 "- **aldric** (acting this turn) — scholar. "
                 "Tall, broad-shouldered, grey-streaked hair."
             ),
-            ruleset_router_addon="",
+            fresh_intention_classifier=mgr.render(
+                "event_router_ruleset_default",
+            ).strip(),
             router_input_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
@@ -220,7 +222,9 @@ class TestPromptManagerWithRealTemplates:
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
-            ruleset_router_addon="",
+            fresh_intention_classifier=mgr.render(
+                "event_router_ruleset_default",
+            ).strip(),
             router_input_block="",
         )
         assert len(messages) == 2
@@ -265,7 +269,9 @@ class TestPromptManagerWithRealTemplates:
                 "- **aldric_unique_actor** (acting this turn) — scholar. "
                 "Unique player-block appearance."
             ),
-            ruleset_router_addon="",
+            fresh_intention_classifier=mgr.render(
+                "event_router_ruleset_default",
+            ).strip(),
             router_input_block="I wait.",
         )
 
@@ -349,7 +355,9 @@ class TestPromptManagerWithRealTemplates:
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
-            ruleset_router_addon="",
+            fresh_intention_classifier=mgr.render(
+                "event_router_ruleset_default",
+            ).strip(),
             router_input_block="",
         )
         assert len(messages) == 4

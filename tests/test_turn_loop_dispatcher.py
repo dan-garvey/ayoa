@@ -23,6 +23,7 @@ from app.engine.turn_loop_dispatcher import (
     EVENT_ROUTER_MAX_TOKENS,
     LLMDispatcher,
     _build_router_context,
+    _router_ruleset_template_vars,
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
@@ -110,6 +111,30 @@ def _last_user_content(messages: list[dict]) -> str:
     if isinstance(content, list):
         return "".join(p.get("text", "") for p in content)
     return content
+
+
+def test_router_classifier_module_defaults_but_drops_in_nonfresh_dnd(prompt_mgr):
+    default_vars = _router_ruleset_template_vars(
+        prompt_mgr,
+        dnd_mode=False,
+        dnd_fresh=False,
+    )
+    dnd_fresh_vars = _router_ruleset_template_vars(
+        prompt_mgr,
+        dnd_mode=True,
+        dnd_fresh=True,
+    )
+    dnd_nonfresh_vars = _router_ruleset_template_vars(
+        prompt_mgr,
+        dnd_mode=True,
+        dnd_fresh=False,
+    )
+
+    assert "Category II" in default_vars["fresh_intention_classifier"]
+    assert "dnd_combat_start" not in default_vars["fresh_intention_classifier"]
+    assert "dnd_combat_start" in dnd_fresh_vars["fresh_intention_classifier"]
+    assert "Category II examples" not in dnd_fresh_vars["fresh_intention_classifier"]
+    assert dnd_nonfresh_vars["fresh_intention_classifier"] == ""
 
 
 def _queue_content_signal(
@@ -1181,9 +1206,10 @@ class TestRouteIntention:
         call = mock_client.complete.await_args.kwargs
         assert call["response_model"] is DndEventRouterOutput
         system_content = call["messages"][0]["content"]
-        assert "D&D Interaction Mode" in system_content
         assert "`interaction_mode`" in system_content
+        assert "`dnd_combat_start`" in system_content
         assert "`combatant_spawns`" in system_content
+        assert "Category II examples" not in system_content
 
     def test_dnd_loot_offer_is_not_replayed_in_router_history(
         self, prompt_mgr, mock_client,
@@ -1561,7 +1587,7 @@ class TestDndCombatContentContext:
 
         plan_messages = mock_client.complete.await_args_list[0].kwargs["messages"]
         plan_user_content = _last_user_content(plan_messages)
-        assert '"content_context": [' in plan_user_content
+        assert '"content_context":[' in plan_user_content
         assert "front_signal ref=front/vampire" in plan_user_content
         assert ckpt.session.content_state["pack"].pending_signals == {}
         assert _pending_content_record_count(ckpt, "front_signal ref=front/vampire") == 1

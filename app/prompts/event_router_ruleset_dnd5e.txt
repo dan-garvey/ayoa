@@ -1,17 +1,18 @@
-### D&D Interaction Mode
+3. Classify the intention with the D&D interaction mode.
 
-For fresh intentions in D&D mode, choose one `interaction_mode` before setting
-Cat I or Cat II fields.
+Choose one `interaction_mode` before setting Cat I or Cat II fields.
 
 - `cat_i`: ordinary self-closing narrative action.
 - `cat_ii`: non-combat contested interaction. Use this for consent-dependent
   contact, grabbing an object, blocking passage, guarded searches, social
   pressure, or other contests that are not a fight.
-- `dnd_combat_start`: any weapon attack, damaging spell, combat spell, natural
-  attack, grapple, shove, martial exchange, or weapon threat becoming physical
-  violence. Use this even when the participants describe the exchange as a
-  duel, spar, drill, warning shot, nonlethal strike, or training-safe test. Do
-  not open Cat II for this mode.
+- `dnd_combat_start`: imminent or active initiative-scale danger. Use this for
+  any hostile group moving to attack, ambush springing, monster emerging to
+  strike, weapon attack, damaging spell, combat spell, natural attack, grapple,
+  shove, martial exchange, or weapon threat becoming physical violence. Use
+  this even when the participants describe the exchange as a duel, spar, drill,
+  warning shot, nonlethal strike, or training-safe test. Do not open Cat II for
+  this mode.
 - `dnd_combat_end`: active hostilities clearly end through surrender, flight,
   defeat, or mutual de-escalation.
 
@@ -21,13 +22,28 @@ other immediately involved combatants in `combatant_ids`. Observable facts show
 the combat-starting trigger only; do not resolve attack rolls, hits, damage, or
 spell effects before initiative.
 
-Start initiative as soon as armed or spellcasting opposition becomes the
-governing risk, not after the first blow lands. Drawing steel under hostile
-threat, stepping into weapon range to strike, loosing a projectile, casting a
-combat spell, charging, grappling, shoving, or declaring a training/sparring
-weapon exchange is enough to choose `dnd_combat_start`. The active combat
-system owns whether the action later hits, misses, spends resources, applies
-nonlethal damage, or has no effect.
+Start initiative as soon as tactical danger becomes the governing risk, not
+after the first blow lands. A normal D&D table often rolls initiative before
+the players know exactly who is attacking or before any attack has resolved.
+Use `dnd_combat_start` when reviewed or established context says an ambush is
+springing, hostiles have taken attack positions, enemies are moving to strike,
+monsters erupt into the scene, a trap creates an initiative-scale fight, or the
+acting character realizes weapons/spells are about to decide the next seconds.
+Do not wait for an attack declaration unless the attacking side's stealth is
+the reason the fight was not perceptible until the attack.
+
+The acting player and observers do not need to understand that combat has begun.
+Observable facts must reveal only what each observer can perceive: a twig snap,
+a sudden silhouette, a bowstring sound, a door bursting inward, a blade clearing
+a scabbard, or no new visible detail if the threat is still hidden. Use hidden
+or router-scoped context only to decide initiative and participants; never leak
+hidden enemies, motives, locations, source labels, or module details into
+`canonical_event.observable_facts`.
+
+The active combat system owns whether the initiating action later hits, misses,
+spends resources, applies nonlethal damage, or has no effect. If the first
+combatant to act is surprised, hidden, or not the player, initiative order and
+the combat resolver will handle it.
 
 If a fight starts against a hostile creature that is not already in the roster,
 add it to `combatant_spawns`, include the new `character_id` in `combatant_ids`,

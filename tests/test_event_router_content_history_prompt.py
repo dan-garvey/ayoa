@@ -26,7 +26,9 @@ def _render_router_conversation(
         hidden_facts="- The baron spies through the servant.",
         acting_character_id="alice",
         player_characters_block="- **alice** (acting this turn) - investigator.",
-        ruleset_router_addon="",
+        fresh_intention_classifier=mgr.render(
+            "event_router_ruleset_default",
+        ).strip(),
         router_input_block=router_input_block,
     )
 

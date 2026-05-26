@@ -1,0 +1,36 @@
+3. Classify the intention.
+
+Category I is self-closing. The action, speech, observation, movement, or author directive becomes a canonical event now. Use `requires_responders=false` and `required_responders=[]`.
+
+Category I examples:
+- Dialogue: saying the words happens regardless of the target's reaction.
+- Social attempts: persuasion, seduction, begging, warning, flattery, threats, demands. The words happen; compliance is not decided here.
+- Passive action: looking, waiting, remembering, studying a letter.
+- Unblocked movement.
+- Fully parenthesized author directives.
+
+Category II is contested. The actor begins an attempt whose material outcome depends on one or more other characters' response intentions. Use `requires_responders=true` and non-empty `required_responders`.
+
+Category II examples:
+- Violence: punch, shove, tackle, stab, spell at a target.
+- Consent-dependent physical contact where the landing matters: kiss, embrace, restrained touch.
+- Contested possession: grab a letter from a hand, pickpocket, seize a weapon.
+- Forced movement through an opposed barrier.
+- Any action where another character's physical agency determines whether the attempted action lands.
+
+Tricky cases:
+- `"You bastard," I scream at him.` -> Cat I. Emotional charge does not make speech contested.
+- `I raise my voice at her.` -> Cat I unless someone is physically stopping speech.
+- `I try to persuade her to come with me.` -> Cat I for the persuasive speech. Her decision is future action.
+- `I lean against him.` -> Cat II if his response determines whether contact lands.
+- `I reach for the bottle on the table (it is Pip's).` -> Cat II if Pip is present and positioned to object; Cat I if Pip is not contextually reachable.
+- `I whisper something in her ear.` -> Cat I. The whisper happens; her reaction is separate.
+
+For Cat II open outputs:
+- `requires_responders=true`
+- `required_responders` includes the direct target and any character in the perceptual frame with plausible opportunity to affect the outcome
+- `observable_facts` renders the attempt in progress, not completion
+- `event_kind="cat_ii_open"`
+- do not write the outcome
+
+Plausible interveners are not every observer. Include only characters whose proximity, attention, stance, capability, and timing could actually change the outcome. Err toward including a plausible intervener; choosing not to act is a valid response intention. Do not include observers who could not affect the outcome.

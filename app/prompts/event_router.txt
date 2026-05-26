@@ -102,8 +102,6 @@ Use `commitment_resolutions` when this event completes, cancels, supersedes, or 
 
 Use `location_updates` for durable changes to a character's opaque location label. Do not rely on visible movement prose alone when a character's location should change for future routing. When off-stage characters complete a scene or act beyond the player-facing POV, let them plausibly change locations; antagonists, allies, messengers, and faction actors should not remain fixed in the same room until a player arrives. Update location when their output establishes that they leave, follow, relocate, wait elsewhere, or begin operating from another place.
 
-{ruleset_router_addon}
-
 ### Time And Interleaving
 
 Default a fresh action to the acting character's current clock. Cut back only when filling in a parallel scene the acting character has not yet advanced past. Jump forward only for explicit waiting, travel, rest, montage, or time-skip framing.
@@ -130,48 +128,13 @@ Do not keep a setup beat open for routine acknowledgements, farewells, procedura
 
 Never push pointless procedural requests back to the player. If the player's likely response is "I sit," "I follow," "I sign," or "I wait," the beat has failed. Treat NPC/agent input about routine contracts, forms, chits, signatures, waiting rooms, being told to sit, escort-only compliance, or other bureaucratic tedium as `feasible=false` and let that character try for a beat with real pressure, information, conflict, relationship, choice, or changed conditions instead. This does not ban bureaucracy as setting texture; it bans making the player spend turns confirming empty compliance.
 
-3. Classify the intention.
-
-Category I is self-closing. The action, speech, observation, movement, or author directive becomes a canonical event now. Use `requires_responders=false` and `required_responders=[]`.
-
-Category I examples:
-- Dialogue: saying the words happens regardless of the target's reaction.
-- Social attempts: persuasion, seduction, begging, warning, flattery, threats, demands. The words happen; compliance is not decided here.
-- Passive action: looking, waiting, remembering, studying a letter.
-- Unblocked movement.
-- Fully parenthesized author directives.
-
-Category II is contested. The actor begins an attempt whose material outcome depends on one or more other characters' response intentions. Use `requires_responders=true` and non-empty `required_responders`.
-
-Category II examples:
-- Violence: punch, shove, tackle, stab, spell at a target.
-- Consent-dependent physical contact where the landing matters: kiss, embrace, restrained touch.
-- Contested possession: grab a letter from a hand, pickpocket, seize a weapon.
-- Forced movement through an opposed barrier.
-- Any action where another character's physical agency determines whether the attempted action lands.
-
-Tricky cases:
-- `"You bastard," I scream at him.` -> Cat I. Emotional charge does not make speech contested.
-- `I raise my voice at her.` -> Cat I unless someone is physically stopping speech.
-- `I try to persuade her to come with me.` -> Cat I for the persuasive speech. Her decision is future action.
-- `I lean against him.` -> Cat II if his response determines whether contact lands.
-- `I reach for the bottle on the table (it is Pip's).` -> Cat II if Pip is present and positioned to object; Cat I if Pip is not contextually reachable.
-- `I whisper something in her ear.` -> Cat I. The whisper happens; her reaction is separate.
-
-For Cat II open outputs:
-- `requires_responders=true`
-- `required_responders` includes the direct target and any character in the perceptual frame with plausible opportunity to affect the outcome
-- `observable_facts` renders the attempt in progress, not completion
-- `event_kind="cat_ii_open"`
-- do not write the outcome
-
-Plausible interveners are not every observer. Include only characters whose proximity, attention, stance, capability, and timing could actually change the outcome. Err toward including a plausible intervener; choosing not to act is a valid response intention. Do not include observers who could not affect the outcome.
+{fresh_intention_classifier}
 
 4. Build `canonical_event`.
 
 Preserve the actor's supplied facts. Never invent dialogue or action to fill a slot. If an NPC intention is silent, the canonical event is silent. If the actor waits, the actor waits; do not turn it into patience-as-pressure unless the input supplied that pressure.
 
-For contested or consent-dependent actions on a fresh Cat II open, render the attempt, not the completion. Write "Aldric's fist drives toward her jaw," not "Aldric hits her." Write "Aldric leans in toward her," not "Aldric kisses her." The response intentions decide what lands.
+For contested or consent-dependent actions on a fresh Cat II open, render the attempt, not the completion. Write "Aldric reaches for the signed letter," not "Aldric takes the signed letter." Write "Aldric leans in toward her," not "Aldric kisses her." The response intentions decide what lands.
 
 Do not invent obstacles, locks, guards, barriers, or restrictions unsupported by the setting, world rules, current situation, or hidden facts. Ordinary movement between plausibly reachable places succeeds unless an established constraint blocks it. If a character is reachable only through a live channel, they can be addressed through that channel but not physically approached.
 
@@ -243,7 +206,7 @@ After several chained events, prefer a natural boundary over another marginal re
 
 - Player waits, defers, asks where to go, scans for a cue, or otherwise signals they lack direction. Do not close on quiet, watchfulness, or a host turning away. Either route an NPC with real pressure to act, or create a grounded cue: a marked door, a bell, a producer's signal, a message, a newly visible object, an arrival, a blocked path, or an opened route. If the player defers again after your last beat ended on a direct address, instruction, or small state change, assume that previous boundary was premature and keep the scene moving farther before ending.
 
-- Cat II open versus resolution: "I punch Pip" opens with the fist driving toward Pip, not with Pip being hit. Required responders then supply intentions. The resolution decides whether the punch lands, misses, is blocked, partially lands, or is interrupted.
+- Cat II open versus resolution: "I grab the signed letter from Pip's hand" opens with the reach for the letter, not with the letter being taken. Required responders then supply intentions. The resolution decides whether the grab succeeds, fails, is blocked, partially lands, or is interrupted.
 
 - Cat II responder intent is not automatic success. If Pip says he catches Alice's wrist, that is an attempted counter, not proof. Weigh timing, position, capability, surprise, prior setup, leverage, and established rules before writing the outcome.
 

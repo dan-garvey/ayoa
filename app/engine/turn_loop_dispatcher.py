@@ -78,16 +78,24 @@ def _dnd_fresh_router_enabled(
 def _router_ruleset_template_vars(
     prompt_mgr: PromptManager,
     *,
+    dnd_mode: bool,
     dnd_fresh: bool,
 ) -> dict[str, str]:
     if dnd_fresh:
         return {
-            "ruleset_router_addon": prompt_mgr.render(
+            "fresh_intention_classifier": prompt_mgr.render(
                 "event_router_ruleset_dnd5e",
             ).strip(),
         }
+    if dnd_mode:
+        # Non-fresh D&D calls use a separate Cat II/combat resolver or are
+        # canonicalizing already-committed output; the rules-neutral fresh
+        # Cat II classifier would incorrectly reintroduce violence-as-Cat-II.
+        return {"fresh_intention_classifier": ""}
     return {
-        "ruleset_router_addon": "",
+        "fresh_intention_classifier": prompt_mgr.render(
+            "event_router_ruleset_default",
+        ).strip(),
     }
 
 
@@ -802,6 +810,7 @@ class LLMDispatcher:
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
+                    dnd_mode=_session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID,
                     dnd_fresh=dnd_fresh,
                 ),
                 "router_input_block": router_input_block,
@@ -989,6 +998,7 @@ class LLMDispatcher:
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
+                    dnd_mode=_session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID,
                     dnd_fresh=False,
                 ),
                 "router_input_block": router_input_block,
@@ -1071,6 +1081,7 @@ class LLMDispatcher:
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
+                    dnd_mode=_session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID,
                     dnd_fresh=False,
                 ),
                 "router_input_block": agent_output,
