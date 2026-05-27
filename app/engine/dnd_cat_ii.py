@@ -4933,6 +4933,8 @@ def _auto_end_if_hostiles_disengaged(
     if combat is None:
         return
     _mark_disengaged_hostiles_from_adjudication(ckpt, transaction, adjudication)
+    if not _combat_actor_can_confirm_no_pursuit(ckpt, transaction.actor_id):
+        return
     if not _recent_party_declines_pursuit(ckpt, transaction, adjudication):
         return
     active_hostiles = [
@@ -4952,6 +4954,24 @@ def _auto_end_if_hostiles_disengaged(
     )
     if note not in adjudication.rules_notes:
         adjudication.rules_notes.append(note)
+
+
+def _combat_actor_can_confirm_no_pursuit(
+    ckpt: CheckpointFile,
+    actor_id: str,
+) -> bool:
+    combat = getattr(ckpt.session, "active_combat", None)
+    if combat is None:
+        return False
+    current = _find_combatant_by_any_id(combat, actor_id)
+    if current is not None:
+        return _combatant_is_party_aligned(ckpt, current)
+    bindings = ckpt.session.character_bindings or {}
+    if actor_id in bindings:
+        return True
+    by_id = {character.character_id: character for character in ckpt.characters}
+    faction = _combat_public_faction(by_id.get(actor_id))
+    return bool(faction and faction in _party_factions(ckpt))
 
 
 def _mark_disengaged_hostiles_from_adjudication(
@@ -4988,8 +5008,8 @@ def _disengagement_scene_text(
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
 ) -> str:
+    _ = ckpt
     return " ".join((
-        _recent_combat_fact_text(ckpt),
         str(transaction.intention or ""),
         _adjudication_text(adjudication),
     )).lower()
@@ -5108,8 +5128,8 @@ def _recent_party_declines_pursuit(
     transaction: CatIIRollTransaction,
     adjudication: RulesAdjudication,
 ) -> bool:
+    _ = ckpt
     text = " ".join((
-        _recent_combat_fact_text(ckpt),
         str(transaction.intention or ""),
         _adjudication_text(adjudication),
     )).lower()
@@ -5147,17 +5167,6 @@ def _recent_party_declines_pursuit(
         "can leave alive",
     )
     return any(term in text for term in decline_terms)
-
-
-def _recent_combat_fact_text(ckpt: CheckpointFile, *, limit: int = 10) -> str:
-    facts: list[str] = []
-    for event in list(ckpt.canonical_events or [])[-limit:]:
-        canonical = getattr(event, "canonical_event", None)
-        for fact in getattr(canonical, "observable_facts", []) or []:
-            text = str(getattr(fact, "text", "") or "").strip()
-            if text:
-                facts.append(text)
-    return " ".join(facts)
 
 
 def _adjudication_text(adjudication: RulesAdjudication) -> str:

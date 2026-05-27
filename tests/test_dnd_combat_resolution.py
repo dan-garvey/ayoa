@@ -33,6 +33,8 @@ from app.schemas.dnd_spatial import (
     DndBattleMapState,
     DndBattleMapToken,
 )
+from app.schemas.event_router import EventRouterOutput, empty_commitment_open_signal
+from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.state import (
     CatIIRollTransaction,
     DndCombatantState,
@@ -2460,7 +2462,7 @@ def test_combat_resolver_rolls_healing_and_syncs_character_hp(monkeypatch):
     assert displays[0].target_hp_after == 9
 
 
-def test_combat_resolver_ends_when_hostile_disengages_and_party_does_not_pursue():
+def test_combat_resolver_keeps_combat_after_hostile_disengages_before_pc_choice():
     ckpt = _ckpt()
     ckpt.session.active_combat.turn_index = 1
     ckpt.characters[0].public_sheet.faction = "expedition"
@@ -2511,6 +2513,60 @@ def test_combat_resolver_ends_when_hostile_disengages_and_party_does_not_pursue(
         )
     )
 
+    assert ckpt.session.active_combat is not None
+    facts = [fact.text for fact in routed.canonical_event.observable_facts]
+    assert "D&D combat ends." not in facts
+    assert cat._combatant_is_marked_disengaged(
+        ckpt.session.active_combat.combatants[1]
+    )
+
+
+def test_combat_resolver_ends_after_post_disengagement_pc_declines_pursuit():
+    ckpt = _ckpt()
+    ckpt.characters[0].public_sheet.faction = "expedition"
+    ckpt.characters[1].public_sheet.faction = "bandits"
+    cat._mark_combatant_disengaged(
+        ckpt.session.active_combat.combatants[1],
+        reason="prior withdrawal",
+    )
+    client = MagicMock()
+    client.complete = AsyncMock(side_effect=[
+        _llm_response(_turn_plan(
+            needs_rolls=False,
+            roll_requests=[],
+            no_roll_reason="Alice holds fire and does not pursue.",
+            actor_id="alice",
+        )),
+        _llm_response(DndCombatManagerAdjudication(
+            feasible=True,
+            combat_status="ongoing",
+            mechanical_summary="Alice lets Bob go and keeps watch.",
+            visible_outcome_facts=[
+                "Alice holds fire and does not pursue Bob into the passage."
+            ],
+            state_deltas=[],
+            combat_state_deltas=[],
+            effect_deltas=[],
+            spatial_deltas=[],
+            rules_notes=[],
+            fallback_reason="",
+            router_observed_facts=[],
+        )),
+    ])
+    prompt_mgr = MagicMock()
+    prompt_mgr.render_messages.side_effect = [
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "plan"}],
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "final"}],
+    ]
+
+    routed = asyncio.run(
+        DndCombatResolver(client, prompt_mgr).resolve_combat_action(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I hold fire and do not pursue Bob into the passage.",
+        )
+    )
+
     assert ckpt.session.active_combat is None
     facts = [fact.text for fact in routed.canonical_event.observable_facts]
     assert "D&D combat ends." in facts
@@ -2520,7 +2576,7 @@ def test_combat_resolver_ends_when_hostile_disengages_and_party_does_not_pursue(
     )
 
 
-def test_group_withdrawal_auto_ends_when_party_declines_pursuit():
+def test_group_withdrawal_marks_disengaged_but_waits_for_party_choice():
     ckpt = _ckpt()
     ckpt.characters[0].public_sheet.faction = "expedition"
     ckpt.characters[1].public_sheet.faction = "bandits"
@@ -2594,14 +2650,16 @@ def test_group_withdrawal_auto_ends_when_party_declines_pursuit():
 
     cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
 
-    assert adjudication.combat_status == "ended"
+    assert adjudication.combat_status == "ongoing"
     active_hostiles = [
         combatant for combatant in ckpt.session.active_combat.combatants
         if combatant.defeat_state == "active" and not combatant.player_controlled
     ]
     assert active_hostiles
     assert all(cat._combatant_is_marked_disengaged(c) for c in active_hostiles)
-    assert any("party is not pursuing" in note for note in adjudication.rules_notes)
+    assert not any(
+        "party is not pursuing" in note for note in adjudication.rules_notes
+    )
 
 
 def test_current_withdrawal_ignores_negated_attack_pressure():
@@ -2637,10 +2695,72 @@ def test_current_withdrawal_ignores_negated_attack_pressure():
 
     cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
 
-    assert adjudication.combat_status == "ended"
+    assert adjudication.combat_status == "ongoing"
     assert cat._combatant_is_marked_disengaged(
         ckpt.session.active_combat.combatants[1]
     )
+
+
+def test_stale_withdrawal_facts_do_not_end_current_party_combat_action():
+    ckpt = _ckpt()
+    ckpt.characters[0].public_sheet.faction = "expedition"
+    ckpt.characters[1].public_sheet.faction = "bandits"
+    ckpt.canonical_events.append(EventRouterOutput(
+        event_id="evt_stale_withdrawal",
+        effective_at_s=0,
+        duration_s=0,
+        decision_rationale="stale withdrawal",
+        canonical_event=CanonicalEvent(
+            world_adjudication=WorldAdjudication(feasible=True),
+            observable_facts=[
+                ObservableFact.all(
+                    "Alice held fire and did not pursue while the remaining "
+                    "bandits withdrew toward the tree line."
+                )
+            ],
+        ),
+        event_kind="ruleset_resolution",
+        requires_responders=False,
+        required_responders=[],
+        observers=[],
+        spawn=[],
+        dormant=[],
+        cull=[],
+        commitment_open=empty_commitment_open_signal(),
+        commitment_resolutions=[],
+        commitment_interrupts=[],
+        location_updates=[],
+    ))
+    transaction = CatIIRollTransaction(
+        transaction_id="txn",
+        event_id="evt",
+        source="combat",
+        actor_id="alice",
+        intention=(
+            "Alice casts Entangle at the bandits holding the high ground."
+        ),
+    )
+    adjudication = DndCombatManagerAdjudication(
+        feasible=True,
+        combat_status="ongoing",
+        mechanical_summary="Alice restrains one bandit with Entangle.",
+        visible_outcome_facts=[
+            "Vines erupt around the high-ground bandit."
+        ],
+        state_deltas=[],
+        combat_state_deltas=[],
+        effect_deltas=[],
+        spatial_deltas=[],
+        rules_notes=[],
+        fallback_reason="",
+        router_observed_facts=[],
+    )
+
+    cat._auto_end_if_hostiles_disengaged(ckpt, transaction, adjudication)
+
+    assert adjudication.combat_status == "ongoing"
+    hostile = ckpt.session.active_combat.combatants[1]
+    assert not cat._combatant_is_marked_disengaged(hostile)
 
 
 def test_combat_end_queues_router_observed_continuity():
