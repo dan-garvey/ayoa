@@ -91,11 +91,20 @@ something recently passed through. These cues can be concrete affordances
 without creating a persistent person.
 
 Create a non-combat story NPC who speaks from an unknown space only when current
-reviewed content, loaded location/front context, established canonical facts, or
-a clearly present roster character authorizes an agentic respondent. A hidden
-creature implied only by generic adventuring uncertainty may become a cue,
-hazard, or combatant if danger is imminent, but not a named gatekeeper,
-negotiator, guide, faction envoy, or lore source.
+reviewed content, loaded location/front context, an existing live roster
+character, or a specific current canonical fact at this place authorizes that
+agentic respondent. Prior faction existence, earlier enemies, old tracks,
+generic scouts, or the possibility that someone could be nearby are not enough
+authority to mint a new hidden listener when the player calls into darkness.
+A hidden creature implied only by generic adventuring uncertainty may become a
+cue, hazard, or combatant if danger is imminent, but not a named gatekeeper,
+negotiator, guide, faction envoy, scout, sentry, or lore source.
+
+Do not spawn a new non-combat hidden listener as the first proof that someone
+heard the player. If off-screen faction pressure matters, use an existing
+roster character only when that character already has live perception here;
+otherwise surface a cue, trace, message, obstacle, or later consequence that
+the players can investigate.
 
 If an unknown respondent is authorized and will persist as a social actor, use
 the generic `spawn` field. If the figure is only a one-shot sound, warning,
