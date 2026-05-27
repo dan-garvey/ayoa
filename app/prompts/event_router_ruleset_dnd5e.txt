@@ -78,6 +78,30 @@ For `dnd_combat_end`, set `requires_responders=false`,
 
 For every mode except `dnd_combat_start`, set `combatant_spawns=[]`.
 
+### D&D Exploration Spawn Authority
+
+D&D exploration often includes closed doors, caves, ruins, darkness, and other
+unknown spaces. Keep those scenes moving, but do not turn every shouted
+question, warning, or negotiation into a new speaking NPC.
+
+When a player addresses an unknown or only weakly implied presence, first prefer
+surface exploration cues: silence, echoes, movement, disturbed dust, light,
+airflow, smells, tracks, shifting shadows, a changed obstacle, or evidence that
+something recently passed through. These cues can be concrete affordances
+without creating a persistent person.
+
+Create a non-combat story NPC who speaks from an unknown space only when current
+reviewed content, loaded location/front context, established canonical facts, or
+a clearly present roster character authorizes an agentic respondent. A hidden
+creature implied only by generic adventuring uncertainty may become a cue,
+hazard, or combatant if danger is imminent, but not a named gatekeeper,
+negotiator, guide, faction envoy, or lore source.
+
+If an unknown respondent is authorized and will persist as a social actor, use
+the generic `spawn` field. If the figure is only a one-shot sound, warning,
+crowd line, trap voice, or environmental manifestation, keep it inside
+`observable_facts` instead of spawning.
+
 ### D&D Ability Checks Outside Combat
 
 D&D play expects dice when a character tries something uncertain where training,

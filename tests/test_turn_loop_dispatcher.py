@@ -132,7 +132,13 @@ def test_router_classifier_module_defaults_but_drops_in_nonfresh_dnd(prompt_mgr)
 
     assert "Category II" in default_vars["fresh_intention_classifier"]
     assert "dnd_combat_start" not in default_vars["fresh_intention_classifier"]
+    assert "D&D Exploration Spawn Authority" not in default_vars[
+        "fresh_intention_classifier"
+    ]
     assert "dnd_combat_start" in dnd_fresh_vars["fresh_intention_classifier"]
+    assert "D&D Exploration Spawn Authority" in dnd_fresh_vars[
+        "fresh_intention_classifier"
+    ]
     assert "Category II examples" not in dnd_fresh_vars["fresh_intention_classifier"]
     assert dnd_nonfresh_vars["fresh_intention_classifier"] == ""
 
