@@ -95,7 +95,7 @@ class TestLLMConfig:
         assert config.default_provider == "openai"
         assert config.default_model == "gpt-5.1"
         assert config.providers_in_use() == {"anthropic", "openai"}
-        assert config.role_models["event_router"] == "gpt-5.2"
+        assert config.role_models["event_router"] == "gpt-5.1"
         assert config.role_models["narrator"] == "gpt-5.2"
         assert config.role_models["dnd_combat_manager"] == "gpt-5-mini"
         assert config.role_models["content_manager"] == "gpt-5-mini"

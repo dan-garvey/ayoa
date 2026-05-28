@@ -23,7 +23,7 @@ _VALID_OPENAI_REASONING_SUMMARIES = {
     "detailed",
     "none",
 }
-_ROUTER_MODEL = "gpt-5.2"
+_ROUTER_MODEL = "gpt-5.1"
 _NARRATOR_MODEL = "gpt-5.2"
 _COMBAT_MANAGER_MODEL = "gpt-5-mini"
 _CONTENT_MANAGER_MODEL = "gpt-5-mini"

@@ -13,7 +13,7 @@
   missing credentials for the configured live roles.
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
   Responses API) with per-role provider/model dispatch. Default models
-  are `gpt-5.2` for `event_router` and `narrator`, `gpt-5-mini` for
+  are `gpt-5.1` for `event_router`, `gpt-5.2` for `narrator`, `gpt-5-mini` for
   `dnd_combat_manager`, and Claude-family models for `agent`,
   `agent_standard`, `agent_convenience`, and `character_gen`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
@@ -505,9 +505,9 @@ It supports:
 Provider/model selection can be configured with model prefixes such as
 `anthropic:claude-sonnet-4-6`, explicit `role_providers`, or
 environment overrides like `LLM_PROVIDER_NARRATOR=openai` and
-`LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.2`
-for `event_router`, Anthropic `claude-sonnet-4-6` for `narrator`,
-Anthropic `claude-opus-4-6` for premium `agent` calls, Anthropic
+`LLM_MODEL_NARRATOR=gpt-5.1`. Current defaults are OpenAI `gpt-5.1`
+for `event_router`, OpenAI `gpt-5.2` for `narrator`, Anthropic
+`claude-opus-4-6` for premium `agent` calls, Anthropic
 `claude-haiku-4-5` for `agent_standard`, Anthropic `claude-sonnet-4-6`
 for `agent_convenience`, and Opus for `character_gen`.
 

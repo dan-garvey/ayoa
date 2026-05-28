@@ -58,7 +58,7 @@ def test_sync_checkpoint_runtime_models_uses_actual_llm_config():
 def test_runtime_model_config_defaults_label_mixed_provider_roles():
     models = runtime_model_config(LLMConfig())
 
-    assert models.event_router == "openai:gpt-5.2"
+    assert models.event_router == "openai:gpt-5.1"
     assert models.narrator == "openai:gpt-5.2"
     assert models.dnd_combat_manager == "openai:gpt-5-mini"
     assert models.agent_default == "anthropic:claude-opus-4-6"

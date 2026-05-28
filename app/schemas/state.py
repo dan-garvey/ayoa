@@ -11,7 +11,7 @@ from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
 
 
 class ModelConfig(BaseModel):
-    event_router: str = "gpt-5.2"
+    event_router: str = "gpt-5.1"
     narrator: str = "gpt-5.2"
     dnd_combat_manager: str = "gpt-5-mini"
     agent_default: str = "claude-opus-4-6"
