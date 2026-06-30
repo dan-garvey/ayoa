@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import logging
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
-
-logger = logging.getLogger(__name__)
+from pydantic import BaseModel, Field
 
 
 class CharacterStatus(str, Enum):
@@ -26,9 +23,6 @@ class CharacterAgentTier(str, Enum):
     # consume the expensive plot-agent model. In the current runtime they
     # use the Sonnet-backed convenience role.
     utility = "utility"
-    # Legacy tier names kept loadable for older checkpoints.
-    plot = "plot"
-    convenience = "convenience"
 
 
 class PublicSheet(BaseModel):
@@ -83,10 +77,6 @@ class PrivateState(BaseModel):
     # leaders — anyone whose goals should keep moving while the player isn't
     # watching.
     intentions_enabled: bool = False
-    # Author-authored routing cues for private/background turn selection.
-    # Legacy field name kept for checkpoint continuity; prompts should treat
-    # these as candidate cues, not as an engine-owned scheduler.
-    tick_cues: list[str] = Field(default_factory=list)
 
 
 class CharacterRecord(BaseModel):
@@ -110,12 +100,6 @@ class CharacterRecord(BaseModel):
     # player stories typically have many is_playable=True characters
     # (e.g. every contestant on a dating show); a story can also have
     # zero (then /join surfaces nothing).
-    #
-    # Backward compat (renamed from `is_player` in playable-2 commit):
-    # the field used to be named `is_player` and conflated "this is a
-    # player slot" with "this is a human-controlled character." Old
-    # checkpoint JSONs stored under that name are still loadable —
-    # see the model_validator below that maps it on parse.
     is_playable: bool = False
     agent_tier: CharacterAgentTier = CharacterAgentTier.premium
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
@@ -174,27 +158,3 @@ class CharacterRecord(BaseModel):
     # parenthetical to another LLM, you are about to break that
     # asymmetry; reach for in-fiction signals (a courier, an
     # observable_fact, a witnessed action) instead.
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_is_player_alias(cls, data: Any) -> Any:
-        """Back-compat: old saves and any extant tests serialized the
-        playability flag as `is_player`. Map it to `is_playable` on
-        parse so legacy checkpoints load without touching them on
-        disk. If both keys are present and disagree we trust the new
-        name and warn — the explicit `is_playable` wins.
-        """
-        if not isinstance(data, dict):
-            return data
-        if "is_player" in data:
-            old = data.pop("is_player")
-            if "is_playable" in data:
-                if data["is_playable"] != old:
-                    logger.warning(
-                        "CharacterRecord %r got both is_player=%r and "
-                        "is_playable=%r; using is_playable.",
-                        data.get("character_id", "?"), old, data["is_playable"],
-                    )
-            else:
-                data["is_playable"] = old
-        return data

@@ -459,6 +459,29 @@ def resolve_acting_character(
     return acting_id, acting_char, acting_name
 
 
+def build_world_rules(checkpoint: CheckpointFile) -> str:
+    """Physics-ruleset summary shared by the router, spawner, and takeover
+    prompts. Three call sites used to construct this identical string inline."""
+    physics = checkpoint.world_state.physics_ruleset
+    return (
+        f"Strength limits: {physics.strength_limits}\n"
+        f"Magic: {'enabled' if physics.magic_enabled else 'disabled'}"
+    )
+
+
+def build_hidden_facts(checkpoint: CheckpointFile, *, empty: str) -> str:
+    """Bulleted hidden-facts list for privileged prompts (router, takeover).
+
+    `empty` is the sentinel rendered when there are no hidden facts; call
+    sites differ in wording (router uses "None.", takeover uses "(none)"),
+    so it is passed explicitly rather than baked in.
+    """
+    facts = checkpoint.world_state.hidden_facts
+    if not facts:
+        return empty
+    return "\n".join(f"- {fact}" for fact in facts)
+
+
 def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
     """Every character_id that is currently CONTROLLED BY A HUMAN.
 

@@ -866,7 +866,6 @@ class ActorDossierRecord(ContentPackDomainRecord):
     resources: list[str] = Field(default_factory=list)
     knowledge_channel_refs: list[str] = Field(default_factory=list)
     relationship_edges: list[ActorRelationship] = Field(default_factory=list)
-    initiative_triggers: list[str] = Field(default_factory=list)
     escalation_limits: list[str] = Field(default_factory=list)
     secrets_known_refs: list[str] = Field(default_factory=list)
     secrets_withheld_refs: list[str] = Field(default_factory=list)
@@ -889,7 +888,6 @@ class ActorDossierRecord(ContentPackDomainRecord):
             "constraints",
             "resources",
             "knowledge_channel_refs",
-            "initiative_triggers",
             "escalation_limits",
             "secrets_known_refs",
             "secrets_withheld_refs",

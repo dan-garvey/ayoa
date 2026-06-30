@@ -769,7 +769,6 @@ def _actor() -> ActorDossierRecord:
                 "summary": "Uses scouts to gather reports.",
             }
         ],
-        initiative_triggers=["The cache is disturbed"],
         escalation_limits=["Avoid direct lethal pressure at campaign start"],
         secrets_known_refs=["treasure.cache"],
     )

@@ -160,49 +160,49 @@ class TestSummaries:
 
 
 class TestBindUnbind:
-    def test_bind_user_happy_path(self, bridge: EngineBridge):
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
+    async def test_bind_user_happy_path(self, bridge: EngineBridge):
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
         assert bridge.get_user_binding(SESSION_ID, 42) == "sera"
 
-    def test_bind_allows_dormant(self, bridge: EngineBridge):
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="thane")
+    async def test_bind_allows_dormant(self, bridge: EngineBridge):
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="thane")
         assert bridge.get_user_binding(SESSION_ID, 42) == "thane"
 
-    def test_bind_rejects_culled(self, bridge: EngineBridge):
+    async def test_bind_rejects_culled(self, bridge: EngineBridge):
         with pytest.raises(ValueError, match="culled"):
-            bridge.bind_user(SESSION_ID, user_id=42, character_id="vex")
+            await bridge.bind_user(SESSION_ID, user_id=42, character_id="vex")
 
-    def test_bind_rejects_unknown_character(self, bridge: EngineBridge):
+    async def test_bind_rejects_unknown_character(self, bridge: EngineBridge):
         with pytest.raises(ValueError, match="No character"):
-            bridge.bind_user(SESSION_ID, user_id=42, character_id="ghost")
+            await bridge.bind_user(SESSION_ID, user_id=42, character_id="ghost")
 
-    def test_bind_rejects_second_user_on_same_char(self, bridge: EngineBridge):
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
+    async def test_bind_rejects_second_user_on_same_char(self, bridge: EngineBridge):
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
         with pytest.raises(ValueError, match="already bound"):
-            bridge.bind_user(SESSION_ID, user_id=99, character_id="sera")
+            await bridge.bind_user(SESSION_ID, user_id=99, character_id="sera")
 
-    def test_bind_rejects_user_double_binding(self, bridge: EngineBridge):
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
+    async def test_bind_rejects_user_double_binding(self, bridge: EngineBridge):
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
         with pytest.raises(ValueError, match="already bound"):
-            bridge.bind_user(SESSION_ID, user_id=42, character_id="thane")
+            await bridge.bind_user(SESSION_ID, user_id=42, character_id="thane")
 
-    def test_bind_idempotent_for_same_pair(self, bridge: EngineBridge):
+    async def test_bind_idempotent_for_same_pair(self, bridge: EngineBridge):
         # Binding the same user to the same character is a no-op (not an error).
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
         assert bridge.get_user_binding(SESSION_ID, 42) == "sera"
 
-    def test_unbind_frees_character(self, bridge: EngineBridge):
-        bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
-        freed = bridge.unbind_user(SESSION_ID, 42)
+    async def test_unbind_frees_character(self, bridge: EngineBridge):
+        await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
+        freed = await bridge.unbind_user(SESSION_ID, 42)
         assert freed == "sera"
         assert bridge.get_user_binding(SESSION_ID, 42) is None
         # Another user can now claim sera.
-        bridge.bind_user(SESSION_ID, user_id=99, character_id="sera")
+        await bridge.bind_user(SESSION_ID, user_id=99, character_id="sera")
         assert bridge.get_user_binding(SESSION_ID, 99) == "sera"
 
-    def test_unbind_no_binding_returns_none(self, bridge: EngineBridge):
-        assert bridge.unbind_user(SESSION_ID, 999) is None
+    async def test_unbind_no_binding_returns_none(self, bridge: EngineBridge):
+        assert await bridge.unbind_user(SESSION_ID, 999) is None
 
 
 class TestDossier:

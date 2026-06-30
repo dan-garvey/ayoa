@@ -262,12 +262,12 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         ),
     ]
     engine.turn_history.return_value = []
-    engine.takeover = MagicMock()
-    engine.unbind_user = MagicMock()
+    engine.takeover = AsyncMock()
+    engine.unbind_user = AsyncMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
-    engine.set_character_identity = MagicMock(return_value=_empty_ckpt(bindings))
+    engine.set_character_identity = AsyncMock(return_value=_empty_ckpt(bindings))
     engine.get_bound_character_record = MagicMock()
-    engine.create_player_character_simple = MagicMock()
+    engine.create_player_character_simple = AsyncMock()
     engine.attach_dndbeyond_character_export = AsyncMock(
         return_value=_attachment_summary(),
     )

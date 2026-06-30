@@ -27,8 +27,10 @@ from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
 from app.engine.character_manager import CharacterManager
 from app.engine.context_builder import (
+    build_hidden_facts,
     build_player_characters_block,
     build_setting_summary,
+    build_world_rules,
     resolve_acting_character,
     resolve_location_for_character,
 )
@@ -110,13 +112,6 @@ def _router_ruleset_template_vars(
 # and imported at the top of this module — pre-v11-r7j three near-
 # identical copies of the same helper lived in this module, narrator,
 # and engine_bridge.
-
-
-def _build_world_rules(checkpoint: CheckpointFile) -> str:
-    physics = checkpoint.world_state.physics_ruleset
-    parts = [f"Strength limits: {physics.strength_limits}"]
-    parts.append(f"Magic: {'enabled' if physics.magic_enabled else 'disabled'}")
-    return "\n".join(parts)
 
 
 def _build_router_world_lore(checkpoint: CheckpointFile) -> str:
@@ -250,13 +245,6 @@ def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:
         "that visibility relevant.\n\n"
         f"{body}\n"
     )
-
-
-def _build_hidden_facts(checkpoint: CheckpointFile) -> str:
-    facts = checkpoint.world_state.hidden_facts
-    if not facts:
-        return "None."
-    return "\n".join(f"- {fact}" for fact in facts)
 
 
 def _build_router_input_block(*blocks: str) -> str:
@@ -637,9 +625,9 @@ def _build_router_context(
     return {
         "setting_summary": build_setting_summary(ckpt),
         "world_lore": _build_router_world_lore(ckpt),
-        "world_rules": _build_world_rules(ckpt),
+        "world_rules": build_world_rules(ckpt),
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
-        "hidden_facts": _build_hidden_facts(ckpt),
+        "hidden_facts": build_hidden_facts(ckpt, empty="None."),
         "acting_character_id": acting_id,
         "player_characters_block": build_player_characters_block(
             ckpt, acting_id,

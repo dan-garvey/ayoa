@@ -42,11 +42,11 @@ def _character_status_value(character: CharacterRecord) -> str:
 
 def _tier_rank(character: CharacterRecord) -> int:
     tier = str(getattr(character.agent_tier, "value", character.agent_tier))
-    if tier in {"premium", "plot"}:
+    if tier == "premium":
         return 0
     if tier == "standard":
         return 1
-    if tier in {"utility", "convenience"}:
+    if tier == "utility":
         return 2
     return 3
 

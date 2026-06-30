@@ -111,10 +111,7 @@ def _session_ruleset_id(checkpoint: CheckpointFile) -> str:
 def model_role_for_character(character: CharacterRecord) -> str:
     if character.agent_tier == CharacterAgentTier.standard:
         return STANDARD_AGENT_ROLE
-    if character.agent_tier in {
-        CharacterAgentTier.utility,
-        CharacterAgentTier.convenience,
-    }:
+    if character.agent_tier == CharacterAgentTier.utility:
         return CONVENIENCE_AGENT_ROLE
     return PLOT_AGENT_ROLE
 

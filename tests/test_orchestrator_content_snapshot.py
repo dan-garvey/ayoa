@@ -10,7 +10,7 @@ from app.schemas.content import (
     PendingContentSignal,
 )
 from app.schemas.conversation import ConversationMessage
-from tests.support.factories import checkpoint
+from tests.support.factories import character_record, checkpoint, dnd5e_mechanics
 
 
 def test_automated_turn_rollback_restores_content_state_and_engine_updates():
@@ -52,3 +52,23 @@ def test_automated_turn_rollback_restores_content_state_and_engine_updates():
     assert sorted(restored.pending_signals) == ["sig-1"]
     assert restored.introduced_refs == {}
     assert ckpt.session_conversation == []
+
+
+def test_automated_turn_rollback_restores_combat_mutated_state():
+    # A failed automated combat turn must not leave a combatant silently
+    # damaged (or a phantom spawn / stray roll transaction) after the
+    # canonical event is unwound.
+    target = character_record("ogre", name="Ogre", mechanics=dnd5e_mechanics(hp=20))
+    ckpt = checkpoint(characters=[target])
+
+    snapshot = _automated_turn_snapshot(ckpt)
+
+    # Simulate the combat resolver applying damage and spawning a minion
+    # before the turn raised.
+    ckpt.characters[0].mechanics["hit_points"]["current"] = 4
+    ckpt.characters.append(character_record("minion", name="Minion"))
+
+    _rollback_automated_turn_snapshot(ckpt, snapshot)
+
+    assert ckpt.characters[0].mechanics["hit_points"]["current"] == 20
+    assert [c.character_id for c in ckpt.characters] == ["ogre"]

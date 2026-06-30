@@ -272,11 +272,13 @@ class CharacterManager:
           3. the LLM's `authored.location` — last-resort, only hit when
              both router and orchestrator omit a location.
         """
-        from app.engine.context_builder import build_setting_summary
+        from app.engine.context_builder import (
+            build_setting_summary,
+            build_world_rules,
+        )
         setting_summary = build_setting_summary(checkpoint)
         world_lore = checkpoint.world_state.lore or "No detailed lore."
-        physics = checkpoint.world_state.physics_ruleset
-        world_rules = f"Strength limits: {physics.strength_limits}\nMagic: {'enabled' if physics.magic_enabled else 'disabled'}"
+        world_rules = build_world_rules(checkpoint)
 
         seed_loc = req.seed.location.strip()
         location = seed_loc or default_location

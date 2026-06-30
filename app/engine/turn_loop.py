@@ -536,12 +536,11 @@ def sweep_stale_cat_ii_pins(
 
     to_adjudicate: list[str] = []
     for evt in ckpt.session.open_cat_ii_events:
-        # Compute how long the event has been open.
-        try:
-            opened = _parse_iso(evt.opened_at)
-        except Exception:
-            continue
-        if (now - opened).total_seconds() < timeout:
+        # An empty or malformed `opened_at` (hand-edited or migration-authored
+        # checkpoints; the schema default is "") is treated as fully stale so
+        # the event auto-resolves rather than wedging every other player's
+        # /act behind a CAT_II_OTHER_HELD pin forever.
+        if not _pin_stamp_is_stale(evt.opened_at, now, timeout):
             continue
 
         # Find pinned humans whose intention is still missing.
@@ -580,6 +579,48 @@ def sweep_stale_cat_ii_pins(
     return to_adjudicate
 
 
+def sweep_stale_combat_reaction_pins(
+    ckpt: CheckpointFile,
+    now_iso: str | None = None,
+) -> list[str]:
+    """Auto-pass human D&D combat-reaction pins that have outlived the
+    human AFK timeout.
+
+    A `combat_reaction` slot pins a human for an OPTIONAL reaction. If that
+    human never answers (`/act` or `/defer`), `_blocking_slots_open` stays
+    true and any delayed initiative advance never fires — the table wedges
+    on someone who may simply be AFK. This mirrors the Cat II AFK sweep:
+    once a reaction pin is older than `cat_ii_human_timeout_seconds` (the
+    shared human-AFK knob), release it as "no reaction recorded." Advancing
+    initiative afterward is the caller's job — it lives in the orchestrator
+    and must not be imported here.
+
+    Returns the character ids whose reaction pins were released. An empty or
+    unparseable `claimed_at` is treated as fully stale so a malformed pin
+    cannot wedge the table forever. Set the timeout to 0 to disable.
+    """
+    timeout = ckpt.session.config.settings.cat_ii_human_timeout_seconds
+    if timeout <= 0:
+        return []
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc) if now_iso is None else _parse_iso(now_iso)
+
+    released: list[str] = []
+    for character_id, entry in list(ckpt.session.active_act_slots.items()):
+        if entry.reason != "combat_reaction":
+            continue
+        if not _pin_stamp_is_stale(entry.claimed_at, now, timeout):
+            continue
+        release_character_slot(ckpt, character_id)
+        released.append(character_id)
+        logger.warning(
+            "Combat reaction pin on %s auto-passed after AFK timeout",
+            character_id,
+        )
+    return released
+
+
 def _parse_iso(s: str):
     """Tolerant ISO-8601 parse: strips trailing 'Z', accepts naive or
     aware timestamps."""
@@ -590,6 +631,20 @@ def _parse_iso(s: str):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _pin_stamp_is_stale(stamp: str, now, timeout_seconds: float) -> bool:
+    """Shared AFK-sweep predicate for Cat II `opened_at` and combat-reaction
+    `claimed_at`. A stamp is stale when it is empty or unparseable (we cannot
+    prove the pin is fresh, and a malformed stamp must never wedge the table)
+    or when its age has reached the timeout."""
+    if not stamp:
+        return True
+    try:
+        stamped = _parse_iso(stamp)
+    except Exception:
+        return True
+    return (now - stamped).total_seconds() >= timeout_seconds
 
 
 def abort_beat(ckpt: CheckpointFile) -> int:
@@ -2465,16 +2520,11 @@ async def run_beat(
 
         from app.engine.context_builder import collect_player_ids
 
-        projection = targets_from_router_output(
+        agent_targets = targets_from_router_output(
             prior_result,
             player_ids=collect_player_ids(ckpt),
             agent_ids=character_ids,
         )
-        agent_targets = [
-            target
-            for target in projection.targets
-            if target.target_kind == "agent_turn"
-        ]
         if not agent_targets:
             await _queue_router_continuation(prior_result)
             return True

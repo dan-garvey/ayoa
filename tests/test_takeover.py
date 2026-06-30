@@ -116,7 +116,7 @@ def _seed(bridge: EngineBridge, ckpt: CheckpointFile) -> None:
 
 
 class TestTakeoverPlain:
-    def test_takeover_binds_user_without_touching_is_playable(
+    async def test_takeover_binds_user_without_touching_is_playable(
         self, bridge: EngineBridge,
     ):
         """Under playable-2, takeover binds the user but leaves the
@@ -125,7 +125,7 @@ class TestTakeoverPlain:
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
 
-        result = bridge.takeover(SESSION_ID, "npc1", user_id=42)
+        result = await bridge.takeover(SESSION_ID, "npc1", user_id=42)
 
         assert result.session.character_bindings == {"npc1": "42"}
         npc = next(c for c in result.characters if c.character_id == "npc1")
@@ -139,7 +139,7 @@ class TestTakeoverPlain:
         assert loaded_npc.is_playable is True
         assert loaded.session.character_bindings == {"npc1": "42"}
 
-    def test_takeover_of_non_playable_succeeds_with_warning(
+    async def test_takeover_of_non_playable_succeeds_with_warning(
         self, bridge: EngineBridge, caplog,
     ):
         """If a user takes over a character the story seed didn't mark
@@ -161,7 +161,7 @@ class TestTakeoverPlain:
 
         import logging
         with caplog.at_level(logging.WARNING, logger="app.bot.engine_bridge"):
-            result = bridge.takeover(SESSION_ID, "npc1", user_id=42)
+            result = await bridge.takeover(SESSION_ID, "npc1", user_id=42)
 
         assert result.session.character_bindings == {"npc1": "42"}
         # is_playable stays False — flag tracks authorship, not binding.
@@ -171,7 +171,7 @@ class TestTakeoverPlain:
             "not marked is_playable" in rec.message for rec in caplog.records
         )
 
-    def test_takeover_rejects_culled(self, bridge: EngineBridge):
+    async def test_takeover_rejects_culled(self, bridge: EngineBridge):
         ckpt = _make_checkpoint(
             characters=[
                 CharacterRecord(
@@ -184,21 +184,21 @@ class TestTakeoverPlain:
         _seed(bridge, ckpt)
 
         with pytest.raises(ValueError, match="culled"):
-            bridge.takeover(SESSION_ID, "dead_one", user_id=42)
+            await bridge.takeover(SESSION_ID, "dead_one", user_id=42)
 
-    def test_takeover_rejects_already_claimed_by_other(self, bridge: EngineBridge):
+    async def test_takeover_rejects_already_claimed_by_other(self, bridge: EngineBridge):
         ckpt = _make_checkpoint(bindings={"npc1": "99"})
         _seed(bridge, ckpt)
 
         with pytest.raises(ValueError, match="already bound"):
-            bridge.takeover(SESSION_ID, "npc1", user_id=42)
+            await bridge.takeover(SESSION_ID, "npc1", user_id=42)
 
-    def test_takeover_rejects_missing_character(self, bridge: EngineBridge):
+    async def test_takeover_rejects_missing_character(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
 
         with pytest.raises(ValueError, match="No character"):
-            bridge.takeover(SESSION_ID, "does_not_exist", user_id=42)
+            await bridge.takeover(SESSION_ID, "does_not_exist", user_id=42)
 
 
 # ---- create_custom_character (mode='describe') --------------------------
@@ -285,7 +285,7 @@ class TestCreatePlayerCharacterSimple:
     can place them via the (arrive) directive that fires next, and
     (4) does NOT call the LLM at any point."""
 
-    def test_happy_path_spawns_binds_and_emits_state_change(
+    async def test_happy_path_spawns_binds_and_emits_state_change(
         self, bridge: EngineBridge,
     ):
         ckpt = _make_checkpoint()
@@ -294,7 +294,7 @@ class TestCreatePlayerCharacterSimple:
             "create_player_character_simple must not call the LLM"
         ))
 
-        new_char = bridge.create_player_character_simple(
+        new_char = await bridge.create_player_character_simple(
             SESSION_ID, user_id=42,
             name="Akari Tanaka",
             appearance="short, dark hair, hoodie over a school uniform",
@@ -327,14 +327,14 @@ class TestCreatePlayerCharacterSimple:
         assert "sparse player-authored arrival" in arrival_change
         assert "observable_facts" in arrival_change
 
-    def test_backstory_optional(self, bridge: EngineBridge):
+    async def test_backstory_optional(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
         bridge.client.complete = AsyncMock(side_effect=AssertionError(
             "must not call the LLM"
         ))
 
-        new_char = bridge.create_player_character_simple(
+        new_char = await bridge.create_player_character_simple(
             SESSION_ID, user_id=7,
             name="Mira",
             appearance="freckles, red braid, satchel of seed packets",
@@ -346,13 +346,13 @@ class TestCreatePlayerCharacterSimple:
         loaded = bridge.checkpoint_mgr.load_latest(SESSION_ID)
         assert loaded.session.character_bindings.get("mira") == "7"
 
-    def test_empty_name_rejected(self, bridge: EngineBridge):
+    async def test_empty_name_rejected(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
         before = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
 
         with pytest.raises(ValueError, match="name"):
-            bridge.create_player_character_simple(
+            await bridge.create_player_character_simple(
                 SESSION_ID, user_id=1,
                 name="   ", appearance="someone",
             )
@@ -360,20 +360,20 @@ class TestCreatePlayerCharacterSimple:
         after = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
         assert before == after
 
-    def test_empty_appearance_rejected(self, bridge: EngineBridge):
+    async def test_empty_appearance_rejected(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()
         _seed(bridge, ckpt)
         before = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
 
         with pytest.raises(ValueError, match="appearance"):
-            bridge.create_player_character_simple(
+            await bridge.create_player_character_simple(
                 SESSION_ID, user_id=1,
                 name="Akari", appearance="",
             )
         after = bridge.checkpoint_mgr.load_latest(SESSION_ID).model_dump_json()
         assert before == after
 
-    def test_disambiguates_existing_id(self, bridge: EngineBridge):
+    async def test_disambiguates_existing_id(self, bridge: EngineBridge):
         existing = CharacterRecord(
             character_id="akari", name="Akari (the original)",
             public_sheet=PublicSheet(role="local"),
@@ -381,7 +381,7 @@ class TestCreatePlayerCharacterSimple:
         ckpt = _make_checkpoint(characters=[existing])
         _seed(bridge, ckpt)
 
-        new_char = bridge.create_player_character_simple(
+        new_char = await bridge.create_player_character_simple(
             SESSION_ID, user_id=11,
             name="Akari", appearance="modern clothes, phone in hand",
         )

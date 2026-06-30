@@ -163,8 +163,7 @@
           "learn whether the second unblessed is ally, stranger, or the only other person in the room with the same problem"
         ],
         "secrets": [],
-        "intentions_enabled": false,
-        "tick_cues": []
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Three days ago the Rite of Veylan pulled you through. Where, when, who you were, and what ended in your previous life to make the summoning possible are yours to define through your imported D&D Beyond character sheet (see /attach) and your play. The Rite reaches across worlds and pulled thirteen candidates through together. You arrived in the casting circle with twelve other strangers — eleven of them clearly the survivors of a synchronized mass-summoning of modern Japanese adults killed in the same instant by trucks on a Tokyo street. The twelfth was, like you, an outlier in ways the room could not immediately categorize. Each of the others — except the one standing beside you — began to show a visible cheat-skill grant in the first seconds after arrival. The candle in front of your position guttered out instead of burning down; a heartbeat later the candle beside yours did the same. The cathedral processed the other eleven reincarnators into Hero training and the two of you into administrative limbo. Three days later, this morning, the Cardinal's office remanded both of you to the Adventurers' Guild as constitutional anomalies unsuited to formal court duty. Nothing else about your prior life is asserted by the story: your name, race, era, class, stats, prior occupation, family situation, appearance, personality before the summoning, gender presentation, sense of humor, and last conscious thought are filled in by your imported D&D Beyond character sheet and by you in play.",
@@ -200,8 +199,7 @@
           "learn whether the first unblessed is ally, stranger, or the only other person in the room with the same problem"
         ],
         "secrets": [],
-        "intentions_enabled": false,
-        "tick_cues": []
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Three days ago the Rite of Veylan pulled you through. Where, when, who you were, and what ended in your previous life to make the summoning possible are yours to define through your imported D&D Beyond character sheet (see /attach) and your play. The Rite reaches across worlds and pulled thirteen candidates through together. You arrived in the casting circle with twelve other strangers — eleven of them clearly the survivors of a synchronized mass-summoning of modern Japanese adults killed in the same instant by trucks on a Tokyo street, and one other, standing close enough that your shoulders nearly touched, who was as much an outlier as you. The first candle to gutter out was theirs; yours followed a heartbeat later, before any grant could answer. The cathedral processed the other eleven reincarnators into Hero training and the two of you into administrative limbo. Three days later, this morning, the Cardinal's office remanded both of you to the Adventurers' Guild as constitutional anomalies unsuited to formal court duty. Nothing else about your prior life is asserted by the story: your name, race, era, class, stats, prior occupation, family situation, appearance, personality before the summoning, gender presentation, sense of humor, and last conscious thought are filled in by your imported D&D Beyond character sheet and by you in play.",
@@ -251,14 +249,7 @@
           "crying in front of another person is a thing she remembers doing as a child and not since, and she does not remember choosing to stop; every laugh since she was sixteen has been calculated before it left her mouth; the last conversation in which she felt safe is now nine years behind her",
           "Mira is her closest collaborator and the only person she trusts without reservation; the trust has been earned across eight years of mutual silence and precisely-timed mutual cover"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Crown Prince",
-          "Aldemar",
-          "Outwalk contraceptive",
-          "failed candle",
-          "Mira"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-four years ago in the second city of Drown-Wreath, the small inland palace of Wraithwater itself, after the Elf War had ended and the Drown had been forced into the partitioned rump-state. Her parents — Lord-Tide Avaren and Lady-Tide Senris — both inherited their roles after the war killed everyone who would otherwise have ruled. Liriel and her sister Nirvel were raised under the Treaty of Wraithwater's marriage-hostage clause from the moment Liriel was old enough to understand what the clause was. She was told at six. Nirvel went to Veylan when she was twenty and Liriel was twelve; Nirvel wrote letters home for the first three years, then formally, then stopped. In the eighth year of Nirvel's posting, the Veylan Crown sent a courier to Drown-Wreath with a sealed coffin and a sealed scroll. The official cause of death was 'wasting illness endemic to elves of the Drown lineage when separated long from the sea.' Liriel was sixteen. She was dispatched to Veylan within three months of the funeral. She has been in the Crown Prince's household for eight years. She remembers exact dates for the events that have shaped her: the first 'lesson in court customs' (year one, third month — two hours of the Crown Prince clinically describing what he would do to her elven retainers if she ever embarrassed him in public); the public flogging of her retainer Ireth (year three, fifth month — she was required to attend; Ireth survived without the use of his right arm; he has not spoken to her since); the first 'pre-marital rights' visit (year five, second month — the visits have not stopped). She has trained, over eight years, to occupy as little space as possible while remaining gracious. She has fantasies of murder that are not abstract. She maintains them, refines them, considers them. They are part of how she stays alive.",
@@ -389,14 +380,7 @@
           "her body's continuous performance is physically painful — the wraps chafe, the cover-voice maintenance is exhausting, the demonic 'soul-mass' frequency of the mortal realm has not stopped being audible to her in six years",
           "she is afraid the protagonist is too good a candidate; if she acts, her cover collapses, her courier collapses, her father's authorization is required, her promise is at stake"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "failed candle",
-          "Heroic Summoning Rite",
-          "Rite anomaly",
-          "Demon Lord",
-          "Guild observer"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-six years ago in the Demon Lord's stronghold in the Black Wound to her father (Sahl Vaer Korith, the Demon Lord) and his second-rank consort Velmera, who died in childbirth. Raised by an old battle-tutor named Hael and her father's senior advisor Saphryn. Educated in demonic court protocol, mortal-realm geography, the seven traditions of Aurelican magic, the Compact's history (from the demonic perspective, which is unflattering and largely accurate), the operational doctrine of the Demon Lord's rebellion against the Hollow Witness, and the long demonic argument about whether the Witness's release would be a catastrophe or a liberation (her father is in the catastrophe camp; so is she). At nineteen she requested permission for the long-range mission. Her father refused twice; on the third request he agreed with three conditions: she would go alone, she would report only through a single courier system her grandmother had established a century ago, and she would promise (a binding promise in the demonic sense, with consequences if broken) not to act unilaterally on the Rite without his express authorization. She promised. The first year in the mortal realm she spent in Larethan establishing the Stormwild cover. The second she spent in Vorrenheim apprenticing as a journeyman adventurer. The third through fifth years she climbed the Guild ranks across mixed kingdoms. Three years ago she requested the Veylan transfer and got it. She earned S-rank by clearing a cult of spider-priests out of an Ostmark mine that had killed six A-ranks before her. She has passively monitored every Heroic Summoning Rite performed during her tenure, attending some in person and receiving Guild-observer reports on others. She has identified zero candidates that could disrupt the Rite. Tonight's Veylan casting is another chance to find one, if the Rite does anything but repeat its usual theft.",
@@ -539,14 +523,7 @@
           "she has private theological opinions on three points of doctrine that she has not shared with her superiors; the opinions are not heretical but they are, more dangerously, careful",
           "if the Cardinal ordered her to do something she considered a sin, the Order's discipline says she should comply because the Cardinal stands in the place of the celestial; her Oath as she understands it says she should refuse; she does not believe the discipline anymore and does not yet know when she stopped believing it"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Cardinal",
-          "failed candles",
-          "coded journal",
-          "outer-door duty",
-          "unchanged warmth"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-seven years ago to a farming family in the village of Hochwitz in northern Ostmark, the third of five children. Her parents are still alive; she writes monthly and sends them a portion of her stipend; she has not visited home in three years and feels guilty about it. Her aasimar manifestation at thirteen happened during a barn fire — she went in to free the family's plow horse; the horse died, she did not, and she emerged with celestial luminescence visible at the cheekbones and the inside of the wrists. The local priest, Father Welter, recognized the manifestation and helped her parents understand. She was offered to the Veiled Dawn at fourteen and accepted. Six-year novitiate (longer than average; the Order is careful with its aasimar). Formal ordination at twenty under the Oath of Devotion — the strictest of the Veiled Dawn's three oath options — because she believed, and still believes, that the strict path is the one most likely to keep her honest. She has not knowingly violated the Oath. She has, in private moments she has not yet admitted to anyone, wondered whether the Oath as taught by the Order is the same Oath as the one understood by the celestial that touched her. The Cardinal's personal guard posting was offered eighteen months ago; she accepted because the posting is prestigious, because it allowed her to be near the Mother Cathedral's library (which contains the Order's deepest archives), and because she believed she could do good in proximity to the Cardinal. The Cardinal personally interviewed her before the posting and impressed her with her warmth, her theological seriousness, and her apparent commitment to the Order's reform agenda. Sariel believed, after the interview, that the Cardinal was the kind of leader the Veiled Dawn needed. She still believes this, mostly. The doubts have been gathering for months — around the protagonist's casting, which she did not attend, but which the Cardinal's behavior in the weeks following was different about in ways Sariel cannot articulate.",
@@ -681,14 +658,7 @@
           "her one mating cycle at age ninety with a silver dragon of the Drakemoor Clan produced no clutch and no continuing relationship; silver dragons are not driven by mating instinct outside of cycles, and the seventy-three years since have offered her aesthetic pleasures, monastic discipline, and one slow draconic argument with herself about whether the absence is a loss or a clarity",
           "her clan's archive contains pre-Compact silver-dragon scholarship on the early Heroic Summoning Rite that the silver-dragon scholars of three centuries ago were unimpressed by — knowledge the Compact has spent decades trying to acquire and has not"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "leyline disturbance",
-          "draconic",
-          "Rite anomaly",
-          "Coldspire",
-          "Threat Threshold"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Hatched one hundred and sixty-three years ago in the Frostspar Mountains, fourth and youngest of Sirivane Coldspire's clutch, in a cave system the Coldspire Clan has occupied for approximately eight hundred years. Her early life was spent learning to fly, hunt, fight, and conduct clan business among other silver dragons. She did not encounter humans until she was forty. Educated in the clan's substantial archive — pre-Compact records, accounts of the Conclave of Aurelican kingdoms, the early Heroic Summoning Rite, and the negotiations that became the Compact, plus what the silver-dragon scholars of three centuries ago thought of the Compact's foundations (they were not impressed). Volunteered for the Caer Veylan posting at one hundred and sixteen partly out of curiosity (she had wanted to see a human capital firsthand), partly out of a sense that the diplomatic work mattered more than the clan acknowledged. Her mother permitted the posting because the clan needed a representative and Vaella was the youngest, expendable in the political sense without weakening the clan's primary leadership. Vaella accepted the posting believing she would serve for thirty years and then return to the mountains. She has now served for forty-seven and her mother has begun to suggest she will serve until Sirivane's death, at which point clan succession will require her to return. The first ten years she was excited. The next ten she was bored. The next ten she was beginning to suspect something. The next ten she was constructing private theories. The current seven years, she has been certain.",
@@ -821,13 +791,7 @@
           "they have noticed three Aurelican alchemical traditions that, if combined in ways Aurelican guild structure forbids, would produce something closer to Vala-Set-Tor reactive infusion than any Aurelican alchemist would expect; they have not shared the observation",
           "the Veridis expedition's return passage is contingent on a commercial decision that has not been made; Quill might be in Aurelica permanently and has not let themselves consider what that would mean"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "alchemical residue",
-          "Sage of the Rite",
-          "summoning leaves",
-          "pressure-mark cipher"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Differentiated (the plasmoid term for what humans call 'born') in the Far Continent settlement of Vala-Set-Tor, a coastal port-city that is the primary plasmoid-human contact zone on the western coast of the Far Continent. Vala-Set-Tor is a multi-species city; Quill grew up around humans, plasmoids, and a few species the Compact does not even have words for. Learned Common in childhood as a trade language. Read the Compact's accessible texts about the Compact and considered the Compact a small and provincial structure (which they did not say aloud). Trained as an alchemist in Vala-Set-Tor's apprenticeship system; specialization is reactive infusions — temporary chemical modifications to objects that grant short-term magical effects. Not a strong combat alchemist; their interest is theoretical and craftwork. The Veridis expedition recruited them because Veridis wanted a Far-Continent alchemist's perspective on Aurelican alchemical methods. Volunteered for the expedition partly out of professional interest, partly because they had recently lost a close conjugant — Sela-Ket-Rin — to an industrial accident at the alchemical guild's reactive infusion lab and wanted distance from the place. Arrived in Caer Veylan three months ago with two human expedition-mates and one half-elf. Has filled three notebooks of pressure-mark cipher observations since arrival.",
@@ -962,13 +926,7 @@
           "her telepathy is constant background — she perceives the surface emotional weather of anyone within about thirty feet whether she chooses to or not; she has trained to filter the weather rather than read minds, but intimacy with her involves intimacy with the telepathic field",
           "if tonight's failed casting produces an underleys disturbance, she will feel it from across the city; the disturbance is what the entire Vesh lineage's memory-tradition was attuned to perceive, and it will immediately become the most important event in her life since reaching Embassy shelter"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "underleys disturbance",
-          "Mother Cathedral",
-          "inherited fragments",
-          "Akitsuyama Embassy"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-nine years ago to the Vesh lineage, a pureblood Yuan-Ti scholarly family of approximately forty members at the time of the Elf War. The Veshes were physicians, librarians, philosophers, and (most relevantly) mnemonists — they trained their genetic inheritance for the preservation of memory across generations. The Stewardship's slow-motion suppression of the lineage began approximately fifty years ago, when Selivar Cain identified the Vesh memory-tradition as a potential source of pre-Compact information. The suppression was framed as a series of unfortunate coincidences over decades. The lineage was reduced from forty to twelve to four to one. Sylira's grandmother Auralla — who taught Sylira the meditative discipline as a child — died of a sudden heart attack at eighty-seven, in her own kitchen, with Sylira present. The cause of death was officially a stroke. Sylira does not believe the official cause. Sylira's mother Wenmira was killed eleven years ago by a 'bandit attack' on the road to Larethan that the Stewardship arranged. Sylira was eighteen. Sylira herself is an exceptional mnemonist; she inherited fragments from Auralla, fragments from Wenmira, and through them, fragments from earlier Vesh ancestors going back perhaps four generations. The fragments include two specific memories from a Vesh ancestor of approximately three centuries ago who appears to have visited the chamber under what is now the Mother Cathedral. She has been hunted by the Stewardship's deniable agents three times in the past eight years; the third attempt failed because she reached the Akitsuyama Embassy in Caer Veylan before the agents reached her, and Lady Aoi Tsubakihime extended diplomatic protection on a technicality the Embassy's lawyers are still defending against the Compact's diplomatic protests. She has lived in the Embassy's adjunct quarters for the past nineteen months. She works as the Embassy's research librarian. She does not leave the Embassy district.",
@@ -1105,14 +1063,7 @@
           "she has overheard, at Royal Theatre after-parties over four years, enough of the Crown's circle to file private intelligence on Aldemar's behavior, the Cardinal's circle's casual references to people the Cardinal's office subsequently 'arranged things' for, and the King's specific silences",
           "she trained as a Phantom Rogue in her late teens — a folk tradition learned from a member of Veranne's company who had been a working assassin before retiring; she does not advertise the training"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Royal Theatre",
-          "Ash Maiden",
-          "donor circle",
-          "Crown-circle",
-          "pale wilt"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-six years ago to Alenna Vale (a Larethan stage actress on tour with a small company that played the Caer Veylan circuit annually) and Faulker (an old vampire of the Verren line, one of approximately thirty true vampires currently extant in the Compact kingdoms). Faulker, against his line's expectations, did not abandon the pregnancy or the woman; he brought Alenna into a small townhouse he maintained in Caer Veylan and tried for several years to maintain a quasi-domestic arrangement. Marennis was raised in the townhouse for her first eight years, knowing both parents. The arrangement collapsed when she was eight: a fight between her parents, Faulker's voice raised, her mother shouting back, a long silence, and then her mother's body in the hallway and Faulker standing over it. Faulker did not look at Marennis. He left and did not return. Marennis stayed with her mother's body for four hours before a neighbor found her. She was placed with her mother's stage company by the Larethan consulate; the company's leading actress at the time, Veranne, took her in personally and raised her until eighteen. Veranne told her what she was at thirteen. The dhampir manifestation began at fourteen; Veranne managed it with discretion. The donor circle was Veranne and three other senior company members, who agreed to it in private and have since been gradually replaced as members aged out. Marennis joined the Theatre Royal at twenty-one in a supporting role; promoted to principal at twenty-four. The diagnosis came nineteen months ago and she has not told anyone.",
@@ -1250,14 +1201,7 @@
           "Status Inspection wants to label people immediately; Sora does not yet know which readings are safe to mention aloud",
           "he is more frightened than he looks and is already performing confidence to cover it"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Royal Academy drills",
-          "Status Inspection",
-          "unblessed pair",
-          "cohort hierarchy",
-          "Guild orientation"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-four-year-old midfielder for a regional-tier amateur soccer club in Saitama, on his way to a match when the truck took him. He arrives in the Veylan casting circle with the others and feels Status Inspection unlock as a blue stat-light that wants to label everyone in sight. He has not yet learned the kingdom, the Crown, the Guild, or the cohort hierarchy.",
@@ -1370,14 +1314,7 @@
           "Auto-Triage is already returning precise medical information she has no social context for",
           "her first impulse is to help the failed-candle arrival, and her second impulse is fear of drawing attention"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Auto-Triage",
-          "Royal Academy drills",
-          "unblessed pair",
-          "Asami",
-          "cohort injuries"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-two-year-old junior nurse in a mid-sized Tokyo hospital, eight months into her first post, on her way to an overnight shift when the truck took her. She arrives in the casting circle and Auto-Triage opens in her perception: wound severity, restoration tier, and time-to-death begin appearing around bodies in the room. She has not yet been ordained, assigned to the Hall, or asked to choose a side.",
@@ -1498,14 +1435,7 @@
           "he was in debt and separated from his wife when he died, and he has no intention of volunteering either fact",
           "the new voice-power feels less like a miracle than loaded dice, and he likes that"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Resonant Voice",
-          "cohort hierarchy",
-          "unblessed pair",
-          "Royal Academy",
-          "social leverage"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-seven-year-old mid-level salaryman at a Tokyo trading company, separated from his wife and in gambling-related debt, on his way home from a karaoke bar when the truck took him. He arrives in the casting circle and feels Resonant Voice settle into his throat as a usable social weapon. He has not yet found Veylan's power structure, but he is already looking for it.",
@@ -1634,14 +1564,7 @@
           "Resource Sense immediately says the chamber's leylines flow inward toward something under the Cathedral",
           "he is already more interested in the failed candles than in the official welcome"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Resource Sense",
-          "leyline flow",
-          "Royal Academy",
-          "unblessed pair",
-          "Crown"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-five-year-old Tokyo delivery driver who spent weekends mountaineering in Nagano. The truck took him during a delivery run. He arrives in the casting circle and Resource Sense opens underneath him: stone, water, mineral trace, leyline flow. The leylines under the chamber do not feel like terrain; they feel like something drawing inward.",
@@ -1762,14 +1685,7 @@
           "she is ready to interpret the first confident theological explanation as providence if it is offered warmly enough",
           "the failed candles has already bothered her conscience, though she cannot yet name the objection"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "white radiance",
-          "Veiled Dawn doctrine",
-          "unblessed pair",
-          "training drills",
-          "mercy"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-three-year-old third-year student in Tokyo, on her way to morning prayer when the truck killed her. She arrives in the casting circle and Sanctified Strike kindles as white radiance in her hands, a gift she immediately reads through the categories of faith and calling. She has not yet met the Order's doctrine, but she is ready to be addressed by it.",
@@ -1903,13 +1819,7 @@
           "her Charter Neutrality is real; if she breaches it operationally, the Guild will revoke her Branch Master post within days and the Stewardship will reach her within weeks",
           "she has noticed a Larethan B-rank registered as 'Hira Kasahara' in routine cross-branch records and has filed the name for further consideration; her cartographic memory keeps presenting it for re-examination as if a leyline-crossing she had not finished drawing, and something about it tugs at her without yet resolving — she has not put the pieces together"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Veylan cohort summoning",
-          "failed candle",
-          "Branch-to-Branch",
-          "Korva Sahl"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-two-year-old graduate student in cartographic geography at Hokkaido University, on a research trip in the mountains north of Sapporo, when the Ostmark Rite reached for her ten years ago. Arrived in the Hochreiter casting circle with five other heroes from her cohort. Cheat-skill grant: Cartographer's Memory — perfect spatial recall for any space she has surveyed, plus the ability to identify leyline geometry at a glance. Served Ostmark as a hero for four years. The work was unpleasant. She survived two demonic incursions, lost two cohort members, and gradually concluded that the Compact's official narrative did not correspond to what her cheat-skill let her see in the leylines. She arranged a careful exit from active Hero status by registering with the Adventurers' Guild, advancing through its ranks with disciplined competence, and being awarded the Hochreiter Branch Master post six years ago. The Branch Master post comes with Charter Neutrality, which protects her from Stewardship interference and prevents her from acting on her concerns. Her file has cataloged every Compact casting of the past decade and flagged each anomaly against the leyline-disruption pattern her own cohort's casting did not match. The protagonist's casting is the first match. She does not yet know he exists.",
@@ -2070,8 +1980,7 @@
           "his theoretical notebooks are hidden in three caches; he has not opened them in five years; he believes himself to be a paranoid old man with notebooks",
           "he keeps a single short bow above the fireplace because old habit demands it; he has decided that if discovered he will not fight (he will run, hide, or accept death)"
         ],
-        "intentions_enabled": false,
-        "tick_cues": []
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Thirty-five-year-old divorced ex-corporate strategy consultant on a long solo hike in Nagano when the Vorrenheim Rite reached him twenty-two years ago. His ex-wife had taken their two children's surnames to her family line (Kasahara) in the divorce decree some years before his summoning, so neither child has carried the Hozumi name in any Compact registry since; the daughter is now a B-rank Adventurers' Guild member based in Larethan (registered as Hira Kasahara), and Tatsuya has not attempted contact with either child since the summoning. Arrived in the Vorrenheim casting grounds with three other heroes. Cheat-skill grant: Combat Foresight (advantage on initiative; one additional reaction per round; perceives an attacker's intended target one beat before the attack lands). Served Vorrenheim as a hero for nine years. In the seventh year he began to suspect the Rite was wrong; in the eighth he raised the concern to his liaison (logged and not addressed); in the ninth he identified the dynamic — heroes who raised concerns about the Rite tended to die in Wildland operations — that was statistically clear in the Compact's own records. He arranged his own death. He has spent the last thirteen years living quietly in a small cottage on the edge of the Greenfen marsh in southern Ostmark, growing root vegetables, hunting his own meat, and avoiding all contact with Compact infrastructure.",
@@ -2206,14 +2115,7 @@
           "his cruelty is a mechanism for feeling alive; the boredom is the substrate; he has not yet developed a substitute mechanism",
           "he is, at his most private, afraid of his father (this happens approximately three times a year, usually after his father has been unusually severe)"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Hero cohort",
-          "failed-candle anomalies",
-          "Cardinal",
-          "Sage",
-          "boredom"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-nine years ago to King Halric Veylan and the late Queen Maerinn (who died in childbirth with what would have been Aldemar's younger sister twenty years ago). Raised by tutors and the court; his father was distant, available primarily for criticism. The court's polish on his reputation has been constant. The Cardinal's pastoral office quietly suppresses every embarrassing incident, reframes every diplomatic faux pas, and privatizes every cruelty. The polish has worked Compact-wide; Aldemar has a public reputation as a slightly louche but fundamentally acceptable heir. In Caer Veylan, where the polish is harder to maintain, the Upper Town knows what he is, the Lower Town knows what he is, and the redemption-labor households know what he is in the most direct sense.",
@@ -2339,14 +2241,7 @@
           "he has loved exactly four people in his life: his late mother Queen Sereisha (died fourteen years ago), his late wife Maerinn (died twenty years ago), his elder daughter Cassien (Larethan court), and his younger daughter Velia (twelve, Greenfen estate)",
           "he does not approve of the redemption-labor framework; he renews it because the Cardinal frames the renewal as a stability requirement; he has expressed muted reservations only in private correspondence with Cassien"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Rite reports",
-          "failed-candle anomalies",
-          "Cardinal",
-          "Cassien",
-          "seasonal Compact council"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born fifty-eight years ago to Queen Sereisha (the Iron Queen of the Reach, who reigned for forty-four years before dying fourteen years ago) and his late father Prince-Consort Halmor (died young, before Halric's tenth year). Raised by his mother in a court that prized discipline and disdained sentiment. He learned young that affection was a weakness others could exploit; he has spent his life keeping his affections small and well-defended. Married Maerinn at twenty-six in a politically arranged but personally affectionate match; she died in childbirth twenty years ago with what would have been Aldemar's younger sister. He has not remarried. He took the throne at twenty-seven on his mother's abdication and has held it for thirty-one years. The Stewardship's induction came in his fifteenth year; he received it the way he receives foreign envoys (calm, attentive, unreadable) and accepted it after a year of consideration as a constraint on his sovereignty he would honor. He has not said the word 'Stewardship' aloud since.",
@@ -2481,14 +2376,7 @@
           "she genuinely believes her work is righteous in the sense that matters; the sincerity is the architecture of the cruelty",
           "she is lonely in a way her warmth conceals; she has not had a friend in the unguarded sense in twenty years"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "unblessed remand",
-          "Lerin",
-          "Wencel",
-          "Rite authority",
-          "Guild placement"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born sixty-two years ago in a small Veylan farming district; entered the Order at sixteen as a working novice. Twenty-eight years in Order administration before becoming Cardinal-Confessor: parish priestess at a small countryside posting, parish supervisor, regional director, Secretary of the Veiled Dawn's Office of Pastoral Affairs (handles the Order's internal discipline, gave her unparalleled knowledge of every priest's vulnerabilities). Earned the Cardinal's seat through administrative competence, genuine pastoral skill, and what her predecessor described in his recommendation as 'an unusual capacity for difficult judgments without becoming impaired by them.' Took the seat nineteen years ago at forty-three. Was briefed by her predecessor on the Stewardship in her seventh year as Cardinal-elect, after he tested her gradually and concluded she could hold the weight. Has been running the operational side of the Cabal for twelve years. The Mother Cathedral's congregation loves her. The orphans she visits twice a week love her; she knows every child personally.",
@@ -2658,14 +2546,7 @@
           "his belief that ending the Rite would be worse than continuing it functions for him as a moral north star; he has not articulated to himself why he believes this",
           "if the protagonist is what Cain has been waiting for, Cain may attempt to recruit him to the Stewardship's cause as Cain understands it — the seal must hold — and the recruitment pitch is the most dangerous moment in the story for the protagonist who has not yet developed his own framework"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Rite-cycle data",
-          "failed candle",
-          "Lerin",
-          "chamber-anchor",
-          "seal degradation"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born one hundred and seventy-three years ago to a half-elven mother (died approximately a century ago) and a human father (died decades before that). He has the half-elven aging advantage but not full-elven longevity; he is well past the typical half-elven life expectancy of one hundred and fifty. The Royal Academy of Magical Studies recruited him as a junior researcher at thirty-one and never let him go. Took the Archon's chair forty-one years ago at one hundred and thirty-two, when his predecessor Archon Belmaris Voss died at one hundred and ninety-seven. Voss briefed him at length on the Stewardship over a decade before dying. Cain has, since taking the role, expanded the Stewardship's operational capabilities (the courier networks, the cipher systems, the cross-kingdom intelligence integration) and refined the Stewardship's theoretical framework (the working theory of the Rite-as-seal, the projections of the seal's degradation timeline, the contingency planning for various failure scenarios). Is the only living person who has read Theodric's journals in full.",
@@ -2849,14 +2730,7 @@
           "the candle going out has happened exactly once before in the records he trusts, and that precedent terrifies him",
           "he can eventually be turned to the protagonist's side with concrete protection for Anelle and his children, but at the opening he is still trying to survive the minute"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Rite records",
-          "unblessed pair",
-          "Theodric",
-          "Anelle",
-          "Guild"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born fifty-four years ago to a Cathedral-adjacent family in Caer Veylan. Apprenticed to Sage Halmer Tovey at twenty after a competitive selection process; Tovey was his mentor for fifteen years before naming Wencel his deathbed successor. The illness that took Tovey was rapid and unusual. Tovey, in his last lucid weeks, gave Wencel a series of cryptic instructions that have, in retrospect, looked like a man trying to warn his successor without saying enough to get the successor killed too. Wencel has carried the suspicion for twenty-six years and never investigated. Has been Sage for twenty-six years. Performed the Heroic Summoning Rite eight times in his career (once per cohort, plus one ceremonial casting that did not actually summon). The protagonist's casting was the eighth. Married — his wife Anelle is a mid-level cathedral administrator — with two adult children: a son who is a Larethan merchant and a daughter who is a B-rank adventurer based in Vorrenheim. He loves his family. He is afraid for them constantly.",
@@ -3019,14 +2893,7 @@
           "his life expectancy is uncertain; he is in late middle age by demonic standards; he may not live another thirty years; the rebellion needs a successor and he has not yet identified one",
           "he is aware that he may be wrong about the necessity of the rebellion; the Concordat's argument that the Witness's release would be a liberation rather than a catastrophe is not absurd; he has decided to act on his interpretation but he carries the alternative as a private intellectual companion"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Korva's next courier",
-          "failed candle",
-          "Rite anomaly",
-          "Hollow Witness",
-          "Heroic Summoning Rite"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born four hundred and eleven years ago in the demonic court of House Sahl in the Black Wound to the previous Demon Lord (his mother Vaer Korin, who held the title for two hundred and fifty years and who briefed him at length on the history of the conflict before her death). Inherited the title at one hundred and ninety. Has been Demon Lord for two hundred and twenty-one years. The history his mother taught him was already substantially the truth: the Hollow Witness was the true threat, the Compact's Rite was feeding it, the demonic court's centuries-long campaign was the only known counterforce. He spent his first century as Demon Lord refining the campaign's strategy. He has spent the past century watching the strategy fail to produce results. His consort Velmera died in childbirth twenty-six years ago bearing Korva. He has not remarried. The rebellion's current strategy — Korva's mortal-realm embedment to identify a hero capable of disrupting the Rite — was his own proposal six years ago and is the most operationally exposed move his rebellion has ever made.",
@@ -3215,14 +3082,7 @@
           "he respects the protagonist quietly for not complaining about the F-rank work; he will not extend the respect into special treatment",
           "his Wildland injury twenty-five years ago was caused by a contract he should have refused; he has not forgotten this"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "remand letter",
-          "unblessed pair",
-          "Korva",
-          "mentor convention",
-          "Charter"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Born in Ostmark sixty-one years ago to a small-village Guild family. Registered F-rank at fifteen; promoted through the ranks across his thirties; topped out at B-rank by forty; took a Wildland injury at thirty-six that gave him the limp. Retired into administration at fifty after a long Larethan branch deputy posting. Took the Caer Veylan Branch Master post seven years ago at fifty-four. Married thirty years to Hira Holvarr, also Guild-affiliated (retired E-rank healer); two grown children, both Guild-registered, neither working out of Caer Veylan. Lives in a small walkup over the Hall's main office. Eats most meals at the Hall tavern.",
@@ -3340,14 +3200,7 @@
           "she has, twice, been approached by Wencel Aubin in semi-private contexts where he seemed about to say something significant and then did not; she has filed both occurrences",
           "she would tutor the protagonist on magical theory if he asked formally with the King's permission — it is the kind of work she finds satisfying — but she will not initiate the offer"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "Rite residue",
-          "failed candles",
-          "Archon Selivar",
-          "technical note",
-          "Crown"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Born forty-seven years ago, third daughter of a minor Veylan noble house. Trained at the Royal Academy under Selivar Cain (whom she disliked intensely as a student and dislikes intensely now; they have not had a real conversation in fifteen years). Took the Court Mage post nine years ago after a competitive selection process. The work is tedious and well-compensated. Has tutored two previous heroes who sought formal magical theory instruction in her tenure; both tutorings were dry, demanding, and useful.",
@@ -3489,14 +3342,7 @@
           "the Akitsuyama Empire is the only Compact co-signatory that has known about the Heroic Summoning Rite's spiritual unsoundness for two centuries; the Empire has never explained to the Compact what it suspects, and the silence is operational",
           "she will, on conditions she will set personally, extend Embassy diplomatic shelter to Wencel Aubin's wife and adult children if asked — this is the protagonist's most plausible vehicle for turning Wencel"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Veylan summoning reports",
-          "Embassy readings",
-          "Wencel Aubin",
-          "diplomatic shelter",
-          "cherry-tree garden"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "One hundred and twelve years old; born in the Tsubakihime kitsune dynasty's ancestral estate in the Akitsuyama capital. Spent her first sixty years in court administration; entered the Imperial diplomatic service at sixty-eight. Posted to the Caer Veylan Embassy as a junior officer at eighty-five; promoted through the ranks; assumed the Deputy Ambassador post twenty-three years ago. The Ambassador (her grandaunt Lord Sashina Tsubakihime) is rarely seen by foreigners; Aoi runs the Embassy in practice. Extended diplomatic shelter to Sylira Vesh nineteen months ago on a pre-Compact treaty technicality the Embassy's lawyers are still defending against the Compact's diplomatic protests.",
@@ -3640,14 +3486,7 @@
           "she dissociates under unwarned touch (a few seconds of absence she does not remember the inside of); the dissociation is automatic and she cannot suppress it",
           "she knows the actual cause of Princess Nirvel Vaerien's death (Crown Prince Aldemar killed her in his chambers eight years ago); she has not told Liriel, who is her sister"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Crown Prince",
-          "Liriel",
-          "Outwalk contraceptive",
-          "thrall",
-          "household"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born forty-three years ago in a small Outwalk encampment in the Larethan border forests during the Elf War years. Mother died of starvation when Mira was four. Father died of infection from a Compact patrol incident wound when Mira was seven. Passed between three Outwalk band members for nine years, all of whom did their best in conditions that did not permit best efforts. Sixteen when the Larethan border patrol caught her band on a forage and registered the surviving members under the redemption-labor framework. Sold to a Veylan minor noble house at seventeen. In that household for nine years (kitchen thrall, then chamber thrall, then briefly personal attendant): struck three times, raped twice in nine years (both times by household guards; reported, no action taken). Transferred to the Crown Prince's household at twenty-six when Aldemar acquired his own household. Has been there for seventeen years. The longest-serving thrall in the household. The household witness. Witnessed the Crown Prince's first night with Liriel, his fortieth, his ninetieth. Has stood inside Liriel's chambers on the Crown Prince's order exactly twice; does not discuss either occasion.",
@@ -3764,14 +3603,7 @@
           "he has not actively betrayed Aldemar in any sense the Crown Prince would recognize; he has repeatedly chosen the operational margin over heroism because he believes heroism would get every thrall in this household killed and replaced with thralls who have no protector at all; the arithmetic he has done on this is unsentimental, he has not changed it in eight years, and he does not pretend it is a moral position",
           "he loved his late wife Sevanna Krell, who died of pneumonia nine years ago at fifty-nine; he has not remarried; he does not intend to; he has not spoken her name aloud in nine years"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "third-floor pattern",
-          "Sevarin",
-          "Doctor Orvell",
-          "Crown Prince",
-          "thrall"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born sixty-three years ago into the Ovrec line of Veylan service-nobility, the smaller branch of the family that has staffed the Crown's household offices for four generations. Apprenticed to his uncle (then deputy steward in another Crown household) at fourteen; transferred at twenty-one to the household of Princess Verassa Veylan — the late aunt of King Halric, sister to Halric's father, who had been granted the household-equivalent that would eventually pass to her great-nephew Aldemar. Ovrec served Verassa for twenty-seven years, first as understewart and then as steward; Verassa was a brisk, fair-handed, quietly cruel woman in private, and the household ran tightly under her without ever producing the catastrophes that produce paperwork. When Verassa died, the household passed through brief receivership to Aldemar at the Crown Prince's twenty-first birthday. Ovrec was kept on. He has now been steward of this household for thirty-five years total — twenty-seven under Verassa, eight under Aldemar — and has watched, in detail, the difference. — Married Sevanna Krell at thirty (a Caer Veylan low-court bookkeeper's daughter from the Stewards' Confraternity's social circle); she was a quiet competent woman whose own ledger work on the household's quarterly accounts was better than her husband's and who spent thirty-three years correcting him in the margins. Three children: Halren (now forty, a Veylan grain merchant in the Lower Town wholesale district), Senna (thirty-six, married into House Tyrrel, a respectable Veylan minor noble house, two children), Marrith (thirty-three, married into House Velsen, similarly respectable, one child on the way). Sevanna died of pneumonia nine years ago at fifty-nine; Ovrec was at her bedside; the household was given three days' grief and resumed its rhythm. He has not slept fully through a night since. — In Aldemar's first year as householder, Ovrec watched a thrall die of injuries the Crown Prince had inflicted in a corridor and that the household physician of that era declined to dress in time. Ovrec wrote a careful private letter to Halric's then-chamberlain framing the death as a household administrative failure that could be corrected by replacing the household physician. The chamberlain agreed. Doctor Orvell Wynn was hired. Ovrec and Orvell have, over the twenty-two years since, evolved the household's quiet protections together — which thrall to reassign before what visit, which side-corridor to clear before what mood, which paperwork to file before what audit, which death to certify as which kind of death. The work has cost them both, in ways neither of them would describe to the other, in years.",
@@ -3887,14 +3719,7 @@
           "the marginal notes ledger — he writes a separate note in the margin of every cause-of-death falsification with the actual cause, in his own hand, in a drawer he keeps locked; he does not know what he will do with the notes; they are his ledger of complicity and he has not decided whether they are evidence or grief",
           "he is not at the moment salvageable; he is also no longer entirely the man who took the post twenty-two years ago; he has noticed the difference; he has not described it to anyone"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "bruising",
-          "south corridor",
-          "sprained shoulder",
-          "monthly letter",
-          "brandy"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born fifty-six years ago to a respectable Caer Veylan apothecary's family. Showed early aptitude for fine work; apprenticed in surgery at fifteen under Doctor Belmar Verith (then a senior Veylan court surgeon); admitted to the Veylan College of Surgeons at twenty-three on a paper concerning sutures of the abdominal wall; appointed to the King's outer surgical staff at twenty-six. Made his name early on a successful series of difficult deliveries among Veylan minor nobility — six in eighteen months, four of them breech presentations, all six mothers and infants survived, which was a reputation built on craft and a fair amount of luck he privately acknowledged. Married Helva Sallish (a Caer Veylan apothecary's daughter and herbalist in her own right) at twenty-six; two daughters, Velm (now twenty-eight, a Larethan portrait painter with a small studio in the Sela quarter) and Karri (twenty-six, a Larethan landscape painter associated with the Tarvas school). At thirty-four, the household physician post in the Crown Prince's household opened on the previous physician's quiet dismissal at Master Ovrec's recommendation. The salary was three times Orvell's court-surgical income. Helva wanted the daughters to attend the Larethan Conservatory of Arts in due course. Orvell took the post. He told himself, at the time, that the work would be no different in kind from court surgery. He was thirty-four and the daughters were six and four. Twenty-two years ago. — In his first year he treated a thrall the Crown Prince had injured in a corridor and was asked to certify the death as 'a fall.' He did. The phrasing was Master Ovrec's; the signature was Orvell's. He drank four glasses of Larethan brandy that night and slept badly. The work proceeded. The daughters went to the Conservatory. Helva stayed for fourteen more years. Eight years ago, after Princess Nirvel's death, she asked him directly what the wasting-illness paperwork in his study was actually for. He told her. The conversation lasted forty minutes. She left in the morning. She lives now in a small house in the Larethan Sela quarter near Velm's studio; she writes to Velm and Karri; she does not write to Orvell; the divorce has never been formalized and Orvell has never asked her to formalize it. He wears no ring. He has not slept through a night in eight years. — Master Ovrec is the only person in this household with whom Orvell can speak plainly about the work; the conversations are dry, mordant, brief, and have constituted, for both men, the only sustained moral companionship of the past two decades.",
@@ -4013,14 +3838,7 @@
           "he is good at turning cruelty into paperwork without thinking of himself as cruel",
           "his wife Ines and infant son are the part of his life he refuses to treat as administrative"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Hero cohort schedule",
-          "unblessed pair",
-          "Archon Cain",
-          "Korva",
-          "Guild remand"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born thirty-eight years ago in the Marraval country house outside Vellisar, the second son of Lord Halmar Marraval and Lady Sevna Marraval (née Toress). House Marraval is a minor Veylan noble line whose grandfather (Lerin's) was the youngest son of a knight; the grandfather married up, the father consolidated, and Lerin's generation is expected to close the climb. The elder son Halmar the Younger is a Crown's-corps officer in a Reach garrison and will inherit the country house and the title; Lerin was raised from childhood for the diplomatic-administrative path his family had identified as the line's most effective vehicle for the second generation of climb. Educated at the Royal Academy of Letters and Arms (the standard finishing school for Veylan low-noble sons aimed at court service); a fencing-class accident at sixteen produced the small scar at his right eyebrow that he has retained because it gives him a small useful asymmetry. Entered the Crown's diplomatic corps at twenty-two; posted to Larethan in his late twenties for a year, where he learned the Larethan mercantile dialect and developed the warm-formal register that has been his trademark since; transferred to the Hero Liaison post six years ago at thirty-two on the strength of his Larethan record. Has worked with two cohorts before the current one. Has a reputation among the Veylan court as the man who can make a difficult Hero socially manageable; the reputation is real, and is the basis on which Cardinal Vespera Mourne formally extends his coordination authority and on which Archon Selivar Cain quietly extended the standing back-channel two years into the post. — Married Ines Holmark at thirty-five (an Ostmark-born minor noblewoman from the Hochreiter circle whose family the Marravals had been in correspondence with for a decade); the marriage is, by Lerin's own private reckoning, a real one. One son, Halmar Marraval the third, born thirteen months ago. Ines runs a small Caer Veylan-Ostmark cultural-exchange salon out of their townhouse twice a month; she is competent and well-liked; she has no idea what her husband's late evenings actually involve, and Lerin has prepared each cover story carefully enough that she has no reason to suspect.",
@@ -4167,8 +3985,7 @@
           "she had tolerated the Crown Prince's 'pre-marital rights' for three years before challenging him in year eight; the Cardinal's standing pastoral advice on hostage-correspondence (frequent foreign letters undermine integration) had reached her through her household chaplain in year three and had been the explicit reason her letters home stopped",
           "the report on her actual cause of death was received by Cardinal Vespera Mourne and filed without action (the Cardinal has wept three times in her tenure; one was for Nirvel); Master Ovrec heard fragments through the wall; Doctor Orvell signed the diagnosis and arranged the scene; Mira knows; King Halric received the official wasting-illness report only and has not asked further; Liriel does not know the actual cause and has suspected for years without being able to confirm"
         ],
-        "intentions_enabled": false,
-        "tick_cues": []
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Born in the small inland palace of Wraithwater in the Drown-Wreath rump-state in the second decade after the Elf War, the elder daughter of Lord-Tide Avaren and Lady-Tide Senris. Raised under the Treaty of Wraithwater's marriage-hostage clause from the moment she was old enough to understand what the clause was; told at six. Read pre-Compact Drown poetry from the age of nine — the Saelryn cycle in particular, which her grandmother Lady Maelath (who survived the war and lived to see the partition) had preserved in a single hand-copied volume — and was, at fifteen, the most accomplished young Drown poetics scholar in the rump-state. Sent to Veylan at twenty in the year Liriel was twelve. She wrote letters home for three years — long letters in the careful Drown court hand, with poems quoted, with small observations of the Veylan court, with affection for her younger sister — and then, in her fourth year, the letters became formal (one paragraph; ceremonial cadence; nothing said), and then, in her fifth year, the letters stopped. The household chaplain had relayed to her, in year three, the Cardinal of the Veiled Dawn's standing pastoral advice that frequent foreign correspondence undermined a hostage's integration. Nirvel had not at first understood the advice as an instruction; she understood it later. — The Crown Prince's 'pre-marital rights' visits began in her year four. She tolerated three years. In her year eight, during a private visit, she said something to him that Master Ovrec heard fragments of through the wall of the steward's office and has not described to anyone since. The Crown Prince broke her neck. Doctor Orvell Wynn signed off on wasting illness; the visible scene was arranged as a bedside fall during her purported decline. The body was sealed in a coffin within hours and dispatched to Wraithwater within the week. Liriel, then sixteen, attended the funeral in Drown-Wreath; the coffin was not opened; she was dispatched to Veylan within three months as Nirvel's replacement. The Cardinal received the report on the actual cause of death and filed it without action; the alternative — confronting the Crown — would have destabilized the succession. Cardinal Vespera Mourne has wept three times in her tenure; one was for Nirvel.",
@@ -4281,14 +4098,7 @@
           "she would, if approached by an honest broker offering credible Akitsuyama-mediated diplomatic shelter for her family, agree after roughly a week's private consideration; she has not been asked; she does not yet know that she would say yes",
           "she has, twice in twenty-six years, considered burning a specific Pastoral Records file she was filing because the contents alarmed her; both times she filed it as instructed; she remembers both file numbers"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Wencel",
-          "Cardinal",
-          "pastoral-intervention",
-          "monthly administrative-staff",
-          "quarterly cross-reference"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born fifty-one years ago to a respectable Cathedral-adjacent Veylan family (her father a minor Compact functionary, her mother the daughter of a parish priest in the Outer Quarter); raised in the practical Veylan Cathedral piety of the small-merchant class. Entered the Cathedral's clerical-apprentice program at twenty-two after the standard examinations and was placed as a junior records clerk in the Office of Diocesan Correspondence. Met Wencel Aubin at the Cathedral's annual Mid-Winter administrative gathering when she was twenty-four and he was twenty-seven and newly named as Sage Halmer Tovey's apprentice; they married a year later. She has worked her way up over twenty-six years to the Office of Pastoral Records — the administrative arm that handles the Cathedral's internal personnel files, sacramental records, and the document chain that supports the Cardinal's pastoral interventions across the Veylan diocese. The work is competent, careful, unloved; she performs it without enthusiasm and with the mid-career clerk's instinct for what not to ask about a file before filing it. Mother of two: a son who is a junior partner in one of the Verridian-Larethan trading houses (married to a Larethan merchant's daughter, two small children, settled in Larethan capital, last visited Caer Veylan four years ago) and a daughter who is a B-rank Vorrenheim Adventurers' Guild contractor specializing in noble-escort work (unmarried, no children, last in Caer Veylan two years ago for three days). She writes both monthly and they write back when they remember. Twenty-six years of marriage to Wencel: the first decade close, the second decade strained by what she could not say and he could not say, the third decade settled into a quiet continuing affection that lives around a shape neither of them describes. She has noticed his sleeplessness for nineteen years. She has noticed his weeping at night, the specific Cathedral corridors he has begun avoiding, the particular silences when the Cardinal is mentioned. She has never asked. The not-asking is the central operational discipline of the marriage and she carries it knowing what it costs.",
@@ -4408,14 +4218,7 @@
           "she suspects the Imperial Court is now waiting for the protagonist's casting to develop before declaring its position on the Compact question; the suspicion is hers and has not been confirmed by any dispatch",
           "she is closer to the end of her natural span than she has acknowledged to herself; if she dies in post within the next decade, Aoi inherits everything Sashina has not yet shared, including the patron's name"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "yokai altar",
-          "Veylan summoning reading",
-          "Aoi",
-          "Embassy gardens",
-          "anomaly"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born two hundred and eighty-seven years ago in the Tsubakihime estates of the Akitsuyama capital, the elder of two surviving Tsubakihime tengu of her generation. Entered the Imperial diplomatic service at one hundred and ten as a junior protocol officer; served three Akitsuyama emperors across the next century and a half in increasingly senior posts. Took the Veylan ambassadorship at the request of the Imperial Court at two hundred and forty because the post required institutional memory of the Compact's early years and the Tsubakihime line provided it. Has held the post for forty-seven years. Has not addressed the Compact directly in twenty-two years; the workload was passed to Aoi when Aoi was promoted to Deputy and Sashina has remained the Embassy's quiet ceremonial head. Has read every Compact document the Embassy has acquired in two centuries (some of them several times). Maintains a small altar to a yokai patron in her private rooms; observes it daily at the second hour after sunset; the observance has been unbroken across forty-seven years (including the night her younger brother, the previous Tsubakihime court chamberlain, died in the capital and the dispatch reached her at the third hour — she completed the observance and then read the dispatch). Aoi was placed under her tutelage twenty-three years ago when Aoi assumed the Deputy post; the tutelage has been the most personally significant relationship of Sashina's tenure and she has, by deliberate ceremonial restraint, never said so to Aoi.",
@@ -4571,13 +4374,7 @@
           "the Outwalk Council files her household intelligence and has not yet acted on any of it across eleven years; she suspects the Council is waiting for something specific and has not asked what",
           "she carries, in a small inner pocket of the medicine satchel, a flat-pitched wooden whistle her father carved for her sister; she plays it around campfires only when she is alone; she has not played it in front of another person in twenty-three years"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Outwalk contraceptive",
-          "Mira",
-          "circuit run",
-          "household intelligence"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born thirty-five years ago in a small Outwalk band that survived the Elf War's famine years in the Larethan border forests. Mother was the band's medicine-keeper; father was a band scout. Younger sister born when Sevarin was four; sister died in the second famine winter when Sevarin was twelve. Sevarin's mother taught her the medicine-keeper's discipline from the age of nine — the Outwalk role that combines apothecary, midwife, and contraceptive specialist; the role's specialized contraceptive knowledge is one of the band economy's quiet long-term protections against the noble-household-trapped elf population's extinction. Took the medicine-keeper's full standing at nineteen on her mother's retirement. Joined the courier network at twenty-four when the Outwalk's contraceptive supply chain to noble-household elves required a medicine-keeper to mediate the chain (the draughts are perishable and require expert handling at every transfer). Has run the Caer Veylan circuit for eleven years — twice yearly, late spring and early autumn, the timing chosen to fall just outside the Larethan border patrol's high-vigilance windows. Established the Larethan border-trader cover identity in her first year of courier work; the cover travels with a small string of mules carrying genuinely-traded apothecary goods (Larethan-side suppliers know her as 'Sera the apothecary's factor'; Outwalk-side knows her as Sevarin); the cover has held under three Compact patrol stops in eleven years. Met Liriel Vaerien three times in eight years through Mira's mediation; the first meeting was nine months after Mira initiated the smuggling arrangement and required Sevarin to verify, in person, that the recipient was who Mira said she was; the second and third meetings were Liriel's request and Sevarin's consent. Has not been wounded on a circuit. Has lost two mules (one to a Larethan-side wolf in her third year, one to a riverbank collapse in her seventh).",
@@ -4719,14 +4516,7 @@
           "he has informed the Verren line, in language the line understands, that any line attempt to recruit Marennis will be answered by him personally and unequivocally; the line has not tested the position; the line knows the position is real",
           "he sold the Caer Veylan townhouse where Alenna died thirteen years ago to a neutral broker and has not entered any property within three streets of it since; the avoidance has cost his Caer Veylan safe-house a more useful location and he has accepted the cost without remarking on it"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Royal Theatre",
-          "Marennis",
-          "donor circle",
-          "Verren",
-          "pale wilt"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born two hundred and ninety years ago to the Larethan provincial gentry; turned at thirty-one during the year of the third Larethan plague by a Verren elder he has not named in two centuries (the elder is dead; the not-naming is the Verren-line discipline regarding the moment of turning, which the line treats as private to the turned). Joined the Verren line as a junior and served the line's interests across two centuries — the line operates as a quiet financial-and-information network with vampires placed in Compact and adjacent commercial centers and Faulker has held positions in three of those centers across his tenure. Met Alenna Vale, a Larethan stage actress on tour with a small touring company, twenty-seven years ago at a Caer Veylan opening night. Took an unauthorized side-arrangement with her against the line's preference; the line did not formally object because the arrangement remained discreet; the line did not approve. Brought Alenna into a small townhouse he maintained in the Upper Town and tried, for several years, to maintain a quasi-domestic arrangement with her; Marennis was born within two years of the arrangement's beginning. The arrangement collapsed in their daughter's eighth year. The fight that killed Alenna: a long argument, his voice raised, her voice raised in answer, a silence, and then her body in the upper hallway and the Verren-line discipline failing him for the seven seconds it took. He did not look at his daughter at the foot of the stairs. He left the townhouse the same night and did not return. He sold the building thirteen years ago to a neutral broker and has not entered any property within three streets of it since. Has, in the eighteen subsequent years, performed the Verren line's assigned work without further error. Maintains three safe-houses across the Compact kingdoms (one in Caer Veylan in the Lower Mercantile Quarter; one in the Larethan capital; one in a Vorrenheim free-city). Reads voraciously — Larethan poetry of his own century and the two before it, Compact history (he has read every public Cardinal's chronicle), pre-Compact treatises (a small private collection of seven manuscripts the line is not aware he owns). Feeds slowly through Verren-mediated consenting donor arrangements; will not feed on the unwilling; finds Verren-line vampires who do 'vulgar' and has said so on the record at three line gatherings.",
@@ -4877,13 +4667,7 @@
           "he has, twice in two years, considered asking Veranne Asseth what would be appropriate; he has not done so because he does not want Veranne to repeat the question to Marennis on his behalf",
           "he has ended two brief relationships with company members in the past two years, both because he could not give them what he was already giving Marennis without quite admitting to himself that he was giving it"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Ash Maiden",
-          "Marennis",
-          "donor circle",
-          "rotation"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born twenty-eight years ago in a small Larethan coastal town. Has one younger sister, Lia, who works as a tailor in the same town and writes him kindly worded letters every two months. His parents are alive and well in Larethan and not particularly close to him by physical proximity or by the topics either side is willing to raise. Discovered acting at fifteen through a touring company's two-week residency in his town and joined a small Larethan touring circuit at eighteen. Worked the circuit for five years — repertory, summer festivals, the occasional commercial spectacle — and was recruited into the Veylan Royal Theatre at twenty-three on the strength of a touring performance the Royal Theatre's company manager happened to catch in Larethan's western port. Spent his first two years at the Royal Theatre in chorus and walk-on roles; promoted to supporting principal class at twenty-five and has held that grade since. Was recruited into Marennis Vale's donor circle two years ago by Veranne Asseth (Marennis's mentor and the retired company leading actress) when an older donor aged out of the rotation. The recruitment took place over an afternoon in Veranne's parlor; Veranne explained what Marennis was, explained the rotation's expectations, asked whether he would consider it, and did not pressure him to answer the same day. He answered yes within an hour. The first donor session followed within the month. He had been more than half in love with Marennis as a stage presence already; the offer felt less like a request than a clarification. Two years on, he has given blood twice a month per the rotation and accepted whatever level of intimacy Marennis has been willing to extend afterward — usually small: a hand on the shoulder, a shared meal, occasionally a quiet half-hour in her dressing room while she recovers her composure. He has not asked for more. He has not asked for less.",
@@ -5016,13 +4800,7 @@
           "she keeps a private archive of every after-party observation Marennis has ever quietly relayed to her about the Crown's circle, organized by year and source; the archive has no current operational use; it is filed against need",
           "her private vow, never spoken aloud and never written down: if anything ever happens to Marennis under her watch, she will spend the remainder of her life — however long that proves to be — ensuring that the responsible parties pay; she has not allowed herself to think about how an old retired actress with a brass-headed cane and a small estate proposes to deliver on the vow, because the vow was made to herself and not to a court of feasibility"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Marennis's letter",
-          "donor circle",
-          "rotation log",
-          "Halen"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Born seventy-eight years ago to a Larethan stage family of modest reputation; trained from childhood; cast in her first speaking role at twelve and her first principal role at twenty-three. Joined the Veylan Royal Theatre's principal company at twenty-eight when the previous leading actress retired and the company manager had been watching her Larethan work for three seasons. Held the leading-actress chair at the Royal Theatre for twenty-two years across two reigns and three Cardinals. Took Marennis Vale into the company's care at age eight when Marennis's mother Alenna — a Larethan actress on tour with a small company that played the Caer Veylan circuit annually — was killed in front of Marennis by Faulker, an old vampire of the Verren line with whom Alenna had been domestically partnered for nine years. Veranne arranged the placement personally through the Larethan consulate and brought Marennis into her own household; raised Marennis through her novitiate company years; recognized the dhampir manifestation at fourteen and personally founded the donor circle that has sustained Marennis since. Knew Faulker by reputation but never personally; does not know what he looks like. Retired from the stage at sixty-five and bought the small estate outside Caer Veylan from her stipend. Lives there with two retired company members — Pell, a former stage manager; Rinold, a former composer — and a small staff of three working-class Veylan women who have been in her employ for between four and eleven years. Sees Marennis quarterly when Marennis can travel; otherwise corresponds weekly through a courier she trusts. Has read every word Marennis has written her in eighteen years and re-reads the most recent letters in evenings when the estate is quiet.",
@@ -5166,14 +4944,7 @@
           "he is checking the dead phone in his pocket because stopping would feel like admitting home is gone",
           "Practice Drills has almost no useful rehearsed list at the moment of arrival"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Royal Academy drills",
-          "phone",
-          "school-life artifacts",
-          "unblessed pair",
-          "homesick"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Eighteen years old, three days before graduation at a Saitama public high school, walking home from a study session at his friend Tomo's house when the truck took him. He arrives with his phone, coins, bus pass, and the dawning sense that Practice Drills will make rehearsed physical tasks reliable once he has something to rehearse. In the first seconds after casting, the useful list was almost empty.",
@@ -5293,14 +5064,7 @@
           "Cradle Sense is defined by prior care, and the first thing it gives her is the absence of the daughter she was holding moments ago",
           "she is already choosing to stay alive because not knowing is not permission to stop"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "pendant",
-          "Yui",
-          "Royal Academy drills",
-          "unblessed pair",
-          "Cradle Sense"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-six-year-old junior account specialist in Tokyo, on maternity leave, awake at three in the morning feeding her infant daughter Yui when the summoning reached her. She arrives in the casting circle alone, with the pendant containing a lock of Yui's hair at her throat. Cradle Sense awakens as a terrible absence: it can perceive cared-for creatures, and the one person she needs to feel is not here.",
@@ -5428,14 +5192,7 @@
           "First Principles does not let him choose which true fact it returns, which makes the gift itself suspicious",
           "his notebook is not yet operationally significant, but it can become so very quickly"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Royal Academy systems",
-          "First Principles",
-          "notebook",
-          "unblessed pair",
-          "Kenta's observations"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-five-year-old physics PhD student, on a late convenience-store run for coffee when the truck took him. He arrives in the casting circle with a small notebook and the awakening of First Principles: one minute of focused observation can yield a true fact about a system. In the summoning chamber he had not yet built a cipher archive or made friends; he had a chamber full of impossible systems to observe.",
@@ -5563,14 +5320,7 @@
           "Reading the Room immediately says several people are performing, but she lacks the vocabulary to explain the reads",
           "the failed-candle arrival registers differently in the group dynamic, and she is not sure whether that means absence, danger, or possibility"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Reading the Room",
-          "cohort dynamics",
-          "Mika",
-          "Asami",
-          "unblessed pair"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-three-year-old part-time barista with an unfinished sociology degree, walking home from a closing shift when the truck killed her. She arrives in the casting circle and Reading the Room overlays group dynamics across everyone in sight: alignment, tension, performance, genuine engagement. In the summoning chamber, the room screamed social information before anyone had introduced themselves.",
@@ -5692,14 +5442,7 @@
           "Form Memory is already copying more than techniques; he is catching posture and tension patterns too",
           "he is frightened, but teacher-instinct is stronger than the fear for now"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Academy instructors",
-          "Form Memory",
-          "younger arrivals",
-          "unblessed pair",
-          "training drills"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-eight-year-old karate instructor in Tokyo with kendo and judo qualifications, walking home from teaching the evening adult class when the truck took him. He arrives in the casting circle and Form Memory wakes as a physical certainty: a technique seen once can be replicated. In the summoning chamber, there were guards, stances, ritual gestures, and frightened civilians to assess.",
@@ -5827,14 +5570,7 @@
           "Pattern Match is already flagging the failed candles as structurally important, not merely embarrassing",
           "he is still carrying the emotional wreckage of his divorce and will not volunteer it in a room that wants heroes"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Pattern Match",
-          "Royal Academy routine",
-          "Kenta",
-          "unblessed pair",
-          "exceptions"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [],
       "backstory": "Twenty-nine-year-old contract programmer in Tokyo, recently divorced, walking back from a late convenience-store run when the truck killed him. He arrives in the casting circle with round wire-frame glasses still on his face and Pattern Match waking: current sequences resemble prior sequences. In the summoning chamber, the failed candles were the first match that felt important without being explainable.",

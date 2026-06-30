@@ -33,8 +33,10 @@ class SlotEntry(BaseModel):
     # event rather than an open Cat II event. Currently used by D&D combat
     # reaction prompts.
     trigger_event_id: str | None = None
-    # ISO-8601 timestamp of when the slot was claimed. Used for debug and
-    # for a future "stale slot" cleanup pass.
+    # ISO-8601 timestamp of when the slot was claimed. Read by
+    # `sweep_stale_combat_reaction_pins` to auto-pass `combat_reaction`
+    # pins whose human never answered (so AFK reactors cannot wedge
+    # initiative). Stamped by every slot-claim helper.
     claimed_at: str = ""
 
 

@@ -868,19 +868,6 @@ class TestCharacterAgent:
         assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
 
     @pytest.mark.asyncio
-    async def test_legacy_convenience_agent_uses_cheaper_role(
-        self, mock_client, prompt_manager, guard_character,
-        sample_checkpoint, sample_agent_text,
-    ):
-        guard_character.agent_tier = CharacterAgentTier.convenience
-        mock_client.complete.return_value = _llm_response(sample_agent_text)
-        agent = CharacterAgent(mock_client, prompt_manager)
-
-        await agent.turn(guard_character, sample_checkpoint)
-
-        assert mock_client.complete.call_args.kwargs["role"] == "agent_convenience"
-
-    @pytest.mark.asyncio
     async def test_appends_to_rolling_conversation(
         self, mock_client, prompt_manager, guard_character,
         sample_checkpoint, sample_agent_text,

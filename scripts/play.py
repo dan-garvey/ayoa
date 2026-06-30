@@ -2054,7 +2054,7 @@ class CLIState:
             return
         print(result.message)
 
-    def cmd_join(self, arg: str) -> None:
+    async def cmd_join(self, arg: str) -> None:
         if not self._require_story():
             return
         char_id = arg.strip()
@@ -2074,7 +2074,7 @@ class CLIState:
             return
         uid = self._next_user_id
         try:
-            self.engine.takeover(self.session_id, char_id, uid)
+            await self.engine.takeover(self.session_id, char_id, uid)
         except ValueError as e:
             print(f"error: {e}")
             return
@@ -2135,7 +2135,7 @@ class CLIState:
         backstory = backstory_resp.strip()
         uid = self._next_user_id
         try:
-            new_char = self.engine.create_player_character_simple(
+            new_char = await self.engine.create_player_character_simple(
                 self.session_id,
                 uid,
                 name=name,
@@ -2193,7 +2193,7 @@ class CLIState:
             await self.engine.leave_character(self.session_id, uid)
         except Exception as e:
             print(f"warning: leave failed ({e}); unbinding anyway")
-            self.engine.unbind_user(self.session_id, uid)
+            await self.engine.unbind_user(self.session_id, uid)
         del self.claims[target]
         if self.current_actor == target:
             self.current_actor = next(iter(self.claims), None)
@@ -2238,7 +2238,7 @@ class CLIState:
             print("(no changes)")
             return
         try:
-            ckpt = self.engine.set_character_identity(
+            ckpt = await self.engine.set_character_identity(
                 self.session_id, self.current_actor,
                 name=name or None, appearance=appearance or None,
             )

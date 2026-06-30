@@ -205,14 +205,7 @@
           "her former producing partner Ren still texts her screenshots of industry invoices; Vik's collapsed startup owes Ren money on paper — a thread Jordan has not connected to the man in the villa yet",
           "she almost quit during casting after a producer praised her as 'hard to soften,' and stayed partly to prove she was more than that note"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "first pod date",
-          "Marcus",
-          "blue card",
-          "sponsor framing",
-          "Lena's timing"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Jordan started in vérité, survived the pivot to branded work without losing the spine that got her reassigned, and said yes to The Velvet Pods after a break-up that looked ordinary from the outside and felt like a slow power outage inside. She told herself the pods were a controlled experiment: desire without the distraction of type. Marcus's first intro has already caught her attention because he sounds unhurried — a former semi-pro who coaches teens and tells self-deprecating stories that are really small theories about care. The joke she will not say on mic: she is afraid she might fall for a voice mix engineered for intimacy, and the shame of that might be worse than the shame of being messy.",
@@ -260,14 +253,7 @@
           "he suspects Vik may try to 'congratulate' him in a way that frames Marcus as a mascot for wholesomeness — a narrative he is primed to resent",
           "his last serious relationship ended after he became the reliable person instead of the desired one, and he is terrified the pods will reward that same role"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "first pod date",
-          "Jordan",
-          "Omar",
-          "sponsor history",
-          "Vik introduces himself"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Marcus left pro sports with knees that remember too much, and found a different kind of scoreboard: kids who do not have anyone steady on the sideline. He applied to The Velvet Pods after a friend dared him to be brave in a life domain he usually treats with jokes. The pod wall is almost a relief: he can be a voice before he becomes a body, and he can find out whether careful conversation is still attractive when no one can see his shoulders.",
@@ -314,13 +300,7 @@
           "elena is still paying down her ex's debts she did not legally owe, out of shame",
           "she wrote a goodbye letter to the ex before filming and did not send it; a producer saw the envelope during luggage intake"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Priya in the room",
-          "Noah's flirting",
-          "party-Elena soundbite",
-          "first chime"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] elena vasquez at pod_pair_elena_noah."
@@ -370,14 +350,7 @@
           "she remembers a man's laugh from a 2019 demo day — a watch like Vik's — but she has not let herself complete the thought because completing it would mean admitting she is not only here for 'love' in the PR sense",
           "her launch deck uses the phrase 'regulated intimacy,' and she knows a pod date could make that line sound monstrous if quoted back at her"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "Vik introduces himself",
-          "Elena in the room",
-          "regulated intimacy",
-          "founder pitch reflex",
-          "design week sizzle"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Priya built a career on objects people fidget with when they are lonely, then got tired of making money for someone else's brand story. The Velvet Pods was supposed to be a controlled experiment: could she be honest in a pod without the portfolio attached? The honest answer, which she can barely admit in the hair-and-makeup mirror, is that she is also here because the distribution curve for consumer goods now runs through a face you trust — and she intends to be that face, carefully. Elena's presence is a comfort and a liability: best friend as secret ally, with a landmine about Elena's ex and Priya's silent investor that could atomize the friendship in one clip package.",
@@ -423,14 +396,7 @@
           "she once dated a person who is now a minor influencer in the sponsor ecosystem — a headache if it surfaces as 'fake'",
           "her classroom fundraiser is real, but she knows mentioning it on camera could make every future donation feel contaminated"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Dante in the room",
-          "Avery first impression",
-          "teacher bit",
-          "Lena's timing",
-          "classroom fundraiser"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] marisol ortega at pod_pair_marisol_avery."
@@ -478,13 +444,7 @@
           "she has been 'testing' marcus in DMs on a catfish-adjacent account, ashamed and curious",
           "she lost a concerto chair after a panic tremor and has let people call the pivot to DJ sets a choice because choice sounds better than collapse"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Omar's voice",
-          "Marcus DMs",
-          "music girl framing",
-          "concerto chair"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] tessa ng at pod_pair_tessa_omar."
@@ -533,13 +493,7 @@
           "he and Jordan have never spoken, but he appears as anonymous B-roll in a years-old community-health package she shot; he would not know her face from it even if he saw the cut",
           "he did not tell casting that his oldest child asked him not to come home famous"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "Tessa's voice",
-          "Marcus pod-door pact",
-          "kids on-camera",
-          "hero water rescue suggestion"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Omar is a firefighter and paramedic-in-training, used to protocols that save lives. Reality TV is the opposite: vague rules, high emotion, a schedule that can shift because a sponsor needs a beat. He is divorced in the ordinary human way, not the story way, and the show is a frightening attempt to be chosen for his adult self, not for his tabloid-adjacent reliability. The pods are almost a relief — emotional forwardness without the automatic physical shorthand of being the big guy in a room. Bodies will return later, and bodies carry histories, including a festival night he is half-afraid to remember fully.",
@@ -586,14 +540,7 @@
           "the burner is not just for the partner; it's also a trading app he checks compulsively, which is its own kind of unfaithfulness",
           "he has a voice memo from his partner saved under a fake app folder; hearing other contestants talk about family messages makes him physically restless"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "second phone",
-          "Chicago partner",
-          "Elena's laugh",
-          "villain edit",
-          "trading app"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] noah ellis at pod_pair_elena_noah."
@@ -641,13 +588,7 @@
           "a restraining order exists in a different state, older story from a different person, context that would be unfair if splashed in a two-line graphic",
           "they keep a list of sentences they will not let producers make them say, and the list is already longer than the packing list"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Marisol first impression",
-          "they/them chyron",
-          "restraining-order leak risk",
-          "Lena 'just real talk'"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] avery brooks at pod_pair_marisol_avery."
@@ -697,13 +638,7 @@
           "he still owes a vendor invoice cluster linked to a producer Jordan once worked with; the debt is a ghost that could make him look 'stalkery' if framed wrong",
           "he is more attracted to Priya when she challenges him than when she flatters him, which threatens every practiced habit he brought"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "Priya introduces herself",
-          "demo-day kitchen",
-          "investor pitch reflex",
-          "comeback narrative"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "Vik built a fintech that looked inevitable until the market stopped agreeing. The Velvet Pods is a reintroduction tour disguised as a dating show: he is here to be seen as human in the exact way investors claim they want, while privately negotiating whether love is a market inefficiency or a private matter he has already sold once by accident. The south pods are his limbo: he can be only a voice for a few days, which should feel liberating and instead feels like losing his favorite weapon.",
@@ -749,13 +684,7 @@
           "feels guilty that his warmth is a tool; he medicates the guilt with the belief that the cast signed up",
           "one former contestant still texts him on finale nights, and he never knows whether answering is kindness or self-protection"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "first pod chime",
-          "Marisol family signal",
-          "intercom warm reset",
-          "Lena's redemption push"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] dante royale at lobby_atrium."
@@ -803,14 +732,7 @@
           "she is more scared of a boring season than a mean one, which is a moral fact she will answer for later",
           "she keeps a private spreadsheet of interventions she regrets, and it has names rather than episode numbers"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "rotation schedule",
-          "Noah phone fidget",
-          "Jordan/Marcus sweep core",
-          "Britney unclassified",
-          "midseason redemption beat"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] lena sato at control_room."
@@ -858,13 +780,7 @@
           "saw a production whiteboard in frame; knows the new garden gate code snapshot exists",
           "he has already saved one clean audio waveform of a contestant crying before the date began, and he hates himself for labeling the file beautifully"
         ],
-        "intentions_enabled": true,
-        "tick_cues": [
-          "Jordan's stillness",
-          "Noah second phone bump",
-          "insurance folder",
-          "garden gate code photo"
-        ]
+        "intentions_enabled": true
       },
       "pending_observations": [
         "[your own action] pietro adler at confessional_booth."
@@ -914,14 +830,7 @@
           "she is genuinely interested in Jordan as a working filmmaker — has watched the labor exposé and not told anyone — and is half-hoping Jordan is the woman she keeps overhearing in the hall audio",
           "the wellness officer is named, contracted, and instructed to pull her off-set with no negotiation if the schedule slips past the contractual ceiling — a clause production has not been briefed on"
         ],
-        "intentions_enabled": false,
-        "tick_cues": [
-          "celebrity wildcard chime",
-          "surname pressure",
-          "Jordan's voice in the hall mix",
-          "wellness officer ceiling",
-          "first-names-only rule"
-        ]
+        "intentions_enabled": false
       },
       "pending_observations": [],
       "backstory": "She signed the deal in a meeting her own lawyer set the table for — Lantern Arc's NDA came in heavily redlined and went out the same way. She read the format twice. Voice-only first phase. Ten days of strangers in a wall. A blue card. A stone ramp. She liked the part where the wall did the work the public has been doing to her face since she was fifteen, and she said yes on the third phone call when her wellness officer told her the schedule could be capped in writing. She arrived at the preflight gate alone, badged, scanned, mic'd. She walked into the women's wing with one bag of her own clothes. Production held her back from the day-one pod pairings because the showrunner wants a midseason wildcard beat; she has spent the morning in the velvet-pod waiting corridor with a producer who has not yet decided whether to call her by her first name or her last and is afraid of being the one who chose wrong on tape.",

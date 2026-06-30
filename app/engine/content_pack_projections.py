@@ -335,7 +335,6 @@ def character_record_from_projection(
             current_objectives=list(character.current_objectives),
             secrets=list(character.secrets),
             intentions_enabled=character.intentions_enabled,
-            tick_cues=list(character.tick_cues),
         ),
         backstory=character.backstory,
         personality=character.personality,
@@ -631,7 +630,6 @@ def _character_projection(
         intentions_enabled=bool(
             overrides.get("intentions_enabled", character_id in intentions_enabled_character_ids)
         ),
-        tick_cues=list(actor.initiative_triggers),
         known_refs=list(known_refs),
     )
 

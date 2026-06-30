@@ -271,48 +271,6 @@ class TestCharacterRecord:
         assert "human collapse" in cr.descriptions.private
         assert "duelist" in cr.visuals.default_loadout
 
-    def test_legacy_agent_tiers_still_load(self):
-        plot = CharacterRecord(**{**CHARACTER_EXAMPLE, "agent_tier": "plot"})
-        convenience = CharacterRecord(
-            **{**CHARACTER_EXAMPLE, "agent_tier": "convenience"}
-        )
-
-        assert plot.agent_tier == CharacterAgentTier.plot
-        assert convenience.agent_tier == CharacterAgentTier.convenience
-
-    def test_legacy_is_player_alias_migrated_to_is_playable(self):
-        """playable-2 renamed `is_player` to `is_playable`. Old saves on
-        disk were written under the previous name — the model_validator
-        on CharacterRecord must map them on load so legacy checkpoints
-        still hydrate. This pins the back-compat contract called out in
-        the field docstring."""
-        legacy = {**CHARACTER_EXAMPLE, "is_player": True}
-        cr = CharacterRecord(**legacy)
-        assert cr.is_playable is True
-        # The old key is consumed; it does not survive on the model.
-        assert not hasattr(cr, "is_player")
-
-    def test_legacy_is_player_false_also_migrates(self):
-        """The False case matters too — without the alias it would
-        silently default to False and look indistinguishable from a
-        broken load."""
-        legacy = {**CHARACTER_EXAMPLE, "is_player": False}
-        cr = CharacterRecord(**legacy)
-        assert cr.is_playable is False
-
-    def test_explicit_is_playable_wins_over_legacy_alias(self, caplog):
-        """If both keys appear and disagree (shouldn't happen in real
-        checkpoints, but a hand-edited save could do it), the new name
-        wins and the bridge logs a warning so the operator knows the
-        legacy key was discarded."""
-        import logging
-        conflicting = {**CHARACTER_EXAMPLE, "is_player": False, "is_playable": True}
-        with caplog.at_level(logging.WARNING, logger="app.schemas.characters"):
-            cr = CharacterRecord(**conflicting)
-        assert cr.is_playable is True
-        assert any("is_player" in rec.message and "is_playable" in rec.message
-                   for rec in caplog.records)
-
 
 class TestCanonicalEvent:
     def test_construct(self):

@@ -27,7 +27,7 @@ import logging
 from copy import deepcopy
 from typing import Any, Callable
 
-from app.engine.context_builder import collect_player_ids
+from app.engine.context_builder import collect_player_ids, resolve_acting_character
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine import dnd_combat, dnd_inventory
@@ -335,6 +335,13 @@ def _advance_combat_initiative_after_turn(
         )
 
 
+def advance_pending_combat_if_unblocked(ckpt: CheckpointFile) -> bool:
+    """Public alias for the pre-turn AFK sweep: advance delayed D&D
+    initiative once no slot is blocking. Used by the engine bridge after a
+    stale combat-reaction pin is released."""
+    return _advance_pending_combat_if_unblocked(ckpt)
+
+
 def _advance_pending_combat_if_unblocked(ckpt: CheckpointFile) -> bool:
     pending_actor = _pending_combat_advance_actor_id(ckpt)
     if not pending_actor or _blocking_slots_open(ckpt):
@@ -413,12 +420,26 @@ def _automated_turn_snapshot(ckpt: CheckpointFile) -> dict[str, Any]:
             for cid, buffer in ckpt.session.render_buffers.items()
         },
         "open_cat_ii_events": len(ckpt.session.open_cat_ii_events),
-        "active_act_slots": dict(ckpt.session.active_act_slots),
+        # Deep copy, not dict(): SlotEntry fields (claimed_at, intention) are
+        # mutated in place during a beat, so a shallow copy would share those
+        # entries and leave a mid-turn mutation un-rolled-back.
+        "active_act_slots": deepcopy(ckpt.session.active_act_slots),
         "session_conversation": len(ckpt.session_conversation),
         "pending_engine_state_updates": list(
             ckpt.session.pending_engine_state_updates
         ),
         "content_state": deepcopy(ckpt.session.content_state),
+        # In-place-mutated combat state. Unlike the append-only logs above,
+        # the combat resolver edits these in place (HP, conditions, battle
+        # map, roll transactions, loot offers). Without deep snapshots a
+        # failed automated turn would roll back the canonical event but
+        # leave a combatant silently damaged with no event explaining it.
+        "active_combat": deepcopy(ckpt.session.active_combat),
+        "cat_ii_roll_transactions": deepcopy(
+            ckpt.session.cat_ii_roll_transactions
+        ),
+        "dnd_inventory_offers": deepcopy(ckpt.session.dnd_inventory_offers),
+        "characters": deepcopy(ckpt.characters),
         "narrator_conversations": {
             cid: len(history)
             for cid, history in ckpt.narrator_conversations.items()
@@ -444,12 +465,20 @@ def _rollback_automated_turn_snapshot(
         del ckpt.session.render_buffers[cid][render_lengths[cid]:]
 
     del ckpt.session.open_cat_ii_events[snapshot["open_cat_ii_events"]:]
-    ckpt.session.active_act_slots = dict(snapshot["active_act_slots"])
+    ckpt.session.active_act_slots = snapshot["active_act_slots"]
     del ckpt.session_conversation[snapshot["session_conversation"]:]
     ckpt.session.pending_engine_state_updates = list(
         snapshot["pending_engine_state_updates"]
     )
     ckpt.session.content_state = deepcopy(snapshot["content_state"])
+
+    # Restore the in-place-mutated combat state to its pre-turn shape. The
+    # snapshot values are isolated deep copies and the snapshot is single-
+    # use, so assigning them directly is safe.
+    ckpt.session.active_combat = snapshot["active_combat"]
+    ckpt.session.cat_ii_roll_transactions = snapshot["cat_ii_roll_transactions"]
+    ckpt.session.dnd_inventory_offers = snapshot["dnd_inventory_offers"]
+    ckpt.characters = snapshot["characters"]
 
     narrator_lengths = snapshot["narrator_conversations"]
     for cid in list(ckpt.narrator_conversations):
@@ -1837,19 +1866,13 @@ class Orchestrator:
     def _resolve_acting_character(
         self, ckpt: CheckpointFile, request: TurnRequest
     ) -> str:
-        """Pick the acting character id. Request-supplied wins; else fall
-        back to the user's bound character; else session.player_character_id.
-        Raises ValueError if nothing resolves."""
-        if request.acting_character_id:
-            return request.acting_character_id
-
-        # Fall back to the session's creator binding. (Legacy single-
-        # player call sites and CLI playtest sessions.)
-        pid = ckpt.session.player_character_id
-        if pid:
-            return pid
-
-        raise ValueError("Choose a character before acting.")
+        """Pick the acting character id via the shared fallback chain
+        (request-supplied ▶ session.player_character_id). Raises ValueError
+        if nothing resolves — a turn must have an acting character."""
+        acting_id, _, _ = resolve_acting_character(ckpt, request.acting_character_id)
+        if not acting_id:
+            raise ValueError("Choose a character before acting.")
+        return acting_id
 
     def _resolve_location(
         self, ckpt: CheckpointFile, acting_id: str

@@ -562,7 +562,22 @@ class EngineBridge:
                 return c.location or ""
         return ""
 
-    def set_character_identity(
+    async def set_character_identity(
+        self,
+        session_id: str,
+        character_id: str,
+        *,
+        name: str | None = None,
+        appearance: str | None = None,
+    ) -> CheckpointFile:
+        """Update a character's name and/or appearance, serialized on the
+        per-session lock so it cannot lose its write to a concurrent /act."""
+        async with await self._lock_for(session_id):
+            return self._set_character_identity_locked(
+                session_id, character_id, name=name, appearance=appearance,
+            )
+
+    def _set_character_identity_locked(
         self,
         session_id: str,
         character_id: str,
@@ -573,7 +588,8 @@ class EngineBridge:
         """Update a character's name and/or appearance. Used by /describe
         after takeover so the player's name and look land on the record
         without touching personality (which they'll fill through play,
-        or leave blank for agent handoff)."""
+        or leave blank for agent handoff). Assumes the per-session lock
+        is held."""
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         target = next(
             (c for c in ckpt.characters if c.character_id == character_id), None
@@ -616,7 +632,7 @@ class EngineBridge:
                     "personality synthesis failed for %s; unbinding anyway",
                     binding,
                 )
-        return self.unbind_user(session_id, user_id)
+        return await self.unbind_user(session_id, user_id)
 
     async def synthesize_personality(
         self,
@@ -638,98 +654,112 @@ class EngineBridge:
         class _PersonalityOutput(BaseModel):
             personality: str
 
-        ckpt = self.checkpoint_mgr.load_latest(session_id)
-        target = next(
-            (c for c in ckpt.characters if c.character_id == character_id), None,
-        )
-        if target is None:
-            raise ValueError(f"No character '{character_id}' in session.")
-        if target.personality and target.personality.strip():
+        # Serialize on the per-session lock, held across the synthesis LLM
+        # call (same pattern as the custom-character spawn). Without it this
+        # load->await->mutate->save races a concurrent /act or operator edit
+        # at the same turn_index and silently drops the synthesized voice or
+        # clobbers the committed mutation.
+        async with await self._lock_for(session_id):
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            target = next(
+                (c for c in ckpt.characters if c.character_id == character_id),
+                None,
+            )
+            if target is None:
+                raise ValueError(f"No character '{character_id}' in session.")
+            if target.personality and target.personality.strip():
+                logger.info(
+                    "Personality already set on %s; skipping synthesis",
+                    character_id,
+                )
+                return ckpt
+
+            # Pull this character's rolling conversation history. On a fresh
+            # custom character who never had an agent turn, the history
+            # is empty — fall back to synthesizing from authored fields only.
+            #
+            # Leak guard: assistant turns in the rolling conversation include
+            # the agent's trailing "(intent)" parenthetical, which is private
+            # to the agent and the engine. Personality synthesis output is
+            # rendered to the player on /leave, so we strip the parenthetical
+            # from every assistant snippet before handing the block to the
+            # synthesizer LLM. User-role turns (router framings) don't carry
+            # intent in the same shape, but they still go through the same
+            # strip for safety — a trailing balanced parenthetical at the
+            # very end of the snippet is dropped regardless of role.
+            history = ckpt.character_conversations.get(character_id, [])
+            convo_snippets = []
+            for msg in history[-20:]:
+                content = (
+                    msg.content if hasattr(msg, "content")
+                    else msg.get("content", "")
+                )
+                if isinstance(content, list):
+                    content = " ".join(
+                        b.get("text", "") for b in content
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
+                if content:
+                    role = msg.role if hasattr(msg, "role") else msg.get("role")
+                    public, _intent = _extract_parenthetical(content)
+                    snippet = (public or "").strip()
+                    if snippet:
+                        convo_snippets.append(f"[{role}] {snippet[:500]}")
+            history_block = (
+                "\n".join(convo_snippets) or "(no rolling conversation yet)"
+            )
+
+            messages = [
+                {"role": "system", "content": (
+                    "<role>\n"
+                    "You are a characterization editor for an interactive "
+                    "fiction engine.\n"
+                    "</role>\n\n"
+                    "<instructions>\n"
+                    "Distill a character's personality into a single prose "
+                    "block for engine-side use. Cover three things in one "
+                    "paragraph (or a few): how they speak, how they carry "
+                    "themselves, and how to play them under pressure. Base "
+                    "your write-up on the character's authored identity and "
+                    "their prior rolling conversation if any. No bullet "
+                    "points. No commentary outside the JSON.\n"
+                    "</instructions>\n\n"
+                    "<output_schema>\n"
+                    'Respond with ONLY valid JSON: {"personality": "<prose>"}\n'
+                    "</output_schema>"
+                )},
+                {"role": "user", "content": (
+                    "<character_context>\n"
+                    f"Character: {target.name} ({character_id})\n"
+                    f"Role: {target.public_sheet.role}\n"
+                    f"Appearance: {target.public_sheet.appearance}\n"
+                    f"Faction: {target.public_sheet.faction}\n"
+                    f"Backstory: {target.backstory}\n"
+                    f"Known context: {target.known_context}\n"
+                    f"Goals: {', '.join(target.private_state.goals)}\n"
+                    "</character_context>\n\n"
+                    "<recent_conversation>\n"
+                    f"{history_block}\n"
+                    "</recent_conversation>\n\n"
+                    "<task>\n"
+                    "Write the personality JSON now.\n"
+                    "</task>"
+                )},
+            ]
+            response = await self.client.complete(
+                role="narrator",
+                messages=messages,
+                temperature=0.5,
+                max_tokens=1500,
+            )
+            out = _parse_model_json(_PersonalityOutput, response.content)
+            target.personality = out.personality.strip()
+            self.checkpoint_mgr.save(ckpt)
             logger.info(
-                "Personality already set on %s; skipping synthesis", character_id,
+                "Synthesized personality for %s (%d chars)",
+                character_id, len(target.personality),
             )
             return ckpt
-
-        # Pull this character's rolling conversation history. On a fresh
-        # custom character who never had an agent turn, the history
-        # is empty — fall back to synthesizing from authored fields only.
-        #
-        # Leak guard: assistant turns in the rolling conversation include
-        # the agent's trailing "(intent)" parenthetical, which is private
-        # to the agent and the engine. Personality synthesis output is
-        # rendered to the player on /leave, so we strip the parenthetical
-        # from every assistant snippet before handing the block to the
-        # synthesizer LLM. User-role turns (router framings) don't carry
-        # intent in the same shape, but they still go through the same
-        # strip for safety — a trailing balanced parenthetical at the
-        # very end of the snippet is dropped regardless of role.
-        history = ckpt.character_conversations.get(character_id, [])
-        convo_snippets = []
-        for msg in history[-20:]:
-            content = msg.content if hasattr(msg, "content") else msg.get("content", "")
-            if isinstance(content, list):
-                content = " ".join(
-                    b.get("text", "") for b in content
-                    if isinstance(b, dict) and b.get("type") == "text"
-                )
-            if content:
-                role = msg.role if hasattr(msg, "role") else msg.get("role")
-                public, _intent = _extract_parenthetical(content)
-                snippet = (public or "").strip()
-                if snippet:
-                    convo_snippets.append(f"[{role}] {snippet[:500]}")
-        history_block = "\n".join(convo_snippets) or "(no rolling conversation yet)"
-
-        messages = [
-            {"role": "system", "content": (
-                "<role>\n"
-                "You are a characterization editor for an interactive fiction "
-                "engine.\n"
-                "</role>\n\n"
-                "<instructions>\n"
-                "Distill a character's personality into a single prose block "
-                "for engine-side use. Cover three things in one paragraph (or a "
-                "few): how they speak, how they carry themselves, and how to "
-                "play them under pressure. Base your write-up on the character's "
-                "authored identity and their prior rolling conversation if any. "
-                "No bullet points. No commentary outside the JSON.\n"
-                "</instructions>\n\n"
-                "<output_schema>\n"
-                'Respond with ONLY valid JSON: {"personality": "<prose>"}\n'
-                "</output_schema>"
-            )},
-            {"role": "user", "content": (
-                "<character_context>\n"
-                f"Character: {target.name} ({character_id})\n"
-                f"Role: {target.public_sheet.role}\n"
-                f"Appearance: {target.public_sheet.appearance}\n"
-                f"Faction: {target.public_sheet.faction}\n"
-                f"Backstory: {target.backstory}\n"
-                f"Known context: {target.known_context}\n"
-                f"Goals: {', '.join(target.private_state.goals)}\n"
-                "</character_context>\n\n"
-                "<recent_conversation>\n"
-                f"{history_block}\n"
-                "</recent_conversation>\n\n"
-                "<task>\n"
-                "Write the personality JSON now.\n"
-                "</task>"
-            )},
-        ]
-        response = await self.client.complete(
-            role="narrator",
-            messages=messages,
-            temperature=0.5,
-            max_tokens=1500,
-        )
-        out = _parse_model_json(_PersonalityOutput, response.content)
-        target.personality = out.personality.strip()
-        self.checkpoint_mgr.save(ckpt)
-        logger.info(
-            "Synthesized personality for %s (%d chars)",
-            character_id, len(target.personality),
-        )
-        return ckpt
 
     # ---- character catalog (spoiler-free) ------------------------------------
 
@@ -1300,13 +1330,29 @@ class EngineBridge:
             actor_id=actor_id,
         )
 
-    def bind_user(
+    async def bind_user(
         self,
         session_id: str,
         user_id: int,
         character_id: str,
     ) -> CheckpointFile:
         """Bind a Discord user to a roster character.
+
+        Serialized on the per-session lock (the same lock `run_turn` holds)
+        so a concurrent /act cannot clobber the binding with a stale
+        checkpoint write, and two simultaneous /joins cannot lose a binding.
+        """
+        async with await self._lock_for(session_id):
+            return self._bind_user_locked(session_id, user_id, character_id)
+
+    def _bind_user_locked(
+        self,
+        session_id: str,
+        user_id: int,
+        character_id: str,
+    ) -> CheckpointFile:
+        """Bind a Discord user to a roster character. Assumes the caller
+        holds the per-session lock.
 
         Refuses if the user already has a different binding, if the character
         doesn't exist, if the character is culled, or if another user is
@@ -1352,9 +1398,15 @@ class EngineBridge:
         self.checkpoint_mgr.save(ckpt)
         return ckpt
 
-    def unbind_user(self, session_id: str, user_id: int) -> str | None:
+    async def unbind_user(self, session_id: str, user_id: int) -> str | None:
+        """Remove this user's binding, serialized on the per-session lock so
+        it cannot race a concurrent /act. Returns the freed character_id."""
+        async with await self._lock_for(session_id):
+            return self._unbind_user_locked(session_id, user_id)
+
+    def _unbind_user_locked(self, session_id: str, user_id: int) -> str | None:
         """Remove this user's binding. Returns the freed character_id, or None
-        if they had no binding.
+        if they had no binding. Assumes the caller holds the per-session lock.
 
         v11-A5: purges any v11 state (active_act_slots entries, open Cat II
         event responder lists/collected intentions, render buffers) the
@@ -1387,13 +1439,25 @@ class EngineBridge:
 
     # ---- takeover -----------------------------------------------------------
 
-    def takeover(
+    async def takeover(
         self,
         session_id: str,
         character_id: str,
         user_id: int,
     ) -> CheckpointFile:
-        """Plain takeover: bind the user to an existing character.
+        """Bind the user to an existing character, serialized on the
+        per-session lock (shares the lock with /act)."""
+        async with await self._lock_for(session_id):
+            return self._takeover_locked(session_id, character_id, user_id)
+
+    def _takeover_locked(
+        self,
+        session_id: str,
+        character_id: str,
+        user_id: int,
+    ) -> CheckpointFile:
+        """Plain takeover: bind the user to an existing character. Assumes
+        the caller holds the per-session lock.
 
         Name, appearance, identity, everything else stays as-authored.
         This is the default `/join` path — the user becomes the
@@ -1408,7 +1472,7 @@ class EngineBridge:
         a custom override via /character path); the binding still
         applies because explicit user intent wins.
         """
-        ckpt = self.bind_user(session_id, user_id, character_id)
+        ckpt = self._bind_user_locked(session_id, user_id, character_id)
         target = next(
             (c for c in ckpt.characters if c.character_id == character_id), None,
         )
@@ -1429,10 +1493,25 @@ class EngineBridge:
         user_id: int,
         description: str,
     ) -> CharacterRecord:
+        """Mode='describe' custom-character spawn, serialized on the
+        per-session lock (held across the takeover LLM call, exactly like
+        /act) so the spawn+binding cannot be clobbered by a concurrent turn."""
+        async with await self._lock_for(session_id):
+            return await self._create_custom_character_locked(
+                session_id, user_id, description,
+            )
+
+    async def _create_custom_character_locked(
+        self,
+        session_id: str,
+        user_id: int,
+        description: str,
+    ) -> CharacterRecord:
         """Mode='describe': router authors a full new character from the
         player's concept, lands them in the world, binds to the user. The
         returned record has its engine-assigned character_id,
-        is_playable=True, and is already written to the checkpoint."""
+        is_playable=True, and is already written to the checkpoint. Assumes
+        the per-session lock is held."""
         from app.schemas.takeover import TakeoverAuthoredOutput
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
@@ -1492,7 +1571,7 @@ class EngineBridge:
         )
         return new_char
 
-    def create_player_character_simple(
+    async def create_player_character_simple(
         self,
         session_id: str,
         user_id: int,
@@ -1501,7 +1580,25 @@ class EngineBridge:
         appearance: str,
         backstory: str = "",
     ) -> CharacterRecord:
-        """LLM-free player-character spawn from raw user inputs.
+        """LLM-free player-character spawn, serialized on the per-session
+        lock so the spawn+binding cannot be clobbered by a concurrent /act."""
+        async with await self._lock_for(session_id):
+            return self._create_player_character_simple_locked(
+                session_id, user_id,
+                name=name, appearance=appearance, backstory=backstory,
+            )
+
+    def _create_player_character_simple_locked(
+        self,
+        session_id: str,
+        user_id: int,
+        *,
+        name: str,
+        appearance: str,
+        backstory: str = "",
+    ) -> CharacterRecord:
+        """LLM-free player-character spawn from raw user inputs. Assumes the
+        per-session lock is held.
 
         This is the fast path behind /join's "Create your own character"
         option. Unlike `create_custom_character`, it does not call the
@@ -1612,8 +1709,23 @@ class EngineBridge:
         target_character_id: str,
         description: str,
     ) -> CharacterRecord:
+        """Mode='replace' custom-character graft, serialized on the
+        per-session lock (held across the takeover LLM call, like /act)."""
+        async with await self._lock_for(session_id):
+            return await self._replace_with_custom_locked(
+                session_id, user_id, target_character_id, description,
+            )
+
+    async def _replace_with_custom_locked(
+        self,
+        session_id: str,
+        user_id: int,
+        target_character_id: str,
+        description: str,
+    ) -> CharacterRecord:
         """Mode='replace': graft a player-authored character onto an
-        existing NPC's slot. Preserves circumstances (location, status,
+        existing NPC's slot. Assumes the per-session lock is held. Preserves
+        circumstances (location, status,
         pending_observations, current_objectives) and overwrites
         identity (name, sheet, backstory, personality, goals,
         known_context, secrets, narrative_notes). Clears the target's
@@ -2565,15 +2677,31 @@ class EngineBridge:
         swept, and return the list of event IDs that now need
         re-adjudication. Safe to call with no open events (returns []).
         """
-        from app.engine.turn_loop import sweep_stale_cat_ii_pins
+        from app.engine.orchestrator import advance_pending_combat_if_unblocked
+        from app.engine.turn_loop import (
+            sweep_stale_cat_ii_pins,
+            sweep_stale_combat_reaction_pins,
+        )
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         swept = sweep_stale_cat_ii_pins(ckpt)
-        if swept:
+        released = sweep_stale_combat_reaction_pins(ckpt)
+        if released:
+            # A released reaction pin may unblock delayed initiative; the
+            # whole sweep runs inside the per-session lock so this advance
+            # cannot race a concurrent turn.
+            advance_pending_combat_if_unblocked(ckpt)
+        if swept or released:
             self.checkpoint_mgr.save(ckpt)
+        if swept:
             logger.info(
                 "v11 sweep: auto-resolved %d Cat II event(s) pre-turn: %s",
                 len(swept), swept,
+            )
+        if released:
+            logger.info(
+                "AFK sweep: auto-passed %d combat-reaction pin(s) pre-turn: %s",
+                len(released), released,
             )
         return swept
 
@@ -2911,21 +3039,16 @@ def _build_takeover_context(
     location block reflects where this user is, not another binding.
     """
     from app.engine.context_builder import (
+        build_hidden_facts,
         build_setting_summary,
+        build_world_rules,
         pov_location_for_user,
     )
     setting_summary = build_setting_summary(ckpt)
     world_lore = ckpt.world_state.lore or "No detailed lore."
     hidden_lore = ckpt.world_state.hidden_lore or "(none)"
-    hidden_facts = (
-        "\n".join(f"- {f}" for f in ckpt.world_state.hidden_facts)
-        or "(none)"
-    )
-    physics = ckpt.world_state.physics_ruleset
-    world_rules = (
-        f"Strength limits: {physics.strength_limits}\n"
-        f"Magic: {'enabled' if physics.magic_enabled else 'disabled'}"
-    )
+    hidden_facts = build_hidden_facts(ckpt, empty="(none)")
+    world_rules = build_world_rules(ckpt)
 
     location = pov_location_for_user(ckpt, user_id=invoking_user_id)
     current_location_context = location or "(no active location)"

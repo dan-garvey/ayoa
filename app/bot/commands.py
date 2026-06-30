@@ -4361,7 +4361,7 @@ def register(
             await modal_inter.response.defer(thinking=True)
 
             try:
-                engine.takeover(
+                await engine.takeover(
                     self._session_id, self._character_id, modal_inter.user.id,
                 )
             except ValueError as e:
@@ -4381,7 +4381,7 @@ def register(
             chosen_appearance = (self.appearance_in.value or "").strip()
             if chosen_name or chosen_appearance:
                 try:
-                    engine.set_character_identity(
+                    await engine.set_character_identity(
                         self._session_id, self._character_id,
                         name=chosen_name or None,
                         appearance=chosen_appearance or None,
@@ -4462,7 +4462,7 @@ def register(
             await modal_inter.response.defer(thinking=True)
 
             try:
-                new_char = engine.create_player_character_simple(
+                new_char = await engine.create_player_character_simple(
                     self._session_id,
                     modal_inter.user.id,
                     name=self.name_in.value,
@@ -5435,7 +5435,7 @@ def register(
             return
 
         try:
-            ckpt = engine.set_character_identity(
+            ckpt = await engine.set_character_identity(
                 row.session_id, binding,
                 name=name or None,
                 appearance=appearance or None,

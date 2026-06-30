@@ -2166,6 +2166,78 @@ class TestBookkeeping:
         assert "alice" in evt.swept_responders
         assert "AFK-swept" in evt.collected_intentions["alice"]
 
+    def test_sweep_resolves_event_with_empty_opened_at(self):
+        # A hand-edited or migration-authored open Cat II with no opened_at
+        # used to raise in _parse_iso("") and get swallowed, wedging every
+        # other player's /act behind the pin forever. It must auto-resolve.
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 60
+        evt = open_cat_ii(
+            ckpt,
+            initiator_id="pip",
+            initiator_intention="punch",
+            required_responders=["alice"],
+        )
+        evt.opened_at = ""
+
+        ids = sweep_stale_cat_ii_pins(ckpt)
+
+        assert ids == [evt.event_id]
+        assert "alice" in evt.swept_responders
+
+    def test_combat_reaction_pin_auto_passed_after_timeout(self):
+        # An AFK human holding an optional combat-reaction pin must not
+        # wedge initiative forever (the only prior sweep handled Cat II
+        # only). The stale pin is released so the table can advance.
+        from datetime import datetime, timedelta, timezone
+        from app.engine.turn_loop import (
+            pin_combat_reaction,
+            sweep_stale_combat_reaction_pins,
+        )
+
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 1
+        assert pin_combat_reaction(ckpt, "alice", "evt_trigger")
+        ckpt.session.active_act_slots["alice"].claimed_at = (
+            datetime.now(timezone.utc) - timedelta(seconds=10)
+        ).isoformat()
+
+        released = sweep_stale_combat_reaction_pins(ckpt)
+
+        assert released == ["alice"]
+        assert "alice" not in ckpt.session.active_act_slots
+
+    def test_fresh_combat_reaction_pin_not_swept(self):
+        from app.engine.turn_loop import (
+            pin_combat_reaction,
+            sweep_stale_combat_reaction_pins,
+        )
+
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 3600
+        assert pin_combat_reaction(ckpt, "alice", "evt_trigger")
+
+        released = sweep_stale_combat_reaction_pins(ckpt)
+
+        assert released == []
+        assert "alice" in ckpt.session.active_act_slots
+
+    def test_combat_reaction_pin_with_empty_claimed_at_is_swept(self):
+        from app.engine.turn_loop import (
+            pin_combat_reaction,
+            sweep_stale_combat_reaction_pins,
+        )
+
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.cat_ii_human_timeout_seconds = 3600
+        assert pin_combat_reaction(ckpt, "alice", "evt_trigger")
+        ckpt.session.active_act_slots["alice"].claimed_at = ""
+
+        released = sweep_stale_combat_reaction_pins(ckpt)
+
+        assert released == ["alice"]
+        assert "alice" not in ckpt.session.active_act_slots
+
 
 class TestSessionLockManager:
     def test_same_session_returns_same_lock(self):
@@ -2308,19 +2380,19 @@ class TestSchemaValidators:
             out,
             player_ids={"alice"},
             agent_ids=["pip"],
-        ).targets[0].frame == "foreground"
+        )[0].frame == "foreground"
         assert targets_from_router_output(
             out,
             player_ids=set(),
             agent_ids=["pip"],
-        ).targets[0].frame == "private"
+        )[0].frame == "private"
 
         offstage = _router_out(ends_beat=False)
         assert targets_from_router_output(
             offstage,
             player_ids={"alice"},
             agent_ids=["offstage_npc"],
-        ).targets[0].frame == "background"
+        )[0].frame == "background"
 
         public_fact = _router_out(
             event_kind="public_fact",
@@ -2331,7 +2403,7 @@ class TestSchemaValidators:
             public_fact,
             player_ids={"alice"},
             agent_ids=["pip"],
-        ).targets[0].frame == "background"
+        )[0].frame == "background"
 
         departing = _router_out(
             agent_ids=["pip"],
@@ -2345,7 +2417,7 @@ class TestSchemaValidators:
             departing,
             player_ids={"alice"},
             agent_ids=["pip"],
-        ).targets[0].frame == "background"
+        )[0].frame == "background"
 
     def test_unknown_event_kind_coerced_to_terminal_kind(self):
         out = _router_out(ends_beat=True)

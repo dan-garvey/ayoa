@@ -589,7 +589,7 @@ class TestQueryCommandDelivery:
 
         engine = MagicMock()
         engine.get_user_binding.return_value = "alice"
-        engine.set_character_identity.return_value = ckpt
+        engine.set_character_identity = AsyncMock(return_value=ckpt)
         engine.run_begin_turn = AsyncMock(return_value=response)
         engine.run_turn = AsyncMock()
 
@@ -1081,7 +1081,7 @@ class TestPurgeOnUnbind:
     """unbind_user must call purge_character_state so a /leave mid-beat
     doesn't strand slot pins, responder entries, or render buffers."""
 
-    def test_unbind_user_calls_purge(self, mock_bridge):
+    async def test_unbind_user_calls_purge(self, mock_bridge):
         from app.schemas.characters import CharacterRecord, PublicSheet
         from app.schemas.checkpoint import CheckpointFile
         from app.schemas.state import (
@@ -1126,7 +1126,7 @@ class TestPurgeOnUnbind:
         ]
         mock_bridge.checkpoint_mgr.save(ckpt)
 
-        freed = mock_bridge.unbind_user(session_id, 77)
+        freed = await mock_bridge.unbind_user(session_id, 77)
         assert freed == "bob"
 
         reloaded = mock_bridge.load_latest(session_id)

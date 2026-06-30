@@ -295,15 +295,10 @@ def test_tick_annotations_seeded(by_id: dict) -> None:
         if c.status.value == "active" and c.private_state.intentions_enabled
     ]
     assert tickable
-    assert all(c.private_state.tick_cues for c in tickable)
-    assert "failed candle" in by_id["korva_sahl"].private_state.tick_cues
-    assert "unblessed remand" in by_id["cardinal_vespera"].private_state.tick_cues
-    assert "Guild placement" in by_id["cardinal_vespera"].private_state.tick_cues
     assert by_id["demon_lord"].private_state.intentions_enabled is True
     assert by_id["demon_lord"].status.value == "active"
     assert by_id["princess_nirvel"].status.value == "dormant"
     assert by_id["princess_nirvel"].private_state.intentions_enabled is False
-    assert by_id["princess_nirvel"].private_state.tick_cues == []
 
 
 def test_only_unblessed_pair_is_playable(by_id: dict) -> None:

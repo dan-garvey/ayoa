@@ -427,26 +427,6 @@ class TestRouteIntention:
         assert update_index < intention_index
         assert ckpt.session.pending_engine_state_updates == []
 
-    def test_fresh_intention_omits_private_liveness_tick_cues(
-        self, prompt_mgr, mock_client,
-    ):
-        ckpt = _ckpt(bindings={"alice": "discord_1"})
-        pip = next(c for c in ckpt.characters if c.character_id == "pip")
-        pip.location = "archive"
-        pip.private_state.tick_cues = ["the bell tolls twice"]
-        mock_client.complete.return_value = _llm_response(_router_output())
-
-        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
-            ckpt=ckpt,
-            actor_id="alice",
-            intention="examine the lock",
-        ))
-
-        user_content = _last_user_content(
-            mock_client.complete.await_args.kwargs["messages"]
-        )
-        assert "the bell tolls twice" not in user_content
-
     def test_npc_cascade_emits_intends_framing(
         self, prompt_mgr, mock_client,
     ):

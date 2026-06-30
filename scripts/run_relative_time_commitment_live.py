@@ -1030,7 +1030,7 @@ async def _run_case(
     engine.create_empty_session(session_id)
     engine.load_story_into_session(session_id, story_id)
     for char_id in case.players:
-        engine.bind_user(session_id, PLAYER_IDS[char_id], char_id)
+        await engine.bind_user(session_id, PLAYER_IDS[char_id], char_id)
 
     steps: list[dict[str, Any]] = []
     for step in case.steps:
@@ -1901,7 +1901,7 @@ async def _run_progressive(
     engine.create_empty_session(session_id)
     engine.load_story_into_session(session_id, story_id)
     for char_id, user_id in PLAYER_IDS.items():
-        engine.bind_user(session_id, user_id, char_id)
+        await engine.bind_user(session_id, user_id, char_id)
 
     selected_steps = list(PROGRESSIVE_STEPS)
     if max_steps > 0:

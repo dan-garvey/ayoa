@@ -210,7 +210,6 @@ class ContentCharacterProjection(BaseModel):
     current_objectives: list[str] = Field(default_factory=list)
     secrets: list[str] = Field(default_factory=list)
     intentions_enabled: bool = False
-    tick_cues: list[str] = Field(default_factory=list)
     known_refs: list[str] = Field(default_factory=list)
     suspected_refs: list[str] = Field(default_factory=list)
 
@@ -243,7 +242,6 @@ class ContentCharacterProjection(BaseModel):
             _reject_private_asset_text(secret, field_name="secret")
             for secret in _clean_unique_strings(self.secrets)
         ]
-        self.tick_cues = _clean_unique_strings(self.tick_cues)
         self.known_refs = _clean_unique_strings(self.known_refs)
         self.suspected_refs = [
             ref for ref in _clean_unique_strings(self.suspected_refs) if ref not in self.known_refs

@@ -276,7 +276,6 @@ def _catalog(
                 "public": False,
             },
         ],
-        "initiative_triggers": ["The map is disturbed"],
     }
     actor_data.update(actor_updates or {})
     return ContentPackDomainCatalog(
