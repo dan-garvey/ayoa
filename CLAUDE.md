@@ -53,18 +53,29 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+Use the checked-in virtualenv directly when it exists, or create one and install
+`requirements.txt` before running tests:
 
 ```bash
-# Example:
-# npm install
-# npm test
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/pytest
+.venv/bin/python scripts/play.py --session <name>
 ```
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Ayoa is a prompt-heavy, checkpointed narrative engine. The core runtime lives in
+`app/engine/orchestrator.py`, `app/engine/turn_loop.py`, and
+`app/engine/turn_loop_dispatcher.py`; schemas live under `app/schemas/`; prompt
+templates live under `app/prompts/`; Discord integration lives under
+`app/bot/`; the terminal REPL is `scripts/play.py`; and tests are in `tests/`.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- Treat `app/prompts/*.txt` as reviewed source artifacts.
+- Keep D&D behavior in adapter-specific modules, prompts, and schemas rather
+  than baking it into the rules-neutral engine.
+- Runtime LLM calls receive text and structured data only; images must be
+  inspected and converted to authored text/assets during import.
+- Prefer `.venv/bin/pytest` for test runs and keep tests offline unless a live
+  integration check is explicitly requested.

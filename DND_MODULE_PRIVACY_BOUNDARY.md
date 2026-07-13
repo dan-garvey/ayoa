@@ -34,9 +34,9 @@ It also matches the current code surfaces:
   requests, and safe reveal payloads.
 - `app/schemas/responses.py` keeps `TurnResponse` presentation-shaped; it does
   not include a debug payload or raw prompt/source records.
-- `app/bot/commands.py` sends `TurnResponse` prose, dice, XP, loot, and reaction
-  affordances through Discord; future asset delivery must use the same POV
-  filtering and no-public-fallback rule.
+- `app/bot/commands.py` sends `TurnResponse` prose, dice, XP, loot, reaction
+  affordances, and reviewed per-POV asset attachments through Discord. Asset
+  delivery uses the same POV filtering and no-public-fallback rule.
 - `tests/test_prompt_hygiene.py` is negative prompt hygiene only and should be
   extended with concrete forbidden module leakage patterns, not prose-freezing
   prompt assertions.

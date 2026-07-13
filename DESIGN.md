@@ -13,9 +13,10 @@
   missing credentials for the configured live roles.
 * The LLM client is multi-provider (Anthropic Messages API and OpenAI
   Responses API) with per-role provider/model dispatch. Default models
-  are `gpt-5.1` for `event_router`, `gpt-5.2` for `narrator`, `gpt-5-mini` for
-  `dnd_combat_manager`, and Claude-family models for `agent`,
-  `agent_standard`, `agent_convenience`, and `character_gen`. Per-role
+  are `gpt-5.1` for `event_router`, `gpt-5.2` for `narrator`,
+  `gpt-5-mini` for `dnd_combat_manager` and `content_manager`, and
+  Claude-family models for `agent`, `agent_standard`,
+  `agent_convenience`, and `character_gen`. Per-role
   overrides go through `LLM_PROVIDER_<ROLE>` and `LLM_MODEL_<ROLE>`
   environment variables, or via the `LLM_ROLE_PROVIDERS` /
   `LLM_ROLE_MODELS` JSON env maps. A `provider:model` prefix on a
@@ -119,7 +120,8 @@ The current engine does not attempt to:
 * expose raw chain-of-thought or thinking blocks
 * guarantee deterministic replay across LLM calls
 * run external tools from inside story agents
-* maintain a separate D&D/rules arbitrator or content resolver
+* replace the router with an always-on generic rules arbitrator or content
+  resolver; D&D combat and content lookup exist as narrow adapter subflows
 * maintain a fully separate transcript for every human POV in the global
   transcript list
 
@@ -512,8 +514,8 @@ for `event_router`, OpenAI `gpt-5.2` for `narrator`, Anthropic
 for `agent_convenience`, and Opus for `character_gen`.
 
 Active live model roles are `event_router`, `narrator`, `agent`,
-`agent_standard`, `agent_convenience`, `dnd_combat_manager`, and
-`character_gen`.
+`agent_standard`, `agent_convenience`, `dnd_combat_manager`,
+`content_manager`, and `character_gen`.
 
 ## 6. Turn Lifecycle
 

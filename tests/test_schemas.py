@@ -879,7 +879,7 @@ class TestCharacterAgentOutput:
         """The pre-Commit-1 schema had `public_response` + `private_updates`
         nested models. Re-introducing either by accident must fail the
         same way an unknown extra would, because downstream code (router
-        framing, narrator legacy shim, leakage validator) was rewired to
+        framing, turn-loop dispatch, leakage validator) was rewired to
         read `public_text` only and would silently misbehave."""
         for legacy_key in ("public_response", "private_updates"):
             data = {**AGENT_OUTPUT_EXAMPLE, legacy_key: {}}

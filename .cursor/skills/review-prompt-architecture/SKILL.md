@@ -11,13 +11,13 @@ Your governing instinct: **most engine-side fields, mirrors, normalizations, cla
 
 ## Required first step: read all prompts in full
 
-Before evaluating ANY change, read every prompt template currently in the engine. The active version of each template is "highest `_vN.txt` suffix" — `PromptManager` resolves `agent` to the latest `agent_v*.txt`. Glob `app/prompts/*.txt` and `app/prompts/_partials/*.txt` and read them all. The names below are illustrative, not authoritative — version numbers drift:
+Before evaluating ANY change, read every prompt template currently in the engine. Active templates use bare filenames such as `agent.txt`; prompt history lives in git, not `_vN.txt` suffixes. Glob `app/prompts/*.txt` and `app/prompts/_partials/*.txt` and read them all. The names below are illustrative, not authoritative:
 
-- The active event-router prompt (current: `event_router_v*.txt`)
-- The active narrator prompt (current: `narrator_phase2_v*.txt`)
-- The active unified agent prompt (current: `agent_v*.txt`)
-- The character-generation prompt (current: `character_gen_v*.txt`)
-- The takeover prompt (current: `takeover_v*.txt`)
+- The active event-router prompt (current: `event_router.txt`)
+- The active narrator prompt (current: `narrator_phase2.txt`)
+- The active unified agent prompt (current: `agent.txt`)
+- The character-generation prompt (current: `character_gen.txt`)
+- The takeover prompt (current: `takeover.txt`)
 - All files in `app/prompts/_partials/`
 - Any other `.txt` in `app/prompts/`
 
@@ -49,7 +49,7 @@ The first cluster is the over-engineering patterns that should be your default s
 - **Engine-side normalization of LLM output** — regex/string-massage steps that fix up LLM output to match what the engine wanted. Each such fix-up is evidence the prompt didn't ask for the right shape clearly. Defensive trims (`.strip()`, collapsing newlines) are OK; re-running the LLM with a corrective prompt is a sign the original prompt was unclear.
 - **Engine-side state derivation that the LLM could produce in-line** — the engine looks up `current_scene + connected_to + scene_descriptions` and formats them into the prompt. Could the LLM just be told "you're in {scene_id}, the world has these scenes" once and infer connections from history? Sometimes yes, sometimes the lookup is genuinely cheaper than carrying the world graph in every cache. Judge case-by-case but ALWAYS ask.
 - **Hand-written branching on LLM intent** — orchestrator code with `if intention.startswith(...)` or "did the LLM mean A or B?" string parsing. Either ask for a structured discriminator or trust the next downstream LLM to disambiguate.
-- **Mode-by-prompt-file proliferation** — separate prompt file per "kind" of call (on-stage vs tick vs cat-ii vs adjudication-only) when the LLM could read a mode header and pick the right rule subsection. Cache-trail proliferation (below) is the cost manifestation; the cause is treating the LLM like a function with a rigid signature instead of a reasoner with context. The unified `agent_v11.txt` shipped during the v11 cycle is the existence proof — there is no good reason a router or spawner couldn't follow the same pattern.
+- **Mode-by-prompt-file proliferation** — separate prompt file per "kind" of call (on-stage vs tick vs cat-ii vs adjudication-only) when the LLM could read a mode header and pick the right rule subsection. Cache-trail proliferation (below) is the cost manifestation; the cause is treating the LLM like a function with a rigid signature instead of a reasoner with context. The unified `agent.txt` prompt is the existence proof — there is no good reason a router or spawner couldn't follow the same pattern.
 
 The second cluster is the prompt-quality patterns:
 

@@ -387,19 +387,10 @@ class EventRouterOutput(BaseModel):
     effective_at_s: int
     duration_s: int
 
-    # ---- v11-r7g: TEMPORARY diagnostic — terse justification ------------
-    # The router emits a concise diagnostic note explaining its core
-    # routing decision this turn (Cat I vs Cat II classification, why this
-    # event_kind, why these routing roles). We log it at INFO so playtest transcripts
-    # surface the "why" alongside the "what".
-    #
-    # NON-FREE in tokens — adds ~1 sentence to every router response,
-    # and the LLM has to compose it before emitting structural fields.
-    # We keep it ONLY while we're solidifying prompt-engineering for
-    # the v11 router; it should be removed once the prompt is stable
-    # and we trust the routing decisions without inline rationale.
-    # When removing: drop this field, drop the prompt's rule + format
-    # entry, and drop the engine's INFO log call in turn_loop.
+    # Terse router diagnostic explaining the core routing decision this turn
+    # (Cat I vs Cat II classification, event_kind, and routing roles). This is
+    # logged with the canonical event so playtest transcripts show "why"
+    # alongside "what" without exposing raw model reasoning.
     decision_rationale: str
 
     canonical_event: CanonicalEvent

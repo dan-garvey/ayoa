@@ -723,11 +723,3 @@ class TestFormatVisibleEventsBlock:
         out = _format_visible_events_block(resolved)
 
         assert out.index("First visible beat.") < out.index("Second visible beat.")
-
-# NOTE: The `TestOpeningVerbatimRender` class lived here in v8 and earlier.
-# It exercised a now-removed verbatim shortcut that rendered an authored
-# `opening_narrative` byte-for-byte on the first `(begin)` turn. The whole
-# `opening_narrative` field was removed in v9 — the router now composes the
-# opening dynamically from world_state and the narrator renders it like any
-# other turn — so the verbatim path, its gates, and these tests are obsolete.
-# The dynamic opening flow is covered by router/narrator turn-loop tests.

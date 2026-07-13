@@ -2666,16 +2666,16 @@ class EngineBridge:
 
     # v11-A5 lazy sweep hook.
     # Invoked from the /act hot path (run_turn) so stale Cat II pins are
-    # surfaced without a background scheduler. The sweep itself is pure
-    # state mutation — synthesizing AFK intentions for humans whose pin
-    # has outlived `cat_ii_human_timeout_seconds`. Re-running run_beat on
-    # the affected event IDs to drive adjudication is wired later in the
-    # full orchestrator-bind commit; for now, logging the IDs at INFO
-    # makes the sweep observable in production.
+    # surfaced without a background scheduler. It also releases stale optional
+    # combat-reaction pins. `_run_turn_locked` consumes the returned Cat II
+    # event IDs and delivers any pre-turn resolutions before the actor's own
+    # turn response.
     def sweep_stale_pins(self, session_id: str) -> list[str]:
-        """Load the checkpoint, sweep stale Cat II pins, save iff any were
-        swept, and return the list of event IDs that now need
-        re-adjudication. Safe to call with no open events (returns []).
+        """Sweep stale Cat II and combat-reaction pins, saving iff state changed.
+
+        Returns Cat II event IDs that now need re-adjudication. Released combat
+        reactions may advance combat immediately but do not return event IDs.
+        Safe to call with no open events (returns []).
         """
         from app.engine.orchestrator import advance_pending_combat_if_unblocked
         from app.engine.turn_loop import (

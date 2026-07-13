@@ -1062,20 +1062,6 @@ class TestExtractParenthetical:
         assert public == "He shrugs."
         assert intent == ""
 
-
-# `TestPriorResponsesLeakGuard` was deleted in v11-r10 along with
-# `format_prior_responses`. The on-stage agent body no longer carries
-# a "## Other Characters' Responses This Turn" block — production
-# always passed `prior_responses=None` because cascade NPCs already
-# see prior responses through their own `pending_observations` inbox
-# (each cascade event broadcasts to scene-mates). The cross-agent
-# intent-leak chokepoint moved to `_extract_parenthetical` (which
-# splits public_text from intent at the source) and the router-
-# intention block in turn_loop_dispatcher (which forwards only
-# `output.public_text`). See `tests/test_turn_loop.py` for the
-# broadcast-event coverage that replaced this suite's role.
-
-
 class TestUnifiedAgentCacheLineage:
     """v11 cache-trail invariant: agent turn frames share ONE system
     prompt, while rolling histories remain per character.

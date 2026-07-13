@@ -5,8 +5,7 @@ Status: accepted decision for the asset backing and delivery slice.
 This document decides how player-safe image assets are backed, resolved to
 bytes, delivered to Discord and CLI surfaces, and unwound during rewind. It is
 grounded in the current asset catalog, reveal schema, Discord delivery helpers,
-and module-import contract, but it deliberately does not implement the runtime
-patch.
+CLI display path, and module-import contract.
 
 ## Current Surfaces
 
@@ -18,15 +17,18 @@ The existing asset and delivery code establishes these constraints:
   `reference`, or `map_overlay`.
 * `app/engine/content_assets.py` stores asset catalog rows, removes private
   metadata keys, strips absolute paths from text, filters unsafe/unreviewed
-  assets, and returns only `SafeAssetRevealPayload` records. It does not yet
-  resolve bytes, enforce an allowlist for URI schemes, or deliver attachments.
-* `tests/test_content_assets.py` already requires per-POV filtering,
-  player-safe payloads, no source paths or notes in payloads, and no reveal for
-  unsafe, unreviewed, or absolute-path-backed assets.
+  assets, and returns only `SafeAssetRevealPayload` records. Delivery-ref
+  validation accepts matching `asset://<pack_id>/<asset_id>` refs and rejects
+  unsafe schemes and paths before byte resolution.
+* `app/engine/content_asset_bytes.py` resolves reviewed player-safe assets to
+  verified bytes with MIME, size, and hash checks.
+* Asset coverage is split across `tests/test_content_asset_bytes.py`,
+  `tests/test_cli_image_display.py`, `tests/test_bot_internals.py`, and
+  `tests/test_play_cli.py`.
 * `app/bot/commands.py` currently sends text renders through
   `_post_actor_render`, `_post_to_pov`, and `_send_public_turn_render`.
-  `_post_actor_render` may fall back to a public channel when private text
-  delivery fails. That fallback is not valid for private images.
+  Asset delivery uses attachment-aware helpers that avoid the public fallback
+  branch for private image delivery.
 * `app/bot/session_map.py` records Discord turn messages with
   `channel_id`, `session_id`, `turn_index`, `discord_channel_id`,
   `message_id`, `delivery`, and optional `recipient_user_id`.
@@ -262,20 +264,15 @@ Ayoa-managed local cache files are content-addressed delivery artifacts and do
 not need per-turn deletion, but they must not be raw source files or private
 extraction artifacts.
 
-## Implementation Notes For The Later Patch
+## Implementation Status And Remaining Coverage
 
-The implementation should tighten `content_assets._safe_delivery_ref` rather
-than relying on its current "any scheme is okay" behavior. It should reject
-relative paths and unsafe schemes, preserve `asset://` refs, and route any
-approved HTTPS/CDN backing through pack configuration and hash verification.
+The runtime patch now validates `asset://` delivery refs, resolves reviewed
+player-safe bytes with hash and MIME checks, delivers Discord attachments
+through no-public-fallback helpers, records successful asset messages for
+rewind cleanup, and supports CLI display with source-path redaction.
 
-Discord asset sending should use new attachment-aware helpers that mirror the
-thread-to-DM private cascade but do not expose the public fallback branch. Do
-not reuse `_post_actor_render` for private image attachments without an
-explicit guard that prevents public fallback.
-
-Tests should cover runtime contracts and forbidden leakage rather than prompt
-wording. The minimum future coverage is:
+Tests should continue to cover runtime contracts and forbidden leakage rather
+than prompt wording. The core coverage is:
 
 * delivery ref validation rejects absolute paths, relative paths, and unsafe
   schemes
@@ -286,3 +283,7 @@ wording. The minimum future coverage is:
   any public channel send
 * successful asset messages are recorded for rewind cleanup
 * CLI delivery never prints raw source paths or hidden filenames
+
+Remaining expansion areas include broader public/channel reveal semantics,
+additional terminal backends, map overlays, fog/crop derivatives, and
+approved-CDN resolver configuration beyond local pack media.

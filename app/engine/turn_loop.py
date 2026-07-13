@@ -34,13 +34,12 @@ emits a terminal `event_kind` or the backstop fires.
       call agent.intend(),
       recurse.
 
-## What's wired vs. TODO
+## Runtime wiring
 
-This module is the state-machine skeleton. Key integration points are
-marked with TODO(v11-wireup) comments; they'll be filled in as the
-other engine modules (event_router, character_agent, narrator) are
-brought into the v11 shape. The existing orchestrator.py still runs
-the old v8 pipeline — the v11 path is gated until it's fully wired.
+The orchestrator binds this state machine to the concrete router,
+character-agent, and narrator modules through the `Dispatcher` protocol.
+Tests can pass fakes through the same protocol, which keeps the beat loop
+isolated without implying a second runtime path.
 
 ## Terminology
 
@@ -812,15 +811,11 @@ def _log_router_rationale(
     result: EventRouterOutput, actor_id: str,
     *, kind: str = "route",
 ) -> None:
-    """v11-r7g (TEMPORARY DIAGNOSTIC): surface the router's one-sentence
-    rationale at INFO so playtest logs show "why" alongside "what".
+    """Surface the router's terse rationale at INFO.
 
-    The decision_rationale field on EventRouterOutput is a temporary
-    addition to solidify v11 prompt engineering. We log it here from
-    every route_intention site (Cat I, Cat II open, Cat II resolve)
-    rather than scattering log calls inline. Remove this helper, the
-    schema field, the prompt rule, and every call to it together when
-    the diagnostic is no longer worth the per-turn token cost.
+    `decision_rationale` is part of the router output contract so playtest
+    logs show "why" alongside "what" for every route_intention site (Cat I,
+    Cat II open, Cat II resolve) without scattering log calls inline.
 
     `kind` distinguishes the routing context — "route" (normal Cat I
     / Cat II open call), "cat_ii_resolve" (final adjudication of a
@@ -2262,10 +2257,9 @@ def _beat_cap_overrun_cause(
 # agent reactions until the router ends the beat, then fans the narrator
 # out per human with a queued perception and releases the beat slots.
 #
-# TODO(v11-wireup): the calls into the router, narrator, and character_agent
-# are sketched as protocol methods; these need to be bound to the real
-# engine modules (event_router.run, narrator.compose, character_agent.
-# run). See `Dispatcher` below.
+# Router, narrator, and character-agent calls are abstracted behind the
+# `Dispatcher` protocol. The production orchestrator binds that protocol to
+# the concrete LLM-backed modules; tests bind fakes.
 # ----------------------------------------------------------------------------
 
 
