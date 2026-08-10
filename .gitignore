@@ -16,6 +16,8 @@ app/storage/sessions/*
 !app/storage/stories/.gitkeep
 !app/storage/stories/dating_villa_s1/
 !app/storage/stories/dating_villa_s1/ckpt_0000.json
+!app/storage/stories/one_star_ascension_s1/
+!app/storage/stories/one_star_ascension_s1/ckpt_0000.json
 !app/storage/stories/the_unblessed_summon/
 !app/storage/stories/the_unblessed_summon/ckpt_0000.json
 !app/storage/sessions/.gitkeep
