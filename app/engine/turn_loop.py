@@ -935,6 +935,34 @@ def _filter_routed_agents_for_dispatch(
     return out
 
 
+def _human_next_output_ids(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> list[str]:
+    """Router-intended next-output characters that are human-controlled.
+
+    The router does not know engine bindings, so a co-present human it
+    addressed can land as the next output — named directly in
+    `next_output_character_ids` or via an observer `routing_role`. Those
+    humans must never be voiced by an agent turn or a router continuation
+    rescue; the beat yields so their own player takes the next /act. This is
+    the Cat I analogue of the Cat II "human responder pins and waits" rule.
+    """
+    from app.engine.context_builder import collect_player_ids
+
+    humans = collect_player_ids(ckpt)
+    intended: list[str] = []
+    for cid in (result.next_output_character_ids or []):
+        if cid and cid not in intended:
+            intended.append(cid)
+    for observer in (result.observers or []):
+        if getattr(observer, "routing_role", "") == "next_output":
+            cid = observer.character_id
+            if cid and cid not in intended:
+                intended.append(cid)
+    return [cid for cid in intended if cid in humans]
+
+
 async def _materialize_required_responder_spawns(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
@@ -2935,6 +2963,18 @@ async def run_beat(
                     ckpt, result.next_output_character_ids,
                     event=result,
                 )
+                if not routed_ids and _human_next_output_ids(ckpt, result):
+                    # Router wants a human to go next: yield rather than let a
+                    # continuation rescue speak for that player.
+                    return await _end_beat(
+                        ckpt, dispatcher,
+                        ended_reason="awaiting_player_turn",
+                        events_closed=events_closed,
+                        event_actor_ids=event_actor_ids,
+                        acting_player_id=actor_id,
+                        acting_player_input=intention,
+                        suppress_reaction_prompts=suppress_reaction_prompts,
+                    )
                 queued = await _queue_router_agent_output(result, routed_ids)
                 if not queued:
                     return await _end_for_cascade_cap()
@@ -3157,6 +3197,20 @@ async def run_beat(
             ckpt, result.next_output_character_ids,
             event=result,
         )
+        if not routed_ids and _human_next_output_ids(ckpt, result):
+            # The router wanted a human to respond next. Yield the beat to
+            # that player instead of letting a continuation rescue voice
+            # them — otherwise the engine speaks for another human in a
+            # multiplayer scene.
+            return await _end_beat(
+                ckpt, dispatcher,
+                ended_reason="awaiting_player_turn",
+                events_closed=events_closed,
+                event_actor_ids=event_actor_ids,
+                acting_player_id=actor_id,
+                acting_player_input=intention,
+                suppress_reaction_prompts=suppress_reaction_prompts,
+            )
         queued = await _queue_router_agent_output(result, routed_ids)
         if not queued:
             return await _end_for_cascade_cap()

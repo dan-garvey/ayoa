@@ -15,6 +15,16 @@ A named `session` is a persistent save; `story` content is loaded into it.
 If the session doesn't exist yet it's created empty — use `/story list`
 then `/story start <id>` from inside the REPL to load content.
 
+Non-interactive / multiplayer:
+    .venv/bin/python scripts/play.py --session <name> --command "/status"
+    .venv/bin/python scripts/play.py --session <name> --as <char> --command "<action>"
+
+`--command` runs one REPL line (repeatable) then exits, and `--as` selects
+which already-bound character acts. Separate terminals — or separate agents —
+can each drive one bound character this way against the same session; an
+advisory per-session file lock serializes the mutating turns so concurrent
+processes cannot clobber each other's checkpoints.
+
 Commands inside the REPL:
     /help                       Show commands
     /story list                 List available stories
@@ -56,6 +66,7 @@ from __future__ import annotations
 import atexit
 import argparse
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -71,6 +82,11 @@ try:
     import readline as _readline
 except ImportError:  # pragma: no cover - platform dependent.
     _readline = None
+
+try:
+    import fcntl as _fcntl
+except ImportError:  # pragma: no cover - platform dependent.
+    _fcntl = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -1304,6 +1320,42 @@ def _cli_image_display_message(result: CliImageDisplayResult) -> str:
     return "Could not display the revealed image."
 
 
+@contextlib.asynccontextmanager
+async def _progress(label: str):
+    """Show that an async engine call is working while we await it.
+
+    On a TTY this animates a one-line spinner and clears itself when the
+    call returns (or raises). In non-interactive `--command` mode it prints
+    a single static line so captured logs still show that work happened.
+    Router/narrator turns can take a while; without this the REPL looks hung.
+    """
+    stream = sys.stdout
+    if not stream.isatty():
+        stream.write(f"* {label}…\n")
+        stream.flush()
+        yield
+        return
+
+    async def _spin() -> None:
+        frames = "|/-\\"
+        i = 0
+        while True:
+            stream.write(f"\r{frames[i % len(frames)]} {label}…")
+            stream.flush()
+            i += 1
+            await asyncio.sleep(0.12)
+
+    task = asyncio.create_task(_spin())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        stream.write("\r" + " " * (len(label) + 6) + "\r")
+        stream.flush()
+
+
 class CLIState:
     """Per-session state for the interactive REPL.
 
@@ -1335,6 +1387,11 @@ class CLIState:
         self.claims: dict[str, int] = {}
         self._next_user_id = 1
         self.running = True
+        # When set, restrict printed POV renders/asset reveals to this one
+        # character. Separate-terminal one-shot play sets this so each
+        # terminal shows only its own player's POV, mirroring Discord's
+        # per-user DMs instead of the single-terminal all-POV dump.
+        self.pov_filter: str | None = None
 
         if self.story_id:
             self._load_existing_claims()
@@ -1651,10 +1708,11 @@ class CLIState:
             return
         actor_id = self.current_actor or next(iter(self.claims), "")
         try:
-            response = await self.engine.run_begin_turn(
-                session_id=self.session_id,
-                triggering_character_id=actor_id,
-            )
+            async with _progress("opening the scene"):
+                response = await self.engine.run_begin_turn(
+                    session_id=self.session_id,
+                    triggering_character_id=actor_id,
+                )
         except ValueError as e:
             print(f"error: {e}")
             return
@@ -2250,12 +2308,12 @@ class CLIState:
         # Mirror the Discord bot: if no narrator turns yet, fire the
         # canonical opener so the opening lands with the description in hand.
         if not any(ckpt.narrator_conversations.values()):
-            print("opening story…")
             try:
-                response = await self.engine.run_begin_turn(
-                    session_id=self.session_id,
-                    triggering_character_id=self.current_actor,
-                )
+                async with _progress("opening the scene"):
+                    response = await self.engine.run_begin_turn(
+                        session_id=self.session_id,
+                        triggering_character_id=self.current_actor,
+                    )
             except ValueError as e:
                 print(f"error: {e}")
                 return
@@ -2285,11 +2343,12 @@ class CLIState:
             print("usage: /query <question>")
             return
         try:
-            response = await self.engine.run_query(
-                session_id=self.session_id,
-                character_id=self.current_actor,
-                question=question,
-            )
+            async with _progress("checking"):
+                response = await self.engine.run_query(
+                    session_id=self.session_id,
+                    character_id=self.current_actor,
+                    question=question,
+                )
         except Exception as e:
             logger.exception("run_query failed")
             print(f"error: {player_safe_error_message(e, operation='that query')}")
@@ -2761,17 +2820,29 @@ class CLIState:
             print("no current actor — /join a character first")
             return
         try:
-            response = await self.engine.run_turn(
-                session_id=self.session_id,
-                user_input=text,
-                acting_character_id=self.current_actor,
-            )
+            async with _progress("resolving"):
+                response = await self.engine.run_turn(
+                    session_id=self.session_id,
+                    user_input=text,
+                    acting_character_id=self.current_actor,
+                )
         except Exception as e:
             logger.exception("run_turn failed")
             print(f"error: {player_safe_error_message(e)}")
             return
 
         self._print_turn_response(response, actor_id=self.current_actor)
+
+    def _pov_claims(self) -> set[str]:
+        """Which claimed characters' POVs this terminal should print.
+
+        Defaults to every locally claimed character (single-terminal play).
+        In separate-terminal one-shot mode `pov_filter` narrows it to the one
+        character this terminal represents, so other players' POV prose does
+        not leak into this terminal."""
+        if self.pov_filter:
+            return {self.pov_filter} if self.pov_filter in self.claims else set()
+        return set(self.claims or {})
 
     def _print_turn_response(
         self,
@@ -2801,7 +2872,7 @@ class CLIState:
                 getattr(pre_resp, "experience_awards", []) or []
             )
             for cid, prose in (pre_resp.per_player_renders or {}).items():
-                if not prose or cid not in self.claims:
+                if not prose or cid not in self._pov_claims():
                     continue
                 print("--- Before Your Action ---")
                 print(prose)
@@ -2851,7 +2922,7 @@ class CLIState:
         # Print POVs for any other characters this CLI session has
         # /join'd locally so the playtester sees the multi-POV output
         # without spinning up Discord.
-        joined = set(self.claims or {})
+        joined = self._pov_claims()
         for cid, prose in per_player.items():
             if cid == actor_id or not prose or cid not in joined:
                 continue
@@ -2874,7 +2945,7 @@ class CLIState:
         per_pov = getattr(response, "per_player_asset_reveals", None) or {}
         if not per_pov or not self.claims:
             return
-        claimed_ids = {cid for cid in per_pov if cid in self.claims}
+        claimed_ids = {cid for cid in per_pov if cid in self._pov_claims()}
         if not claimed_ids:
             return
         try:
@@ -3156,6 +3227,61 @@ def _stored_session_ids(sessions_dir: Path = Path("app/storage/sessions")) -> li
     )
 
 
+@contextlib.contextmanager
+def _session_command_lock(sessions_dir: Path, session_id: str):
+    """Serialize mutating CLI commands across processes sharing a session.
+
+    Separate terminals (or agents) driving different characters each run their
+    own process against the same session directory. Checkpoint writes are
+    atomic (mkstemp + os.replace), but two processes computing the next turn
+    from the same base checkpoint could still clobber each other. An advisory
+    exclusive flock on a per-session lockfile makes the load->turn->save
+    critical section mutually exclusive. No-op when fcntl is unavailable."""
+    if _fcntl is None:  # pragma: no cover - platform dependent.
+        yield
+        return
+    session_dir = Path(sessions_dir) / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = session_dir / ".session.lock"
+    with open(lock_path, "w") as handle:
+        _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            _fcntl.flock(handle.fileno(), _fcntl.LOCK_UN)
+
+
+async def run_oneshot_commands(
+    state: "CLIState",
+    *,
+    sessions_dir: Path,
+    session_id: str,
+    commands: list[str],
+    act_as: str | None = None,
+) -> int:
+    """Execute one or more REPL command lines non-interactively, then return.
+
+    Used by separate terminals/agents to drive a single bound character per
+    invocation. `act_as` selects which already-bound character acts; the whole
+    batch runs under the cross-process session lock so it cannot race another
+    terminal's turn."""
+    if act_as:
+        if act_as not in state.claims:
+            print(
+                f"--as {act_as}: not bound in session '{session_id}'. "
+                f"Bound: {', '.join(sorted(state.claims)) or '(none)'}",
+                file=sys.stderr,
+            )
+            return 2
+        state.current_actor = act_as
+        # This terminal represents one player; show only their POV.
+        state.pov_filter = act_as
+    with _session_command_lock(sessions_dir, session_id):
+        for command in commands:
+            await state.handle_line(command)
+    return 0
+
+
 async def main_async(args: argparse.Namespace) -> int:
     _configure_cli_logging(verbose=args.verbose)
 
@@ -3201,11 +3327,10 @@ async def main_async(args: argparse.Namespace) -> int:
                 return 2
             print(f"created session `{session_id}` (empty — /story start to load content)")
 
-        console = _ConsoleInput(history_path=_default_history_path())
-        console.install()
         image_renderer = CliImageDisplayRenderer.from_environment(
             show_export_path=args.show_image_cache_paths,
         )
+        console = _ConsoleInput(history_path=_default_history_path())
         state = CLIState(
             engine,
             session_id,
@@ -3214,6 +3339,32 @@ async def main_async(args: argparse.Namespace) -> int:
             asset_image_renderer=image_renderer,
         )
 
+        if args.commands is not None:
+            # Non-interactive one-shot: run the given command(s) against this
+            # session under the cross-process lock, then exit. This is how
+            # separate terminals/agents each drive one bound character without
+            # sharing a single in-process REPL.
+            return await run_oneshot_commands(
+                state,
+                sessions_dir=engine.sessions_dir,
+                session_id=session_id,
+                commands=args.commands,
+                act_as=args.act_as,
+            )
+
+        if args.act_as:
+            if args.act_as in state.claims:
+                state.current_actor = args.act_as
+            else:
+                print(
+                    f"--as {args.act_as}: not bound in session "
+                    f"'{session_id}'. Bound: "
+                    f"{', '.join(sorted(state.claims)) or '(none)'}",
+                    file=sys.stderr,
+                )
+                return 2
+
+        console.install()
         print()
         if resumed_existing:
             print("Type /help for commands.")
@@ -3238,7 +3389,10 @@ async def main_async(args: argparse.Namespace) -> int:
                 print()
                 continue
             try:
-                await state.handle_line(line)
+                # Serialize mutating turns against any other processes
+                # attached to this session from separate terminals.
+                with _session_command_lock(engine.sessions_dir, session_id):
+                    await state.handle_line(line)
             except KeyboardInterrupt:
                 print("\n(interrupted)")
     finally:
@@ -3258,6 +3412,23 @@ def main() -> None:
     parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Log engine INFO and WARNING messages to stderr.",
+    )
+    parser.add_argument(
+        "--as",
+        dest="act_as",
+        metavar="CHARACTER_ID",
+        help="Act as an already-bound character. Sets the default actor for "
+             "--command mode and for the interactive REPL.",
+    )
+    parser.add_argument(
+        "--command",
+        action="append",
+        dest="commands",
+        metavar="LINE",
+        help="Run one REPL command line non-interactively, then exit. "
+             "Repeatable; lines run in order. A line without a leading '/' is "
+             "an in-character action. Enables separate-terminal multiplayer: "
+             "each terminal/agent drives one bound character per invocation.",
     )
     parser.add_argument(
         "--show-image-cache-paths",

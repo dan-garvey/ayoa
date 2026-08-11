@@ -29,6 +29,7 @@ from app.engine.turn_loop import (
     run_beat,
     sweep_stale_cat_ii_pins,
     _end_dnd_combat_from_router_signal,
+    _human_next_output_ids,
 )
 from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
 from app.schemas.conversation import ConversationMessage
@@ -2486,3 +2487,47 @@ class TestRejectionFormatting:
             attempted_text="I walk outside and look at the stars",
         )
         assert "I walk outside" in msg
+
+
+class TestHumanNextOutputYield:
+    """Multiplayer turn ownership: when the router wants a co-present human to
+    respond next, the beat must yield to that human's own /act instead of an
+    agent turn or a continuation rescue voicing them."""
+
+    def test_human_next_output_ids_detects_observer_and_list(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        # next-output expressed via observer routing_role (the shape the live
+        # router used): bob is a bound human, pip is an NPC.
+        out = _router_out(agent_ids=["bob", "pip"], ends_beat=False)
+        assert _human_next_output_ids(ckpt, out) == ["bob"]
+
+    def test_human_next_output_ids_empty_when_next_is_npc(self):
+        ckpt = _ckpt({"alice": "1"})
+        out = _router_out(agent_ids=["pip"], ends_beat=False)
+        assert _human_next_output_ids(ckpt, out) == []
+
+    def test_beat_yields_when_router_routes_a_human_next(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        # Alice (human) addresses Bob (human); router keeps the beat open with
+        # Bob as next output. Bob must NOT be voiced by the engine.
+        fake.queue_route(_router_out(
+            agent_ids=["bob"],
+            ends_beat=False,
+            facts=[ObservableFact.all("Alice grins and nudges Bob's elbow.")],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I nudge Bob's elbow and grin.",
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        # The beat yielded: no continuation rescue and no agent turn for Bob.
+        assert fake.continuation_calls == []
+        assert fake.agent_calls == []
+        # Only Alice's own action was canonicalized; Bob was not spoken for.
+        assert len(ckpt.canonical_events) == 1
+        assert "bob" in result.renders  # Bob still perceives Alice's action.

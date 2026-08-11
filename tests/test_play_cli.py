@@ -22,7 +22,9 @@ from scripts.play import (
     _default_history_path,
     _format_missing_llm_credentials,
     _print_dice_roll_displays,
+    _session_command_lock,
     _split_combat_ids,
+    run_oneshot_commands,
 )
 from app.engine.cli_image_display import CliImageDisplayResult
 from app.engine.frontend_views import (
@@ -1838,3 +1840,61 @@ class TestRewindCommand:
 
         out = capsys.readouterr().out
         assert "no checkpoints" in out
+
+
+class TestOneShotAndSessionLock:
+    """Non-interactive one-shot mode + cross-process session lock: the
+    enabling surface for separate-terminal multiplayer."""
+
+    def test_session_lock_creates_lockfile_and_reenters(self, tmp_path):
+        # Sequential (re)entry must not error and should leave a lockfile in
+        # the session dir. Creating the dir lazily is part of the contract.
+        for _ in range(2):
+            with _session_command_lock(tmp_path, "sess"):
+                pass
+        assert (tmp_path / "sess" / ".session.lock").exists()
+
+    def test_oneshot_rejects_unbound_actor(self, run, tmp_path):
+        engine = _mock_engine(bindings=None)
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.handle_line = AsyncMock()
+
+        code = run(run_oneshot_commands(
+            state,
+            sessions_dir=tmp_path,
+            session_id=SESSION_ID,
+            commands=["I look around"],
+            act_as="ren_sato",
+        ))
+
+        assert code == 2
+        state.handle_line.assert_not_awaited()
+
+    def test_oneshot_runs_commands_as_bound_actor(self, run, tmp_path):
+        engine = _mock_engine(bindings={"aldric": "1"})
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        assert "aldric" in state.claims
+        state.handle_line = AsyncMock()
+
+        code = run(run_oneshot_commands(
+            state,
+            sessions_dir=tmp_path,
+            session_id=SESSION_ID,
+            commands=["I steady my hands", "/status"],
+            act_as="aldric",
+        ))
+
+        assert code == 0
+        assert state.current_actor == "aldric"
+        assert state.pov_filter == "aldric"
+        assert [c.args[0] for c in state.handle_line.await_args_list] == [
+            "I steady my hands",
+            "/status",
+        ]
+
+    def test_pov_filter_scopes_printed_claims(self):
+        engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        assert state._pov_claims() == {"aldric", "sera"}
+        state.pov_filter = "aldric"
+        assert state._pov_claims() == {"aldric"}
