@@ -297,6 +297,113 @@ def test_system_sight_is_master_view_with_protagonist_exception() -> None:
     assert pc.known_context == ""
 
 
+def test_lobby_master_and_guide_framing() -> None:
+    """Playtest fixes: the party is formed by the Master (the guide only
+    assists), Niflheim is a home hub distinct from the Tower, and the
+    tutorial-guide's unit-management coaching is aimed at the Master, never at
+    the player-Hero; plus newcomer POV/jargon discipline for the blank Hero."""
+    checkpoint = _load_checkpoint()
+    ws = checkpoint.world_state
+    by_id = {c.character_id: c for c in checkpoint.characters}
+
+    # Concern 1: no character carries the static "the Master's party" tag; a
+    # party is formed later, by the Master.
+    for character in checkpoint.characters:
+        assert "the Master's party" not in character.public_sheet.faction, (
+            character.character_id
+        )
+    for hero in (
+        "one_star_newcomer",
+        "pip_secondlight",
+        "bex_greenpull",
+        "dala_greenpull",
+    ):
+        assert by_id[hero].public_sheet.faction == "Niflheim lobby", hero
+
+    facts = "\n".join(ws.facts).lower()
+    lore = ws.lore.lower()
+    rules = checkpoint.session.config.narrative_rules
+    rules_lower = rules.lower()
+
+    # Concern 4: the lobby is a home hub, distinct from the Tower's floors.
+    assert "not part of the tower" in facts
+    assert "not a part of the tower" in lore
+    assert "lobby vs. tower" in rules_lower
+
+    # Concern 1/5: the Master forms the party; the guide only assists.
+    assert "the master forms and arranges the party" in facts
+    iselle = by_id["iselle_the_guide"]
+    assert "master" in iselle.public_sheet.role.lower()
+    guide_ctx = iselle.known_context.lower()
+    assert "the master forms the party" in guide_ctx
+    assert "does not treat a hero" in guide_ctx
+
+    # Concern 5: the narrator is told to aim the guide's coaching at the Master.
+    assert "tutorial-guide's audience" in rules
+    assert "iselle serves the master" in rules_lower
+
+    # Concern 3: newcomer POV / jargon discipline for the blank Hero, with the
+    # gacha terms named as things the narrator must NOT speak in its own voice.
+    assert "newcomer pov and jargon" in rules_lower
+    assert "one-star" in rules
+
+
+def test_lobby_facilities_healing_and_enforcement() -> None:
+    """Source-fidelity pass: the lobby is a build/upgrade economy of named
+    chambers (incl. a Synthesis Chamber), it restores Heroes between missions
+    (death/synthesis/old-amputation excepted), and the guide is also a warden
+    who compels refusers and is defended by a lethal protocol (PC-gated)."""
+    checkpoint = _load_checkpoint()
+    ws = checkpoint.world_state
+    by_id = {c.character_id: c for c in checkpoint.characters}
+
+    facts = "\n".join(ws.facts).lower()
+    lore = ws.lore.lower()
+    rules = checkpoint.session.config.narrative_rules.lower()
+    hidden = (ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)).lower()
+
+    # Facilities exist with gacha purposes and are built/upgraded (the missing
+    # synthesis chamber is now present; the shrine is folded into summoning).
+    facts_lore = facts + "\n" + lore
+    for facility in (
+        "summoning hall",
+        "training hall",
+        "synthesis chamber",
+        "transformation chamber",
+        "blacksmith",
+        "crack of space and time",
+    ):
+        assert facility in facts_lore, facility
+    assert "facilities and lobby management" in lore
+    assert "building and upgrading" in facts
+    assert "waiting room" in facts
+    assert "shrine" not in facts_lore  # repurposed, not a purposeless building
+
+    # Lobby restoration with the permadeath / old-amputation exceptions.
+    assert "mends its own" in facts
+    assert "cannot regrow a limb" in facts
+    assert "do not carry wounds" in rules
+
+    # The guide is also the warden: compels refusers, lethal defense protocol.
+    assert "warden" in facts
+    assert "lethal defense protocol" in facts
+    iselle = by_id["iselle_the_guide"]
+    assert "warden" in iselle.public_sheet.role.lower()
+    guide_ctx = iselle.known_context.lower()
+    assert "lethal defense protocol" in guide_ctx
+    assert "compel a hero who refuses to deploy" in guide_ctx
+
+    # Enforcement is PC-gated exactly like synthesis (router-only doctrine).
+    assert "warden" in hidden
+    assert "treat it like synthesis" in hidden
+
+    # The Master's toolkit now includes building facilities and transformation.
+    master = by_id["the_master"]
+    persona = master.personality.lower()
+    assert "build and upgrade the lobby's facilities" in persona
+    assert "transformation" in persona
+
+
 def test_seed_has_depth_without_dnd_mechanics() -> None:
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
