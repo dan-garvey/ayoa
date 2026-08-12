@@ -102,6 +102,11 @@ class CharacterRecord(BaseModel):
     # zero (then /join surfaces nothing).
     is_playable: bool = False
     agent_tier: CharacterAgentTier = CharacterAgentTier.premium
+    # Knowledge tier this character was generated at (0 = untiered). Set at
+    # spawn from the story's world_state.knowledge_tiers ladder; a future
+    # promotion hook raises it and re-grants known_context. Orthogonal to
+    # agent_tier (model cost), though a ladder rung may set both together.
+    knowledge_tier: int = 0
     public_sheet: PublicSheet = Field(default_factory=PublicSheet)
     descriptions: CharacterDescriptions = Field(default_factory=CharacterDescriptions)
     visuals: CharacterVisuals = Field(default_factory=CharacterVisuals)

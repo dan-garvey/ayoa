@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.characters import CharacterAgentTier
 from app.schemas.content import ContentPackState
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
@@ -751,6 +752,26 @@ class StorySetting(BaseModel):
     premise: str = ""
 
 
+class KnowledgeTier(BaseModel):
+    """One rung of an authored knowledge ladder for router-spawned characters.
+
+    A character spawned at knowledge_tier N is authored (at character_gen) to
+    know the cumulative budget of tiers 1..N: the personal depth of their own
+    remembered life plus the shared world/plot knowledge unlocked at that rung.
+    High rungs may name otherwise-hidden plot facts; the assembled budget
+    reaches only the spawned character's own agent context (their
+    known_context/secrets), never the narrator or lower-tier agents.
+    `agent_tier`, when set, overrides the default spawn agent tier for this
+    rung, so a plot-bearing high-tier summon can be voiced by a stronger model
+    than disposable fodder. An empty ladder leaves spawn behavior unchanged.
+    """
+    tier: int
+    label: str = ""
+    personal_depth: str = ""
+    world_knowledge: str = ""
+    agent_tier: CharacterAgentTier | None = None
+
+
 class WorldState(BaseModel):
     facts: list[str] = Field(default_factory=list)
     physics_ruleset: PhysicsRuleset = Field(default_factory=PhysicsRuleset)
@@ -763,3 +784,9 @@ class WorldState(BaseModel):
     # spoilers, conspiracy details, and secrets to be discovered through play.
     hidden_lore: str = ""
     hidden_facts: list[str] = Field(default_factory=list)
+    # Optional authored knowledge ladder for router-spawned characters. When
+    # present, a spawn's seed.knowledge_tier selects a cumulative budget the
+    # character_gen pass authors to (personal depth + unlocked world/plot
+    # knowledge) and may set the spawn's agent tier. Empty (the default) for
+    # stories that do not gate spawn knowledge by tier.
+    knowledge_tiers: list[KnowledgeTier] = Field(default_factory=list)

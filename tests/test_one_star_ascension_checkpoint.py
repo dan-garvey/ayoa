@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.engine.character_manager import _assemble_knowledge_grant
 from app.schemas.characters import CharacterAgentTier
 from app.schemas.checkpoint import CheckpointFile
 
@@ -402,6 +403,61 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     persona = master.personality.lower()
     assert "build and upgrade the lobby's facilities" in persona
     assert "transformation" in persona
+
+
+def test_knowledge_tier_ladder_gradient() -> None:
+    """The seed authors a 5-rung knowledge ladder: a gradient from near-blank
+    1-star fodder up to a plot-aware 5-star, with the agent tier escalating so
+    plot-bearing high summons are voiced by a stronger model than fodder."""
+    checkpoint = _load_checkpoint()
+    tiers = {t.tier: t for t in checkpoint.world_state.knowledge_tiers}
+
+    assert set(tiers) == {1, 2, 3, 4, 5}
+
+    # 1-star knows only personal fragments (family, occupation, temperament,
+    # bravery) and the sanctioned framing -- no real plot knowledge.
+    t1_personal = tiers[1].personal_depth.lower()
+    assert "family" in t1_personal
+    assert "temperament" in t1_personal
+    assert "moebius" not in tiers[1].world_knowledge.lower()
+    assert "fade" not in tiers[1].world_knowledge.lower()
+
+    # 5-star has real plot knowledge unlocked.
+    t5_world = tiers[5].world_knowledge.lower()
+    assert "moebius" in t5_world
+    assert "fade" in t5_world
+
+    # Agent tier escalates with knowledge tier: fodder cheap, plot-bearing strong.
+    assert tiers[1].agent_tier == CharacterAgentTier.utility
+    assert tiers[2].agent_tier == CharacterAgentTier.utility
+    assert tiers[3].agent_tier == CharacterAgentTier.standard
+    assert tiers[4].agent_tier == CharacterAgentTier.premium
+    assert tiers[5].agent_tier == CharacterAgentTier.premium
+
+
+def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
+    """The char-gen budget is cumulative (tier N covers 1..N), gates plot
+    knowledge to high tiers, carries the rung's agent tier, and is inert
+    (no block, default agent tier) when the story authors no ladder."""
+    checkpoint = _load_checkpoint()
+
+    assert _assemble_knowledge_grant(checkpoint, 0) == ("", None)
+
+    grant1, agent1 = _assemble_knowledge_grant(checkpoint, 1)
+    assert "Tier 1" in grant1
+    assert "moebius" not in grant1.lower()
+    assert "fade" not in grant1.lower()
+    assert agent1 == CharacterAgentTier.utility
+
+    grant5, agent5 = _assemble_knowledge_grant(checkpoint, 5)
+    assert all(f"Tier {n}" in grant5 for n in (1, 2, 3, 4, 5))  # cumulative
+    assert "moebius" in grant5.lower()
+    assert "fade" in grant5.lower()
+    assert agent5 == CharacterAgentTier.premium
+
+    # A story with no ladder is unaffected: no budget block, default agent tier.
+    checkpoint.world_state.knowledge_tiers = []
+    assert _assemble_knowledge_grant(checkpoint, 3) == ("", None)
 
 
 def test_seed_has_depth_without_dnd_mechanics() -> None:

@@ -31,7 +31,7 @@ MAX_SPAWNS_PER_TURN = 3
 ROUTER_SUMMARY_MAX_CHARS = 600
 
 DND_GENERATION_INSTRUCTIONS = """
-11. Because this session uses D&D 5e rules, also emit `dnd_statblock`. Build it
+12. Because this session uses D&D 5e rules, also emit `dnd_statblock`. Build it
     from this character's fiction: role, likely competence, physicality, gear,
     threat level, and reason for appearing. Keep it modest unless the Spawn
     Request clearly calls for a dangerous creature or trained combatant. Do not
@@ -102,6 +102,49 @@ def _dnd_ruleset_enabled(checkpoint: CheckpointFile) -> bool:
     return str(getattr(settings, "ruleset_id", "") or "") == "dnd5e_basic"
 
 
+def _assemble_knowledge_grant(
+    checkpoint: CheckpointFile, tier: int,
+) -> tuple[str, CharacterAgentTier | None]:
+    """Build the cumulative character_gen knowledge budget for a spawn tier.
+
+    Returns (grant_block, agent_tier). The block covers tiers 1..tier from
+    `world_state.knowledge_tiers` (each rung's personal depth + unlocked
+    world/plot knowledge); agent_tier is the highest present rung's override,
+    if any. Returns ("", None) when the story authored no ladder or tier <= 0,
+    so spawns in non-tiered stories behave exactly as before.
+    """
+    tiers = list(getattr(checkpoint.world_state, "knowledge_tiers", None) or [])
+    if tier <= 0 or not tiers:
+        return "", None
+    selected = sorted(
+        (t for t in tiers if 1 <= t.tier <= tier), key=lambda t: t.tier,
+    )
+    if not selected:
+        return "", None
+    lines = [
+        "## Knowledge Budget (authoritative)",
+        (
+            f"This character is knowledge tier {tier}. Author their backstory, "
+            "known_context, and secrets to EXACTLY this budget and no further: "
+            "they know what follows and nothing beyond it. Keep spoiler-bearing "
+            "world/plot knowledge in known_context/secrets, never in "
+            "player-safe appearance or default_loadout."
+        ),
+    ]
+    for t in selected:
+        head = f"Tier {t.tier}" + (f" ({t.label})" if t.label else "")
+        lines.append(f"\n{head}:")
+        if t.personal_depth:
+            lines.append(f"- Personal life they remember: {t.personal_depth}")
+        if t.world_knowledge:
+            lines.append(f"- World/plot they are aware of: {t.world_knowledge}")
+    agent_tier: CharacterAgentTier | None = None
+    for t in selected:
+        if t.agent_tier is not None:
+            agent_tier = t.agent_tier
+    return "\n".join(lines), agent_tier
+
+
 class CharacterManager:
     """Manages character registry and state updates."""
 
@@ -138,6 +181,31 @@ class CharacterManager:
         # should not produce this shape; if it does, we skip the status
         # change and log loudly so prompt drift is visible.
         pinned_ids = _pinned_character_ids(checkpoint)
+
+        # Wake dormant characters back into play (inverse of dormant): a
+        # benched Hero or a reserved off-stage persona the router is bringing
+        # on stage. Flip to active and place them where they re-enter.
+        for signal in getattr(routed, "activate", None) or []:
+            char = self.get_character(checkpoint, signal.character_id)
+            if char is None:
+                logger.warning(
+                    "Ignored activate on %s: no such character.",
+                    signal.character_id,
+                )
+                continue
+            if char.status == CharacterStatus.culled:
+                logger.warning(
+                    "Ignored activate on %s: character is culled; the dead do "
+                    "not wake.", signal.character_id,
+                )
+                continue
+            char.status = CharacterStatus.active
+            if signal.location_label:
+                char.location = signal.location_label
+            logger.info(
+                "Character %s woken to active at %s",
+                signal.character_id, char.location,
+            )
 
         for char_id in routed.dormant:
             if char_id in pinned_ids:
@@ -301,6 +369,10 @@ class CharacterManager:
         ]
         spawn_seed = "\n".join(seed_lines) if seed_lines else "No specific seed provided."
 
+        knowledge_grant, tier_agent_tier = _assemble_knowledge_grant(
+            checkpoint, req.seed.knowledge_tier,
+        )
+
         existing = ", ".join(c.name for c in checkpoint.characters)
         dnd_enabled = _dnd_ruleset_enabled(checkpoint)
 
@@ -312,6 +384,7 @@ class CharacterManager:
             location_context=location_context,
             character_id=req.character_id,
             spawn_seed=spawn_seed,
+            knowledge_grant=knowledge_grant,
             existing_characters=existing,
             location=location,
             dnd_generation_instructions=(
@@ -337,7 +410,8 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
-        char.agent_tier = CharacterAgentTier.utility
+        char.agent_tier = tier_agent_tier or CharacterAgentTier.utility
+        char.knowledge_tier = req.seed.knowledge_tier
         if dnd_enabled:
             self._attach_dnd_spawn_mechanics(char, authored, req=req)
         # Override the LLM's authored.location only when the router or

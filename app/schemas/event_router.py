@@ -226,6 +226,11 @@ class SpawnSeed(BaseModel):
     reason: str
     location: str
     objectives: list[str]
+    # Knowledge budget at birth (0 = untiered). In a world with an authored
+    # `world_state.knowledge_tiers` ladder, this selects the rung the
+    # character_gen pass authors the new character to. For the gacha seed it
+    # is the summon's star grade (1-5).
+    knowledge_tier: int = 0
 
 
 class SpawnRequest(BaseModel):
@@ -330,6 +335,29 @@ class LocationUpdateSignal(BaseModel):
         return self
 
 
+class WakeSignal(BaseModel):
+    """Router-authored instruction to wake a dormant character into play.
+
+    The inverse of `dormant`: flips a dormant character back to active and
+    places them at `location_label` (where they re-enter the scene). Use it to
+    bring a benched Hero or a reserved off-stage character back on stage, using
+    their existing authored self; prefer waking an existing dormant record over
+    spawning a duplicate. `location_label` may be empty to leave their current
+    location unchanged.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: str
+    location_label: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "WakeSignal":
+        self.character_id = self.character_id.strip()
+        self.location_label = self.location_label.strip()
+        return self
+
+
 def empty_commitment_open_signal() -> dict[str, Any]:
     return {
         "present": False,
@@ -423,6 +451,22 @@ class EventRouterOutput(BaseModel):
     commitment_resolutions: list[CommitmentResolutionSignal]
     commitment_interrupts: list[CommitmentInterruptSignal]
     location_updates: list[LocationUpdateSignal]
+    # Wake dormant characters back into play (inverse of `dormant`). Kept
+    # required in the LLM grammar like its siblings; `_default_activate` fills
+    # it for hand-built/older EventRouterOutput constructions that omit it.
+    activate: list[WakeSignal]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_activate(cls, data: Any) -> Any:
+        """Fill `activate` for constructors and fixtures that predate it, the
+        same way `_assign_event_id` defaults event_id. The field stays required
+        in the emitted schema (no Field default), so the router must still emit
+        it, but Python-side construction without it keeps working."""
+        if isinstance(data, dict) and "activate" not in data:
+            data = dict(data)
+            data["activate"] = []
+        return data
 
     @model_validator(mode="before")
     @classmethod

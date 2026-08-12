@@ -188,6 +188,7 @@ def router_output(
     spawn: list[SpawnRequest] | None = None,
     dormant: list[str] | None = None,
     cull: list[str] | None = None,
+    activate: list[dict] | None = None,
 ) -> EventRouterOutput:
     picks = agent_ids or []
     required = required_responders or []
@@ -233,6 +234,7 @@ def router_output(
         spawn=spawn or [],
         dormant=dormant or [],
         cull=cull or [],
+        activate=activate or [],
         commitment_open=empty_commitment_open_signal(),
         commitment_resolutions=[],
         commitment_interrupts=[],

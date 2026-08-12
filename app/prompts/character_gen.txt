@@ -28,6 +28,7 @@ Generate a new character who fits naturally into the established setting and has
 8. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
 9. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas). False for walk-ons, attendants, background figures.
 10. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
+11. If a Knowledge Budget appears in the input, it is AUTHORITATIVE: author `backstory`, `known_context`, and `secrets` to exactly that budget and no further, giving the character no knowledge beyond their tier. Keep any spoiler-bearing world or plot knowledge in `known_context`/`secrets`, never in player-safe `appearance`/`default_loadout`. If no budget is provided, author knowledge as usual.
 {dnd_generation_instructions}
 </instructions>
 
@@ -64,6 +65,8 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 Character ID: {character_id}
 Location: {location}
 {spawn_seed}
+
+{knowledge_grant}
 
 ## Existing Characters (avoid duplicating)
 {existing_characters}

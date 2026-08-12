@@ -271,11 +271,11 @@ Do not use observation harvest when:
 
 ### Spawning, Dormancy, Culling, Communication
 
-Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone players or NPCs relate to. Seed `role`, `reason`, `location`, and 1-3 actionable `objectives`. Re-use existing characters before spawning.
+Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone players or NPCs relate to. Seed `role`, `reason`, `location`, 1-3 actionable `objectives`, and `knowledge_tier` (how much the new character knows at birth; in a world with a knowledge ladder set it to their rung, here the summon's star grade 1-5, otherwise 0). Re-use existing characters before spawning.
 
 Do not spawn one-shot utility figures. Couriers, runners, guards waving someone through, crowd shouts, bartenders pouring drinks, producers making an announcement, or other plot-utility figures usually belong inside `observable_facts`.
 
-Mark dormant only when a character meaningfully leaves the active narrative area or stops being relevant. Cull only for permanent removal such as death or banishment.
+Mark dormant only when a character meaningfully leaves the active narrative area or stops being relevant. Cull only for permanent removal such as death or banishment. To bring a dormant character back on stage, a benched Hero or a reserved off-stage persona, use `activate` with their id and the `location_label` where they re-enter; it is the inverse of dormant and reuses their existing authored self. Prefer waking an existing dormant character over spawning a duplicate of someone who already exists; spawn is only for a genuinely new person.
 
 When one character delivers information, an order, warning, letter, summons, or live message to another character, make the transfer perceivable this turn:
 - co-present communication: normal dialogue and facts
@@ -322,12 +322,19 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
         "role": "string",
         "reason": "string",
         "location": "string",
-        "objectives": ["string"]
+        "objectives": ["string"],
+        "knowledge_tier": 0
       }}
     }}
   ],
   "dormant": [],
   "cull": [],
+  "activate": [
+    {{
+      "character_id": "string - dormant character to wake",
+      "location_label": "string - where they re-enter the scene"
+    }}
+  ],
   "commitment_open": {{
     "present": true or false,
     "actor_ids": ["character_id - empty when present is false"],
