@@ -46,6 +46,10 @@ from app.engine.frontend_views import (
     RewindResult,
     TurnHistoryEntry,
 )
+from app.engine.image_generation import (
+    ImageGenerationConfig,
+    ImageGenerationCoordinator,
+)
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
@@ -229,6 +233,7 @@ class EngineBridge:
         sessions_dir: str | None = None,
         prompts_dir: str = "app/prompts",
         llm_config: LLMConfig | None = None,
+        image_generation: ImageGenerationCoordinator | None = None,
     ):
         self.stories_dir = Path(stories_dir or "app/storage/stories")
         self.sessions_dir = Path(sessions_dir or "app/storage/sessions")
@@ -240,11 +245,23 @@ class EngineBridge:
         self.orchestrator = Orchestrator(
             self.client, self.checkpoint_mgr, self.prompt_mgr
         )
+        image_runtime_root = self.sessions_dir.parent / "runtime" / "image_generation"
+        self.image_generation = image_generation or ImageGenerationCoordinator(
+            sessions_dir=self.sessions_dir,
+            config=ImageGenerationConfig.from_environment(
+                runtime_root=image_runtime_root,
+            ),
+            repo_root=Path.cwd(),
+        )
         # One lock per session_id; created lazily.
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._locks_mutex = asyncio.Lock()
 
+    async def start(self) -> None:
+        await self.image_generation.start()
+
     async def close(self) -> None:
+        await self.image_generation.close()
         await self.client.close()
 
     # ---- session lifecycle ---------------------------------------------------
@@ -362,6 +379,13 @@ class EngineBridge:
 
     def load_latest(self, session_id: str) -> CheckpointFile:
         return self.checkpoint_mgr.load_latest(session_id)
+
+    def load_checkpoint(
+        self,
+        session_id: str,
+        checkpoint_id: str,
+    ) -> CheckpointFile:
+        return self.checkpoint_mgr.load(session_id, checkpoint_id)
 
     def list_checkpoint_turns(self, session_id: str) -> list[int]:
         """Return the integer turn indices of every saved checkpoint for
@@ -522,6 +546,7 @@ class EngineBridge:
                     f"Cannot rewind to turn {target_turn}: latest is now "
                     f"{current_latest}."
                 )
+            await self.image_generation.cancel_after(session_id, target_turn)
             deleted = self.checkpoint_mgr.delete_checkpoints_after(
                 session_id, target_turn,
             )

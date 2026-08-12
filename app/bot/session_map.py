@@ -82,6 +82,18 @@ CREATE TABLE IF NOT EXISTS turn_messages (
 
 CREATE INDEX IF NOT EXISTS turn_messages_rewind_idx
 ON turn_messages(channel_id, session_id, turn_index);
+
+CREATE TABLE IF NOT EXISTS media_cleanup_outbox (
+    channel_id          INTEGER NOT NULL,
+    session_id          TEXT NOT NULL,
+    turn_index          INTEGER NOT NULL,
+    discord_channel_id  INTEGER NOT NULL,
+    message_id          INTEGER NOT NULL,
+    delivery            TEXT NOT NULL,
+    recipient_user_id   INTEGER,
+    created_at          INTEGER NOT NULL,
+    PRIMARY KEY (discord_channel_id, message_id)
+);
 """
 
 
@@ -288,6 +300,36 @@ class SessionMap:
             rows = cursor.fetchall()
         return [TurnMessageRef(*row) for row in rows]
 
+    async def has_turn_delivery(
+        self,
+        *,
+        channel_id: int,
+        session_id: str,
+        turn_index: int,
+        recipient_user_id: int,
+        delivery_suffix: str,
+    ) -> bool:
+        """Whether this private turn artifact was already sent and tracked."""
+
+        suffix = str(delivery_suffix or "").strip()
+        if not suffix:
+            return False
+        with sqlite3.connect(self.db_path) as db:
+            rows = db.execute(
+                """
+                SELECT delivery FROM turn_messages
+                WHERE channel_id = ? AND session_id = ? AND turn_index = ?
+                  AND recipient_user_id = ?
+                """,
+                (
+                    channel_id,
+                    session_id,
+                    turn_index,
+                    recipient_user_id,
+                ),
+            ).fetchall()
+        return any(str(row[0]).endswith(f"_{suffix}") for row in rows)
+
     async def forget_turn_messages(
         self,
         refs: Iterable[TurnMessageRef],
@@ -325,3 +367,55 @@ class SessionMap:
                 (channel_id,),
             )
             return cursor.rowcount
+
+    async def record_media_cleanup(self, ref: TurnMessageRef) -> None:
+        with sqlite3.connect(self.db_path) as db:
+            db.execute(
+                """
+                INSERT OR REPLACE INTO media_cleanup_outbox (
+                    channel_id, session_id, turn_index, discord_channel_id,
+                    message_id, delivery, recipient_user_id, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    ref.channel_id,
+                    ref.session_id,
+                    ref.turn_index,
+                    ref.discord_channel_id,
+                    ref.message_id,
+                    ref.delivery,
+                    ref.recipient_user_id,
+                    int(time.time()),
+                ),
+            )
+
+    async def list_media_cleanup(self) -> list[TurnMessageRef]:
+        with sqlite3.connect(self.db_path) as db:
+            rows = db.execute(
+                """
+                SELECT channel_id, session_id, turn_index,
+                    discord_channel_id, message_id, delivery,
+                    recipient_user_id, created_at
+                FROM media_cleanup_outbox
+                ORDER BY created_at, discord_channel_id, message_id
+                """
+            ).fetchall()
+        return [TurnMessageRef(*row) for row in rows]
+
+    async def forget_media_cleanup(
+        self,
+        refs: Iterable[TurnMessageRef],
+    ) -> int:
+        deleted = 0
+        with sqlite3.connect(self.db_path) as db:
+            for ref in refs:
+                cursor = db.execute(
+                    """
+                    DELETE FROM media_cleanup_outbox
+                    WHERE discord_channel_id = ? AND message_id = ?
+                    """,
+                    (ref.discord_channel_id, ref.message_id),
+                )
+                deleted += cursor.rowcount
+        return deleted

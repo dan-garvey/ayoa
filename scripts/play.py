@@ -113,6 +113,11 @@ from app.engine.cli_image_display import (
 )
 from app.engine.text_safety import strip_terminal_control
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig, MissingLLMCredential
+from app.schemas.image_generation import (
+    ImageDeliveryKind,
+    ImageGenerationStatus,
+    ImageTriggerKind,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -1387,6 +1392,7 @@ class CLIState:
         self.claims: dict[str, int] = {}
         self._next_user_id = 1
         self.running = True
+        self._pending_cli_image_jobs: dict[str, str] = {}
         # When set, restrict printed POV renders/asset reveals to this one
         # character. Separate-terminal one-shot play sets this so each
         # terminal shows only its own player's POV, mirroring Discord's
@@ -1722,7 +1728,11 @@ class CLIState:
             return
         if actor_id:
             self.current_actor = actor_id
-        self._print_turn_response(response, actor_id=actor_id)
+        await self._print_turn_response_with_image(
+            response,
+            actor_id=actor_id,
+            trigger_kind=ImageTriggerKind.begin,
+        )
 
     async def cmd_attach(self, arg: str) -> None:
         if not self._require_story():
@@ -2324,7 +2334,11 @@ class CLIState:
                     f"{player_safe_error_message(e, operation='the opening')}"
                 )
                 return
-            self._print_turn_response(response, actor_id=self.current_actor)
+            await self._print_turn_response_with_image(
+                response,
+                actor_id=self.current_actor,
+                trigger_kind=ImageTriggerKind.begin,
+            )
 
     async def cmd_query(self, arg: str) -> None:
         """Out-of-character question for the current actor's POV.
@@ -2599,7 +2613,11 @@ class CLIState:
                 logger.exception("pending roll continuation failed")
                 print(f"error: {type(e).__name__}: {e}")
                 return
-            self._print_turn_response(response, actor_id=result.actor_id)
+            await self._print_turn_response_with_image(
+                response,
+                actor_id=result.actor_id,
+                trigger_kind=ImageTriggerKind.roll_resolution,
+            )
             if response.beat_ended_reason == "cat_ii_pending_rolls":
                 printed_pending_from_response = True
 
@@ -2806,9 +2824,10 @@ class CLIState:
                     logger.exception("combat reaction defer failed")
                     print(f"error: {type(e).__name__}: {e}")
                     return
-                self._print_turn_response(
+                await self._print_turn_response_with_image(
                     response,
                     actor_id=self.current_actor,
+                    trigger_kind=ImageTriggerKind.act,
                 )
                 return
         await self._act("(defer)")
@@ -2831,7 +2850,11 @@ class CLIState:
             print(f"error: {player_safe_error_message(e)}")
             return
 
-        self._print_turn_response(response, actor_id=self.current_actor)
+        await self._print_turn_response_with_image(
+            response,
+            actor_id=self.current_actor,
+            trigger_kind=ImageTriggerKind.act,
+        )
 
     def _pov_claims(self) -> set[str]:
         """Which claimed characters' POVs this terminal should print.
@@ -2940,6 +2963,96 @@ class CLIState:
         self._print_loot_prompts(response)
         self._print_commitment_revision_prompts(response)
         self._sync_current_actor_to_active_combat()
+
+    async def _print_turn_response_with_image(
+        self,
+        response,
+        *,
+        actor_id: str,
+        trigger_kind: ImageTriggerKind,
+    ) -> None:
+        self._print_turn_response(response, actor_id=actor_id)
+        if not actor_id:
+            return
+        try:
+            ckpt = self.engine.load_checkpoint(
+                self.session_id,
+                response.checkpoint_id,
+            )
+            job = await self.engine.image_generation.enqueue_turn(
+                ckpt=ckpt,
+                response=response,
+                actor_character_id=actor_id,
+                trigger_kind=trigger_kind,
+                delivery_kind=ImageDeliveryKind.cli,
+                delivery={},
+            )
+        except Exception:
+            logger.exception("CLI illustration enqueue failed")
+            return
+        if job is None or job.status == ImageGenerationStatus.delivered:
+            return
+        self._pending_cli_image_jobs[job.job_id] = actor_id
+
+    async def flush_pending_images(self) -> None:
+        """Wait/display outside the cross-process story command lock."""
+
+        for completed in self.engine.image_generation.pending_for_delivery(
+            ImageDeliveryKind.cli,
+            session_id=self.session_id,
+            actor_character_ids=self._pov_claims(),
+        ):
+            self._pending_cli_image_jobs.setdefault(
+                completed.job_id,
+                completed.request.actor_character_id,
+            )
+        pending = list(self._pending_cli_image_jobs.items())
+        self._pending_cli_image_jobs.clear()
+        for job_id, actor_id in pending:
+            try:
+                async with _progress("Generating local illustration"):
+                    completed = (
+                        await self.engine.image_generation.wait_for_terminal(
+                            job_id,
+                            timeout=(
+                                self.engine.image_generation.config
+                                .cli_wait_timeout_seconds
+                            ),
+                        )
+                    )
+            except TimeoutError:
+                await self.engine.image_generation.cancel_job(
+                    job_id,
+                    error_code="cli_timeout",
+                )
+                logger.warning("CLI illustration timed out and was cancelled")
+                continue
+            if completed is None or completed.status not in {
+                ImageGenerationStatus.succeeded,
+                ImageGenerationStatus.delivered,
+            }:
+                continue
+            try:
+                media = self.engine.image_generation.resolve_job_media(completed)
+                prepared = self.asset_image_renderer.prepare_generated(
+                    media,
+                    session_id=self.session_id,
+                    pov_character_id=actor_id,
+                    cache_root=(
+                        self.engine.image_generation.config.runtime_root
+                        / "cli_cache"
+                    ),
+                )
+                print(f"--- AI Illustration · {actor_id} ---")
+                result = self.asset_image_renderer.render_prepared(prepared)
+                print(_cli_image_display_message(result))
+                print()
+                if result.displayed or result.export_path is not None:
+                    await self.engine.image_generation.mark_delivered(
+                        completed.job_id
+                    )
+            except Exception:
+                logger.exception("CLI illustration display failed")
 
     def _print_asset_reveals(self, response) -> None:
         per_pov = getattr(response, "per_player_asset_reveals", None) or {}
@@ -3279,6 +3392,7 @@ async def run_oneshot_commands(
     with _session_command_lock(sessions_dir, session_id):
         for command in commands:
             await state.handle_line(command)
+    await state.flush_pending_images()
     return 0
 
 
@@ -3338,6 +3452,7 @@ async def main_async(args: argparse.Namespace) -> int:
             console=console,
             asset_image_renderer=image_renderer,
         )
+        await engine.start()
 
         if args.commands is not None:
             # Non-interactive one-shot: run the given command(s) against this
@@ -3372,6 +3487,7 @@ async def main_async(args: argparse.Namespace) -> int:
             print(HELP_TEXT)
         print()
 
+        await state.flush_pending_images()
         while state.running:
             actor = state.current_actor or "-"
             try:
@@ -3393,6 +3509,7 @@ async def main_async(args: argparse.Namespace) -> int:
                 # attached to this session from separate terminals.
                 with _session_command_lock(engine.sessions_dir, session_id):
                     await state.handle_line(line)
+                await state.flush_pending_images()
             except KeyboardInterrupt:
                 print("\n(interrupted)")
     finally:

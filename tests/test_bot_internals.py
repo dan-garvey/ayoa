@@ -1955,6 +1955,7 @@ class TestPostAssetsToPov:
 
         smap = MagicMock()
         smap.record_turn_message = AsyncMock()
+        smap.forget_turn_messages = AsyncMock()
         smap.clear_pov_thread = AsyncMock()
 
         engine = MagicMock()
@@ -2070,6 +2071,158 @@ class TestPostAssetsToPov:
         assert "hidden-map" not in notice_text
         assert "Private title" not in notice_text
         assert "Spoiler-safe" not in notice_text
+
+    def test_generated_media_uses_private_delivery_and_rewind_tracking(
+        self, monkeypatch,
+    ):
+        from app.bot.media_delivery import deliver_player_media
+        from app.engine.player_media import ResolvedPlayerMedia
+
+        _inter, channel, user, bot, smap, _engine = self._env(monkeypatch)
+        thread = MagicMock()
+        thread.id = 999
+        message = SimpleNamespace(id=556, channel=SimpleNamespace(id=999))
+        thread.send = AsyncMock(return_value=message)
+        media = ResolvedPlayerMedia(
+            filename="illustration-aaaaaaaaaaaaaaaa.webp",
+            mime_type="image/webp",
+            data=b"generated",
+            sha256="a" * 64,
+            byte_count=9,
+            width=1024,
+            height=1024,
+        )
+
+        delivered = asyncio.run(deliver_player_media(
+            client=bot,
+            smap=smap,
+            session_channel_id=777,
+            user_id=42,
+            character_id="alice",
+            char_name="Alice",
+            media=media,
+            caption="AI-generated, noncanonical illustration · Turn 8",
+            alt_text="A noncanonical illustration.",
+            session_id="s",
+            turn_index=8,
+            parent_channel=channel,
+            delivery_label="generated_image",
+            preferred_thread=thread,
+            resolve_thread=False,
+        ))
+
+        assert delivered is True
+        thread.send.assert_awaited_once()
+        user.send.assert_not_awaited()
+        record = smap.record_turn_message.await_args.kwargs
+        assert record["delivery"] == "thread_generated_image"
+        assert record["turn_index"] == 8
+        channel.send.assert_not_awaited()
+
+    def test_generated_media_removes_attachment_if_rewind_wins_send_race(
+        self, monkeypatch,
+    ):
+        from app.bot.media_delivery import deliver_player_media
+        from app.engine.player_media import ResolvedPlayerMedia
+
+        _inter, channel, _user, bot, smap, _engine = self._env(monkeypatch)
+        thread = MagicMock()
+        thread.id = 999
+        message = MagicMock()
+        message.id = 557
+        message.channel.id = 999
+        message.delete = AsyncMock()
+        thread.send = AsyncMock(return_value=message)
+        checks = iter((True, True, False))
+
+        async def _is_current():
+            return next(checks)
+
+        delivered = asyncio.run(deliver_player_media(
+            client=bot,
+            smap=smap,
+            session_channel_id=777,
+            user_id=42,
+            character_id="alice",
+            char_name="Alice",
+            media=ResolvedPlayerMedia(
+                filename="illustration.webp",
+                mime_type="image/webp",
+                data=b"generated",
+                sha256="a" * 64,
+                byte_count=9,
+                width=1024,
+                height=1024,
+            ),
+            caption="Noncanonical illustration.",
+            alt_text="Noncanonical illustration.",
+            session_id="s",
+            turn_index=8,
+            parent_channel=channel,
+            delivery_label="generated_image",
+            preferred_thread=thread,
+            resolve_thread=False,
+            delivery_is_current=_is_current,
+        ))
+
+        assert delivered is False
+        message.delete.assert_awaited_once()
+        smap.record_turn_message.assert_awaited_once()
+        smap.forget_turn_messages.assert_awaited_once()
+
+    def test_durable_media_cleanup_outbox_retries_and_forgets_ref(self, tmp_path):
+        from app.bot.media_delivery import retry_media_cleanup_outbox
+        from app.bot.session_map import SessionMap, TurnMessageRef
+
+        smap = SessionMap(tmp_path / "sessionmap.db")
+        ref = TurnMessageRef(
+            channel_id=777,
+            session_id="s",
+            turn_index=8,
+            discord_channel_id=999,
+            message_id=558,
+            delivery="thread_generated_image_img_test",
+            recipient_user_id=42,
+            created_at=0,
+        )
+        message = MagicMock()
+        message.delete = AsyncMock()
+        channel = MagicMock()
+        channel.fetch_message = AsyncMock(return_value=message)
+        client = MagicMock()
+        client.get_channel.return_value = channel
+
+        async def _run():
+            await smap.init()
+            await smap.record_turn_message(
+                channel_id=ref.channel_id,
+                session_id=ref.session_id,
+                turn_index=ref.turn_index,
+                discord_channel_id=ref.discord_channel_id,
+                message_id=ref.message_id,
+                delivery=ref.delivery,
+                recipient_user_id=ref.recipient_user_id,
+            )
+            await smap.record_media_cleanup(ref)
+            handled = await retry_media_cleanup_outbox(
+                client=client,
+                smap=smap,
+            )
+            return (
+                handled,
+                await smap.list_media_cleanup(),
+                await smap.list_turn_messages(
+                    channel_id=777,
+                    session_id="s",
+                    turns=[8],
+                ),
+            )
+
+        handled, outbox, tracked = asyncio.run(_run())
+        assert handled == 1
+        assert outbox == []
+        assert tracked == []
+        message.delete.assert_awaited_once()
 
 
 # ---- rewind Discord message cleanup ---------------------------------------

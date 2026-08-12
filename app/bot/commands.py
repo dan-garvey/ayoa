@@ -35,7 +35,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from io import BytesIO
 import json
 import logging
 import os
@@ -56,6 +55,11 @@ from app.bot.embed import (
 )
 from app.bot.engine_bridge import (
     EngineBridge,
+)
+from app.bot.media_delivery import (
+    deliver_player_media,
+    ensure_pov_thread as _ensure_pov_thread,
+    record_turn_message as _record_turn_message,
 )
 from app.bot.player_errors import player_safe_error_message
 from app.engine import dnd_experience, dnd_inventory, dnd_presentation
@@ -82,6 +86,10 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
+from app.schemas.image_generation import (
+    ImageDeliveryKind,
+    ImageTriggerKind,
+)
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 
 logger = logging.getLogger(__name__)
@@ -738,133 +746,6 @@ async def _send_public_roll_displays(
                 logger.debug("public dice roll edit failed", exc_info=True)
 
 
-async def _record_turn_message(
-    *,
-    smap: SessionMap,
-    session_channel_id: int,
-    session_id: str,
-    turn_index: Optional[int],
-    message: object,
-    delivery: str,
-    discord_channel_id: Optional[int] = None,
-    recipient_user_id: Optional[int] = None,
-) -> None:
-    if not session_id or turn_index is None:
-        return
-    message_id = getattr(message, "id", None)
-    if message_id is None:
-        return
-    message_channel = getattr(message, "channel", None)
-    channel_id = discord_channel_id or getattr(message_channel, "id", None)
-    if channel_id is None:
-        return
-    try:
-        await smap.record_turn_message(
-            channel_id=session_channel_id,
-            session_id=session_id,
-            turn_index=int(turn_index),
-            discord_channel_id=int(channel_id),
-            message_id=int(message_id),
-            delivery=delivery,
-            recipient_user_id=recipient_user_id,
-        )
-    except Exception:
-        logger.exception(
-            "turn-message tracking failed for session=%s turn=%s message=%s",
-            session_id, turn_index, message_id,
-        )
-
-
-async def _ensure_pov_thread(
-    *,
-    channel: discord.abc.Messageable,
-    user: discord.abc.User,
-    smap: SessionMap,
-    character_id: str,
-    char_name: str,
-) -> Optional[discord.Thread]:
-    """Get or create the private POV thread for `user` in `channel`.
-
-    Returns None if thread creation isn't possible (channel doesn't
-    support threads, missing CREATE_PRIVATE_THREADS perm, network
-    failure). Callers fall back to DM in that case so the player still
-    receives their narrative beat.
-
-    Threads persist across re-binds: a player who /leave's and /joins
-    a different character keeps the same thread. `character_id` is
-    stored for diagnostic purposes only.
-    """
-    if not isinstance(channel, discord.TextChannel):
-        return None  # DM channels and voice channels can't host threads
-    cached = await smap.get_pov_thread_id(channel.id, user.id)
-    if cached is not None:
-        thread = channel.guild.get_thread(cached)
-        if thread is None:
-            try:
-                thread = await channel.guild.fetch_channel(cached)
-            except discord.NotFound:
-                thread = None
-            except Exception:
-                logger.exception(
-                    "ensure_pov_thread: fetch_channel(%s) failed", cached,
-                )
-                thread = None
-        if isinstance(thread, discord.Thread) and not thread.archived:
-            return thread
-        # Cached id is stale or archived — drop it and recreate below.
-        await smap.clear_pov_thread(channel.id, user.id)
-
-    suffix = (char_name or character_id or "pov").strip()[:60] or "pov"
-    thread_name = f"{user.display_name} · {suffix}"
-    try:
-        thread = await channel.create_thread(
-            name=thread_name[:100],
-            type=discord.ChannelType.private_thread,
-            invitable=False,
-            auto_archive_duration=10080,  # 7 days; max allowed without boost
-            reason=f"POV thread for {user.display_name} ({character_id})",
-        )
-    except discord.Forbidden:
-        logger.warning(
-            "ensure_pov_thread: missing CREATE_PRIVATE_THREADS in #%s "
-            "(channel %s); falling back to DM for user %s",
-            channel.name, channel.id, user.id,
-        )
-        return None
-    except Exception:
-        logger.exception(
-            "ensure_pov_thread: create_thread failed in #%s for user %s",
-            channel.name, user.id,
-        )
-        return None
-
-    try:
-        await thread.add_user(user)
-    except Exception:
-        logger.exception(
-            "ensure_pov_thread: add_user(%s) failed on thread %s; "
-            "abandoning the thread and falling back to DM",
-            user.id, thread.id,
-        )
-        # Don't cache: a private thread the user was never added to is
-        # invisible to them, and `thread.send` won't raise — so without
-        # bailing out we'd silently drop every POV beat on the floor
-        # (the comment used to claim DM fallback would kick in; it
-        # would not, because send-success masked the underlying
-        # add_user failure). Returning None here forces the caller into
-        # the explicit DM path. The orphan thread is left alive in
-        # Discord; an operator can clean up if needed.
-        return None
-
-    await smap.set_pov_thread(
-        channel_id=channel.id,
-        user_id=user.id,
-        thread_id=thread.id,
-        character_id=character_id,
-    )
-    return thread
-
-
 async def _post_actor_render(
     *,
     inter: discord.Interaction,
@@ -1387,57 +1268,24 @@ async def _post_assets_to_pov(
             )
             continue
 
-        def _file() -> discord.File:
-            return discord.File(
-                BytesIO(resolved.data),
-                filename=resolved.filename,
-                description=_safe_asset_alt_text(payload),
-            )
-
         caption = _safe_asset_caption(payload)
-        sent = False
-        if thread is not None:
-            try:
-                msg = await thread.send(content=caption, file=_file())
-                await _record_turn_message(
-                    smap=smap,
-                    session_channel_id=session_chan_id,
-                    session_id=session_id,
-                    turn_index=turn_index,
-                    message=msg,
-                    delivery="thread_asset",
-                    discord_channel_id=thread.id,
-                    recipient_user_id=user_id,
-                )
-                sent = True
-            except Exception:
-                logger.warning(
-                    "post_assets_to_pov: thread.send to %s failed; "
-                    "falling back to DM",
-                    thread.id,
-                )
-                await smap.clear_pov_thread(session_chan_id, user_id)
-                thread = None
-
-        if not sent:
-            try:
-                msg = await user.send(content=caption, file=_file())
-                await _record_turn_message(
-                    smap=smap,
-                    session_channel_id=session_chan_id,
-                    session_id=session_id,
-                    turn_index=turn_index,
-                    message=msg,
-                    delivery="dm_asset",
-                    recipient_user_id=user_id,
-                )
-                sent = True
-            except Exception:
-                logger.warning(
-                    "post_assets_to_pov: DM fallback to user %s failed; "
-                    "withholding asset",
-                    user_id,
-                )
+        sent = await deliver_player_media(
+            client=bot,
+            smap=smap,
+            session_channel_id=session_chan_id,
+            user_id=user_id,
+            character_id=character_id,
+            char_name=char_name,
+            media=resolved,
+            caption=caption,
+            alt_text=_safe_asset_alt_text(payload),
+            session_id=session_id,
+            turn_index=turn_index,
+            parent_channel=channel,
+            delivery_label="asset",
+            preferred_thread=thread,
+            resolve_thread=False,
+        )
 
         if not sent:
             delivered_all = False
@@ -1577,6 +1425,7 @@ class _PendingRollView(discord.ui.View):
             actor_user=roll_inter.user,
             response=response,
             clear_interaction_response=False,
+            image_trigger=ImageTriggerKind.roll_resolution,
         )
 
 
@@ -2042,6 +1891,53 @@ async def _deliver_loot_prompts(
             )
 
 
+async def _queue_discord_actor_image(
+    *,
+    inter: discord.Interaction,
+    engine: EngineBridge,
+    session_id: str,
+    actor_character_id: str,
+    actor_user: discord.abc.User,
+    response: TurnResponse,
+    trigger_kind: ImageTriggerKind,
+    char_name: str = "",
+) -> None:
+    """Best-effort enqueue after prose delivery; never fail a story turn."""
+
+    if not actor_character_id:
+        return
+    try:
+        ckpt = engine.load_checkpoint(session_id, response.checkpoint_id)
+        if not char_name:
+            character = next(
+                (
+                    item
+                    for item in ckpt.characters
+                    if item.character_id == actor_character_id
+                ),
+                None,
+            )
+            char_name = character.name if character else actor_character_id
+        await engine.image_generation.enqueue_turn(
+            ckpt=ckpt,
+            response=response,
+            actor_character_id=actor_character_id,
+            trigger_kind=trigger_kind,
+            delivery_kind=ImageDeliveryKind.discord,
+            delivery={
+                "session_channel_id": _session_channel_id(inter),
+                "user_id": int(actor_user.id),
+                "character_id": actor_character_id,
+                "char_name": char_name,
+            },
+        )
+    except Exception:
+        logger.exception(
+            "failed to queue output-only illustration for turn=%s",
+            response.turn_index,
+        )
+
+
 async def _deliver_turn_response_to_povs(
     *,
     inter: discord.Interaction,
@@ -2053,6 +1949,7 @@ async def _deliver_turn_response_to_povs(
     actor_user: discord.abc.User,
     response: TurnResponse,
     clear_interaction_response: bool = True,
+    image_trigger: ImageTriggerKind | None = None,
 ) -> None:
     """Deliver a TurnResponse using the standard /act POV format.
 
@@ -2602,13 +2499,24 @@ async def _deliver_turn_response_to_povs(
         session_id=session_id,
         response=response,
     )
+    if image_trigger is not None:
+        await _queue_discord_actor_image(
+            inter=inter,
+            engine=engine,
+            session_id=session_id,
+            actor_character_id=actor_character_id,
+            actor_user=actor_user,
+            response=response,
+            trigger_kind=image_trigger,
+            char_name=actor_name,
+        )
 
 
 async def _message_channel_for_ref(
     client: discord.Client,
     ref: TurnMessageRef,
 ):
-    if ref.delivery == "dm" and ref.recipient_user_id is not None:
+    if ref.delivery.startswith("dm") and ref.recipient_user_id is not None:
         user = client.get_user(ref.recipient_user_id)
         if user is None:
             try:
@@ -3532,6 +3440,68 @@ def register(
     If `guild` is provided, commands are registered guild-scoped (propagate
     instantly). Without it, commands are global (up to 1h to propagate).
     """
+    async def _deliver_generated_image(job, media) -> bool:
+        delivery = job.request.delivery or {}
+        try:
+            session_channel_id = int(delivery["session_channel_id"])
+            user_id = int(delivery["user_id"])
+        except (KeyError, TypeError, ValueError):
+            logger.warning(
+                "generated illustration has invalid Discord delivery metadata"
+            )
+            return False
+        character_id = str(
+            delivery.get("character_id") or job.request.actor_character_id
+        )
+        char_name = str(delivery.get("char_name") or character_id)
+        if await smap.has_turn_delivery(
+            channel_id=session_channel_id,
+            session_id=job.request.session_id,
+            turn_index=job.request.turn_index,
+            recipient_user_id=user_id,
+            delivery_suffix=f"generated_image_{job.job_id}",
+        ):
+            return True
+
+        async def _delivery_is_current() -> bool:
+            if not engine.image_generation.delivery_is_current(job.job_id):
+                return False
+            row = await smap.get(session_channel_id)
+            if row is None or row.session_id != job.request.session_id:
+                await engine.image_generation.cancel_job(
+                    job.job_id,
+                    error_code="delivery_target_stale",
+                )
+                return False
+            return True
+
+        return await deliver_player_media(
+            client=tree.client,
+            smap=smap,
+            session_channel_id=session_channel_id,
+            user_id=user_id,
+            character_id=character_id,
+            char_name=char_name,
+            media=media,
+            caption=(
+                f"AI-generated, noncanonical illustration · "
+                f"Turn {job.request.turn_index}"
+            ),
+            alt_text=(
+                f"AI-generated noncanonical story illustration for "
+                f"{char_name}, turn {job.request.turn_index}."
+            ),
+            session_id=job.request.session_id,
+            turn_index=job.request.turn_index,
+            delivery_label=f"generated_image_{job.job_id}",
+            delivery_is_current=_delivery_is_current,
+        )
+
+    engine.image_generation.register_delivery_handler(
+        ImageDeliveryKind.discord,
+        _deliver_generated_image,
+    )
+
     story_group = app_commands.Group(
         name="story",
         description="Manage the story loaded into this channel's session.",
@@ -3603,7 +3573,12 @@ def register(
         if row is None:
             await inter.response.send_message("No session here.", ephemeral=True)
             return
-        await smap.delete(_session_channel_id(inter))
+        channel_id = _session_channel_id(inter)
+        await smap.delete(channel_id)
+        await engine.image_generation.cancel_discord_destination(
+            session_id=row.session_id,
+            session_channel_id=channel_id,
+        )
         await inter.response.send_message(
             f"Detached from `{row.session_id}`. Files kept on disk; "
             f"run `/session resume name:{row.session_id}` to rejoin.",
@@ -4252,6 +4227,16 @@ def register(
             actor_cid=binding_cid,
             per_player=response.per_player_renders or {},
             turn_index=response.turn_index,
+        )
+        await _queue_discord_actor_image(
+            inter=inter,
+            engine=engine,
+            session_id=session_id,
+            actor_character_id=binding_cid,
+            actor_user=inter.user,
+            response=response,
+            trigger_kind=ImageTriggerKind.arrival,
+            char_name=char_name,
         )
 
     async def _fan_out_per_player_renders(
@@ -5309,6 +5294,17 @@ def register(
             per_player=per_player,
             turn_index=response.turn_index,
         )
+        if triggering_cid:
+            await _queue_discord_actor_image(
+                inter=inter,
+                engine=engine,
+                session_id=row.session_id,
+                actor_character_id=triggering_cid,
+                actor_user=inter.user,
+                response=response,
+                trigger_kind=ImageTriggerKind.begin,
+                char_name=actor_name,
+            )
 
     # ---- /leave -------------------------------------------------------------
 
@@ -5556,6 +5552,16 @@ def register(
                 content=intro,
                 embeds=embeds,
             )
+        await _queue_discord_actor_image(
+            inter=inter,
+            engine=engine,
+            session_id=row.session_id,
+            actor_character_id=binding,
+            actor_user=inter.user,
+            response=response,
+            trigger_kind=ImageTriggerKind.begin,
+            char_name=bound_name,
+        )
 
     # ---- /act ---------------------------------------------------------------
 
@@ -5628,6 +5634,7 @@ def register(
             actor_character_id=binding,
             actor_user=inter.user,
             response=response,
+            image_trigger=ImageTriggerKind.act,
         )
 
     # ---- /retry ------------------------------------------------------------
@@ -5702,6 +5709,7 @@ def register(
             actor_character_id=result.actor_character_id,
             actor_user=actor_user,
             response=response,
+            image_trigger=ImageTriggerKind.render_retry,
         )
 
     # ---- /roll --------------------------------------------------------------
@@ -5815,6 +5823,7 @@ def register(
             actor_user=inter.user,
             response=response,
             clear_interaction_response=False,
+            image_trigger=ImageTriggerKind.roll_resolution,
         )
 
     # ---- /defer -------------------------------------------------------------
@@ -6469,7 +6478,12 @@ def register(
         except FileNotFoundError:
             # Orphaned mapping — purge and tell the user so they can
             # start fresh without bumping into a stale binding.
-            await smap.delete(_session_channel_id(inter))
+            channel_id = _session_channel_id(inter)
+            await smap.delete(channel_id)
+            await engine.image_generation.cancel_discord_destination(
+                session_id=row.session_id,
+                session_channel_id=channel_id,
+            )
             await inter.response.send_message(
                 f"Session `{row.session_id}` had no checkpoint on disk; "
                 f"the channel mapping has been purged. Run `/session start` "

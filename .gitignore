@@ -1,5 +1,6 @@
 .env
 .venv/
+.venv-image/
 __pycache__/
 *.pyc
 .claude/
@@ -11,6 +12,7 @@ __pycache__/
 *.pdf
 recovered_playthrough.txt
 app/storage/playtest_reports/
+app/storage/runtime/image_generation/
 app/storage/stories/*
 app/storage/sessions/*
 !app/storage/stories/.gitkeep

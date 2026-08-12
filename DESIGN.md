@@ -51,6 +51,8 @@
   coding agents creating synthetic story seeds.
 * `scripts/play.py` — interactive terminal REPL frontend, supports
   multi-character play.
+* `scripts/image_worker.py` — optional isolated local image-generation worker,
+  GPU preflight, weight download, smoke test, and benchmark entrypoint.
 * `tests/` — pytest tests.
 
 ## 1. Status
@@ -241,9 +243,20 @@ metadata, labels, secret notes, or tactical representation. Runtime
 models then consume those authored artifacts; they never receive the
 source image or a request to infer from it.
 
-Player-facing image display is presentation only. Discord or CLI views
-may reveal reviewed image assets to players, but model-facing state must
-remain the text/structured representation produced during import.
+Player-facing image display is presentation only. Discord or CLI views may
+reveal reviewed imported assets to players. When the optional local image
+worker is installed, they may also deliver an automatically generated
+illustration of an already rendered player POV. Generated illustrations are
+noncanonical output artifacts: they are built only from that player-safe
+narrator render plus explicitly public visual style/character descriptions,
+and are never evidence for story state.
+
+Imported images retain their manual review and spoiler/privacy gate. Generated
+images use separate runtime provenance and receive technical byte, format,
+dimension, and hash validation rather than being falsely marked as reviewed
+content assets. Neither imported nor generated image bytes, references, job
+records, or visual output enter any runtime LLM message, checkpoint story
+state, canonical event, narrator history, or character-agent history.
 
 ## 5. Runtime Components
 
@@ -277,7 +290,11 @@ used by rewind cleanup.
 the live `LLMClient`, `CheckpointManager`, `PromptManager`, and `Orchestrator`;
 wraps turns in a per-session frontend lock; runs stale Cat II sweeps before
 new `/act` processing; and exposes helper flows for join, begin, arrival,
-takeover, leave, settings, query, and rewind.
+takeover, leave, settings, query, and rewind. It also owns the optional local
+`ImageGenerationCoordinator`. The coordinator queues an acting-POV
+illustration only after canonical checkpoint save and prose delivery, runs
+GPU inference in an isolated subprocess outside the session lock, and treats
+all image failures as presentation failures rather than story-turn failures.
 
 ### 5.2 Orchestrator
 

@@ -12,11 +12,11 @@ from typing import Any, BinaryIO, Protocol
 
 from app.engine.content_asset_bytes import (
     AssetByteResolutionError,
-    ResolvedAssetBytes,
     SAFE_IMAGE_MIME_EXTENSIONS,
     resolve_asset_bytes,
 )
 from app.engine.content_assets import load_asset_catalog
+from app.engine.player_media import PlayerMediaBytes
 from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
 
 
@@ -229,6 +229,31 @@ class CliImageDisplayRenderer:
             backend_name=self.backend.name,
         )
 
+    def prepare_generated(
+        self,
+        media: PlayerMediaBytes,
+        *,
+        session_id: str,
+        pov_character_id: str,
+        cache_root: str | Path | None = None,
+    ) -> PreparedCliImageReveal:
+        """Prepare an already validated runtime illustration for display."""
+
+        cache_path = write_cli_safe_asset_cache(
+            media,
+            session_id=session_id,
+            cache_root=cache_root or self.options.cache_root,
+        )
+        return PreparedCliImageReveal(
+            pov_character_id=pov_character_id,
+            cache_path=cache_path,
+            filename=cache_path.name,
+            mime_type=media.mime_type,
+            data=media.data,
+            sha256=media.sha256,
+            byte_count=media.byte_count,
+        )
+
     def _prepare_payload(
         self,
         payload: SafeAssetRevealPayload,
@@ -274,7 +299,7 @@ class CliImageDisplayRenderer:
 
 
 def write_cli_safe_asset_cache(
-    resolved: ResolvedAssetBytes,
+    resolved: PlayerMediaBytes,
     *,
     session_id: str,
     cache_root: str | Path = DEFAULT_CLI_ASSET_CACHE_ROOT,
@@ -283,9 +308,17 @@ def write_cli_safe_asset_cache(
     session_key = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:16]
     root = Path(cache_root) / f"session-{session_key}"
     root.mkdir(parents=True, exist_ok=True)
+    try:
+        root.chmod(0o700)
+    except OSError:
+        pass
     path = root / f"{resolved.sha256}{extension}"
     if not path.exists() or path.read_bytes() != resolved.data:
         path.write_bytes(resolved.data)
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
     return path
 
 

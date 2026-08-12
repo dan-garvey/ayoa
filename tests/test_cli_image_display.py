@@ -12,6 +12,7 @@ from app.engine.cli_image_display import (
 )
 from app.engine.content_asset_bytes import ResolvedAssetBytes
 from app.engine.content_assets import write_asset_catalog
+from app.engine.player_media import ResolvedPlayerMedia
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import ContentPackState
 from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
@@ -172,6 +173,38 @@ def test_renderer_degrades_explicitly_on_unsupported_terminal(tmp_path):
     assert result.degraded is True
     assert result.error_code == "unsupported_terminal"
     assert result.export_path is None
+
+
+def test_renderer_displays_validated_generated_media_without_asset_catalog(tmp_path):
+    output = BytesIO()
+    renderer = CliImageDisplayRenderer(
+        backend=Iterm2InlineImageBackend(
+            output=output,
+            environ={"TERM": "xterm-256color", "TERM_PROGRAM": "iTerm.app"},
+            is_tty=True,
+        ),
+        options=CliImageDisplayOptions(cache_root=tmp_path / "runtime_cache"),
+    )
+    media = ResolvedPlayerMedia(
+        filename="illustration-safe.webp",
+        mime_type="image/webp",
+        data=MEDIA_BYTES,
+        sha256=_sha256(MEDIA_BYTES),
+        byte_count=len(MEDIA_BYTES),
+        width=1024,
+        height=1024,
+    )
+
+    prepared = renderer.prepare_generated(
+        media,
+        session_id="cli_test",
+        pov_character_id="rogue",
+    )
+    result = renderer.render_prepared(prepared)
+
+    assert result.displayed is True
+    assert prepared.cache_path.name == f"{media.sha256}.webp"
+    assert output.getvalue().startswith(b"\x1b]1337;File=")
 
 
 def test_renderer_never_uses_legacy_merged_asset_reveals(tmp_path):

@@ -656,6 +656,13 @@ class SessionSettings(BaseModel):
     # usually redundant. Deterministic pending-content lookup still runs on
     # skipped cycles.
     content_manager_refresh_interval: int = 3
+    # Output-only local illustration policy. The global image-worker
+    # capability gate remains authoritative, so this default does not make
+    # Torch/CUDA a requirement for normal text-only play.
+    image_generation_mode: str = "actor"
+    # Generate on every Nth eligible completed acting-player beat. This is a
+    # presentation cadence only and never changes canonical story state.
+    image_generation_every_n_beats: int = 1
 
 
 class SessionConfig(BaseModel):
@@ -750,6 +757,9 @@ class StorySetting(BaseModel):
     era: str = ""
     tone: str = ""
     premise: str = ""
+    # Player-safe, image-model-facing art direction. This is intentionally
+    # separate from narrative_rules, which can contain nonvisual engine rules.
+    visual_style: str = ""
 
 
 class KnowledgeTier(BaseModel):

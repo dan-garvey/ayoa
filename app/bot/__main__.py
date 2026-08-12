@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 
 from app.bot.commands import register
 from app.bot.engine_bridge import EngineBridge
+from app.bot.media_delivery import retry_media_cleanup_outbox
 from app.bot.session_map import SessionMap
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig
 
@@ -74,15 +75,33 @@ async def _run() -> int:
     await smap.init()
 
     register(tree, engine, smap, guild)
+    cleanup_task: asyncio.Task[None] | None = None
+
+    async def _cleanup_media_loop() -> None:
+        while True:
+            try:
+                await retry_media_cleanup_outbox(client=client, smap=smap)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("media cleanup retry iteration failed")
+            await asyncio.sleep(60)
 
     @client.event
     async def on_ready():
+        nonlocal cleanup_task
         logger.info(
             "Bot connected as %s (id=%s). Syncing commands%s …",
             client.user,
             client.user.id if client.user else "?",
             f" to guild {guild.id}" if guild else " globally",
         )
+        await engine.start()
+        if cleanup_task is None or cleanup_task.done():
+            cleanup_task = asyncio.create_task(
+                _cleanup_media_loop(),
+                name="ayoa-media-cleanup",
+            )
         try:
             if guild is not None:
                 # Copy global-only command definitions to guild for instant sync.
@@ -103,6 +122,9 @@ async def _run() -> int:
     except KeyboardInterrupt:
         logger.info("Shutting down (KeyboardInterrupt).")
     finally:
+        if cleanup_task is not None:
+            cleanup_task.cancel()
+            await asyncio.gather(cleanup_task, return_exceptions=True)
         await client.close()
         await engine.close()
     return 0
