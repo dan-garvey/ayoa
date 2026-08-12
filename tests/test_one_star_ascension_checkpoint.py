@@ -118,6 +118,18 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     assert pc.private_state.intentions_enabled is False
     assert pc.mechanics == {}
 
+    # The blank record is preserved, but the seed documents graceful
+    # degradation when the slot is unclaimed (e.g. the human plays the Master):
+    # treat it as an ordinary fresh fodder one-star, with the System-sight kept
+    # latent rather than a spotlighted anomaly.
+    hidden = (
+        checkpoint.world_state.hidden_lore
+        + "\n"
+        + "\n".join(checkpoint.world_state.hidden_facts)
+    ).lower()
+    assert "unclaimed" in hidden
+    assert "latent" in hidden
+
 
 def test_master_is_offstage_unreachable_actor() -> None:
     checkpoint = _load_checkpoint()
