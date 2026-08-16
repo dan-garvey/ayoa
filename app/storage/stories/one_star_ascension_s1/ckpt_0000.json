@@ -286,7 +286,8 @@
         "private": "Renna looks and initially performs like ordinary fodder, but repeated exposure lets her mind retain timing, sequence, trajectories, and enemy tells with impossible fidelity, then recombine them into new solutions. The gift yields judgment rather than raw power, stays invisible until earned in play, and could make later promotion unusually explosive."
       },
       "visuals": {
-        "default_loadout": "A fitted gray starter tunic, patched boots, cheap ash shortbow, low quiver, and one long brown bracer."
+        "default_loadout": "A fitted gray starter tunic, patched boots, cheap ash shortbow, low quiver, and one long brown bracer.",
+        "identity_reference_id": "osa_renna_holt_v1"
       },
       "private_state": {
         "goals": [
@@ -562,7 +563,7 @@
       "knowledge_tier": 3,
       "public_sheet": {
         "role": "a three-star battlefield mender and lantern-bearer",
-        "appearance": "A strikingly attractive human woman in her early thirties, medium-height and athletic with pale warm-fair complexion. Dark-brown hair is pulled into a braided bun with short bangs around a sharp oval face; amber-brown eyes and a calm confident mouth make her recognizable at a glance. Her silhouette is a fitted gray high-collar bodysuit, black belt, and black thigh-high boots. Charcoal, warm taupe, and black define her palette.",
+        "appearance": "A strikingly attractive human woman in her early thirties, medium-height and athletic with pale warm-fair complexion. Long dark-brown hair is gathered into a high messy bun with loose strands over one shoulder around a sharp oval face; amber-brown eyes and a calm confident mouth make her recognizable at a glance. Her silhouette is a fitted gray combat jacket over a black cropped top, slim gray trousers, and a longsword at her side. Charcoal, gold trim, and warm amber-brown define her palette.",
         "faction": "Hero"
       },
       "descriptions": {
@@ -570,7 +571,7 @@
         "private": "Wren retains a coherent healer's life and partial images of a stolen home, but not the truth of Moebius. Her compassion is active rather than saintly: she triages, bargains, and sometimes controls people for their own survival. The mismatch between remembered grief and official history makes her likely to suspect the wipe without already understanding it."
       },
       "visuals": {
-        "default_loadout": "A fitted light-gray high-collar bodysuit with a deep front seam, black rectangular-buckle belt, black thigh-high boots, and heeled shoes. Her signature iron-caged amber lantern and divided leather medical satchel still mark her as the party's mender; three subdued brass stitches mark one cuff.",
+        "default_loadout": "A short gray combat jacket with gold-trimmed cuffs over a black cropped top, fitted gray trousers, black thigh strap and boots, and a longsword at her side. Her signature iron-caged amber lantern and divided medical satchel still mark her as the party's mender; three subdued brass stitches mark one cuff.",
         "identity_reference_id": "osa_wren_thelantern_v1"
       },
       "private_state": {
@@ -932,6 +933,18 @@
       "diffusion_authorized": true
     },
     {
+      "reference_id": "osa_renna_holt_v1",
+      "storage_ref": "renna_holt.webp",
+      "mime_type": "image/webp",
+      "width": 768,
+      "height": 1024,
+      "byte_count": 124544,
+      "sha256": "5a3bdc59129a0e3a124aa7788a26c35b5962492d65d191b7e2c97e1a286475ed",
+      "purpose": "identity",
+      "scope": "character",
+      "diffusion_authorized": true
+    },
+    {
       "reference_id": "osa_rowan_kest_v1",
       "storage_ref": "rowan_kest.webp",
       "mime_type": "image/webp",
@@ -961,8 +974,8 @@
       "mime_type": "image/png",
       "width": 512,
       "height": 768,
-      "byte_count": 392275,
-      "sha256": "50316667f2835ba404aa763ca0f41e582e08289e0793110f14b463c79fb08ee2",
+      "byte_count": 412410,
+      "sha256": "6133278d1c77491300fb2d7c68ea2d352a87c1e0f5275dda4ae4ef92abb797b1",
       "purpose": "identity",
       "scope": "character",
       "diffusion_authorized": true

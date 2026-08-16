@@ -125,6 +125,7 @@ def test_roster_shape_and_player_binding() -> None:
 
 BOUND_IDENTITY_REFERENCE_IDS = {
     "iselle_the_guide": "osa_iselle_source_v1",
+    "renna_holt": "osa_renna_holt_v1",
     "rowan_kest": "osa_rowan_kest_v1",
     "liora_fen": "osa_liora_fen_v1",
     "wren_thelantern": "osa_wren_thelantern_v1",
@@ -141,7 +142,6 @@ BOUND_IDENTITY_REFERENCE_IDS = {
 UNBOUND_IDENTITY_IDS = {
     "one_star_newcomer",
     "the_master",
-    "renna_holt",
 }
 
 
