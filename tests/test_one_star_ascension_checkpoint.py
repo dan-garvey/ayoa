@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from app.engine.character_manager import _assemble_knowledge_grant
+from app.engine.reviewed_visual_references import validate_story_visual_references
 from app.schemas.characters import CharacterAgentTier
 from app.schemas.checkpoint import CheckpointFile
 
@@ -27,16 +28,18 @@ CHECKPOINT_PATH = (
 
 EXPECTED_CHARACTER_IDS = {
     "one_star_newcomer",
-    "pip_secondlight",
-    "bex_greenpull",
-    "dala_greenpull",
+    "renna_holt",
     "iselle_the_guide",
-    "mother_yset",
     "the_master",
     "halcyon_of_the_gilded_march",
     "soren_ironvow",
     "castor_valebrand",
     "wren_thelantern",
+    "rowan_kest",
+    "liora_fen",
+    "mirelle_voss",
+    "seris_nightglass",
+    "aveline_morcant",
     "veil_the_unnumbered",
     "warden_of_the_eighth",
 }
@@ -50,9 +53,15 @@ EXPECTED_INTENTION_MOVERS = {
 
 # Pre-authored characters held in reserve as a dormant, quarantined summon pool.
 SUMMON_POOL_IDS = {
+    "renna_holt",
     "soren_ironvow",
     "castor_valebrand",
     "wren_thelantern",
+    "rowan_kest",
+    "liora_fen",
+    "mirelle_voss",
+    "seris_nightglass",
+    "aveline_morcant",
     "veil_the_unnumbered",
 }
 
@@ -78,14 +87,24 @@ def test_checkpoint_loads_as_rules_neutral_magic_story() -> None:
         assert character.mechanics == {}, character.character_id
 
 
+def test_player_primer_covers_each_playable_perspective() -> None:
+    checkpoint = _load_checkpoint()
+    primer = checkpoint.player_primer
+
+    for perspective in ("Newcomer", "Master", "Halcyon"):
+        assert perspective in primer
+    assert "Moebius" not in primer
+    assert "stolen" not in primer.lower()
+
+
 def test_roster_shape_and_player_binding() -> None:
     checkpoint = _load_checkpoint()
     by_id = {c.character_id: c for c in checkpoint.characters}
 
     assert set(by_id) == EXPECTED_CHARACTER_IDS
 
-    # /story start auto-binds the creator to the FIRST is_playable character,
-    # so the blank user-created player slot must lead the roster.
+    # Keep the blank slot first for existing character-selection surfaces.
+    # Whether it appears in the opening is claim-driven, not implied by order.
     first = checkpoint.characters[0]
     assert first.character_id == BLANK_PLAYER_ID
     assert first.is_playable is True
@@ -104,6 +123,64 @@ def test_roster_shape_and_player_binding() -> None:
     assert by_id["warden_of_the_eighth"].status.value == "dormant"
 
 
+BOUND_IDENTITY_REFERENCE_IDS = {
+    "iselle_the_guide": "osa_iselle_source_v1",
+    "rowan_kest": "osa_rowan_kest_v1",
+    "liora_fen": "osa_liora_fen_v1",
+    "wren_thelantern": "osa_wren_thelantern_v1",
+    "mirelle_voss": "osa_mirelle_voss_v1",
+    "seris_nightglass": "osa_seris_nightglass_v1",
+    "castor_valebrand": "osa_castor_valebrand_v1",
+    "soren_ironvow": "osa_soren_ironvow_v1",
+    "aveline_morcant": "osa_aveline_morcant_v1",
+    "halcyon_of_the_gilded_march": "osa_halcyon_v1",
+    "veil_the_unnumbered": "osa_veil_the_unnumbered_v1",
+    "warden_of_the_eighth": "osa_warden_of_the_eighth_v1",
+}
+
+UNBOUND_IDENTITY_IDS = {
+    "one_star_newcomer",
+    "the_master",
+    "renna_holt",
+}
+
+
+def test_reviewed_identity_bindings_match_human_selection() -> None:
+    checkpoint = _load_checkpoint()
+    by_id = {character.character_id: character for character in checkpoint.characters}
+    references = {
+        reference.reference_id: reference
+        for reference in checkpoint.reviewed_visual_references
+    }
+
+    assert "mother_yset" not in by_id
+    assert "cael_avoran" not in by_id
+    assert set(by_id) == EXPECTED_CHARACTER_IDS
+    assert set(BOUND_IDENTITY_REFERENCE_IDS) | UNBOUND_IDENTITY_IDS == set(by_id)
+
+    for character_id, reference_id in BOUND_IDENTITY_REFERENCE_IDS.items():
+        assert by_id[character_id].visuals.identity_reference_id == reference_id
+        reference = references[reference_id]
+        assert reference.purpose == "identity"
+        assert reference.scope == "character"
+        assert reference.diffusion_authorized is True
+
+    for character_id in UNBOUND_IDENTITY_IDS:
+        assert by_id[character_id].visuals.identity_reference_id == ""
+
+    validate_story_visual_references(
+        checkpoint,
+        story_dir=CHECKPOINT_PATH.parent,
+    )
+
+    veil = by_id["veil_the_unnumbered"]
+    assert "androgynous" not in veil.public_sheet.appearance.lower()
+    assert "half-veil" in veil.public_sheet.appearance.lower()
+    renna = by_id["renna_holt"]
+    assert "child" not in renna.public_sheet.appearance.lower()
+    assert "copper-red" in renna.public_sheet.appearance.lower()
+
+
 def test_player_character_is_a_blank_user_created_slot() -> None:
     checkpoint = _load_checkpoint()
     pc = next(c for c in checkpoint.characters if c.character_id == BLANK_PLAYER_ID)
@@ -118,17 +195,29 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     assert pc.private_state.intentions_enabled is False
     assert pc.mechanics == {}
 
-    # The blank record is preserved, but the seed documents graceful
-    # degradation when the slot is unclaimed (e.g. the human plays the Master):
-    # treat it as an ordinary fresh fodder one-star, with the System-sight kept
-    # latent rather than a spotlighted anomaly.
+    # The record itself carries no authored arrival, location narration, or
+    # fallback personality. Claim-aware opening policy decides whether it appears.
+    assert pc.pending_observations == []
+    assert pc.status.value == "dormant"
+    assert pc.location == "unclaimed_player_slot"
+
+
+def test_unclaimed_newcomer_stays_off_frame_until_activated() -> None:
+    checkpoint = _load_checkpoint()
+    rules = checkpoint.session.config.narrative_rules.lower()
     hidden = (
         checkpoint.world_state.hidden_lore
         + "\n"
         + "\n".join(checkpoint.world_state.hidden_facts)
     ).lower()
-    assert "unclaimed" in hidden
-    assert "latent" in hidden
+    opening = checkpoint.world_state.opening
+
+    assert "exists only while claimed" in rules
+    assert "blank slot does not enter the fiction" in rules
+    assert "dormant and entirely off-frame" in hidden
+    assert opening is not None
+    assert "activate entry that wakes one_star_newcomer" in opening.context
+    assert "location_update for one_star_newcomer" not in opening.context
 
 
 def test_master_is_offstage_unreachable_actor() -> None:
@@ -161,7 +250,7 @@ def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> Non
     assert len(non_movers) > len(movers)
 
     # A small authored roster; any lobby crowd lives as ambient world text.
-    assert len(checkpoint.characters) <= 14
+    assert len(checkpoint.characters) <= 18
 
     facts = "\n".join(checkpoint.world_state.facts).lower()
     assert "only a small active party" in facts
@@ -193,10 +282,95 @@ def test_floor_zero_start_and_summon_pool() -> None:
     assert "unsummoned_pool" in hidden_lore
     assert "floor-zero framing" in hidden_lore
 
-    # A fresh floor-zero starter party exists (light NPCs) alongside the blank PC.
-    for starter in ("pip_secondlight", "bex_greenpull", "dala_greenpull"):
-        assert by_id[starter].is_playable is True
-        assert by_id[starter].status.value == "active"
+    # Ordinary one-stars are generated for an actual summon instead of living as
+    # fixed active starters. Renna is the only authored one-star exception:
+    # dormant, optional, publicly ordinary, and privately high-potential.
+    assert "bex_greenpull" not in by_id
+    assert "dala_greenpull" not in by_id
+    seeded_tier_ones = {
+        character.character_id
+        for character in checkpoint.characters
+        if character.knowledge_tier == 1
+    }
+    assert seeded_tier_ones == {"renna_holt"}
+    renna = by_id["renna_holt"]
+    assert renna.name == "Renna Holt"
+    assert renna.status.value == "dormant"
+    assert renna.location == "unsummoned_pool"
+    assert renna.is_playable is False
+    assert len(renna.backstory.split()) < 40
+    assert len(renna.personality.split()) < 55
+    renna_private = (
+        renna.descriptions.private
+        + " "
+        + " ".join(renna.private_state.secrets)
+    ).lower()
+    assert "retain" in renna_private
+    assert "pattern" in renna_private
+    assert "no visible marker" in renna_private
+
+    for character in checkpoint.characters:
+        role = character.public_sheet.role.lower()
+        assert "summon pool" not in role
+        assert "not yet in play" not in role
+
+    lifecycle_leaks = (
+        "dormant reserve",
+        "absent until acquired",
+        "until acquired and activated",
+        "summon pool candidate",
+        "future hazard, held dormant",
+    )
+    for pool_id in SUMMON_POOL_IDS | {"warden_of_the_eighth"}:
+        private = by_id[pool_id].descriptions.private.lower()
+        assert not any(leak in private for leak in lifecycle_leaks), pool_id
+
+
+def test_expanded_summon_pool_spans_two_through_five_stars() -> None:
+    checkpoint = _load_checkpoint()
+    by_id = {character.character_id: character for character in checkpoint.characters}
+    expected_tiers = {
+        "rowan_kest": 2,
+        "liora_fen": 2,
+        "mirelle_voss": 3,
+        "seris_nightglass": 4,
+        "aveline_morcant": 5,
+    }
+
+    for character_id, tier in expected_tiers.items():
+        character = by_id[character_id]
+        assert character.knowledge_tier == tier
+        assert character.status.value == "dormant"
+        assert character.location == "unsummoned_pool"
+        assert character.is_playable is False
+        assert character.private_state.intentions_enabled is False
+
+
+def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
+    checkpoint = _load_checkpoint()
+    facts = "\n".join(checkpoint.world_state.facts).lower()
+    hidden = (
+        checkpoint.world_state.hidden_lore
+        + "\n"
+        + "\n".join(checkpoint.world_state.hidden_facts)
+    ).lower()
+    by_id = {character.character_id: character for character in checkpoint.characters}
+
+    assert "two-stars retain thin" in facts
+    assert "four-stars cross the memory threshold" in facts
+    assert "returning from a floor" in hidden
+    assert "remain active" in hidden
+    assert "not lower-stage templates" in hidden
+    assert "trade, poaching, rescue, transfer" in hidden
+    assert "through the interface" not in facts
+
+    veil_public = (
+        by_id["veil_the_unnumbered"].public_sheet.role
+        + " "
+        + by_id["veil_the_unnumbered"].public_sheet.appearance
+    ).lower()
+    assert "awakened" not in veil_public
+    assert "status window" not in veil_public
 
 
 def test_router_facing_game_world_manual_is_present() -> None:
@@ -246,8 +420,10 @@ def test_promotion_star_up_and_memory_spine() -> None:
     assert "promotion" in facts
     assert "leveling" in facts
     assert "promotion chamber" in facts
-    assert "blank fodder" in facts
-    assert "realized person" in facts
+    assert "one-star summons arrive blank" in facts
+    assert "two-stars retain thin" in facts
+    assert "four-stars cross the memory threshold" in facts
+    assert "five-stars retain" in facts
 
     facts_lore = ("\n".join(ws.facts) + "\n" + ws.lore).lower()
     assert "1-star to level 10" in facts_lore
@@ -259,7 +435,8 @@ def test_promotion_star_up_and_memory_spine() -> None:
     assert "new summons" in hidden_lore
     assert "four stars" in hidden or "four-star" in hidden
     assert "cannot see inside the promotion chamber" in hidden
-    assert "three- to five-star" in hidden
+    for grade in ("three-stars", "four-stars", "five-stars"):
+        assert grade in hidden
 
     master = next(c for c in checkpoint.characters if c.character_id == "the_master")
     msecrets = " ".join(master.private_state.secrets).lower()
@@ -325,13 +502,8 @@ def test_lobby_master_and_guide_framing() -> None:
         assert "the Master's party" not in character.public_sheet.faction, (
             character.character_id
         )
-    for hero in (
-        "one_star_newcomer",
-        "pip_secondlight",
-        "bex_greenpull",
-        "dala_greenpull",
-    ):
-        assert by_id[hero].public_sheet.faction == "Niflheim lobby", hero
+    assert by_id["one_star_newcomer"].public_sheet.faction == "Niflheim lobby"
+    assert by_id["renna_holt"].public_sheet.faction == "Hero"
 
     facts = "\n".join(ws.facts).lower()
     lore = ws.lore.lower()
@@ -418,26 +590,53 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
 
 
 def test_knowledge_tier_ladder_gradient() -> None:
-    """The seed authors a 5-rung knowledge ladder: a gradient from near-blank
-    1-star fodder up to a plot-aware 5-star, with the agent tier escalating so
-    plot-bearing high summons are voiced by a stronger model than fodder."""
+    """Knowledge, authoring depth, and presentation all scale by story tier."""
     checkpoint = _load_checkpoint()
     tiers = {t.tier: t for t in checkpoint.world_state.knowledge_tiers}
 
-    assert set(tiers) == {1, 2, 3, 4, 5}
+    assert set(tiers) == {1, 2, 3, 4, 5, 6}
 
-    # 1-star knows only personal fragments (family, occupation, temperament,
-    # bravery) and the sanctioned framing -- no real plot knowledge.
-    t1_personal = tiers[1].personal_depth.lower()
-    assert "family" in t1_personal
-    assert "temperament" in t1_personal
+    # One-star is near-blank and has no real plot knowledge; high rungs do.
     assert "moebius" not in tiers[1].world_knowledge.lower()
     assert "fade" not in tiers[1].world_knowledge.lower()
-
-    # 5-star has real plot knowledge unlocked.
     t5_world = tiers[5].world_knowledge.lower()
     assert "moebius" in t5_world
     assert "fade" in t5_world
+
+    guidance_fields = {
+        "backstory_depth",
+        "personality_depth",
+        "public_visual_detail",
+        "loadout_detail",
+        "visual_salience",
+        "presentation_guidance",
+    }
+    for tier in tiers.values():
+        assert tier.generation_guidance is not None
+        guidance = tier.generation_guidance.model_dump()
+        assert set(guidance) == guidance_fields
+        assert all(value.strip() for value in guidance.values())
+
+    # Every generative dimension is materially richer by the first rare rung.
+    low = tiers[2].generation_guidance.model_dump()
+    rich = tiers[3].generation_guidance.model_dump()
+    for field in guidance_fields - {"presentation_guidance"}:
+        assert len(rich[field].split()) > len(low[field].split()), field
+
+    # Presentation is story-local and optimizes rare summons for immediately
+    # legible popular-fantasy appeal instead of a demographic coverage matrix.
+    for tier_number in (3, 4, 5, 6):
+        presentation = (
+            tiers[tier_number].generation_guidance.presentation_guidance.lower()
+        )
+        assert "appeal" in presentation
+        assert "adult" in presentation
+        assert "gender" in presentation
+    all_presentation = " ".join(
+        tier.generation_guidance.presentation_guidance for tier in tiers.values()
+    ).lower()
+    assert "demographic coverage" in all_presentation
+    assert "all genders" not in all_presentation
 
     # Agent tier escalates with knowledge tier: fodder cheap, plot-bearing strong.
     assert tiers[1].agent_tier == CharacterAgentTier.utility
@@ -445,6 +644,7 @@ def test_knowledge_tier_ladder_gradient() -> None:
     assert tiers[3].agent_tier == CharacterAgentTier.standard
     assert tiers[4].agent_tier == CharacterAgentTier.premium
     assert tiers[5].agent_tier == CharacterAgentTier.premium
+    assert tiers[6].agent_tier == CharacterAgentTier.premium
 
 
 def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
@@ -455,21 +655,141 @@ def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
 
     assert _assemble_knowledge_grant(checkpoint, 0) == ("", None)
 
+    tiers = {t.tier: t for t in checkpoint.world_state.knowledge_tiers}
+    tiers[1].generation_guidance.visual_salience = "TARGET_ONE_MARKER"
+    tiers[5].generation_guidance.visual_salience = "TARGET_FIVE_MARKER"
+
     grant1, agent1 = _assemble_knowledge_grant(checkpoint, 1)
     assert "Tier 1" in grant1
+    assert "## Authored Generation Budget (authoritative)" in grant1
+    assert "TARGET_ONE_MARKER" in grant1
     assert "moebius" not in grant1.lower()
     assert "fade" not in grant1.lower()
     assert agent1 == CharacterAgentTier.utility
 
     grant5, agent5 = _assemble_knowledge_grant(checkpoint, 5)
     assert all(f"Tier {n}" in grant5 for n in (1, 2, 3, 4, 5))  # cumulative
+    assert "TARGET_FIVE_MARKER" in grant5
+    assert "TARGET_ONE_MARKER" not in grant5  # generation target is not cumulative
     assert "moebius" in grant5.lower()
     assert "fade" in grant5.lower()
     assert agent5 == CharacterAgentTier.premium
 
+    # A knowledge ladder without generation guidance keeps the original
+    # knowledge-only contract.
+    for rung in checkpoint.world_state.knowledge_tiers:
+        rung.generation_guidance = None
+    knowledge_only, _ = _assemble_knowledge_grant(checkpoint, 3)
+    assert "## Knowledge Budget (authoritative)" in knowledge_only
+    assert "## Authored Generation Budget" not in knowledge_only
+
     # A story with no ladder is unaffected: no budget block, default agent tier.
     checkpoint.world_state.knowledge_tiers = []
     assert _assemble_knowledge_grant(checkpoint, 3) == ("", None)
+
+
+def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None:
+    checkpoint = _load_checkpoint()
+    by_id = {character.character_id: character for character in checkpoint.characters}
+    scaled = [
+        (3, by_id["wren_thelantern"]),
+        (4, by_id["castor_valebrand"]),
+        (5, by_id["soren_ironvow"]),
+        (6, by_id["halcyon_of_the_gilded_march"]),
+    ]
+
+    assert [character.knowledge_tier for _tier, character in scaled] == [
+        tier for tier, _character in scaled
+    ]
+    backstory_depths = [len(character.backstory.split()) for _tier, character in scaled]
+    personality_depths = [
+        len(character.personality.split()) for _tier, character in scaled
+    ]
+    visual_depths = [
+        len(
+            (
+                character.public_sheet.appearance
+                + " "
+                + character.visuals.default_loadout
+            ).split()
+        )
+        for _tier, character in scaled
+    ]
+    assert backstory_depths == sorted(backstory_depths)
+    assert len(set(backstory_depths)) == len(backstory_depths)
+    assert personality_depths == sorted(personality_depths)
+    assert len(set(personality_depths)) == len(personality_depths)
+    assert visual_depths == sorted(visual_depths)
+    assert len(set(visual_depths)) == len(visual_depths)
+
+    material_terms = {
+        "wool",
+        "linen",
+        "leather",
+        "iron",
+        "glass",
+        "bone",
+        "silk",
+        "steel",
+        "silver",
+        "gold",
+        "plate",
+        "star-metal",
+        "oxhide",
+        "kidskin",
+    }
+    build_terms = {
+        "athletic",
+        "long-limbed",
+        "broad",
+        "powerful",
+        "build",
+        "frame",
+        "shoulders",
+    }
+    for tier, character in scaled:
+        appearance = character.public_sheet.appearance.lower()
+        loadout = character.visuals.default_loadout.lower()
+        assert any(
+            age in appearance
+            for age in ("twenties", "thirties", "forties", "adult")
+        ), tier
+        assert any(term in appearance for term in build_terms), tier
+        for anchor in (
+            "human",
+            "complexion",
+            "hair",
+            "face",
+            "eyes",
+            "silhouette",
+            "palette",
+        ):
+            assert anchor in appearance, (tier, anchor)
+        assert len({term for term in material_terms if term in loadout}) >= 2, tier
+        assert "signature" in loadout, tier
+
+        public_visuals = appearance + " " + loadout
+        for private_token in (
+            "moebius",
+            "abduct",
+            "memory-wipe",
+            "stolen life",
+            "pre-tower name",
+        ):
+            assert private_token not in public_visuals, (tier, private_token)
+
+    # The authored one-star exception remains intentionally sparse and visually
+    # shared even though its private growth ceiling is unusual.
+    renna = by_id["renna_holt"]
+    assert len(renna.backstory.split()) < backstory_depths[0] / 4
+    assert len(renna.personality.split()) < personality_depths[0] / 3
+    assert len(
+        (
+            renna.public_sheet.appearance
+            + " "
+            + renna.visuals.default_loadout
+        ).split()
+    ) < visual_depths[0] / 2
 
 
 def test_seed_has_depth_without_dnd_mechanics() -> None:

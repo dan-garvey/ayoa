@@ -15,9 +15,14 @@ app/storage/playtest_reports/
 app/storage/runtime/image_generation/
 app/storage/stories/*
 app/storage/sessions/*
+app/storage/stories/*/visual-references/
+!app/storage/stories/one_star_ascension_s1/visual-references/
+!app/storage/stories/one_star_ascension_s1/visual-references/**
 !app/storage/stories/.gitkeep
 !app/storage/stories/dating_villa_s1/
 !app/storage/stories/dating_villa_s1/ckpt_0000.json
+!app/storage/stories/spring_rain_second_chorus/
+!app/storage/stories/spring_rain_second_chorus/ckpt_0000.json
 !app/storage/stories/one_star_ascension_s1/
 !app/storage/stories/one_star_ascension_s1/ckpt_0000.json
 !app/storage/stories/the_unblessed_summon/
