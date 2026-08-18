@@ -55,7 +55,7 @@ import asyncio
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol
@@ -877,7 +877,10 @@ def _filter_routed_agents_for_dispatch(
     # Local import to avoid an engine-package import cycle on module
     # load (context_builder pulls some of the same schemas turn_loop
     # exports). Cheap — the function is tiny and the import is cached.
-    from app.engine.context_builder import collect_player_ids
+    from app.engine.context_builder import (
+        collect_player_ids,
+        is_unbound_player_authored_slot,
+    )
 
     humans = collect_player_ids(ckpt)
     by_id = _character_by_id(ckpt)
@@ -910,6 +913,12 @@ def _filter_routed_agents_for_dispatch(
         char = by_id.get(rid)
         if char is None:
             logger.warning("router picked unknown agent id %s; dropped", rid)
+            continue
+        if is_unbound_player_authored_slot(ckpt, char):
+            logger.error(
+                "router picked unbound player-authored slot %s; dropped",
+                rid,
+            )
             continue
         raw_status = getattr(char, "status", "")
         status = str(getattr(raw_status, "value", raw_status))
@@ -1325,6 +1334,14 @@ async def _agent_intention_for_dispatch(
     local_context: str = "",
 ) -> str | None:
     """Fetch one NPC intention and normalize empty/refusal outputs."""
+    from app.engine.context_builder import is_unbound_player_authored_slot
+
+    character = _character_by_id(ckpt).get(character_id)
+    if is_unbound_player_authored_slot(ckpt, character):
+        raise ValueError(
+            "Cannot dispatch an unbound player-authored slot as an agent: "
+            f"{character_id}"
+        )
     raw = await dispatcher.agent_intend(
         ckpt=ckpt,
         character_id=character_id,
@@ -1424,6 +1441,8 @@ def broadcast_event(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
     actor_id: str = "",
+    *,
+    close_for_presentation: bool = True,
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
     every human observer's render buffer and every NPC observer's
@@ -1467,6 +1486,7 @@ def broadcast_event(
     BeatResult.event_actor_ids for callers that need actor-aware
     event application.
     """
+    _reject_unbound_player_authored_references(ckpt, event, actor_id=actor_id)
     obs_level_by_char: dict[str, str] = {}
     for o in event.observers:
         # Legacy: observation_level is a single-char code ("d"|"i"|"f").
@@ -1483,6 +1503,17 @@ def broadcast_event(
     )
     event_sequence = len(ckpt.canonical_events)
     ckpt.canonical_events.append(event)
+    from app.engine.closed_event_runtime import closed_event_runtime_for
+
+    if close_for_presentation:
+        closed_event_runtime = closed_event_runtime_for(ckpt)
+        if closed_event_runtime is not None:
+            closed_event_runtime.close_event(
+                checkpoint=ckpt,
+                event=event,
+                event_sequence=event_sequence,
+                actor_id=actor_id,
+            )
     from app.engine.content_fronts import queue_front_signals_from_public_event
 
     queue_front_signals_from_public_event(ckpt, event, actor_id=actor_id)
@@ -1586,6 +1617,74 @@ def broadcast_event(
             )
 
     return visible_humans
+
+
+def _reject_unbound_player_authored_references(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    actor_id: str,
+) -> None:
+    """Fail loudly if a blank authored seat reaches canonical runtime state."""
+    from app.engine.context_builder import is_unbound_player_authored_slot
+
+    absent_ids = {
+        character.character_id
+        for character in ckpt.characters
+        if is_unbound_player_authored_slot(ckpt, character)
+    }
+    if not absent_ids:
+        return
+
+    references: dict[str, set[str]] = {
+        "actor": {actor_id} if actor_id else set(),
+        "observer": {observer.character_id for observer in event.observers},
+        "required responder": set(event.required_responders),
+        "dormant": set(event.dormant),
+        "cull": set(event.cull),
+        "activate": {signal.character_id for signal in event.activate},
+        "location update": {
+            signal.character_id for signal in event.location_updates
+        },
+        "commitment open": set(event.commitment_open.actor_ids),
+        "commitment resolution": {
+            character_id
+            for signal in event.commitment_resolutions
+            for character_id in signal.actor_ids
+        },
+        "commitment interrupt": {
+            character_id
+            for signal in event.commitment_interrupts
+            for character_id in signal.actor_ids
+        },
+        "private fact": {
+            character_id
+            for fact in event.canonical_event.observable_facts
+            for character_id in fact.visible_to
+        },
+        "fact text": {
+            character_id
+            for fact in event.canonical_event.observable_facts
+            for character_id in absent_ids
+            if re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(character_id)}"
+                rf"(?![A-Za-z0-9_])",
+                fact.text,
+            )
+        },
+        "spawn": {request.character_id for request in event.spawn},
+        "combatant": set(getattr(event, "combatant_ids", []) or []),
+    }
+    violations = [
+        f"{label}={character_id}"
+        for label, character_ids in references.items()
+        for character_id in sorted(character_ids & absent_ids)
+    ]
+    if violations:
+        raise RuntimeError(
+            "Router event referenced an unclaimed player-authored seat: "
+            + ", ".join(violations)
+        )
 
 
 _COMBAT_REACTION_EXCLUDED_REASONS = {
@@ -1768,10 +1867,14 @@ def _router_target_local_context(
     location_label = location or "Off-screen / unspecified location."
     nearby: list[str] = []
     if location:
+        from app.engine.context_builder import is_unbound_player_authored_slot
+
         for character in ckpt.characters:
             if character.character_id == character_id:
                 continue
             if _character_status_value(character) != "active":
+                continue
+            if is_unbound_player_authored_slot(ckpt, character):
                 continue
             if str(getattr(character, "location", "") or "").strip() != location:
                 continue
@@ -2405,13 +2508,10 @@ class Dispatcher(Protocol):
         buffered events since last render, observation levels tagged.
         Returns `(NarratorFinalOutput, TranscriptEntry)`.
 
-        Returning the transcript entry alongside the envelope lets
-        run_beat propagate the per-POV transcript entry up to the
-        orchestrator, which appends to ckpt.transcript so /history and
-        the resume-display path see the actual played turns. The entry
-        is constructed engine-side from `user_input` (passed by the
-        acting-POV caller; "" for incidental POVs) and the rendered
-        `final_text`.
+        The transient entry is constructed engine-side from `user_input`
+        (passed by the acting-POV caller; "" for incidental POVs) and the
+        rendered `final_text`. Durable `/history` reads the per-character
+        narrator conversations rather than a second checkpoint transcript.
 
         `partial_mode_override`, when not None, wins over the dispatcher's
         default slot-scan detection — the v11-r6a Cat II-open render path
@@ -2428,11 +2528,9 @@ class BeatResult:
     delivery. `renders` is keyed by character_id; orchestrator posts each
     to that player's delivery channel (thread / ephemeral / DM).
 
-    `transcript_entries` is the parallel per-POV TranscriptEntry from
-    each narrator render — orchestrator picks the acting player's entry
-    (or first available) and appends to ckpt.transcript so /history and
-    resume-display see the actual played turns. Empty when no human
-    rendered this beat (Cat II pending, or beat-with-no-renderable-events).
+    `transcript_entries` is the transient parallel per-POV response record
+    from each narrator render. It is empty when no human rendered this beat
+    (Cat II pending, or a beat with no renderable events).
 
     `event_actor_ids` is a list parallel to the tail of
     `ckpt.canonical_events` (length == `events_closed`, in beat-order):
@@ -2453,6 +2551,9 @@ class BeatResult:
     event_actor_ids: list[str]
     reaction_prompts: dict[str, str] | None = None
     loot_prompts: dict[str, list[str]] | None = None
+    rendered_event_ids_by_pov: dict[str, list[str]] = field(
+        default_factory=dict
+    )
 
 
 async def run_beat(
@@ -3002,12 +3103,20 @@ async def run_beat(
 
             # Agents among required_responders intend immediately; their
             # intentions are collected into the same Cat II event.
+            from app.engine.context_builder import is_unbound_player_authored_slot
+
             bindings = ckpt.session.character_bindings or {}
+            by_id = _character_by_id(ckpt)
             for rid in required:
                 if rid in bindings:
                     # Human — pin slot, wait.
                     pin_cat_ii_responder(ckpt, rid, evt.event_id)
                 else:
+                    if is_unbound_player_authored_slot(ckpt, by_id.get(rid)):
+                        raise ValueError(
+                            "Router required an absent player-authored slot "
+                            f"as a responder: {rid}"
+                        )
                     # Agent — intend inline.
                     ai_intent = await dispatcher.agent_intend(
                         ckpt=ckpt,
@@ -3089,8 +3198,19 @@ async def run_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
 
-        # Cat I path — canonical event closes immediately.
-        broadcast_event(ckpt, result, actor_id=result_actor_id)
+        # Harvest events are appended now so routed agents can read them, but
+        # their presentation projection closes only after enrichment mutates
+        # the observable facts into final form.
+        defer_presentation_close = result.event_kind in {
+            "observation_harvest",
+            "query_response",
+        }
+        broadcast_event(
+            ckpt,
+            result,
+            actor_id=result_actor_id,
+            close_for_presentation=not defer_presentation_close,
+        )
         event_actor_ids.append(result_actor_id)
         events_closed += 1
 
@@ -3158,6 +3278,18 @@ async def run_beat(
                             else "intention"
                         ),
                     )
+
+        if defer_presentation_close:
+            from app.engine.closed_event_runtime import closed_event_runtime_for
+
+            closed_event_runtime = closed_event_runtime_for(ckpt)
+            if closed_event_runtime is not None:
+                closed_event_runtime.close_event(
+                    checkpoint=ckpt,
+                    event=result,
+                    event_sequence=len(ckpt.canonical_events) - 1,
+                    actor_id=result_actor_id,
+                )
 
         if (
             result.event_kind == "public_fact"
@@ -3256,6 +3388,7 @@ async def _end_beat(
     """
     renders: dict[str, str] = {}
     transcript_entries: dict[str, TranscriptEntry] = {}
+    rendered_event_ids_by_pov: dict[str, list[str]] = {}
     from app.engine.context_builder import collect_player_ids
     player_ids = collect_player_ids(ckpt)
     reaction_prompts = _eligible_combat_reaction_prompts(
@@ -3355,6 +3488,10 @@ async def _end_beat(
         for h, envelope, entry in results:
             renders[h] = envelope.final_text
             transcript_entries[h] = entry
+        rendered_event_ids_by_pov = {
+            h: [entry.event_id for entry in buf]
+            for h, buf in targets
+        }
 
     if ckpt.session.pending_narrator_render is not None:
         ckpt.session.pending_narrator_render = None
@@ -3393,6 +3530,7 @@ async def _end_beat(
         transcript_entries=transcript_entries,
         event_actor_ids=event_actor_ids,
         reaction_prompts=reaction_prompts,
+        rendered_event_ids_by_pov=rendered_event_ids_by_pov,
     )
 
 

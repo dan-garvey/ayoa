@@ -13,7 +13,7 @@ from pathlib import Path
 
 from app.engine.character_manager import _assemble_knowledge_grant
 from app.engine.reviewed_visual_references import validate_story_visual_references
-from app.schemas.characters import CharacterAgentTier
+from app.schemas.characters import CharacterAgentTier, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
 
 
@@ -77,7 +77,7 @@ def _load_checkpoint() -> CheckpointFile:
 def test_checkpoint_loads_as_rules_neutral_magic_story() -> None:
     checkpoint = _load_checkpoint()
 
-    assert checkpoint.schema_version == "4.0"
+    assert checkpoint.schema_version == "5.0"
     assert checkpoint.session.story_id == "one_star_ascension_s1"
     assert checkpoint.session.session_id == "one_star_ascension_s1"
     assert checkpoint.session.config.settings.ruleset_id == "narrative"
@@ -95,6 +95,28 @@ def test_player_primer_covers_each_playable_perspective() -> None:
         assert perspective in primer
     assert "Moebius" not in primer
     assert "stolen" not in primer.lower()
+
+
+def test_player_setup_metadata_is_structured_for_both_frontends() -> None:
+    checkpoint = _load_checkpoint()
+    setting = checkpoint.world_state.setting
+    playable = {
+        character.character_id: character
+        for character in checkpoint.characters
+        if character.is_playable
+    }
+
+    assert setting.title == "One-Star Ascension"
+    assert setting.recommended_players
+    assert setting.play_guidance
+    assert checkpoint.world_state.opening is not None
+    assert checkpoint.world_state.opening.requires_claim_confirmation is True
+    assert set(playable) == {
+        "one_star_newcomer",
+        "the_master",
+        "halcyon_of_the_gilded_march",
+    }
+    assert all(character.player_guidance for character in playable.values())
 
 
 def test_roster_shape_and_player_binding() -> None:
@@ -194,6 +216,8 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     assert pc.private_state.secrets == []
     assert pc.private_state.intentions_enabled is False
     assert pc.mechanics == {}
+    assert pc.player_slot_kind == PlayerSlotKind.player_authored
+    assert pc.player_guidance
 
     # The record itself carries no authored arrival, location narration, or
     # fallback personality. Claim-aware opening policy decides whether it appears.
@@ -202,22 +226,21 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     assert pc.location == "unclaimed_player_slot"
 
 
-def test_unclaimed_newcomer_stays_off_frame_until_activated() -> None:
+def test_unclaimed_newcomer_seed_is_an_unbound_claim_aware_seat() -> None:
     checkpoint = _load_checkpoint()
-    rules = checkpoint.session.config.narrative_rules.lower()
-    hidden = (
-        checkpoint.world_state.hidden_lore
-        + "\n"
-        + "\n".join(checkpoint.world_state.hidden_facts)
-    ).lower()
+    newcomer = next(
+        character
+        for character in checkpoint.characters
+        if character.character_id == BLANK_PLAYER_ID
+    )
     opening = checkpoint.world_state.opening
 
-    assert "exists only while claimed" in rules
-    assert "blank slot does not enter the fiction" in rules
-    assert "dormant and entirely off-frame" in hidden
+    assert checkpoint.session.player_character_id == ""
+    assert BLANK_PLAYER_ID not in checkpoint.session.character_bindings
+    assert newcomer.player_slot_kind == PlayerSlotKind.player_authored
+    assert newcomer.status.value == "dormant"
     assert opening is not None
-    assert "activate entry that wakes one_star_newcomer" in opening.context
-    assert "location_update for one_star_newcomer" not in opening.context
+    assert opening.requires_claim_confirmation is True
 
 
 def test_master_is_offstage_unreachable_actor() -> None:

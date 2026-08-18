@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 from io import BytesIO
+
+from PIL import Image
 
 from app.engine.cli_image_display import (
     CliImageDisplayOptions,
@@ -185,12 +188,13 @@ def test_renderer_displays_validated_generated_media_without_asset_catalog(tmp_p
         ),
         options=CliImageDisplayOptions(cache_root=tmp_path / "runtime_cache"),
     )
+    generated_webp = _generated_webp_bytes()
     media = ResolvedPlayerMedia(
         filename="illustration-safe.webp",
         mime_type="image/webp",
-        data=MEDIA_BYTES,
-        sha256=_sha256(MEDIA_BYTES),
-        byte_count=len(MEDIA_BYTES),
+        data=generated_webp,
+        sha256=_sha256(generated_webp),
+        byte_count=len(generated_webp),
         width=1024,
         height=1024,
     )
@@ -204,7 +208,10 @@ def test_renderer_displays_validated_generated_media_without_asset_catalog(tmp_p
 
     assert result.displayed is True
     assert prepared.cache_path.name == f"{media.sha256}.webp"
+    assert prepared.cache_path.read_bytes() == generated_webp
     assert output.getvalue().startswith(b"\x1b]1337;File=")
+    inline_bytes = output.getvalue().split(b":", 1)[1].removesuffix(b"\a")
+    assert base64.b64decode(inline_bytes).startswith(b"\x89PNG")
 
 
 def test_renderer_never_uses_legacy_merged_asset_reveals(tmp_path):
@@ -357,3 +364,13 @@ def _payload(asset: ContentImageAsset) -> SafeAssetRevealPayload:
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _generated_webp_bytes() -> bytes:
+    output = BytesIO()
+    Image.new("RGB", (32, 32), color=(20, 40, 80)).save(
+        output,
+        format="WEBP",
+        quality=90,
+    )
+    return output.getvalue()

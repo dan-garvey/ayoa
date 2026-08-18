@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
+import inspect
+import io
 import json
 import os
 import shutil
@@ -22,8 +24,8 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_MODEL_ID = "black-forest-labs/FLUX.2-klein-4B"
-DEFAULT_MODEL_REVISION = "5e67da950fce4a097bc150c22958a05716994cea"
+DEFAULT_MODEL_ID = "black-forest-labs/FLUX.2-klein-base-4B"
+DEFAULT_MODEL_REVISION = "a3b4f4849157f664bdbc776fd7453c2783562f4d"
 DEFAULT_SMOKE_PROMPT = (
     "A cinematic story illustration of a lone traveler beneath warm lanterns "
     "in a rain-washed old street at dusk, natural composition, no caption."
@@ -32,6 +34,18 @@ DEFAULT_SMOKE_PROMPT = (
 
 class InvalidWorkerRequest(ValueError):
     pass
+
+
+class ReferenceInputsUnsupported(RuntimeError):
+    pass
+
+
+def _sha256_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -55,9 +69,19 @@ def _parser() -> argparse.ArgumentParser:
         default=Path("app/storage/runtime/image_generation/smoke.webp"),
     )
     parser.add_argument("--cpu-offload", action="store_true")
+    parser.add_argument("--lora-path", type=Path)
+    parser.add_argument("--lora-sha256", default="")
+    parser.add_argument("--lora-strength", type=float, default=0.0)
+    parser.add_argument(
+        "--reference-root",
+        type=Path,
+        default=Path("app/storage/runtime/image_generation"),
+    )
     parser.add_argument("--runs", type=int, default=20)
     parser.add_argument("--width", type=int, default=1024)
     parser.add_argument("--height", type=int, default=1024)
+    parser.add_argument("--steps", type=int, default=50)
+    parser.add_argument("--guidance", type=float, default=4.0)
     return parser
 
 
@@ -127,7 +151,39 @@ def _preflight_payload(args: argparse.Namespace) -> dict[str, Any]:
         not local_model
         and (args.cache_dir / repo_key / "snapshots" / args.revision).is_dir()
     )
+    local_snapshot_path = (
+        args.cache_dir / repo_key / "snapshots" / args.revision
+    )
     payload["model_cached"] = local_model or local_snapshot
+    if args.lora_path is not None:
+        lora_path = args.lora_path.expanduser().resolve()
+        payload["lora_path"] = str(lora_path)
+        payload["lora_strength"] = args.lora_strength
+        try:
+            import peft
+
+            payload["peft_version"] = str(peft.__version__)
+        except Exception as exc:
+            payload["error_code"] = "lora_dependencies_unavailable"
+            payload["detail"] = type(exc).__name__
+            return payload
+        if not 0 <= args.lora_strength <= 2:
+            payload["error_code"] = "invalid_lora_strength"
+            return payload
+        if not lora_path.is_file():
+            payload["error_code"] = "lora_unavailable"
+            return payload
+        try:
+            lora_hash = _sha256_path(lora_path)
+        except OSError as exc:
+            payload["error_code"] = "lora_unavailable"
+            payload["detail"] = type(exc).__name__
+            return payload
+        payload["lora_sha256"] = lora_hash
+        expected_lora_hash = args.lora_sha256.strip().lower()
+        if expected_lora_hash and lora_hash != expected_lora_hash:
+            payload["error_code"] = "lora_hash_mismatch"
+            return payload
     if total_gib < 23:
         payload["error_code"] = "insufficient_vram"
         return payload
@@ -136,20 +192,26 @@ def _preflight_payload(args: argparse.Namespace) -> dict[str, Any]:
         payload["error_code"] = "insufficient_disk"
         return payload
     try:
-        from huggingface_hub import HfApi, snapshot_download
+        from huggingface_hub import HfApi
 
         if local_model:
             payload["resolved_model_revision"] = str(local_model_path.resolve())
             payload["model_revision_available"] = True
             payload["model_revision_source"] = "local_path"
         elif local_snapshot:
-            snapshot_download(
-                repo_id=args.model_id,
-                revision=args.revision,
-                cache_dir=str(args.cache_dir),
-                local_files_only=True,
+            required = (
+                "model_index.json",
+                "scheduler",
+                "text_encoder",
+                "tokenizer",
+                "transformer",
+                "vae",
             )
-            payload["resolved_model_revision"] = args.revision
+            if not all((local_snapshot_path / item).exists() for item in required):
+                raise FileNotFoundError("cached model components are incomplete")
+            payload["resolved_model_revision"] = str(
+                local_snapshot_path.resolve()
+            )
             payload["model_revision_available"] = True
             payload["model_revision_source"] = "local_cache"
         else:
@@ -168,17 +230,45 @@ def _load_pipeline(args: argparse.Namespace) -> tuple[Any, Any]:
     torch, pipeline_class, _image_class = _imports()
     args.cache_dir.mkdir(parents=True, exist_ok=True)
     local_model_path = Path(args.model_id).expanduser()
-    source = str(local_model_path.resolve()) if local_model_path.exists() else args.model_id
+    repo_key = "models--" + args.model_id.replace("/", "--")
+    local_snapshot = (
+        args.cache_dir / repo_key / "snapshots" / args.revision
+    )
+    if local_model_path.exists():
+        source = str(local_model_path.resolve())
+    elif local_snapshot.is_dir():
+        source = str(local_snapshot.resolve())
+    else:
+        source = args.model_id
     kwargs: dict[str, Any] = {
         "torch_dtype": torch.bfloat16,
         "local_files_only": True,
     }
-    if not local_model_path.exists():
+    if source == args.model_id:
         kwargs.update(
             revision=args.revision,
             cache_dir=str(args.cache_dir),
         )
     pipeline = pipeline_class.from_pretrained(source, **kwargs)
+    if args.lora_path is not None:
+        lora_path = args.lora_path.expanduser().resolve()
+        if not 0 <= args.lora_strength <= 2:
+            raise ValueError("LoRA strength must be between 0 and 2")
+        expected_lora_hash = args.lora_sha256.strip().lower()
+        if (
+            expected_lora_hash
+            and _sha256_path(lora_path) != expected_lora_hash
+        ):
+            raise ValueError("LoRA hash mismatch")
+        pipeline.load_lora_weights(
+            str(lora_path.parent),
+            weight_name=lora_path.name,
+            adapter_name="ayoa_default",
+        )
+        pipeline.set_adapters(
+            "ayoa_default",
+            adapter_weights=args.lora_strength,
+        )
     if args.cpu_offload:
         pipeline.enable_model_cpu_offload()
     else:
@@ -197,20 +287,43 @@ def _generate(
     steps: int,
     guidance: float,
     output_path: Path,
+    reference_images: list[Any] | None = None,
 ) -> dict[str, Any]:
     from PIL import Image
 
     started = time.monotonic()
     generator = torch.Generator(device="cuda").manual_seed(seed)
+    pipeline_arguments: dict[str, Any] = {
+        "prompt": prompt,
+        "height": height,
+        "width": width,
+        "num_inference_steps": steps,
+        "guidance_scale": guidance,
+        "generator": generator,
+    }
+    if reference_images:
+        try:
+            parameters = inspect.signature(pipeline.__call__).parameters
+        except (TypeError, ValueError) as exc:
+            raise ReferenceInputsUnsupported(
+                "configured diffusion pipeline cannot consume references"
+            ) from exc
+        if "image" not in parameters:
+            raise ReferenceInputsUnsupported(
+                "configured diffusion pipeline cannot consume references"
+            )
+        pipeline_arguments["image"] = reference_images
     with torch.inference_mode():
-        generated = pipeline(
-            prompt=prompt,
-            height=height,
-            width=width,
-            num_inference_steps=steps,
-            guidance_scale=guidance,
-            generator=generator,
-        ).images[0]
+        try:
+            generated = pipeline(
+                **pipeline_arguments
+            ).images[0]
+        except TypeError as exc:
+            if reference_images and "image" in str(exc).lower():
+                raise ReferenceInputsUnsupported(
+                    "configured diffusion pipeline rejected references"
+                ) from exc
+            raise
     clean = Image.new("RGB", generated.size)
     clean.paste(generated.convert("RGB"))
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -240,6 +353,61 @@ def _generate(
     }
 
 
+def _load_reference_images(
+    values: Any,
+    *,
+    reference_root: Path,
+) -> list[Any]:
+    from PIL import Image
+
+    if not isinstance(values, list) or len(values) > 4:
+        raise InvalidWorkerRequest("reference count")
+    root = reference_root.resolve()
+    allowed = (root / "artifacts").resolve()
+    images: list[Any] = []
+    total = 0
+    for value in values:
+        if not isinstance(value, dict):
+            raise InvalidWorkerRequest("reference shape")
+        path = Path(str(value.get("path") or "")).resolve()
+        if path != allowed and allowed not in path.parents:
+            raise InvalidWorkerRequest("reference path")
+        try:
+            expected_bytes = int(value["byte_count"])
+            expected_width = int(value["width"])
+            expected_height = int(value["height"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise InvalidWorkerRequest("reference metadata") from exc
+        if expected_bytes < 1 or expected_bytes > 20_000_000:
+            raise InvalidWorkerRequest("reference byte count")
+        with path.open("rb") as handle:
+            data = handle.read(expected_bytes + 1)
+        if len(data) != expected_bytes:
+            raise InvalidWorkerRequest("reference byte count mismatch")
+        total += len(data)
+        if total > 20_000_000:
+            raise InvalidWorkerRequest("reference byte limit")
+        expected_hash = str(value.get("sha256") or "").lower()
+        if hashlib.sha256(data).hexdigest() != expected_hash:
+            raise InvalidWorkerRequest("reference hash mismatch")
+        mime_type = str(value.get("mime_type") or "").lower()
+        expected_format = {
+            "image/jpeg": "JPEG",
+            "image/png": "PNG",
+            "image/webp": "WEBP",
+        }.get(mime_type)
+        if expected_format is None:
+            raise InvalidWorkerRequest("reference MIME")
+        with Image.open(io.BytesIO(data)) as opened:
+            if opened.format != expected_format:
+                raise InvalidWorkerRequest("reference format mismatch")
+            if opened.size != (expected_width, expected_height):
+                raise InvalidWorkerRequest("reference dimensions mismatch")
+            opened.seek(0)
+            images.append(opened.convert("RGB").copy())
+    return images
+
+
 def _error_code(exc: BaseException) -> str:
     name = type(exc).__name__.lower()
     text = str(exc).lower()
@@ -249,6 +417,8 @@ def _error_code(exc: BaseException) -> str:
         return "cuda_unavailable"
     if isinstance(exc, (InvalidWorkerRequest, KeyError, json.JSONDecodeError)):
         return "invalid_request"
+    if isinstance(exc, ReferenceInputsUnsupported):
+        return "reference_inputs_unsupported"
     return "generation_failed"
 
 
@@ -280,6 +450,10 @@ def _worker(args: argparse.Namespace) -> int:
             except (TypeError, ValueError) as exc:
                 raise InvalidWorkerRequest("generation parameter types") from exc
             output_path = Path(str(request["output_path"])).resolve()
+            reference_images = _load_reference_images(
+                request.get("reference_inputs", []),
+                reference_root=args.reference_root,
+            )
             if (
                 width < 256
                 or height < 256
@@ -302,6 +476,7 @@ def _worker(args: argparse.Namespace) -> int:
                     steps=steps,
                     guidance=guidance,
                     output_path=output_path,
+                    reference_images=reference_images,
                 )
         except Exception as exc:
             print(
@@ -365,8 +540,8 @@ def _smoke_or_benchmark(args: argparse.Namespace) -> int:
                 seed=20260812 + index,
                 width=args.width,
                 height=args.height,
-                steps=4,
-                guidance=1.0,
+                steps=args.steps,
+                guidance=args.guidance,
                 output_path=output_path,
             )
             timings.append(float(result["generation_seconds"]))

@@ -11,7 +11,12 @@ import asyncio
 
 import pytest
 
+from app.engine.closed_event_runtime import (
+    ClosedEventRuntime,
+    install_closed_event_runtime,
+)
 from app.engine.content_resolver import append_pending_router_content_records
+from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.turn_loop import (
     SessionLockManager,
     SlotConflict,
@@ -31,7 +36,12 @@ from app.engine.turn_loop import (
     _end_dnd_combat_from_router_signal,
     _human_next_output_ids,
 )
-from app.schemas.characters import CharacterRecord, CharacterVisuals, PublicSheet
+from app.schemas.characters import (
+    CharacterRecord,
+    CharacterVisuals,
+    PlayerSlotKind,
+    PublicSheet,
+)
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content import ContentPackState
 from app.schemas.content_pack import FrontDossierRecord
@@ -1614,6 +1624,25 @@ class TestCatIIBeat:
 class TestObservationHarvest:
     def test_harvest_appends_loadout_fragments(self):
         ckpt = _ckpt({"alice": "1"})
+        presented_facts: list[list[str]] = []
+
+        class RecordingImageSink:
+            def on_closed_event(self, **kwargs):
+                event = kwargs["event"]
+                presented_facts.append([
+                    fact.text
+                    for fact in event.canonical_event.observable_facts
+                ])
+
+        install_closed_event_runtime(
+            ckpt,
+            ClosedEventRuntime(
+                transaction_id="tx_harvest",
+                source_turn_index=1,
+                spawn_authoring=SpawnAuthoringCoordinator(object()),
+                image_sink=RecordingImageSink(),
+            ),
+        )
         ckpt.characters.append(CharacterRecord(
             character_id="vex",
             name="Vex",
@@ -1644,6 +1673,8 @@ class TestObservationHarvest:
         facts = ckpt.canonical_events[-1].canonical_event.observable_facts
         assert any("[loadout" in str(f) and "Pip" in str(f) for f in facts)
         assert any("[loadout" in str(f) and "Vex" in str(f) for f in facts)
+        assert len(presented_facts) == 1
+        assert any("[loadout" in fact for fact in presented_facts[0])
         assert fake.agent_calls == []
 
     def test_harvest_drops_human_targets(self):
@@ -1714,6 +1745,46 @@ class TestBroadcastEvent:
         broadcast_event(ckpt, event, actor_id="alice")
         pip = next(c for c in ckpt.characters if c.character_id == "pip")
         assert pip.pending_observations == []
+
+    def test_unclaimed_player_authored_reference_fails_before_mutation(self):
+        ckpt = _ckpt()
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+        ))
+        before = ckpt.model_dump()
+        event = self._event(observer_ids=["blank_arrival"])
+
+        with pytest.raises(
+            RuntimeError,
+            match="unclaimed player-authored seat.*observer=blank_arrival",
+        ):
+            broadcast_event(ckpt, event, actor_id="alice")
+
+        assert ckpt.model_dump() == before
+
+    def test_unclaimed_player_authored_id_cannot_enter_canonical_fact_text(self):
+        ckpt = _ckpt()
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+        ))
+        event = self._event(
+            observer_ids=["alice"],
+            facts=[ObservableFact.all("blank_arrival steps into the room.")],
+        )
+
+        with pytest.raises(
+            RuntimeError,
+            match="fact text=blank_arrival",
+        ):
+            broadcast_event(ckpt, event, actor_id="alice")
+
+        assert ckpt.canonical_events == []
 
     def test_all_observers_fact_with_empty_observers_delivers_to_no_one(self):
         ckpt = _ckpt({"alice": "1"})

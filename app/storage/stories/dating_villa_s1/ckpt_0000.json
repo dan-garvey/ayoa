@@ -1,5 +1,5 @@
 {
-  "schema_version": "4.0",
+  "schema_version": "5.0",
   "session": {
     "session_id": "dating_villa_s1",
     "story_id": "dating_villa_s1",
@@ -843,6 +843,5 @@
   "narrator_conversations": {},
   "character_conversations": {},
   "canonical_events": [],
-  "transcript": [],
   "visibility_log": []
 }

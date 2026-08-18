@@ -14,6 +14,7 @@ from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
 class ModelConfig(BaseModel):
     event_router: str = "gpt-5.1"
     narrator: str = "gpt-5.2"
+    image_director: str = "gpt-5-mini"
     dnd_combat_manager: str = "gpt-5-mini"
     agent_default: str = "claude-opus-4-6"
     agent_standard: str = "claude-haiku-4-5"
@@ -656,15 +657,6 @@ class SessionSettings(BaseModel):
     # usually redundant. Deterministic pending-content lookup still runs on
     # skipped cycles.
     content_manager_refresh_interval: int = 3
-    # Output-only local illustration policy. The global image-worker
-    # capability gate remains authoritative, so this default does not make
-    # Torch/CUDA a requirement for normal text-only play.
-    image_generation_mode: str = "actor"
-    # Generate on every Nth eligible completed acting-player beat. This is a
-    # presentation cadence only and never changes canonical story state.
-    image_generation_every_n_beats: int = 1
-
-
 class SessionConfig(BaseModel):
     models: ModelConfig = Field(default_factory=ModelConfig)
     # Long-form narrator style rules: prose discipline, pacing, subtext philosophy
@@ -753,6 +745,10 @@ class PhysicsRuleset(BaseModel):
 
 class StorySetting(BaseModel):
     """Genre, era, and tone metadata — used to ground character genesis and narrator voice."""
+    title: str = ""
+    recommended_players: str = ""
+    play_guidance: str = ""
+    discoverable: bool = True
     genre: str = ""
     era: str = ""
     tone: str = ""
@@ -762,12 +758,34 @@ class StorySetting(BaseModel):
     visual_style: str = ""
 
 
+class CharacterGenerationGuidance(BaseModel):
+    """Story-authored target depth and presentation for one generation tier.
+
+    These fields describe a budget, not generic engine rankings. A story may
+    use tiers for social station, dramatic importance, supernatural maturity,
+    rarity, or any other authored ladder. Omitting the guidance leaves ordinary
+    character generation unchanged.
+    """
+
+    backstory_depth: str = ""
+    personality_depth: str = ""
+    public_visual_detail: str = ""
+    loadout_detail: str = ""
+    visual_salience: str = ""
+    # Contextual casting/art direction, including any intended beauty,
+    # age-presentation, or deliberate exception. This is story presentation
+    # guidance, not a universal judgment about people or bodies.
+    presentation_guidance: str = ""
+
+
 class KnowledgeTier(BaseModel):
     """One rung of an authored knowledge ladder for router-spawned characters.
 
     A character spawned at knowledge_tier N is authored (at character_gen) to
     know the cumulative budget of tiers 1..N: the personal depth of their own
     remembered life plus the shared world/plot knowledge unlocked at that rung.
+    A rung may also carry a non-cumulative `generation_guidance` target for how
+    fully that tier should be authored and presented.
     High rungs may name otherwise-hidden plot facts; the assembled budget
     reaches only the spawned character's own agent context (their
     known_context/secrets), never the narrator or lower-tier agents.
@@ -779,7 +797,33 @@ class KnowledgeTier(BaseModel):
     label: str = ""
     personal_depth: str = ""
     world_knowledge: str = ""
+    generation_guidance: CharacterGenerationGuidance | None = None
     agent_tier: CharacterAgentTier | None = None
+
+
+class OpeningPolicy(BaseModel):
+    """Story-authored constraints for the router's canonical opening.
+
+    The generic runtime does not interpret the story prose. It only enforces
+    the explicit spawn authority bit; the router uses ``context`` together
+    with the live human bindings to author the opening event.
+    """
+
+    allow_spawns: bool = False
+    # Some stories branch their first event from the complete set of claimed
+    # seats. Frontends must ask for an explicit ready confirmation before
+    # starting those stories so an early /begin cannot silently omit a player.
+    requires_claim_confirmation: bool = False
+    context: str = ""
+
+    @model_validator(mode="after")
+    def _validate_spawn_authority(self) -> "OpeningPolicy":
+        self.context = self.context.strip()
+        if self.allow_spawns and not self.context:
+            raise ValueError(
+                "opening allow_spawns=true requires authored opening context"
+            )
+        return self
 
 
 class WorldState(BaseModel):
@@ -794,9 +838,12 @@ class WorldState(BaseModel):
     # spoilers, conspiracy details, and secrets to be discovered through play.
     hidden_lore: str = ""
     hidden_facts: list[str] = Field(default_factory=list)
+    # Optional router-only opening contract. Missing/false spawn authority keeps
+    # the generic no-opening-spawns behavior.
+    opening: OpeningPolicy | None = None
     # Optional authored knowledge ladder for router-spawned characters. When
-    # present, a spawn's seed.knowledge_tier selects a cumulative budget the
-    # character_gen pass authors to (personal depth + unlocked world/plot
-    # knowledge) and may set the spawn's agent tier. Empty (the default) for
-    # stories that do not gate spawn knowledge by tier.
+    # present, a spawn's seed.knowledge_tier selects cumulative knowledge plus
+    # the target rung's optional generation-depth/presentation budget, and may
+    # set the spawn's agent tier. Empty (the default) for stories that do not
+    # gate character generation by tier.
     knowledge_tiers: list[KnowledgeTier] = Field(default_factory=list)

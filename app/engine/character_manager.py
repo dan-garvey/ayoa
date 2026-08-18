@@ -14,6 +14,7 @@ from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
+    is_player_authored_slot,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput, SpawnRequest
@@ -105,13 +106,14 @@ def _dnd_ruleset_enabled(checkpoint: CheckpointFile) -> bool:
 def _assemble_knowledge_grant(
     checkpoint: CheckpointFile, tier: int,
 ) -> tuple[str, CharacterAgentTier | None]:
-    """Build the cumulative character_gen knowledge budget for a spawn tier.
+    """Build the authored character_gen contract for a spawn tier.
 
     Returns (grant_block, agent_tier). The block covers tiers 1..tier from
     `world_state.knowledge_tiers` (each rung's personal depth + unlocked
-    world/plot knowledge); agent_tier is the highest present rung's override,
-    if any. Returns ("", None) when the story authored no ladder or tier <= 0,
-    so spawns in non-tiered stories behave exactly as before.
+    world/plot knowledge), plus the exact target rung's optional non-cumulative
+    generation guidance; agent_tier is the highest present rung's override, if
+    any. Returns ("", None) when the story authored no ladder or tier <= 0, so
+    spawns in non-tiered stories behave exactly as before.
     """
     tiers = list(getattr(checkpoint.world_state, "knowledge_tiers", None) or [])
     if tier <= 0 or not tiers:
@@ -138,11 +140,82 @@ def _assemble_knowledge_grant(
             lines.append(f"- Personal life they remember: {t.personal_depth}")
         if t.world_knowledge:
             lines.append(f"- World/plot they are aware of: {t.world_knowledge}")
+
+    target = next((t for t in selected if t.tier == tier), None)
+    guidance = (
+        getattr(target, "generation_guidance", None)
+        if target is not None
+        else None
+    )
+    guidance_fields = (
+        (
+            ("Backstory depth", guidance.backstory_depth),
+            ("Personality, voice, and contradiction depth", guidance.personality_depth),
+            ("Public physical/visual detail", guidance.public_visual_detail),
+            ("Loadout complexity and material finish", guidance.loadout_detail),
+            ("Intended visual salience", guidance.visual_salience),
+            ("Presentation guidance", guidance.presentation_guidance),
+        )
+        if guidance is not None
+        else ()
+    )
+    if any(value.strip() for _label, value in guidance_fields):
+        lines.extend(
+            [
+                "\n## Authored Generation Budget (authoritative)",
+                (
+                    f"Apply the Tier {tier} target below to the whole character. "
+                    "Unlike the cumulative knowledge boundary, this is one "
+                    "target budget: do not average it with lower tiers. Match "
+                    "sparse/shared direction by withholding extra polish, and "
+                    "match rich direction even when it overrides the prompt's "
+                    "ordinary concision defaults. Keep every public visual "
+                    "detail player-safe. Presentation guidance is story-local "
+                    "casting and art direction, not a universal value judgment."
+                ),
+            ]
+        )
+        lines.extend(
+            f"- {label}: {value}"
+            for label, value in guidance_fields
+            if value.strip()
+        )
+
     agent_tier: CharacterAgentTier | None = None
     for t in selected:
         if t.agent_tier is not None:
             agent_tier = t.agent_tier
     return "\n".join(lines), agent_tier
+
+
+def _existing_character_generation_lines(
+    characters: list[CharacterRecord],
+    *,
+    bound_character_ids: set[str] | None = None,
+) -> str:
+    lines: list[str] = []
+    bound = bound_character_ids or set()
+    for character in characters:
+        if (
+            is_player_authored_slot(character)
+            and character.character_id not in bound
+        ):
+            continue
+        parts = [
+            character.name or character.character_id,
+            f"id={character.character_id}",
+        ]
+        role = " ".join(character.public_sheet.role.split())
+        appearance = " ".join(character.public_sheet.appearance.split())
+        loadout = " ".join(character.visuals.default_loadout.split())
+        if role:
+            parts.append(f"role={role[:180]}")
+        if appearance:
+            parts.append(f"appearance={appearance[:240]}")
+        if loadout:
+            parts.append(f"loadout={loadout[:240]}")
+        lines.append("- " + "; ".join(parts))
+    return "\n".join(lines) if lines else "No existing characters."
 
 
 class CharacterManager:
@@ -373,7 +446,12 @@ class CharacterManager:
             checkpoint, req.seed.knowledge_tier,
         )
 
-        existing = ", ".join(c.name for c in checkpoint.characters)
+        existing = _existing_character_generation_lines(
+            checkpoint.characters,
+            bound_character_ids=set(
+                checkpoint.session.character_bindings or {}
+            ),
+        )
         dnd_enabled = _dnd_ruleset_enabled(checkpoint)
 
         messages = self.prompt_manager.render_messages(

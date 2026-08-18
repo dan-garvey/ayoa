@@ -7,8 +7,11 @@ import os
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Protocol
+
+from PIL import Image
 
 from app.engine.content_asset_bytes import (
     AssetByteResolutionError,
@@ -208,7 +211,7 @@ class CliImageDisplayRenderer:
                 ),
             )
         try:
-            self.backend.render(item)
+            self.backend.render(_inline_transport_image(item))
         except Exception:
             logger.exception(
                 "cli image backend render failed: backend=%s",
@@ -320,6 +323,34 @@ def write_cli_safe_asset_cache(
         except OSError:
             pass
     return path
+
+
+def _inline_transport_image(
+    item: PreparedCliImageReveal,
+) -> PreparedCliImageReveal:
+    """Transcode WebP for terminals whose decoder renders it as black."""
+
+    if item.mime_type != "image/webp":
+        return item
+    with Image.open(BytesIO(item.data)) as source:
+        if source.format != "WEBP" or getattr(source, "n_frames", 1) != 1:
+            raise ValueError("inline WebP must contain exactly one frame")
+        source.load()
+        clean = Image.new("RGB", source.size)
+        clean.paste(source.convert("RGB"))
+    output = BytesIO()
+    clean.save(output, format="PNG", optimize=True)
+    data = output.getvalue()
+    sha256 = hashlib.sha256(data).hexdigest()
+    return PreparedCliImageReveal(
+        pov_character_id=item.pov_character_id,
+        cache_path=item.cache_path,
+        filename=f"illustration-{sha256[:16]}.png",
+        mime_type="image/png",
+        data=data,
+        sha256=sha256,
+        byte_count=len(data),
+    )
 
 
 @dataclass(frozen=True)

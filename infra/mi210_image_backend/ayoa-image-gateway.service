@@ -1,0 +1,20 @@
+[Unit]
+Description=Ayoa MI210 image gateway
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nod/.local/share/ayoa-image-server
+Environment=AYOA_GATEWAY_FLUX_URL=http://127.0.0.1:8188
+Environment=AYOA_GATEWAY_COMFY_MASTER_URL=http://127.0.0.1:8194
+Environment=AYOA_GATEWAY_COMFY_PUBLIC_URL=http://127.0.0.1:8189
+Environment=AYOA_GATEWAY_COMFY_WORKERS=http://127.0.0.1:8210,http://127.0.0.1:8211,http://127.0.0.1:8212,http://127.0.0.1:8213
+Environment=AYOA_GATEWAY_MODE_SWITCH_TIMEOUT_SECONDS=900
+Environment=AYOA_GATEWAY_QWEN_TIMEOUT_SECONDS=1800
+ExecStart=/home/nod/.local/share/ayoa-image-server/venv/bin/python -m uvicorn gateway:app --host 127.0.0.1 --port 8199 --workers 1
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

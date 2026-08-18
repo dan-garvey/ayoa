@@ -109,8 +109,6 @@ class TestSettingsHelpers:
         ckpt = _ckpt()
         assert get_setting(ckpt, "max_events_per_beat") == 40
         assert get_setting(ckpt, "max_agent_cascades_per_beat") == 35
-        assert get_setting(ckpt, "image_generation_mode") == "actor"
-        assert get_setting(ckpt, "image_generation_every_n_beats") == 1
 
     def test_get_unknown_raises(self):
         ckpt = _ckpt()
@@ -129,12 +127,14 @@ class TestSettingsHelpers:
         assert new == "interactive"
         assert ckpt.session.config.settings.player_roll_mode == "interactive"
 
-    def test_set_image_generation_policy(self):
+    @pytest.mark.parametrize(
+        "retired_key",
+        ["image_generation_mode", "image_generation_every_n_beats"],
+    )
+    def test_actor_cadence_image_settings_are_retired(self, retired_key):
         ckpt = _ckpt()
-        assert set_setting(ckpt, "image_generation_mode", "off") == "off"
-        assert set_setting(ckpt, "image_generation_every_n_beats", "3") == 3
-        assert ckpt.session.config.settings.image_generation_mode == "off"
-        assert ckpt.session.config.settings.image_generation_every_n_beats == 3
+        with pytest.raises(UnknownSettingError):
+            get_setting(ckpt, retired_key)
 
     def test_set_beat_caps(self):
         ckpt = _ckpt()
@@ -218,6 +218,4 @@ class TestEngineBridgeSettings:
             "max_agent_cascades_per_beat",
             "ruleset_id",
             "player_roll_mode",
-            "image_generation_mode",
-            "image_generation_every_n_beats",
         }.issubset(keys)

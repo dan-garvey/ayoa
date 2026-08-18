@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 from app.bot.engine_bridge import (
     EngineBridge,
@@ -18,6 +19,7 @@ from app.engine.context_builder import (
 from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
+    PlayerSlotKind,
     PrivateState,
     PublicSheet,
 )
@@ -205,6 +207,138 @@ class TestBindUnbind:
         assert await bridge.unbind_user(SESSION_ID, 999) is None
 
 
+class TestStrictPlayerJoin:
+    @staticmethod
+    def _add_player_authored_slot(bridge: EngineBridge) -> None:
+        ckpt = bridge.load_latest(SESSION_ID)
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            status=CharacterStatus.dormant,
+            location="unclaimed_player_slot",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+            public_sheet=PublicSheet(role="new arrival"),
+        ))
+        bridge.checkpoint_mgr.save(ckpt)
+
+    async def test_strict_claim_rejects_nonplayable_character(
+        self, bridge: EngineBridge,
+    ):
+        with pytest.raises(ValueError, match="not an available player seat"):
+            await bridge.claim_player_character(
+                SESSION_ID,
+                "sera",
+                42,
+            )
+
+    async def test_player_authored_claim_is_atomic_on_missing_identity(
+        self, bridge: EngineBridge, monkeypatch: pytest.MonkeyPatch,
+    ):
+        self._add_player_authored_slot(bridge)
+        save = MagicMock(wraps=bridge.checkpoint_mgr.save)
+        monkeypatch.setattr(bridge.checkpoint_mgr, "save", save)
+
+        with pytest.raises(ValueError, match="describe.*appearance"):
+            await bridge.claim_player_character(
+                SESSION_ID,
+                "blank_arrival",
+                42,
+                name="Mara Vale",
+            )
+
+        save.assert_not_called()
+        current = bridge.load_latest(SESSION_ID)
+        slot = next(
+            character
+            for character in current.characters
+            if character.character_id == "blank_arrival"
+        )
+        assert current.session.character_bindings.get("blank_arrival") is None
+        assert slot.name == "the Newcomer"
+        assert slot.public_sheet.appearance == ""
+
+    async def test_player_authored_claim_writes_identity_and_binding_together(
+        self, bridge: EngineBridge, monkeypatch: pytest.MonkeyPatch,
+    ):
+        self._add_player_authored_slot(bridge)
+        save = MagicMock(wraps=bridge.checkpoint_mgr.save)
+        monkeypatch.setattr(bridge.checkpoint_mgr, "save", save)
+
+        claimed = await bridge.claim_player_character(
+            SESSION_ID,
+            "blank_arrival",
+            42,
+            name="  Mara   Vale  ",
+            appearance="scarlet coat and iron-gray braid",
+        )
+
+        save.assert_called_once()
+        slot = next(
+            character
+            for character in claimed.characters
+            if character.character_id == "blank_arrival"
+        )
+        assert claimed.session.character_bindings["blank_arrival"] == "42"
+        assert slot.name == "Mara Vale"
+        assert slot.public_sheet.appearance == (
+            "scarlet coat and iron-gray braid"
+        )
+        assert slot.visuals.default_loadout == slot.public_sheet.appearance
+
+    async def test_player_authored_leave_goes_off_frame_without_agent_handoff(
+        self, bridge: EngineBridge, monkeypatch: pytest.MonkeyPatch,
+    ):
+        self._add_player_authored_slot(bridge)
+        await bridge.claim_player_character(
+            SESSION_ID,
+            "blank_arrival",
+            42,
+            name="Mara Vale",
+            appearance="scarlet coat and iron-gray braid",
+        )
+        ckpt = bridge.load_latest(SESSION_ID)
+        slot = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == "blank_arrival"
+        )
+        slot.status = CharacterStatus.active
+        slot.location = "gatehouse"
+        bridge.checkpoint_mgr.save(ckpt)
+        synthesize = AsyncMock()
+        monkeypatch.setattr(bridge, "synthesize_personality", synthesize)
+
+        freed = await bridge.leave_character(SESSION_ID, 42)
+
+        assert freed == "blank_arrival"
+        synthesize.assert_not_awaited()
+        current = bridge.load_latest(SESSION_ID)
+        slot = next(
+            character
+            for character in current.characters
+            if character.character_id == "blank_arrival"
+        )
+        assert "blank_arrival" not in current.session.character_bindings
+        assert slot.status == CharacterStatus.dormant
+        assert slot.location == ""
+
+    async def test_standard_playable_leave_retains_agent_handoff(
+        self, bridge: EngineBridge, monkeypatch: pytest.MonkeyPatch,
+    ):
+        ckpt = bridge.load_latest(SESSION_ID)
+        sera = next(c for c in ckpt.characters if c.character_id == "sera")
+        sera.is_playable = True
+        bridge.checkpoint_mgr.save(ckpt)
+        await bridge.claim_player_character(SESSION_ID, "sera", 42)
+        synthesize = AsyncMock(return_value=bridge.load_latest(SESSION_ID))
+        monkeypatch.setattr(bridge, "synthesize_personality", synthesize)
+
+        await bridge.leave_character(SESSION_ID, 42)
+
+        synthesize.assert_awaited_once_with(SESSION_ID, "sera")
+
+
 class TestDossier:
     def test_includes_character_interior(self, bridge: EngineBridge):
         """Dossier surfaces what the CHARACTER knows about themselves."""
@@ -313,6 +447,33 @@ class TestPlayerCharactersBlock:
         block = build_player_characters_block(ckpt, "aldric")
         assert "aldric" not in block
         assert "No player characters bound" in block
+
+    def test_unbound_player_authored_slot_is_selectable_but_not_model_context(
+        self,
+    ):
+        ckpt = _make_checkpoint()
+        ckpt.session.player_character_id = ""
+        ckpt.session.character_bindings = {}
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            status=CharacterStatus.dormant,
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+            player_guidance="Choose this character's identity when joining.",
+        ))
+
+        summaries = _summaries_from_checkpoint(ckpt)
+        joinable = joinable_character_summaries(summaries)
+        block = build_player_characters_block(ckpt, "aldric")
+
+        summary = next(
+            item for item in joinable
+            if item.character_id == "blank_arrival"
+        )
+        assert summary.player_slot_kind == "player_authored"
+        assert "identity" in summary.player_guidance
+        assert "blank_arrival" not in block
 
     def test_uses_character_ids_without_name_annotations(self):
         """The router uses character_id as the sole LLM-facing handle."""

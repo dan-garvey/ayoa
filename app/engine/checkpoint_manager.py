@@ -5,6 +5,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION, CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
@@ -18,6 +19,16 @@ class CheckpointManager:
     def __init__(self, save_dir: str):
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
+        self._load_validator: Callable[
+            [CheckpointFile, Path],
+            None,
+        ] | None = None
+
+    def set_load_validator(
+        self,
+        validator: Callable[[CheckpointFile, Path], None] | None,
+    ) -> None:
+        self._load_validator = validator
 
     def _session_dir(self, session_id: str) -> Path:
         return self.save_dir / session_id
@@ -214,4 +225,6 @@ class CheckpointManager:
         except Exception as e:
             raise ValueError(f"Invalid checkpoint file {path}: {e}") from e
 
+        if self._load_validator is not None:
+            self._load_validator(ckpt, path)
         return ckpt

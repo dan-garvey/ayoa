@@ -1,21 +1,29 @@
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import PurePosixPath
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.schemas.image_director import ImageDirectionKind
 
 
-IMAGE_JOB_SCHEMA_VERSION = "1"
+IMAGE_JOB_SCHEMA_VERSION = "6"
 
 
 class ImageGenerationStatus(str, Enum):
     queued = "queued"
     running = "running"
     succeeded = "succeeded"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
+class ImageDeliveryStatus(str, Enum):
+    pending = "pending"
     delivering = "delivering"
     delivered = "delivered"
-    failed = "failed"
     cancelled = "cancelled"
 
 
@@ -24,45 +32,97 @@ class ImageDeliveryKind(str, Enum):
     cli = "cli"
 
 
-class ImageTriggerKind(str, Enum):
-    act = "act"
-    begin = "begin"
-    arrival = "arrival"
-    roll_resolution = "roll_resolution"
-    render_retry = "render_retry"
-    query = "query"
+class IdentityReferenceStatus(str, Enum):
+    provisional = "provisional"
+    locked = "locked"
+    retained = "retained"
+    retired = "retired"
+
+
+class FrozenReferenceInput(BaseModel):
+    """Hash-pinned private input consumed only by the diffusion worker."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reference_id: str
+    sha256: str
+    mime_type: str
+    width: int
+    height: int
+    byte_count: int
+    relative_path: str
+    allowed_root: str
+
+    @model_validator(mode="after")
+    def _validate_reference(self) -> "FrozenReferenceInput":
+        self.reference_id = self.reference_id.strip()
+        self.sha256 = self.sha256.strip().lower()
+        self.mime_type = self.mime_type.strip().lower()
+        self.relative_path = self.relative_path.strip().replace("\\", "/")
+        self.allowed_root = self.allowed_root.strip()
+        if not self.reference_id:
+            raise ValueError("reference_id must not be empty")
+        if len(self.sha256) != 64:
+            raise ValueError("reference sha256 must contain 64 hex characters")
+        try:
+            int(self.sha256, 16)
+        except ValueError as exc:
+            raise ValueError("reference sha256 must be hexadecimal") from exc
+        relative = PurePosixPath(self.relative_path)
+        if (
+            not self.relative_path
+            or relative.is_absolute()
+            or ".." in relative.parts
+        ):
+            raise ValueError("reference relative_path must stay inside its root")
+        if not self.allowed_root:
+            raise ValueError("reference allowed_root must not be empty")
+        if self.mime_type not in {"image/jpeg", "image/png", "image/webp"}:
+            raise ValueError("unsupported reference MIME type")
+        if self.width < 1 or self.height < 1 or self.byte_count < 1:
+            raise ValueError("reference dimensions and byte_count must be positive")
+        return self
 
 
 class ImageGenerationRequest(BaseModel):
-    """Private, durable request for one output-only POV illustration."""
+    """One event-provenance diffusion request with no delivery metadata."""
+
+    model_config = ConfigDict(extra="forbid")
 
     schema_version: str = IMAGE_JOB_SCHEMA_VERSION
     session_id: str
-    checkpoint_id: str
-    checkpoint_sha256: str
-    turn_index: int
-    actor_character_id: str
-    trigger_kind: ImageTriggerKind
+    transaction_id: str
+    source_event_id: str
+    source_event_fingerprint: str
+    source_event_sequence: int
+    source_turn_index: int
+    request_ordinal: int
+    kind: ImageDirectionKind
+    title: str
+    subject_character_ids: list[str]
     prompt: str
     prompt_sha256: str
     model_id: str
     model_revision: str
-    width: int = 1024
-    height: int = 1024
+    width: int
+    height: int
     steps: int = 4
     guidance: float = 1.0
     seed: int
     dedupe_key: str
-    delivery_kind: ImageDeliveryKind
-    delivery: dict[str, Any] = Field(default_factory=dict)
+    reference_inputs: list[FrozenReferenceInput] = Field(default_factory=list)
+    reroll_of_reference_id: str = ""
 
     @model_validator(mode="after")
     def _validate_request(self) -> "ImageGenerationRequest":
+        if self.schema_version != IMAGE_JOB_SCHEMA_VERSION:
+            raise ValueError("unsupported image request schema version")
         for field_name in (
             "session_id",
-            "checkpoint_id",
-            "checkpoint_sha256",
-            "actor_character_id",
+            "transaction_id",
+            "source_event_id",
+            "source_event_fingerprint",
+            "title",
             "prompt",
             "prompt_sha256",
             "model_id",
@@ -73,8 +133,26 @@ class ImageGenerationRequest(BaseModel):
             if not value:
                 raise ValueError(f"{field_name} must not be empty")
             setattr(self, field_name, value)
-        if self.turn_index < 0:
-            raise ValueError("turn_index must be non-negative")
+        if len(self.title) > 80:
+            raise ValueError("title must be 80 characters or fewer")
+        for hash_field in ("source_event_fingerprint", "prompt_sha256", "dedupe_key"):
+            value = str(getattr(self, hash_field))
+            if len(value) != 64:
+                raise ValueError(f"{hash_field} must contain 64 hex characters")
+            try:
+                int(value, 16)
+            except ValueError as exc:
+                raise ValueError(f"{hash_field} must be hexadecimal") from exc
+        self.subject_character_ids = [
+            character_id.strip()
+            for character_id in dict.fromkeys(self.subject_character_ids)
+            if character_id.strip()
+        ]
+        self.reroll_of_reference_id = self.reroll_of_reference_id.strip()
+        if self.source_event_sequence < 0 or self.source_turn_index < 0:
+            raise ValueError("source sequence and turn must be non-negative")
+        if self.request_ordinal < 0:
+            raise ValueError("request_ordinal must be non-negative")
         if self.width < 256 or self.height < 256:
             raise ValueError("image dimensions must each be at least 256")
         if self.width % 16 or self.height % 16:
@@ -137,7 +215,6 @@ class ImageGenerationJob(BaseModel):
     updated_at: float
     started_at: float | None = None
     completed_at: float | None = None
-    delivered_at: float | None = None
 
     @model_validator(mode="after")
     def _validate_job(self) -> "ImageGenerationJob":
@@ -147,13 +224,38 @@ class ImageGenerationJob(BaseModel):
             raise ValueError("job_id must not be empty")
         if self.attempts < 0:
             raise ValueError("attempts must be non-negative")
-        if self.status in {
-            ImageGenerationStatus.succeeded,
-            ImageGenerationStatus.delivering,
-            ImageGenerationStatus.delivered,
-        } and self.artifact is None:
+        if self.status == ImageGenerationStatus.succeeded and self.artifact is None:
             raise ValueError(f"{self.status.value} jobs require an artifact")
         return self
+
+
+class ImageDelivery(BaseModel):
+    delivery_id: str
+    job_id: str
+    session_id: str
+    source_turn_index: int
+    pov_character_id: str
+    delivery_kind: ImageDeliveryKind
+    delivery: dict[str, Any] = Field(default_factory=dict)
+    status: ImageDeliveryStatus = ImageDeliveryStatus.pending
+    attempts: int = 0
+    created_at: float
+    updated_at: float
+    delivered_at: float | None = None
+
+
+class IdentityReferenceCandidate(BaseModel):
+    candidate_id: str
+    session_id: str
+    character_id: str
+    job_id: str
+    artifact: GeneratedImageArtifact
+    status: IdentityReferenceStatus
+    active: bool
+    reminder_required: bool
+    reroll_of_reference_id: str = ""
+    created_at: float
+    updated_at: float
 
 
 class ImageWorkerResult(BaseModel):

@@ -15,7 +15,12 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import SpawnRequest
-from app.schemas.state import SessionState, WorldState
+from app.schemas.state import (
+    CharacterGenerationGuidance,
+    KnowledgeTier,
+    SessionState,
+    WorldState,
+)
 from tests.support.factories import router_output
 
 # --- Fixtures ---
@@ -172,8 +177,76 @@ class TestCharacterSpawn:
         assert kwargs["role"] == "agent_convenience"
         assert kwargs["response_model"] is AuthoredCharacter
         assert "dnd_statblock" not in _messages_text(kwargs["messages"])
+        assert "## Authored Generation Budget" not in kwargs["messages"][1]["content"]
+        assert "## Knowledge Budget" not in kwargs["messages"][1]["content"]
+        assert "gacha" not in _messages_text(kwargs["messages"]).lower()
         # Should be added to checkpoint
         assert mgr.get_character(sample_checkpoint, "stablehand_01") is not None
+
+    @pytest.mark.asyncio
+    async def test_story_authored_generation_budget_renders_in_user_tail(
+        self, mock_client, sample_checkpoint,
+    ):
+        from app.schemas.takeover import AuthoredCharacter
+
+        sample_checkpoint.world_state.knowledge_tiers = [
+            KnowledgeTier(
+                tier=2,
+                label="court initiate",
+                personal_depth="Remembers a household apprenticeship.",
+                world_knowledge="Knows the public etiquette of the river court.",
+                generation_guidance=CharacterGenerationGuidance(
+                    backstory_depth="Three connected formative episodes.",
+                    personality_depth="A layered public voice and one live contradiction.",
+                    public_visual_detail="A stable face, build, palette, and silhouette.",
+                    loadout_detail="Weathered silk with one carefully finished tool.",
+                    visual_salience="A clear secondary figure in ensemble scenes.",
+                    presentation_guidance="Story-local mature romantic-drama casting.",
+                ),
+                agent_tier=CharacterAgentTier.standard,
+            )
+        ]
+        authored = AuthoredCharacter(
+            name="Tarin Vale",
+            location="courtyard",
+            role="court initiate",
+            appearance="",
+            default_loadout="",
+            faction="",
+            backstory="",
+            personality="",
+            known_context="",
+            goals=[],
+            current_objectives=[],
+            secrets=[],
+            intentions_enabled=False,
+            router_summary="",
+        )
+        mock_client.complete.return_value = _llm_response(authored)
+
+        mgr = CharacterManager(mock_client, PromptManager("app/prompts"))
+        spawned = await mgr.spawn_characters(
+            sample_checkpoint,
+            [
+                _spawn_request(
+                    character_id="tarin_vale",
+                    seed={
+                        "role": "court initiate",
+                        "knowledge_tier": 2,
+                    },
+                )
+            ],
+        )
+
+        messages = mock_client.complete.call_args.kwargs["messages"]
+        system_text = messages[0]["content"]
+        user_text = messages[1]["content"]
+        assert "## Authored Generation Budget (authoritative)" in user_text
+        assert "Three connected formative episodes." in user_text
+        assert "Weathered silk with one carefully finished tool." in user_text
+        assert "Three connected formative episodes." not in system_text
+        assert "Weathered silk with one carefully finished tool." not in system_text
+        assert spawned[0].agent_tier == CharacterAgentTier.standard
 
     @pytest.mark.asyncio
     async def test_dnd_spawn_character_uses_authored_statblock(

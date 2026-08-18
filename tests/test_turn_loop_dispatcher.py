@@ -27,7 +27,7 @@ from app.engine.turn_loop_dispatcher import (
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.characters import CharacterRecord, PlayerSlotKind, PublicSheet
 from app.schemas.content import (
     ContentKnowledgeEntityState,
     ContentPackState,
@@ -374,6 +374,21 @@ class TestRouterContext:
         ctx = _build_router_context(ckpt, "alice")
 
         assert ctx["initial_roster_block"] == ""
+
+    def test_unclaimed_player_authored_slot_is_absent_from_router_context(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+            public_sheet=PublicSheet(role="new arrival"),
+        ))
+
+        ctx = _build_router_context(ckpt, "alice")
+
+        assert "blank_arrival" not in ctx["initial_roster_block"]
+        assert "blank_arrival" not in ctx["player_characters_block"]
 
 class TestRouteIntention:
     def test_human_initiator_emits_attempts_framing(
@@ -1894,6 +1909,30 @@ class TestAgentIntend:
         assert out == "(remains silent)"
         assert "notices" not in out
 
+    def test_unclaimed_player_authored_slot_never_reaches_agent(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+        ))
+        turn = AsyncMock()
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.turn",
+            turn,
+        )
+
+        with pytest.raises(RuntimeError, match="unclaimed player-authored"):
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).agent_intend(
+                ckpt=ckpt,
+                character_id="blank_arrival",
+            ))
+
+        turn.assert_not_awaited()
+
 
 class TestHarvestPerceptions:
     def test_returns_fragments_in_input_order(
@@ -1934,6 +1973,30 @@ class TestHarvestPerceptions:
             character_ids=["never_existed"],
         ))
         assert out == [""]
+
+    def test_unclaimed_player_authored_slot_never_reaches_perception_agent(
+        self, prompt_mgr, mock_client, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+        ))
+        perceive = AsyncMock()
+        monkeypatch.setattr(
+            "app.engine.character_agent.CharacterAgent.perceive",
+            perceive,
+        )
+
+        with pytest.raises(RuntimeError, match="unclaimed player-authored"):
+            asyncio.run(LLMDispatcher(mock_client, prompt_mgr).harvest_perceptions(
+                ckpt=ckpt,
+                character_ids=["blank_arrival"],
+            ))
+
+        perceive.assert_not_awaited()
 
     def test_per_character_exception_absorbed_into_empty(
         self, prompt_mgr, mock_client, monkeypatch,

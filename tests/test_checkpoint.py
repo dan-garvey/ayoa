@@ -1,6 +1,9 @@
 """Tests for the checkpoint manager — save/load round-trip, load-latest, corruption handling."""
 
 
+import json
+from pathlib import Path
+
 import pytest
 
 from app.engine.checkpoint_manager import CheckpointManager
@@ -8,7 +11,6 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.characters import CharacterRecord
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.event_router import DndEventRouterOutput
-from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import SessionState, WorldState
 
 
@@ -21,10 +23,20 @@ def _make_checkpoint(session_id: str = "test-session", turn_index: int = 0) -> C
         characters=[
             CharacterRecord(character_id="guard_17", name="Captain Vero"),
         ],
-        transcript=[
-            TranscriptEntry(user="I look around.", assistant="You see a courtyard."),
-        ] if turn_index > 0 else [],
     )
+
+
+def test_schema_five_seed_sources_do_not_carry_retired_transcript():
+    repo_root = Path(__file__).resolve().parent.parent
+    seed_paths = [
+        *repo_root.glob("app/storage/stories/*/ckpt_0000.json"),
+        repo_root / "app/storage/story_templates/synthetic_checkpoint/ckpt_0000.json",
+    ]
+
+    for path in seed_paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if str(payload.get("schema_version")) == "5.0":
+            assert "transcript" not in payload, path
 
 
 class TestCheckpointSaveLoad:
@@ -50,8 +62,7 @@ class TestCheckpointSaveLoad:
 
         assert loaded.session.turn_index == 5
         assert loaded.world_state.facts == ["The courtyard is wet."]
-        assert len(loaded.transcript) == 1
-        assert loaded.transcript[0].user == "I look around."
+        assert not hasattr(loaded, "transcript")
 
     def test_dnd_router_event_and_loot_offer_round_trip(self, tmp_path):
         mgr = CheckpointManager(save_dir=str(tmp_path))

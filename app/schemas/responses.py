@@ -80,6 +80,12 @@ class TurnResponse(BaseModel):
     # the beat paused mid-Cat-II (see
     # `beat_ended_reason`) or nobody was present to observe.
     per_player_renders: dict[str, str] = Field(default_factory=dict)
+    # Internal delivery-order proof: canonical event ids included in each
+    # successful POV render. Frontends open image delivery gates only after
+    # that POV's prose has actually been posted.
+    rendered_event_ids_by_pov: dict[str, list[str]] = Field(
+        default_factory=dict
+    )
     # Player-safe asset reveal payloads for legacy single-POV callers. For
     # multi-POV delivery this should mirror
     # `per_player_asset_reveals[acting_character_id]`; new callers should use

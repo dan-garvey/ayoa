@@ -79,7 +79,7 @@ been collapsed. The current loop is:
    engine hits a hard cap.
 5. The narrator renders each observing human's POV from visible
    `observable_facts` only.
-6. Spawns, dormancy, culls, transcript updates, and
+6. Spawns, dormancy, culls, per-POV narrator history updates, and
    checkpoint saving are applied around the beat.
 
 The system is intentionally prompt-heavy. Prompt files under
@@ -124,8 +124,8 @@ The current engine does not attempt to:
 * run external tools from inside story agents
 * replace the router with an always-on generic rules arbitrator or content
   resolver; D&D combat and content lookup exist as narrow adapter subflows
-* maintain a fully separate transcript for every human POV in the global
-  transcript list
+* maintain a second global player-history surface alongside the canonical
+  per-POV narrator conversations
 
 ## 4. Design Principles
 
@@ -245,18 +245,27 @@ source image or a request to infer from it.
 
 Player-facing image display is presentation only. Discord or CLI views may
 reveal reviewed imported assets to players. When the optional local image
-worker is installed, they may also deliver an automatically generated
-illustration of an already rendered player POV. Generated illustrations are
-noncanonical output artifacts: they are built only from that player-safe
-narrator render plus explicitly public visual style/character descriptions,
-and are never evidence for story state.
+worker is installed, an event-driven sidecar may also illustrate finalized
+canonical events. It projects only router-authored visible facts and public
+character metadata for equivalent human observers, then asks a dedicated
+image-director role for zero or more aesthetic directions. Narrator prose is
+only a delivery-order gate; director and diffusion work start at event closure
+and overlap the remaining agent cascade and POV narration.
+The director may skip ordinary repetitive beats, but first clear primary
+character introductions, other named introduction waves, first reveals of
+materially new locations, and first reveals of major bosses or transformed
+forms are mandatory visual beats when the visible projection contains enough
+public information to depict them safely.
 
-Imported images retain their manual review and spoiler/privacy gate. Generated
-images use separate runtime provenance and receive technical byte, format,
-dimension, and hash validation rather than being falsely marked as reviewed
-content assets. Neither imported nor generated image bytes, references, job
-records, or visual output enter any runtime LLM message, checkpoint story
-state, canonical event, narrator history, or character-agent history.
+Generated illustrations are noncanonical output artifacts and are never
+evidence for story state. Imported images retain their manual review and
+spoiler/privacy gate. Generated images and frozen diffusion references use
+separate runtime provenance with byte, format, dimension, root, and hash
+validation. Image bytes, embeddings, captions derived from images, job
+records, and visual output never enter an LLM message, canonical event,
+narrator history, or character-agent history. A checkpoint may retain only an
+engine-owned identity-reference ID used by the diffusion pipeline; that handle
+does not change textual canon.
 
 ## 5. Runtime Components
 
@@ -270,6 +279,7 @@ Generic narrative engine commands:
 * `/story list|info|start|characters|delete`
 * `/join`, `/begin`, `/leave`, `/character`, `/describe`
 * `/act`, `/defer`, `/query`, `/status`, `/settings list|set`
+* `/image lock|reroll` — accept or replace a provisional portrait identity
 * `/rewind`, `/clear`, `/abort_beat`
 
 D&D adapter commands (active when `ruleset_id == "dnd5e_basic"`; see §15):
@@ -291,10 +301,14 @@ the live `LLMClient`, `CheckpointManager`, `PromptManager`, and `Orchestrator`;
 wraps turns in a per-session frontend lock; runs stale Cat II sweeps before
 new `/act` processing; and exposes helper flows for join, begin, arrival,
 takeover, leave, settings, query, and rewind. It also owns the optional local
-`ImageGenerationCoordinator`. The coordinator queues an acting-POV
-illustration only after canonical checkpoint save and prose delivery, runs
-GPU inference in an isolated subprocess outside the session lock, and treats
-all image failures as presentation failures rather than story-turn failures.
+`ImageGenerationCoordinator` and event image sidecar. Each finalized event is
+copied into immutable observer projections without awaiting presentation work.
+The sidecar groups equivalent projections, queues durable image-director runs,
+and materializes accepted directions as event-provenance diffusion jobs.
+Checkpoint save commits the speculative presentation transaction; turn failure
+or rewind cancels stale work. GPU inference runs in an isolated subprocess,
+network delivery runs separately, and images remain gated until source prose
+has reached each intended POV.
 
 ### 5.2 Orchestrator
 
@@ -307,7 +321,7 @@ narrative-engine happy path:
 4. checks active act slots; rejects, routes as Cat II responder, or proceeds
 5. calls `run_beat()`
 6. applies character lifecycle changes and spawns
-7. appends one transcript entry for the beat
+7. preserves each rendered POV in that character's narrator conversation
 8. increments the turn index and saves
 9. returns a `TurnResponse`
 
@@ -447,8 +461,9 @@ The narrator output schema is:
 }
 ```
 
-The engine constructs the transcript entry from the real player input
-and the rendered `final_text`.
+The engine constructs a transient render record from the real player input and
+the rendered `final_text` for response assembly. Durable player history is the
+per-character narrator conversation, not a second checkpoint transcript.
 
 ### 5.8 Character Manager
 
@@ -485,7 +500,11 @@ runtime outputs.
 
 Opening prose is not authored in the checkpoint. The first playable scene is
 composed later by the router on `(begin)` and rendered through the normal
-narrator path.
+narrator path. A seed may optionally provide `world_state.opening` with
+router-only authored context and an explicit `allow_spawns` capability. The
+context shapes that canonical opening; it is not prewritten prose or a second
+opening engine. Missing or false spawn authority preserves the default that
+`(begin)` cannot create characters.
 
 ### 5.10 Context Builder And Prompt Manager
 
@@ -681,6 +700,13 @@ The public commands for non-standard turns are router entries:
 * Late `/join` runs `(arrive)` after the opening exists.
 * `/defer` runs `(defer)` through the same turn path as `/act`.
 * `/query` runs `(query: ...)` through the normal router/narrator path.
+
+For `(begin)`, the ordinary player-characters block is also the authoritative
+claim set. It is built from live bindings rather than every claimable roster
+record. Authored opening context may branch on those ids. Even when a story
+allows opening spawns, the router may emit them only when that context says
+new persistent actors are required; existing and human-bound characters must
+be placed or activated rather than regenerated.
 
 `/query` is not a read-only side channel. It can append canonical events,
 update router/narrator conversations, and save a new checkpoint. The router is
@@ -883,6 +909,25 @@ overrides the LLM-authored location. Fresh NPCs also receive a small pending
 observation of their own location so their first dispatch has a concrete
 self-position.
 
+Stories may optionally author `world_state.knowledge_tiers`. Knowledge grants
+remain cumulative through the selected rung: remembered personal depth and
+world/plot knowledge from lower rungs are included. The exact selected rung may
+also carry `generation_guidance`, a non-cumulative target for backstory depth;
+personality, voice, and contradiction depth; public visual specificity;
+loadout complexity and material finish; intended visual salience; and
+story-local presentation guidance. `character_gen.txt` treats that target as
+authoritative, including when it asks for less detail than the generic default.
+The target is rendered in the volatile user tail because the selected rung
+changes per spawn.
+
+This contract is rules- and genre-neutral: a story can use tiers for social
+station, dramatic importance, supernatural maturity, rarity, or another
+authored ladder. Empty ladders, and rungs with knowledge but no generation
+guidance, preserve the prior character-generation behavior. Intended salience
+is authoring direction expressed through the resulting public appearance and
+loadout; it is not duplicated as a second character-visual schema or persisted
+as a private rank for the image director.
+
 Implementation detail: the spawn path renders `character_gen.txt`, but the
 LLM call currently uses `role="agent_convenience"` rather than the configured
 `character_gen` role. Treat `character_gen` as a prompt/template name, not an
@@ -995,13 +1040,13 @@ resolve. See §15.
 
 ## 13. Checkpoint Schema
 
-Current checkpoints use schema version `4.0`.
+Current checkpoints use schema version `5.0`.
 
 Top-level shape:
 
 ```json
 {
-  "schema_version": "4.0",
+  "schema_version": "5.0",
   "session": {},
   "player_primer": "string",
   "world_state": {},
@@ -1010,7 +1055,6 @@ Top-level shape:
   "narrator_conversations": {},
   "character_conversations": {},
   "canonical_events": [],
-  "transcript": [],
   "visibility_log": []
 }
 ```
@@ -1018,14 +1062,13 @@ Top-level shape:
 Important notes:
 
 * `canonical_events` stores full `EventRouterOutput` objects.
-* `transcript` is primarily display/audit state, but takeover/personality
-  synthesis flows may read recent transcript entries as authoring context.
 * `session_conversation` is the router's rolling history.
 * `session.config` is the canonical config source for model labels, narrative
   rules, and live settings.
 * D&D roll transactions are checkpoint/audit state, not router, narrator, or
   character-agent rolling history.
-* `narrator_conversations` are per human POV.
+* `narrator_conversations` are the authoritative rendered history for each
+  human POV. `/history` reconstructs turn labels from checkpoint deltas.
 * `character_conversations` are per character.
 * `world_state.locations` has no runtime topology.
 * `CharacterRecord.location` is an opaque continuity label.
@@ -1428,8 +1471,6 @@ Known stale or transitional areas:
   comments
 * `visibility_log` exists but the main v11 flow relies on
   `canonical_events`, render buffers, and NPC inboxes
-* global `transcript` stores one selected POV per beat; other POV prose
-  lives in `narrator_conversations`
 * `/query` is implemented as a mutating router/narrator turn, not a
   read-only information endpoint
 * router-selected background turns are not yet a generalized world-clock or
@@ -1453,7 +1494,7 @@ The engine carries narrative event timing, not a complete world clock:
 
 * `session.turn_index` — narrative time. Advances on every closed beat
   (both `process_turn` and `resolve_cat_ii` increment it). Player-facing
-  transcripts and history are keyed off this counter.
+  narrator history and checkpoint labels are keyed off this counter.
 * canonical event timing — `effective_at_s`, `duration_s`, per-character
   clocks, and commitment signals. These let the router place events relative
   to the acting branch but do not constitute a shared monotonic world clock.

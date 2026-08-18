@@ -1097,7 +1097,7 @@ class TestCheckpointFile:
             world_state=WorldState(**WORLD_STATE_EXAMPLE),
             characters=[CharacterRecord(**CHARACTER_EXAMPLE)],
         )
-        assert ckpt.schema_version == "4.0"  # relative-time hard break
+        assert ckpt.schema_version == "5.0"  # per-POV history hard break
         assert ckpt.session.session_id == "test-session"
         assert len(ckpt.characters) == 1
         assert not hasattr(ckpt, "importer_version")
@@ -1105,7 +1105,7 @@ class TestCheckpointFile:
 
     def test_legacy_import_metadata_ignored(self):
         legacy_payload = {
-            "schema_version": "4.0",
+            "schema_version": "5.0",
             "importer_version": "v11",
             "import_analysis": {"coverage_rating": "high"},
             "session": {"session_id": "legacy"},
@@ -1141,7 +1141,7 @@ class TestCheckpointFile:
 
     def test_retired_top_level_config_is_ignored(self):
         payload = {
-            "schema_version": "4.0",
+            "schema_version": "5.0",
             "session": {
                 "session_id": "canonical-config",
                 "config": {
@@ -1166,7 +1166,6 @@ class TestCheckpointFile:
             session=SessionState(session_id="test-session"),
             world_state=WorldState(**WORLD_STATE_EXAMPLE),
             characters=[CharacterRecord(**CHARACTER_EXAMPLE)],
-            transcript=[TranscriptEntry(user="hello", assistant="world")],
         )
         rebuilt = CheckpointFile(**ckpt.model_dump())
         assert rebuilt == ckpt
@@ -1174,7 +1173,7 @@ class TestCheckpointFile:
     def test_defaults(self):
         ckpt = CheckpointFile(session=SessionState(session_id="minimal"))
         assert ckpt.characters == []
-        assert ckpt.transcript == []
+        assert not hasattr(ckpt, "transcript")
         assert ckpt.visibility_log == []
         assert ckpt.session.visual_introductions == {}
         # ux-primer-4: Pre-v8 (and freshly hand-built) checkpoints have

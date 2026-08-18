@@ -21,6 +21,7 @@ from scripts.play import (
     _cli_log_level,
     _default_history_path,
     _format_missing_llm_credentials,
+    _prepare_session_story,
     _print_dice_roll_displays,
     _session_command_lock,
     _split_combat_ids,
@@ -33,7 +34,11 @@ from app.engine.frontend_views import (
     DndCombatParticipantView,
     DndCombatView,
     DndSheetAttachmentSummary,
+    OpeningLobbyView,
     PendingRollPrompt,
+    PlayerJoinResult,
+    SessionActivityView,
+    StorySummary,
     TurnHistoryEntry,
 )
 from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig, MissingLLMCredential
@@ -259,12 +264,42 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         CharacterSummary(
             character_id="sera", name="Sera Vance", role="thief",
             faction="", appearance="wiry",
-            status="active", is_playable=False,
+            status="active", is_playable=True,
             bound_user_id=(bindings or {}).get("sera", ""),
         ),
     ]
+    engine.list_story_ids.return_value = [STORY_ID]
+    engine.list_story_characters.side_effect = (
+        lambda _story_id: list(engine.list_session_characters.return_value)
+    )
+    engine.story_summary.side_effect = lambda story_id: StorySummary(
+        story_id=story_id,
+        title=story_id.replace("_", " ").title(),
+        genre="test genre",
+        premise="Test premise.",
+        player_primer="Test briefing.",
+        recommended_players="1-2 players",
+        play_guidance="Claim a seat and play from its viewpoint.",
+        playable_seat_count=2,
+    )
+    engine.list_story_summaries.side_effect = lambda: [
+        engine.story_summary(story_id)
+        for story_id in engine.list_story_ids.return_value
+    ]
     engine.turn_history.return_value = []
     engine.takeover = AsyncMock()
+    engine.join_player_character = AsyncMock(side_effect=lambda *args, **kwargs: (
+        PlayerJoinResult(
+            character_id=args[1],
+            character_name=next(
+                summary.name
+                for summary in engine.list_session_characters.return_value
+                if summary.character_id == args[1]
+            ),
+            pre_play=True,
+        )
+    ))
+    engine.leave_character = AsyncMock(return_value="")
     engine.unbind_user = AsyncMock()
     engine.build_character_dossier = MagicMock(return_value="# Dossier · Sera")
     engine.set_character_identity = AsyncMock(return_value=_empty_ckpt(bindings))
@@ -286,6 +321,21 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         output_text="opening narration",
         per_player_renders={"aldric": "Aldric wakes."},
     ))
+    engine.image_sidecar.config.diffusion_enabled = False
+    engine.image_generation.wait_for_rendered_event_images = AsyncMock(
+        return_value=True,
+    )
+    engine.opening_lobby.return_value = OpeningLobbyView(
+        requires_confirmation=False,
+        claimed_seat_names=(),
+        open_seat_names=("Aldric", "Sera Vance"),
+    )
+    engine.session_activity.return_value = SessionActivityView(
+        session_id=SESSION_ID,
+        story_id=STORY_ID,
+        turn_index=0,
+        state="Open table: any joined player may act.",
+    )
     engine.combat_reaction_prompt_event = MagicMock(return_value="")
     engine.pending_roll_prompts = MagicMock(return_value=[])
     engine.complete_pending_roll = AsyncMock()
@@ -371,6 +421,27 @@ class _FakeAssetImageRenderer:
     def render_prepared(self, item):
         self.rendered_items.append(item)
         return item
+
+    def prepare_generated(
+        self,
+        media,
+        *,
+        session_id: str,
+        pov_character_id: str,
+        cache_root=None,
+    ):
+        self.prepare_calls.append({
+            "media": media,
+            "session_id": session_id,
+            "pov_character_id": pov_character_id,
+            "cache_root": cache_root,
+        })
+        return CliImageDisplayResult(
+            pov_character_id=pov_character_id,
+            displayed=self.displayed,
+            degraded=not self.displayed,
+            error_code="" if self.displayed else "unsupported_terminal",
+        )
 
 
 def _character(
@@ -507,6 +578,7 @@ class TestHistoryCommand:
             ),
         ]
         state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.current_actor = "aldric"
 
         run(state.handle_line("/history"))
 
@@ -515,6 +587,7 @@ class TestHistoryCommand:
         assert "--- Turn 47 ---" in out
         assert "--- Turn 1 ---" not in out
         assert "> I swing." in out
+        engine.turn_history.assert_called_once_with(SESSION_ID, "aldric")
 
     def test_history_limit_preserves_checkpoint_turn_id(self, run, capsys):
         engine = _mock_engine()
@@ -529,12 +602,80 @@ class TestHistoryCommand:
             ),
         ]
         state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.current_actor = "aldric"
 
         run(state.handle_line("/history 1"))
 
         out = capsys.readouterr().out
         assert "--- Turn 44 ---" not in out
         assert "--- Turn 47 ---" in out
+
+
+class TestNumberedSelectionRefs:
+    def test_story_list_numbers_and_start_accepts_number(self, run, capsys):
+        engine = _mock_engine()
+        engine.list_story_ids.return_value = ["spring_rain", "starfall"]
+        state = CLIState(engine, SESSION_ID, "")
+
+        run(state.handle_line("/story list"))
+        out = capsys.readouterr().out
+
+        assert "1: Spring Rain (`spring_rain`)" in out
+        assert "2: Starfall (`starfall`)" in out
+
+        run(state.handle_line("/story start 2"))
+
+        engine.load_story_into_session.assert_called_once_with(
+            SESSION_ID,
+            "starfall",
+        )
+        assert state.story_id == "starfall"
+
+    def test_story_info_accepts_number(self, run):
+        engine = _mock_engine()
+        engine.list_story_ids.return_value = ["spring_rain", "starfall"]
+        state = CLIState(engine, SESSION_ID, "")
+
+        run(state.handle_line("/story info 1"))
+
+        engine.story_summary.assert_called_with("spring_rain")
+        engine.list_story_characters.assert_called_once_with("spring_rain")
+
+    def test_character_list_alias_and_consumers_accept_numbers(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        ckpt = _empty_ckpt()
+        ckpt.characters = [
+            _character("aldric", "Aldric", role="wanderer", is_playable=True),
+            _character("sera", "Sera Vance", role="thief"),
+        ]
+        engine.load_latest.return_value = ckpt
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+
+        run(state.handle_line("/character list"))
+        out = capsys.readouterr().out
+
+        assert "1: Aldric - wanderer" in out
+        assert "2: Sera Vance - thief" in out
+        assert "`aldric`" not in out
+        assert "`sera`" not in out
+
+        run(state.handle_line("/join 2"))
+        engine.join_player_character.assert_awaited_with(
+            SESSION_ID,
+            "sera",
+            1,
+            name="",
+            appearance="",
+        )
+        capsys.readouterr()
+
+        run(state.handle_line("/character 2"))
+        engine.build_character_dossier.assert_called_with(SESSION_ID, "sera")
+
+        run(state.handle_line("/as 2"))
+        assert state.current_actor == "sera"
 
 
 class TestJoinLeave:
@@ -544,10 +685,12 @@ class TestJoinLeave:
 
         run(state.handle_line("/join"))
 
-        engine.takeover.assert_not_called()
+        engine.join_player_character.assert_not_awaited()
         out = capsys.readouterr().out
         assert "## Joinable" in out
-        assert "aldric — Aldric · wanderer" in out
+        assert "1: Aldric — wanderer" in out
+        assert "2: Sera Vance — thief" in out
+        assert "aldric —" not in out
         assert "sera —" not in out
         assert "Custom character: /join_custom" in out
 
@@ -555,9 +698,77 @@ class TestJoinLeave:
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join sera"))
-        engine.takeover.assert_called_once_with(SESSION_ID, "sera", 1)
+        engine.join_player_character.assert_awaited_once_with(
+            SESSION_ID,
+            "sera",
+            1,
+            name="",
+            appearance="",
+        )
         assert state.claims == {"sera": 1}
         assert state.current_actor == "sera"
+
+    def test_oneshot_player_authored_join_requires_complete_identity(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.list_session_characters.return_value = [CharacterSummary(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            role="new arrival",
+            faction="",
+            appearance="",
+            status="dormant",
+            is_playable=True,
+            bound_user_id="",
+            player_slot_kind="player_authored",
+        )]
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.one_shot_mode = True
+
+        run(state.handle_line("/join blank_arrival --name Mara"))
+
+        engine.join_player_character.assert_not_awaited()
+        out = capsys.readouterr().out
+        assert "requires both identity fields" in out
+        assert "--appearance" in out
+
+    def test_oneshot_player_authored_join_submits_identity_atomically(
+        self, run,
+    ):
+        engine = _mock_engine()
+        engine.list_session_characters.return_value = [CharacterSummary(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            role="new arrival",
+            faction="",
+            appearance="",
+            status="dormant",
+            is_playable=True,
+            bound_user_id="",
+            player_slot_kind="player_authored",
+        )]
+        engine.join_player_character.return_value = PlayerJoinResult(
+            character_id="blank_arrival",
+            character_name="Mara Vale",
+            pre_play=True,
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.one_shot_mode = True
+
+        run(state.handle_line(
+            '/join blank_arrival --name "Mara Vale" '
+            '--appearance "scarlet coat and iron-gray braid"'
+        ))
+
+        engine.join_player_character.assert_awaited_once_with(
+            SESSION_ID,
+            "blank_arrival",
+            1,
+            name="Mara Vale",
+            appearance="scarlet coat and iron-gray braid",
+        )
+        assert state.claims == {"blank_arrival": 1}
 
     def test_second_join_does_not_steal_current_actor(self, run):
         engine = _mock_engine()
@@ -571,16 +782,16 @@ class TestJoinLeave:
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join sera"))
-        engine.takeover.reset_mock()
+        engine.join_player_character.reset_mock()
         run(state.handle_line("/join sera"))
-        engine.takeover.assert_not_called()
+        engine.join_player_character.assert_not_awaited()
 
     def test_leave_default_is_current_actor(self, run):
         engine = _mock_engine()
         state = CLIState(engine, SESSION_ID, STORY_ID)
         run(state.handle_line("/join sera"))
         run(state.handle_line("/leave"))
-        engine.unbind_user.assert_called_once_with(SESSION_ID, 1)
+        engine.leave_character.assert_awaited_once_with(SESSION_ID, 1)
         assert state.claims == {}
         assert state.current_actor is None
 
@@ -828,16 +1039,17 @@ class TestCharactersCommand:
         run(state.handle_line("/characters"))
 
         out = capsys.readouterr().out
-        joinable_block = out.split("## Here", 1)[0]
-        assert "## Joinable" in joinable_block
-        assert (
-            "player_protagonist — Intended Protagonist · defective hero"
-            in joinable_block
-        )
-        assert "dead_queen — Dead Queen" in joinable_block
-        assert "guild_master" not in joinable_block
-        assert "claimed_slot" not in joinable_block
-        assert "player_protagonist  [joinable]" in out
+        assert "## Available" in out
+        assert "1: Intended Protagonist - defective hero" in out
+        assert "3: Dead Queen" in out
+        assert "## Yours\n  (none)" in out
+        assert "## Claimed by another player" in out
+        assert "2: Claimed Slot - claimed hero" in out
+        assert "Guild Master" not in out
+        assert "player_protagonist" not in out
+        assert "guild_master" not in out
+        assert "claimed_slot" not in out
+        assert "dead_queen" not in out
 
 
 class TestAs:
@@ -1021,7 +1233,7 @@ class TestBeginCommand:
             triggering_character_id="aldric",
         )
         out = capsys.readouterr().out
-        assert "--- Turn 1 · aldric ---" in out
+        assert "--- Story update 1 · viewed as Aldric ---" in out
         assert "opening narration" in out
 
     def test_begin_error_is_player_safe(self, run, capsys):
@@ -1039,6 +1251,78 @@ class TestBeginCommand:
         assert "internal error" in out
         assert "BadRequestError" not in out
         assert "/home/dan" not in out
+
+    def test_claim_sensitive_opening_lists_lobby_before_confirmation(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.opening_lobby.return_value = OpeningLobbyView(
+            requires_confirmation=True,
+            claimed_seat_names=("Aldric",),
+            open_seat_names=("Sera Vance",),
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.one_shot_mode = True
+
+        run(state.handle_line("/begin"))
+
+        engine.run_begin_turn.assert_not_awaited()
+        out = capsys.readouterr().out
+        assert "claimed seats: Aldric" in out
+        assert "still open: Sera Vance" in out
+        assert "/begin --confirm" in out
+
+    def test_explicit_begin_confirmation_opens_claim_sensitive_story(
+        self, run,
+    ):
+        engine = _mock_engine()
+        engine.opening_lobby.return_value = OpeningLobbyView(
+            requires_confirmation=True,
+            claimed_seat_names=("Aldric",),
+            open_seat_names=("Sera Vance",),
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.claims = {"aldric": 1}
+        state.current_actor = "aldric"
+        state.one_shot_mode = True
+
+        run(state.handle_line("/begin --confirm"))
+
+        engine.run_begin_turn.assert_awaited_once_with(
+            session_id=SESSION_ID,
+            triggering_character_id="aldric",
+        )
+
+
+class TestStatusCommand:
+    def test_status_uses_shared_activity_without_internal_ids(
+        self, run, capsys,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
+        engine.session_activity.return_value = SessionActivityView(
+            session_id=SESSION_ID,
+            story_id=STORY_ID,
+            turn_index=8,
+            state="requested next: Sera Vance (advisory)",
+            viewpoint_name="Aldric",
+            location="gatehouse",
+            joined_seat_names=("Aldric", "Sera Vance"),
+            nearby_character_names=("Pip",),
+            requested_next_names=("Sera Vance",),
+            last_visible_update="A bell rings.",
+        )
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.current_actor = "aldric"
+
+        run(state.handle_line("/status"))
+
+        engine.session_activity.assert_called_once_with(SESSION_ID, "aldric")
+        out = capsys.readouterr().out
+        assert "viewpoint: Aldric" in out
+        assert "joined: Aldric, Sera Vance" in out
+        assert "activity: requested next: Sera Vance (advisory)" in out
+        assert "discord" not in out.lower()
+        assert "user id" not in out.lower()
 
 
 class TestCombatCommand:
@@ -1533,8 +1817,28 @@ class TestActingDescribe:
         )
         engine.run_turn.assert_not_awaited()
         out = capsys.readouterr().out
-        assert "--- Turn 4 · aldric ---" in out
+        assert "--- Story update 4 · viewed as Aldric ---" in out
         assert "The crest is weathered silver." in out
+
+    def test_disabled_diffusion_does_not_announce_or_wait_for_illustration(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.run_query = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="query_response",
+            turn_index=4,
+            output_text="The crest is weathered silver.",
+            per_player_renders={"aldric": "The crest is weathered silver."},
+            rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
+        ))
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+
+        run(state.handle_line("/query what does the crest look like?"))
+
+        engine.image_generation.wait_for_rendered_event_images.assert_not_awaited()
+        assert "illustrating" not in capsys.readouterr().out
 
     def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(
         self, run, capsys,
@@ -1606,6 +1910,39 @@ class TestActingDescribe:
         assert "Displayed revealed image." not in out
         assert "asset://pack" not in out
 
+    def test_generated_image_delivery_ignores_other_sessions(self, run):
+        engine = _mock_engine()
+        image_renderer = _FakeAssetImageRenderer()
+        state = CLIState(
+            engine,
+            SESSION_ID,
+            STORY_ID,
+            asset_image_renderer=image_renderer,
+        )
+        state.claims = {"aldric": 1}
+        state.current_actor = "aldric"
+        job = SimpleNamespace(
+            request=SimpleNamespace(
+                session_id="other_session",
+                title="Stale Image",
+            ),
+        )
+        delivery = SimpleNamespace(
+            session_id="other_session",
+            pov_character_id="aldric",
+        )
+
+        delivered = run(state._deliver_cli_image(
+            job,
+            delivery,
+            SimpleNamespace(),
+            "",
+        ))
+
+        assert delivered is False
+        assert image_renderer.prepare_calls == []
+        assert image_renderer.rendered_items == []
+
     def test_run_turn_error_is_player_safe(self, run, capsys):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(side_effect=RuntimeError(
@@ -1640,7 +1977,7 @@ class TestActingDescribe:
         run(state.handle_line("I swing."))
 
         out = capsys.readouterr().out
-        assert "--- Before Your Action ---" in out
+        assert "--- Earlier story update · viewed as Aldric ---" in out
         assert "POV aldric" not in out
 
     def test_act_refused_without_actor(self, run):
@@ -1667,7 +2004,7 @@ class TestActingDescribe:
             SESSION_ID, "aldric", name="Aldric", appearance="tall and weary",
         )
 
-    def test_describe_preplay_auto_begins(self, run, monkeypatch):
+    def test_describe_preplay_does_not_begin(self, run, monkeypatch):
         engine = _mock_engine()
         engine.run_turn = AsyncMock(return_value=_turn_response(
             turn_index=1,
@@ -1681,10 +2018,13 @@ class TestActingDescribe:
             "builtins.input", lambda prompt="": next(inputs),
         )
         run(state.handle_line("/describe"))
-        engine.run_begin_turn.assert_awaited_once_with(
-            session_id=SESSION_ID,
-            triggering_character_id="aldric",
+        engine.set_character_identity.assert_awaited_once_with(
+            SESSION_ID,
+            "aldric",
+            name=None,
+            appearance="tall and weary",
         )
+        engine.run_begin_turn.assert_not_awaited()
         engine.run_turn.assert_not_awaited()
 
 
@@ -1881,7 +2221,7 @@ class TestOneShotAndSessionLock:
             sessions_dir=tmp_path,
             session_id=SESSION_ID,
             commands=["I steady my hands", "/status"],
-            act_as="aldric",
+            act_as="Aldric",
         ))
 
         assert code == 0
@@ -1892,9 +2232,129 @@ class TestOneShotAndSessionLock:
             "/status",
         ]
 
+    def test_oneshot_requires_startup_actor_for_multiple_claims(
+        self, run, tmp_path, capsys,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.handle_line = AsyncMock()
+
+        code = run(run_oneshot_commands(
+            state,
+            sessions_dir=tmp_path,
+            session_id=SESSION_ID,
+            commands=["I look around"],
+        ))
+
+        assert code == 2
+        state.handle_line.assert_not_awaited()
+        assert "--as is required" in capsys.readouterr().err
+
+    def test_oneshot_rejects_in_batch_actor_switch(
+        self, run, tmp_path, capsys,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        state.handle_line = AsyncMock()
+
+        code = run(run_oneshot_commands(
+            state,
+            sessions_dir=tmp_path,
+            session_id=SESSION_ID,
+            commands=["/as sera", "I look around"],
+            act_as="aldric",
+        ))
+
+        assert code == 2
+        state.handle_line.assert_not_awaited()
+        assert "startup --as" in capsys.readouterr().err
+
+    def test_oneshot_refreshes_bindings_after_lock(
+        self, run, tmp_path,
+    ):
+        engine = _mock_engine(bindings={"aldric": "1"})
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        engine.load_latest.return_value = _empty_ckpt({"sera": "9"})
+        state.handle_line = AsyncMock()
+
+        code = run(run_oneshot_commands(
+            state,
+            sessions_dir=tmp_path,
+            session_id=SESSION_ID,
+            commands=["I look around"],
+            act_as="Sera Vance",
+        ))
+
+        assert code == 0
+        assert state.claims == {"sera": 9}
+        assert state.current_actor == "sera"
+        state.handle_line.assert_awaited_once_with("I look around")
+
     def test_pov_filter_scopes_printed_claims(self):
         engine = _mock_engine(bindings={"aldric": "1", "sera": "2"})
         state = CLIState(engine, SESSION_ID, STORY_ID)
         assert state._pov_claims() == {"aldric", "sera"}
         state.pov_filter = "aldric"
         assert state._pov_claims() == {"aldric"}
+
+
+class TestCommandLineStorySelection:
+    def _engine(self, tmp_path):
+        engine = _mock_engine()
+        engine.sessions_dir = tmp_path
+        engine.list_story_ids.return_value = ["spring_rain", "starfall"]
+        return engine
+
+    def test_loads_numbered_story_into_empty_session(self, tmp_path):
+        engine = self._engine(tmp_path)
+        engine.load_latest.side_effect = FileNotFoundError
+
+        story_id, resumed = _prepare_session_story(
+            engine,
+            session_id=SESSION_ID,
+            requested_story="2",
+            announce=False,
+        )
+
+        assert story_id == "starfall"
+        assert resumed is False
+        engine.create_empty_session.assert_called_once_with(SESSION_ID)
+        engine.load_story_into_session.assert_called_once_with(
+            SESSION_ID,
+            "starfall",
+        )
+
+    def test_same_story_resume_does_not_reload(self, tmp_path):
+        engine = self._engine(tmp_path)
+        ckpt = _empty_ckpt()
+        ckpt.session.story_id = "spring_rain"
+        engine.load_latest.return_value = ckpt
+
+        story_id, resumed = _prepare_session_story(
+            engine,
+            session_id=SESSION_ID,
+            requested_story="spring_rain",
+            announce=False,
+        )
+
+        assert story_id == "spring_rain"
+        assert resumed is True
+        engine.create_empty_session.assert_not_called()
+        engine.load_story_into_session.assert_not_called()
+
+    def test_conflicting_story_is_rejected_without_mutation(self, tmp_path):
+        engine = self._engine(tmp_path)
+        ckpt = _empty_ckpt()
+        ckpt.session.story_id = "spring_rain"
+        engine.load_latest.return_value = ckpt
+
+        with pytest.raises(ValueError, match="refusing to replace"):
+            _prepare_session_story(
+                engine,
+                session_id=SESSION_ID,
+                requested_story="starfall",
+                announce=False,
+            )
+
+        engine.create_empty_session.assert_not_called()
+        engine.load_story_into_session.assert_not_called()

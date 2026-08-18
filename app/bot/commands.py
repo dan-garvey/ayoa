@@ -70,6 +70,7 @@ from app.engine.content_asset_bytes import (
 )
 from app.engine.content_assets import load_asset_catalog
 from app.engine.frontend_views import (
+    CharacterSummary,
     CompletedPendingRoll,
     DndCombatView,
     DndExperienceAwardResult,
@@ -86,10 +87,7 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.content_pack import ContentImageAsset, SafeAssetRevealPayload
-from app.schemas.image_generation import (
-    ImageDeliveryKind,
-    ImageTriggerKind,
-)
+from app.schemas.image_generation import ImageDeliveryKind
 from app.schemas.responses import DiceRollDisplay, TurnResponse
 
 logger = logging.getLogger(__name__)
@@ -759,21 +757,18 @@ async def _post_actor_render(
     turn_index: Optional[int] = None,
     view: Optional[discord.ui.View] = None,
 ) -> tuple[str, Optional[discord.Thread]]:
-    """Post the ACTOR's own beat privately: POV thread first, DM fallback,
-    `("none", None)` if both fail (caller should then post publicly to
-    the channel via `inter.followup` so the user still sees their
-    narrative).
+    """Post the actor's beat privately: POV thread first, then DM.
 
     Returns one of:
       - `("thread", thread)` — landed in the actor's private POV thread.
       - `("dm", None)`        — thread unavailable; landed in DMs.
-      - `("none", None)`      — both private paths failed; caller must
-                                fall back to a public render.
+      - `("none", None)`      — both private paths failed; caller must fail
+                                closed without exposing the render publicly.
 
     The deferred slash-command interaction is NOT closed by this helper
     (private posts go to thread/DM, not `inter.followup`). The caller
     is responsible for an ephemeral `inter.followup.send` ack on
-    success, or a non-ephemeral public render on failure.
+    success or an ephemeral delivery error on failure.
 
     `embeds` should already be `render_turn(...)`-shaped. `intro_content`
     is a short prefix line (e.g. "**Jimbo Higgins** joined.") that goes
@@ -839,6 +834,20 @@ async def _post_actor_render(
         )
 
     return ("none", None)
+
+
+async def _report_private_delivery_failure(
+    inter: discord.Interaction,
+    *,
+    subject: str = "story update",
+) -> None:
+    await inter.followup.send(
+        f"Your {subject} was generated, but Discord could not deliver it "
+        "to a private POV thread or DM. Nothing was posted publicly. "
+        "Enable DMs or ask an admin to restore the private POV thread, then "
+        "use the retry command for the pending render if one is available.",
+        ephemeral=True,
+    )
 
 
 async def _post_to_pov(
@@ -1425,7 +1434,6 @@ class _PendingRollView(discord.ui.View):
             actor_user=roll_inter.user,
             response=response,
             clear_interaction_response=False,
-            image_trigger=ImageTriggerKind.roll_resolution,
         )
 
 
@@ -1891,51 +1899,113 @@ async def _deliver_loot_prompts(
             )
 
 
-async def _queue_discord_actor_image(
+async def _wait_for_tandem_image_delivery(
     *,
-    inter: discord.Interaction,
     engine: EngineBridge,
     session_id: str,
-    actor_character_id: str,
-    actor_user: discord.abc.User,
-    response: TurnResponse,
-    trigger_kind: ImageTriggerKind,
-    char_name: str = "",
+    character_id: str,
+    rendered_event_ids_by_pov: dict[str, list[str]],
 ) -> None:
-    """Best-effort enqueue after prose delivery; never fail a story turn."""
-
-    if not actor_character_id:
+    event_ids = list(rendered_event_ids_by_pov.get(character_id, []) or [])
+    if not event_ids:
         return
     try:
-        ckpt = engine.load_checkpoint(session_id, response.checkpoint_id)
-        if not char_name:
-            character = next(
-                (
-                    item
-                    for item in ckpt.characters
-                    if item.character_id == actor_character_id
-                ),
-                None,
-            )
-            char_name = character.name if character else actor_character_id
-        await engine.image_generation.enqueue_turn(
-            ckpt=ckpt,
-            response=response,
-            actor_character_id=actor_character_id,
-            trigger_kind=trigger_kind,
-            delivery_kind=ImageDeliveryKind.discord,
-            delivery={
-                "session_channel_id": _session_channel_id(inter),
-                "user_id": int(actor_user.id),
-                "character_id": actor_character_id,
-                "char_name": char_name,
-            },
+        await engine.image_generation.wait_for_rendered_event_images(
+            session_id=session_id,
+            rendered_event_ids_by_pov={character_id: event_ids},
         )
     except Exception:
-        logger.exception(
-            "failed to queue output-only illustration for turn=%s",
-            response.turn_index,
+        logger.exception("tandem image wait failed for %s", character_id)
+
+
+def _numbered_ref_lines(ids: list[str]) -> str:
+    return "\n".join(
+        f"{index}: `{value}`" for index, value in enumerate(ids, start=1)
+    )
+
+
+def _resolve_numbered_ref(value: str, choices: list[str], *, label: str) -> str:
+    token = str(value or "").strip()
+    if not token:
+        raise ValueError(f"Missing {label}.")
+    if token.isdigit():
+        index = int(token)
+        if 1 <= index <= len(choices):
+            return choices[index - 1]
+        raise ValueError(
+            f"No {label} numbered {index}. Run the list command again."
         )
+    if token in choices:
+        return token
+    raise ValueError(f"Unknown {label} `{token}`. Run the list command again.")
+
+
+def _resolve_story_ref(engine: EngineBridge, value: str) -> str:
+    return _resolve_numbered_ref(
+        value,
+        engine.list_story_ids(),
+        label="story",
+    )
+
+
+def _session_character_ids(engine: EngineBridge, session_id: str) -> list[str]:
+    return [
+        summary.character_id
+        for summary in engine.list_session_characters(session_id)
+        if summary.is_playable and summary.status != "culled"
+    ]
+
+
+def _playable_seat_roster_body(
+    summaries: list[CharacterSummary],
+    *,
+    own_user_id: str = "",
+) -> str:
+    playable = [
+        summary
+        for summary in summaries
+        if summary.is_playable and summary.status != "culled"
+    ]
+    sections = (
+        ("Available", [seat for seat in playable if not seat.bound_user_id]),
+        (
+            "Yours",
+            [seat for seat in playable if seat.bound_user_id == own_user_id],
+        ),
+        (
+            "Claimed by another player",
+            [
+                seat for seat in playable
+                if seat.bound_user_id
+                and seat.bound_user_id != own_user_id
+            ],
+        ),
+    )
+    blocks: list[str] = []
+    for title, seats in sections:
+        lines = [f"**{title}:**"]
+        if not seats:
+            lines.append("  (none)")
+        for seat in seats:
+            index = playable.index(seat) + 1
+            role = f" - {seat.role}" if seat.role else ""
+            lines.append(f"  {index}. **{seat.name}**{role}")
+            if seat.player_guidance:
+                lines.append(f"     {seat.player_guidance}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
+
+
+def _resolve_session_character_ref(
+    engine: EngineBridge,
+    session_id: str,
+    value: str,
+) -> str:
+    return _resolve_numbered_ref(
+        value,
+        _session_character_ids(engine, session_id),
+        label="character",
+    )
 
 
 async def _deliver_turn_response_to_povs(
@@ -1949,12 +2019,11 @@ async def _deliver_turn_response_to_povs(
     actor_user: discord.abc.User,
     response: TurnResponse,
     clear_interaction_response: bool = True,
-    image_trigger: ImageTriggerKind | None = None,
 ) -> None:
     """Deliver a TurnResponse using the standard /act POV format.
 
-    Actor render goes to the actor's POV thread first, then DM, then public
-    fallback. Other human POV renders fan out privately. This is shared by
+    Actor render goes to the actor's POV thread first, then DM, and fails
+    closed if neither works. Other human POV renders fan out privately. This is shared by
     `/act` and router-backed private directives such as `/query`.
     """
     if response.beat_ended_reason in {
@@ -1980,6 +2049,17 @@ async def _deliver_turn_response_to_povs(
         bindings = {}
         roster = []
 
+    async def _wait_for_tandem_image_prose(
+        character_id: str,
+        rendered_event_ids_by_pov: dict[str, list[str]],
+    ) -> None:
+        await _wait_for_tandem_image_delivery(
+            engine=engine,
+            session_id=session_id,
+            character_id=character_id,
+            rendered_event_ids_by_pov=rendered_event_ids_by_pov,
+        )
+
     async def _dm_per_pov(
         renders: dict[str, str],
         *,
@@ -1988,11 +2068,13 @@ async def _deliver_turn_response_to_povs(
         note_prefix: str = "",
         reaction_prompts: dict[str, str] | None = None,
         commitment_revision_prompts: dict[str, list[str]] | None = None,
+        rendered_event_ids_by_pov: dict[str, list[str]] | None = None,
     ) -> list[str]:
         """Post each (cid, prose) to that user's POV thread or DM."""
         notified: list[str] = []
         reaction_prompts = reaction_prompts or {}
         commitment_revision_prompts = commitment_revision_prompts or {}
+        rendered_event_ids_by_pov = rendered_event_ids_by_pov or {}
         for cid, prose in renders.items():
             if cid == skip_cid or not prose:
                 continue
@@ -2033,6 +2115,10 @@ async def _deliver_turn_response_to_povs(
                 )
                 if event_id else None
             )
+            await _wait_for_tandem_image_prose(
+                cid,
+                rendered_event_ids_by_pov,
+            )
             ok = await _post_to_pov(
                 inter=inter,
                 smap=smap,
@@ -2047,6 +2133,12 @@ async def _deliver_turn_response_to_povs(
             )
             if ok:
                 notified.append(char_name)
+                engine.image_generation.open_prose_gates_for_session(
+                    session_id=session_id,
+                    rendered_event_ids_by_pov={
+                        cid: rendered_event_ids_by_pov.get(cid, [])
+                    },
+                )
         return notified
 
     async def _deliver_rolls_to_povs(
@@ -2216,6 +2308,9 @@ async def _deliver_turn_response_to_povs(
             commitment_revision_prompts=(
                 pre_resp.commitment_revision_prompts or {}
             ),
+            rendered_event_ids_by_pov=(
+                pre_resp.rendered_event_ids_by_pov or {}
+            ),
         )
         await _deliver_assets_to_povs(
             pre_resp,
@@ -2269,6 +2364,7 @@ async def _deliver_turn_response_to_povs(
         "permits it._"
         if commitment_revision_prompts.get(actor_character_id) else ""
     )
+    actor_render_delivered = False
 
     combat_start_blocked = response.beat_ended_reason == "combat_start_blocked"
     pending_rolls = response.beat_ended_reason == "cat_ii_pending_rolls"
@@ -2308,6 +2404,10 @@ async def _deliver_turn_response_to_povs(
                 turn_index=response.turn_index,
                 story_id=story_id,
             )
+            await _wait_for_tandem_image_prose(
+                actor_character_id,
+                response.rendered_event_ids_by_pov or {},
+            )
             venue, thread = await _post_actor_render(
                 inter=inter,
                 smap=smap,
@@ -2334,41 +2434,17 @@ async def _deliver_turn_response_to_povs(
                 ),
             )
             if venue == "thread" and thread is not None:
+                actor_render_delivered = True
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             elif venue == "dm":
+                actor_render_delivered = True
                 if clear_interaction_response:
                     await _clear_interaction_response(inter)
             else:
-                if response.dice_rolls and not actor_rolls_delivered:
-                    await _send_public_roll_displays(
-                        inter=inter,
-                        smap=smap,
-                        session_id=session_id,
-                        turn_index=response.turn_index,
-                        rolls=response.dice_rolls,
-                    )
-                await _send_public_turn_render(
-                    inter=inter,
-                    smap=smap,
-                    session_id=session_id,
-                    turn_index=response.turn_index,
-                    content="\n\n".join(
-                        p for p in (pause_note, actor_revision_note) if p
-                    ),
-                    embeds=embeds,
-                    view=(
-                        _CombatReactionView(
-                            engine=engine,
-                            smap=smap,
-                            session_id=session_id,
-                            character_id=actor_character_id,
-                            event_id=reaction_prompts[actor_character_id],
-                            user_id=actor_user.id,
-                            turn_index=response.turn_index,
-                        )
-                        if actor_character_id in reaction_prompts else None
-                    ),
+                await _report_private_delivery_failure(
+                    inter,
+                    subject="paused-turn update",
                 )
         else:
             if response.dice_rolls and not actor_rolls_delivered:
@@ -2394,6 +2470,10 @@ async def _deliver_turn_response_to_povs(
             turn_index=response.turn_index,
             story_id=story_id,
         )
+        await _wait_for_tandem_image_prose(
+            actor_character_id,
+            response.rendered_event_ids_by_pov or {},
+        )
         venue, thread = await _post_actor_render(
             inter=inter,
             smap=smap,
@@ -2418,40 +2498,31 @@ async def _deliver_turn_response_to_povs(
             ),
         )
         if venue == "thread" and thread is not None:
+            actor_render_delivered = True
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         elif venue == "dm":
+            actor_render_delivered = True
             if clear_interaction_response:
                 await _clear_interaction_response(inter)
         else:
-            if response.dice_rolls and not actor_rolls_delivered:
-                await _send_public_roll_displays(
-                    inter=inter,
-                    smap=smap,
-                    session_id=session_id,
-                    turn_index=response.turn_index,
-                    rolls=response.dice_rolls,
-                )
-            await _send_public_turn_render(
-                inter=inter,
-                smap=smap,
-                session_id=session_id,
-                turn_index=response.turn_index,
-                content=actor_revision_note or None,
-                embeds=embeds,
-                view=(
-                    _CombatReactionView(
-                        engine=engine,
-                        smap=smap,
-                        session_id=session_id,
-                        character_id=actor_character_id,
-                        event_id=reaction_prompts[actor_character_id],
-                        user_id=actor_user.id,
-                        turn_index=response.turn_index,
-                    )
-                    if actor_character_id in reaction_prompts else None
-                ),
+            await _report_private_delivery_failure(
+                inter,
+                subject="turn update",
             )
+
+    if actor_render and actor_render_delivered:
+        engine.image_generation.open_prose_gates_for_session(
+            session_id=session_id,
+            rendered_event_ids_by_pov={
+                actor_character_id: (
+                    response.rendered_event_ids_by_pov.get(
+                        actor_character_id,
+                        [],
+                    )
+                )
+            },
+        )
 
     if per_player:
         await _deliver_rolls_to_povs(
@@ -2465,6 +2536,9 @@ async def _deliver_turn_response_to_povs(
             turn_index=response.turn_index,
             reaction_prompts=reaction_prompts,
             commitment_revision_prompts=commitment_revision_prompts,
+            rendered_event_ids_by_pov=(
+                response.rendered_event_ids_by_pov or {}
+            ),
         )
         if notified_names:
             try:
@@ -2499,17 +2573,6 @@ async def _deliver_turn_response_to_povs(
         session_id=session_id,
         response=response,
     )
-    if image_trigger is not None:
-        await _queue_discord_actor_image(
-            inter=inter,
-            engine=engine,
-            session_id=session_id,
-            actor_character_id=actor_character_id,
-            actor_user=actor_user,
-            response=response,
-            trigger_kind=image_trigger,
-            char_name=actor_name,
-        )
 
 
 async def _message_channel_for_ref(
@@ -3440,41 +3503,80 @@ def register(
     If `guild` is provided, commands are registered guild-scoped (propagate
     instantly). Without it, commands are global (up to 1h to propagate).
     """
-    async def _deliver_generated_image(job, media) -> bool:
-        delivery = job.request.delivery or {}
+    async def _deliver_generated_image(
+        job,
+        image_delivery,
+        media,
+        instructions: str,
+    ) -> bool:
+        delivery = image_delivery.delivery or {}
         try:
-            session_channel_id = int(delivery["session_channel_id"])
             user_id = int(delivery["user_id"])
         except (KeyError, TypeError, ValueError):
             logger.warning(
                 "generated illustration has invalid Discord delivery metadata"
             )
             return False
+        row = await smap.get_by_session(job.request.session_id)
+        if row is None:
+            await engine.image_generation.cancel_delivery(
+                image_delivery.delivery_id
+            )
+            return False
+        session_channel_id = row.channel_id
         character_id = str(
-            delivery.get("character_id") or job.request.actor_character_id
+            delivery.get("character_id")
+            or image_delivery.pov_character_id
         )
-        char_name = str(delivery.get("char_name") or character_id)
+        try:
+            ckpt = engine.load_latest(job.request.session_id)
+            if str(
+                ckpt.session.character_bindings.get(character_id, "")
+            ) != str(user_id):
+                await engine.image_generation.cancel_delivery(
+                    image_delivery.delivery_id
+                )
+                return False
+            character = next(
+                (
+                    item
+                    for item in ckpt.characters
+                    if item.character_id == character_id
+                ),
+                None,
+            )
+            char_name = character.name if character else character_id
+        except Exception:
+            logger.exception(
+                "generated illustration recipient validation failed"
+            )
+            return False
         if await smap.has_turn_delivery(
             channel_id=session_channel_id,
             session_id=job.request.session_id,
-            turn_index=job.request.turn_index,
+            turn_index=job.request.source_turn_index,
             recipient_user_id=user_id,
-            delivery_suffix=f"generated_image_{job.job_id}",
+            delivery_suffix=f"generated_image_{image_delivery.delivery_id}",
         ):
             return True
 
         async def _delivery_is_current() -> bool:
-            if not engine.image_generation.delivery_is_current(job.job_id):
+            if not engine.image_generation.delivery_is_current(
+                image_delivery.delivery_id
+            ):
                 return False
-            row = await smap.get(session_channel_id)
-            if row is None or row.session_id != job.request.session_id:
-                await engine.image_generation.cancel_job(
-                    job.job_id,
-                    error_code="delivery_target_stale",
+            current_row = await smap.get(session_channel_id)
+            if (
+                current_row is None
+                or current_row.session_id != job.request.session_id
+            ):
+                await engine.image_generation.cancel_delivery(
+                    image_delivery.delivery_id
                 )
                 return False
             return True
 
+        title = str(getattr(job.request, "title", "") or "AI Illustration")
         return await deliver_player_media(
             client=tree.client,
             smap=smap,
@@ -3484,16 +3586,18 @@ def register(
             char_name=char_name,
             media=media,
             caption=(
+                f"**{title}**\n"
                 f"AI-generated, noncanonical illustration · "
-                f"Turn {job.request.turn_index}"
+                f"Turn {job.request.source_turn_index}"
+                + (f"\n{instructions}" if instructions else "")
             ),
             alt_text=(
-                f"AI-generated noncanonical story illustration for "
-                f"{char_name}, turn {job.request.turn_index}."
+                f"{title}. AI-generated noncanonical story illustration for "
+                f"{char_name}, turn {job.request.source_turn_index}."
             ),
             session_id=job.request.session_id,
-            turn_index=job.request.turn_index,
-            delivery_label=f"generated_image_{job.job_id}",
+            turn_index=job.request.source_turn_index,
+            delivery_label=f"generated_image_{image_delivery.delivery_id}",
             delivery_is_current=_delivery_is_current,
         )
 
@@ -3526,6 +3630,92 @@ def register(
         name="xp",
         description="Admin D&D experience tools.",
     )
+    image_group = app_commands.Group(
+        name="image",
+        description="Manage provisional generated character identities.",
+    )
+
+    @image_group.command(
+        name="lock",
+        description="Accept a provisional identity portrait.",
+    )
+    @app_commands.describe(
+        id="Provisional generated identity candidate id."
+    )
+    async def _image_lock(inter: discord.Interaction, id: str):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here.", ephemeral=True
+            )
+            return
+        if engine.get_user_binding(row.session_id, inter.user.id) is None:
+            await inter.response.send_message(
+                "Join this story before managing image identities.",
+                ephemeral=True,
+            )
+            return
+        try:
+            candidate = await engine.lock_image_identity(
+                session_id=row.session_id,
+                candidate_id=id.strip(),
+            )
+        except (KeyError, ValueError) as exc:
+            await inter.response.send_message(str(exc), ephemeral=True)
+            return
+        await inter.response.send_message(
+            f"Locked `{candidate.candidate_id}` as the identity reference "
+            f"for `{candidate.character_id}`.",
+            ephemeral=True,
+        )
+
+    @image_group.command(
+        name="reroll",
+        description="Generate a replacement provisional identity portrait.",
+    )
+    @app_commands.describe(
+        id=(
+            "Optional authored/generated reference id; defaults to your "
+            "character's current identity."
+        )
+    )
+    async def _image_reroll(
+        inter: discord.Interaction,
+        id: str = "",
+    ):
+        row = await smap.get(_session_channel_id(inter))
+        if row is None:
+            await inter.response.send_message(
+                "No session here.", ephemeral=True
+            )
+            return
+        binding = engine.get_user_binding(row.session_id, inter.user.id)
+        if binding is None:
+            await inter.response.send_message(
+                "Join this story before managing image identities.",
+                ephemeral=True,
+            )
+            return
+        await inter.response.defer(ephemeral=True, thinking=True)
+        try:
+            job = await engine.reroll_image_identity(
+                session_id=row.session_id,
+                reference_id=id.strip(),
+                pov_character_id=binding,
+                delivery_kind=ImageDeliveryKind.discord,
+                delivery={
+                    "character_id": binding,
+                    "user_id": str(inter.user.id),
+                },
+            )
+        except (KeyError, ValueError, RuntimeError) as exc:
+            await inter.followup.send(str(exc), ephemeral=True)
+            return
+        await inter.followup.send(
+            f"Queued identity reroll `{job.job_id}`. The current reference "
+            "stays active until the replacement succeeds.",
+            ephemeral=True,
+        )
 
     # ---- /session start / end / resume / list -------------------------------
 
@@ -3604,9 +3794,15 @@ def register(
                 ephemeral=True,
             )
             return
-        if name not in engine.list_session_ids():
+        try:
+            name = _resolve_numbered_ref(
+                name,
+                engine.list_session_ids(),
+                label="session",
+            )
+        except ValueError as exc:
             await inter.response.send_message(
-                f"Unknown session `{name}`. `/session list` to see saves.",
+                f"{exc} `/session list` to see saves.",
                 ephemeral=True,
             )
             return
@@ -3616,8 +3812,25 @@ def register(
         try:
             ckpt = engine.load_latest(name)
             story_id = ckpt.session.story_id
-            if ckpt.transcript:
-                last_text = ckpt.transcript[-1].assistant
+            binding = next(
+                (
+                    character_id
+                    for character_id, user_id in (
+                        ckpt.session.character_bindings or {}
+                    ).items()
+                    if user_id == str(inter.user.id)
+                ),
+                "",
+            )
+            if binding:
+                history = engine.turn_history(name, binding)
+                if history:
+                    last_text = history[-1].entry.assistant
+            elif story_id:
+                last_text = (
+                    "Session resumed. Join a character to view a private "
+                    "story history."
+                )
         except FileNotFoundError:
             pass  # empty session, no ckpt yet
 
@@ -3646,7 +3859,7 @@ def register(
                 ephemeral=True,
             )
             return
-        body = "\n".join(f"- `{i}`" for i in ids)
+        body = _numbered_ref_lines(ids)
         await inter.response.send_message(
             embed=render_info("Saved sessions", body),
             ephemeral=True,
@@ -3664,7 +3877,7 @@ def register(
                 ephemeral=True,
             )
             return
-        body = "\n".join(f"- `{i}`" for i in ids)
+        body = _numbered_ref_lines(ids)
         await inter.response.send_message(
             embed=render_info("Available stories", body),
             ephemeral=True,
@@ -3716,8 +3929,11 @@ def register(
             self.session_row = session_row
             self.invoker_id = invoker_id
             options = [
-                discord.SelectOption(label=sid[:100], value=sid[:100])
-                for sid in story_ids[:25]
+                discord.SelectOption(
+                    label=f"{index}: {sid}"[:100],
+                    value=sid[:100],
+                )
+                for index, sid in enumerate(story_ids[:25], start=1)
             ]
             self._select = discord.ui.Select(
                 placeholder="Pick a story to load...",
@@ -3747,7 +3963,10 @@ def register(
         description="Load a story into the current session (pick from a list if omitted).",
     )
     @app_commands.describe(
-        story_id="Optional story ID (see /story list). If omitted, shows a picker.",
+        story_id=(
+            "Optional story ID or number from /story list. "
+            "If omitted, shows a picker."
+        ),
     )
     async def _start(
         inter: discord.Interaction,
@@ -3788,14 +4007,20 @@ def register(
             )
             return
 
-        if story_id not in story_ids:
+        try:
+            story_id = _resolve_numbered_ref(
+                story_id,
+                story_ids,
+                label="story",
+            )
+        except ValueError as exc:
             await inter.response.send_message(
-                f"Unknown story `{story_id}`. Try `/story list`.",
+                f"{exc} Try `/story list`.",
                 ephemeral=True,
             )
             return
 
-        await inter.response.defer(thinking=True)
+        await inter.response.defer(thinking=True, ephemeral=True)
         await _execute_story_start(inter, row, story_id)
 
     # ---- /story resume ------------------------------------------------------
@@ -3806,12 +4031,13 @@ def register(
     # ---- /story info --------------------------------------------------------
 
     @story_group.command(name="info", description="Show details for a story.")
-    @app_commands.describe(story_id="A story ID from /story list.")
+    @app_commands.describe(story_id="A story ID or number from /story list.")
     async def _info(inter: discord.Interaction, story_id: str):
-        story_id = story_id.strip()
-        if story_id not in engine.list_story_ids():
+        try:
+            story_id = _resolve_story_ref(engine, story_id)
+        except ValueError as exc:
             await inter.response.send_message(
-                f"Unknown story `{story_id}`. Try `/story list`.",
+                f"{exc} Try `/story list`.",
                 ephemeral=True,
             )
             return
@@ -3836,19 +4062,19 @@ def register(
         description="List characters in this channel's story (grouped, terse).",
     )
     @app_commands.describe(
-        story_id="Optional story_id to inspect before starting a session.",
+        story_id="Optional story id or /story list number to inspect.",
     )
     async def _characters(
         inter: discord.Interaction,
         story_id: str | None = None,
     ):
-        # Pre-session browsing path: roster from the story seed ckpt_0000.
         row = await smap.get(_session_channel_id(inter))
         if story_id:
-            story_id = story_id.strip()
-            if story_id not in engine.list_story_ids():
+            try:
+                story_id = _resolve_story_ref(engine, story_id)
+            except ValueError as exc:
                 await inter.response.send_message(
-                    f"Unknown story `{story_id}`. Try `/story list`.",
+                    f"{exc} Try `/story list`.",
                     ephemeral=True,
                 )
                 return
@@ -3861,17 +4087,11 @@ def register(
                     ephemeral=True,
                 )
                 return
-            if not summaries:
-                await inter.response.send_message(
-                    "No characters in the roster.", ephemeral=True,
-                )
-                return
-            lines = [f"**{story_id}** (source roster):"]
-            for s in summaries:
-                tag = f"  [{s.status}]" if s.status != "active" else ""
-                lines.append(f"  {s.character_id}{tag}")
             await inter.response.send_message(
-                embed=render_info("Characters", "\n".join(lines)),
+                embed=render_info(
+                    "Playable seats",
+                    _playable_seat_roster_body(summaries),
+                ),
                 ephemeral=True,
             )
             return
@@ -3884,68 +4104,22 @@ def register(
             )
             return
 
-        # Live-session path: group by location and
-        # highlight the invoker's own binding.
         try:
-            ckpt = engine.checkpoint_mgr.load_latest(row.session_id)
+            summaries = engine.list_session_characters(row.session_id)
         except Exception as e:
-            logger.exception("load_latest failed")
+            logger.exception("list_session_characters failed")
             await inter.response.send_message(
                 embed=render_error(f"`{type(e).__name__}: {e}`"),
                 ephemeral=True,
             )
             return
-
-        # v11: location = the invoker's POV location label.
-        from app.engine.context_builder import pov_location_for_user
-        uid = str(inter.user.id)
-        location = pov_location_for_user(ckpt, user_id=uid)
-        claimed_by_me = {
-            cid for cid, bound in ckpt.session.character_bindings.items()
-            if bound == uid
-        }
-
-        here: list[str] = []
-        elsewhere: list[str] = []
-        dormant: list[str] = []
-        culled: list[str] = []
-        my_ids: list[str] = []
-
-        for c in ckpt.characters:
-            cid = c.character_id
-            status = c.status.value
-            if cid in claimed_by_me:
-                my_ids.append(cid)
-            if status == "culled":
-                culled.append(cid)
-            elif status == "dormant":
-                dormant.append(cid)
-            else:  # active
-                if c.location == location:
-                    here.append(cid)
-                else:
-                    elsewhere.append(cid)
-
-        def _block(title: str, ids: list[str]) -> str:
-            if not ids:
-                return f"**{title}**:\n  (none)"
-            lines = [f"**{title}**:"]
-            for i in ids:
-                suffix = " ← you" if i in claimed_by_me else ""
-                lines.append(f"  {i}{suffix}")
-            return "\n".join(lines)
-
-        body_parts = [
-            _block(f"Here ({location or 'no active location'})", here),
-            _block("Claimed by you", my_ids),
-            _block("Active (elsewhere)", elsewhere),
-            _block("Dormant", dormant),
-            _block("Culled", culled),
-        ]
         await inter.response.send_message(
             embed=render_info(
-                f"Characters · `{row.story_id}`",
-                "\n\n".join(body_parts),
+                "Playable seats",
+                _playable_seat_roster_body(
+                    summaries,
+                    own_user_id=str(inter.user.id),
+                ),
             ),
             ephemeral=True,
         )
@@ -4084,6 +4258,7 @@ def register(
         story_id: str,
         binding_cid: str,
         char_name: str,
+        join_result=None,
     ) -> None:
         """Post-bind dispatcher: send the freshly-bound player to the
         lobby (pre-play) or fire `(arrive)` (mid-play). Caller must
@@ -4098,15 +4273,18 @@ def register(
         race-proofed inside `engine.run_begin_turn` under the per-
         session lock — at most one /begin will succeed regardless
         of how many lobby messages got posted."""
-        try:
-            ckpt = engine.load_latest(session_id)
-            is_pre_play = not any(ckpt.narrator_conversations.values())
-        except Exception:
-            logger.exception(
-                "post-join dispatch: load_latest(%s) failed; "
-                "defaulting to lobby path", session_id,
-            )
-            is_pre_play = True
+        if join_result is not None:
+            is_pre_play = bool(join_result.pre_play)
+        else:
+            try:
+                ckpt = engine.load_latest(session_id)
+                is_pre_play = not any(ckpt.narrator_conversations.values())
+            except Exception:
+                logger.exception(
+                    "post-join dispatch: load_latest(%s) failed; "
+                    "defaulting to lobby path", session_id,
+                )
+                is_pre_play = True
 
         if is_pre_play:
             await _post_lobby_message(inter, session_id, char_name)
@@ -4117,6 +4295,11 @@ def register(
                 story_id=story_id,
                 binding_cid=binding_cid,
                 char_name=char_name,
+                response=(
+                    join_result.response
+                    if join_result is not None
+                    else None
+                ),
             )
 
     async def _send_dnd_attach_hint(
@@ -4153,6 +4336,7 @@ def register(
         story_id: str,
         binding_cid: str,
         char_name: str,
+        response=None,
     ) -> None:
         """Mid-play `/join` path: fire `(arrive)` for a freshly-bound
         player and render the result. Caller must have deferred
@@ -4162,24 +4346,25 @@ def register(
         via `engine.run_arrival_turn`'s `(begin)` branch. The opening
         moved to the dedicated `/begin` command, so the only directive
         this helper ever sends now is `(arrive)`."""
-        try:
-            response = await engine.run_arrival_turn(
-                session_id=session_id,
-                acting_character_id=binding_cid,
-            )
-        except TransientLLMError as e:
-            logger.warning(
-                "join arrival turn hit transient LLM error after %d "
-                "attempts: %s", e.attempts, e.last_error,
-            )
-            await inter.followup.send(embed=render_error(str(e)))
-            return
-        except Exception as e:
-            logger.exception("join arrival run_turn failed")
-            await inter.followup.send(embed=render_error(
-                player_safe_error_message(e)
-            ))
-            return
+        if response is None:
+            try:
+                response = await engine.run_arrival_turn(
+                    session_id=session_id,
+                    acting_character_id=binding_cid,
+                )
+            except TransientLLMError as e:
+                logger.warning(
+                    "join arrival turn hit transient LLM error after %d "
+                    "attempts: %s", e.attempts, e.last_error,
+                )
+                await inter.followup.send(embed=render_error(str(e)))
+                return
+            except Exception as e:
+                logger.exception("join arrival run_turn failed")
+                await inter.followup.send(embed=render_error(
+                    player_safe_error_message(e)
+                ))
+                return
 
         embeds = render_turn(
             output_text=response.output_text,
@@ -4188,6 +4373,12 @@ def register(
         )
         intro = f"**{char_name}** joined. You step into the moment."
 
+        await _wait_for_tandem_image_delivery(
+            engine=engine,
+            session_id=session_id,
+            character_id=binding_cid,
+            rendered_event_ids_by_pov=response.rendered_event_ids_by_pov or {},
+        )
         venue, thread = await _post_actor_render(
             inter=inter,
             smap=smap,
@@ -4199,26 +4390,25 @@ def register(
             session_id=session_id,
             turn_index=response.turn_index,
         )
+        actor_render_delivered = False
         if venue == "thread" and thread is not None:
+            actor_render_delivered = True
             await inter.followup.send(
                 f"**{char_name}** joined. Your story opens in "
                 f"{thread.mention}.",
                 ephemeral=True,
             )
         elif venue == "dm":
+            actor_render_delivered = True
             await inter.followup.send(
                 f"**{char_name}** joined. Your story opens in your DMs "
                 "(POV thread unavailable here).",
                 ephemeral=True,
             )
         else:
-            await _send_public_turn_render(
-                inter=inter,
-                smap=smap,
-                session_id=session_id,
-                turn_index=response.turn_index,
-                content=intro,
-                embeds=embeds,
+            await _report_private_delivery_failure(
+                inter,
+                subject="arrival update",
             )
 
         await _fan_out_per_player_renders(
@@ -4227,17 +4417,20 @@ def register(
             actor_cid=binding_cid,
             per_player=response.per_player_renders or {},
             turn_index=response.turn_index,
+            rendered_event_ids_by_pov=(
+                response.rendered_event_ids_by_pov or {}
+            ),
         )
-        await _queue_discord_actor_image(
-            inter=inter,
-            engine=engine,
-            session_id=session_id,
-            actor_character_id=binding_cid,
-            actor_user=inter.user,
-            response=response,
-            trigger_kind=ImageTriggerKind.arrival,
-            char_name=char_name,
-        )
+        if actor_render_delivered:
+            engine.image_generation.open_prose_gates_for_session(
+                session_id=session_id,
+                rendered_event_ids_by_pov={
+                    binding_cid: response.rendered_event_ids_by_pov.get(
+                        binding_cid,
+                        [],
+                    )
+                },
+            )
 
     async def _fan_out_per_player_renders(
         *,
@@ -4246,6 +4439,7 @@ def register(
         actor_cid: str,
         per_player: dict[str, str],
         turn_index: int,
+        rendered_event_ids_by_pov: dict[str, list[str]],
     ) -> None:
         """DM each non-acting bound human their POV render for the
         last beat. Mirrors the /act fan-out path so multi-POV beats
@@ -4281,6 +4475,12 @@ def register(
                 (c for c in roster if c.character_id == cid), None,
             )
             other_name = char.name if char else cid
+            await _wait_for_tandem_image_delivery(
+                engine=engine,
+                session_id=session_id,
+                character_id=cid,
+                rendered_event_ids_by_pov=rendered_event_ids_by_pov,
+            )
             ok = await _post_to_pov(
                 inter=inter,
                 smap=smap,
@@ -4294,6 +4494,12 @@ def register(
             )
             if ok:
                 notified.append(other_name)
+                engine.image_generation.open_prose_gates_for_session(
+                    session_id=session_id,
+                    rendered_event_ids_by_pov={
+                        cid: rendered_event_ids_by_pov.get(cid, [])
+                    },
+                )
         if notified:
             try:
                 phrase = ", ".join(f"**{n}**" for n in notified)
@@ -4306,27 +4512,7 @@ def register(
                 )
 
     class _JoinIdentityModal(discord.ui.Modal, title="Step into the role"):
-        """Optional name+appearance prompt fired after the user picks
-        from the /join SelectMenu. Both fields are optional — leaving
-        them blank keeps the authored defaults. On submit we bind,
-        apply identity (if provided), and fire arrival."""
-
-        name_in = discord.ui.TextInput(
-            label="Display name (optional)",
-            placeholder="Leave blank to keep the character's authored name.",
-            required=False,
-            max_length=80,
-        )
-        appearance_in = discord.ui.TextInput(
-            label="Appearance (optional)",
-            style=discord.TextStyle.paragraph,
-            placeholder=(
-                "Height, build, clothing, notable features. Leave blank "
-                "to keep the authored appearance."
-            ),
-            required=False,
-            max_length=600,
-        )
+        """Shared strict-claim modal for ordinary and player-authored seats."""
 
         def __init__(
             self,
@@ -4335,19 +4521,61 @@ def register(
             story_id: str,
             character_id: str,
             character_name: str,
+            player_authored: bool,
         ):
             super().__init__()
             self._session_id = session_id
             self._story_id = story_id
             self._character_id = character_id
             self._character_name = character_name
+            self._player_authored = player_authored
+            self.name_in = discord.ui.TextInput(
+                label=(
+                    "Character name"
+                    if player_authored
+                    else "Display name (optional)"
+                ),
+                placeholder=(
+                    "Choose the name this character enters the story with."
+                    if player_authored
+                    else "Leave blank to keep the authored name."
+                ),
+                required=player_authored,
+                max_length=80,
+            )
+            self.appearance_in = discord.ui.TextInput(
+                label=(
+                    "Character appearance"
+                    if player_authored
+                    else "Appearance (optional)"
+                ),
+                style=discord.TextStyle.paragraph,
+                placeholder=(
+                    "Height, build, clothing, and notable visible features."
+                    if player_authored
+                    else (
+                        "Height, build, clothing, notable features. Leave "
+                        "blank to keep the authored appearance."
+                    )
+                ),
+                required=player_authored,
+                max_length=600,
+            )
+            self.add_item(self.name_in)
+            self.add_item(self.appearance_in)
 
         async def on_submit(self, modal_inter: discord.Interaction):
             await modal_inter.response.defer(thinking=True)
 
+            chosen_name = (self.name_in.value or "").strip()
+            chosen_appearance = (self.appearance_in.value or "").strip()
             try:
-                await engine.takeover(
-                    self._session_id, self._character_id, modal_inter.user.id,
+                join_result = await engine.join_player_character(
+                    self._session_id,
+                    self._character_id,
+                    modal_inter.user.id,
+                    name=chosen_name,
+                    appearance=chosen_appearance,
                 )
             except ValueError as e:
                 await modal_inter.followup.send(
@@ -4355,32 +4583,12 @@ def register(
                 )
                 return
             except Exception as e:
-                logger.exception("/join takeover failed")
+                logger.exception("/join claim failed")
                 await modal_inter.followup.send(
                     embed=render_error(f"`{type(e).__name__}: {e}`"),
                     ephemeral=True,
                 )
                 return
-
-            chosen_name = (self.name_in.value or "").strip()
-            chosen_appearance = (self.appearance_in.value or "").strip()
-            if chosen_name or chosen_appearance:
-                try:
-                    await engine.set_character_identity(
-                        self._session_id, self._character_id,
-                        name=chosen_name or None,
-                        appearance=chosen_appearance or None,
-                    )
-                except Exception as e:
-                    logger.exception("/join set_character_identity failed")
-                    await modal_inter.followup.send(
-                        embed=render_error(
-                            f"Bound, but couldn't apply identity: "
-                            f"`{type(e).__name__}: {e}`"
-                        ),
-                        ephemeral=True,
-                    )
-                    return
 
             display_name = chosen_name or self._character_name
             await _handle_post_join(
@@ -4389,6 +4597,7 @@ def register(
                 story_id=self._story_id,
                 binding_cid=self._character_id,
                 char_name=display_name,
+                join_result=join_result,
             )
             await _send_dnd_attach_hint(
                 modal_inter,
@@ -4494,12 +4703,14 @@ def register(
             invoker_id: int,
             options: list[discord.SelectOption],
             char_lookup: dict[str, str],
+            player_authored_ids: set[str],
         ):
             super().__init__(timeout=180)
             self._session_id = session_id
             self._story_id = story_id
             self._invoker_id = invoker_id
             self._char_lookup = char_lookup
+            self._player_authored_ids = set(player_authored_ids)
             self._select = discord.ui.Select(
                 placeholder="Pick a character to play…",
                 options=options,
@@ -4538,6 +4749,9 @@ def register(
                         story_id=self._story_id,
                         character_id=picked_value,
                         character_name=picked_name,
+                        player_authored=(
+                            picked_value in self._player_authored_ids
+                        ),
                     )
                 )
             self.stop()
@@ -4603,6 +4817,7 @@ def register(
             ),
         ]
         char_lookup: dict[str, str] = {}
+        player_authored_ids: set[str] = set()
         for c in candidates:
             label = _join_select_label(
                 c.name,
@@ -4611,7 +4826,11 @@ def register(
                 appearance=c.appearance,
             )
             char_lookup[c.character_id] = (c.name or "").strip() or label
-            descr_bits = [b for b in (c.role, c.faction) if b]
+            if c.player_slot_kind == "player_authored":
+                player_authored_ids.add(c.character_id)
+            descr_bits = [
+                b for b in (c.player_guidance, c.role, c.faction) if b
+            ]
             description = _discord_select_text(
                 " · ".join(descr_bits) or c.appearance,
             )
@@ -4629,6 +4848,7 @@ def register(
             invoker_id=inter.user.id,
             options=options,
             char_lookup=char_lookup,
+            player_authored_ids=player_authored_ids,
         )
         body_lines: list[str] = []
         if candidates:
@@ -4648,9 +4868,10 @@ def register(
                 "24 are listed. Tell an admin if you need a different one.)_"
             )
         body_lines.append(
-            "Picking a pre-authored character lets you optionally override "
-            "their name and appearance. Picking **Create your own character** "
-            "asks you for a name, appearance, and backstory directly."
+            "Ordinary pre-authored characters keep their identity unless you "
+            "override it. A blank player-authored seat requires your name and "
+            "appearance before it can enter the story. **Create your own "
+            "character** also asks for an optional backstory."
         )
         await inter.response.send_message(
             embed=render_info("Join the story", "\n\n".join(body_lines)),
@@ -4785,7 +5006,7 @@ def register(
     @app_commands.describe(
         page="Which sheet page to show.",
         character_id=(
-            "Optional character_id. Defaults to your current bound character."
+            "Optional character id or /story characters number."
         ),
     )
     @app_commands.choices(
@@ -4812,10 +5033,18 @@ def register(
             return
 
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             character = engine.get_bound_character_record(
                 row.session_id,
                 inter.user.id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
             )
             embed = _render_dnd_sheet_page(character, page)
             view = _DndSheetView(
@@ -4854,7 +5083,7 @@ def register(
     )
     @app_commands.describe(
         character_id=(
-            "Optional character_id. Defaults to your current bound character."
+            "Optional character id or /story characters number."
         ),
     )
     async def _inventory(
@@ -4869,10 +5098,18 @@ def register(
             )
             return
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             view = engine.list_inventory(
                 row.session_id,
                 inter.user.id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
             )
         except ValueError as e:
             await inter.response.send_message(
@@ -4898,7 +5135,9 @@ def register(
         name="list",
         description="List open loot offers for your character.",
     )
-    @app_commands.describe(character_id="Optional character_id.")
+    @app_commands.describe(
+        character_id="Optional character id or /story characters number."
+    )
     async def _loot_list(
         inter: discord.Interaction,
         character_id: str = "",
@@ -4908,10 +5147,18 @@ def register(
             await inter.response.send_message("No session here.", ephemeral=True)
             return
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             offers = engine.list_loot_offers(
                 row.session_id,
                 inter.user.id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
             )
         except ValueError as e:
             await inter.response.send_message(
@@ -4938,7 +5185,7 @@ def register(
     @app_commands.describe(
         offer_id="Loot offer id.",
         item_ids="Comma-separated item ids from /loot list.",
-        character_id="Optional character_id.",
+        character_id="Optional character id or /story characters number.",
     )
     async def _loot_take(
         inter: discord.Interaction,
@@ -4952,10 +5199,18 @@ def register(
             return
         selected = [part.strip() for part in item_ids.split(",") if part.strip()]
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             result = await engine.claim_loot(
                 session_id=row.session_id,
                 user_id=inter.user.id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
                 offer_id=offer_id,
                 item_ids=selected,
                 take_currency=False,
@@ -4978,7 +5233,7 @@ def register(
     )
     @app_commands.describe(
         offer_id="Loot offer id.",
-        character_id="Optional character_id.",
+        character_id="Optional character id or /story characters number.",
     )
     async def _loot_take_all(
         inter: discord.Interaction,
@@ -4990,10 +5245,18 @@ def register(
             await inter.response.send_message("No session here.", ephemeral=True)
             return
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             result = await engine.claim_loot(
                 session_id=row.session_id,
                 user_id=inter.user.id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
                 offer_id=offer_id,
                 item_ids=[],
                 take_currency=True,
@@ -5017,7 +5280,7 @@ def register(
     )
     @app_commands.describe(
         offer_id="Loot offer id.",
-        character_id="Optional character_id.",
+        character_id="Optional character id or /story characters number.",
     )
     async def _loot_split_coins(
         inter: discord.Interaction,
@@ -5029,11 +5292,19 @@ def register(
             await inter.response.send_message("No session here.", ephemeral=True)
             return
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             result = await engine.split_loot_currency(
                 session_id=row.session_id,
                 user_id=inter.user.id,
                 offer_id=offer_id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
             )
         except ValueError as e:
             await inter.response.send_message(_loot_player_error(e), ephemeral=True)
@@ -5053,7 +5324,7 @@ def register(
     )
     @app_commands.describe(
         offer_id="Loot offer id.",
-        character_id="Optional character_id.",
+        character_id="Optional character id or /story characters number.",
     )
     async def _loot_decline(
         inter: discord.Interaction,
@@ -5065,11 +5336,19 @@ def register(
             await inter.response.send_message("No session here.", ephemeral=True)
             return
         try:
+            resolved_character_id = (
+                _resolve_session_character_ref(
+                    engine,
+                    row.session_id,
+                    character_id,
+                )
+                if character_id else None
+            )
             result = await engine.decline_loot(
                 session_id=row.session_id,
                 user_id=inter.user.id,
                 offer_id=offer_id,
-                character_id=character_id or None,
+                character_id=resolved_character_id,
             )
         except ValueError as e:
             await inter.response.send_message(_loot_player_error(e), ephemeral=True)
@@ -5159,7 +5438,13 @@ def register(
         description="Open the story for everyone in the lobby.",
         guild=guild,
     )
-    async def _begin(inter: discord.Interaction):
+    @app_commands.describe(
+        confirm=(
+            "Confirm that every intended player has claimed a seat and open "
+            "the story."
+        ),
+    )
+    async def _begin(inter: discord.Interaction, confirm: bool = False):
         row = await smap.get(_session_channel_id(inter))
         if row is None:
             await inter.response.send_message(
@@ -5182,6 +5467,31 @@ def register(
             await inter.response.send_message(
                 "You aren't bound to a character. `/join` first, then "
                 "`/begin` will open the story.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            lobby = engine.opening_lobby(row.session_id)
+        except Exception as e:
+            logger.exception("/begin opening lobby lookup failed")
+            await inter.response.send_message(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
+            return
+        if lobby.requires_confirmation and not confirm:
+            claimed = ", ".join(lobby.claimed_seat_names) or "none"
+            open_seats = ", ".join(lobby.open_seat_names) or "none"
+            await inter.response.send_message(
+                embed=render_info(
+                    "Confirm the opening lobby",
+                    f"**Claimed:** {claimed}\n"
+                    f"**Still open:** {open_seats}\n\n"
+                    "When every intended player has joined, run `/begin` "
+                    "again with `confirm:True`. The opening branches from "
+                    "this exact set of claims.",
+                ),
                 ephemeral=True,
             )
             return
@@ -5258,25 +5568,36 @@ def register(
                 session_id=row.session_id,
                 turn_index=response.turn_index,
             )
+            actor_render_delivered = False
             if venue == "thread" and thread is not None:
+                actor_render_delivered = True
                 await inter.followup.send(
                     f"The story opens in {thread.mention}.",
                     ephemeral=True,
                 )
             elif venue == "dm":
+                actor_render_delivered = True
                 await inter.followup.send(
                     "The story opens in your DMs (POV thread "
                     "unavailable here).",
                     ephemeral=True,
                 )
             else:
-                await _send_public_turn_render(
-                    inter=inter,
-                    smap=smap,
+                await _report_private_delivery_failure(
+                    inter,
+                    subject="opening update",
+                )
+            if actor_render_delivered:
+                engine.image_generation.open_prose_gates_for_session(
                     session_id=row.session_id,
-                    turn_index=response.turn_index,
-                    content=intro,
-                    embeds=embeds,
+                    rendered_event_ids_by_pov={
+                        triggering_cid: (
+                            response.rendered_event_ids_by_pov.get(
+                                triggering_cid,
+                                [],
+                            )
+                        )
+                    },
                 )
         else:
             await inter.followup.send(
@@ -5293,18 +5614,10 @@ def register(
             actor_cid=triggering_cid,
             per_player=per_player,
             turn_index=response.turn_index,
+            rendered_event_ids_by_pov=(
+                response.rendered_event_ids_by_pov or {}
+            ),
         )
-        if triggering_cid:
-            await _queue_discord_actor_image(
-                inter=inter,
-                engine=engine,
-                session_id=row.session_id,
-                actor_character_id=triggering_cid,
-                actor_user=inter.user,
-                response=response,
-                trigger_kind=ImageTriggerKind.begin,
-                char_name=actor_name,
-            )
 
     # ---- /leave -------------------------------------------------------------
 
@@ -5339,8 +5652,16 @@ def register(
                 "You weren't bound to a character.", ephemeral=True,
             )
             return
+        freed_name = next(
+            (
+                seat.name
+                for seat in engine.list_session_characters(row.session_id)
+                if seat.character_id == freed
+            ),
+            "your character",
+        )
         await inter.followup.send(
-            f"Released `{freed}`. Other players can now `/join` them.",
+            f"Released **{freed_name}**. Other players can now `/join` them.",
             ephemeral=True,
         )
 
@@ -5352,7 +5673,7 @@ def register(
         guild=guild,
     )
     @app_commands.describe(
-        character_id="The character_id (see /story characters).",
+        character_id="The character id, number from /story characters, or `list`.",
     )
     async def _character(inter: discord.Interaction, character_id: str):
         row = await smap.get(_session_channel_id(inter))
@@ -5365,6 +5686,37 @@ def register(
         await inter.response.defer(thinking=True, ephemeral=True)
 
         character_id = character_id.strip()
+        if character_id.lower() == "list":
+            seats = [
+                summary
+                for summary in engine.list_session_characters(row.session_id)
+                if summary.is_playable and summary.status != "culled"
+            ]
+            lines: list[str] = []
+            for index, seat in enumerate(seats, start=1):
+                role = f" - {seat.role}" if seat.role else ""
+                lines.append(f"{index}. **{seat.name}**{role}")
+                if seat.player_guidance:
+                    lines.append(seat.player_guidance)
+            await inter.followup.send(
+                embed=render_info(
+                    "Playable seats",
+                    "\n".join(lines) or "No playable seats are available.",
+                ),
+                ephemeral=True,
+            )
+            return
+        try:
+            character_id = _resolve_session_character_ref(
+                engine,
+                row.session_id,
+                character_id,
+            )
+        except ValueError as e:
+            await inter.followup.send(
+                embed=render_error(str(e)), ephemeral=True,
+            )
+            return
         try:
             dossier = engine.build_character_dossier(
                 row.session_id, character_id,
@@ -5426,30 +5778,24 @@ def register(
             await inter.followup.send(
                 embed=render_error(
                     "You aren't bound to a character. Run `/join` first."
-                )
+                ),
+                ephemeral=True,
             )
             return
 
         try:
-            ckpt = await engine.set_character_identity(
+            await engine.set_character_identity(
                 row.session_id, binding,
                 name=name or None,
                 appearance=appearance or None,
             )
         except Exception as e:
             logger.exception("set_character_identity failed")
-            await inter.followup.send(embed=render_error(
-                f"`{type(e).__name__}: {e}`"
-            ))
+            await inter.followup.send(
+                embed=render_error(f"`{type(e).__name__}: {e}`"),
+                ephemeral=True,
+            )
             return
-
-        # Defensive: if we somehow got here pre-play (no narrator turns
-        # yet), fire the canonical opening. /begin and run_begin_turn are
-        # the source of truth, but manual test setup and future frontends
-        # can still land here, and we shouldn't silently swallow the opener.
-        # v11: narrator_conversations is per-POV dict keyed by character_id.
-        # "no turns yet" = no POV has any narrator history.
-        is_pre_play = not any(ckpt.narrator_conversations.values())
 
         changed_bits = []
         if name:
@@ -5458,109 +5804,13 @@ def register(
             changed_bits.append(f"appearance: *{appearance}*")
         changed = " · ".join(changed_bits)
 
-        if not is_pre_play:
-            await inter.followup.send(
-                embed=render_info(
-                    "Character updated",
-                    f"{changed}\n\nThis takes effect on your next `/act`.",
-                )
-            )
-            return
-
-        logger.info(
-            "Describe+open for %s by %s: %s",
-            row.session_id, inter.user.display_name, changed,
-        )
-
-        try:
-            response = await engine.run_begin_turn(
-                session_id=row.session_id,
-                triggering_character_id=binding,
-            )
-        except TransientLLMError as e:
-            logger.warning(
-                "opening run_begin_turn hit transient LLM error after %d "
-                "attempts: %s",
-                e.attempts, e.last_error,
-            )
-            await inter.followup.send(embed=render_error(str(e)))
-            return
-        except Exception as e:
-            logger.exception("opening run_begin_turn failed")
-            await inter.followup.send(embed=render_error(
-                player_safe_error_message(e)
-            ))
-            return
-
-        # Per-phase latency / cache metrics now flow through
-        # `app.engine.turn_loop`'s logger ("turn_loop.router[route] …"
-        # lines and the per-phase records the orchestrator emits) so
-        # they show up in the same place for CLI, Discord, and the
-        # programmatic playtest harness. The TurnResponse.debug
-        # payload was murdered in v11-r7j.
-
-        embeds = render_turn(
-            output_text=response.output_text,
-            turn_index=response.turn_index,
-            story_id=row.story_id,
-        )
-        intro_bits: list[str] = []
-        if name:
-            intro_bits.append(f"**{name}**")
-        if appearance:
-            intro_bits.append(f"*{appearance}*")
-        intro_line = " — ".join(intro_bits)
-        intro = (
-            (f"{intro_line}\n\n" if intro_line else "")
-            + "The story opens. Use `/act <action>` or `/defer` from here on."
-        )
-
-        # /describe's defensive pre-play opener follows the same
-        # POV-thread-first delivery as /act and /join arrival.
-        bound_char = next(
-            (c for c in ckpt.characters if c.character_id == binding), None,
-        )
-        bound_name = bound_char.name if bound_char else binding
-        venue, thread = await _post_actor_render(
-            inter=inter,
-            smap=smap,
-            user=inter.user,
-            character_id=binding,
-            char_name=bound_name,
-            embeds=embeds,
-            intro_content=intro,
-            session_id=row.session_id,
-            turn_index=response.turn_index,
-        )
-        if venue == "thread" and thread is not None:
-            await inter.followup.send(
-                f"Character updated. Scene opens in {thread.mention}.",
-                ephemeral=True,
-            )
-        elif venue == "dm":
-            await inter.followup.send(
-                "Character updated. Scene opens in your DMs "
-                "(POV thread unavailable here).",
-                ephemeral=True,
-            )
-        else:
-            await _send_public_turn_render(
-                inter=inter,
-                smap=smap,
-                session_id=row.session_id,
-                turn_index=response.turn_index,
-                content=intro,
-                embeds=embeds,
-            )
-        await _queue_discord_actor_image(
-            inter=inter,
-            engine=engine,
-            session_id=row.session_id,
-            actor_character_id=binding,
-            actor_user=inter.user,
-            response=response,
-            trigger_kind=ImageTriggerKind.begin,
-            char_name=bound_name,
+        await inter.followup.send(
+            embed=render_info(
+                "Character updated",
+                f"{changed}\n\nThis takes effect on your next `/act`. "
+                "Use `/begin` separately if the story has not opened.",
+            ),
+            ephemeral=True,
         )
 
     # ---- /act ---------------------------------------------------------------
@@ -5634,7 +5884,6 @@ def register(
             actor_character_id=binding,
             actor_user=inter.user,
             response=response,
-            image_trigger=ImageTriggerKind.act,
         )
 
     # ---- /retry ------------------------------------------------------------
@@ -5709,7 +5958,6 @@ def register(
             actor_character_id=result.actor_character_id,
             actor_user=actor_user,
             response=response,
-            image_trigger=ImageTriggerKind.render_retry,
         )
 
     # ---- /roll --------------------------------------------------------------
@@ -5823,7 +6071,6 @@ def register(
             actor_user=inter.user,
             response=response,
             clear_interaction_response=False,
-            image_trigger=ImageTriggerKind.roll_resolution,
         )
 
     # ---- /defer -------------------------------------------------------------
@@ -6474,7 +6721,11 @@ def register(
             return
 
         try:
-            ckpt: CheckpointFile = engine.load_latest(row.session_id)
+            binding = engine.get_user_binding(
+                row.session_id,
+                inter.user.id,
+            ) or ""
+            activity = engine.session_activity(row.session_id, binding)
         except FileNotFoundError:
             # Orphaned mapping — purge and tell the user so they can
             # start fresh without bumping into a stale binding.
@@ -6492,37 +6743,23 @@ def register(
             )
             return
 
-        # v11: pick the invoker's POV location label.
-        from app.engine.context_builder import pov_location_for_user
-        location = pov_location_for_user(ckpt, user_id=str(inter.user.id))
-        location_name = location or "(no active location)"
-
-        bound_ids = set(ckpt.session.character_bindings.keys())
-        present = [
-            c.name for c in ckpt.characters
-            if c.location == location and c.status.value == "active"
-            and c.character_id not in bound_ids
-        ] if location else []
-
-        bindings_lines: list[str] = []
-        for char_id, user_id in ckpt.session.character_bindings.items():
-            char = next(
-                (c for c in ckpt.characters if c.character_id == char_id), None
-            )
-            char_name = char.name if char else char_id
-            bindings_lines.append(f"• <@{user_id}> — **{char_name}** (`{char_id}`)")
-        if not bindings_lines:
-            bindings_lines.append("• (no players bound — `/join` to claim one)")
-
         body_lines = [
-            f"**Story:** `{row.story_id}`",
-            f"**Turn:** {ckpt.session.turn_index}",
-            f"**Location:** {location_name}",
-            f"**Same-location NPCs:** {', '.join(present) if present else 'no one else'}",
-            "",
-            "**Players:**",
-            *bindings_lines,
+            f"**Story:** {activity.story_id}",
+            f"**Turn:** {activity.turn_index}",
+            f"**Viewpoint:** {activity.viewpoint_name or 'none selected'}",
+            f"**Location:** {activity.location or 'not yet in the fiction'}",
+            "**Joined:** "
+            + (", ".join(activity.joined_seat_names) or "none"),
+            "**Nearby:** "
+            + (", ".join(activity.nearby_character_names) or "no one else"),
+            f"**Activity:** {activity.state}",
         ]
+        if activity.last_visible_update:
+            body_lines.extend([
+                "",
+                "**Last visible update:**",
+                activity.last_visible_update,
+            ])
         await inter.response.send_message(
             embed=render_info("Session status", "\n".join(body_lines)),
             ephemeral=True,
@@ -6902,6 +7139,7 @@ def register(
         tree.add_command(combat_group, guild=guild)
         tree.add_command(loot_group, guild=guild)
         tree.add_command(xp_group, guild=guild)
+        tree.add_command(image_group, guild=guild)
         tree.add_command(settings_group, guild=guild)
     else:
         tree.add_command(session_group)
@@ -6909,4 +7147,5 @@ def register(
         tree.add_command(combat_group)
         tree.add_command(loot_group)
         tree.add_command(xp_group)
+        tree.add_command(image_group)
         tree.add_command(settings_group)

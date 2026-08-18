@@ -415,8 +415,7 @@ class TestHappyPath:
         saved = mgr.save.call_args[0][0]
         assert len(saved.canonical_events) == 1
         assert saved.session.active_act_slots == {}
-        assert len(saved.transcript) == 1
-        assert saved.transcript[0].assistant == "POV_RENDER"
+        assert not hasattr(saved, "transcript")
 
     @pytest.mark.asyncio
     async def test_narrator_failure_preserves_beat_for_render_retry(
@@ -443,7 +442,7 @@ class TestHappyPath:
         assert len(ckpt.canonical_events) == 1
         assert ckpt.session.render_buffers["alice"]
         assert ckpt.session.active_act_slots["alice"].reason == "initiator"
-        assert ckpt.transcript == []
+        assert not hasattr(ckpt, "transcript")
         assert len(FakeDispatcher.route_calls) == 1
         assert len(FakeDispatcher.narrator_calls) == 1
 
@@ -454,9 +453,7 @@ class TestHappyPath:
         assert ckpt.session.pending_narrator_render is None
         assert ckpt.session.render_buffers["alice"] == []
         assert ckpt.session.active_act_slots == {}
-        assert len(ckpt.transcript) == 1
-        assert ckpt.transcript[0].user == "I look around"
-        assert ckpt.transcript[0].assistant == "POV_RENDER"
+        assert not hasattr(ckpt, "transcript")
         assert len(FakeDispatcher.route_calls) == 1
         assert len(FakeDispatcher.narrator_calls) == 2
         assert mgr.save.call_count == 2

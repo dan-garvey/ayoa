@@ -118,6 +118,17 @@ class SessionMap:
             return None
         return SessionRow(*row)
 
+    async def get_by_session(self, session_id: str) -> Optional[SessionRow]:
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.execute(
+                "SELECT channel_id, guild_id, session_id, owner_user_id, "
+                "story_id, created_at FROM sessions WHERE session_id = ? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (session_id,),
+            )
+            row = cursor.fetchone()
+        return SessionRow(*row) if row is not None else None
+
     async def upsert(
         self,
         *,

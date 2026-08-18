@@ -17,7 +17,7 @@ then `/story start <id>` from inside the REPL to load content.
 
 Non-interactive / multiplayer:
     .venv/bin/python scripts/play.py --session <name> --command "/status"
-    .venv/bin/python scripts/play.py --session <name> --as <char> --command "<action>"
+    .venv/bin/python scripts/play.py --session <name> --as <seat> --command "<action>"
 
 `--command` runs one REPL line (repeatable) then exits, and `--as` selects
 which already-bound character acts. Separate terminals — or separate agents —
@@ -28,17 +28,18 @@ processes cannot clobber each other's checkpoints.
 Commands inside the REPL:
     /help                       Show commands
     /story list                 List available stories
-    /story start <id>           Load a story into this session
-    /story info <id>            Show briefing for a story
+    /story start <id|#>         Load a story into this session
+    /story info <id|#>          Show briefing for a story
     /story delete               Unload the current story (leaves session empty)
     /session list               List existing sessions
     /session end                Exit the REPL (save files stay on disk)
-    /characters                 List open playable slots, then full roster
-    /character <id>             Full dossier for one character
-    /join <character_id>        Claim a character; prints their dossier
+    /characters                 List playable seats by claim state
+    /character list             Alias for /characters
+    /character <id|#>           Full dossier for one character
+    /join <name|#>              Claim a character; prints their dossier
     /join_custom                Create your own character
-    /leave [character_id]       Release a claim (default: current actor)
-    /as <character_id>          Switch which claimed character acts next
+    /leave [name|#]             Release a claim (default: current actor)
+    /as <name|#>                Switch which claimed character acts next
     /describe                   Set name + appearance of the current actor
     /defer                      Submit no action and let the scene continue
     /begin                      Open the story for the joined lobby
@@ -112,12 +113,8 @@ from app.engine.cli_image_display import (
     CliImageDisplayResult,
 )
 from app.engine.text_safety import strip_terminal_control
-from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig, MissingLLMCredential
-from app.schemas.image_generation import (
-    ImageDeliveryKind,
-    ImageGenerationStatus,
-    ImageTriggerKind,
-)
+from app.llm.config import LLMConfig, MissingLLMCredential, live_play_required_roles
+from app.schemas.image_generation import ImageDeliveryKind
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -144,22 +141,25 @@ ABILITY_LABELS = {
 
 HELP_TEXT = """\
 Commands:
-  /help                             Show this help
+  /help                             Show context-relevant commands
+  /help all                         Show every command
   /story list                       List available stories
-  /story start <id>                 Load a story into this session
-  /story info <id>                  Show briefing for a story
+  /story start <id|#>               Load a story into this session
+  /story info <id|#>                Show briefing for a story
   /story delete                     Unload the current story from this session
   /session list                     List existing sessions
   /session end                      Exit the REPL (files stay)
-  /characters                       List open playable slots, then full roster
-  /character <id>                   Full dossier for a character
-  /join <character_id>              Claim a character; prints their dossier
+  /characters                       List playable seats by claim state
+  /character list                   Alias for /characters
+  /character <id|#>                 Full dossier for a character
+  /join <name|#>                    Claim a character; prints their dossier
   /join_custom                      Create your own character
-  /leave [character_id]             Release a claim (default: current actor)
-  /as <character_id>                Switch which claimed character acts next
-  /describe                         Set name + appearance of the current actor
+  /leave [name|#]                   Release a claim (default: current actor)
+  /as <name|#>                      Switch which claimed character acts next
+  /describe [--name N] [--appearance A]
+                                    Set current actor identity without starting
   /defer                            Submit no action and let the scene continue
-  /begin                            Open the story for the joined lobby
+  /begin [--confirm]                Open the story for the joined lobby
   /attach <json> [id] [--name N]    Attach a D&D Beyond JSON export
   /sheet [page] [character_id]      Show an attached D&D character sheet
   /sheet all [character_id]         Show every sheet page
@@ -179,6 +179,8 @@ Commands:
   /combat add <id>                  Add a character to active combat
   /combat remove <id> [hard]        Remove a combat participant
   /query <question>                 Ask an out-of-character question (POV-bounded)
+  /image lock id:<candidate_id>     Accept a provisional identity portrait
+  /image reroll [id:<reference_id>] Generate a replacement identity portrait
   /rewind                           List available turn checkpoints
   /rewind <N>                       Preview rewind to ckpt_N, then confirm delete
   /settings                         Show experimental settings for this session
@@ -1189,6 +1191,69 @@ def _parse_attach_args(
     return path, character_id, name_override
 
 
+def _parse_join_args(raw: str) -> tuple[str, str, str] | None:
+    """Parse `/join <ref> [--name N] [--appearance A]`."""
+    try:
+        tokens = shlex.split(raw)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return None
+    if not tokens:
+        return "", "", ""
+
+    character_ref = tokens[0]
+    name = ""
+    appearance = ""
+    index = 1
+    while index < len(tokens):
+        flag = tokens[index]
+        if flag not in {"--name", "--appearance"}:
+            print(
+                "usage: /join <name|#> "
+                "[--name \"Name\"] [--appearance \"Description\"]"
+            )
+            return None
+        if index + 1 >= len(tokens):
+            print(f"error: {flag} requires a value")
+            return None
+        value = tokens[index + 1]
+        if flag == "--name":
+            name = value
+        else:
+            appearance = value
+        index += 2
+    return character_ref, name, appearance
+
+
+def _parse_describe_args(raw: str) -> tuple[str, str] | None:
+    """Parse optional noninteractive identity fields for `/describe`."""
+    try:
+        tokens = shlex.split(raw)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return None
+    name = ""
+    appearance = ""
+    index = 0
+    while index < len(tokens):
+        flag = tokens[index]
+        if flag not in {"--name", "--appearance"}:
+            print(
+                "usage: /describe [--name \"Name\"] "
+                "[--appearance \"Description\"]"
+            )
+            return None
+        if index + 1 >= len(tokens):
+            print(f"error: {flag} requires a value")
+            return None
+        if flag == "--name":
+            name = tokens[index + 1]
+        else:
+            appearance = tokens[index + 1]
+        index += 2
+    return name, appearance
+
+
 def _print_loot_help() -> None:
     print("Loot commands:")
     print("  /loot                         List open offers")
@@ -1286,14 +1351,38 @@ def _split_combat_ids(arg: str) -> list[str]:
 def _joinable_character_line(summary: CharacterSummary) -> str:
     bits = [
         bit for bit in (
-            summary.name,
             summary.role,
             summary.faction,
         )
         if bit
     ]
     suffix = " — " + " · ".join(bits) if bits else ""
-    return f"{summary.character_id}{suffix}"
+    return f"{summary.name}{suffix}"
+
+
+def _enum_line(index: int, value: str, suffix: str = "") -> str:
+    return f"  {index}: {value}{suffix}"
+
+
+def _resolve_enum_ref(
+    value: str,
+    choices: list[str],
+    *,
+    label: str,
+) -> str:
+    token = value.strip()
+    if not token:
+        raise ValueError(f"missing {label}")
+    if token.isdigit():
+        index = int(token)
+        if 1 <= index <= len(choices):
+            return choices[index - 1]
+        raise ValueError(
+            f"No {label} numbered {index}. Run the list command again."
+        )
+    if token in choices:
+        return token
+    raise ValueError(f"Unknown {label} '{token}'. Run the list command again.")
 
 
 def _print_joinable_characters(
@@ -1304,10 +1393,19 @@ def _print_joinable_characters(
     joinable = joinable_character_summaries(summaries)
     print("## Joinable")
     if joinable:
+        playable = [
+            summary
+            for summary in summaries
+            if summary.is_playable and summary.status != "culled"
+        ]
+        all_ids = [summary.character_id for summary in playable]
         for summary in joinable:
-            print(f"  {_joinable_character_line(summary)}")
+            index = all_ids.index(summary.character_id) + 1
+            print(_enum_line(index, _joinable_character_line(summary)))
+            if summary.player_guidance:
+                print(f"     {summary.player_guidance}")
         if include_hint:
-            print("  Use /join <character_id> to claim one.")
+            print("  Use /join <#> to claim one.")
     else:
         print("  (none)")
 
@@ -1392,7 +1490,11 @@ class CLIState:
         self.claims: dict[str, int] = {}
         self._next_user_id = 1
         self.running = True
-        self._pending_cli_image_jobs: dict[str, str] = {}
+        self.one_shot_mode = False
+        self.engine.image_generation.register_delivery_handler(
+            ImageDeliveryKind.cli,
+            self._deliver_cli_image,
+        )
         # When set, restrict printed POV renders/asset reveals to this one
         # character. Separate-terminal one-shot play sets this so each
         # terminal shows only its own player's POV, mirroring Discord's
@@ -1418,6 +1520,25 @@ class CLIState:
                 self._next_user_id = uid + 1
         if self.claims and self.current_actor is None:
             self.current_actor = next(iter(self.claims))
+
+    def refresh_from_checkpoint(self) -> None:
+        """Refresh story and bindings after acquiring the process lock."""
+        previous_actor = self.current_actor
+        try:
+            ckpt = self.engine.load_latest(self.session_id)
+        except FileNotFoundError:
+            self.story_id = ""
+            self.claims = {}
+            self.current_actor = None
+            self._next_user_id = 1
+            return
+        self.story_id = ckpt.session.story_id or ""
+        self.claims = {}
+        self._next_user_id = 1
+        self.current_actor = None
+        self._load_existing_claims()
+        if previous_actor in self.claims:
+            self.current_actor = previous_actor
 
     # ---- dispatch ------------------------------------------------------------
 
@@ -1449,10 +1570,135 @@ class CLIState:
         print("no story loaded — /story list then /story start <id>")
         return False
 
+    def _resolve_story_ref(self, value: str) -> str:
+        return _resolve_enum_ref(
+            value,
+            self.engine.list_story_ids(),
+            label="story",
+        )
+
+    def _character_id_choices(self) -> list[str]:
+        return [
+            summary.character_id
+            for summary in self.engine.list_session_characters(self.session_id)
+            if summary.is_playable and summary.status != "culled"
+        ]
+
+    def _resolve_character_ref(self, value: str) -> str:
+        summaries = [
+            summary
+            for summary in self.engine.list_session_characters(self.session_id)
+            if summary.is_playable and summary.status != "culled"
+        ]
+        token = value.strip()
+        try:
+            return _resolve_enum_ref(
+                token,
+                [summary.character_id for summary in summaries],
+                label="character",
+            )
+        except ValueError as original_error:
+            name_matches = [
+                summary.character_id
+                for summary in summaries
+                if summary.name.strip().casefold() == token.casefold()
+            ]
+            if len(name_matches) == 1:
+                return name_matches[0]
+            if len(name_matches) > 1:
+                raise ValueError(
+                    f"More than one playable seat is named {token!r}; use its "
+                    "number from /characters."
+                ) from original_error
+            raise
+
+    def _character_name(self, character_id: str) -> str:
+        return next(
+            (
+                summary.name
+                for summary in self.engine.list_session_characters(
+                    self.session_id
+                )
+                if summary.character_id == character_id
+            ),
+            character_id,
+        )
+
     # ---- commands ------------------------------------------------------------
 
     def cmd_help(self, arg: str) -> None:
-        print(HELP_TEXT)
+        mode = arg.strip().lower()
+        if mode == "all":
+            print(HELP_TEXT)
+            return
+        if mode:
+            print("usage: /help [all]")
+            return
+        if not self.story_id:
+            print("Commands for an empty session:")
+            print("  /story list")
+            print("  /story info <#|story_id>")
+            print("  /story start <#|story_id>")
+            print("  /session list")
+            print("  /help all")
+            return
+        if not self.claims:
+            print("Commands before play:")
+            print("  /story              Show the current story briefing")
+            print("  /characters         Show playable seats")
+            print("  /join <#>           Claim a seat")
+            print("  /begin              Review and open the claimed lobby")
+            print("  /status")
+            print("  /help all")
+            return
+        print("Core play commands:")
+        print("  <plain text>         Act as the selected character")
+        print("  /defer               Let the scene continue without acting")
+        print("  /query <question>    Ask from this character's POV")
+        print("  /status")
+        print("  /history [N]")
+        print("  /characters")
+        print("  /as <#>              Select another claimed seat")
+        print("  /help all")
+
+    async def cmd_image(self, arg: str) -> None:
+        parts = arg.split(maxsplit=1)
+        if not parts or parts[0].lower() not in {"lock", "reroll"}:
+            print(
+                "usage: /image lock id:<candidate_id> | "
+                "/image reroll [id:<reference_id>]"
+            )
+            return
+        candidate_id = parts[1].strip() if len(parts) == 2 else ""
+        if candidate_id.startswith("id:"):
+            candidate_id = candidate_id[3:].strip()
+        if parts[0].lower() == "lock" and not candidate_id:
+            print("usage: /image lock id:<candidate_id>")
+            return
+        try:
+            if parts[0].lower() == "lock":
+                candidate = await self.engine.lock_image_identity(
+                    session_id=self.session_id,
+                    candidate_id=candidate_id,
+                )
+                print(
+                    f"locked identity reference {candidate.candidate_id} "
+                    f"for {candidate.character_id}"
+                )
+                return
+            if not self.current_actor:
+                print("join and select a character before requesting a reroll")
+                return
+            job = await self.engine.reroll_image_identity(
+                session_id=self.session_id,
+                reference_id=candidate_id,
+                pov_character_id=self.current_actor,
+                delivery_kind=ImageDeliveryKind.cli,
+                delivery={"character_id": self.current_actor},
+            )
+            print(f"queued identity reroll {job.job_id}")
+        except (KeyError, ValueError, RuntimeError) as exc:
+            print(f"error: {exc}")
 
     # ---- story subcommands ---------------------------------------------------
 
@@ -1460,8 +1706,7 @@ class CLIState:
         """Dispatcher for `/story <sub>` — forwards to cmd_story_<sub>."""
         parts = arg.split(maxsplit=1) if arg.strip() else []
         if not parts:
-            print("usage: /story [list|start|info|delete] ...")
-            return
+            return self.cmd_story_info(self.story_id)
         sub = parts[0].lower()
         rest = parts[1] if len(parts) > 1 else ""
         handler = getattr(self, f"cmd_story_{sub}", None)
@@ -1471,43 +1716,73 @@ class CLIState:
         return handler(rest)
 
     def cmd_story_list(self, arg: str) -> None:
-        ids = self.engine.list_story_ids()
-        if not ids:
+        summaries = self.engine.list_story_summaries()
+        if not summaries:
             print(
                 "no stories available — add a synthetic checkpoint under "
                 "app/storage/stories/<story_id>/ckpt_0000.json first"
             )
             return
-        for sid in ids:
-            print(f"  {sid}")
+        for index, summary in enumerate(summaries, start=1):
+            marker = "  ← current" if summary.story_id == self.story_id else ""
+            seats = (
+                f"{summary.playable_seat_count} playable "
+                f"seat{'s' if summary.playable_seat_count != 1 else ''}"
+            )
+            print(
+                f"{index}: {summary.title} (`{summary.story_id}`) · "
+                f"{seats}{marker}"
+            )
 
     def cmd_story_info(self, arg: str) -> None:
-        story_id = arg.strip()
-        if not story_id:
-            print("usage: /story info <story_id>")
-            return
-        if story_id not in self.engine.list_story_ids():
-            print(f"unknown story: {story_id}")
+        story_ref = arg.strip() or self.story_id
+        if not story_ref:
+            print("usage: /story info <story_id|#>")
             return
         try:
-            ckpt = self.engine.load_story_ckpt(story_id)
+            story_id = self._resolve_story_ref(story_ref)
+        except ValueError as e:
+            print(f"error: {e}")
+            return
+        try:
+            summary = self.engine.story_summary(story_id)
         except Exception as e:
             print(f"error: {e}")
             return
-        setting = ckpt.world_state.setting
         print()
-        print(f"# {story_id}")
-        print(f"Genre: {setting.genre}")
-        print(f"Tone: {setting.tone}")
-        print(f"Premise: {setting.premise}")
-        print(f"Characters: {len(ckpt.characters)}")
-        print("Scenes: (router-managed perception)")
+        print(f"# {summary.title}")
+        print(f"Story id: {story_id}")
+        if summary.genre:
+            print(f"Genre: {summary.genre}")
+        print(f"Playable seats: {summary.playable_seat_count}")
+        if summary.recommended_players:
+            print(f"Recommended: {summary.recommended_players}")
+        if summary.premise:
+            print(f"Premise: {summary.premise}")
+        if summary.play_guidance:
+            print(f"\nHow this story plays:\n{summary.play_guidance}")
+        if summary.player_primer:
+            print(f"\nBriefing:\n{summary.player_primer}")
+        seats = [
+            seat
+            for seat in self.engine.list_story_characters(story_id)
+            if seat.is_playable and seat.status != "culled"
+        ]
+        if seats:
+            print("\nSeats:")
+            for index, seat in enumerate(seats, start=1):
+                details = " - ".join(
+                    part for part in (seat.name, seat.role) if part
+                )
+                print(f"  {index}: {details}")
+                if seat.player_guidance:
+                    print(f"     {seat.player_guidance}")
         print()
 
     def cmd_story_start(self, arg: str) -> None:
-        story_id = arg.strip()
-        if not story_id:
-            print("usage: /story start <story_id>")
+        story_ref = arg.strip()
+        if not story_ref:
+            print("usage: /story start <story_id|#>")
             return
         if self.story_id:
             print(
@@ -1515,8 +1790,10 @@ class CLIState:
                 f"/story delete first."
             )
             return
-        if story_id not in self.engine.list_story_ids():
-            print(f"unknown story: {story_id}")
+        try:
+            story_id = self._resolve_story_ref(story_ref)
+        except ValueError as e:
+            print(f"error: {e}")
             return
         try:
             self.engine.load_story_into_session(self.session_id, story_id)
@@ -1532,7 +1809,16 @@ class CLIState:
         self.current_actor = None
         self._load_existing_claims()
         print(f"loaded story `{story_id}` into session `{self.session_id}`")
-        print("run /characters then /join <character_id> to claim one")
+        summary = self.engine.story_summary(story_id)
+        print(f"# {summary.title}")
+        if summary.recommended_players:
+            print(f"Recommended: {summary.recommended_players}")
+        if summary.play_guidance:
+            print(summary.play_guidance)
+        if summary.player_primer:
+            print()
+            print(summary.player_primer)
+        print("\nNext: /characters → /join <#> → /begin")
 
     def cmd_story_delete(self, arg: str) -> None:
         if not self.story_id:
@@ -1568,9 +1854,9 @@ class CLIState:
         if not ids:
             print("no sessions yet")
             return
-        for sid in ids:
+        for index, sid in enumerate(ids, start=1):
             marker = "  ← current" if sid == self.session_id else ""
-            print(f"  {sid}{marker}")
+            print(_enum_line(index, sid, marker))
 
     def cmd_session_end(self, arg: str) -> None:
         print(f"detached from `{self.session_id}` (files kept on disk)")
@@ -1581,92 +1867,52 @@ class CLIState:
     def cmd_characters(self, arg: str) -> None:
         if not self._require_story():
             return
-        ckpt = self.engine.load_latest(self.session_id)
         summaries = self.engine.list_session_characters(self.session_id)
-        joinable_ids = {
-            summary.character_id
-            for summary in joinable_character_summaries(summaries)
-        }
-        from app.engine.context_builder import resolve_location_for_character
-        location = resolve_location_for_character(
-            ckpt,
-            self.current_actor or next(iter(self.claims), None),
+        playable = [
+            summary
+            for summary in summaries
+            if summary.is_playable and summary.status != "culled"
+        ]
+        sections = (
+            ("Available", [seat for seat in playable if not seat.bound_user_id]),
+            ("Yours", [seat for seat in playable if seat.character_id in self.claims]),
+            (
+                "Claimed by another player",
+                [
+                    seat for seat in playable
+                    if seat.bound_user_id and seat.character_id not in self.claims
+                ],
+            ),
         )
-        claimed_ids = set(self.claims)
-
-        here: list[str] = []
-        elsewhere: list[str] = []
-        dormant: list[str] = []
-        culled: list[str] = []
-        for c in ckpt.characters:
-            # Claimed characters are shown exclusively in "Claimed by you" so
-            # they don't appear twice in the output.
-            if c.character_id in claimed_ids:
+        for section_index, (label, seats) in enumerate(sections):
+            if section_index:
+                print()
+            print(f"## {label}")
+            if not seats:
+                print("  (none)")
                 continue
-            status = c.status.value
-            if status == "dormant":
-                dormant.append(c.character_id)
-            elif status == "culled":
-                culled.append(c.character_id)
-            else:
-                if c.location == location:
-                    here.append(c.character_id)
-                else:
-                    elsewhere.append(c.character_id)
-
-        def _suffix(cid: str) -> str:
-            if cid in joinable_ids:
-                return "  [joinable]"
-            return ""
-
-        _print_joinable_characters(summaries, include_hint=True)
-        print()
-
-        print(f"## Here ({location or 'no active location'})")
-        for cid in here:
-            print(f"  {cid}{_suffix(cid)}")
-        if not here:
-            print("  (none)")
-
-        print()
-        print("## Claimed by you")
-        if self.claims:
-            for cid, uid in self.claims.items():
-                marker = "  ← acting" if cid == self.current_actor else ""
-                print(f"  {cid}  (uid {uid}){marker}")
-        else:
-            print("  (none)")
-
-        print()
-        print("## Active (elsewhere)")
-        if elsewhere:
-            for cid in elsewhere:
-                print(f"  {cid}{_suffix(cid)}")
-        else:
-            print("  (none)")
-
-        print()
-        print("## Dormant")
-        if dormant:
-            for cid in dormant:
-                print(f"  {cid}{_suffix(cid)}")
-        else:
-            print("  (none)")
-
-        print()
-        print("## Culled")
-        if culled:
-            for cid in culled:
-                print(f"  {cid}{_suffix(cid)}")
-        else:
-            print("  (none)")
+            for seat in seats:
+                index = playable.index(seat) + 1
+                marker = "  <- acting" if seat.character_id == self.current_actor else ""
+                line = " - ".join(part for part in (seat.name, seat.role) if part)
+                print(f"  {index}: {line}{marker}")
+                if seat.player_guidance:
+                    print(f"     {seat.player_guidance}")
 
     def cmd_character(self, arg: str) -> None:
         if not self._require_story():
             return
-        char_id = arg.strip()
-        if not char_id:
-            print("usage: /character <id>")
+        char_ref = arg.strip()
+        if char_ref.lower() == "list":
+            self.cmd_characters("")
+            return
+        if not char_ref:
+            print("usage: /character <name|#>")
+            return
+        try:
+            char_id = self._resolve_character_ref(char_ref)
+        except ValueError as e:
+            print(f"error: {e}")
             return
         try:
             dossier = self.engine.build_character_dossier(
@@ -1687,31 +1933,52 @@ class CLIState:
         if not self.story_id:
             print("story: (none loaded) — /story list then /story start <id>")
             return
-        ckpt = self.engine.load_latest(self.session_id)
-        from app.engine.context_builder import resolve_location_for_character
-        location = resolve_location_for_character(
-            ckpt,
-            self.current_actor or next(iter(self.claims), None),
+        activity = self.engine.session_activity(
+            self.session_id,
+            self.pov_filter or self.current_actor or "",
         )
-        location_name = location or "(no active location — /act to begin)"
-        print(f"story: {self.story_id}")
-        print(f"turn: {ckpt.session.turn_index}")
-        print(f"location: {location_name}")
-        if not self.claims:
-            print("claims: (none)")
-            return
-        print("claims:")
-        for char_id, uid in self.claims.items():
-            marker = "  ← acting" if char_id == self.current_actor else ""
-            print(f"  - {char_id} (uid {uid}){marker}")
+        print(f"story: {activity.story_id}")
+        print(f"turn: {activity.turn_index}")
+        if activity.viewpoint_name:
+            print(f"viewpoint: {activity.viewpoint_name}")
+        print(f"location: {activity.location or '(not yet in the fiction)'}")
+        joined = ", ".join(activity.joined_seat_names) or "(none)"
+        print(f"joined: {joined}")
+        if activity.nearby_character_names:
+            print("nearby: " + ", ".join(activity.nearby_character_names))
+        print(f"activity: {activity.state}")
+        if activity.last_visible_update:
+            print(f"last visible update: {activity.last_visible_update}")
         self._print_open_reaction_slots()
 
     async def cmd_begin(self, arg: str) -> None:
         if not self._require_story():
             return
-        if arg.strip():
-            print("usage: /begin")
+        raw = arg.strip()
+        if raw not in {"", "--confirm"}:
+            print("usage: /begin [--confirm]")
             return
+        lobby = self.engine.opening_lobby(self.session_id)
+        if lobby.requires_confirmation and raw != "--confirm":
+            claimed = ", ".join(lobby.claimed_seat_names) or "none"
+            open_seats = ", ".join(lobby.open_seat_names) or "none"
+            print(f"claimed seats: {claimed}")
+            print(f"still open: {open_seats}")
+            if self.one_shot_mode:
+                print("review the lobby, then run /begin --confirm")
+                return
+            try:
+                answer = (
+                    await self.console.prompt(
+                        "Begin with exactly these claimed seats? [y/N] "
+                    )
+                ).strip().casefold()
+            except (EOFError, KeyboardInterrupt):
+                print("\n(cancelled)")
+                return
+            if answer not in {"y", "yes"}:
+                print("(cancelled - other players can join before /begin)")
+                return
         actor_id = self.current_actor or next(iter(self.claims), "")
         try:
             async with _progress("opening the scene"):
@@ -1728,10 +1995,10 @@ class CLIState:
             return
         if actor_id:
             self.current_actor = actor_id
-        await self._print_turn_response_with_image(
+        await self._wait_for_tandem_images(response, actor_id=actor_id)
+        self._print_turn_response(
             response,
             actor_id=actor_id,
-            trigger_kind=ImageTriggerKind.begin,
         )
 
     async def cmd_attach(self, arg: str) -> None:
@@ -1741,7 +2008,14 @@ class CLIState:
         if parsed is None:
             return
         path, explicit_character_id, name_override = parsed
-        target = explicit_character_id or self.current_actor
+        if explicit_character_id:
+            try:
+                target = self._resolve_character_ref(explicit_character_id)
+            except ValueError as e:
+                print(f"error: {e}")
+                return
+        else:
+            target = self.current_actor
         if target is None:
             print("no current actor — /join a character first")
             return
@@ -1813,10 +2087,18 @@ class CLIState:
             if token in {*DND_SHEET_PAGES, "all"}:
                 page = token
             else:
-                target = parts[0]
+                try:
+                    target = self._resolve_character_ref(parts[0])
+                except ValueError as e:
+                    print(f"error: {e}")
+                    return
         elif len(parts) == 2:
             page = parts[0].lower()
-            target = parts[1]
+            try:
+                target = self._resolve_character_ref(parts[1])
+            except ValueError as e:
+                print(f"error: {e}")
+                return
         if target is None:
             print("no current actor — /join a character first")
             return
@@ -1840,7 +2122,15 @@ class CLIState:
     def cmd_inventory(self, arg: str) -> None:
         if not self._require_story():
             return
-        target = arg.strip() or self.current_actor
+        target_ref = arg.strip()
+        if target_ref:
+            try:
+                target = self._resolve_character_ref(target_ref)
+            except ValueError as e:
+                print(f"error: {e}")
+                return
+        else:
+            target = self.current_actor
         if target is None:
             print("no current actor — /join a character first")
             return
@@ -2125,8 +2415,11 @@ class CLIState:
     async def cmd_join(self, arg: str) -> None:
         if not self._require_story():
             return
-        char_id = arg.strip()
-        if not char_id:
+        parsed = _parse_join_args(arg)
+        if parsed is None:
+            return
+        char_ref, chosen_name, chosen_appearance = parsed
+        if not char_ref:
             try:
                 summaries = self.engine.list_session_characters(
                     self.session_id
@@ -2137,12 +2430,66 @@ class CLIState:
             _print_joinable_characters(summaries, include_hint=True)
             print("Custom character: /join_custom")
             return
-        if char_id in self.claims:
-            print(f"already claimed: {char_id}. /as {char_id} to switch.")
+        try:
+            char_id = self._resolve_character_ref(char_ref)
+        except ValueError as e:
+            print(f"error: {e}")
             return
+        if char_id in self.claims:
+            display_name = self._character_name(char_id)
+            print(
+                f"already claimed: {display_name}. "
+                f"/as {display_name} to switch."
+            )
+            return
+        try:
+            summary = next(
+                item
+                for item in self.engine.list_session_characters(
+                    self.session_id
+                )
+                if item.character_id == char_id
+            )
+        except StopIteration:
+            print(f"error: no character: {char_id}")
+            return
+        except Exception as e:
+            print(f"error: {type(e).__name__}: {e}")
+            return
+        player_authored = summary.player_slot_kind == "player_authored"
+        if player_authored and (not chosen_name or not chosen_appearance):
+            if self.one_shot_mode:
+                print(
+                    "this player-authored seat requires both identity fields:\n"
+                    f"  /join {char_id} --name \"Your name\" "
+                    '--appearance "Your visible appearance"'
+                )
+                return
+            try:
+                if not chosen_name:
+                    chosen_name = (
+                        await self.console.prompt(
+                            f"name (must replace {summary.name!r}): "
+                        )
+                    ).strip()
+                if not chosen_appearance:
+                    chosen_appearance = (
+                        await self.console.prompt(
+                            "appearance (required): "
+                        )
+                    ).strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n(cancelled — character was not claimed)")
+                return
         uid = self._next_user_id
         try:
-            await self.engine.takeover(self.session_id, char_id, uid)
+            join_result = await self.engine.join_player_character(
+                self.session_id,
+                char_id,
+                uid,
+                name=chosen_name,
+                appearance=chosen_appearance,
+            )
         except ValueError as e:
             print(f"error: {e}")
             return
@@ -2160,10 +2507,20 @@ class CLIState:
         print()
         print(dossier)
         print()
+        display_name = join_result.character_name or summary.name
         if self.current_actor == char_id:
-            print(f"claimed {char_id} — now acting as {char_id}.")
+            print(f"claimed {display_name} — now acting as {display_name}.")
         else:
-            print(f"claimed {char_id}. /as {char_id} to switch.")
+            print(f"claimed {display_name}. /as {display_name} to switch.")
+        if join_result.response is not None:
+            await self._wait_for_tandem_images(
+                join_result.response,
+                actor_id=char_id,
+            )
+            self._print_turn_response(
+                join_result.response,
+                actor_id=char_id,
+            )
 
     async def cmd_join_custom(self, arg: str) -> None:
         if not self._require_story():
@@ -2245,7 +2602,15 @@ class CLIState:
     async def cmd_leave(self, arg: str) -> None:
         if not self._require_story():
             return
-        target = arg.strip() or self.current_actor
+        target_ref = arg.strip()
+        if target_ref:
+            try:
+                target = self._resolve_character_ref(target_ref)
+            except ValueError as e:
+                print(f"error: {e}")
+                return
+        else:
+            target = self.current_actor
         if target is None:
             print("no character to leave")
             return
@@ -2262,51 +2627,71 @@ class CLIState:
         except Exception as e:
             print(f"warning: leave failed ({e}); unbinding anyway")
             await self.engine.unbind_user(self.session_id, uid)
+        display_name = self._character_name(target)
         del self.claims[target]
         if self.current_actor == target:
             self.current_actor = next(iter(self.claims), None)
         actor_note = (
-            f" — now acting as {self.current_actor}"
+            f" — now acting as {self._character_name(self.current_actor)}"
             if self.current_actor else " — no current actor"
         )
-        print(f"released {target}{actor_note}")
+        print(f"released {display_name}{actor_note}")
 
     def cmd_as(self, arg: str) -> None:
-        target = arg.strip()
-        if not target:
-            print("usage: /as <character_id>")
+        if self.one_shot_mode:
+            print("/as is unavailable in --command batches; use startup --as")
+            return
+        target_ref = arg.strip()
+        if not target_ref:
+            print("usage: /as <name|#>")
+            return
+        try:
+            target = self._resolve_character_ref(target_ref)
+        except ValueError as e:
+            print(f"error: {e}")
             return
         if target not in self.claims:
-            print(f"not claimed: {target}. /join {target} first.")
+            display_name = self._character_name(target)
+            print(f"not claimed: {display_name}. /join {display_name} first.")
             return
         self.current_actor = target
-        print(f"now acting as {target}")
+        print(f"now acting as {self._character_name(target)}")
 
     async def cmd_describe(self, arg: str) -> None:
-        """Prompt for the minimum info needed to play: name + appearance.
-        Both are optional per-prompt — leave blank to keep the existing
-        value. Trailing arg is ignored; this command is always
-        interactive."""
+        """Update identity interactively or from explicit command flags."""
         if not self._require_story():
             return
         if self.current_actor is None:
             print("no current actor — /join a character first")
             return
-        try:
-            name = (
-                await self.console.prompt("name (blank to keep existing): ")
-            ).strip()
-            appearance = (
-                await self.console.prompt("appearance (blank to keep existing): ")
-            ).strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n(cancelled)")
+        parsed = _parse_describe_args(arg)
+        if parsed is None:
             return
+        name, appearance = parsed
+        if not arg.strip():
+            if self.one_shot_mode:
+                print(
+                    "usage: /describe [--name \"Name\"] "
+                    "[--appearance \"Description\"]"
+                )
+                return
+            try:
+                name = (
+                    await self.console.prompt("name (blank to keep existing): ")
+                ).strip()
+                appearance = (
+                    await self.console.prompt(
+                        "appearance (blank to keep existing): "
+                    )
+                ).strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n(cancelled)")
+                return
         if not name and not appearance:
             print("(no changes)")
             return
         try:
-            ckpt = await self.engine.set_character_identity(
+            await self.engine.set_character_identity(
                 self.session_id, self.current_actor,
                 name=name or None, appearance=appearance or None,
             )
@@ -2314,31 +2699,6 @@ class CLIState:
             print(f"error: {e}")
             return
         print(f"updated {self.current_actor}")
-
-        # Mirror the Discord bot: if no narrator turns yet, fire the
-        # canonical opener so the opening lands with the description in hand.
-        if not any(ckpt.narrator_conversations.values()):
-            try:
-                async with _progress("opening the scene"):
-                    response = await self.engine.run_begin_turn(
-                        session_id=self.session_id,
-                        triggering_character_id=self.current_actor,
-                    )
-            except ValueError as e:
-                print(f"error: {e}")
-                return
-            except Exception as e:
-                logger.exception("describe begin failed")
-                print(
-                    "error: "
-                    f"{player_safe_error_message(e, operation='the opening')}"
-                )
-                return
-            await self._print_turn_response_with_image(
-                response,
-                actor_id=self.current_actor,
-                trigger_kind=ImageTriggerKind.begin,
-            )
 
     async def cmd_query(self, arg: str) -> None:
         """Out-of-character question for the current actor's POV.
@@ -2367,7 +2727,14 @@ class CLIState:
             logger.exception("run_query failed")
             print(f"error: {player_safe_error_message(e, operation='that query')}")
             return
-        self._print_turn_response(response, actor_id=self.current_actor)
+        await self._wait_for_tandem_images(
+            response,
+            actor_id=self.current_actor,
+        )
+        self._print_turn_response(
+            response,
+            actor_id=self.current_actor,
+        )
 
     def cmd_combat(self, arg: str) -> None:
         if not self._require_story():
@@ -2613,10 +2980,13 @@ class CLIState:
                 logger.exception("pending roll continuation failed")
                 print(f"error: {type(e).__name__}: {e}")
                 return
-            await self._print_turn_response_with_image(
+            await self._wait_for_tandem_images(
                 response,
                 actor_id=result.actor_id,
-                trigger_kind=ImageTriggerKind.roll_resolution,
+            )
+            self._print_turn_response(
+                response,
+                actor_id=result.actor_id,
             )
             if response.beat_ended_reason == "cat_ii_pending_rolls":
                 printed_pending_from_response = True
@@ -2767,7 +3137,18 @@ class CLIState:
         integer N, emits the last N turns."""
         if not self._require_story():
             return
-        history = self.engine.turn_history(self.session_id)
+        pov_character_id = self.pov_filter or self.current_actor
+        if not pov_character_id:
+            print("select a character POV with /as (or startup --as) first")
+            return
+        try:
+            history = self.engine.turn_history(
+                self.session_id,
+                pov_character_id,
+            )
+        except ValueError as exc:
+            print(f"error: {exc}")
+            return
         if not history:
             print("(no turns yet)")
             return
@@ -2824,10 +3205,13 @@ class CLIState:
                     logger.exception("combat reaction defer failed")
                     print(f"error: {type(e).__name__}: {e}")
                     return
-                await self._print_turn_response_with_image(
+                await self._wait_for_tandem_images(
                     response,
                     actor_id=self.current_actor,
-                    trigger_kind=ImageTriggerKind.act,
+                )
+                self._print_turn_response(
+                    response,
+                    actor_id=self.current_actor,
                 )
                 return
         await self._act("(defer)")
@@ -2850,10 +3234,13 @@ class CLIState:
             print(f"error: {player_safe_error_message(e)}")
             return
 
-        await self._print_turn_response_with_image(
+        await self._wait_for_tandem_images(
             response,
             actor_id=self.current_actor,
-            trigger_kind=ImageTriggerKind.act,
+        )
+        self._print_turn_response(
+            response,
+            actor_id=self.current_actor,
         )
 
     def _pov_claims(self) -> set[str]:
@@ -2867,12 +3254,67 @@ class CLIState:
             return {self.pov_filter} if self.pov_filter in self.claims else set()
         return set(self.claims or {})
 
+    async def _wait_for_tandem_images(
+        self,
+        response,
+        *,
+        actor_id: str,
+    ) -> None:
+        if not bool(
+            getattr(
+                getattr(self.engine.image_sidecar, "config", None),
+                "diffusion_enabled",
+                False,
+            )
+        ):
+            return
+        responses = [
+            *(getattr(response, "pre_turn_resolutions", None) or []),
+            response,
+        ]
+        for item in responses:
+            rendered = self._rendered_event_ids_for_visible_prose(
+                item,
+                actor_id=actor_id,
+            )
+            if not any(rendered.values()):
+                continue
+            try:
+                async with _progress("illustrating"):
+                    await self.engine.image_generation.wait_for_rendered_event_images(
+                        session_id=self.session_id,
+                        rendered_event_ids_by_pov=rendered,
+                    )
+            except Exception:
+                logger.exception("tandem image wait failed")
+
+    def _rendered_event_ids_for_visible_prose(
+        self,
+        response,
+        *,
+        actor_id: str,
+    ) -> dict[str, list[str]]:
+        rendered_ids = getattr(response, "rendered_event_ids_by_pov", {}) or {}
+        visible_povs = {
+            cid
+            for cid, prose in (getattr(response, "per_player_renders", {}) or {}).items()
+            if prose and (cid == actor_id or cid in self._pov_claims())
+        }
+        if getattr(response, "output_text", "") and actor_id:
+            visible_povs.add(actor_id)
+        return {
+            cid: list(rendered_ids.get(cid, []))
+            for cid in visible_povs
+            if rendered_ids.get(cid)
+        }
+
     def _print_turn_response(
         self,
         response,
         *,
         actor_id: str,
     ) -> None:
+        actor_name = self._character_name(actor_id) if actor_id else "player"
         # v11-r6b/r7a: mirror the Discord bot's /act branching so the
         # CLI playtest path surfaces paused beats and slot rejections
         # with targeted messages, AND prints the PARTIAL cliffhanger
@@ -2897,7 +3339,10 @@ class CLIState:
             for cid, prose in (pre_resp.per_player_renders or {}).items():
                 if not prose or cid not in self._pov_claims():
                     continue
-                print("--- Before Your Action ---")
+                print(
+                    "--- Earlier story update · viewed as "
+                    f"{self._character_name(cid)} ---"
+                )
                 print(prose)
                 print()
             self._print_asset_reveals(pre_resp)
@@ -2919,8 +3364,10 @@ class CLIState:
             self._print_cat_ii_pending_notice()
             if actor_render:
                 print()
-                print(f"--- Turn {response.turn_index} · "
-                      f"{actor_id} (partial) ---")
+                print(
+                    f"--- Story update {response.turn_index} · viewed as "
+                    f"{actor_name} (partial) ---"
+                )
                 print(actor_render)
             print()
         elif response.beat_ended_reason == "combat_start_blocked":
@@ -2931,12 +3378,18 @@ class CLIState:
                 "act normally.)"
             )
             print()
-            print(f"--- Turn {response.turn_index} · {actor_id} ---")
+            print(
+                f"--- Story update {response.turn_index} · viewed as "
+                f"{actor_name} ---"
+            )
             print(response.output_text)
             print()
         else:
             print()
-            print(f"--- Turn {response.turn_index} · {actor_id} ---")
+            print(
+                f"--- Story update {response.turn_index} · viewed as "
+                f"{actor_name} ---"
+            )
             print(response.output_text)
             print()
 
@@ -2949,7 +3402,10 @@ class CLIState:
         for cid, prose in per_player.items():
             if cid == actor_id or not prose or cid not in joined:
                 continue
-            print(f"--- POV · {cid} ---")
+            print(
+                "--- Same story update · viewed as "
+                f"{self._character_name(cid)} ---"
+            )
             print(prose)
             print()
 
@@ -2963,96 +3419,60 @@ class CLIState:
         self._print_loot_prompts(response)
         self._print_commitment_revision_prompts(response)
         self._sync_current_actor_to_active_combat()
-
-    async def _print_turn_response_with_image(
-        self,
-        response,
-        *,
-        actor_id: str,
-        trigger_kind: ImageTriggerKind,
-    ) -> None:
-        self._print_turn_response(response, actor_id=actor_id)
-        if not actor_id:
-            return
-        try:
-            ckpt = self.engine.load_checkpoint(
-                self.session_id,
-                response.checkpoint_id,
-            )
-            job = await self.engine.image_generation.enqueue_turn(
-                ckpt=ckpt,
-                response=response,
-                actor_character_id=actor_id,
-                trigger_kind=trigger_kind,
-                delivery_kind=ImageDeliveryKind.cli,
-                delivery={},
-            )
-        except Exception:
-            logger.exception("CLI illustration enqueue failed")
-            return
-        if job is None or job.status == ImageGenerationStatus.delivered:
-            return
-        self._pending_cli_image_jobs[job.job_id] = actor_id
-
-    async def flush_pending_images(self) -> None:
-        """Wait/display outside the cross-process story command lock."""
-
-        for completed in self.engine.image_generation.pending_for_delivery(
-            ImageDeliveryKind.cli,
+        rendered_ids = (
+            getattr(response, "rendered_event_ids_by_pov", {}) or {}
+        )
+        delivered_povs = {
+            cid
+            for cid, prose in (response.per_player_renders or {}).items()
+            if prose and (cid == actor_id or cid in self._pov_claims())
+        }
+        self.engine.image_generation.open_prose_gates_for_session(
             session_id=self.session_id,
-            actor_character_ids=self._pov_claims(),
+            rendered_event_ids_by_pov={
+                cid: rendered_ids.get(cid, [])
+                for cid in delivered_povs
+            },
+        )
+
+    async def _deliver_cli_image(
+        self,
+        job,
+        delivery,
+        media,
+        instructions: str,
+    ) -> bool:
+        if (
+            str(getattr(job.request, "session_id", "") or "")
+            != self.session_id
+            or str(getattr(delivery, "session_id", "") or "")
+            != self.session_id
         ):
-            self._pending_cli_image_jobs.setdefault(
-                completed.job_id,
-                completed.request.actor_character_id,
+            return False
+        actor_id = str(delivery.pov_character_id or "")
+        if actor_id not in self._pov_claims():
+            return False
+        try:
+            prepared = self.asset_image_renderer.prepare_generated(
+                media,
+                session_id=self.session_id,
+                pov_character_id=actor_id,
+                cache_root=(
+                    self.engine.image_generation.config.runtime_root
+                    / "cli_cache"
+                ),
             )
-        pending = list(self._pending_cli_image_jobs.items())
-        self._pending_cli_image_jobs.clear()
-        for job_id, actor_id in pending:
-            try:
-                async with _progress("Generating local illustration"):
-                    completed = (
-                        await self.engine.image_generation.wait_for_terminal(
-                            job_id,
-                            timeout=(
-                                self.engine.image_generation.config
-                                .cli_wait_timeout_seconds
-                            ),
-                        )
-                    )
-            except TimeoutError:
-                await self.engine.image_generation.cancel_job(
-                    job_id,
-                    error_code="cli_timeout",
-                )
-                logger.warning("CLI illustration timed out and was cancelled")
-                continue
-            if completed is None or completed.status not in {
-                ImageGenerationStatus.succeeded,
-                ImageGenerationStatus.delivered,
-            }:
-                continue
-            try:
-                media = self.engine.image_generation.resolve_job_media(completed)
-                prepared = self.asset_image_renderer.prepare_generated(
-                    media,
-                    session_id=self.session_id,
-                    pov_character_id=actor_id,
-                    cache_root=(
-                        self.engine.image_generation.config.runtime_root
-                        / "cli_cache"
-                    ),
-                )
-                print(f"--- AI Illustration · {actor_id} ---")
-                result = self.asset_image_renderer.render_prepared(prepared)
-                print(_cli_image_display_message(result))
-                print()
-                if result.displayed or result.export_path is not None:
-                    await self.engine.image_generation.mark_delivered(
-                        completed.job_id
-                    )
-            except Exception:
-                logger.exception("CLI illustration display failed")
+            title = str(getattr(job.request, "title", "") or "AI Illustration")
+            print(f"\n--- AI Illustration · {title} · {actor_id} ---")
+            result = self.asset_image_renderer.render_prepared(prepared)
+            print(_cli_image_display_message(result))
+            if instructions:
+                print(instructions)
+            print()
+            return bool(result.displayed or result.export_path is not None)
+        except Exception:
+            logger.exception("CLI illustration display failed")
+            return False
 
     def _print_asset_reveals(self, response) -> None:
         per_pov = getattr(response, "per_player_asset_reveals", None) or {}
@@ -3357,11 +3777,49 @@ def _session_command_lock(sessions_dir: Path, session_id: str):
     session_dir.mkdir(parents=True, exist_ok=True)
     lock_path = session_dir / ".session.lock"
     with open(lock_path, "w") as handle:
-        _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX)
+        try:
+            _fcntl.flock(
+                handle.fileno(),
+                _fcntl.LOCK_EX | _fcntl.LOCK_NB,
+            )
+        except BlockingIOError:
+            print("another action is resolving; waiting...")
+            _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX)
         try:
             yield
         finally:
             _fcntl.flock(handle.fileno(), _fcntl.LOCK_UN)
+
+
+def _command_requires_session_lock(line: str) -> bool:
+    """Classify player-safe read commands without duplicating engine logic."""
+    raw = strip_terminal_control(line).strip()
+    if not raw:
+        return False
+    if not raw.startswith("/"):
+        return True
+    parts = raw[1:].split()
+    command = parts[0].lower() if parts else ""
+    arguments = [part.lower() for part in parts[1:]]
+    if command in {
+        "help", "status", "history", "characters", "character",
+        "sheet", "inventory",
+    }:
+        return False
+    if command == "story":
+        return bool(arguments and arguments[0] not in {"list", "info"})
+    if command == "session":
+        return bool(arguments and arguments[0] != "list")
+    if command == "combat":
+        return not arguments or arguments[0] != "status"
+    if command == "loot":
+        return bool(
+            arguments
+            and arguments[0] in {"all", "take", "split-coins", "decline"}
+        )
+    if command == "settings":
+        return len(arguments) > 1
+    return True
 
 
 async def run_oneshot_commands(
@@ -3378,22 +3836,107 @@ async def run_oneshot_commands(
     invocation. `act_as` selects which already-bound character acts; the whole
     batch runs under the cross-process session lock so it cannot race another
     terminal's turn."""
-    if act_as:
-        if act_as not in state.claims:
+    state.one_shot_mode = True
+    if any(
+        strip_terminal_control(command).strip().lower().startswith("/as ")
+        or strip_terminal_control(command).strip().lower() == "/as"
+        for command in commands
+    ):
+        print(
+            "/as is unavailable in --command batches; use startup --as",
+            file=sys.stderr,
+        )
+        return 2
+
+    needs_lock = any(_command_requires_session_lock(command) for command in commands)
+    lock_context = (
+        _session_command_lock(sessions_dir, session_id)
+        if needs_lock else contextlib.nullcontext()
+    )
+    with lock_context:
+        state.refresh_from_checkpoint()
+        if act_as:
+            try:
+                resolved_actor = state._resolve_character_ref(act_as)
+            except ValueError as exc:
+                print(f"--as: {exc}", file=sys.stderr)
+                return 2
+            if resolved_actor not in state.claims:
+                bound_names = [
+                    state._character_name(character_id)
+                    for character_id in state.claims
+                ]
+                print(
+                    f"--as {act_as}: not bound in session '{session_id}'. "
+                    f"Bound: {', '.join(bound_names) or '(none)'}",
+                    file=sys.stderr,
+                )
+                return 2
+            state.current_actor = resolved_actor
+            state.pov_filter = resolved_actor
+        elif len(state.claims) > 1:
             print(
-                f"--as {act_as}: not bound in session '{session_id}'. "
-                f"Bound: {', '.join(sorted(state.claims)) or '(none)'}",
+                "--as is required because this session has multiple claimed "
+                "seats.",
                 file=sys.stderr,
             )
             return 2
-        state.current_actor = act_as
-        # This terminal represents one player; show only their POV.
-        state.pov_filter = act_as
-    with _session_command_lock(sessions_dir, session_id):
+        elif len(state.claims) == 1:
+            state.current_actor = next(iter(state.claims))
+            state.pov_filter = state.current_actor
         for command in commands:
             await state.handle_line(command)
-    await state.flush_pending_images()
     return 0
+
+
+def _prepare_session_story(
+    engine: EngineBridge,
+    *,
+    session_id: str,
+    requested_story: str = "",
+    announce: bool = True,
+) -> tuple[str, bool]:
+    """Create/resume a session and apply `--story` under one file lock."""
+    with _session_command_lock(engine.sessions_dir, session_id):
+        story_id = ""
+        resumed_existing = False
+        try:
+            ckpt = engine.load_latest(session_id)
+            story_id = ckpt.session.story_id or ""
+            resumed_existing = True
+            if announce:
+                print(f"resumed session `{session_id}`" + (
+                    f" · story `{story_id}`" if story_id else " (no story loaded)"
+                ))
+        except FileNotFoundError:
+            engine.create_empty_session(session_id)
+            if announce:
+                print(
+                    f"created session `{session_id}` "
+                    "(empty - /story start to load content)"
+                )
+
+        story_ref = requested_story.strip()
+        if story_ref:
+            selected_story = _resolve_enum_ref(
+                story_ref,
+                engine.list_story_ids(),
+                label="story",
+            )
+            if story_id and story_id != selected_story:
+                raise ValueError(
+                    f"session `{session_id}` already contains story "
+                    f"`{story_id}`; refusing to replace it with "
+                    f"`{selected_story}`"
+                )
+            if not story_id:
+                engine.load_story_into_session(session_id, selected_story)
+                story_id = selected_story
+                if announce:
+                    print(
+                        f"loaded story `{story_id}` into session `{session_id}`"
+                    )
+        return story_id, resumed_existing
 
 
 async def main_async(args: argparse.Namespace) -> int:
@@ -3413,33 +3956,29 @@ async def main_async(args: argparse.Namespace) -> int:
         return 2
 
     llm_config = LLMConfig.from_env()
-    missing_credentials = llm_config.missing_credentials(LIVE_PLAY_REQUIRED_ROLES)
+    missing_credentials = llm_config.missing_credentials(
+        live_play_required_roles()
+    )
     if missing_credentials:
         print(_format_missing_llm_credentials(missing_credentials), file=sys.stderr)
         return 2
 
-    engine = EngineBridge(llm_config=llm_config)
+    engine = EngineBridge(
+        llm_config=llm_config,
+        image_delivery_kind=ImageDeliveryKind.cli,
+    )
 
     try:
-        # Resolve story_id from the latest checkpoint if the session already
-        # has one loaded; otherwise create an empty session to write into.
-        story_id = ""
-        resumed_existing = False
         try:
-            ckpt = engine.load_latest(session_id)
-            story_id = ckpt.session.story_id or ""
-            resumed_existing = True
-            print(f"resumed session `{session_id}`" + (
-                f" · story `{story_id}`" if story_id else " (no story loaded)"
-            ))
-        except FileNotFoundError:
-            try:
-                engine.create_empty_session(session_id)
-            except FileExistsError as e:
-                print(f"error: {e}", file=sys.stderr)
-                await engine.close()
-                return 2
-            print(f"created session `{session_id}` (empty — /story start to load content)")
+            story_id, resumed_existing = _prepare_session_story(
+                engine,
+                session_id=session_id,
+                requested_story=str(getattr(args, "story", "") or ""),
+                announce=args.commands is None,
+            )
+        except (FileExistsError, FileNotFoundError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
         image_renderer = CliImageDisplayRenderer.from_environment(
             show_export_path=args.show_image_cache_paths,
@@ -3468,16 +4007,24 @@ async def main_async(args: argparse.Namespace) -> int:
             )
 
         if args.act_as:
-            if args.act_as in state.claims:
-                state.current_actor = args.act_as
-            else:
+            try:
+                resolved_actor = state._resolve_character_ref(args.act_as)
+            except ValueError as exc:
+                print(f"--as: {exc}", file=sys.stderr)
+                return 2
+            if resolved_actor not in state.claims:
+                bound_names = [
+                    state._character_name(character_id)
+                    for character_id in state.claims
+                ]
                 print(
                     f"--as {args.act_as}: not bound in session "
                     f"'{session_id}'. Bound: "
-                    f"{', '.join(sorted(state.claims)) or '(none)'}",
+                    f"{', '.join(bound_names) or '(none)'}",
                     file=sys.stderr,
                 )
                 return 2
+            state.current_actor = resolved_actor
 
         console.install()
         print()
@@ -3487,7 +4034,6 @@ async def main_async(args: argparse.Namespace) -> int:
             print(HELP_TEXT)
         print()
 
-        await state.flush_pending_images()
         while state.running:
             actor = state.current_actor or "-"
             try:
@@ -3505,11 +4051,14 @@ async def main_async(args: argparse.Namespace) -> int:
                 print()
                 continue
             try:
-                # Serialize mutating turns against any other processes
-                # attached to this session from separate terminals.
-                with _session_command_lock(engine.sessions_dir, session_id):
+                lock_context = (
+                    _session_command_lock(engine.sessions_dir, session_id)
+                    if _command_requires_session_lock(line)
+                    else contextlib.nullcontext()
+                )
+                with lock_context:
+                    state.refresh_from_checkpoint()
                     await state.handle_line(line)
-                await state.flush_pending_images()
             except KeyboardInterrupt:
                 print("\n(interrupted)")
     finally:
@@ -3525,6 +4074,14 @@ def main() -> None:
         "--session",
         help="Session name (directory under sessions/). Created empty if "
              "new, resumed if existing.",
+    )
+    parser.add_argument(
+        "--story",
+        metavar="STORY_ID_OR_NUMBER",
+        help=(
+            "Load this story into a new or empty session before entering the "
+            "REPL or running --command. Refuses to replace a different story."
+        ),
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",

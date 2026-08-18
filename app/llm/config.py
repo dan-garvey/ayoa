@@ -25,6 +25,7 @@ _VALID_OPENAI_REASONING_SUMMARIES = {
 }
 _ROUTER_MODEL = "gpt-5.1"
 _NARRATOR_MODEL = "gpt-5.2"
+_IMAGE_DIRECTOR_MODEL = "gpt-5-mini"
 _COMBAT_MANAGER_MODEL = "gpt-5-mini"
 _CONTENT_MANAGER_MODEL = "gpt-5-mini"
 _AGENT_MODEL = "claude-opus-4-6"
@@ -39,6 +40,7 @@ _ROLE_ENV_ALIASES = {
     "content_manager": ("CONTENT_MANAGER",),
     "dnd_combat_manager": ("COMBAT_MANAGER", "DND_COMBAT_MANAGER"),
     "event_router": ("ROUTER",),
+    "image_director": ("IMAGE_DIRECTOR",),
     "narrator": ("NARRATOR",),
 }
 LIVE_PLAY_REQUIRED_ROLES = frozenset((
@@ -50,6 +52,19 @@ LIVE_PLAY_REQUIRED_ROLES = frozenset((
     "event_router",
     "narrator",
 ))
+
+
+def live_play_required_roles() -> frozenset[str]:
+    roles = set(LIVE_PLAY_REQUIRED_ROLES)
+    if os.getenv("AYOA_IMAGE_DIRECTOR_ENABLED", "0").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "enabled",
+        "shadow",
+    }:
+        roles.add("image_director")
+    return frozenset(roles)
 
 
 def _normalise_provider(provider: str) -> str:
@@ -180,6 +195,7 @@ class LLMConfig(BaseModel):
     role_models: dict[str, str] = Field(default_factory=lambda: {
         "event_router": _ROUTER_MODEL,
         "narrator": _NARRATOR_MODEL,
+        "image_director": _IMAGE_DIRECTOR_MODEL,
         "dnd_combat_manager": _COMBAT_MANAGER_MODEL,
         "content_manager": _CONTENT_MANAGER_MODEL,
         "agent": _AGENT_MODEL,
@@ -233,6 +249,7 @@ class LLMConfig(BaseModel):
         "narrator": "medium",
         "dnd_combat_manager": "medium",
         "content_manager": "low",
+        "image_director": "low",
         "agent": "medium",
         "character_gen": "medium",
     })

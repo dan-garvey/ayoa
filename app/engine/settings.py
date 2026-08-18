@@ -35,19 +35,15 @@ class SettingDef:
 
 def _parse_bool(raw: str) -> bool:
     """Accept common user spellings for true/false."""
-    s = raw.strip().lower()
-    if s in ("true", "t", "yes", "y", "on", "1", "enable", "enabled"):
+    value = raw.strip().lower()
+    if value in ("true", "t", "yes", "y", "on", "1", "enable", "enabled"):
         return True
-    if s in ("false", "f", "no", "n", "off", "0", "disable", "disabled"):
+    if value in ("false", "f", "no", "n", "off", "0", "disable", "disabled"):
         return False
     raise ValueError(
         f"Cannot interpret {raw!r} as a boolean. "
-        f"Try true/false, on/off, yes/no, or 1/0."
+        "Try true/false, on/off, yes/no, or 1/0."
     )
-
-
-def _render_bool(value: bool) -> str:
-    return "on" if value else "off"
 
 
 def _parse_int_nonneg(raw: str) -> int:
@@ -83,16 +79,6 @@ def _parse_player_roll_mode(raw: str) -> str:
     if value not in valid:
         raise ValueError(
             "Player roll mode must be one of: " + ", ".join(sorted(valid))
-        )
-    return value
-
-
-def _parse_image_generation_mode(raw: str) -> str:
-    value = raw.strip().lower()
-    valid = {"actor", "off"}
-    if value not in valid:
-        raise ValueError(
-            "Image generation mode must be one of: " + ", ".join(sorted(valid))
         )
     return value
 
@@ -138,26 +124,6 @@ SETTINGS: list[SettingDef] = [
             "NPC/agent rolls are always automatic."
         ),
         parse=_parse_player_roll_mode,
-    ),
-    SettingDef(
-        key="image_generation_mode",
-        default="actor",
-        description=(
-            "Local output-only illustration policy. actor queues one image "
-            "for the acting player's POV after an eligible completed beat; "
-            "off disables generation for this session. The local GPU worker "
-            "must also be installed and enabled."
-        ),
-        parse=_parse_image_generation_mode,
-    ),
-    SettingDef(
-        key="image_generation_every_n_beats",
-        default=1,
-        description=(
-            "Generate an acting-POV illustration every N eligible completed "
-            "beats. Must be >= 1."
-        ),
-        parse=_parse_int_positive,
     ),
 ]
 

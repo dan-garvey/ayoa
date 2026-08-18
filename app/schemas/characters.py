@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializationInfo, field_serializer
+
+from app.schemas.content_privacy import should_include_private_runtime_metadata
 
 
 class CharacterStatus(str, Enum):
@@ -23,6 +25,19 @@ class CharacterAgentTier(str, Enum):
     # consume the expensive plot-agent model. In the current runtime they
     # use the Sonnet-backed convenience role.
     utility = "utility"
+
+
+class PlayerSlotKind(str, Enum):
+    """How an authored playable record behaves while no human controls it.
+
+    Ordinary slots remain normal characters and may be agent-driven until a
+    player claims them. Player-authored slots are blank casting positions:
+    they stay outside the fiction and every LLM surface until a player supplies
+    a name and appearance atomically at claim time.
+    """
+
+    standard = "standard"
+    player_authored = "player_authored"
 
 
 class PublicSheet(BaseModel):
@@ -54,6 +69,24 @@ class CharacterVisuals(BaseModel):
     # surface it once when a viewpoint first meaningfully sees this character.
     # Keep it free of secrets, motives, concealed traits, and author-only notes.
     default_loadout: str = ""
+    # Presentation policy for generated illustrations. `anonymous` permits an
+    # unreferenced background figure but never a named visual subject; `omit`
+    # keeps the character out of generated art entirely.
+    depiction_policy: Literal["normal", "anonymous", "omit"] = "normal"
+    # Engine-owned selected identity handle. It may resolve to a generated
+    # candidate or a reviewed authored reference. The image and opaque handle
+    # are presentation-only and never enter runtime LLM input.
+    identity_reference_id: str = ""
+
+    @field_serializer("identity_reference_id")
+    def _serialize_identity_reference_id(
+        self,
+        value: str,
+        info: SerializationInfo,
+    ) -> str:
+        if should_include_private_runtime_metadata(info.context):
+            return value
+        return ""
 
 
 class PrivateState(BaseModel):
@@ -101,6 +134,11 @@ class CharacterRecord(BaseModel):
     # (e.g. every contestant on a dating show); a story can also have
     # zero (then /join surfaces nothing).
     is_playable: bool = False
+    player_slot_kind: PlayerSlotKind = PlayerSlotKind.standard
+    # Player-facing control contract for an authored seat. This is deliberately
+    # separate from agent personality and private context: it explains what a
+    # human controls without teaching an LLM how to play the character.
+    player_guidance: str = ""
     agent_tier: CharacterAgentTier = CharacterAgentTier.premium
     # Knowledge tier this character was generated at (0 = untiered). Set at
     # spawn from the story's world_state.knowledge_tiers ladder; a future
@@ -163,3 +201,10 @@ class CharacterRecord(BaseModel):
     # parenthetical to another LLM, you are about to break that
     # asymmetry; reach for in-fiction signals (a courier, an
     # observable_fact, a witnessed action) instead.
+
+
+def is_player_authored_slot(character: CharacterRecord | None) -> bool:
+    return bool(
+        character is not None
+        and character.player_slot_kind == PlayerSlotKind.player_authored
+    )

@@ -23,13 +23,14 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.content import (
     ContentCombatMapOverlayState,
     ContentOverlayState,
     ContentPackState,
     ContentPovRevealState,
 )
-from app.schemas.narrator import TranscriptEntry
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import (
     SessionState,
     WorldState,
@@ -216,27 +217,44 @@ class TestTurnHistory:
         first = TranscriptEntry(user="first", assistant="First render.")
         second = TranscriptEntry(user="", assistant="Automated render.")
 
+        def _message(entry: TranscriptEntry) -> ConversationMessage:
+            return ConversationMessage(
+                role="assistant",
+                content=NarratorFinalOutput(
+                    final_text=entry.assistant,
+                ).model_dump_json(),
+            )
+
         ckpt0 = _make_ckpt(turn_index=0)
         bridge.checkpoint_mgr.save(ckpt0)
 
         ckpt1 = _make_ckpt(turn_index=1)
-        ckpt1.transcript = [first]
+        ckpt1.narrator_conversations = {"aldric": [_message(first)]}
         bridge.checkpoint_mgr.save(ckpt1)
 
         ckpt2 = _make_ckpt(turn_index=2)
-        ckpt2.transcript = [first]
+        ckpt2.narrator_conversations = {"aldric": [_message(first)]}
         bridge.checkpoint_mgr.save(ckpt2)
 
         ckpt3 = _make_ckpt(turn_index=3)
-        ckpt3.transcript = [first, second]
+        ckpt3.narrator_conversations = {
+            "aldric": [_message(first), _message(second)]
+        }
         bridge.checkpoint_mgr.save(ckpt3)
 
-        history = bridge.turn_history(SESSION_ID)
+        history = bridge.turn_history(SESSION_ID, "aldric")
 
-        assert [(item.turn_index, item.entry) for item in history] == [
-            (1, first),
-            (3, second),
+        assert [
+            (item.turn_index, item.entry.assistant) for item in history
+        ] == [
+            (1, "First render."),
+            (3, "Automated render."),
         ]
+
+    def test_history_requires_an_explicit_pov(self, bridge: EngineBridge):
+        _seed_session(bridge, last_turn=0)
+        with pytest.raises(ValueError, match="selected character POV"):
+            bridge.turn_history(SESSION_ID, "")
 
 
 # ---- rewind_session ---------------------------------------------------------

@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.engine import dnd_presentation, dnd_runtime
-from app.schemas.characters import CharacterRecord
+from app.schemas.characters import CharacterRecord, is_player_authored_slot
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content_privacy import (
@@ -288,7 +288,12 @@ def pov_location_for_user(
             if c.character_id == pcid and c.location and _alive(c):
                 return c.location
     for c in checkpoint.characters:
-        if c.is_playable and c.location and _alive(c):
+        if (
+            c.is_playable
+            and c.location
+            and _alive(c)
+            and not is_unbound_player_authored_slot(checkpoint, c)
+        ):
             return c.location
     return ""
 
@@ -507,6 +512,19 @@ def collect_player_ids(checkpoint: CheckpointFile) -> set[str]:
     if checkpoint.session.player_character_id:
         ids.add(checkpoint.session.player_character_id)
     return ids
+
+
+def is_unbound_player_authored_slot(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord | None,
+) -> bool:
+    """True when a blank player-authored seat must stay outside fiction."""
+    return bool(
+        is_player_authored_slot(character)
+        and character.character_id
+        not in (checkpoint.session.character_bindings or {})
+        and character.character_id != checkpoint.session.player_character_id
+    )
 
 
 def build_dnd_character_identity_sentence(

@@ -25,7 +25,7 @@ from app.bot.commands import register
 from app.bot.engine_bridge import EngineBridge
 from app.bot.media_delivery import retry_media_cleanup_outbox
 from app.bot.session_map import SessionMap
-from app.llm.config import LIVE_PLAY_REQUIRED_ROLES, LLMConfig
+from app.llm.config import LLMConfig, live_play_required_roles
 
 _LOG_FILE = Path(".bot.log")
 _LOG_FMT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
@@ -55,7 +55,7 @@ async def _run() -> int:
         f"{item.env_names[0]} or {item.env_names[-1]} for {item.role}"
         if item.provider == "openai"
         else f"{item.env_names[0]} for {item.role}"
-        for item in llm_config.missing_credentials(LIVE_PLAY_REQUIRED_ROLES)
+        for item in llm_config.missing_credentials(live_play_required_roles())
     ]
     if missing_llm_keys:
         missing = ", ".join(missing_llm_keys)

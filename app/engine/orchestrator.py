@@ -22,12 +22,18 @@ and character_agent modules into the protocol `run_beat` depends on.
 
 from __future__ import annotations
 
-import asyncio
+import hashlib
 import logging
+import uuid
 from copy import deepcopy
 from typing import Any, Callable
 
-from app.engine.context_builder import collect_player_ids, resolve_acting_character
+from app.engine.closed_event_runtime import (
+    ClosedEventRuntime,
+    closed_event_runtime_for,
+    install_closed_event_runtime,
+)
+from app.engine.context_builder import resolve_acting_character
 from app.engine.character_manager import CharacterManager
 from app.engine.checkpoint_manager import CheckpointManager
 from app.engine import dnd_combat, dnd_inventory
@@ -52,6 +58,8 @@ from app.engine.dnd_roll_display import (
     dice_roll_displays_since,
 )
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
+from app.engine.image_director import source_event_fingerprint
+from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.prompt_manager import PromptManager
 from app.engine.text_safety import strip_terminal_control
 from app.engine.turn_loop import (
@@ -80,12 +88,21 @@ from app.llm.client import LLMClient
 # adapter module directly. Hard import now that the Dispatcher has
 # landed — a missing module is a real packaging error.
 from app.engine.turn_loop_dispatcher import LLMDispatcher
+from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import CommitmentRevisionPrompt, PendingNarratorRender
 
 logger = logging.getLogger(__name__)
+
+
+def _sha256_path(path: Any) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 _COMBAT_NO_ADVANCE_REASONS = {
@@ -96,45 +113,6 @@ _COMBAT_NO_ADVANCE_REASONS = {
     "combat_started",
     "combat_reaction_pending",
 }
-
-
-def _append_transcript_entry(
-    ckpt: CheckpointFile,
-    beat_result: BeatResult,
-    preferred_actor_id: str,
-) -> None:
-    """v11-r7f: persist one POV's transcript entry to ckpt.transcript.
-
-    Why: ckpt.transcript was a write-never field for the entire v11
-    pipeline — pre-r7f the dispatcher returned only final_text from
-    narrator.compose_pov_render and dropped the structured envelope's
-    transcript_entry on the floor. /history rendered "(no turns yet)"
-    after every play session and engine_bridge's recent-session
-    summary stayed empty forever. Now that BeatResult carries a
-    {character_id: TranscriptEntry} map, pick one entry per beat as
-    the canonical session log line.
-
-    Selection: prefer the acting actor's POV (the player who /act'd
-    or whose Cat II is being adjudicated). Fall back to the first
-    available render. No-op when no human rendered (Cat II pending,
-    or beat-with-no-renderable-events) — ckpt.transcript stays at
-    its prior length.
-
-    Caveat: with multi-human play, only one POV's transcript_entry
-    enters the global log per beat. The others' POV prose still
-    lives in narrator_conversations[h] (their per-character rolling
-    history), so nothing is lost — the global log just becomes the
-    acting-player view. Multi-POV transcript layout is a separate
-    schema decision deferred until we actually ship multi-human.
-    """
-    entries = beat_result.transcript_entries
-    if not entries:
-        return
-    entry = entries.get(preferred_actor_id)
-    if entry is None:
-        # Fallback: first available POV's entry.
-        entry = next(iter(entries.values()))
-    ckpt.transcript.append(entry)
 
 
 def _combatant_human_controlled(
@@ -512,6 +490,19 @@ def _combined_beat_reason(results: list[BeatResult]) -> str:
     return results[-1].ended_reason if results else ""
 
 
+def _combined_rendered_event_ids(
+    results: list[BeatResult],
+) -> dict[str, list[str]]:
+    combined: dict[str, list[str]] = {}
+    for result in results:
+        for pov_id, event_ids in result.rendered_event_ids_by_pov.items():
+            destination = combined.setdefault(pov_id, [])
+            for event_id in event_ids:
+                if event_id not in destination:
+                    destination.append(event_id)
+    return combined
+
+
 def _turn_response_from_beat_results(
     *,
     session_id: str,
@@ -534,6 +525,7 @@ def _turn_response_from_beat_results(
         turn_index=ckpt.session.turn_index,
         output_text=output_text,
         per_player_renders=per_player,
+        rendered_event_ids_by_pov=_combined_rendered_event_ids(beat_results),
         beat_ended_reason=_combined_beat_reason(beat_results),
         reaction_prompts=final_result.reaction_prompts or {},
         loot_prompts=_combine_loot_prompts(beat_results),
@@ -639,14 +631,189 @@ class Orchestrator:
         client: LLMClient,
         checkpoint_mgr: CheckpointManager,
         prompt_mgr: PromptManager,
+        *,
+        image_sink: Any | None = None,
+        image_generation: Any | None = None,
+        spawn_authoring: SpawnAuthoringCoordinator | None = None,
     ):
         self.client = client
         self.prompt_mgr = prompt_mgr
         self.checkpoint_mgr = checkpoint_mgr
         self.char_mgr = CharacterManager(client, prompt_mgr)
+        self.spawn_authoring = (
+            spawn_authoring
+            or SpawnAuthoringCoordinator(self.char_mgr)
+        )
+        self.image_sink = image_sink
+        self.image_generation = image_generation
+        self._registered_image_transactions: set[str] = set()
         # One manager per Orchestrator. /acts in the same session
         # serialize here; perception fan-out is observer-driven.
         self.session_locks = SessionLockManager()
+
+    @staticmethod
+    def _apply_authored_spawn_records(
+        runtime: ClosedEventRuntime,
+        checkpoint: CheckpointFile,
+        records: tuple[CharacterRecord, ...],
+    ) -> list[str]:
+        """Apply shared authoring results; only the orchestrator mutates roster."""
+
+        existing_ids = {
+            character.character_id for character in checkpoint.characters
+        }
+        applied: list[str] = []
+        for record in records:
+            character_id = record.character_id
+            if character_id in runtime.applied_character_ids:
+                continue
+            if character_id in existing_ids:
+                raise ValueError(
+                    "router-authored spawn targets existing character id: "
+                    f"{character_id}"
+                )
+            checkpoint.characters.append(record.model_copy(deep=True))
+            existing_ids.add(character_id)
+            runtime.applied_character_ids.add(character_id)
+            applied.append(character_id)
+        return applied
+
+    def _ensure_closed_event_runtime(
+        self,
+        ckpt: CheckpointFile,
+    ) -> ClosedEventRuntime:
+        current = closed_event_runtime_for(ckpt)
+        if current is not None:
+            return current
+        if self.image_generation is not None:
+            try:
+                self.image_generation.reconcile_lineage(
+                    session_id=ckpt.session.session_id,
+                    canonical_event_fingerprints={
+                        event.event_id: source_event_fingerprint(event)
+                        for event in ckpt.canonical_events
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "image lineage reconciliation failed; text turn continues"
+                )
+        transaction_id = f"imgtx_{uuid.uuid4().hex}"
+        director_enabled = bool(
+            self.image_generation is not None
+            and self.image_sink is not None
+            and getattr(
+                getattr(self.image_sink, "config", None),
+                "director_enabled",
+                False,
+            )
+        )
+        runtime = ClosedEventRuntime(
+            transaction_id=transaction_id,
+            # Closed events produced from checkpoint N are committed in
+            # checkpoint N+1. Rewind cancellation is keyed to the committed
+            # turn, not the pre-turn source snapshot.
+            source_turn_index=ckpt.session.turn_index + 1,
+            spawn_authoring=self.spawn_authoring,
+            image_sink=self.image_sink if director_enabled else None,
+            record_applier=self._apply_authored_spawn_records,
+        )
+        install_closed_event_runtime(ckpt, runtime)
+        if director_enabled:
+            try:
+                source_path = self.checkpoint_mgr._checkpoint_path(
+                    ckpt.session.session_id,
+                    runtime.source_turn_index - 1,
+                )
+                self.image_generation.begin_transaction(
+                    transaction_id=transaction_id,
+                    session_id=ckpt.session.session_id,
+                    source_turn_index=runtime.source_turn_index,
+                    source_checkpoint_sha256=_sha256_path(source_path),
+                )
+                self._registered_image_transactions.add(transaction_id)
+            except Exception:
+                runtime.image_sink = None
+                logger.exception(
+                    "image transaction setup failed; text turn continues"
+                )
+        return runtime
+
+    async def _commit_closed_event_runtime(
+        self,
+        ckpt: CheckpointFile,
+        beat_results: list[BeatResult],
+    ) -> None:
+        runtime = closed_event_runtime_for(ckpt)
+        if runtime is None:
+            return
+        if runtime.transaction_id not in self._registered_image_transactions:
+            self.spawn_authoring.discard_transaction(
+                runtime.transaction_id,
+                cancel_running=False,
+            )
+            ckpt.__dict__.pop("_closed_event_runtime", None)
+            return
+        target_path = self.checkpoint_mgr._checkpoint_path(
+            ckpt.session.session_id,
+            ckpt.session.turn_index,
+        )
+        try:
+            target_hash = _sha256_path(target_path)
+            await self.image_generation.commit_transaction(
+                runtime.transaction_id,
+                target_checkpoint_sha256=target_hash,
+            )
+        except Exception:
+            logger.exception(
+                "image transaction commit failed; recovery will reconcile it"
+            )
+        finally:
+            self._registered_image_transactions.discard(
+                runtime.transaction_id
+            )
+            self.spawn_authoring.discard_transaction(
+                runtime.transaction_id,
+                cancel_running=False,
+            )
+            ckpt.__dict__.pop("_closed_event_runtime", None)
+
+    async def _cancel_closed_event_runtime(
+        self,
+        ckpt: CheckpointFile,
+        *,
+        reason: str,
+    ) -> None:
+        runtime = closed_event_runtime_for(ckpt)
+        if runtime is None:
+            return
+        if self.image_sink is not None:
+            try:
+                await self.image_sink.cancel_transaction(
+                    runtime.transaction_id
+                )
+            except Exception:
+                logger.exception("image sidecar cancellation failed")
+        if (
+            self.image_generation is not None
+            and runtime.transaction_id
+            in self._registered_image_transactions
+        ):
+            try:
+                await self.image_generation.cancel_transaction(
+                    runtime.transaction_id,
+                    reason=reason,
+                )
+            except Exception:
+                logger.exception("image transaction cancellation failed")
+            self._registered_image_transactions.discard(
+                runtime.transaction_id
+            )
+        self.spawn_authoring.discard_transaction(
+            runtime.transaction_id,
+            cancel_running=True,
+        )
+        ckpt.__dict__.pop("_closed_event_runtime", None)
 
     def _save_if_response_drained_runtime_state(
         self,
@@ -711,6 +878,43 @@ class Orchestrator:
         ):
             ckpt.session.pending_commitment_revisions.pop(character_id, None)
 
+    async def _materialize_pending_narrator_spawns(
+        self,
+        ckpt: CheckpointFile,
+    ) -> bool:
+        """Persist shared spawn results before discarding a failed render task.
+
+        A narrator retry reuses the already-closed canonical events. Keeping
+        their generated records in the pending checkpoint prevents that retry
+        from launching a second character-generation pass after the transient
+        closed-event runtime is committed.
+        """
+        pending = ckpt.session.pending_narrator_render
+        if pending is None or pending.events_closed <= 0:
+            return False
+
+        closed_events = ckpt.canonical_events[-pending.events_closed:]
+        if not any(event.spawn for event in closed_events):
+            return False
+
+        event_runtime = self._ensure_closed_event_runtime(ckpt)
+        for index, event in enumerate(closed_events):
+            if not event.spawn:
+                continue
+            actor_id = (
+                pending.event_actor_ids[index]
+                if index < len(pending.event_actor_ids)
+                else ""
+            )
+            records = await event_runtime.authored_records(
+                checkpoint=ckpt,
+                event=event,
+                actor_id=actor_id,
+            )
+            event_runtime.apply_records(ckpt, records)
+        self.checkpoint_mgr.save(ckpt)
+        return True
+
     async def _resume_pending_narrator_render_locked(
         self,
         *,
@@ -742,9 +946,6 @@ class Orchestrator:
         await self._apply_beat_roster_side_effects(
             ckpt, beat_result, log_label="Resumed BeatResult",
         )
-        _append_transcript_entry(
-            ckpt, beat_result, pending.acting_player_id,
-        )
         _handle_combat_after_beat(
             ckpt,
             acting_id=pending.acting_player_id,
@@ -752,6 +953,7 @@ class Orchestrator:
         )
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
+        await self._commit_closed_event_runtime(ckpt, [beat_result])
         automated_results = await self._run_automated_combat_turns_locked(
             ckpt=ckpt,
             dispatcher=dispatcher,
@@ -809,6 +1011,7 @@ class Orchestrator:
             beat_result.loot_prompts = {}
             return {}
         closed_this_beat = ckpt.canonical_events[-beat_result.events_closed:]
+        event_runtime = self._ensure_closed_event_runtime(ckpt)
         actors = beat_result.event_actor_ids
         if len(actors) != beat_result.events_closed:
             logger.warning(
@@ -819,14 +1022,32 @@ class Orchestrator:
             actors = actors + [None] * (beat_result.events_closed - len(actors))
         for evt, evt_actor in zip(closed_this_beat, actors):
             self.char_mgr.apply_roster_updates(ckpt, evt)
+            if self.image_generation is not None:
+                for character_id in evt.cull:
+                    self.image_generation.retire_character_identity(
+                        session_id=ckpt.session.session_id,
+                        character_id=character_id,
+                        source_turn_index=event_runtime.source_turn_index,
+                    )
+                    character = next(
+                        (
+                            item
+                            for item in ckpt.characters
+                            if item.character_id == character_id
+                        ),
+                        None,
+                    )
+                    if character is not None:
+                        character.visuals.identity_reference_id = ""
             if evt.spawn:
-                spawn_loc = (
-                    self._resolve_location(ckpt, evt_actor)
-                    if evt_actor else ""
+                records = await event_runtime.authored_records(
+                    checkpoint=ckpt,
+                    event=evt,
+                    actor_id=evt_actor or "",
                 )
-                await self.char_mgr.spawn_characters(
-                    ckpt, evt.spawn,
-                    acting_actor_location=spawn_loc,
+                event_runtime.apply_records(
+                    ckpt,
+                    records,
                 )
         loot_prompts = dnd_inventory.apply_loot_offers_from_events(
             ckpt,
@@ -860,6 +1081,7 @@ class Orchestrator:
             actor_id = _combatant_character_id(current)
             if not actor_id or _combatant_human_controlled(ckpt, current):
                 break
+            self._ensure_closed_event_runtime(ckpt)
 
             try:
                 intention = await _agent_intention_for_dispatch(
@@ -880,6 +1102,7 @@ class Orchestrator:
                 _advance_combat_initiative_after_turn(ckpt)
                 ckpt.session.turn_index += 1
                 self.checkpoint_mgr.save(ckpt)
+                await self._commit_closed_event_runtime(ckpt, [])
                 turns_taken += 1
                 continue
             if intention is None:
@@ -891,6 +1114,7 @@ class Orchestrator:
                 _advance_combat_initiative_after_turn(ckpt)
                 ckpt.session.turn_index += 1
                 self.checkpoint_mgr.save(ckpt)
+                await self._commit_closed_event_runtime(ckpt, [])
                 turns_taken += 1
                 continue
 
@@ -909,6 +1133,10 @@ class Orchestrator:
                     _combatant_name(current), actor_id,
                 )
                 _rollback_automated_turn_snapshot(ckpt, snapshot)
+                await self._cancel_closed_event_runtime(
+                    ckpt,
+                    reason="automated_beat_rolled_back",
+                )
                 _append_combat_audit_line(
                     ckpt,
                     f"Automated combat turn for {_combatant_name(current)} "
@@ -923,7 +1151,6 @@ class Orchestrator:
             await self._apply_beat_roster_side_effects(
                 ckpt, beat_result, log_label="Combat automation",
             )
-            _append_transcript_entry(ckpt, beat_result, actor_id)
             _handle_combat_after_beat(
                 ckpt,
                 acting_id=actor_id,
@@ -932,6 +1159,7 @@ class Orchestrator:
             flush_combat_visible_facts(ckpt)
             ckpt.session.turn_index += 1
             self.checkpoint_mgr.save(ckpt)
+            await self._commit_closed_event_runtime(ckpt, [beat_result])
             results.append(beat_result)
             turns_taken += 1
 
@@ -1136,6 +1364,7 @@ class Orchestrator:
                 release_character_slot(ckpt, acting_id)
 
             # 5. Run the beat.
+            self._ensure_closed_event_runtime(ckpt)
             roll_keys_before = completed_automatic_roll_keys(ckpt)
             revision_input_consumed = (
                 cat_ii_event_id is None
@@ -1154,14 +1383,27 @@ class Orchestrator:
                     revision_before=revision_before,
                 )
             )
-            beat_result = await run_beat(
-                ckpt=ckpt,
-                dispatcher=dispatcher,
-                actor_id=acting_id,
-                intention=request.user_input,
-                cat_ii_event_id=cat_ii_event_id,
-                combat_reaction_event_id=combat_reaction_event_id,
-            )
+            try:
+                beat_result = await run_beat(
+                    ckpt=ckpt,
+                    dispatcher=dispatcher,
+                    actor_id=acting_id,
+                    intention=request.user_input,
+                    cat_ii_event_id=cat_ii_event_id,
+                    combat_reaction_event_id=combat_reaction_event_id,
+                )
+            except Exception:
+                if pending_render_saved():
+                    try:
+                        await self._materialize_pending_narrator_spawns(ckpt)
+                    finally:
+                        await self._commit_closed_event_runtime(ckpt, [])
+                else:
+                    await self._cancel_closed_event_runtime(
+                        ckpt,
+                        reason="turn_failed_before_commit",
+                    )
+                raise
             if revision_before is not None:
                 current_revision = ckpt.session.pending_commitment_revisions.get(
                     acting_id
@@ -1185,14 +1427,6 @@ class Orchestrator:
                 ckpt, beat_result, log_label="BeatResult",
             )
 
-            # v11-r7f: persist the acting POV's transcript entry so
-            # /history and the resume-display path see played turns.
-            # ckpt.transcript is single-list session-global; with
-            # multi-POV the other POVs' entries still live in
-            # narrator_conversations[h] but we pick one canonical
-            # speaker for the user-facing log.
-            _append_transcript_entry(ckpt, beat_result, acting_id)
-
             _handle_combat_after_beat(
                 ckpt,
                 acting_id=acting_id,
@@ -1207,6 +1441,7 @@ class Orchestrator:
             if not pending_render_saved():
                 ckpt.session.turn_index += 1
             self.checkpoint_mgr.save(ckpt)
+            await self._commit_closed_event_runtime(ckpt, [beat_result])
             automated_results = await self._run_automated_combat_turns_locked(
                 ckpt=ckpt,
                 dispatcher=dispatcher,
@@ -1369,6 +1604,9 @@ class Orchestrator:
                 *followup_result.event_actor_ids,
             ],
             reaction_prompts=followup_result.reaction_prompts or {},
+            rendered_event_ids_by_pov=(
+                followup_result.rendered_event_ids_by_pov
+            ),
         )
 
     async def _finalize_ready_cat_ii_locked(
@@ -1382,6 +1620,7 @@ class Orchestrator:
         roll_keys_before: set[tuple[str, str]],
         log_label: str,
     ) -> TurnResponse:
+        self._ensure_closed_event_runtime(ckpt)
         try:
             beat_result = await self._cat_ii_resolution_beat_result_locked(
                 ckpt=ckpt,
@@ -1404,7 +1643,6 @@ class Orchestrator:
         if beat_result.events_closed > 0:
             ckpt.session.turn_index += 1
 
-        _append_transcript_entry(ckpt, beat_result, evt_live.initiator_id)
         _handle_combat_after_beat(
             ckpt,
             acting_id=evt_live.initiator_id,
@@ -1412,6 +1650,7 @@ class Orchestrator:
         )
         flush_combat_visible_facts(ckpt)
         self.checkpoint_mgr.save(ckpt)
+        await self._commit_closed_event_runtime(ckpt, [beat_result])
         automated_results = await self._run_automated_combat_turns_locked(
             ckpt=ckpt,
             dispatcher=dispatcher,
@@ -1537,10 +1776,6 @@ class Orchestrator:
             if beat_result.events_closed > 0:
                 ckpt.session.turn_index += 1
 
-            # v11-r7f: persist transcript entry for Cat II resolution
-            # too — initiator's POV is the canonical speaker for the
-            # adjudicated event.
-            _append_transcript_entry(ckpt, beat_result, evt.initiator_id)
             _handle_combat_after_beat(
                 ckpt,
                 acting_id=evt.initiator_id,
@@ -1699,6 +1934,7 @@ class Orchestrator:
                 session_id=session_id,
                 output_actor_id=output_actor_id,
             )
+        self._ensure_closed_event_runtime(ckpt)
         dispatcher = LLMDispatcher(self.client, self.prompt_mgr)
         roll_keys_before = completed_automatic_roll_keys(ckpt)
         try:
@@ -1741,7 +1977,6 @@ class Orchestrator:
         if beat_result.events_closed > 0:
             ckpt.session.turn_index += 1
 
-        _append_transcript_entry(ckpt, beat_result, output_actor_id)
         _handle_combat_after_beat(
             ckpt,
             acting_id=output_actor_id,
@@ -1751,6 +1986,7 @@ class Orchestrator:
             self.checkpoint_mgr.save(ckpt)
         release_character_slot(ckpt, output_actor_id)
         self.checkpoint_mgr.save(ckpt)
+        await self._commit_closed_event_runtime(ckpt, [beat_result])
         automated_results = await self._run_automated_combat_turns_locked(
             ckpt=ckpt,
             dispatcher=dispatcher,

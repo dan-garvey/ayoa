@@ -95,7 +95,10 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
     """
     setting = ckpt.world_state.setting
 
-    story_title = setting.genre.split("—")[0].strip() if setting.genre else story_id
+    story_title = (
+        setting.title.strip()
+        or (setting.genre.split("—")[0].strip() if setting.genre else story_id)
+    )
     title = f"Welcome · {story_title}"
     footer = f"{story_id} · /join to claim a character"
 
@@ -122,12 +125,24 @@ def render_briefing(ckpt: CheckpointFile, story_id: str) -> discord.Embed:
         description=primer,
         color=EMBED_COLOR_STORY,
     )
+    if setting.recommended_players:
+        embed.add_field(
+            name="Table",
+            value=setting.recommended_players[:1024],
+            inline=False,
+        )
+    if setting.play_guidance:
+        embed.add_field(
+            name="How this story plays",
+            value=setting.play_guidance[:1024],
+            inline=False,
+        )
     embed.add_field(
         name="What now?",
         value=(
-            "Run `/join` to step into the story — claim an existing "
-            "character or create your own. Then `/act <what you do>` "
-            "plays a turn; `/defer` lets the story continue without "
+            "Run `/join` to claim a seat. When every intended player has "
+            "joined, `/begin` opens the story. Then `/act <what you do>` "
+            "plays a turn and `/defer` lets the scene continue without "
             "your character acting."
         ),
         inline=False,

@@ -1,5 +1,5 @@
 {
-  "schema_version": "4.0",
+  "schema_version": "5.0",
   "session": {
     "session_id": "the_unblessed_summon",
     "story_id": "the_unblessed_summon",
@@ -5664,6 +5664,5 @@
   "narrator_conversations": {},
   "character_conversations": {},
   "canonical_events": [],
-  "transcript": [],
   "visibility_log": []
 }

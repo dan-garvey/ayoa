@@ -99,6 +99,7 @@ class TestLLMConfig:
         assert config.role_models["narrator"] == "gpt-5.2"
         assert config.role_models["dnd_combat_manager"] == "gpt-5-mini"
         assert config.role_models["content_manager"] == "gpt-5-mini"
+        assert config.role_models["image_director"] == "gpt-5-mini"
         assert config.role_models["agent"] == "claude-opus-4-6"
         assert config.role_models["agent_standard"] == "claude-haiku-4-5"
         assert config.role_models["agent_convenience"] == "claude-sonnet-4-6"
@@ -107,6 +108,7 @@ class TestLLMConfig:
         assert config.provider_for_role("narrator") == "openai"
         assert config.provider_for_role("dnd_combat_manager") == "openai"
         assert config.provider_for_role("content_manager") == "openai"
+        assert config.provider_for_role("image_director") == "openai"
         assert config.provider_for_role("agent") == "anthropic"
         assert config.provider_for_role("agent_standard") == "anthropic"
         assert config.provider_for_role("agent_convenience") == "anthropic"
@@ -114,10 +116,11 @@ class TestLLMConfig:
         assert config.thinking_budget_for_role("agent_convenience") == 0
         assert config.enable_anthropic_compaction is False
         assert config.openai_reasoning_effort_for_role("content_manager") == "low"
+        assert config.openai_reasoning_effort_for_role("image_director") == "low"
         assert all(
             effort == "medium"
             for role, effort in config.openai_reasoning_efforts.items()
-            if role != "content_manager"
+            if role not in {"content_manager", "image_director"}
         )
         assert config.openai_reasoning_summary_for_role("event_router") == "auto"
         assert config.openai_reasoning_summary_for_role("narrator") == ""

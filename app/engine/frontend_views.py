@@ -26,6 +26,20 @@ class CharacterSummary:
     status: str
     is_playable: bool
     bound_user_id: str = ""
+    player_slot_kind: str = "standard"
+    player_guidance: str = ""
+
+
+@dataclass(frozen=True)
+class StorySummary:
+    story_id: str
+    title: str
+    genre: str
+    premise: str
+    player_primer: str
+    recommended_players: str
+    play_guidance: str
+    playable_seat_count: int
 
 
 @dataclass(frozen=True)
@@ -52,6 +66,35 @@ class RetryRenderResult:
 class TurnHistoryEntry:
     turn_index: int
     entry: TranscriptEntry
+
+
+@dataclass(frozen=True)
+class PlayerJoinResult:
+    character_id: str
+    character_name: str
+    pre_play: bool
+    response: TurnResponse | None = None
+
+
+@dataclass(frozen=True)
+class OpeningLobbyView:
+    requires_confirmation: bool
+    claimed_seat_names: tuple[str, ...]
+    open_seat_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SessionActivityView:
+    session_id: str
+    story_id: str
+    turn_index: int
+    state: str
+    viewpoint_name: str = ""
+    location: str = ""
+    joined_seat_names: tuple[str, ...] = ()
+    nearby_character_names: tuple[str, ...] = ()
+    requested_next_names: tuple[str, ...] = ()
+    last_visible_update: str = ""
 
 
 @dataclass(frozen=True)

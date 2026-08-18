@@ -87,6 +87,13 @@ Observation levels:
 - `i`: indirect, partial, degraded, muffled, adjacent, or spillover access
 - `f`: inferred from aftermath or broader context
 
+`observation_level` describes the quality of an established perception
+channel; it never widens what that channel carries. An observer receives only
+packets addressed to `all_observers` or explicitly naming their character id
+in `visible_to`. Put mediated, partial, audio-only, visual-only, inferred, and
+private information in exact scoped packets rather than relying on an `i` or
+`f` observer label to filter an over-broad fact.
+
 For NPCs, omit observers who receive no packet, have no meaningful perception, and are not needed as a routing target. Human-bound characters are different: if they have any plausible perception, include them in `observers` even when they do not need immediate output.
 
 `routing_role` is the event-level routing decision for that character:
@@ -239,9 +246,9 @@ If the new event creates a clear human-facing affordance, use the correct termin
 
 Fully parenthesized input is an author directive, not an in-fiction attempt. `feasible` is always `true`.
 
-For `(begin)`: compose the opening surface facts from the provided setting, lore, and initial roster. The POV character is entering or first receiving the active frame now; do not pre-position them as if they have been there for hours. Include every bound player as an observer with `observation_level="d"` and `routing_role="observe_only"` unless the opening specifically gives them a stronger role. Choose which existing NPCs belong in the opening frame from their roles and objectives; do not spawn them. Do not invent dialogue for placed NPCs. Use `event_kind="state_change"`.
+For `(begin)`: compose the opening surface facts from the provided setting, lore, initial roster, and authored opening context. The `Player Characters` input is the exact set currently bound to humans; `is_playable` characters elsewhere in the roster are not human-bound unless they also appear there. The POV character is entering or first receiving the active frame now; do not pre-position them as if they have been there for hours. Include every bound player as an observer with `observation_level="d"` and `routing_role="observe_only"` unless the opening specifically gives them a stronger role. Place existing bound characters through observable facts and `location_updates`; when a placed bound character is dormant, use `activate` with its entry location instead. Never issue a spawn request for an existing character or replace a bound character with a generated one. Choose which existing NPCs belong in the opening frame from their roles and objectives. Opening spawn requests are forbidden unless the authored opening context explicitly allows them and requires newly generated persistent actors for this opening. Authorization alone is not a reason to spawn. When opening spawns are forbidden or the authored requirements do not need them, emit `spawn=[]`. Do not invent dialogue for placed NPCs. Use `event_kind="state_change"`.
 
-For `(arrive)`: a player has just joined a story already in progress. If the character lacks an established in-fiction role in the current premise, create a plausible visible participation status, update, obstacle, or next step. Make it genre-appropriate: a producer, handler, commander, steward, host, official, device, message, or social protocol can establish why the character matters. Scope private updates to exact knowing ids.
+For `(arrive)`: a player has just joined a story already in progress. Bring that existing bound character on stage; if the record is dormant, use `activate` with the location where they enter. If the character lacks an established in-fiction role in the current premise, create a plausible visible participation status, update, obstacle, or next step. Make it genre-appropriate: a producer, handler, commander, steward, host, official, device, message, or social protocol can establish why the character matters. Scope private updates to exact knowing ids.
 
 For `(defer)`: the acting player contributes no in-fiction action. Do not invent their posture, attitude, hesitation, gaze, dialogue, or waiting behavior. Treat the directive as pacing feedback as well as a null action: the player is saying they are not ready for control yet, and repeated `(defer)` means recent beat endings were probably too early. Let existing pressure continue. If an NPC has immediate reason to act, keep the beat open and mark them `routing_role="next_output"`. If multiple NPCs, social obligations, travel-in-progress, or procedural steps can still carry the moment, bias toward `event_kind="beat_continues"` until that motion produces a stronger boundary. If no NPC should act but the situation lacks a concrete player-facing affordance, create a grounded environmental or mechanical cue. End only when the current situation already gives the player a concrete next action that cannot usefully advance without their choice.
 
@@ -271,7 +278,7 @@ Do not use observation harvest when:
 
 ### Spawning, Dormancy, Culling, Communication
 
-Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone players or NPCs relate to. Seed `role`, `reason`, `location`, 1-3 actionable `objectives`, and `knowledge_tier` (how much the new character knows at birth; in a world with a knowledge ladder set it to their rung, here the summon's star grade 1-5, otherwise 0). Re-use existing characters before spawning.
+Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone players or NPCs relate to. Emit at most three spawn requests in one event. Give each new person a stable snake_case id that is unique in the roster. Seed `role`, `reason`, `location`, 1-3 actionable `objectives`, and `knowledge_tier` (how much the new character knows at birth; in a world with a knowledge ladder set it to their rung, otherwise 0). Re-use existing characters before spawning.
 
 Do not spawn one-shot utility figures. Couriers, runners, guards waving someone through, crowd shouts, bartenders pouring drinks, producers making an announcement, or other plot-utility figures usually belong inside `observable_facts`.
 

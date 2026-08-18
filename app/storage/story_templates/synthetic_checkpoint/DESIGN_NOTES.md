@@ -17,8 +17,8 @@ D&D mechanics. Do not copy its D&D assumptions into rules-neutral stories.
 3. Add the new story directory and `ckpt_0000.json` to the explicit
    `.gitignore` allowlist. Runtime session checkpoints and local story drafts
    stay ignored; shipped story seeds must be intentional.
-4. Keep `turn_index` at `0`, and keep all conversation, transcript,
-   visibility, render, Cat II, combat, loot, commitment, and canonical-event
+4. Keep `turn_index` at `0`, and keep all conversation, visibility, render,
+   Cat II, combat, loot, commitment, and canonical-event
    collections empty.
 5. Fill public world fields first: `world_state.setting`, `world_state.facts`,
    `world_state.physics_ruleset`, `world_state.lore`, and

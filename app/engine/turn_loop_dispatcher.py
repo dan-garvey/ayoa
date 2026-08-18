@@ -25,14 +25,12 @@ from copy import deepcopy
 
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
-from app.engine.character_manager import CharacterManager
 from app.engine.context_builder import (
     build_hidden_facts,
     build_player_characters_block,
     build_setting_summary,
     build_world_rules,
     resolve_acting_character,
-    resolve_location_for_character,
 )
 from app.engine.prompt_manager import PromptManager
 from app.engine.dnd_cat_ii import (
@@ -162,11 +160,16 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     if not checkpoint.characters:
         return ""
 
-    from app.engine.context_builder import collect_player_ids
+    from app.engine.context_builder import (
+        collect_player_ids,
+        is_unbound_player_authored_slot,
+    )
     player_ids = collect_player_ids(checkpoint)
     entries: list[str] = []
     for char in checkpoint.characters:
         if char.character_id in player_ids:
+            continue
+        if is_unbound_player_authored_slot(checkpoint, char):
             continue
         if char.status.value != "active":
             continue
@@ -253,6 +256,71 @@ def _build_router_input_block(*blocks: str) -> str:
         for block in blocks
         if block and block.strip()
     )
+
+
+def _is_begin_directive(intention: str) -> bool:
+    return (intention or "").strip().casefold() == "(begin)"
+
+
+def _build_opening_context_block(
+    checkpoint: CheckpointFile,
+    intention: str,
+) -> str:
+    """Render story-authored opening requirements only for ``(begin)``."""
+    if not _is_begin_directive(intention):
+        return ""
+
+    policy = checkpoint.world_state.opening
+    if policy is None:
+        return (
+            "## Authored Opening Context\n"
+            "New-character spawn requests: forbidden.\n"
+            "No story-specific opening requirements were authored."
+        )
+
+    if policy.allow_spawns:
+        spawn_rule = (
+            "allowed only when the authored requirements below explicitly "
+            "require newly generated actors"
+        )
+    else:
+        spawn_rule = "forbidden"
+    context = policy.context or "No story-specific opening requirements."
+    return (
+        "## Authored Opening Context\n"
+        f"New-character spawn requests: {spawn_rule}.\n"
+        f"{context}"
+    )
+
+
+def _validate_opening_spawn_authority(
+    checkpoint: CheckpointFile,
+    intention: str,
+    result: EventRouterOutput,
+) -> None:
+    """Reject unauthorized or non-new spawn targets before history mutates."""
+    if not _is_begin_directive(intention) or not result.spawn:
+        return
+
+    policy = checkpoint.world_state.opening
+    if policy is None or not policy.allow_spawns:
+        raise ValueError(
+            "router emitted spawn requests for (begin), but this story has "
+            "not authorized opening spawns"
+        )
+
+    existing_ids = {character.character_id for character in checkpoint.characters}
+    conflicting_ids = [
+        request.character_id
+        for request in result.spawn
+        if request.character_id in existing_ids
+    ]
+    if conflicting_ids:
+        raise ValueError(
+            "opening spawn requests must target genuinely new character ids; "
+            "existing ids: "
+            + ", ".join(dict.fromkeys(conflicting_ids))
+        )
 
 
 def _router_call_snapshot(ckpt: CheckpointFile) -> dict[str, object]:
@@ -664,10 +732,10 @@ class LLMDispatcher:
         """Materialize router spawns needed before in-beat dispatch.
 
         Most router spawns are applied by the orchestrator after `run_beat`.
-        Cat II responder dispatch is earlier than that, so required responder
-        spawns must be available immediately. Requests handled here are removed
-        from `result.spawn` so the post-beat side-effect pass does not create
-        the same character a second time.
+        Cat II responder dispatch is earlier than that, so its event's full
+        authored result is applied immediately in router order through the
+        orchestrator-owned callback. The post-beat pass then observes the same
+        records as already applied without creating characters a second time.
         """
         target_ids = {cid for cid in character_ids if cid}
         if not target_ids:
@@ -679,19 +747,27 @@ class LLMDispatcher:
         if not requests:
             return []
 
-        char_mgr = CharacterManager(self.client, self.prompt_mgr)
-        spawned = await char_mgr.spawn_characters(
-            ckpt,
-            requests,
-            acting_actor_location=resolve_location_for_character(ckpt, actor_id),
+        from app.engine.closed_event_runtime import (
+            closed_event_runtime_for,
         )
-        spawned_ids = [char.character_id for char in spawned]
-        spawned_set = set(spawned_ids)
-        result.spawn = [
-            spawn for spawn in result.spawn
-            if spawn.character_id not in spawned_set
-        ]
-        return spawned_ids
+
+        runtime = closed_event_runtime_for(ckpt)
+        if runtime is None:
+            raise RuntimeError(
+                "router spawn materialization requires the shared "
+                "closed-event runtime"
+            )
+        # Start every spawn on the finalized router output from one immutable
+        # snapshot, then await only because Cat II needs these responders now.
+        records = await runtime.authored_records(
+            checkpoint=ckpt,
+            event=result,
+            actor_id=actor_id,
+        )
+        return runtime.apply_records(
+            ckpt,
+            records,
+        )
 
     # ------------------------------------------------------------------
     # route_intention
@@ -790,6 +866,7 @@ class LLMDispatcher:
 
             router_input_block = _build_router_input_block(
                 ctx.pop("initial_roster_block", ""),
+                _build_opening_context_block(ckpt, intention),
                 ctx.pop("engine_state_updates_block", ""),
                 cat_ii_resolution_block,
                 intention_block,
@@ -830,11 +907,12 @@ class LLMDispatcher:
                 cache=True,
                 compact=True,
             )
+            result: EventRouterOutput = response.parsed
+            _validate_opening_spawn_authority(ckpt, intention, result)
         except Exception:
             _restore_router_call_snapshot(ckpt, router_snapshot)
             raise
 
-        result: EventRouterOutput = response.parsed
         _normalize_router_result_for_history(
             ckpt,
             result=result,
@@ -1161,6 +1239,13 @@ class LLMDispatcher:
                 "agent_intend: unknown character_id %s", character_id,
             )
             return ""
+        from app.engine.context_builder import is_unbound_player_authored_slot
+
+        if is_unbound_player_authored_slot(ckpt, character):
+            raise RuntimeError(
+                "Cannot invoke a character agent for an unclaimed "
+                f"player-authored seat: {character_id}"
+            )
 
         output = await self._agent.turn(
             character=character,
@@ -1222,6 +1307,18 @@ class LLMDispatcher:
             return []
 
         by_id = {c.character_id: c for c in ckpt.characters}
+        from app.engine.context_builder import is_unbound_player_authored_slot
+
+        absent_ids = [
+            character_id
+            for character_id in character_ids
+            if is_unbound_player_authored_slot(ckpt, by_id.get(character_id))
+        ]
+        if absent_ids:
+            raise RuntimeError(
+                "Cannot harvest perceptions for unclaimed player-authored "
+                "seats: " + ", ".join(absent_ids)
+            )
 
         async def _one(cid: str) -> str:
             character = by_id.get(cid)
@@ -1263,9 +1360,9 @@ class LLMDispatcher:
     ) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
         """Render per-POV prose via narrator.compose_pov_render.
 
-        Returns `(NarratorFinalOutput, TranscriptEntry)` so run_beat
-        can populate ckpt.transcript via the parallel
-        BeatResult.transcript_entries map. The transcript entry is
+        Returns `(NarratorFinalOutput, TranscriptEntry)` so run_beat can
+        populate the parallel BeatResult.transcript_entries response map. The
+        transient entry is
         constructed engine-side from `user_input` (the real player
         utterance for the acting POV; "" for incidental POVs in a
         multi-human beat) and the rendered prose. Pre-r7j the LLM

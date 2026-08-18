@@ -178,7 +178,7 @@ def test_lookup_preflight_uses_sqlite_alias_index(tmp_path):
     ]
     assert [message.content for message in ckpt.session_conversation] == records
     assert ckpt.canonical_events == []
-    assert ckpt.transcript == []
+    assert not hasattr(ckpt, "transcript")
     assert ckpt.session.render_buffers == {}
 
 

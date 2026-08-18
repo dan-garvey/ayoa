@@ -23,7 +23,7 @@ import pytest
 
 from app.bot import commands as bot_commands
 from app.bot.engine_bridge import EngineBridge
-from app.engine.frontend_views import RetryRenderResult
+from app.engine.frontend_views import OpeningLobbyView, RetryRenderResult
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_pack import SafeAssetRevealPayload
@@ -94,6 +94,25 @@ class TestAdminEnvParsing:
             bot_commands._is_admin(222)
         bad_warnings = [r for r in caplog.records if "stillbad" in r.message]
         assert len(bad_warnings) == 1
+
+
+class TestNumberedReferenceHelpers:
+    def test_numbered_ref_lines_are_one_based(self):
+        assert bot_commands._numbered_ref_lines(["alpha", "beta"]) == (
+            "1: `alpha`\n2: `beta`"
+        )
+
+    def test_numbered_ref_resolves_index_or_raw_id(self):
+        choices = ["alpha", "beta"]
+
+        assert bot_commands._resolve_numbered_ref(
+            "2", choices, label="story",
+        ) == "beta"
+        assert bot_commands._resolve_numbered_ref(
+            "alpha", choices, label="story",
+        ) == "alpha"
+        with pytest.raises(ValueError, match="numbered 3"):
+            bot_commands._resolve_numbered_ref("3", choices, label="story")
 
 
 @pytest.fixture
@@ -554,7 +573,7 @@ class TestQueryCommandDelivery:
         assert captured["actor_character_id"] == "alice"
         assert captured["story_id"] == "story"
 
-    def test_describe_preplay_opens_with_run_begin_turn(self, monkeypatch):
+    def test_describe_preplay_updates_identity_without_opening(self):
         class FakeTree:
             def __init__(self):
                 self.commands = {}
@@ -569,43 +588,15 @@ class TestQueryCommandDelivery:
             def add_command(self, *_args, **_kwargs):
                 return None
 
-        ckpt = CheckpointFile(
-            session=SessionState(
-                session_id="s",
-                character_bindings={"alice": "42"},
-            ),
-            world_state=WorldState(),
-            characters=[CharacterRecord(character_id="alice", name="Alice")],
-            narrator_conversations={},
-        )
-        response = TurnResponse(
-            session_id="s",
-            checkpoint_id="ckpt_0001",
-            turn_index=1,
-            output_text="The story opens.",
-            per_player_renders={"alice": "The story opens."},
-            beat_ended_reason="state_change",
-        )
-
         engine = MagicMock()
         engine.get_user_binding.return_value = "alice"
-        engine.set_character_identity = AsyncMock(return_value=ckpt)
-        engine.run_begin_turn = AsyncMock(return_value=response)
+        engine.set_character_identity = AsyncMock()
+        engine.run_begin_turn = AsyncMock()
         engine.run_turn = AsyncMock()
 
         smap = MagicMock()
         smap.get = AsyncMock(
             return_value=SimpleNamespace(session_id="s", story_id="story"),
-        )
-
-        captured: dict = {}
-
-        async def _fake_post_actor_render(**kwargs):
-            captured.update(kwargs)
-            return "thread", SimpleNamespace(mention="#alice-thread")
-
-        monkeypatch.setattr(
-            bot_commands, "_post_actor_render", _fake_post_actor_render,
         )
 
         tree = FakeTree()
@@ -623,13 +614,68 @@ class TestQueryCommandDelivery:
 
         asyncio.run(tree.commands["describe"](inter, "Alice", "red coat"))
 
-        engine.run_begin_turn.assert_awaited_once_with(
-            session_id="s",
-            triggering_character_id="alice",
+        engine.set_character_identity.assert_awaited_once_with(
+            "s",
+            "alice",
+            name="Alice",
+            appearance="red coat",
         )
+        engine.run_begin_turn.assert_not_awaited()
         engine.run_turn.assert_not_awaited()
-        assert captured["turn_index"] == 1
-        assert captured["character_id"] == "alice"
+        inter.followup.send.assert_awaited_once()
+        assert inter.followup.send.await_args.kwargs["ephemeral"] is True
+
+    def test_session_resume_requests_only_invokers_bound_history(self):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+                self.groups = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, group, **_kwargs):
+                self.groups[group.name] = group
+
+        ckpt = CheckpointFile(
+            session=SessionState(
+                session_id="s",
+                story_id="story",
+                character_bindings={"alice": "42", "bob": "99"},
+            ),
+            characters=[
+                CharacterRecord(character_id="alice", name="Alice"),
+                CharacterRecord(character_id="bob", name="Bob"),
+            ],
+        )
+        engine = MagicMock()
+        engine.list_session_ids.return_value = ["s"]
+        engine.load_latest.return_value = ckpt
+        engine.turn_history.return_value = [SimpleNamespace(
+            entry=SimpleNamespace(assistant="Alice's private history."),
+        )]
+        smap = MagicMock()
+        smap.get = AsyncMock(return_value=None)
+        smap.upsert = AsyncMock()
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        resume = tree.groups["session"].get_command("resume")
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.guild_id = 7
+        inter.user = MagicMock(id=42)
+        inter.response.send_message = AsyncMock()
+
+        asyncio.run(resume.callback(inter, "s"))
+
+        engine.turn_history.assert_called_once_with("s", "alice")
+        content = inter.response.send_message.await_args.args[0]
+        assert "Alice's private history" in content
+        assert inter.response.send_message.await_args.kwargs["ephemeral"] is True
 
 class TestXpAwardCommandPermissions:
     def test_session_owner_cannot_award_xp_without_admin_env(self, monkeypatch):
@@ -748,6 +794,128 @@ class TestTurnResponseDelivery:
         clear.assert_awaited_once_with(inter)
         public_fallback.assert_not_awaited()
         inter.followup.send.assert_not_awaited()
+
+    def test_actor_private_delivery_failure_never_publishes_prose(
+        self, monkeypatch,
+    ):
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0003",
+            turn_index=3,
+            output_text="Secret actor-only result.",
+            per_player_renders={"alice": "Secret actor-only result."},
+            beat_ended_reason="query_response",
+        )
+        engine = MagicMock()
+        engine.load_latest.return_value = SimpleNamespace(
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+        )
+        inter = MagicMock()
+        inter.user = MagicMock(id=42)
+        inter.client = MagicMock()
+        inter.followup.send = AsyncMock()
+        public_render = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands,
+            "_post_actor_render",
+            AsyncMock(return_value=("none", None)),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_send_public_turn_render",
+            public_render,
+        )
+
+        asyncio.run(bot_commands._deliver_turn_response_to_povs(
+            inter=inter,
+            smap=MagicMock(),
+            engine=engine,
+            session_id="s",
+            story_id="story",
+            actor_character_id="alice",
+            actor_user=inter.user,
+            response=response,
+        ))
+
+        public_render.assert_not_awaited()
+        engine.image_generation.open_prose_gates_for_session.assert_not_called()
+        inter.followup.send.assert_awaited_once()
+        args, kwargs = inter.followup.send.await_args
+        assert "Nothing was posted publicly" in args[0]
+        assert "Secret actor-only result" not in args[0]
+        assert kwargs["ephemeral"] is True
+
+    def test_begin_private_delivery_failure_does_not_open_asset_gates(
+        self, monkeypatch,
+    ):
+        class FakeTree:
+            def __init__(self):
+                self.commands = {}
+
+            def command(self, *, name, **_kwargs):
+                def _decorator(fn):
+                    self.commands[name] = fn
+                    return fn
+
+                return _decorator
+
+            def add_command(self, *_args, **_kwargs):
+                return None
+
+        response = TurnResponse(
+            session_id="s",
+            checkpoint_id="ckpt_0001",
+            turn_index=1,
+            output_text="Alice's private opening.",
+            per_player_renders={"alice": "Alice's private opening."},
+            beat_ended_reason="state_change",
+        )
+        engine = MagicMock()
+        engine.get_user_binding.return_value = "alice"
+        engine.opening_lobby.return_value = OpeningLobbyView(
+            requires_confirmation=True,
+            claimed_seat_names=("Alice",),
+            open_seat_names=(),
+        )
+        engine.run_begin_turn = AsyncMock(return_value=response)
+        engine.load_latest.return_value = SimpleNamespace(
+            characters=[SimpleNamespace(character_id="alice", name="Alice")],
+            session=SimpleNamespace(character_bindings={"alice": "42"}),
+        )
+        smap = MagicMock()
+        smap.get = AsyncMock(return_value=SimpleNamespace(
+            session_id="s",
+            story_id="story",
+        ))
+        tree = FakeTree()
+        bot_commands.register(tree, engine, smap, None)
+        inter = MagicMock()
+        inter.channel_id = 123
+        inter.user = MagicMock(id=42)
+        inter.client = MagicMock()
+        inter.response.defer = AsyncMock()
+        inter.response.send_message = AsyncMock()
+        inter.followup.send = AsyncMock()
+        public_render = AsyncMock()
+        monkeypatch.setattr(
+            bot_commands,
+            "_post_actor_render",
+            AsyncMock(return_value=("none", None)),
+        )
+        monkeypatch.setattr(
+            bot_commands,
+            "_send_public_turn_render",
+            public_render,
+        )
+
+        asyncio.run(tree.commands["begin"](inter, True))
+
+        public_render.assert_not_awaited()
+        engine.image_generation.open_prose_gates_for_session.assert_not_called()
+        followups = [str(call.args[0]) for call in inter.followup.send.await_args_list]
+        assert any("Nothing was posted publicly" in text for text in followups)
+        assert all("Alice's private opening" not in text for text in followups)
 
     def test_actor_asset_failure_does_not_trigger_public_render(
         self, monkeypatch,

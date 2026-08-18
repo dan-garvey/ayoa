@@ -1,6 +1,6 @@
 """Smoke tests for the hand-authored Unblessed Summon story seed.
 
-The story is shipped as a v4.0 CheckpointFile JSON under
+The story is shipped as a v5.0 CheckpointFile JSON under
 `app/storage/stories/the_unblessed_summon/ckpt_0000.json`. There is no
 LLM importer pipeline backing it; the file is hand-emitted in synthetic
 form. These tests pin the structural contracts the engine relies on so
@@ -138,7 +138,7 @@ def by_id(checkpoint: CheckpointFile) -> dict:
 
 
 def test_checkpoint_loads_at_current_schema(checkpoint: CheckpointFile) -> None:
-    assert checkpoint.schema_version == "4.0"
+    assert checkpoint.schema_version == "5.0"
     assert checkpoint.session.story_id == "the_unblessed_summon"
     assert checkpoint.session.session_id == "the_unblessed_summon"
 
@@ -156,6 +156,7 @@ def test_runtime_defaults_match_current_policy(checkpoint: CheckpointFile) -> No
         "agent_default": "anthropic:claude-opus-4-6",
         "agent_standard": "anthropic:claude-haiku-4-5",
         "agent_convenience": "anthropic:claude-sonnet-4-6",
+        "image_director": "gpt-5-mini",
     }
     assert checkpoint.session.config.models.model_dump() == expected_models
     assert checkpoint.session.config.settings.max_events_per_beat == 40

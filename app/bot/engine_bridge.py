@@ -11,6 +11,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -19,8 +20,17 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from app.engine.character_agent import _extract_parenthetical
-from app.engine.character_manager import _normalize_router_summary
+from app.engine.character_manager import CharacterManager, _normalize_router_summary
 from app.engine.checkpoint_manager import CheckpointManager
+from app.engine.context_builder import (
+    is_unbound_player_authored_slot,
+    resolve_location_for_character,
+)
+from app.engine.dnd_combat_access import (
+    combatant_name,
+    current_combatant,
+    checkpoint_active_combat,
+)
 from app.engine.dnd_cat_ii import (
     complete_pending_player_roll,
     pending_player_rolls,
@@ -42,17 +52,30 @@ from app.engine.frontend_views import (
     DndLootClaimResult,
     DndSheetAttachmentSummary,
     PendingRollPrompt,
+    OpeningLobbyView,
+    PlayerJoinResult,
     RetryRenderResult,
     RewindResult,
+    StorySummary,
+    SessionActivityView,
     TurnHistoryEntry,
 )
 from app.engine.image_generation import (
+    ImageDeliveryTarget,
     ImageGenerationConfig,
     ImageGenerationCoordinator,
 )
+from app.engine.image_director import ImageDirector
+from app.engine.event_image_sidecar import EventImageSidecar
+from app.engine.spawn_authoring import SpawnAuthoringCoordinator
 from app.engine.model_config_sync import sync_checkpoint_runtime_models
 from app.engine.orchestrator import Orchestrator
 from app.engine.prompt_manager import PromptManager
+from app.engine.reviewed_visual_references import (
+    freeze_story_visual_references,
+    load_frozen_visual_references,
+    validate_story_visual_references,
+)
 from app.engine.settings import (
     SETTINGS_BY_KEY,
     get_setting,
@@ -67,7 +90,9 @@ from app.schemas.characters import (
     CharacterRecord,
     CharacterStatus,
     CharacterVisuals,
+    PlayerSlotKind,
     PublicSheet,
+    is_player_authored_slot,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import PRIVATE_RUNTIME_METADATA_CONTEXT
@@ -78,6 +103,8 @@ from app.schemas.event_router import (
     empty_commitment_open_signal,
 )
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
+from app.schemas.image_generation import ImageDeliveryKind
+from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import SlotEntry
@@ -234,6 +261,8 @@ class EngineBridge:
         prompts_dir: str = "app/prompts",
         llm_config: LLMConfig | None = None,
         image_generation: ImageGenerationCoordinator | None = None,
+        image_sidecar: EventImageSidecar | None = None,
+        image_delivery_kind: ImageDeliveryKind = ImageDeliveryKind.discord,
     ):
         self.stories_dir = Path(stories_dir or "app/storage/stories")
         self.sessions_dir = Path(sessions_dir or "app/storage/sessions")
@@ -242,9 +271,6 @@ class EngineBridge:
         self.client = LLMClient(config=llm_config or LLMConfig.from_env())
         self.checkpoint_mgr = CheckpointManager(save_dir=str(self.sessions_dir))
         self.prompt_mgr = PromptManager(prompts_dir=prompts_dir)
-        self.orchestrator = Orchestrator(
-            self.client, self.checkpoint_mgr, self.prompt_mgr
-        )
         image_runtime_root = self.sessions_dir.parent / "runtime" / "image_generation"
         self.image_generation = image_generation or ImageGenerationCoordinator(
             sessions_dir=self.sessions_dir,
@@ -253,16 +279,196 @@ class EngineBridge:
             ),
             repo_root=Path.cwd(),
         )
+        self._reviewed_visual_binding_signatures: dict[str, str] = {}
+        self.checkpoint_mgr.set_load_validator(
+            self._validate_loaded_visual_references
+        )
+        self.spawn_authoring = SpawnAuthoringCoordinator(
+            CharacterManager(self.client, self.prompt_mgr)
+        )
+        self.image_sidecar = image_sidecar or EventImageSidecar(
+            director=ImageDirector(
+                self.client,
+                self.prompt_mgr,
+                max_requests=self.image_generation.config.max_requests,
+                max_subjects=self.image_generation.config.max_subjects,
+                max_scene_prompt_chars=(
+                    self.image_generation.config.max_scene_prompt_chars
+                ),
+            ),
+            generation=self.image_generation,
+            spawn_authoring=self.spawn_authoring,
+            delivery_kind=image_delivery_kind,
+        )
+        self.orchestrator = Orchestrator(
+            self.client,
+            self.checkpoint_mgr,
+            self.prompt_mgr,
+            image_sink=self.image_sidecar,
+            image_generation=self.image_generation,
+            spawn_authoring=self.spawn_authoring,
+        )
         # One lock per session_id; created lazily.
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._locks_mutex = asyncio.Lock()
 
     async def start(self) -> None:
         await self.image_generation.start()
+        await self.image_sidecar.start()
 
     async def close(self) -> None:
+        await self.image_sidecar.close()
         await self.image_generation.close()
         await self.client.close()
+
+    def _validate_loaded_visual_references(
+        self,
+        checkpoint: CheckpointFile,
+        checkpoint_path: Path,
+    ) -> None:
+        checkpoint_ids = self.checkpoint_mgr.list_checkpoints(
+            checkpoint.session.session_id
+        )
+        if (
+            not checkpoint_ids
+            or checkpoint_path.stem != checkpoint_ids[-1]
+        ):
+            # Historical reads must not replace the live session's runtime
+            # bindings. Rewind validates its target before deleting anything.
+            return
+        signature = self._reviewed_visual_binding_signature(checkpoint)
+        if (
+            self._reviewed_visual_binding_signatures.get(
+                checkpoint.session.session_id
+            )
+            == signature
+        ):
+            return
+        frozen_references = load_frozen_visual_references(
+            checkpoint,
+            runtime_root=self.image_generation.config.runtime_root,
+        )
+        self.image_generation.register_reviewed_visual_references(
+            checkpoint=checkpoint,
+            frozen_references=frozen_references,
+        )
+        self._reviewed_visual_binding_signatures[
+            checkpoint.session.session_id
+        ] = signature
+
+    @staticmethod
+    def _reviewed_visual_binding_signature(
+        checkpoint: CheckpointFile,
+    ) -> str:
+        payload = {
+            "registry": [
+                reference.model_dump(mode="json")
+                for reference in checkpoint.reviewed_visual_references
+            ],
+            "identities": [
+                (
+                    character.character_id,
+                    character.visuals.identity_reference_id,
+                )
+                for character in checkpoint.characters
+            ],
+            "locations": checkpoint.location_visual_reference_ids,
+        }
+        return hashlib.sha256(
+            json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+    async def lock_image_identity(
+        self,
+        *,
+        session_id: str,
+        candidate_id: str,
+    ):
+        async with await self._lock_for(session_id):
+            candidate = self.image_generation.lock_identity_candidate(
+                session_id=session_id,
+                candidate_id=candidate_id,
+            )
+            ckpt = self.load_latest(session_id)
+            character = next(
+                (
+                    item
+                    for item in ckpt.characters
+                    if item.character_id == candidate.character_id
+                ),
+                None,
+            )
+            if character is None:
+                raise ValueError(
+                    "identity candidate character is no longer in the roster"
+                )
+            character.visuals.identity_reference_id = candidate.candidate_id
+            self.checkpoint_mgr.save(ckpt)
+            return candidate
+
+    async def reroll_image_identity(
+        self,
+        *,
+        session_id: str,
+        reference_id: str,
+        pov_character_id: str,
+        delivery_kind: ImageDeliveryKind,
+        delivery: dict[str, object],
+    ):
+        async with await self._lock_for(session_id):
+            ckpt = self.load_latest(session_id)
+            reference_id = reference_id.strip()
+            if not reference_id:
+                active = self.image_generation.active_identity_candidate(
+                    session_id=session_id,
+                    character_id=pov_character_id,
+                )
+                character = next(
+                    (
+                        item
+                        for item in ckpt.characters
+                        if item.character_id == pov_character_id
+                    ),
+                    None,
+                )
+                reference_id = (
+                    active.candidate_id
+                    if active is not None
+                    else (
+                        character.visuals.identity_reference_id
+                        if character is not None
+                        else ""
+                    )
+                )
+            if not reference_id:
+                raise ValueError(
+                    "Your character has no identity reference to reroll."
+                )
+            checkpoint_path = (
+                self.sessions_dir
+                / session_id
+                / f"ckpt_{ckpt.session.turn_index:04d}.json"
+            )
+            checkpoint_hash = hashlib.sha256(
+                checkpoint_path.read_bytes()
+            ).hexdigest()
+            return await self.image_generation.reroll_identity_reference(
+                session_id=session_id,
+                reference_id=reference_id,
+                delivery_targets=[
+                    ImageDeliveryTarget(
+                        pov_character_id=pov_character_id,
+                        delivery_kind=delivery_kind,
+                        delivery=delivery,
+                    )
+                ],
+                checkpoint=ckpt,
+                source_checkpoint_sha256=checkpoint_hash,
+            )
 
     # ---- session lifecycle ---------------------------------------------------
 
@@ -281,7 +487,64 @@ class EngineBridge:
         path = self.stories_dir / story_id / "ckpt_0000.json"
         if not path.exists():
             raise FileNotFoundError(f"Story '{story_id}' not found at {path}")
-        return CheckpointFile.model_validate_json(path.read_text())
+        checkpoint = CheckpointFile.model_validate_json(path.read_text())
+        validate_story_visual_references(
+            checkpoint,
+            story_dir=path.parent,
+        )
+        return checkpoint
+
+    def story_summary(self, story_id: str) -> StorySummary:
+        checkpoint = self.load_story_ckpt(story_id)
+        setting = checkpoint.world_state.setting
+        title = setting.title.strip() or story_id.replace("_", " ").title()
+        playable_seat_count = sum(
+            1
+            for character in checkpoint.characters
+            if character.is_playable and character.status != CharacterStatus.culled
+        )
+        return StorySummary(
+            story_id=story_id,
+            title=title,
+            genre=setting.genre,
+            premise=setting.premise,
+            player_primer=checkpoint.player_primer,
+            recommended_players=setting.recommended_players,
+            play_guidance=setting.play_guidance,
+            playable_seat_count=playable_seat_count,
+        )
+
+    def list_story_summaries(
+        self,
+        *,
+        discoverable_only: bool = True,
+    ) -> list[StorySummary]:
+        summaries: list[StorySummary] = []
+        for story_id in self.list_story_ids():
+            checkpoint = self.load_story_ckpt(story_id)
+            if (
+                discoverable_only
+                and not checkpoint.world_state.setting.discoverable
+            ):
+                continue
+            setting = checkpoint.world_state.setting
+            summaries.append(StorySummary(
+                story_id=story_id,
+                title=setting.title.strip()
+                or story_id.replace("_", " ").title(),
+                genre=setting.genre,
+                premise=setting.premise,
+                player_primer=checkpoint.player_primer,
+                recommended_players=setting.recommended_players,
+                play_guidance=setting.play_guidance,
+                playable_seat_count=sum(
+                    1
+                    for character in checkpoint.characters
+                    if character.is_playable
+                    and character.status != CharacterStatus.culled
+                ),
+            ))
+        return summaries
 
     # ---- session primitives --------------------------------------------------
 
@@ -333,6 +596,7 @@ class EngineBridge:
                 f"Run /story delete first to unload it."
             )
 
+        self._reviewed_visual_binding_signatures.pop(session_id, None)
         data = json.loads(src.read_text())
         from app.schemas.checkpoint import CURRENT_SCHEMA_VERSION
 
@@ -344,9 +608,15 @@ class EngineBridge:
                 f"before starting a new session."
             )
         data["session"]["session_id"] = session_id
+        data["session"]["story_id"] = story_id
         data.pop("importer_version", None)
         data.pop("import_analysis", None)
         ckpt = CheckpointFile.model_validate(data)
+        freeze_story_visual_references(
+            ckpt,
+            story_dir=src.parent,
+            runtime_root=self.image_generation.config.runtime_root,
+        )
         sync_checkpoint_runtime_models(ckpt, self.client.config)
         (dst_dir / "ckpt_0000.json").write_text(
             ckpt.model_dump_json(
@@ -370,6 +640,8 @@ class EngineBridge:
         dst = self.sessions_dir / session_id
         if not dst.exists():
             raise FileNotFoundError(f"Session '{session_id}' does not exist.")
+        self.image_generation.store.cancel_session(session_id)
+        self._reviewed_visual_binding_signatures.pop(session_id, None)
         removed = 0
         for ckpt in dst.glob("ckpt_*.json"):
             ckpt.unlink()
@@ -393,26 +665,39 @@ class EngineBridge:
         validate the user's target and show the playable range."""
         return self.checkpoint_mgr.list_turn_indices(session_id)
 
-    def turn_history(self, session_id: str) -> list[TurnHistoryEntry]:
-        """Return transcript entries annotated with their checkpoint turn.
+    def turn_history(
+        self,
+        session_id: str,
+        pov_character_id: str,
+    ) -> list[TurnHistoryEntry]:
+        """Return only the narrator history generated for one player POV.
 
-        The transcript itself is append-only prose and does not store a turn
-        id. Reconstruct the display ids from checkpoint deltas so `/history`
-        uses the same numbers as `/rewind`.
+        Per-POV narrator conversations are already the authoritative rendered
+        camera streams. Reconstruct turn ids from checkpoint deltas instead of
+        reading the legacy session-global selected-POV transcript.
         """
+        if not pov_character_id.strip():
+            raise ValueError("History requires a selected character POV.")
         history: list[TurnHistoryEntry] = []
         previous_len = 0
         for turn in self.list_checkpoint_turns(session_id):
             ckpt = self.checkpoint_mgr.load(session_id, f"ckpt_{turn:04d}")
-            transcript = list(ckpt.transcript or [])
-            if len(transcript) < previous_len:
+            messages = list(
+                ckpt.narrator_conversations.get(pov_character_id, []) or []
+            )
+            if len(messages) < previous_len:
                 previous_len = 0
-            for entry in transcript[previous_len:]:
+            for message in messages[previous_len:]:
+                if message.role != "assistant":
+                    continue
+                text = _narrator_history_message_text(message.content)
+                if not text:
+                    continue
                 history.append(TurnHistoryEntry(
                     turn_index=turn,
-                    entry=entry,
+                    entry=TranscriptEntry(user="", assistant=text),
                 ))
-            previous_len = len(transcript)
+            previous_len = len(messages)
         return history
 
     def preview_rewind(
@@ -546,11 +831,29 @@ class EngineBridge:
                     f"Cannot rewind to turn {target_turn}: latest is now "
                     f"{current_latest}."
                 )
+            target_checkpoint = self.checkpoint_mgr.load(
+                session_id,
+                f"ckpt_{target_turn:04d}",
+            )
+            target_frozen_references = load_frozen_visual_references(
+                target_checkpoint,
+                runtime_root=self.image_generation.config.runtime_root,
+            )
+            target_visual_signature = (
+                self._reviewed_visual_binding_signature(target_checkpoint)
+            )
             await self.image_generation.cancel_after(session_id, target_turn)
             deleted = self.checkpoint_mgr.delete_checkpoints_after(
                 session_id, target_turn,
             )
             new_latest = self.list_checkpoint_turns(session_id)[-1]
+            self.image_generation.register_reviewed_visual_references(
+                checkpoint=target_checkpoint,
+                frozen_references=target_frozen_references,
+            )
+            self._reviewed_visual_binding_signatures[session_id] = (
+                target_visual_signature
+            )
 
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         actor_id = self._actor_id_after_rewind(ckpt)
@@ -650,13 +953,23 @@ class EngineBridge:
         """
         binding = self.get_user_binding(session_id, user_id)
         if binding:
-            try:
-                await self.synthesize_personality(session_id, binding)
-            except Exception:
-                logger.exception(
-                    "personality synthesis failed for %s; unbinding anyway",
-                    binding,
-                )
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            target = next(
+                (
+                    character
+                    for character in ckpt.characters
+                    if character.character_id == binding
+                ),
+                None,
+            )
+            if not is_player_authored_slot(target):
+                try:
+                    await self.synthesize_personality(session_id, binding)
+                except Exception:
+                    logger.exception(
+                        "personality synthesis failed for %s; unbinding anyway",
+                        binding,
+                    )
         return await self.unbind_user(session_id, user_id)
 
     async def synthesize_personality(
@@ -793,6 +1106,123 @@ class EngineBridge:
         with binding state. Used by /story characters when a session exists."""
         ckpt = self.checkpoint_mgr.load_latest(session_id)
         return _summaries_from_checkpoint(ckpt)
+
+    def opening_lobby(self, session_id: str) -> OpeningLobbyView:
+        """Player-safe readiness information for the story's first beat."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        playable = [
+            character
+            for character in ckpt.characters
+            if character.is_playable
+            and character.status != CharacterStatus.culled
+        ]
+        claimed = ckpt.session.character_bindings
+        return OpeningLobbyView(
+            requires_confirmation=bool(
+                ckpt.world_state.opening
+                and ckpt.world_state.opening.requires_claim_confirmation
+            ),
+            claimed_seat_names=tuple(
+                character.name
+                for character in playable
+                if character.character_id in claimed
+            ),
+            open_seat_names=tuple(
+                character.name
+                for character in playable
+                if character.character_id not in claimed
+            ),
+        )
+
+    def session_activity(
+        self,
+        session_id: str,
+        pov_character_id: str = "",
+    ) -> SessionActivityView:
+        """Return the shared, player-safe activity/status projection."""
+        ckpt = self.checkpoint_mgr.load_latest(session_id)
+        characters = {c.character_id: c for c in ckpt.characters}
+        bindings = ckpt.session.character_bindings or {}
+        viewpoint = characters.get(pov_character_id)
+        location = resolve_location_for_character(ckpt, pov_character_id)
+
+        joined_names = tuple(
+            character.name
+            for character in ckpt.characters
+            if character.character_id in bindings
+            and character.status != CharacterStatus.culled
+        )
+        nearby_names = tuple(
+            character.name
+            for character in ckpt.characters
+            if character.character_id != pov_character_id
+            and character.status == CharacterStatus.active
+            and bool(location)
+            and character.location == location
+            and not is_unbound_player_authored_slot(ckpt, character)
+        )
+
+        requested_ids: list[str] = []
+        if ckpt.canonical_events:
+            requested_ids = list(
+                ckpt.canonical_events[-1].next_output_character_ids or []
+            )
+        requested_names = tuple(
+            characters[character_id].name
+            for character_id in requested_ids
+            if character_id in characters and character_id in bindings
+        )
+
+        if ckpt.session.pending_narrator_render is not None:
+            state = "A story update is waiting to finish rendering."
+        else:
+            combat = checkpoint_active_combat(ckpt)
+            combatant = current_combatant(combat) if combat is not None else None
+            if combatant is not None:
+                state = f"D&D combat: {combatant_name(combatant)} is acting."
+            else:
+                waiting_names = tuple(
+                    characters[character_id].name
+                    for character_id, entry
+                    in ckpt.session.active_act_slots.items()
+                    if entry.reason != "initiator" and character_id in characters
+                )
+                if waiting_names:
+                    state = "Waiting on " + ", ".join(waiting_names) + "."
+                elif requested_names:
+                    state = (
+                        "Requested next: " + ", ".join(requested_names)
+                        + " (advisory; any joined player may act)."
+                    )
+                else:
+                    state = "Open table: any joined player may act."
+
+        last_visible_update = ""
+        if viewpoint is not None:
+            for message in reversed(
+                ckpt.narrator_conversations.get(pov_character_id, []) or []
+            ):
+                if message.role != "assistant":
+                    continue
+                last_visible_update = _narrator_history_message_text(
+                    message.content
+                ).strip()
+                if last_visible_update:
+                    last_visible_update = last_visible_update[:400]
+                    break
+
+        return SessionActivityView(
+            session_id=session_id,
+            story_id=ckpt.session.story_id,
+            turn_index=ckpt.session.turn_index,
+            state=state,
+            viewpoint_name=viewpoint.name if viewpoint is not None else "",
+            location=location,
+            joined_seat_names=joined_names,
+            nearby_character_names=nearby_names,
+            requested_next_names=requested_names,
+            last_visible_update=last_visible_update,
+        )
 
     def list_joinable_characters(self, session_id: str) -> list[CharacterSummary]:
         """Open pre-authored slots surfaced by `/join`.
@@ -1385,13 +1815,26 @@ class EngineBridge:
         wake them; the fiction decides reactivation.
         """
         ckpt = self.checkpoint_mgr.load_latest(session_id)
+        self._bind_user_in_checkpoint(ckpt, user_id, character_id)
+        self.checkpoint_mgr.save(ckpt)
+        return ckpt
+
+    @staticmethod
+    def _bind_user_in_checkpoint(
+        ckpt: CheckpointFile,
+        user_id: int,
+        character_id: str,
+    ) -> CharacterRecord:
+        """Validate and apply a binding without saving the checkpoint."""
         uid = str(user_id)
 
         target = next(
             (c for c in ckpt.characters if c.character_id == character_id), None
         )
         if target is None:
-            raise ValueError(f"No character '{character_id}' in this session.")
+            raise ValueError(
+                f"No character '{character_id}' in this session."
+            )
         if target.status.value == "culled":
             raise ValueError(
                 f"Character '{target.name}' is no longer in the story (culled)."
@@ -1420,8 +1863,110 @@ class EngineBridge:
             f"driven by a human player. Treat them as a protagonist; "
             f"the narrator may pivot POV to them."
         )
-        self.checkpoint_mgr.save(ckpt)
-        return ckpt
+        return target
+
+    async def claim_player_character(
+        self,
+        session_id: str,
+        character_id: str,
+        user_id: int,
+        *,
+        name: str = "",
+        appearance: str = "",
+    ) -> CheckpointFile:
+        """Strict player-facing claim shared by Discord and the CLI.
+
+        Unlike the internal takeover helper, this accepts only authored
+        playable seats. Player-authored seats require identity input and apply
+        identity plus binding in one checkpoint write, so a failed modal or
+        command can never leave a half-authored bound character behind.
+        """
+        async with await self._lock_for(session_id):
+            ckpt = self.checkpoint_mgr.load_latest(session_id)
+            target = next(
+                (
+                    character
+                    for character in ckpt.characters
+                    if character.character_id == character_id
+                ),
+                None,
+            )
+            if target is None:
+                raise ValueError(
+                    f"No character '{character_id}' in this session."
+                )
+            if not target.is_playable:
+                raise ValueError(
+                    f"Character '{target.name}' is not an available player seat."
+                )
+
+            chosen_name = " ".join(str(name or "").split()).strip()
+            chosen_appearance = str(appearance or "").strip()
+            if len(chosen_name) > 80:
+                raise ValueError("Character name must be 80 characters or fewer.")
+            if len(chosen_appearance) > 600:
+                raise ValueError("Appearance must be 600 characters or fewer.")
+            if is_player_authored_slot(target):
+                if not chosen_name:
+                    raise ValueError(
+                        f"'{target.name}' is a player-authored seat; choose "
+                        "your character's name before joining."
+                    )
+                if chosen_name.casefold() == target.name.strip().casefold():
+                    raise ValueError(
+                        f"Rename the player-authored seat '{target.name}' "
+                        "before joining."
+                    )
+                if not chosen_appearance:
+                    raise ValueError(
+                        f"'{target.name}' is a player-authored seat; describe "
+                        "your character's appearance before joining."
+                    )
+
+            self._bind_user_in_checkpoint(ckpt, user_id, character_id)
+            if chosen_name:
+                target.name = chosen_name
+            if chosen_appearance:
+                target.public_sheet.appearance = chosen_appearance
+                target.visuals.default_loadout = chosen_appearance
+            self.checkpoint_mgr.save(ckpt)
+            return ckpt
+
+    async def join_player_character(
+        self,
+        session_id: str,
+        character_id: str,
+        user_id: int,
+        *,
+        name: str = "",
+        appearance: str = "",
+    ) -> PlayerJoinResult:
+        """Claim a seat, then use the shared lobby/arrival lifecycle."""
+        ckpt = await self.claim_player_character(
+            session_id,
+            character_id,
+            user_id,
+            name=name,
+            appearance=appearance,
+        )
+        target = next(
+            character
+            for character in ckpt.characters
+            if character.character_id == character_id
+        )
+        pre_play = not any(ckpt.narrator_conversations.values())
+        response = None
+        if not pre_play:
+            response = await self.run_arrival_turn(
+                session_id=session_id,
+                acting_character_id=character_id,
+            )
+        return PlayerJoinResult(
+            character_id=character_id,
+            character_name=target.name,
+            pre_play=pre_play,
+            response=response,
+        )
 
     async def unbind_user(self, session_id: str, user_id: int) -> str | None:
         """Remove this user's binding, serialized on the per-session lock so
@@ -1454,11 +1999,30 @@ class EngineBridge:
             purge_character_state(ckpt, freed)
             del ckpt.session.character_bindings[freed]
             dnd_inventory.remove_character_from_loot_offers(ckpt, freed)
-            ckpt.session.pending_engine_state_updates.append(
-                f"Player binding: {freed} returned to "
-                f"AI control. Their character agent will resume producing "
-                f"intentions on cascade."
+            target = next(
+                (
+                    character
+                    for character in ckpt.characters
+                    if character.character_id == freed
+                ),
+                None,
             )
+            if is_player_authored_slot(target):
+                target.status = CharacterStatus.dormant
+                target.location = ""
+                ckpt.session.pending_engine_state_updates.append(
+                    f"Player binding: {freed} is no longer human-bound and "
+                    "has left the fiction. It is a player-authored slot, not "
+                    "an AI-controlled character."
+                )
+            else:
+                ckpt.session.pending_engine_state_updates.append(
+                    f"Player binding: {freed} returned to "
+                    f"AI control. Their character agent will resume producing "
+                    f"intentions on cascade."
+                )
+            if ckpt.session.player_character_id == freed:
+                ckpt.session.player_character_id = ""
             self.checkpoint_mgr.save(ckpt)
         return freed
 
@@ -1791,8 +2355,22 @@ class EngineBridge:
             appearance=authored.appearance,
             faction=authored.faction,
         )
+        self.image_generation.retire_character_identity(
+            session_id=session_id,
+            character_id=target_character_id,
+            source_turn_index=ckpt.session.turn_index,
+        )
         target.visuals = CharacterVisuals(
             default_loadout=authored.default_loadout or authored.appearance,
+        )
+        self.image_generation.suppress_reviewed_identity_binding(
+            session_id=session_id,
+            character_id=target_character_id,
+        )
+        self.image_generation.allow_character_identity_after(
+            session_id=session_id,
+            character_id=target_character_id,
+            minimum_source_turn=ckpt.session.turn_index + 1,
         )
         target.backstory = authored.backstory
         target.personality = authored.personality
@@ -3083,6 +3661,8 @@ def _build_takeover_context(
     for c in ckpt.characters:
         if c.status.value == "culled":
             continue
+        if is_player_authored_slot(c) and c.character_id not in bindings:
+            continue
         if c.character_id in bindings:
             marker = " [player-bound]"
         elif c.is_playable:
@@ -3095,14 +3675,30 @@ def _build_takeover_context(
         registry_lines.append(f"- {c.character_id}{role}{fac}{loc}{marker}")
     character_registry = "\n".join(registry_lines) or "(empty)"
 
-    transcript = ckpt.transcript[-6:] if ckpt.transcript else []
-    if transcript:
-        recent_bits = []
-        for entry in transcript:
-            recent_bits.append(f"> {entry.user}\n{entry.assistant}")
-        recent_session_summary = "\n\n".join(recent_bits)
-    else:
-        recent_session_summary = "(no turns played yet)"
+    viewer_character_id = next(
+        (
+            character_id
+            for character_id, user_id in bindings.items()
+            if user_id == str(invoking_user_id)
+        ),
+        "",
+    )
+    recent_messages = (
+        ckpt.narrator_conversations.get(viewer_character_id, [])[-6:]
+        if viewer_character_id
+        else []
+    )
+    recent_bits = [
+        text
+        for message in recent_messages
+        if message.role == "assistant"
+        if (text := _narrator_history_message_text(message.content))
+    ]
+    recent_session_summary = (
+        "\n\n".join(recent_bits)
+        if recent_bits
+        else "(no POV-safe turns available yet)"
+    )
 
     if picked_target is not None:
         picked_target_block = (
@@ -3291,6 +3887,31 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _narrator_history_message_text(content: Any) -> str:
+    if isinstance(content, str):
+        candidates = [content]
+    elif isinstance(content, list):
+        candidates = [
+            str(block.get("text", ""))
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+    else:
+        return ""
+    for candidate in reversed(candidates):
+        text = candidate.strip()
+        if not text:
+            continue
+        try:
+            return NarratorFinalOutput.model_validate_json(text).final_text
+        except Exception:
+            logger.warning(
+                "Skipping malformed narrator history envelope",
+                exc_info=True,
+            )
+    return ""
+
+
 def _parse_model_json(model_cls, content: str):
     """Parse a Pydantic model from the LLM's free-form JSON output.
 
@@ -3335,6 +3956,8 @@ def _summaries_from_checkpoint(ckpt: CheckpointFile) -> list[CharacterSummary]:
             status=char.status.value,
             is_playable=char.is_playable,
             bound_user_id=bindings.get(char.character_id, ""),
+            player_slot_kind=char.player_slot_kind.value,
+            player_guidance=char.player_guidance,
         ))
     return summaries
 
