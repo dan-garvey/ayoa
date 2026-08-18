@@ -349,6 +349,31 @@ def test_floor_zero_start_and_summon_pool() -> None:
         assert not any(leak in private for leak in lifecycle_leaks), pool_id
 
 
+def test_opening_goblin_chapter_is_authored_without_stale_slime_guidance() -> None:
+    checkpoint = _load_checkpoint()
+    by_id = {character.character_id: character for character in checkpoint.characters}
+
+    public_facts = "\n".join(checkpoint.world_state.facts).lower()
+    router_only = (
+        checkpoint.world_state.hidden_lore
+        + "\n"
+        + "\n".join(checkpoint.world_state.hidden_facts)
+    ).lower()
+    guide_context = by_id["iselle_the_guide"].known_context.lower()
+
+    assert "goblin" in public_facts
+    assert "goblin" in guide_context
+    assert "acid slime" not in public_facts
+    assert "acid slime" not in guide_context
+
+    for floor in range(1, 6):
+        assert f"floor {floor}" in router_only
+    assert "five minutes" in router_only
+    assert "hundreds of goblins" in router_only
+    assert "five-floor cadence" in router_only
+    assert "materially different motif" in router_only
+
+
 def test_expanded_summon_pool_spans_two_through_five_stars() -> None:
     checkpoint = _load_checkpoint()
     by_id = {character.character_id: character for character in checkpoint.characters}
