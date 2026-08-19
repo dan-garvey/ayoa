@@ -549,6 +549,84 @@ class TestRouteIntention:
         assert "decision_rationale" not in record.content
         assert '"canonical_event"' not in record.content
 
+    def test_router_history_carries_only_latest_private_mission_status(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        first = _router_output()
+        first.event_id = "evt_vote_one"
+        first.decision_rationale = (
+            "mission_status: id=council_vote; state=active; "
+            "completion=secure 3 council votes; progress=1/3 votes secured; "
+            "failure=the hearing adjourns without 3 votes; timing=untimed\n"
+            "The hidden patron remains useful diagnostic context only."
+        )
+        first.canonical_event.observable_facts = [
+            ObservableFact.all("The bronze councillor raises one hand.")
+        ]
+
+        second = _router_output()
+        second.event_id = "evt_vote_two"
+        second.decision_rationale = (
+            "The open hearing still gives Alice a concrete appeal.\n"
+            "mission_status: id=council_vote; state=active; "
+            "completion=secure 3 council votes; progress=2/3 votes secured; "
+            "failure=the hearing adjourns without 3 votes; timing=untimed"
+        )
+        second.canonical_event.observable_facts = [
+            ObservableFact.all("A second councillor places a seal on the petition.")
+        ]
+        mock_client.complete.side_effect = [
+            _llm_response(first),
+            _llm_response(second),
+        ]
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I make the case for opening the refuge.",
+        ))
+
+        first_record = ckpt.session_conversation[-1].content
+        assert "mission_status id=council_vote; state=active" in first_record
+        assert "progress=1/3 votes secured" in first_record
+        assert "hidden patron" not in first_record
+        assert all(
+            "mission_status" not in fact.text
+            for fact in first.canonical_event.observable_facts
+        )
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I answer the remaining objection.",
+        ))
+
+        replayed_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
+        system_content = replayed_messages[0]["content"]
+        current_user = _last_user_content(replayed_messages)
+        assert "progress=1/3 votes secured" not in system_content
+        assert "progress=1/3 votes secured" not in current_user
+        assert any(
+            message.get("role") == "assistant"
+            and "progress=1/3 votes secured" in message.get("content", "")
+            for message in replayed_messages
+        )
+
+        compact_history = "\n".join(
+            message.content
+            for message in ckpt.session_conversation
+            if isinstance(message.content, str)
+        )
+        assert compact_history.count("mission_status ") == 1
+        assert "progress=1/3 votes secured" not in compact_history
+        assert "progress=2/3 votes secured" in compact_history
+        assert "hidden patron" not in compact_history
+        assert all(
+            "mission_status" not in fact.text
+            for fact in second.canonical_event.observable_facts
+        )
+
     def test_materialized_spawn_name_stays_in_compact_router_history(
         self, prompt_mgr, mock_client,
     ):

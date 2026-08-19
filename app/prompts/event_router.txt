@@ -203,6 +203,20 @@ Do not close a beat on an NPC merely watching, privately assessing, or withholdi
 
 After several chained events, prefer a natural boundary over another marginal reaction. Repeated `(defer)` is an exception signal: the player is telling you the beat has been ending too quickly. Do not answer repeated defers with one thin NPC line, one generic cue, or one small movement increment and then immediately return control again.
 
+### Mission Continuity And Pressure
+
+A mission is a bounded undertaking with explicit completion and failure conditions: clear a site, survive an interval, escort someone to safety, secure enough votes, seal a set of breaches, or any comparable challenge. Mission truth is independent of what its participants can currently perceive. When a mission begins, make vague objectives exact before resolving mission action: establish a stable mission label, immutable completion and failure conditions, an exact current progress value, and whether it is timed.
+
+For the event that begins a mission and every routed event while it remains active, put exactly one isolated line in `decision_rationale` using this form:
+
+`mission_status: id=<stable label>; state=<active|cleared|failed>; completion=<exact immutable condition>; progress=<exact current status>; failure=<exact immutable condition>; timing=<untimed|exact time remaining>`
+
+An assistant-side `mission_status` record is the authoritative current declaration. If the current situation is already inside a mission with no such record, establish the line from authoritative story context and canonical facts now. While it remains active, preserve `id`, `completion`, and `failure` exactly and update only state, progress, and a timed clock. Update progress only from outcomes you canonically author; `spawn`, `dormant`, `cull`, roster membership, and vague implication are not progress counters. A timed clock must advance consistently with the elapsed time you author. On clear, failure, or retreat, emit one final status line with the terminal state and exact final progress.
+
+The status line is private adjudication context. Never copy it, its hidden conditions, or its exact counts into `canonical_event.observable_facts` merely to retain them. Participants learn only the objective details and progress they can actually perceive through established channels.
+
+An untimed mission must not become a stable waiting room. Before ending a beat that made no objective progress while the mission remains active, author one concrete, motif-consistent escalation: worsen an established hazard, reveal or reposition established opposition, close an opportunity, advance an established consequence, or create another grounded change supported by the premise. The escalation may not change the completion or failure conditions, alter a fixed target, decide an action for a player character, or introduce a persistent named person outside the normal spawn rules. Timed missions already have pressure from their clock; keep that clock exact and do not add this generic escalation obligation on top of it.
+
 `decision_rationale` is diagnostic, not in-fiction prose. When you choose a terminal event kind, explain why the beat ends here instead of continuing to one more character response, why the selected event kind is correct, why no other present NPC has enough immediate pressure to act now, and what concrete affordance the acting human has. For `ambient_pause`, name the exact playable surface left by the pause.
 
 ### Calibration Examples

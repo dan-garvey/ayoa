@@ -441,6 +441,53 @@ def _compact_id_list(values: list[str]) -> str:
     return ",".join(value for value in values if value) or "-"
 
 
+_MISSION_STATUS_RATIONALE_PREFIX = "mission_status:"
+_MISSION_STATUS_HISTORY_PREFIX = "mission_status "
+
+
+def _mission_status_history_line(decision_rationale: str) -> str:
+    """Project one marked mission snapshot out of router diagnostics."""
+    marked = [
+        line.strip()
+        for line in (decision_rationale or "").splitlines()
+        if line.strip().startswith(_MISSION_STATUS_RATIONALE_PREFIX)
+    ]
+    if len(marked) > 1:
+        raise ValueError("router emitted more than one mission_status line")
+    if not marked:
+        return ""
+    status = _compact_router_history_text(
+        marked[0][len(_MISSION_STATUS_RATIONALE_PREFIX):]
+    )
+    if not status:
+        raise ValueError("router emitted an empty mission_status line")
+    return _MISSION_STATUS_HISTORY_PREFIX + status
+
+
+def _drop_superseded_mission_status(
+    conversation: list[ConversationMessage],
+) -> None:
+    """Keep one current mission snapshot across compact prior events."""
+    for index, message in enumerate(conversation):
+        if (
+            message.role != "assistant"
+            or not isinstance(message.content, str)
+            or not message.content.startswith("prior_event ")
+        ):
+            continue
+        lines = message.content.splitlines()
+        retained = [
+            line
+            for line in lines
+            if not line.startswith(_MISSION_STATUS_HISTORY_PREFIX)
+        ]
+        if len(retained) != len(lines):
+            conversation[index] = ConversationMessage(
+                role="assistant",
+                content="\n".join(retained),
+            )
+
+
 def _defer_history_user_prompt(intention: str) -> str:
     """Return the compact user-history entry for defer, if applicable.
 
@@ -467,8 +514,10 @@ def _router_history_record(
 
     Router history exists to carry canonical continuity, not to replay the
     full structured-output envelope. Store a deterministic event memory and
-    omit the raw user message, `decision_rationale`, feasibility boilerplate,
-    empty schema fields, and JSON punctuation.
+    omit the raw user message, broad `decision_rationale`, feasibility
+    boilerplate, empty schema fields, and JSON punctuation. The one marked
+    mission snapshot is retained because it is continuity rather than
+    diagnostic explanation.
     """
     header = preserved_header
     if not header:
@@ -489,6 +538,9 @@ def _router_history_record(
             )
 
     lines = [header]
+    mission_status = _mission_status_history_line(result.decision_rationale)
+    if mission_status:
+        lines.append(mission_status)
 
     for fact in result.canonical_event.observable_facts:
         text = _compact_router_history_text(fact.text)
@@ -588,6 +640,13 @@ def _append_router_history_record(
     mode: str = "intention",
     user_prompt: str = "",
 ) -> None:
+    record = _router_history_record(
+        acting_character_id=acting_character_id,
+        result=result,
+        mode=mode,
+    )
+    if f"\n{_MISSION_STATUS_HISTORY_PREFIX}" in record:
+        _drop_superseded_mission_status(conversation)
     if user_prompt:
         conversation.append(ConversationMessage(
             role="user",
@@ -595,11 +654,7 @@ def _append_router_history_record(
         ))
     conversation.append(ConversationMessage(
         role="assistant",
-        content=_router_history_record(
-            acting_character_id=acting_character_id,
-            result=result,
-            mode=mode,
-        ),
+        content=record,
     ))
 
 
