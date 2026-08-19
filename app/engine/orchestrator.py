@@ -87,7 +87,10 @@ from app.llm.client import LLMClient
 # `app.engine.orchestrator.LLMDispatcher` without reaching into the
 # adapter module directly. Hard import now that the Dispatcher has
 # landed — a missing module is a real packaging error.
-from app.engine.turn_loop_dispatcher import LLMDispatcher
+from app.engine.turn_loop_dispatcher import (
+    LLMDispatcher,
+    refresh_router_history_record,
+)
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.requests import TurnRequest
@@ -912,6 +915,11 @@ class Orchestrator:
                 actor_id=actor_id,
             )
             event_runtime.apply_records(ckpt, records)
+            refresh_router_history_record(
+                ckpt.session_conversation,
+                result=event,
+                spawned_characters=records,
+            )
         self.checkpoint_mgr.save(ckpt)
         return True
 
@@ -1048,6 +1056,11 @@ class Orchestrator:
                 event_runtime.apply_records(
                     ckpt,
                     records,
+                )
+                refresh_router_history_record(
+                    ckpt.session_conversation,
+                    result=evt,
+                    spawned_characters=records,
                 )
         loot_prompts = dnd_inventory.apply_loot_offers_from_events(
             ckpt,

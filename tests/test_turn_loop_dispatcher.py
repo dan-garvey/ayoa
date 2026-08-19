@@ -24,6 +24,7 @@ from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
     _build_router_context,
     _router_ruleset_template_vars,
+    refresh_router_history_record,
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
@@ -39,6 +40,7 @@ from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
     ObserverEntry,
+    SpawnRequest,
 )
 from app.schemas.events import ObservableFact
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
@@ -546,6 +548,63 @@ class TestRouteIntention:
         assert "I check whether the hinge is loose" not in record.content
         assert "decision_rationale" not in record.content
         assert '"canonical_event"' not in record.content
+
+    def test_materialized_spawn_name_stays_in_compact_router_history(
+        self, prompt_mgr, mock_client,
+    ):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        spawned_event = _router_output()
+        spawned_event.event_id = "evt_spawn_sera"
+        spawned_event.spawn = [
+            SpawnRequest(
+                character_id="sera_01",
+                seed={
+                    "role": "cartographer",
+                    "reason": "the expedition needs a guide",
+                    "location": "courtyard",
+                    "objectives": ["map the north road"],
+                },
+            ),
+        ]
+        mock_client.complete.side_effect = [
+            _llm_response(spawned_event),
+            _llm_response(_router_output()),
+        ]
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I call for a guide.",
+        ))
+        generated = character_record(
+            "sera_01",
+            name="Sera Vale",
+            role="cartographer",
+            location="courtyard",
+            personality="Keeps a forbidden private ledger.",
+        )
+
+        assert refresh_router_history_record(
+            ckpt.session_conversation,
+            result=spawned_event,
+            spawned_characters=[generated],
+        )
+        compact = ckpt.session_conversation[-1].content
+        assert "source=alice mode=intention" in compact
+        assert "spawn sera_01 name=Sera Vale role=cartographer" in compact
+        assert "forbidden private ledger" not in compact
+
+        asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="I deploy Sera Vale.",
+        ))
+        next_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
+        assert any(
+            message.get("role") == "assistant"
+            and "spawn sera_01 name=Sera Vale" in message.get("content", "")
+            for message in next_messages
+        )
 
     def test_router_history_preserves_defer_user_prompt(
         self, prompt_mgr, mock_client,

@@ -59,11 +59,13 @@ class ClosedEventRuntime:
         event_sequence: int,
         actor_id: str,
     ) -> None:
-        key = self.start_spawn_authoring(
-            checkpoint=checkpoint,
-            event=event,
-            actor_id=actor_id,
-        )
+        key = self.spawn_keys_by_event_id.get(event.event_id)
+        if key is None:
+            key = self.start_spawn_authoring(
+                checkpoint=checkpoint,
+                event=event,
+                actor_id=actor_id,
+            )
         if self.image_sink is not None:
             self.image_sink.on_closed_event(
                 checkpoint=checkpoint,

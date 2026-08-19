@@ -972,25 +972,31 @@ def _human_next_output_ids(
     return [cid for cid in intended if cid in humans]
 
 
-async def _materialize_required_responder_spawns(
+async def _materialize_router_spawns_for_dispatch(
     dispatcher: Dispatcher,
     ckpt: CheckpointFile,
     result: EventRouterOutput,
     *,
     actor_id: str,
-    required: list[str],
+    character_ids: list[str],
+    contract_label: str,
+    require_all: bool,
 ) -> None:
-    """Ensure Cat II required responders exist before any dispatch.
+    """Materialize same-output spawns needed before an in-beat dispatch.
 
     Router-authored `spawn` is normally a post-beat orchestrator side effect,
-    but Cat II responder collection happens inside `run_beat`. If the router
-    names a newly discovered NPC as a required responder and also emits the
-    spawn request in the same output, materialize that spawn before calling the
-    character agent. A required responder with no character record and no
-    matching spawn is a router contract violation.
+    but both Cat II responder collection and next-output cascades happen inside
+    `run_beat`. Materialize any selected ids backed by this output's spawn
+    requests before broadcasting the event, so the new character receives its
+    visible facts before the character agent is called.
+
+    Cat II requires every missing responder to be backed by a spawn request.
+    Ordinary next-output routing keeps the existing continuation rescue for
+    unrelated unknown ids, but a matching spawn that fails to materialize is a
+    loud runtime contract violation in either mode.
     """
     known_ids = {char.character_id for char in ckpt.characters}
-    missing = [cid for cid in required if cid not in known_ids]
+    missing = [cid for cid in character_ids if cid not in known_ids]
     if not missing:
         return
 
@@ -1004,8 +1010,8 @@ async def _materialize_required_responder_spawns(
         materializer = getattr(dispatcher, "materialize_spawns", None)
         if materializer is None:
             raise RuntimeError(
-                "Cat II required responders are not in the roster and the "
-                "dispatcher cannot materialize router spawns before dispatch: "
+                f"{contract_label} are not in the roster and the dispatcher "
+                "cannot materialize router spawns before dispatch: "
                 + ", ".join(materializable)
             )
         await materializer(
@@ -1016,13 +1022,51 @@ async def _materialize_required_responder_spawns(
         )
 
     known_ids = {char.character_id for char in ckpt.characters}
-    still_missing = [cid for cid in required if cid not in known_ids]
+    must_exist = missing if require_all else materializable
+    still_missing = [cid for cid in must_exist if cid not in known_ids]
     if still_missing:
         raise RuntimeError(
-            "Cat II required responders are not in the roster and were not "
-            "spawned by the router output: "
+            f"{contract_label} are not in the roster and were not spawned by "
+            "the router output: "
             + ", ".join(still_missing)
         )
+
+
+async def _materialize_required_responder_spawns(
+    dispatcher: Dispatcher,
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+    required: list[str],
+) -> None:
+    await _materialize_router_spawns_for_dispatch(
+        dispatcher,
+        ckpt,
+        result,
+        actor_id=actor_id,
+        character_ids=required,
+        contract_label="Cat II required responders",
+        require_all=True,
+    )
+
+
+async def _materialize_next_output_spawns(
+    dispatcher: Dispatcher,
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+    *,
+    actor_id: str,
+) -> None:
+    await _materialize_router_spawns_for_dispatch(
+        dispatcher,
+        ckpt,
+        result,
+        actor_id=actor_id,
+        character_ids=result.next_output_character_ids,
+        contract_label="Router next-output characters",
+        require_all=False,
+    )
 
 
 def _cat_ii_resolution_followup_ids(
@@ -3034,6 +3078,12 @@ async def run_beat(
                 # The only "responder" was the initiator themselves; treat
                 # this as Cat I — there's nothing to contest. Broadcast the
                 # canonical event as-is and continue.
+                await _materialize_next_output_spawns(
+                    dispatcher,
+                    ckpt,
+                    result,
+                    actor_id=result_actor_id,
+                )
                 broadcast_event(ckpt, result, actor_id=result_actor_id)
                 event_actor_ids.append(result_actor_id)
                 events_closed += 1
@@ -3205,6 +3255,13 @@ async def run_beat(
             "observation_harvest",
             "query_response",
         }
+        if result.event_kind in {"beat_continues", "public_fact"}:
+            await _materialize_next_output_spawns(
+                dispatcher,
+                ckpt,
+                result,
+                actor_id=result_actor_id,
+            )
         broadcast_event(
             ckpt,
             result,

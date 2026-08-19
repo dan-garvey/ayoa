@@ -403,9 +403,11 @@ class CharacterManager:
         """Generate a single character via LLM.
 
         Returns the freshly-built CharacterRecord plus the LLM-authored
-        `router_summary`. Router-authored spawns are already present in
-        compact router history, so the summary is not queued into the next
-        router input.
+        `router_summary`. Router-authored spawns are already present in compact
+        router history, so the summary is not queued into the next router
+        input. The materialized display name is retained separately on that
+        compact spawn record because it did not exist when the router authored
+        the request.
 
         Spawn-location resolution chain:
           1. router-supplied `req.seed.location`

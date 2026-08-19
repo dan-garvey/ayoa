@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 
 from app.engine import narrator as narrator_module
@@ -49,6 +50,7 @@ from app.engine.turn_loop_contracts import (
     format_router_continuation_block,
 )
 from app.llm.client import LLMClient
+from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
@@ -227,7 +229,8 @@ def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:
 
     Explicitly excluded:
     - router-authored spawn/dormant/cull/location/commitment changes
-    - spawned-character summaries; spawn materialization failure is fatal
+    - spawned-character summaries or interior; the generated display name is
+      folded into the corresponding compact `prior_event` spawn line instead
     - combat deaths/effect expirations when they are already emitted through
       compact history or post-combat continuity updates
     - D&D Cat II resolver outputs, which are compact router history
@@ -457,6 +460,8 @@ def _router_history_record(
     acting_character_id: str,
     result: EventRouterOutput,
     mode: str = "intention",
+    spawn_names: Mapping[str, str] | None = None,
+    preserved_header: str = "",
 ) -> str:
     """Compact assistant-side memory of a prior router output.
 
@@ -465,21 +470,23 @@ def _router_history_record(
     omit the raw user message, `decision_rationale`, feasibility boilerplate,
     empty schema fields, and JSON punctuation.
     """
-    header = (
-        f"prior_event {result.event_id} @{result.effective_at_s}"
-        f"+{result.duration_s} source={acting_character_id or '-'} mode={mode}"
-    )
-    if result.event_kind != "beat_continues":
-        header += f" end={result.event_kind}"
-    if result.requires_responders:
-        header += f" requires={_compact_id_list(result.required_responders)}"
-    if result.next_output_character_ids:
-        header += f" next={_compact_id_list(result.next_output_character_ids)}"
-    if result.perception_enrichment_character_ids:
-        header += (
-            " enrich="
-            f"{_compact_id_list(result.perception_enrichment_character_ids)}"
+    header = preserved_header
+    if not header:
+        header = (
+            f"prior_event {result.event_id} @{result.effective_at_s}"
+            f"+{result.duration_s} source={acting_character_id or '-'} mode={mode}"
         )
+        if result.event_kind != "beat_continues":
+            header += f" end={result.event_kind}"
+        if result.requires_responders:
+            header += f" requires={_compact_id_list(result.required_responders)}"
+        if result.next_output_character_ids:
+            header += f" next={_compact_id_list(result.next_output_character_ids)}"
+        if result.perception_enrichment_character_ids:
+            header += (
+                " enrich="
+                f"{_compact_id_list(result.perception_enrichment_character_ids)}"
+            )
 
     lines = [header]
 
@@ -518,6 +525,11 @@ def _router_history_record(
                 f"reason={_compact_router_history_text(spawn.seed.reason)}",
                 f"loc={_compact_router_history_text(spawn.seed.location)}",
             ]
+            name = _compact_router_history_text(
+                (spawn_names or {}).get(spawn.character_id, "")
+            )
+            if name:
+                seed_bits.insert(0, f"name={name}")
             if objectives:
                 seed_bits.append(f"objectives={objectives}")
             lines.append(f"spawn {spawn.character_id} " + " ".join(seed_bits))
@@ -594,21 +606,27 @@ def _append_router_history_record(
 def refresh_router_history_record(
     conversation: list[ConversationMessage],
     *,
-    acting_character_id: str,
     result: EventRouterOutput,
-    mode: str = "intention",
-) -> None:
+    acting_character_id: str | None = None,
+    mode: str | None = None,
+    spawned_characters: Sequence[CharacterRecord] = (),
+) -> bool:
     """Replace the compact memory for a router event after mutation.
 
     Harvest paths append authoritative perception facts after the router
-    output has already been normalized and stored. Keep the durable
-    router ledger aligned with the final canonical event object.
+    output has already been normalized and stored. Spawn authoring assigns
+    public display names after the router output exists. Keep both mutations
+    in the same durable `prior_event` projection without restoring generated
+    summaries or a full roster replay.
     """
-    content = _router_history_record(
-        acting_character_id=acting_character_id,
-        result=result,
-        mode=mode,
-    )
+    spawn_names = {
+        character.character_id: character.name
+        for character in spawned_characters
+        if character.character_id and character.name
+    }
+    identity_only = acting_character_id is None and mode is None
+    if identity_only and (not spawn_names or not result.spawn):
+        return False
     prefix = f"prior_event {result.event_id} "
     for index in range(len(conversation) - 1, -1, -1):
         message = conversation[index]
@@ -617,15 +635,26 @@ def refresh_router_history_record(
             and isinstance(message.content, str)
             and message.content.startswith(prefix)
         ):
+            preserved_header = ""
+            if acting_character_id is None or mode is None:
+                preserved_header = message.content.split("\n", 1)[0]
             conversation[index] = ConversationMessage(
                 role="assistant",
-                content=content,
+                content=_router_history_record(
+                    acting_character_id=acting_character_id or "",
+                    result=result,
+                    mode=mode or "intention",
+                    spawn_names=spawn_names,
+                    preserved_header=preserved_header,
+                ),
             )
-            return
-    logger.warning(
-        "Router history refresh found no prior record for event %s",
-        result.event_id,
-    )
+            return True
+    if not identity_only:
+        logger.warning(
+            "Router history refresh found no prior record for event %s",
+            result.event_id,
+        )
+    return False
 
 
 def _normalize_router_result_for_history(
@@ -732,10 +761,11 @@ class LLMDispatcher:
         """Materialize router spawns needed before in-beat dispatch.
 
         Most router spawns are applied by the orchestrator after `run_beat`.
-        Cat II responder dispatch is earlier than that, so its event's full
-        authored result is applied immediately in router order through the
-        orchestrator-owned callback. The post-beat pass then observes the same
-        records as already applied without creating characters a second time.
+        Cat II responder and same-event next-output dispatch happen earlier,
+        so the event's full authored result is applied immediately in router
+        order through the orchestrator-owned callback. The post-beat pass then
+        observes the same records as already applied without creating
+        characters a second time.
         """
         target_ids = {cid for cid in character_ids if cid}
         if not target_ids:
@@ -758,16 +788,22 @@ class LLMDispatcher:
                 "closed-event runtime"
             )
         # Start every spawn on the finalized router output from one immutable
-        # snapshot, then await only because Cat II needs these responders now.
+        # snapshot, then await because an in-beat dispatch needs the records.
         records = await runtime.authored_records(
             checkpoint=ckpt,
             event=result,
             actor_id=actor_id,
         )
-        return runtime.apply_records(
+        applied = runtime.apply_records(
             ckpt,
             records,
         )
+        refresh_router_history_record(
+            ckpt.session_conversation,
+            result=result,
+            spawned_characters=records,
+        )
+        return applied
 
     # ------------------------------------------------------------------
     # route_intention

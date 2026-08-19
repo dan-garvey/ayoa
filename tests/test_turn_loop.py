@@ -888,6 +888,67 @@ class TestBeatCascade:
                 intention="wait",
             ))
 
+    def test_next_output_spawn_materializes_before_broadcast_and_dispatch(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_id="evt_scout_arrives",
+            agent_ids=["new_scout"],
+            observer_ids=["alice", "new_scout"],
+            ends_beat=False,
+            facts=[ObservableFact.all("A scout steps through the gate.")],
+            spawn=[
+                SpawnRequest(
+                    character_id="new_scout",
+                    seed={
+                        "role": "rain-soaked scout",
+                        "reason": "the gate needs a warning",
+                        "location": "gatehouse",
+                        "objectives": ["warn Alice"],
+                    },
+                ),
+            ],
+        ))
+        fake.queue_agent("The scout delivers the warning.")
+        fake.queue_route(_router_out(ends_beat=True))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I wait for news.",
+        ))
+
+        scout = next(c for c in ckpt.characters if c.character_id == "new_scout")
+        assert result.ended_reason == "directed_at_player"
+        assert fake.continuation_calls == []
+        assert fake.materialize_calls[0]["character_ids"] == ["new_scout"]
+        assert fake.agent_calls[0]["character_id"] == "new_scout"
+        assert fake.agent_character_exists == [True]
+        assert "A scout steps through the gate." in scout.pending_observations
+
+    def test_continuation_still_cannot_open_cat_ii(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(ends_beat=False))
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            observer_ids=["alice", "pip"],
+            ends_beat=False,
+        ))
+
+        with pytest.raises(RuntimeError, match="continuation opened Cat II"):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="wait",
+            ))
+
+        assert fake.materialize_calls == []
+        assert fake.agent_calls == []
+
 
 class TestCatIIBeat:
     def test_cat_ii_with_agent_responder_resolves_inline(self):

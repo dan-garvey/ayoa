@@ -20,9 +20,12 @@ from app.engine.image_generation import (
     ImageGenerationCoordinator,
 )
 from app.engine.orchestrator import Orchestrator
+from app.engine.prompt_manager import PromptManager
 from app.engine.spawn_authoring import SpawnAuthoringCoordinator
-from app.engine.turn_loop import broadcast_event, run_beat
+from app.engine.turn_loop import BeatResult, broadcast_event, run_beat
+from app.engine.turn_loop_dispatcher import _router_history_record
 from app.schemas.characters import CharacterRecord, PublicSheet
+from app.schemas.conversation import ConversationMessage
 from app.schemas.image_director import ImageDirectorOutput
 from app.schemas.image_generation import ImageDeliveryKind
 from app.schemas.event_router import EventRouterOutput
@@ -224,6 +227,94 @@ async def test_closed_event_starts_spawn_and_notifies_image_sink_without_awaitin
     )
     assert runtime.apply_records(ckpt, records) == ["guide", "porter"]
     assert runtime.apply_records(ckpt, records) == []
+
+
+@pytest.mark.asyncio
+async def test_preapplied_spawn_reuses_authoring_key_when_event_closes():
+    ckpt = checkpoint()
+    event = _spawn_event()
+    manager = BlockingCharacterManager()
+    manager.release.set()
+    coordinator = SpawnAuthoringCoordinator(manager)
+    sink = RecordingSink()
+    runtime = ClosedEventRuntime(
+        transaction_id="tx_preapplied",
+        source_turn_index=1,
+        spawn_authoring=coordinator,
+        image_sink=sink,
+        record_applier=Orchestrator._apply_authored_spawn_records,
+    )
+
+    records = await runtime.authored_records(
+        checkpoint=ckpt,
+        event=event,
+        actor_id="alice",
+    )
+    key = runtime.spawn_keys_by_event_id[event.event_id]
+    assert runtime.apply_records(ckpt, records) == ["guide", "porter"]
+
+    runtime.close_event(
+        checkpoint=ckpt,
+        event=event,
+        event_sequence=0,
+        actor_id="alice",
+    )
+
+    assert manager.calls == 1
+    assert sink.calls[0]["spawn_key"] == key
+
+
+@pytest.mark.asyncio
+async def test_post_beat_spawn_keeps_generated_names_in_prior_event():
+    ckpt = checkpoint()
+    event = _spawn_event()
+    ckpt.canonical_events.append(event)
+    ckpt.session_conversation = [
+        ConversationMessage(
+            role="assistant",
+            content=_router_history_record(
+                acting_character_id="alice",
+                result=event,
+                mode="intention",
+            ),
+        ),
+    ]
+    manager = BlockingCharacterManager()
+    manager.release.set()
+    coordinator = SpawnAuthoringCoordinator(manager)
+    orchestrator = Orchestrator(
+        client=SimpleNamespace(),
+        checkpoint_mgr=SimpleNamespace(),
+        prompt_mgr=PromptManager("app/prompts"),
+        spawn_authoring=coordinator,
+    )
+    orchestrator._ensure_closed_event_runtime(ckpt)
+    beat = BeatResult(
+        renders={},
+        events_closed=1,
+        ended_reason="state_change",
+        transcript_entries={},
+        event_actor_ids=["alice"],
+    )
+
+    await orchestrator._apply_beat_roster_side_effects(
+        ckpt,
+        beat,
+        log_label="test",
+    )
+    await orchestrator._apply_beat_roster_side_effects(
+        ckpt,
+        beat,
+        log_label="test duplicate pass",
+    )
+
+    assert [c.character_id for c in ckpt.characters].count("guide") == 1
+    assert [c.character_id for c in ckpt.characters].count("porter") == 1
+    compact = ckpt.session_conversation[0].content
+    assert "source=alice mode=intention" in compact
+    assert "spawn guide name=Guide role=guide" in compact
+    assert "spawn porter name=Porter role=porter" in compact
+    assert "practical travel clothes" not in compact
 
 
 def test_broadcast_notifies_sidecar_after_event_is_finalized_in_canonical_log():
