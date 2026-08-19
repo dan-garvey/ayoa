@@ -293,7 +293,9 @@ def test_master_is_offstage_unreachable_actor() -> None:
     assert master.private_state.intentions_enabled is True
     private = master.descriptions.private.lower()
     assert "novice" in private
-    assert "router" in private  # explicitly adjudicated by the router, not it
+    assert "fallible" in private
+    assert "uncertain outcomes" in private
+    assert "router" not in private
 
 
 def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> None:
@@ -605,12 +607,14 @@ def test_lobby_master_and_guide_framing() -> None:
     assert "not a part of the tower" in lore
     assert "lobby vs. tower" in rules_lower
 
-    # Concern 1/5: the Master forms the party; the guide only assists.
-    assert "the master forms and arranges the party" in facts
+    # Concern 1/5: the Master prepares the party before deployment; the guide
+    # only assists and the deployed Heroes command themselves.
+    assert "the master prepares the party before a mission" in facts
+    assert "after deployment, the heroes command themselves" in facts
     iselle = by_id["iselle_the_guide"]
     assert "master" in iselle.public_sheet.role.lower()
     guide_ctx = iselle.known_context.lower()
-    assert "the master forms the party" in guide_ctx
+    assert "the master chooses the floor and prepares the party" in guide_ctx
     assert "does not treat a hero" in guide_ctx
 
     # Concern 5: the narrator is told to aim the guide's coaching at the Master.
@@ -650,7 +654,7 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     ):
         assert facility in facts_lore, facility
     assert "facilities and lobby management" in lore
-    assert "building and upgrading" in facts
+    assert "builds and upgrades" in facts
     assert "waiting room" in facts
     assert "shrine" not in facts_lore  # repurposed, not a purposeless building
 
@@ -672,11 +676,78 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     assert "warden" in hidden
     assert "treat it like synthesis" in hidden
 
-    # The Master's toolkit now includes building facilities and transformation.
+    # The Master's lobby toolkit includes facilities and transformation.
     master = by_id["the_master"]
     persona = master.personality.lower()
-    assert "build and upgrade the lobby's facilities" in persona
+    assert "facilities and upgrades" in persona
     assert "transformation" in persona
+
+
+def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
+    """The Master owns lobby and pre-deployment choices, not Hero tactics."""
+    checkpoint = _load_checkpoint()
+    ws = checkpoint.world_state
+    by_id = {c.character_id: c for c in checkpoint.characters}
+    master = by_id["the_master"]
+    iselle = by_id["iselle_the_guide"]
+
+    player_contract = "\n".join(
+        (
+            checkpoint.player_primer,
+            ws.setting.play_guidance,
+            master.player_guidance,
+            master.personality,
+            master.known_context,
+        )
+    ).lower()
+    for management_choice in (
+        "summon",
+        "facilities",
+        "choose the floor",
+        "roster",
+        "loadout",
+        "opening formation",
+    ):
+        assert management_choice in player_contract
+
+    # The human-facing Master contract permits observation, including the
+    # one-way audio feed, while explicitly assigning mission choices to Heroes.
+    assert "during a mission" in master.player_guidance.lower()
+    assert "mostly watch" in player_contract
+    assert "switch the available live hero feed" in player_contract
+    assert "advances through the heroes' next actions" in player_contract
+    assert "hear" in master.player_guidance.lower()
+    assert "audible hero dialogue" in master.player_guidance.lower()
+    assert "cannot speak or type" in master.player_guidance.lower()
+    assert "heroes choose targets" in player_contract
+    assert "cannot choose targets" in master.known_context.lower()
+
+    adjudication = (
+        ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)
+    ).lower()
+    assert "master mission boundary (authoritative)" in adjudication
+    assert "crossing the deployment gate commits" in adjudication
+    assert "mission advances without routine master input" in adjudication
+    assert "next deployed hero under pressure acts" in adjudication
+    assert "after at most one brief coordination exchange" in adjudication
+    assert "concrete movement, scouting, attack, or retreat" in adjudication
+    assert "never stop on a warning or approaching threat" in adjudication
+    assert "none exists at the start" in adjudication
+
+    # The tutorial guide must not recreate the removed tactical control loop.
+    guide_contract = "\n".join(
+        (iselle.public_sheet.role, iselle.personality, iselle.known_context)
+    ).lower()
+    assert "heroes act for themselves" in guide_contract
+    assert "does not ask the master to choose targets" in guide_contract
+    for obsolete_tactical_cue in (
+        "target priority",
+        "priority directives",
+        "item and consumable use",
+        "advance or retreat",
+    ):
+        assert obsolete_tactical_cue not in player_contract
+        assert obsolete_tactical_cue not in guide_contract
 
 
 def test_knowledge_tier_ladder_gradient() -> None:
