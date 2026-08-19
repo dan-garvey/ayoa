@@ -15,9 +15,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from app.schemas.image_generation import ImageGenerationRequest, ImageWorkerResult
+from app.schemas.image_director import ImageGenerationMode
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,9 @@ DEFAULT_LORA_STRENGTH = 0.8
 DEFAULT_LORA_TRIGGER = "ayoapmu2"
 DEFAULT_REMOTE_MODEL_ID = "black-forest-labs/FLUX.2-dev"
 DEFAULT_REMOTE_MODEL_REVISION = "26afe3a78bb242c0a8bb181dcc8937bb16e5c66c"
-DEFAULT_REMOTE_URL = "http://127.0.0.1:8188"
+DEFAULT_REMOTE_EDIT_MODEL_ID = "Qwen/Qwen-Image-Edit-2511"
+DEFAULT_REMOTE_EDIT_MODEL_REVISION = "qwen_image_edit_2511_fp8mixed.safetensors"
+DEFAULT_REMOTE_URL = "http://127.0.0.1:8199"
 
 
 def _normalise_remote_url(value: str) -> str:
@@ -69,6 +72,55 @@ def _normalise_remote_url(value: str) -> str:
     return f"http://{host_for_url}:{port}"
 
 
+def _remote_modes(payload: dict[str, Any]) -> set[str]:
+    pipelines = payload.get("pipelines")
+    if not isinstance(pipelines, dict):
+        return {"compose"}
+    return {
+        str(mode)
+        for mode, details in pipelines.items()
+        if isinstance(details, dict) and details.get("available") is True
+    }
+
+
+def _normalise_remote_output(
+    data: bytes,
+    *,
+    media_type: str,
+    width: int,
+    height: int,
+    allow_resize: bool,
+) -> bytes:
+    accepted = {"image/webp"}
+    if allow_resize:
+        accepted.update({"image/png", "image/jpeg"})
+    if media_type not in accepted:
+        raise ImageWorkerError("remote_protocol_error")
+    try:
+        with Image.open(BytesIO(data)) as source:
+            source.load()
+            if getattr(source, "n_frames", 1) != 1:
+                raise ValueError("animated image")
+            if not allow_resize:
+                if source.format != "WEBP" or source.size != (width, height):
+                    raise ValueError("remote image metadata mismatch")
+                return data
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            if image.size != (width, height):
+                image = ImageOps.fit(
+                    image,
+                    (width, height),
+                    method=Image.Resampling.LANCZOS,
+                )
+            output = BytesIO()
+            image.save(output, format="WEBP", quality=95, method=6)
+            return output.getvalue()
+    except ImageWorkerError:
+        raise
+    except Exception as exc:
+        raise ImageWorkerError("remote_protocol_error") from exc
+
+
 class ImageWorkerError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
@@ -93,6 +145,16 @@ class ImageWorkerConfig:
     lora_sha256: str = ""
     lora_strength: float = 0.0
     style_trigger: str = ""
+
+    def model_id_for(self, generation_mode: ImageGenerationMode) -> str:
+        if generation_mode == "edit" and self.backend == "remote":
+            return DEFAULT_REMOTE_EDIT_MODEL_ID
+        return self.model_id
+
+    def model_revision_for(self, generation_mode: ImageGenerationMode) -> str:
+        if generation_mode == "edit" and self.backend == "remote":
+            return f"{DEFAULT_REMOTE_EDIT_MODEL_REVISION}+remote"
+        return self.runtime_revision
 
     @property
     def runtime_revision(self) -> str:
@@ -252,6 +314,12 @@ class ImageWorkerClient:
             and self._preflight_ok is not False
         )
 
+    @property
+    def supported_generation_modes(self) -> tuple[ImageGenerationMode, ...]:
+        return ("compose", "edit") if self.config.backend == "remote" else (
+            "compose",
+        )
+
     async def preflight(self) -> bool:
         if not self.available:
             self._preflight_ok = False
@@ -367,6 +435,8 @@ class ImageWorkerClient:
                 request,
                 output_path=output_path,
             )
+        if request.generation_mode != "compose":
+            raise ImageWorkerError("generation_mode_unsupported")
         process = await self._ensure_process()
         if process.stdin is None or process.stdout is None:
             raise ImageWorkerError("worker_protocol_error")
@@ -425,6 +495,9 @@ class ImageWorkerClient:
                 and payload.get("model") == self.config.model_id
                 and payload.get("revision") == self.config.model_revision
                 and int(payload.get("gpu_count") or 0) >= 1
+                and _remote_modes(payload) >= set(
+                    self.supported_generation_modes
+                )
             )
             if not self._preflight_ok:
                 logger.warning(
@@ -448,8 +521,23 @@ class ImageWorkerClient:
             base64.b64encode(data).decode("ascii")
             for _metadata, data in self._validated_references(request)
         ]
-        payload = json.dumps(
-            {
+        if request.generation_mode == "edit":
+            if not 1 <= len(reference_images) <= 3:
+                raise ImageWorkerError("reference_inputs_required")
+            edit_images = reference_images + [""] * (3 - len(reference_images))
+            request_path = "/edit/qwen"
+            request_payload = {
+                "prompt": request.prompt,
+                "image_base64": edit_images[0],
+                "image2_base64": edit_images[1],
+                "image3_base64": edit_images[2],
+                "steps": request.steps,
+                "cfg": request.guidance,
+                "seed": request.seed,
+            }
+        else:
+            request_path = "/generate"
+            request_payload = {
                 "prompt": request.prompt,
                 "width": request.width,
                 "height": request.height,
@@ -457,14 +545,16 @@ class ImageWorkerClient:
                 "guidance": request.guidance,
                 "seed": request.seed,
                 "reference_images": reference_images,
-            },
+            }
+        payload = json.dumps(
+            request_payload,
             separators=(",", ":"),
         ).encode("utf-8")
         try:
             status, headers, body = await asyncio.wait_for(
                 self._remote_http_request(
                     method="POST",
-                    path="/generate",
+                    path=request_path,
                     body=payload,
                     max_response_bytes=8_000_000,
                 ),
@@ -479,8 +569,7 @@ class ImageWorkerClient:
                 507: "remote_oom",
             }.get(status, "remote_generation_failed")
             raise ImageWorkerError(code)
-        if headers.get("content-type", "").split(";", 1)[0] != "image/webp":
-            raise ImageWorkerError("remote_protocol_error")
+        media_type = headers.get("content-type", "").split(";", 1)[0]
         try:
             returned_seed = int(headers["x-ayoa-seed"])
             generation_seconds = float(
@@ -490,17 +579,13 @@ class ImageWorkerClient:
             raise ImageWorkerError("remote_protocol_error") from exc
         if returned_seed != request.seed:
             raise ImageWorkerError("remote_seed_mismatch")
-        try:
-            with Image.open(BytesIO(body)) as image:
-                image.load()
-                if (
-                    image.format != "WEBP"
-                    or getattr(image, "n_frames", 1) != 1
-                    or image.size != (request.width, request.height)
-                ):
-                    raise ValueError("remote image metadata mismatch")
-        except Exception as exc:
-            raise ImageWorkerError("remote_protocol_error") from exc
+        body = _normalise_remote_output(
+            body,
+            media_type=media_type,
+            width=request.width,
+            height=request.height,
+            allow_resize=request.generation_mode == "edit",
+        )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         partial = output_path.with_suffix(output_path.suffix + ".partial")
         partial.write_bytes(body)

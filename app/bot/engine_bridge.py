@@ -295,6 +295,10 @@ class EngineBridge:
                 max_scene_prompt_chars=(
                     self.image_generation.config.max_scene_prompt_chars
                 ),
+                max_references=self.image_generation.config.max_references,
+                generation_modes=(
+                    self.image_generation.supported_generation_modes
+                ),
             ),
             generation=self.image_generation,
             spawn_authoring=self.spawn_authoring,

@@ -298,7 +298,7 @@
       },
       "visuals": {
         "default_loadout": "A fitted gray starter tunic, patched boots, cheap ash shortbow, low quiver, and one long brown bracer.",
-        "identity_reference_id": "osa_renna_holt_v1"
+        "identity_reference_id": "osa_renna_holt_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -342,7 +342,7 @@
       },
       "visuals": {
         "default_loadout": "A palm-sized black-haired fairy with oversized-head mascot proportions, ruby eyes, long side locks, floppy black cap with an abstract pale squiggle mark, fitted black uniform, narrow rose tie, black boots or thigh-high stockings, and two pairs of translucent charcoal-lilac wings. Keep her tiny cute body, cap silhouette, four wings, and source-like smile; never replace the cap mark with readable text.",
-        "identity_reference_id": "osa_iselle_source_v1"
+        "identity_reference_id": "osa_iselle_the_guide_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -441,7 +441,7 @@
       },
       "visuals": {
         "default_loadout": "Apex articulated plate of pearl-white star-metal over cobalt silk and dark blue stingray leather, fitted in long clean planes that preserve speed instead of adding ornamental bulk. Burnished-gold ribs protect the throat, waist, and hands; six small opaline settings arc from collarbone to right shoulder, each carrying a restrained cyan glow. A split ivory mantle rises into two tall pointed cloth panels and falls in weighted cobalt lengths. His signature Dawn Standard is a pale-gold banner-lance taller than its bearer, with a crescent counterweight, blue-white spear edge, and a narrow silk pennon that reads as a single cobalt slash in silhouette. Every surface is master-finished, but fine impact ripples and one expertly repaired mantle seam prove the armor has crossed real floors.",
-        "identity_reference_id": "osa_halcyon_v1"
+        "identity_reference_id": "osa_halcyon_of_the_gilded_march_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -489,7 +489,7 @@
       },
       "visuals": {
         "default_loadout": "Bespoke gunmetal plate in overlapping satin-finished lames over a quilted indigo arming coat, every edge repaired with dark rivets rather than ornament. Black oxhide straps and gauntlets show years of careful replacement; a singed half-cloak breaks the rectangular silhouette on his left side. Five small silver inlays run along one pauldron. His signature ironvow greatsword has a mirror-bright high-carbon edge, a smoke-dark fuller, and a rain-worn blue grip; its long crossguard and over-shoulder carry make him identifiable even in silhouette.",
-        "identity_reference_id": "osa_soren_ironvow_v1"
+        "identity_reference_id": "osa_soren_ironvow_locked_identity_base_v1"
       },
       "private_state": {
         "goals": [
@@ -537,7 +537,7 @@
       },
       "visuals": {
         "default_loadout": "A bespoke charcoal worsted dueling coat over smoke-silver silk, cut close through the torso and flaring into one long wine-red lined tail that snaps behind each turn. Fine black kidskin gloves, mirror-polished steel buckles, and four matte-silver clasps keep the finish disciplined rather than ornate. His signature Valebrand rapier has a swept silver guard, dark garnet pommel, and needle-bright blade; a single rectangular silver earring echoes the guard and keeps his left-facing profile unmistakable.",
-        "identity_reference_id": "osa_castor_valebrand_v1"
+        "identity_reference_id": "osa_castor_valebrand_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -585,7 +585,7 @@
       },
       "visuals": {
         "default_loadout": "Cropped olive-gray rolled-sleeve field jacket with cream shearling trim over a structured black crop top and ribbed waist, low-rise black leather trousers, forearm guards, triple right-thigh straps, and long leather boots. A gold-hilted black-sheathed single-edged sword rides diagonally across her back; her signature square bronze amber lantern hangs from her left hand. Medical tools or a satchel appear only when the scene calls for them.",
-        "identity_reference_id": "osa_wren_thelantern_v1"
+        "identity_reference_id": "osa_wren_thelantern_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -632,7 +632,7 @@
       },
       "visuals": {
         "default_loadout": "A cropped charcoal leather scout jacket over fitted brown wool, slim iron bracers, high weathered boots, and a signature pair of mismatched short knives: one broad utility blade and one narrow fighting blade. The long forest-green scarf and low cross-body map case remain his clearest identifiers.",
-        "identity_reference_id": "osa_rowan_kest_v1"
+        "identity_reference_id": "osa_rowan_kest_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -678,7 +678,7 @@
       },
       "visuals": {
         "default_loadout": "Mended ash-gray wool layers under a short slate-blue shoulder mantle, practical brown leather boots and belt, and a role-specific forked copper conductor rod wrapped in faded blue cord.",
-        "identity_reference_id": "osa_liora_fen_v1"
+        "identity_reference_id": "osa_liora_fen_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -724,7 +724,7 @@
       },
       "visuals": {
         "default_loadout": "A fitted cream-linen fighting coat cut short on the weapon side, oxblood leather harness and thigh guards, bright steel shoulder plates, and a signature leaf-bladed ash spear with a restrained red-silk tassel beneath the head. Repaired crimson stitching at one cuff keeps the masterful kit visibly used.",
-        "identity_reference_id": "osa_mirelle_voss_v1"
+        "identity_reference_id": "osa_mirelle_voss_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -771,7 +771,7 @@
       },
       "visuals": {
         "default_loadout": "A master-tailored midnight-violet silk-and-wool coat with one long split sleeve, fitted black leather beneath, soft silver clasps, and wine-red lining visible only in motion. Her signature nightglass rapier has a translucent obsidian blade and a narrow crescent guard; a palm-sized silver mirror hangs sealed at her opposite hip.",
-        "identity_reference_id": "osa_seris_nightglass_v1"
+        "identity_reference_id": "osa_seris_nightglass_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -819,7 +819,7 @@
       },
       "visuals": {
         "default_loadout": "A masterwork midnight-blue wool-and-silk command coat over frost-white layered skirts, articulated silver shoulder pieces, dark sealskin gloves and boots, and a narrow mantle clasped with clear star-glass. Her signature staff is one uninterrupted length of transparent star-glass held in silver prongs, with slow geometric frost planes gathering near its tip. Fine repairs at the left cuff and lower staff keep the equipment lived-in.",
-        "identity_reference_id": "osa_aveline_morcant_v1"
+        "identity_reference_id": "osa_aveline_morcant_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -867,7 +867,7 @@
       },
       "visuals": {
         "default_loadout": "A high-collared charcoal travel coat over black fitted layers, slim black boots, a translucent charcoal half-veil across the lower face, and one falling veil-panel from the left shoulder. Fine silver claspwork at the throat is the only bright metal; the face above the veil stays plainly readable.",
-        "identity_reference_id": "osa_veil_the_unnumbered_v1"
+        "identity_reference_id": "osa_veil_the_unnumbered_locked_active_profile_v1"
       },
       "private_state": {
         "goals": [
@@ -913,7 +913,7 @@
       },
       "visuals": {
         "default_loadout": "A ribbed gate-bell body of blackened ash-dulled iron on three unequal load-bearing limbs, with a smooth weathered limestone oval hanging low in the central cavity. One immense eight-flanged pendulum arm controls the arena while a small jointed sensing limb taps out each sequence; dead indigo plates, cold-blue joint light, and one brief ember-red reset pulse make the pattern readable.",
-        "identity_reference_id": "osa_warden_of_the_eighth_v1"
+        "identity_reference_id": "osa_warden_of_the_eighth_locked_v1"
       },
       "private_state": {
         "goals": [],
@@ -934,151 +934,637 @@
   ],
   "reviewed_visual_references": [
     {
-      "reference_id": "osa_iselle_source_v1",
-      "storage_ref": "iselle_source.png",
+      "reference_id": "osa_aveline_morcant_locked_active_profile_v1",
+      "storage_ref": "locked/aveline_morcant/active_profile.png",
       "mime_type": "image/png",
-      "width": 182,
-      "height": 228,
-      "byte_count": 105894,
-      "sha256": "61ff446830e0c3f32bc74ae0cb46063147c1ca353b3a6d1522c5e50b0df5bec7",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 705339,
+      "sha256": "63dc07a0c77cb1322033a273e4185c07421bf1aa6f1cc6a56734427d6a6aa2a7",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "aveline_morcant",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_renna_holt_v1",
-      "storage_ref": "renna_holt.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 124544,
-      "sha256": "5a3bdc59129a0e3a124aa7788a26c35b5962492d65d191b7e2c97e1a286475ed",
-      "purpose": "identity",
-      "scope": "character",
-      "diffusion_authorized": true
-    },
-    {
-      "reference_id": "osa_rowan_kest_v1",
-      "storage_ref": "rowan_kest.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 108934,
-      "sha256": "78015dea8f3934d9d3b59d0b26fd3bb7246ea0784ac6a4bdf981f48d1e430dc4",
-      "purpose": "identity",
-      "scope": "character",
-      "diffusion_authorized": true
-    },
-    {
-      "reference_id": "osa_liora_fen_v1",
-      "storage_ref": "liora_fen.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 73996,
-      "sha256": "cc1c2bad20c1d060296256d92ce41bbe8e827a454ab1291c1cd4218ee5744eff",
-      "purpose": "identity",
-      "scope": "character",
-      "diffusion_authorized": true
-    },
-    {
-      "reference_id": "osa_wren_thelantern_v1",
-      "storage_ref": "wren_thelantern.png",
+      "reference_id": "osa_aveline_morcant_locked_facial_zoom_v1",
+      "storage_ref": "locked/aveline_morcant/facial_zoom.png",
       "mime_type": "image/png",
-      "width": 832,
-      "height": 1248,
-      "byte_count": 907531,
-      "sha256": "87aa93399727d75410b2ea89231978a687ac02ea941772c1e334ca1466434e80",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1190710,
+      "sha256": "89ef528c5873f138616c375955e25ae195104cb8840a9261ddf302cfcfe395dd",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "aveline_morcant",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_mirelle_voss_v1",
-      "storage_ref": "mirelle_voss.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 142924,
-      "sha256": "93e337a4a8a7447e5ad96a7fe7d28952e6abe9c9d2e4ab3d9847c0bcbea289d8",
+      "reference_id": "osa_aveline_morcant_locked_anatomy_v1",
+      "storage_ref": "locked/aveline_morcant/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 603097,
+      "sha256": "b0f64a56fc83b7549f232d56bba9fa619ad75334de92193240eb3c1a673feffd",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "aveline_morcant",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_seris_nightglass_v1",
-      "storage_ref": "seris_nightglass.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 75268,
-      "sha256": "678ac38597c074f90755a17c0b7b4e49402cafabda74c6c3748c72783831c63f",
+      "reference_id": "osa_aveline_morcant_locked_back_view_v1",
+      "storage_ref": "locked/aveline_morcant/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 592214,
+      "sha256": "a429577f70fc43989a37c91bffb57c9fd23beb4375bb6cd1a7b05b62637ec816",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "aveline_morcant",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_castor_valebrand_v1",
-      "storage_ref": "castor_valebrand.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 93930,
-      "sha256": "a05349d3d69cd628fe9b10892ceb68f6cb9a5ff94fa1ab151f6f4a0960cf6299",
+      "reference_id": "osa_castor_valebrand_locked_active_profile_v1",
+      "storage_ref": "locked/castor_valebrand/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 710015,
+      "sha256": "2c51cf6677fc55b998f030e7ef2fcee85720ebe91a5b06ac1feac8f690e356cd",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "castor_valebrand",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_soren_ironvow_v1",
-      "storage_ref": "soren_ironvow.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 113626,
-      "sha256": "f642b1427195ec3cc5bc941d85fafa58ea9241bdb3e1080f68d6b1ffccad00a5",
+      "reference_id": "osa_castor_valebrand_locked_facial_zoom_v1",
+      "storage_ref": "locked/castor_valebrand/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1105015,
+      "sha256": "0e3fd689018a4acd5707d3123cdee3428897fed2949e2d9ffcc3fbb7d9c24882",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "castor_valebrand",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_aveline_morcant_v1",
-      "storage_ref": "aveline_morcant.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 206152,
-      "sha256": "39fcae497c3a0de7a2bed4e368e7843b26ba36a7c04b1caef09a1503075900f0",
+      "reference_id": "osa_castor_valebrand_locked_anatomy_v1",
+      "storage_ref": "locked/castor_valebrand/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 657818,
+      "sha256": "183033838d5d60dce56925bfa9c0273ca9d8f6dbb280f1a56d93fcc72f3abefb",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "castor_valebrand",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_halcyon_v1",
-      "storage_ref": "halcyon_of_the_gilded_march.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 139944,
-      "sha256": "9e3fb8c2f974c326b9ee7f3e71361cbc3c330ad3f62867206d4b9235514350ec",
+      "reference_id": "osa_castor_valebrand_locked_back_view_v1",
+      "storage_ref": "locked/castor_valebrand/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 777697,
+      "sha256": "5cae764666002ff1035a16e89382ba025ac1132035358f71ba6ae4b537a7d449",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "castor_valebrand",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_veil_the_unnumbered_v1",
-      "storage_ref": "veil_the_unnumbered.webp",
-      "mime_type": "image/webp",
-      "width": 768,
-      "height": 1024,
-      "byte_count": 55458,
-      "sha256": "b11d5ec0900e954de7e3a4dc16a6e51a9ca7b99179f87aa97b4707c20dbe08ab",
+      "reference_id": "osa_halcyon_of_the_gilded_march_locked_active_profile_v1",
+      "storage_ref": "locked/halcyon_of_the_gilded_march/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 792757,
+      "sha256": "3401541de802847bbb4acf70617fd624dba23a6beac3d9d5a672ca75ac6ba378",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "halcyon_of_the_gilded_march",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
       "diffusion_authorized": true
     },
     {
-      "reference_id": "osa_warden_of_the_eighth_v1",
+      "reference_id": "osa_halcyon_of_the_gilded_march_locked_facial_zoom_v1",
+      "storage_ref": "locked/halcyon_of_the_gilded_march/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1099676,
+      "sha256": "64ca2b8eda2ccd43d14d4cba15ac2883237202f4a51d43cc98c83f600de594fd",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "halcyon_of_the_gilded_march",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_halcyon_of_the_gilded_march_locked_anatomy_v1",
+      "storage_ref": "locked/halcyon_of_the_gilded_march/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 778223,
+      "sha256": "3943b5b31f3c232127113d1289e0a745809393e427b8decf187b1c1fedfd3109",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "halcyon_of_the_gilded_march",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_halcyon_of_the_gilded_march_locked_back_view_v1",
+      "storage_ref": "locked/halcyon_of_the_gilded_march/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 825193,
+      "sha256": "369055d7d5c3dbcb3a74bdefc4f0ca150fcc3de813b992b2a6344d3db4dcdbe5",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "halcyon_of_the_gilded_march",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_iselle_the_guide_locked_active_profile_v1",
+      "storage_ref": "locked/iselle_the_guide/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 749737,
+      "sha256": "8fa81b16e55caa65e5490bd218de40bc135876ca6a8cae97bd4dc9e0ffc54290",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "iselle_the_guide",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_iselle_the_guide_locked_facial_zoom_v1",
+      "storage_ref": "locked/iselle_the_guide/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 918905,
+      "sha256": "4faf39db4ff0357326f5bc792f2c3d7657f15c9478e687fb84d3e6148d00516d",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "iselle_the_guide",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_iselle_the_guide_locked_anatomy_v1",
+      "storage_ref": "locked/iselle_the_guide/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 703967,
+      "sha256": "d50162037af076b7419ae6dba36250adcf8d6df049a0d19d6f266e6467119cae",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "iselle_the_guide",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_iselle_the_guide_locked_back_view_v1",
+      "storage_ref": "locked/iselle_the_guide/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 678262,
+      "sha256": "044f538985bef0f28ccf4a5bcdb2e956cc8f9b838f57dc9535ff7ce5f242f022",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "iselle_the_guide",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_liora_fen_locked_active_profile_v1",
+      "storage_ref": "locked/liora_fen/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 780738,
+      "sha256": "a48a72468dd23265a70f30631e30266fcb06d2d856ca499f1bedff54ed59041c",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "liora_fen",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_liora_fen_locked_facial_zoom_v1",
+      "storage_ref": "locked/liora_fen/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1129843,
+      "sha256": "ec1e1d92dc302e7daf635ee4c661ca1bef06655ba940b787e9557fecf708ae62",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "liora_fen",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_liora_fen_locked_anatomy_v1",
+      "storage_ref": "locked/liora_fen/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 739229,
+      "sha256": "47542a8f8e3fc4e41aa1fee606cc14ee6537c1345fc519a7675e564c0b904a63",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "liora_fen",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_liora_fen_locked_back_view_v1",
+      "storage_ref": "locked/liora_fen/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 744904,
+      "sha256": "22809ee4ea0c4cc7ba3975c2961de43ef44bbe500240613c25a58a63aa14a78d",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "liora_fen",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_mirelle_voss_locked_active_profile_v1",
+      "storage_ref": "locked/mirelle_voss/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 851943,
+      "sha256": "6173f6066860c270b73bcbde7fc86336411758301cdc5c12341f0400a82266b6",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "mirelle_voss",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_mirelle_voss_locked_facial_zoom_v1",
+      "storage_ref": "locked/mirelle_voss/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1179029,
+      "sha256": "abd349e761b82ba011e2c0434ea6b2fd8b4ed5eb90f6aed8e9c575833e8e9260",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "mirelle_voss",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_mirelle_voss_locked_anatomy_v1",
+      "storage_ref": "locked/mirelle_voss/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 858681,
+      "sha256": "a84842f3e16bd650a4b85c02cf67c20ea6d694966ba855c6c2fd5709b5e0aaec",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "mirelle_voss",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_mirelle_voss_locked_back_view_v1",
+      "storage_ref": "locked/mirelle_voss/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 895338,
+      "sha256": "88265bde530579df8f23c7be8538df82541736a946454b8df347762a87fa2480",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "mirelle_voss",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_renna_holt_locked_active_profile_v1",
+      "storage_ref": "locked/renna_holt/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 572476,
+      "sha256": "9b23a9345aca903d7e15cbc81717de26be7f907c52b5b757fed32244482035ee",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "renna_holt",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_renna_holt_locked_facial_zoom_v1",
+      "storage_ref": "locked/renna_holt/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1010407,
+      "sha256": "ec2cd7f386bc55e9d614aeb4e56d71872436f53848c747a9b15ac0027d711d29",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "renna_holt",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_renna_holt_locked_anatomy_v1",
+      "storage_ref": "locked/renna_holt/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 840261,
+      "sha256": "e7d8e884042b1487cebaa43f102739859445673f29ae0cc8e0a5d2f4aa6b42c6",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "renna_holt",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_renna_holt_locked_back_view_v1",
+      "storage_ref": "locked/renna_holt/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 773895,
+      "sha256": "1b15ed7db88d37fb02f0b6dc576ef1ce71586c66198119ad23b7b1a2096771ec",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "renna_holt",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_rowan_kest_locked_active_profile_v1",
+      "storage_ref": "locked/rowan_kest/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 800434,
+      "sha256": "9d2ea44d6ed3c3ac806e1a232d245e3aaef09efc50e888c54352ca3baf1896f6",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "rowan_kest",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_rowan_kest_locked_facial_zoom_v1",
+      "storage_ref": "locked/rowan_kest/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1131040,
+      "sha256": "3b5fed61b95dff45d7f6d2ea615fe5b3be6738358dee7a86b0495e5e5edf0e91",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "rowan_kest",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_rowan_kest_locked_anatomy_v1",
+      "storage_ref": "locked/rowan_kest/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 686581,
+      "sha256": "c323fd106f46e689b808b70b8a08590953c1fbc47a0192dfdca4644bcf52383f",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "rowan_kest",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_rowan_kest_locked_back_view_v1",
+      "storage_ref": "locked/rowan_kest/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 940303,
+      "sha256": "311424fe42907a706a8065fac7b6548ae806220e168325fdc5d3e6e9346cf6d1",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "rowan_kest",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_seris_nightglass_locked_active_profile_v1",
+      "storage_ref": "locked/seris_nightglass/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 762355,
+      "sha256": "31e77bf7be05a14c5aa0f18b0f5000c4acadbaed425f8dd13416cec4168aac2d",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "seris_nightglass",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_seris_nightglass_locked_facial_zoom_v1",
+      "storage_ref": "locked/seris_nightglass/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1050405,
+      "sha256": "dbeab20a68d3056ca0b600d3f794f1c84fa076bb9d3a8faf5695f9d90ea1add0",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "seris_nightglass",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_seris_nightglass_locked_anatomy_v1",
+      "storage_ref": "locked/seris_nightglass/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 434324,
+      "sha256": "f62ad3de3f55db214fbb87d992f97cda9a232418bc4b18393097affe2083458f",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "seris_nightglass",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_seris_nightglass_locked_back_view_v1",
+      "storage_ref": "locked/seris_nightglass/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 843211,
+      "sha256": "bb45b45ad90e53d8c1077434d59cfc518a881b6011ad3beba759425e8da12ce5",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "seris_nightglass",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_soren_ironvow_locked_identity_base_v1",
+      "storage_ref": "locked/soren_ironvow/identity_base.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1172578,
+      "sha256": "a6c523f47d3c9b6355b4bf4db37cd27f84d0767a927574f64bdeea11d16078cc",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "soren_ironvow",
+      "selection_hint": "Primary identity and style anchor; strongest guide for face, palette, materials, and overall design.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_soren_ironvow_locked_active_profile_v1",
+      "storage_ref": "locked/soren_ironvow/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 697914,
+      "sha256": "0cb2c91dc2ec4524b95bf1cdb7830a777c7702679d8232680fee4815eaf5e7cb",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "soren_ironvow",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_soren_ironvow_locked_facial_zoom_v1",
+      "storage_ref": "locked/soren_ironvow/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 1057951,
+      "sha256": "896336dd789f6592f37743b15281569437b752b5d44f9d60ddc45b48d119eac8",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "soren_ironvow",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_soren_ironvow_locked_anatomy_v1",
+      "storage_ref": "locked/soren_ironvow/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 739186,
+      "sha256": "461eebb8c1a9873d3857c15d8b8faac633d464f6958d911640443e6b0114cc11",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "soren_ironvow",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_soren_ironvow_locked_back_view_v1",
+      "storage_ref": "locked/soren_ironvow/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 823815,
+      "sha256": "c340c59281955835f3f7e46547fa4dc8f49d2d1041ddd48768c7da26ed3ba2a1",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "soren_ironvow",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_veil_the_unnumbered_locked_active_profile_v1",
+      "storage_ref": "locked/veil_the_unnumbered/active_profile.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 922741,
+      "sha256": "4e5f51eaa991d7e54a3f922cf7f36d6a777cd8dbdf325361fbd091524f295840",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "veil_the_unnumbered",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_veil_the_unnumbered_locked_facial_zoom_v1",
+      "storage_ref": "locked/veil_the_unnumbered/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 920808,
+      "sha256": "2cc84864a6159880be334ecc3ee8ac09c928a47c5c7e02888eb59177c31797a0",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "veil_the_unnumbered",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_veil_the_unnumbered_locked_anatomy_v1",
+      "storage_ref": "locked/veil_the_unnumbered/anatomy.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 479612,
+      "sha256": "d84b9bc87da958190609652e32c5be876d63ee3e5a13c53692870af04b6b8beb",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "veil_the_unnumbered",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_veil_the_unnumbered_locked_back_view_v1",
+      "storage_ref": "locked/veil_the_unnumbered/back_view.png",
+      "mime_type": "image/png",
+      "width": 880,
+      "height": 1184,
+      "byte_count": 579371,
+      "sha256": "29a6b7acbc2659ed19580ccf24bc87ee20bf9a596753cd47e0d8a2f1bed878d2",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "veil_the_unnumbered",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_warden_of_the_eighth_locked_v1",
       "storage_ref": "warden_of_the_eighth.webp",
       "mime_type": "image/webp",
       "width": 768,
@@ -1087,6 +1573,64 @@
       "sha256": "9cc80a075a99ee9169e4e2cbe10d34934d52c66a025f232ce3f2a8a83b0aa6a1",
       "purpose": "identity",
       "scope": "character",
+      "scope_id": "warden_of_the_eighth",
+      "selection_hint": "Single reviewed construct identity reference; use for every framing, view, and action.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_wren_thelantern_locked_active_profile_v1",
+      "storage_ref": "locked/wren_thelantern/active_profile.png",
+      "mime_type": "image/png",
+      "width": 832,
+      "height": 1248,
+      "byte_count": 816105,
+      "sha256": "d98c2c6fa7a1a29a8ef8322068d4d17f2f44106d33cf54cc7ac11c21da562930",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "wren_thelantern",
+      "selection_hint": "Dynamic three-quarter or profile full-body view; best for action, movement, side silhouette, and pose.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_wren_thelantern_locked_facial_zoom_v1",
+      "storage_ref": "locked/wren_thelantern/facial_zoom.png",
+      "mime_type": "image/png",
+      "width": 832,
+      "height": 1248,
+      "byte_count": 1045915,
+      "sha256": "b3135d50e5af5c32cd70b3de46bf4e2cf50beeace72834b9ed0b2302e62e944f",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "wren_thelantern",
+      "selection_hint": "Close facial view; best for face identity, expression, eyes, hairline, and portrait framing.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_wren_thelantern_locked_anatomy_v1",
+      "storage_ref": "locked/wren_thelantern/anatomy.png",
+      "mime_type": "image/png",
+      "width": 832,
+      "height": 1248,
+      "byte_count": 834393,
+      "sha256": "08a1b2e54fe529dbbf7feafa1a11e90a1f74d494f892c76ef9dda41bd9f0f650",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "wren_thelantern",
+      "selection_hint": "Neutral full-body front view; best for body proportions, scale, silhouette, and clothing structure.",
+      "diffusion_authorized": true
+    },
+    {
+      "reference_id": "osa_wren_thelantern_locked_back_view_v1",
+      "storage_ref": "locked/wren_thelantern/back_view.png",
+      "mime_type": "image/png",
+      "width": 832,
+      "height": 1248,
+      "byte_count": 867654,
+      "sha256": "91dba53fb1577ddf0d59e13f086f7c8a9de020ddbc153bb6a080d2bdd876cd60",
+      "purpose": "identity",
+      "scope": "character",
+      "scope_id": "wren_thelantern",
+      "selection_hint": "Full-body rear view; best for rear clothing layers, hair, carried equipment, and back-facing compositions.",
       "diffusion_authorized": true
     }
   ],

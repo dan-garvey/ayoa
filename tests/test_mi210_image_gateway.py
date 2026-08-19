@@ -126,3 +126,17 @@ def test_health_preserves_ayoa_remote_worker_contract(monkeypatch):
     assert payload["revision"] == gateway.FLUX_MODEL_REVISION
     assert payload["gpu_count"] == len(gateway.COMFY_WORKERS)
     assert payload["model_loaded"] is False
+    assert payload["pipelines"] == {
+        "compose": {
+            "available": True,
+            "model": gateway.FLUX_MODEL_ID,
+            "revision": gateway.FLUX_MODEL_REVISION,
+            "max_references": 4,
+        },
+        "edit": {
+            "available": True,
+            "model": gateway.QWEN_MODEL_ID,
+            "revision": gateway.QWEN_MODEL_REVISION,
+            "max_references": 3,
+        },
+    }

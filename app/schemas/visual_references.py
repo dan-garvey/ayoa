@@ -29,6 +29,8 @@ class ReviewedVisualReference(BaseModel):
     sha256: str
     purpose: VisualReferencePurpose
     scope: VisualReferenceScope
+    scope_id: str
+    selection_hint: str
     diffusion_authorized: bool = False
 
     @model_validator(mode="after")
@@ -37,6 +39,8 @@ class ReviewedVisualReference(BaseModel):
         self.storage_ref = self.storage_ref.strip().replace("\\", "/")
         self.mime_type = self.mime_type.strip().lower()
         self.sha256 = self.sha256.strip().lower()
+        self.scope_id = " ".join(self.scope_id.split()).strip()
+        self.selection_hint = " ".join(self.selection_hint.split()).strip()
 
         if not _REFERENCE_ID_RE.fullmatch(self.reference_id):
             raise ValueError(
@@ -75,4 +79,10 @@ class ReviewedVisualReference(BaseModel):
             raise ValueError("identity references require character scope")
         if self.purpose in {"environment", "style"} and self.scope != "location":
             raise ValueError("environment and style references require location scope")
+        if not self.scope_id or len(self.scope_id) > 200:
+            raise ValueError("reviewed visual scope_id must be a bounded identifier")
+        if not self.selection_hint or len(self.selection_hint) > 500:
+            raise ValueError(
+                "reviewed visual selection_hint must be 1-500 characters"
+            )
         return self

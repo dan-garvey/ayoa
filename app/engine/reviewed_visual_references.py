@@ -236,6 +236,15 @@ def _selected_reviewed_reference_ids(
         for reference in checkpoint.reviewed_visual_references
     }
     selected: list[str] = []
+    character_ids = {character.character_id for character in checkpoint.characters}
+    for metadata in checkpoint.reviewed_visual_references:
+        if (
+            metadata.scope == "character"
+            and metadata.purpose == "identity"
+            and metadata.diffusion_authorized
+            and metadata.scope_id in character_ids
+        ):
+            selected.append(metadata.reference_id)
     for character in checkpoint.characters:
         reference_id = character.visuals.identity_reference_id.strip()
         if not reference_id:
@@ -251,6 +260,7 @@ def _selected_reviewed_reference_ids(
         if (
             metadata.purpose != "identity"
             or metadata.scope != "character"
+            or metadata.scope_id != character.character_id
             or not metadata.diffusion_authorized
         ):
             raise ReviewedVisualReferenceError(

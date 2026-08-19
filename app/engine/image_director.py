@@ -19,7 +19,7 @@ from app.schemas.characters import (
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.image_director import ImageDirectorOutput
+from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
 from app.schemas.state import SessionState, StorySetting, WorldState
 
 
@@ -74,6 +74,25 @@ class PublicCharacterVisual:
 
 
 @dataclass(frozen=True)
+class SelectableVisualReference:
+    """Text-only authored option; image metadata stays engine-private."""
+
+    reference_id: str
+    scope: str
+    scope_id: str
+    selection_hint: str
+
+    def prompt_line(self) -> str:
+        applies_to = (
+            self.scope_id if self.scope == "character" else "visible_location"
+        )
+        return (
+            f"- id={self.reference_id}; applies_to={applies_to}; "
+            f"use={self.selection_hint}"
+        )
+
+
+@dataclass(frozen=True)
 class VisibleEventProjection:
     session_id: str
     transaction_id: str
@@ -94,6 +113,7 @@ class VisibleEventProjection:
     canonical_event_count: int
     active_roster_count: int
     total_roster_count: int
+    reference_options: tuple[SelectableVisualReference, ...] = ()
     engine_visual_style: str = ""
     delivery_kind: str = "discord"
     viewer_delivery_bindings: tuple[tuple[str, str], ...] = ()
@@ -113,6 +133,9 @@ class VisibleEventProjection:
             "visible_facts": self.visible_facts,
             "characters": [
                 character.__dict__ for character in self.characters
+            ],
+            "reference_options": [
+                reference.__dict__ for reference in self.reference_options
             ],
             "story": (
                 self.story_genre,
@@ -144,6 +167,9 @@ class VisibleEventProjection:
             "duration_s": self.duration_s,
             "visible_facts": [list(item) for item in self.visible_facts],
             "characters": [character.__dict__ for character in self.characters],
+            "reference_options": [
+                reference.__dict__ for reference in self.reference_options
+            ],
             "story_genre": self.story_genre,
             "story_era": self.story_era,
             "story_tone": self.story_tone,
@@ -185,6 +211,10 @@ class VisibleEventProjection:
             characters=tuple(
                 PublicCharacterVisual(**item)
                 for item in value["characters"]  # type: ignore[arg-type,index]
+            ),
+            reference_options=tuple(
+                SelectableVisualReference(**item)
+                for item in value.get("reference_options", [])  # type: ignore[arg-type,union-attr]
             ),
             story_genre=str(value["story_genre"]),
             story_era=str(value["story_era"]),
@@ -271,6 +301,9 @@ def projection_checkpoint_snapshot(
                         700,
                     ),
                     depiction_policy=character.visuals.depiction_policy,
+                    identity_reference_id=(
+                        character.visuals.identity_reference_id
+                    ),
                 ),
                 private_state=PrivateState(
                     intentions_enabled=bool(
@@ -286,6 +319,16 @@ def projection_checkpoint_snapshot(
                 not in (checkpoint.session.character_bindings or {})
             )
         ],
+        reviewed_visual_references=[
+            reference.model_copy(deep=True)
+            for reference in checkpoint.reviewed_visual_references
+        ],
+        location_visual_reference_ids={
+            label: list(reference_ids)
+            for label, reference_ids in (
+                checkpoint.location_visual_reference_ids.items()
+            )
+        },
     )
 
 
@@ -388,6 +431,13 @@ def build_projection_groups(
         projection = VisibleEventProjection(
             **base,
             characters=public_characters,
+            reference_options=_selectable_reference_options(
+                checkpoint=checkpoint,
+                characters=public_characters,
+                location_label=location_label,
+                active_identity_character_ids=active_references,
+                active_location_labels=active_locations,
+            ),
             viewer_character_ids=(viewer_id,),
             perception_level=_OBSERVATION_LEVELS.get(
                 observer.observation_level,
@@ -455,12 +505,18 @@ class ImageDirector:
         max_requests: int = 6,
         max_subjects: int = 4,
         max_scene_prompt_chars: int = 2_000,
+        max_references: int = 4,
+        generation_modes: Sequence[ImageGenerationMode] = ("compose",),
     ) -> None:
         self.client = client
         self.prompt_manager = prompt_manager
         self.max_requests = max(0, max_requests)
         self.max_subjects = max(1, max_subjects)
         self.max_scene_prompt_chars = max(1, max_scene_prompt_chars)
+        self.max_references = max(0, max_references)
+        self.generation_modes = tuple(dict.fromkeys(generation_modes))
+        if not self.generation_modes:
+            raise ValueError("image director needs at least one generation mode")
 
     async def decide(
         self,
@@ -480,6 +536,16 @@ class ImageDirector:
                 )
                 or "No named character has usable public visual metadata."
             ),
+            visual_references_block=(
+                "\n".join(
+                    reference.prompt_line()
+                    for reference in projection.reference_options
+                )
+                or "None."
+            ),
+            generation_modes_block="\n".join(
+                f"- {mode}" for mode in self.generation_modes
+            ),
             recent_illustrations_block=(
                 "\n".join(
                     f"- {_safe_text(item, 500)}"
@@ -490,6 +556,7 @@ class ImageDirector:
             ),
             max_requests=self.max_requests,
             max_subjects=self.max_subjects,
+            max_references=self.max_references,
         )
         for attempt in range(2):
             response = await self.client.complete(
@@ -518,6 +585,7 @@ class ImageDirector:
                             "Return corrected JSON only. The previous response "
                             f"violated this visual contract: {exc}. Respect the "
                             "request/subject limits, select only allowed ids, "
+                            "generation modes, and visual reference ids, "
                             "and never name an anonymous or omitted character "
                             "in either subjects or scene_prompt. Do not request "
                             "visible text, symbols, cards, windows, HUD, "
@@ -549,6 +617,10 @@ class ImageDirector:
             for character in projection.characters
             if character.depiction_policy == "normal"
         }
+        allowed_references = {
+            reference.reference_id: reference
+            for reference in projection.reference_options
+        }
         new_unanchored = {
             character.character_id
             for character in allowed.values()
@@ -574,6 +646,39 @@ class ImageDirector:
             if character.depiction_policy != "normal"
         ]
         for request in output.requests:
+            if request.generation_mode not in self.generation_modes:
+                raise ValueError(
+                    "image director selected unavailable generation mode: "
+                    + request.generation_mode
+                )
+            if len(request.reference_ids) > self.max_references:
+                raise ValueError("image director reference count exceeds limit")
+            unknown_references = sorted(
+                set(request.reference_ids) - set(allowed_references)
+            )
+            if unknown_references:
+                raise ValueError(
+                    "image director selected unavailable visual reference ids: "
+                    + ", ".join(unknown_references)
+                )
+            if request.generation_mode == "edit" and not request.reference_ids:
+                raise ValueError("edit generation requires a selected reference")
+            if request.generation_mode == "edit" and len(
+                request.reference_ids
+            ) > 3:
+                raise ValueError("edit generation accepts at most 3 references")
+            unrelated = [
+                reference_id
+                for reference_id in request.reference_ids
+                if allowed_references[reference_id].scope == "character"
+                and allowed_references[reference_id].scope_id
+                not in request.subject_character_ids
+            ]
+            if unrelated:
+                raise ValueError(
+                    "selected character references must belong to request subjects: "
+                    + ", ".join(unrelated)
+                )
             if len(request.scene_prompt) > self.max_scene_prompt_chars:
                 raise ValueError("image director scene_prompt exceeds limit")
             if len(request.subject_character_ids) > self.max_subjects:
@@ -633,6 +738,46 @@ class ImageDirector:
                 raise ValueError(
                     "group_portrait requests require at least two subjects"
                 )
+
+
+def _selectable_reference_options(
+    *,
+    checkpoint: CheckpointFile,
+    characters: Sequence[PublicCharacterVisual],
+    location_label: str,
+    active_identity_character_ids: set[str],
+    active_location_labels: set[str],
+) -> tuple[SelectableVisualReference, ...]:
+    visible_character_ids = {
+        character.character_id for character in characters
+    }
+    selected_location_ids = set(
+        checkpoint.location_visual_reference_ids.get(location_label, [])
+    )
+    result: list[SelectableVisualReference] = []
+    for reference in checkpoint.reviewed_visual_references:
+        if not reference.diffusion_authorized:
+            continue
+        if reference.scope == "character":
+            if (
+                reference.scope_id not in visible_character_ids
+                or reference.scope_id not in active_identity_character_ids
+            ):
+                continue
+        elif (
+            location_label not in active_location_labels
+            or reference.reference_id not in selected_location_ids
+        ):
+            continue
+        result.append(
+            SelectableVisualReference(
+                reference_id=_safe_identifier(reference.reference_id),
+                scope=reference.scope,
+                scope_id=_safe_identifier(reference.scope_id),
+                selection_hint=_safe_text(reference.selection_hint, 500),
+            )
+        )
+    return tuple(result)
 
 
 def _public_character_projection(

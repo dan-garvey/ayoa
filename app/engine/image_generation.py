@@ -31,7 +31,7 @@ from app.engine.player_media import (
     finalize_generated_webp,
     resolve_generated_media,
 )
-from app.schemas.image_director import ImageDirection
+from app.schemas.image_director import ImageDirection, ImageGenerationMode
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.image_generation import (
     FrozenReferenceInput,
@@ -195,6 +195,15 @@ class ImageGenerationCoordinator:
     def available(self) -> bool:
         return bool(self.worker.available)
 
+    @property
+    def supported_generation_modes(self) -> tuple[ImageGenerationMode, ...]:
+        configured = getattr(
+            self.worker,
+            "supported_generation_modes",
+            ("compose",),
+        )
+        return tuple(configured)
+
     def register_delivery_handler(
         self,
         delivery_kind: ImageDeliveryKind,
@@ -326,6 +335,8 @@ class ImageGenerationCoordinator:
             max_subjects=self.config.max_subjects,
             max_scene_prompt_chars=self.config.max_scene_prompt_chars,
         )
+        if direction.generation_mode not in self.supported_generation_modes:
+            raise ValueError("requested image generation mode is unavailable")
         if self.store.active_count() >= self.config.queue_limit:
             logger.warning(
                 "image generation queue is full; rejecting event request"
@@ -376,8 +387,11 @@ class ImageGenerationCoordinator:
             "title": direction.title,
             "subjects": direction.subject_character_ids,
             "prompt_sha256": prompt_sha256,
-            "model_id": self._worker_model_id(),
-            "model_revision": self._worker_model_revision(),
+            "generation_mode": direction.generation_mode,
+            "model_id": self._worker_model_id(direction.generation_mode),
+            "model_revision": self._worker_model_revision(
+                direction.generation_mode
+            ),
             "width": width,
             "height": height,
             "steps": self.config.steps,
@@ -412,12 +426,15 @@ class ImageGenerationCoordinator:
             source_turn_index=projection.source_turn_index,
             request_ordinal=request_ordinal,
             kind=direction.kind,
+            generation_mode=direction.generation_mode,
             title=direction.title,
             subject_character_ids=direction.subject_character_ids,
             prompt=prompt,
             prompt_sha256=prompt_sha256,
-            model_id=self._worker_model_id(),
-            model_revision=self._worker_model_revision(),
+            model_id=self._worker_model_id(direction.generation_mode),
+            model_revision=self._worker_model_revision(
+                direction.generation_mode
+            ),
             width=width,
             height=height,
             steps=self.config.steps,
@@ -675,9 +692,11 @@ class ImageGenerationCoordinator:
                 "frozen reviewed references are absent from checkpoint registry"
             )
         selected_reviewed = {
-            character.visuals.identity_reference_id
-            for character in checkpoint.characters
-            if character.visuals.identity_reference_id in metadata
+            reference.reference_id
+            for reference in checkpoint.reviewed_visual_references
+            if reference.diffusion_authorized
+            and reference.scope == "character"
+            and reference.purpose == "identity"
         }
         selected_reviewed.update(
             reference_id
@@ -699,11 +718,27 @@ class ImageGenerationCoordinator:
             )
             for reference_id, frozen in frozen_references.items()
         }
-        identity_bindings = {
-            character.character_id: character.visuals.identity_reference_id
+        identity_bindings: dict[str, list[str]] = {}
+        active_authored_characters = {
+            character.character_id
             for character in checkpoint.characters
-            if character.visuals.identity_reference_id in references
+            if character.visuals.identity_reference_id
         }
+        for reference in checkpoint.reviewed_visual_references:
+            if (
+                reference.reference_id in references
+                and reference.scope == "character"
+                and reference.purpose == "identity"
+                and reference.scope_id in active_authored_characters
+            ):
+                identity_bindings.setdefault(reference.scope_id, []).append(
+                    reference.reference_id
+                )
+        for character in checkpoint.characters:
+            primary = character.visuals.identity_reference_id
+            bindings = identity_bindings.get(character.character_id, [])
+            if primary in bindings:
+                bindings.insert(0, bindings.pop(bindings.index(primary)))
         location_bindings = {
             label: list(reference_ids)
             for label, reference_ids in (
@@ -1164,6 +1199,30 @@ class ImageGenerationCoordinator:
         exclude_generated_reference_id: str = "",
     ) -> list[FrozenReferenceInput]:
         references: list[FrozenReferenceInput] = []
+        if direction.reference_ids:
+            allowed_ids = {
+                reference.reference_id
+                for reference in projection.reference_options
+            }
+            unavailable = set(direction.reference_ids) - allowed_ids
+            if unavailable:
+                raise ValueError("selected visual reference is unavailable")
+            for reference_id in direction.reference_ids:
+                reference = self.store.reviewed_reference(
+                    session_id=projection.session_id,
+                    reference_id=reference_id,
+                )
+                if reference is None:
+                    raise RuntimeError(
+                        "selected authored visual reference is unavailable"
+                    )
+                references.append(reference)
+            self._validate_reference_limits(
+                references,
+                generation_mode=direction.generation_mode,
+            )
+            self._revalidate_references(references)
+            return references
         missing_required_identities: list[str] = []
         public_by_id = {
             character.character_id: character
@@ -1238,16 +1297,31 @@ class ImageGenerationCoordinator:
                 for reference in references
             }.values()
         )
+        self._validate_reference_limits(
+            references,
+            generation_mode=direction.generation_mode,
+        )
+        self._revalidate_references(references)
+        return references
+
+    def _validate_reference_limits(
+        self,
+        references: Sequence[FrozenReferenceInput],
+        *,
+        generation_mode: ImageGenerationMode,
+    ) -> None:
         if len(references) > self.config.max_references:
             raise ValueError(
                 "required authored reference set exceeds configured limit"
             )
+        if generation_mode == "edit" and not references:
+            raise ValueError("edit generation requires a reference")
+        if generation_mode == "edit" and len(references) > 3:
+            raise ValueError("edit generation accepts at most 3 references")
         if sum(item.byte_count for item in references) > (
             self.config.max_reference_bytes
         ):
             raise ValueError("image references exceed configured byte limit")
-        self._revalidate_references(references)
-        return references
 
     def _revalidate_references(
         self,
@@ -1319,15 +1393,24 @@ class ImageGenerationCoordinator:
             else None
         )
 
-    def _worker_model_id(self) -> str:
+    def _worker_model_id(self, generation_mode: ImageGenerationMode) -> str:
         config = getattr(self.worker, "config", None)
+        resolver = getattr(config, "model_id_for", None)
+        if callable(resolver):
+            return str(resolver(generation_mode))
         return str(
             getattr(config, "model_id", "")
             or "test-local-image-model"
         )
 
-    def _worker_model_revision(self) -> str:
+    def _worker_model_revision(
+        self,
+        generation_mode: ImageGenerationMode,
+    ) -> str:
         config = getattr(self.worker, "config", None)
+        resolver = getattr(config, "model_revision_for", None)
+        if callable(resolver):
+            return str(resolver(generation_mode))
         return str(
             getattr(config, "runtime_revision", "")
             or getattr(config, "model_revision", "")
@@ -1431,6 +1514,10 @@ def build_diffusion_prompt(
         direction=direction,
         references=reference_inputs,
         by_id=by_id,
+        reference_options={
+            option.reference_id: option
+            for option in projection.reference_options
+        },
     )
     if reference_lines:
         parts.append(
@@ -1458,9 +1545,28 @@ def _reference_binding_lines(
     direction: ImageDirection,
     references: Sequence[FrozenReferenceInput],
     by_id: dict[str, PublicCharacterVisual],
+    reference_options: dict[str, Any],
 ) -> list[str]:
     if not references:
         return []
+    described: list[str] = []
+    for index, reference in enumerate(references, start=1):
+        option = reference_options.get(reference.reference_id)
+        if option is None:
+            break
+        if option.scope == "character":
+            character = by_id.get(option.scope_id)
+            name = character.name if character is not None else option.scope_id
+            described.append(
+                f"Reference image {index} is {name} ({option.scope_id})."
+            )
+        else:
+            described.append(
+                f"Reference image {index} is the visible location guide."
+            )
+    if len(described) == len(references):
+        return described
+
     subject_ids = list(direction.subject_character_ids)
     if len(references) == len(subject_ids):
         return [
@@ -1511,6 +1617,24 @@ def _validate_direction_for_generation(
         raise ValueError(
             "image direction names an anonymous or omitted character"
         )
+    references = {
+        reference.reference_id: reference
+        for reference in projection.reference_options
+    }
+    unknown_references = set(direction.reference_ids) - set(references)
+    if unknown_references:
+        raise ValueError("image direction contains unavailable references")
+    if direction.generation_mode == "edit" and not direction.reference_ids:
+        raise ValueError("edit generation requires a selected reference")
+    if direction.generation_mode == "edit" and len(direction.reference_ids) > 3:
+        raise ValueError("edit generation accepts at most 3 references")
+    if any(
+        references[reference_id].scope == "character"
+        and references[reference_id].scope_id
+        not in direction.subject_character_ids
+        for reference_id in direction.reference_ids
+    ):
+        raise ValueError("selected identity reference belongs to another subject")
     if direction.kind == "portrait" and len(
         direction.subject_character_ids
     ) != 1:

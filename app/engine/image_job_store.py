@@ -172,8 +172,9 @@ CREATE TABLE IF NOT EXISTS image_reviewed_identity_bindings (
     session_id          TEXT NOT NULL,
     character_id        TEXT NOT NULL,
     reference_id        TEXT NOT NULL,
+    priority            INTEGER NOT NULL,
     updated_at          REAL NOT NULL,
-    PRIMARY KEY (session_id, character_id),
+    PRIMARY KEY (session_id, character_id, reference_id),
     FOREIGN KEY(session_id, reference_id)
         REFERENCES image_reviewed_references(session_id, reference_id)
 );
@@ -248,6 +249,7 @@ _CURRENT_SCHEMA_COLUMNS = {
     "image_reviewed_identity_bindings": {
         "character_id",
         "reference_id",
+        "priority",
     },
     "image_reviewed_location_bindings": {
         "location_label",
@@ -1923,7 +1925,7 @@ class ImageJobStore:
             str,
             tuple[FrozenReferenceInput, str, str],
         ],
-        identity_bindings: dict[str, str],
+        identity_bindings: dict[str, Sequence[str]],
         location_bindings: dict[str, Sequence[str]],
     ) -> None:
         """Atomically mirror checkpoint-owned reviewed bindings into runtime."""
@@ -1968,24 +1970,27 @@ class ImageJobStore:
                         now,
                     ),
                 )
-            for character_id, reference_id in identity_bindings.items():
-                if reference_id not in references:
-                    raise ValueError(
-                        "reviewed identity binding has no frozen reference"
+            for character_id, reference_ids in identity_bindings.items():
+                for priority, reference_id in enumerate(reference_ids):
+                    if reference_id not in references:
+                        raise ValueError(
+                            "reviewed identity binding has no frozen reference"
+                        )
+                    db.execute(
+                        """
+                        INSERT INTO image_reviewed_identity_bindings (
+                            session_id, character_id, reference_id,
+                            priority, updated_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            session_id,
+                            character_id,
+                            reference_id,
+                            priority,
+                            now,
+                        ),
                     )
-                db.execute(
-                    """
-                    INSERT INTO image_reviewed_identity_bindings (
-                        session_id, character_id, reference_id, updated_at
-                    ) VALUES (?, ?, ?, ?)
-                    """,
-                    (
-                        session_id,
-                        character_id,
-                        reference_id,
-                        now,
-                    ),
-                )
             for location_label, reference_ids in location_bindings.items():
                 for priority, reference_id in enumerate(reference_ids):
                     if reference_id not in references:
@@ -2028,8 +2033,31 @@ class ImageJobStore:
                  AND p.character_id = b.character_id
                 WHERE b.session_id = ? AND b.character_id = ?
                   AND COALESCE(p.blocked, 0) = 0
+                ORDER BY b.priority, b.reference_id
+                LIMIT 1
                 """,
                 (session_id, character_id),
+            ).fetchone()
+        return (
+            FrozenReferenceInput.model_validate_json(row["frozen_json"])
+            if row is not None
+            else None
+        )
+
+    def reviewed_reference(
+        self,
+        *,
+        session_id: str,
+        reference_id: str,
+    ) -> FrozenReferenceInput | None:
+        with self._connect() as db:
+            row = db.execute(
+                """
+                SELECT frozen_json
+                FROM image_reviewed_references
+                WHERE session_id = ? AND reference_id = ?
+                """,
+                (session_id, reference_id),
             ).fetchone()
         return (
             FrozenReferenceInput.model_validate_json(row["frozen_json"])

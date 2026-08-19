@@ -79,6 +79,17 @@ class CheckpointFile(BaseModel):
                 )
             references[reference.reference_id] = reference
 
+        character_ids = {character.character_id for character in self.characters}
+        for reference in references.values():
+            if (
+                reference.scope == "character"
+                and reference.scope_id not in character_ids
+            ):
+                raise ValueError(
+                    f"reviewed identity reference {reference.reference_id!r} "
+                    f"targets unknown character {reference.scope_id!r}"
+                )
+
         if len(self.location_visual_reference_ids) > 512:
             raise ValueError(
                 "location visual reference mapping exceeds 512 labels"
@@ -115,6 +126,7 @@ class CheckpointFile(BaseModel):
                 if (
                     reference.scope != "location"
                     or reference.purpose not in {"environment", "style"}
+                    or reference.scope_id != label
                 ):
                     raise ValueError(
                         f"location {label!r} selects non-location reference "
@@ -151,6 +163,11 @@ class CheckpointFile(BaseModel):
                 raise ValueError(
                     f"character {character.character_id!r} selects "
                     f"non-identity reference {reference_id!r}"
+                )
+            if reference.scope_id != character.character_id:
+                raise ValueError(
+                    f"character {character.character_id!r} selects identity "
+                    f"reference owned by {reference.scope_id!r}"
                 )
             if not reference.diffusion_authorized:
                 raise ValueError(

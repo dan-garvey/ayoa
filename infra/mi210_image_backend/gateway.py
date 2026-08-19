@@ -25,6 +25,14 @@ FLUX_MODEL_REVISION = os.getenv(
     "AYOA_GATEWAY_FLUX_REVISION",
     "26afe3a78bb242c0a8bb181dcc8937bb16e5c66c",
 )
+QWEN_MODEL_ID = os.getenv(
+    "AYOA_GATEWAY_QWEN_MODEL",
+    "Qwen/Qwen-Image-Edit-2511",
+)
+QWEN_MODEL_REVISION = os.getenv(
+    "AYOA_GATEWAY_QWEN_REVISION",
+    "qwen_image_edit_2511_fp8mixed.safetensors",
+)
 FLUX_URL = os.getenv(
     "AYOA_GATEWAY_FLUX_URL",
     "http://127.0.0.1:8188",
@@ -717,6 +725,20 @@ def health() -> dict[str, Any]:
         "revision": FLUX_MODEL_REVISION,
         "gpu_count": len(COMFY_WORKERS),
         "model_loaded": flux is not None,
+        "pipelines": {
+            "compose": {
+                "available": True,
+                "model": FLUX_MODEL_ID,
+                "revision": FLUX_MODEL_REVISION,
+                "max_references": 4,
+            },
+            "edit": {
+                "available": all(worker.get("ok") for worker in workers),
+                "model": QWEN_MODEL_ID,
+                "revision": QWEN_MODEL_REVISION,
+                "max_references": 3,
+            },
+        },
         **coordinator,
         "flux": flux or {"ok": False, "loaded": False},
         "comfy_master": COMFY_MASTER_URL,

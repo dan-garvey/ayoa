@@ -50,6 +50,8 @@ from tests.support.factories import router_output
 
 
 class _Worker:
+    supported_generation_modes = ("compose", "edit")
+
     def __init__(self, *, error_code: str = "") -> None:
         self.available = True
         self.error_code = error_code
@@ -117,6 +119,12 @@ def _metadata(
         sha256=hashlib.sha256(data).hexdigest(),
         purpose=purpose,
         scope=scope,
+        scope_id="alice" if scope == "character" else "station",
+        selection_hint=(
+            "Front identity reference for portraits."
+            if scope == "character"
+            else "Platform environment reference for location framing."
+        ),
         diffusion_authorized=True,
     )
 
@@ -369,7 +377,7 @@ def test_reviewed_reference_rejects_unsafe_relative_path(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_llm_projection_exposes_only_reference_status(tmp_path):
+async def test_llm_projection_exposes_only_authored_selection_metadata(tmp_path):
     story_dir, checkpoint, identity, location = _reviewed_story(tmp_path)
     default_json = checkpoint.model_dump_json()
     private_json = checkpoint.model_dump_json(
@@ -440,14 +448,16 @@ async def test_llm_projection_exposes_only_reference_status(tmp_path):
     rendered = "\n".join(message["content"] for message in client.messages)
     assert "has_identity_reference=yes" in rendered
     assert "has_location_reference=yes" in rendered
-    assert "authored.alice.v1" not in rendered
-    assert "authored.station.v1" not in rendered
+    assert "authored.alice.v1" in rendered
+    assert "authored.station.v1" in rendered
+    assert "Front identity reference for portraits." in rendered
+    assert "Platform environment reference for location framing." in rendered
     assert identity.storage_ref not in rendered
     assert identity.sha256 not in rendered
     assert location.storage_ref not in rendered
     assert location.sha256 not in rendered
     # The opaque location binding is private runtime routing, not model input.
-    assert "station" not in rendered.lower()
+    assert "applies_to=station" not in rendered.lower()
     assert str(story_dir) not in rendered
 
 
@@ -496,6 +506,44 @@ async def test_subject_then_location_references_forward_to_worker(tmp_path):
         ]
         await coordinator.wait_for_terminal(job.job_id, timeout=2)
         assert worker.requests[0].reference_inputs == (job.request.reference_inputs)
+        coordinator.begin_transaction(
+            session_id=checkpoint.session.session_id,
+            transaction_id="tx_edit",
+            source_turn_index=1,
+            source_checkpoint_sha256="d" * 64,
+        )
+        edited = await coordinator.enqueue_direction(
+            projection=build_projection_groups(
+                checkpoint=projection_checkpoint_snapshot(checkpoint),
+                event=router_output(
+                    event_id="evt_edit",
+                    observer_ids=["alice"],
+                    facts=[ObservableFact.all("Alice turns into the rain.")],
+                ),
+                event_sequence=1,
+                transaction_id="tx_edit",
+                source_turn_index=1,
+                actor_id="alice",
+                active_identity_character_ids={"alice"},
+                active_location_labels={"station"},
+            )[0],
+            direction=ImageDirection(
+                kind="action",
+                title="Turning in Rain",
+                subject_character_ids=["alice"],
+                generation_mode="edit",
+                reference_ids=[identity.reference_id],
+                scene_prompt="Preserve Alice while turning her into the rain.",
+            ),
+            request_ordinal=2,
+            visual_style="cinematic",
+            delivery_targets=[_target()],
+        )
+        assert edited is not None
+        assert edited.request.generation_mode == "edit"
+        assert [
+            item.reference_id for item in edited.request.reference_inputs
+        ] == [identity.reference_id]
         portrait = await coordinator.enqueue_direction(
             projection=_projection(
                 has_location_reference=False,

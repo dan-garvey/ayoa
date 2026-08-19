@@ -35,6 +35,7 @@ from scripts import image_worker
 def _request(
     *,
     reference_inputs: list[FrozenReferenceInput] | None = None,
+    generation_mode: str = "compose",
 ) -> ImageGenerationRequest:
     return ImageGenerationRequest(
         session_id="protocol",
@@ -45,6 +46,7 @@ def _request(
         source_turn_index=1,
         request_ordinal=0,
         kind="establishing",
+        generation_mode=generation_mode,
         title="Rain Street",
         subject_character_ids=[],
         prompt="A rain-washed street.",
@@ -147,6 +149,10 @@ async def _remote_server(
                 "model": model,
                 "revision": revision,
                 "gpu_count": 4,
+                "pipelines": {
+                    "compose": {"available": True},
+                    "edit": {"available": True},
+                },
             }).encode()
             status = 200
             content_type = "application/json"
@@ -158,13 +164,21 @@ async def _remote_server(
             if status == 200:
                 request = requests[-1]
                 image = BytesIO()
-                Image.new(
-                    "RGB",
-                    (int(request["width"]), int(request["height"])),
-                    color=(12, 34, 56),
-                ).save(image, format="WEBP")
+                if "image_base64" in request:
+                    Image.new("RGB", (128, 384), color=(12, 34, 56)).save(
+                        image,
+                        format="PNG",
+                    )
+                else:
+                    Image.new(
+                        "RGB",
+                        (int(request["width"]), int(request["height"])),
+                        color=(12, 34, 56),
+                    ).save(image, format="WEBP")
                 response_body = image.getvalue()
-                content_type = "image/webp"
+                content_type = (
+                    "image/png" if "image_base64" in request else "image/webp"
+                )
                 extra_headers = {
                     "X-Ayoa-Seed": str(request["seed"]),
                     "X-Ayoa-Generation-Seconds": "1.25",
@@ -382,6 +396,50 @@ async def test_remote_client_preflights_and_sends_reference_bytes(tmp_path):
     assert requests[0]["prompt"] == request.prompt
     assert requests[0]["seed"] == request.seed
     assert base64.b64decode(requests[0]["reference_images"][0]) == data
+
+
+@pytest.mark.asyncio
+async def test_remote_edit_uses_qwen_contract_and_normalises_webp(tmp_path):
+    server, url, requests = await _remote_server()
+    reference_root = tmp_path / "references"
+    (reference_root / "artifacts").mkdir(parents=True)
+    encoded = BytesIO()
+    Image.new("RGB", (32, 24), color=(90, 80, 70)).save(
+        encoded,
+        format="PNG",
+    )
+    data = encoded.getvalue()
+    (reference_root / "artifacts/identity.png").write_bytes(data)
+    reference = FrozenReferenceInput(
+        reference_id="authored.alice.face",
+        sha256=hashlib.sha256(data).hexdigest(),
+        byte_count=len(data),
+        relative_path="artifacts/identity.png",
+        allowed_root="artifacts",
+        mime_type="image/png",
+        width=32,
+        height=24,
+    )
+    request = _request(
+        generation_mode="edit",
+        reference_inputs=[reference],
+    )
+    client = ImageWorkerClient(_remote_config(tmp_path, url))
+    output = tmp_path / "edited.webp"
+    try:
+        assert await client.preflight() is True
+        result = await client.generate(request, output_path=output)
+    finally:
+        await client.close()
+        server.close()
+        await server.wait_closed()
+
+    assert requests[0]["image_base64"] == base64.b64encode(data).decode("ascii")
+    assert "reference_images" not in requests[0]
+    assert result.mime_type == "image/webp"
+    with Image.open(output) as image:
+        assert image.format == "WEBP"
+        assert image.size == (request.width, request.height)
 
 
 @pytest.mark.asyncio

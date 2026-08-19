@@ -11,6 +11,7 @@ import pytest
 from app.engine.image_director import (
     ImageDirector,
     PublicCharacterVisual,
+    SelectableVisualReference,
     VisibleEventProjection,
     build_projection_groups,
     projection_checkpoint_snapshot,
@@ -584,6 +585,45 @@ def test_director_schema_supports_zero_or_multiple_requests():
     ]
 
 
+def test_director_validates_generation_mode_and_reference_selection():
+    projection = _projection(viewers=("alice",))
+    projection = VisibleEventProjection(
+        **{
+            **projection.__dict__,
+            "reference_options": (
+                SelectableVisualReference(
+                    reference_id="authored.alice.face",
+                    scope="character",
+                    scope_id="alice",
+                    selection_hint="Close face identity reference.",
+                ),
+            ),
+        }
+    )
+    director = ImageDirector(
+        FakeDirectorClient(ImageDirectorOutput(requests=[])),
+        PromptManager("app/prompts"),
+        generation_modes=("compose", "edit"),
+    )
+    valid = ImageDirectorOutput(
+        requests=[
+            ImageDirection(
+                kind="portrait",
+                title="Alice Close",
+                subject_character_ids=["alice"],
+                generation_mode="edit",
+                reference_ids=["authored.alice.face"],
+                scene_prompt="Alice turns toward the rain.",
+            )
+        ]
+    )
+    director.validate_output(projection, valid)
+
+    valid.requests[0].reference_ids = []
+    with pytest.raises(ValueError, match="requires a selected reference"):
+        director.validate_output(projection, valid)
+
+
 def test_director_requires_first_portraits_for_new_named_characters():
     projection = _projection()
     projection = VisibleEventProjection(
@@ -782,7 +822,7 @@ def test_one_star_story_has_reviewed_style_and_omits_unseen_master():
     assert master.visuals.depiction_policy == "omit"
 
 
-def test_v1_actor_cadence_store_is_retired_in_direct_v6_migration(tmp_path):
+def test_v1_actor_cadence_store_is_retired_in_direct_v7_migration(tmp_path):
     db_path = tmp_path / "jobs.sqlite"
     with sqlite3.connect(db_path) as db:
         db.execute(
@@ -809,7 +849,7 @@ def test_v1_actor_cadence_store_is_retired_in_direct_v6_migration(tmp_path):
             WHERE type = 'table' AND name = 'image_eligible_beats'
             """
         ).fetchone()
-    assert version == "6"
+    assert version == "7"
     assert old_table is None
 
 

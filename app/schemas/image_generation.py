@@ -6,10 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.image_director import ImageDirectionKind
+from app.schemas.image_director import ImageDirectionKind, ImageGenerationMode
 
 
-IMAGE_JOB_SCHEMA_VERSION = "6"
+IMAGE_JOB_SCHEMA_VERSION = "7"
 
 
 class ImageGenerationStatus(str, Enum):
@@ -98,6 +98,7 @@ class ImageGenerationRequest(BaseModel):
     source_turn_index: int
     request_ordinal: int
     kind: ImageDirectionKind
+    generation_mode: ImageGenerationMode = "compose"
     title: str
     subject_character_ids: list[str]
     prompt: str

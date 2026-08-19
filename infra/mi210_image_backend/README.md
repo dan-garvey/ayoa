@@ -88,6 +88,12 @@ Additional endpoints:
 - `POST /edit/qwen`
 - `POST /edit/qwen/batch`
 
+`GET /health` advertises the model-neutral runtime modes under `pipelines`:
+`compose` maps to FLUX text/reference generation and accepts up to four
+references; `edit` maps to Qwen Image Edit and accepts one to three ordered
+references. FLUX `/img2img` remains available for manual experiments but is
+not an Ayoa image-director mode.
+
 Configure Ayoa through the local tunnel:
 
 ```bash

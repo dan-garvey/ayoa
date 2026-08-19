@@ -90,7 +90,7 @@ Start the reviewed service, then keep a local tunnel open:
 ssh mi210 \
   'bash /home/nod/.local/share/ayoa-image-server/start.sh'
 ssh -N \
-  -L 127.0.0.1:8188:127.0.0.1:8188 \
+  -L 127.0.0.1:8199:127.0.0.1:8199 \
   -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=30 \
   -o ServerAliveCountMax=3 \
@@ -109,12 +109,14 @@ python - <<'PY'
 import json
 import urllib.request
 
-with urllib.request.urlopen("http://127.0.0.1:8188/health", timeout=30) as r:
+with urllib.request.urlopen("http://127.0.0.1:8199/health", timeout=30) as r:
     health = json.load(r)
 assert health["ok"] is True
 assert health["model"] == "black-forest-labs/FLUX.2-dev"
 assert health["revision"] == "26afe3a78bb242c0a8bb181dcc8937bb16e5c66c"
 assert health["gpu_count"] == 4
+assert health["pipelines"]["compose"]["available"] is True
+assert health["pipelines"]["edit"]["available"] is True
 print(health)
 PY
 ```
@@ -125,7 +127,7 @@ Select the backend:
 AYOA_IMAGE_DIRECTOR_ENABLED=true
 AYOA_IMAGE_GENERATION_ENABLED=true
 AYOA_IMAGE_WORKER_BACKEND=remote
-AYOA_IMAGE_REMOTE_URL=http://127.0.0.1:8188
+AYOA_IMAGE_REMOTE_URL=http://127.0.0.1:8199
 AYOA_IMAGE_MODEL=black-forest-labs/FLUX.2-dev
 AYOA_IMAGE_MODEL_REVISION=26afe3a78bb242c0a8bb181dcc8937bb16e5c66c
 AYOA_IMAGE_LORA_PATH=none
@@ -305,10 +307,11 @@ never silently drops them.
 
 A story author may select already-reviewed character identity and stable
 location/style images before play. This is a diffusion-only path: no source
-image, path, hash, reference id, caption, embedding, or image-derived analysis
-is sent to the router, narrator, character agents, or image director. The image
-director sees only `has_identity_reference` and
-`has_location_reference`; the local worker receives the frozen files.
+image, path, hash, dimensions, embedding, or image-derived analysis is sent to
+any LLM. The image director sees only opaque reference ids, their visible
+character or location applicability, and concise human-authored selection
+hints. It chooses an ordered subset for each request; only those frozen files
+reach diffusion. Other model roles receive no reference metadata.
 
 1. Manually review the source and its rights, then place a static PNG, JPEG, or
    WebP under the story-private directory:
@@ -350,15 +353,20 @@ director sees only `has_identity_reference` and
 3. Add the result to the seed checkpoint's
    `reviewed_visual_references`. Give it a stable opaque `reference_id`, set
    `purpose` to `identity`, `environment`, or `style`, set `scope` to
-   `character` or `location`, and set `diffusion_authorized: true` only after
-   the review. Do not use the engine-reserved `imgref_` prefix. Identity
-   purpose requires character scope; environment/style require location scope.
+   `character` or `location`, set `scope_id` to the owning character id or
+   location label, and write a public `selection_hint` describing useful
+   framing (for example face close-up, rear view, or environment scale). Set
+   `diffusion_authorized: true` only after review. Do not use the
+   engine-reserved `imgref_` prefix. Identity purpose requires character scope;
+   environment/style require location scope.
 
-4. Select a character candidate by putting that opaque id in the existing
-   `characters[].visuals.identity_reference_id`. Select location references
-   with `location_visual_reference_ids`, whose keys are the same opaque
-   location labels used by character state and whose values are ordered
-   reference-id lists. Do not add a second identity field.
+4. Select the default character anchor by putting one owned opaque id in the
+   existing `characters[].visuals.identity_reference_id`. Every authorized
+   identity reference with the same character `scope_id` becomes a selectable
+   supporting view. Select location references with
+   `location_visual_reference_ids`, whose keys match each reference's
+   `scope_id` and whose values are ordered reference-id lists. Do not add a
+   second identity field.
 
 5. Validate the seed before play:
 

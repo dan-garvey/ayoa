@@ -146,19 +146,19 @@ def test_roster_shape_and_player_binding() -> None:
 
 
 BOUND_IDENTITY_REFERENCE_IDS = {
-    "iselle_the_guide": "osa_iselle_source_v1",
-    "renna_holt": "osa_renna_holt_v1",
-    "rowan_kest": "osa_rowan_kest_v1",
-    "liora_fen": "osa_liora_fen_v1",
-    "wren_thelantern": "osa_wren_thelantern_v1",
-    "mirelle_voss": "osa_mirelle_voss_v1",
-    "seris_nightglass": "osa_seris_nightglass_v1",
-    "castor_valebrand": "osa_castor_valebrand_v1",
-    "soren_ironvow": "osa_soren_ironvow_v1",
-    "aveline_morcant": "osa_aveline_morcant_v1",
-    "halcyon_of_the_gilded_march": "osa_halcyon_v1",
-    "veil_the_unnumbered": "osa_veil_the_unnumbered_v1",
-    "warden_of_the_eighth": "osa_warden_of_the_eighth_v1",
+    "iselle_the_guide": "osa_iselle_the_guide_locked_active_profile_v1",
+    "renna_holt": "osa_renna_holt_locked_active_profile_v1",
+    "rowan_kest": "osa_rowan_kest_locked_active_profile_v1",
+    "liora_fen": "osa_liora_fen_locked_active_profile_v1",
+    "wren_thelantern": "osa_wren_thelantern_locked_active_profile_v1",
+    "mirelle_voss": "osa_mirelle_voss_locked_active_profile_v1",
+    "seris_nightglass": "osa_seris_nightglass_locked_active_profile_v1",
+    "castor_valebrand": "osa_castor_valebrand_locked_active_profile_v1",
+    "soren_ironvow": "osa_soren_ironvow_locked_identity_base_v1",
+    "aveline_morcant": "osa_aveline_morcant_locked_active_profile_v1",
+    "halcyon_of_the_gilded_march": "osa_halcyon_of_the_gilded_march_locked_active_profile_v1",
+    "veil_the_unnumbered": "osa_veil_the_unnumbered_locked_active_profile_v1",
+    "warden_of_the_eighth": "osa_warden_of_the_eighth_locked_v1",
 }
 
 UNBOUND_IDENTITY_IDS = {
@@ -185,7 +185,26 @@ def test_reviewed_identity_bindings_match_human_selection() -> None:
         reference = references[reference_id]
         assert reference.purpose == "identity"
         assert reference.scope == "character"
+        assert reference.scope_id == character_id
+        assert reference.selection_hint
         assert reference.diffusion_authorized is True
+
+    grouped = {
+        character_id: [
+            reference
+            for reference in checkpoint.reviewed_visual_references
+            if reference.scope_id == character_id
+        ]
+        for character_id in BOUND_IDENTITY_REFERENCE_IDS
+    }
+    assert len(checkpoint.reviewed_visual_references) == 50
+    assert len(grouped["soren_ironvow"]) == 5
+    assert len(grouped["warden_of_the_eighth"]) == 1
+    assert all(
+        len(references) == 4
+        for character_id, references in grouped.items()
+        if character_id not in {"soren_ironvow", "warden_of_the_eighth"}
+    )
 
     for character_id in UNBOUND_IDENTITY_IDS:
         assert by_id[character_id].visuals.identity_reference_id == ""

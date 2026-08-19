@@ -261,7 +261,10 @@ Generated illustrations are noncanonical output artifacts and are never
 evidence for story state. Imported images retain their manual review and
 spoiler/privacy gate. Generated images and frozen diffusion references use
 separate runtime provenance with byte, format, dimension, root, and hash
-validation. Image bytes, embeddings, captions derived from images, job
+validation. The image director may receive opaque reviewed-reference handles
+with human-authored, public selection hints so it can choose useful views, but
+never receives the image, storage path, hash, dimensions, or runtime-derived
+analysis. Image bytes, embeddings, captions derived from images, job
 records, and visual output never enter an LLM message, canonical event,
 narrator history, or character-agent history. A checkpoint may retain only an
 engine-owned identity-reference ID used by the diffusion pipeline; that handle
