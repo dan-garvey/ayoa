@@ -197,13 +197,36 @@ def test_reviewed_identity_bindings_match_human_selection() -> None:
         ]
         for character_id in BOUND_IDENTITY_REFERENCE_IDS
     }
-    assert len(checkpoint.reviewed_visual_references) == 50
+    assert len(checkpoint.reviewed_visual_references) == 61
     assert len(grouped["soren_ironvow"]) == 5
     assert len(grouped["warden_of_the_eighth"]) == 1
     assert all(
-        len(references) == 4
+        len(references) == 5
         for character_id, references in grouped.items()
         if character_id not in {"soren_ironvow", "warden_of_the_eighth"}
+    )
+    expected_originals = {
+        "aveline_morcant": "aveline_morcant.webp",
+        "castor_valebrand": "castor_valebrand.webp",
+        "halcyon_of_the_gilded_march": "halcyon_of_the_gilded_march.webp",
+        "iselle_the_guide": "iselle_source.png",
+        "liora_fen": "liora_fen.webp",
+        "mirelle_voss": "mirelle_voss.webp",
+        "renna_holt": "renna_holt.webp",
+        "rowan_kest": "rowan_kest.webp",
+        "seris_nightglass": "seris_nightglass.webp",
+        "veil_the_unnumbered": "veil_the_unnumbered.webp",
+        "warden_of_the_eighth": "warden_of_the_eighth.webp",
+        "wren_thelantern": "wren_thelantern.png",
+    }
+    assert {
+        reference.scope_id: reference.storage_ref
+        for reference in checkpoint.reviewed_visual_references
+        if reference.storage_ref in set(expected_originals.values())
+    } == expected_originals
+    assert all(
+        reference.storage_ref != "soren_ironvow.webp"
+        for reference in checkpoint.reviewed_visual_references
     )
 
     for character_id in UNBOUND_IDENTITY_IDS:

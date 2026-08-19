@@ -14,4 +14,7 @@ selection hint for each view. The image director sees only the opaque handle,
 character owner, and hint; image bytes, paths, hashes, and dimensions remain
 private to the diffusion runtime. The Warden binds the pre-existing
 `warden_of_the_eighth.webp` with those same reviewed bytes because its four
-organized files intentionally duplicate one reference.
+organized files intentionally duplicate one reference. The checkpoint also
+keeps each character's approved top-level original as a selectable baseline
+anchor. Soren is the sole exception: his rejected top-level original remains
+unregistered, and `identity_base.png` is his repaired baseline instead.
