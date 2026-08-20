@@ -333,6 +333,32 @@ def test_model_visible_seed_surfaces_exclude_live_controller_metadata() -> None:
         ) is None, pattern
 
 
+def test_brutality_contract_has_no_blanket_low_rank_safety() -> None:
+    """Guard the softening clauses found in repeated casualty-free replays."""
+    checkpoint = _load_checkpoint()
+    current_contract = "\n".join(
+        (
+            checkpoint.session.config.narrative_rules,
+            *checkpoint.world_state.facts,
+            checkpoint.world_state.lore,
+            checkpoint.world_state.hidden_lore,
+            *checkpoint.world_state.hidden_facts,
+            checkpoint.world_state.opening.context,
+        )
+    ).lower()
+
+    for obsolete_softener in (
+        "ration loss",
+        "light, learnable",
+        "safe for now",
+        "never a flat instant death",
+        "never an arbitrary early dice-kill",
+        "hard lethal outcome requires accumulated setup",
+        "without hesitation or error",
+    ):
+        assert obsolete_softener not in current_contract
+
+
 def test_master_is_offstage_unreachable_actor() -> None:
     checkpoint = _load_checkpoint()
     master = next(c for c in checkpoint.characters if c.character_id == "the_master")
@@ -679,7 +705,7 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     """Source-fidelity pass: the lobby is a build/upgrade economy of named
     chambers (incl. a Synthesis Chamber), it restores Heroes between missions
     (death/synthesis/old-amputation excepted), and the guide is also a warden
-    who compels refusers and is defended by a lethal protocol (PC-gated)."""
+    who compels refusers and is defended by a genuinely lethal protocol."""
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
     by_id = {c.character_id: c for c in checkpoint.characters}
@@ -720,9 +746,10 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     assert "lethal defense protocol" in guide_ctx
     assert "compel a hero who refuses to deploy" in guide_ctx
 
-    # Enforcement is PC-gated exactly like synthesis (router-only doctrine).
+    # A durable name must not silently reintroduce immunity to the protocol.
     assert "warden" in hidden
-    assert "treat it like synthesis" in hidden
+    assert "treat it exactly like synthesis" not in hidden
+    assert "never an arbitrary instant kill" not in hidden
 
     # The Master's lobby toolkit includes facilities and transformation.
     master = by_id["the_master"]
