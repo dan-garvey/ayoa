@@ -311,6 +311,8 @@ class TestPromptManagerWithRealTemplates:
                 "- Pip UniqueKnown: player-safe context: stable public glossary marker."
             ),
             user_input="Unique submitted action.",
+            handoff_policy="Unique candidate policy.",
+            handoff_context="Unique unresolved motion.",
         )
 
         system = messages[0]["content"]
@@ -322,6 +324,8 @@ class TestPromptManagerWithRealTemplates:
         assert "Unique event fact" not in system
         assert "stable public glossary marker" not in system
         assert "Unique submitted action" not in system
+        assert "Unique candidate policy" not in system
+        assert "Unique unresolved motion" not in system
         assert PARTIAL_MODE_MARKER not in system
 
         assert "Genre: fantasy" in system
@@ -332,6 +336,8 @@ class TestPromptManagerWithRealTemplates:
         assert "stable public glossary marker" in user
         assert "Unique event fact" in user
         assert "Unique submitted action" in user
+        assert "Unique candidate policy" in user
+        assert "Unique unresolved motion" in user
         assert PARTIAL_MODE_MARKER in user
 
     def test_render_messages_rejects_missing_delimiter(self, mgr):

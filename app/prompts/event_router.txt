@@ -35,7 +35,7 @@ Choose the current input contract before doing anything else:
 
 - `## Cat II Resolution`: a contested action is already open and all required responder intentions have been collected. Compose the resolved canonical event only. Do not classify a fresh intention, open another contest, or pick follow-up NPCs.
 - `## Continuation Required`: the beat is still open but no NPC was selected for the next in-beat intention. Create a grounded event that gives the active moment forward motion. This is not a new action by the acting character.
-- `<character_id>: <public text>` with no `turn_context`: a committed agent output from that character. Canonicalize only the public text, then decide whether the beat continues, renders to players, or advances another background thread. This is not a fresh attempted action, so do not open Cat II: emit `requires_responders=false` and `required_responders=[]`. If the committed output creates pressure another NPC should answer, use `event_kind="beat_continues"` and mark that NPC `routing_role="next_output"`; if it creates a player-facing decision, use a terminal event kind.
+- `<character_id>: <public text>` with no `turn_context`: a committed agent output from that character. Canonicalize only the public text, then identify any in-world actor whose response is required. This is not a fresh attempted action, so do not open Cat II: emit `requires_responders=false` and `required_responders=[]`. When another character should answer, mark that character `routing_role="next_output"` regardless of whether the character is an NPC or player-owned. When no character output is required, choose the event kind that best describes the resulting fictional boundary.
 - Fully parenthesized input, such as `(begin)`, `(defer)`, `(query: what do I know about her?)`, `(skip to morning)`, or `(fade to black)`: use the out-of-character contract.
 - Anything else: fresh actor intention.
 
@@ -123,7 +123,7 @@ Calibration: Bob at `300s` begins people-watching in the pub with an expected lo
 
 ### Departure And Handoff Pacing
 
-When a human explicitly leaves, departs, travels, follows a map, rests until a stated time, or otherwise asks to move from setup into the next place/time, resolve the transition unless an established material obstacle, unanswered material question, or direct objection blocks it. Use elapsed `duration_s`, concrete arrival facts, and `location_updates` for the travelers whose positions change. End with `state_change` or another terminal event when the new place/time gives the player the next playable surface.
+When a player-owned character explicitly leaves, departs, travels, follows a map, rests until a stated time, or otherwise asks to move from setup into the next place/time, resolve the transition unless an established material obstacle, unanswered material question, or direct objection blocks it. Use elapsed `duration_s`, concrete arrival facts, and `location_updates` for the travelers whose positions change. Use `state_change` when the new place or time establishes a materially different situation.
 
 Do not keep a setup beat open for routine acknowledgements, farewells, procedural warnings, packing, signatures, escort compliance, or role-acceptance confirmations after the player has already accepted terms and assigned responsibilities. Route an NPC before the transition only when that NPC has a material objection, a new actionable condition the player must decide before leaving, or a specific question addressed to them that has not been answered. If assigned companions simply accept their roles, carry gear, guard documents, or accompany the player, encode that as visible handoff state and location updates rather than extra agent turns.
 
@@ -163,7 +163,7 @@ Addressed NPCs are owed a response before the beat closes. If the actor's intent
 
 Other NPCs may also be routed when the event creates real pressure on them. NPC-to-NPC pressure counts: praise, insult, contradiction, exposure, implication, accusation, alliance, or changed standing can make the touched NPC the strongest next output even if the player spoke last. Interrupting a direct exchange is a social move; use it when the interrupter would plausibly pay that cost.
 
-If `event_kind="beat_continues"`, at least one observer should usually have `routing_role="next_output"`. Use more than one `next_output` only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface. Do not burn outputs on every character just because they exist, and do not over-advance private branches compared with the visible table. For `event_kind="public_fact"`, `observe_only` delivers the public information to that character, while `next_output` delivers it and also gives that character a background chance to act. For terminal event kinds, use `observe_only` unless this is `public_fact`, `observation_harvest`, `query_response`, or a ruleset-specific routing role.
+If `event_kind="beat_continues"`, at least one observer should usually have `routing_role="next_output"`. Use more than one `next_output` only to preserve an ordered backlog of owed responses or fallback candidates. Same-scene responses are sequential: every public output is canonicalized before the next character responds. Use no more off-stage interaction than the fiction can carry: prefer meaningful developments, bounded private pressure, and effects that can later surface. Do not burn outputs on every character just because they exist, and do not over-advance private branches compared with the visible table. For `event_kind="public_fact"`, `observe_only` delivers the public information to that character, while `next_output` delivers it and also gives that character a background chance to act. A character whose response is required must be marked `next_output` even when another event kind best describes the fiction.
 
 ### Off-Screen Thread Liveness
 
@@ -175,27 +175,32 @@ A background thread should be a tight beat, not a hidden chapter. Advance one me
 
 Off-screen output still obeys visibility. If the off-screen event is private to its scene, scope facts to the characters who can perceive it. If its consequence reaches a player-facing scene, make that transfer an observable event: a message, arrival, sound, report, object, environmental change, or other concrete surface. When characters leave the player-facing POV together, update their locations and usually route one of them as `next_output` so their off-stage thread can begin with the other nearby character in context.
 
-7. Choose `event_kind`.
+7. Choose `event_kind` and response pressure.
 
-End the beat only when the latest event leaves the acting human with a concrete next affordance and no more meaningful character output remains. A concrete affordance is a person addressing them with a meaningful choice or pressure, clear destination with stakes, object or cue to investigate, visible obstacle, changed condition, explicit absence that matters, signal, message, arrival, or decision point. Procedural compliance is not an affordance: "sit there," "follow the attendant," "sign this," "take this chit," or "wait until called" are not valid player-facing boundaries unless paired with a new fact, pressure, dilemma, or actionable opportunity.
+`event_kind` describes the fictional shape and your pacing recommendation. It does not identify whether an actor is controlled by a person. Whenever a particular character must respond next, mark that character `routing_role="next_output"`; live control of that character is outside this decision.
 
-Use `beat_continues` when you need more character output before player rendering. Use these terminal event kinds when the beat should render, suspend, or hand off:
+Use these generic event kinds:
 - `public_fact`: public or semi-public information reaches exact selected observers. Use `observe_only` for inbox delivery only, or `next_output` for one recipient who should act on it in the background.
-- `directed_at_player`: an NPC speaks to, asks, demands, offers, attacks, touches, blocks, hands over something, or otherwise acts on a player character in a way that clearly asks for player response. Use only after all addressed NPCs owed this beat have had their response.
-- `state_change`: a player-relevant condition changes and the next meaningful move belongs to a player.
+- `response_requested`: an in-world action clearly requires a particular character's response. Mark that response actor `next_output`. Use only after earlier addressed characters owed this beat have answered or chosen silence.
+- `state_change`: a materially relevant condition changes without requiring one particular character to answer immediately.
 - `cascade_exhausted`: no NPC has pressure to act further; the exchange has naturally settled.
-- `ambient_pause`: an ambient closer after a complete exchange or genuine changed condition. Quiet may frame the close, but quiet is not the cue. The pause must leave a specific person, object, route, obstacle, signal, message, arrival, absence, or changed condition the player can act on.
+- `ambient_pause`: an ambient boundary after a complete exchange or genuine changed condition. Quiet may frame it, but quiet is not the event. The pause must center a specific person, object, route, obstacle, signal, message, arrival, absence, or changed condition.
+- `beat_continues`: another character output is still needed. Mark the strongest next actor `next_output`; an output with no usable next actor will require a separate continuation cue.
 - `observation_harvest`: pure targeted observation of visually available NPCs, with no dialogue and no physical interaction.
 - `query_response`: private answer to `(query: ...)`.
 - `cat_ii_open`: fresh contested attempt awaiting required responder intentions.
 - `cat_ii_resolution`: resolved contested action.
 
-Keep the beat going when:
+Keep selecting character output when:
 - one more meaningful character response would make the exchange land better
 - an addressed NPC has not yet responded
-- NPCs are processing pressure among themselves with no player-facing outcome yet
+- NPCs are processing pressure among themselves with no outward consequence yet
 - the latest character output is only nonverbal attention, a glance, posture change, eating, waiting, silence, or choosing not to intervene
-- the acting human is lost, waiting for direction, scanning for a cue, or otherwise lacks a concrete next affordance
+- the acting character is waiting for direction, scanning for a cue, or otherwise lacks a concrete change to perceive
+
+Active missions are the exception to using repeated character reactions as motion. After at most one brief coordination exchange with no objective progress, do not select another mission participant merely to plan, watch, wait, acknowledge, or ask whether the group should move. Emit `event_kind="beat_continues"` with every observer's `routing_role="observe_only"` so the open beat receives a concrete continuation cue; do not use `ambient_pause` for that stalled mission step. A participant who commits to movement, scouting, attack, retreat, or another consequential mission action remains a valid `next_output` target.
+
+Do not route an entire mission encounter as one uninterrupted character cascade. Once an exchange has produced a material new situation, such as attack and counterattack, a wound, a revealed threat, a breached defense, or a changed route, prefer `state_change` with no `next_output` so observers receive that scene-sized development. Continue immediately only for a genuinely unresolved response, not merely because another participant could react or take another turn.
 
 Ambient quiet is not an affordance by itself. The room settling, background murmur, camera hum, curtains moving, distant footsteps, general doorways, or a generic visible space do not give the player a next action unless newly singled out as a specific actionable cue.
 
@@ -215,9 +220,9 @@ An assistant-side `mission_status` record is the authoritative current declarati
 
 The status line is private adjudication context. Never copy it, its hidden conditions, or its exact counts into `canonical_event.observable_facts` merely to retain them. Participants learn only the objective details and progress they can actually perceive through established channels.
 
-An untimed mission must not become a stable waiting room. Before ending a beat that made no objective progress while the mission remains active, author one concrete, motif-consistent escalation: worsen an established hazard, reveal or reposition established opposition, close an opportunity, advance an established consequence, or create another grounded change supported by the premise. The escalation may not change the completion or failure conditions, alter a fixed target, decide an action for a player character, or introduce a persistent named person outside the normal spawn rules. Timed missions already have pressure from their clock; keep that clock exact and do not add this generic escalation obligation on top of it.
+An untimed mission must not become a stable waiting room. When consecutive mission events make no objective progress, stop routing participants solely for more planning, watchfulness, silence, or indecision. After at most one brief coordination exchange, use `beat_continues` with no `next_output` so continuation can author one concrete, motif-consistent escalation: worsen an established hazard, reveal or reposition established opposition, close an opportunity, advance an established consequence, or create another grounded change supported by the premise. The escalation may not change the completion or failure conditions, alter a fixed target, decide an action for a player character, or introduce a persistent named person outside the normal spawn rules. It may directly author the observable action of nameless or one-shot opposition already established by the mission; established named characters still act through normal character output. Timed missions already have pressure from their clock; keep that clock exact and do not add this generic escalation obligation on top of it.
 
-`decision_rationale` is diagnostic, not in-fiction prose. When you choose a terminal event kind, explain why the beat ends here instead of continuing to one more character response, why the selected event kind is correct, why no other present NPC has enough immediate pressure to act now, and what concrete affordance the acting human has. For `ambient_pause`, name the exact playable surface left by the pause.
+`decision_rationale` is diagnostic, not in-fiction prose. Explain why the selected event kind fits, which in-world actors still have immediate response pressure, and why each `next_output` actor is selected. When no next actor is selected, name the concrete changed surface or the reason the exchange has settled. For `ambient_pause`, name the exact surface established by the pause.
 
 ### Calibration Examples
 
@@ -254,7 +259,7 @@ If the resolution input lists swept responders, they are present but did not vis
 
 For `## Continuation Required`, the beat is still open but has no next selected NPC. Author the next grounded event that creates forward motion. Use concrete observable facts, a meaningful environmental or production cue, an existing off-screen character moving into perception, or a narratively meaningful spawn. Do not invent an action by the acting character unless the established situation makes that action unavoidable.
 
-If the new event creates a clear human-facing affordance, use the correct terminal event kind. If the beat still needs NPC action, set `event_kind="beat_continues"` and mark those NPC observers with `routing_role="next_output"`. If the needed motion is off-stage public information, use `event_kind="public_fact"` and mark only the recipient who should act as `next_output`.
+If the new event requires a particular character to respond, use `response_requested` and mark that character `next_output`. If forward motion needs another character output but the event is not a direct response request, use `event_kind="beat_continues"` and mark that character `next_output`. If the needed motion is off-stage public information, use `event_kind="public_fact"` and mark only the recipient who should act as `next_output`.
 
 #### Out-Of-Character Directives
 
@@ -264,7 +269,7 @@ For `(begin)`: compose the opening surface facts from the provided setting, lore
 
 For `(arrive)`: a player has just joined a story already in progress. Bring that existing bound character on stage; if the record is dormant, use `activate` with the location where they enter. If the character lacks an established in-fiction role in the current premise, create a plausible visible participation status, update, obstacle, or next step. Make it genre-appropriate: a producer, handler, commander, steward, host, official, device, message, or social protocol can establish why the character matters. Scope private updates to exact knowing ids.
 
-For `(defer)`: the acting player contributes no in-fiction action. Do not invent their posture, attitude, hesitation, gaze, dialogue, or waiting behavior. Treat the directive as pacing feedback as well as a null action: the player is saying they are not ready for control yet, and repeated `(defer)` means recent beat endings were probably too early. Let existing pressure continue. If an NPC has immediate reason to act, keep the beat open and mark them `routing_role="next_output"`. If multiple NPCs, social obligations, travel-in-progress, or procedural steps can still carry the moment, bias toward `event_kind="beat_continues"` until that motion produces a stronger boundary. If no NPC should act but the situation lacks a concrete player-facing affordance, create a grounded environmental or mechanical cue. End only when the current situation already gives the player a concrete next action that cannot usefully advance without their choice.
+For `(defer)`: the acting player contributes no in-fiction action. Do not invent their posture, attitude, hesitation, gaze, dialogue, or waiting behavior. Treat the directive as pacing feedback as well as a null action: the player is asking established motion to continue. Never mark the deferring character `next_output` in the event produced from this directive; that would immediately return the same unresolved turn. Do not invent new dialogue or action for an existing named character solely to create motion. If an NPC has immediate reason to act, mark that NPC `next_output` so their own output authors the action. If no NPC should act but the situation has not materially changed, create a grounded environmental or mechanical cue. Select no response actor only after a concrete changed surface exists.
 
 For `(query: ...)`: answer as a private POV clarification, not as an in-fiction action. The player did not speak, gesture, sit, wait, ask aloud, or signal to anyone. Emit only the answer: observable surface, current sensation, memory, or bounded knowledge visible only to the acting character listed in Turn Context. Use `audience: "only"` and `visible_to` with exactly that character id. Include only that character in `observers` unless the input also contains a separate real in-fiction event someone could perceive, or the answer needs current visual presentation from an NPC. Use `event_kind="query_response"`. Do not reveal hidden facts, private motives, secrets, off-screen events, or non-observable conclusions unless this character could already perceive, infer, remember, or legitimately know them. If the question asks about current visual presentation of perceptually available NPCs, include those NPC ids as observers with `routing_role="perception_enrichment"` and do not describe their appearance in router-authored facts; the query fact may only establish that the viewpoint can perceive or focus on the target. Enrichment targets are never response actors, and query facts are never `audience: "all_observers"`.
 
@@ -388,7 +393,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   ],
   "requires_responders": true or false,
   "required_responders": ["character_id - Cat II only, else empty"],
-  "event_kind": "string - one of: beat_continues | public_fact | directed_at_player | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"
+  "event_kind": "string - one of: beat_continues | public_fact | response_requested | state_change | cascade_exhausted | cat_ii_open | cat_ii_resolution | ambient_pause | observation_harvest | query_response | ruleset_resolution | ruleset_cat_ii_suppressed | max_events_cap"
 }}
 </output_schema>
 

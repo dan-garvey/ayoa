@@ -37,6 +37,7 @@ from app.schemas.content import (
 from app.schemas.content_manager import ContentManagerOutput
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
+    ClosedEventRouterOutput,
     DndEventRouterOutput,
     EventRouterOutput,
     ObserverEntry,
@@ -1618,6 +1619,8 @@ class TestRouteIntention:
             ckpt=ckpt,
             actor_id="alice",
             prior_result=prior,
+            original_action="I wait for the door to open.",
+            handoff_reason="The door is still opening.",
         ))
 
         user_content = _last_user_content(
@@ -1627,6 +1630,12 @@ class TestRouteIntention:
         assert "The beat stayed open without a pick." in user_content
         assert "Alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
+        assert "I wait for the door to open." in user_content
+        assert "The door is still opening." in user_content
+        assert (
+            mock_client.complete.await_args.kwargs["response_model"]
+            is ClosedEventRouterOutput
+        )
 
     def test_route_continuation_adds_pending_content_before_recovery_call(
         self, prompt_mgr, mock_client,
@@ -1832,6 +1841,10 @@ class TestRouteAgentOutput:
         assert "## Intention" not in user_content
         assert "## Cat II Resolution" not in user_content
         assert "source=pip mode=agent_output" in ckpt.session_conversation[-1].content
+        assert (
+            mock_client.complete.await_args.kwargs["response_model"]
+            is ClosedEventRouterOutput
+        )
 
     def test_agent_output_keeps_content_delta_out_of_bare_user_message(
         self, prompt_mgr, mock_client,
@@ -2173,12 +2186,16 @@ class TestNarratorCompose:
 
         async def _fake_compose_pov_render(
             *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode, user_input="",
+            buffered_events, partial_mode, user_input="", **_kwargs,
         ):
             recorded["partial_mode"] = partial_mode
             recorded["pov"] = pov_character_id
             return (
-                NarratorFinalOutput(final_text="RENDERED"),
+                NarratorFinalOutput(
+                    handoff="render",
+                    handoff_reason="The visible sequence is ready.",
+                    final_text="RENDERED",
+                ),
                 TranscriptEntry(user=user_input, assistant="RENDERED"),
             )
 
@@ -2204,11 +2221,15 @@ class TestNarratorCompose:
 
         async def _fake_compose_pov_render(
             *, client, prompt_mgr, ckpt, pov_character_id,
-            buffered_events, partial_mode, user_input="",
+            buffered_events, partial_mode, user_input="", **_kwargs,
         ):
             recorded["partial_mode"] = partial_mode
             return (
-                NarratorFinalOutput(final_text="RENDERED"),
+                NarratorFinalOutput(
+                    handoff="render",
+                    handoff_reason="The visible sequence is ready.",
+                    final_text="RENDERED",
+                ),
                 TranscriptEntry(user=user_input, assistant="RENDERED"),
             )
 

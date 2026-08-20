@@ -20,7 +20,12 @@ from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content_privacy import redact_imported_asset_text
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
-from app.schemas.state import SessionState, StorySetting, WorldState
+from app.schemas.state import (
+    RenderBufferEntry,
+    SessionState,
+    StorySetting,
+    WorldState,
+)
 
 
 _OBSERVATION_LEVELS = {
@@ -261,10 +266,13 @@ def source_event_fingerprint(event: EventRouterOutput) -> str:
 
 def projection_checkpoint_snapshot(
     checkpoint: CheckpointFile,
+    *,
+    event_ids: Iterable[str] = (),
 ) -> CheckpointFile:
     """Copy only bounded public state needed by asynchronous projection."""
 
     setting = checkpoint.world_state.setting
+    selected_event_ids = set(event_ids)
     return CheckpointFile(
         session=SessionState(
             session_id=checkpoint.session.session_id,
@@ -329,6 +337,11 @@ def projection_checkpoint_snapshot(
                 checkpoint.location_visual_reference_ids.items()
             )
         },
+        canonical_events=[
+            event.model_copy(deep=True)
+            for event in checkpoint.canonical_events
+            if event.event_id in selected_event_ids
+        ],
     )
 
 
@@ -493,6 +506,151 @@ def build_projection_groups(
                     ),
                 }
             )
+    return list(grouped.values())
+
+
+def build_render_batch_projection_groups(
+    *,
+    checkpoint: CheckpointFile,
+    buffered_events_by_pov: dict[str, Sequence[RenderBufferEntry]],
+    eligible_viewer_ids: set[str],
+    transaction_id: str,
+    source_turn_index: int,
+    spawned_records: Sequence[CharacterRecord] = (),
+    actor_ids_by_event_id: dict[str, str] | None = None,
+    active_identity_character_ids: Iterable[str] = (),
+    active_location_labels: Iterable[str] = (),
+    delivery_kind: str = "discord",
+) -> list[VisibleEventProjection]:
+    """Project a complete pending render and merge equivalent POV batches."""
+    actor_ids = actor_ids_by_event_id or {}
+    event_sequences = {
+        entry.event_id: entry.event_sequence
+        for viewer_id, entries in buffered_events_by_pov.items()
+        if viewer_id in eligible_viewer_ids
+        for entry in entries
+    }
+    events_by_id = {
+        event.event_id: event for event in checkpoint.canonical_events
+    }
+    needed_event_ids = {
+        entry.event_id
+        for viewer_id, entries in buffered_events_by_pov.items()
+        if viewer_id in eligible_viewer_ids
+        for entry in entries
+    }
+    parts_by_viewer_event: dict[
+        tuple[str, str],
+        VisibleEventProjection,
+    ] = {}
+    for event_id in sorted(
+        needed_event_ids,
+        key=lambda value: event_sequences.get(value, 10**9),
+    ):
+        event = events_by_id.get(event_id)
+        event_sequence = event_sequences.get(event_id)
+        if event is None or event_sequence is None:
+            continue
+        for projection in build_projection_groups(
+            checkpoint=checkpoint,
+            event=event,
+            event_sequence=event_sequence,
+            transaction_id=transaction_id,
+            source_turn_index=source_turn_index,
+            spawned_records=spawned_records,
+            actor_id=actor_ids.get(event_id, ""),
+            active_identity_character_ids=active_identity_character_ids,
+            active_location_labels=active_location_labels,
+            delivery_kind=delivery_kind,
+        ):
+            for viewer_id in projection.viewer_character_ids:
+                if viewer_id in eligible_viewer_ids:
+                    parts_by_viewer_event[(viewer_id, event_id)] = projection
+
+    grouped: dict[str, VisibleEventProjection] = {}
+    perception_rank = {"direct": 0, "indirect": 1, "inferred": 2}
+    for viewer_id, entries in buffered_events_by_pov.items():
+        if viewer_id not in eligible_viewer_ids:
+            continue
+        ordered_entries = sorted(
+            entries,
+            key=lambda entry: (entry.visible_at_s, entry.event_sequence),
+        )
+        parts = [
+            part
+            for entry in ordered_entries
+            if (part := parts_by_viewer_event.get((viewer_id, entry.event_id)))
+            is not None
+        ]
+        if not parts:
+            continue
+        start_s = min(part.effective_at_s for part in parts)
+        end_s = max(
+            part.effective_at_s + part.duration_s for part in parts
+        )
+        facts = tuple(
+            (
+                text,
+                max(0, part.effective_at_s - start_s + offset),
+                duration,
+            )
+            for part in parts
+            for text, offset, duration in part.visible_facts
+        )
+        characters = {
+            character.character_id: character
+            for part in parts
+            for character in part.characters
+        }
+        references = {
+            reference.reference_id: reference
+            for part in parts
+            for reference in part.reference_options
+        }
+        anchor = parts[-1]
+        perception_level = max(
+            (part.perception_level for part in parts),
+            key=lambda level: perception_rank.get(level, 2),
+        )
+        projection = VisibleEventProjection(
+            **{
+                **anchor.__dict__,
+                "viewer_character_ids": (viewer_id,),
+                "viewer_delivery_bindings": ((
+                    viewer_id,
+                    str(
+                        checkpoint.session.character_bindings.get(
+                            viewer_id,
+                            "",
+                        )
+                    ),
+                ),),
+                "perception_level": perception_level,
+                "effective_at_s": start_s,
+                "duration_s": max(0, end_s - start_s),
+                "visible_facts": facts,
+                "characters": tuple(characters.values()),
+                "reference_options": tuple(references.values()),
+            }
+        )
+        key = projection.grouping_key()
+        prior = grouped.get(key)
+        if prior is None:
+            grouped[key] = projection
+            continue
+        grouped[key] = VisibleEventProjection(
+            **{
+                **prior.__dict__,
+                "viewer_character_ids": tuple(dict.fromkeys((
+                    *prior.viewer_character_ids,
+                    viewer_id,
+                ))),
+                "viewer_delivery_bindings": tuple(dict.fromkeys((
+                    *prior.viewer_delivery_bindings,
+                    *projection.viewer_delivery_bindings,
+                ))),
+            }
+        )
     return list(grouped.values())
 
 

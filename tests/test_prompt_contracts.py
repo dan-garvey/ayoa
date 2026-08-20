@@ -53,11 +53,16 @@ class TestRouterContinuationBlock:
     def test_continuation_block_is_not_framed_as_character_intention(self):
         block = format_router_continuation_block(
             prior_rationale="Router left the beat open.",
+            original_action="I wait until the lift arrives.",
+            handoff_reason="The lift is still moving.",
         )
         assert block.startswith(ROUTER_CONTINUATION_HEADER)
         assert "attempts:" not in block
         assert "intends:" not in block
         assert "Router left the beat open." in block
+        assert "I wait until the lift arrives." in block
+        assert "The lift is still moving." in block
+        assert "Cat II" in block
 
 
 class TestAgentOutputEntry:

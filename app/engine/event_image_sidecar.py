@@ -3,13 +3,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from app.engine.image_director import (
     ImageDirector,
     VisibleEventProjection,
-    build_projection_groups,
+    build_render_batch_projection_groups,
     projection_checkpoint_snapshot,
 )
 from app.engine.image_generation import (
@@ -22,9 +24,9 @@ from app.engine.spawn_authoring import (
 )
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.event_router import EventRouterOutput
-from app.schemas.image_director import ImageDirection
+from app.schemas.image_director import ImageDirection, ImageDirectorOutput
 from app.schemas.image_generation import ImageDeliveryKind
+from app.schemas.state import RenderBufferEntry
 
 
 logger = logging.getLogger(__name__)
@@ -32,12 +34,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class EventImageSidecarConfig:
-    mode: str = "disabled"
+    mode: Literal["disabled", "enabled"] = "disabled"
     recent_illustration_limit: int = 8
+
+    def __post_init__(self) -> None:
+        if self.mode not in {"disabled", "enabled"}:
+            raise ValueError("image director mode must be disabled or enabled")
 
     @property
     def director_enabled(self) -> bool:
-        return self.mode in {"shadow", "enabled"}
+        return self.mode == "enabled"
 
     @property
     def diffusion_enabled(self) -> bool:
@@ -51,7 +57,6 @@ class EventImageSidecarConfig:
             "false": "disabled",
             "off": "disabled",
             "disabled": "disabled",
-            "shadow": "shadow",
             "1": "enabled",
             "true": "enabled",
             "on": "enabled",
@@ -61,13 +66,13 @@ class EventImageSidecarConfig:
             mode = aliases[raw]
         except KeyError as exc:
             raise ValueError(
-                "AYOA_IMAGE_DIRECTOR_ENABLED must be 0, shadow, or 1"
+                "AYOA_IMAGE_DIRECTOR_ENABLED must be 0 or 1"
             ) from exc
         return cls(mode=mode)
 
 
 class EventImageSidecar:
-    """Runs event projections independently from narration and turn latency."""
+    """Runs speculative render-batch direction alongside narration."""
 
     def __init__(
         self,
@@ -121,72 +126,131 @@ class EventImageSidecar:
         self._runner = None
         self._preparation_tasks.clear()
 
-    def on_closed_event(
+    async def start_render_candidate(
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
-        event_sequence: int,
-        transaction_id: str,
+        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
         source_turn_index: int,
-        spawn_key: SpawnAuthoringKey | None,
-        actor_id: str,
-    ) -> None:
-        if not self.config.director_enabled:
-            return
-        snapshot = projection_checkpoint_snapshot(checkpoint)
-        event_snapshot = event.model_copy(deep=True)
-        spawn_task = (
-            self.spawn_authoring.task(spawn_key)
-            if spawn_key is not None
-            else None
+        source_checkpoint_sha256: str,
+        spawn_keys_by_event_id: dict[str, SpawnAuthoringKey],
+        actor_ids_by_event_id: dict[str, str],
+    ) -> str | None:
+        """Start one speculative direction/diffusion transaction per render."""
+        if (
+            not self.config.diffusion_enabled
+            or self.generation.config.max_requests <= 0
+        ):
+            return None
+        session_id = checkpoint.session.session_id
+        eligible_viewer_ids = {
+            viewer_id
+            for viewer_id, entries in buffered_events_by_pov.items()
+            if entries and self.generation.can_accept_render(
+                self.delivery_kind,
+                session_id=session_id,
+                pov_character_id=viewer_id,
+            )
+        }
+        if not eligible_viewer_ids:
+            return None
+        transaction_id = f"imgtx_{uuid.uuid4().hex}"
+        try:
+            self.generation.begin_transaction(
+                transaction_id=transaction_id,
+                session_id=session_id,
+                source_turn_index=source_turn_index,
+                source_checkpoint_sha256=source_checkpoint_sha256,
+            )
+        except Exception:
+            logger.exception("render image transaction setup failed")
+            return None
+        buffers = {
+            viewer_id: [entry.model_copy(deep=True) for entry in entries]
+            for viewer_id, entries in buffered_events_by_pov.items()
+            if viewer_id in eligible_viewer_ids
+        }
+        buffered_event_ids = {
+            entry.event_id for entries in buffers.values() for entry in entries
+        }
+        snapshot = projection_checkpoint_snapshot(
+            checkpoint,
+            event_ids=buffered_event_ids,
         )
+        spawn_tasks = [
+            task
+            for event_id in buffered_event_ids
+            if (key := spawn_keys_by_event_id.get(event_id)) is not None
+            and (task := self.spawn_authoring.task(key)) is not None
+        ]
         task = asyncio.create_task(
             self._prepare_projections(
                 checkpoint=snapshot,
-                event=event_snapshot,
-                event_sequence=event_sequence,
+                buffered_events_by_pov=buffers,
+                eligible_viewer_ids=eligible_viewer_ids,
                 transaction_id=transaction_id,
                 source_turn_index=source_turn_index,
-                spawn_task=spawn_task,
-                actor_id=actor_id,
+                spawn_tasks=spawn_tasks,
+                actor_ids_by_event_id=dict(actor_ids_by_event_id),
             ),
-            name=f"image-project:{event.event_id}",
+            name=f"image-render-project:{transaction_id}",
         )
         self._track_transaction_task(transaction_id, task)
+        return transaction_id
 
-    async def cancel_transaction(self, transaction_id: str) -> None:
+    async def cancel_transaction(
+        self,
+        transaction_id: str,
+        *,
+        reason: str = "render_candidate_rejected",
+    ) -> None:
         tasks = self._preparation_tasks.pop(transaction_id, set())
         for task in tasks:
             if not task.done():
                 task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        await self.generation.cancel_transaction(
+            transaction_id,
+            reason=reason,
+        )
+
+    async def commit_transaction(
+        self,
+        transaction_id: str,
+        *,
+        target_checkpoint_sha256: str,
+    ) -> None:
+        await self.generation.commit_transaction(
+            transaction_id,
+            target_checkpoint_sha256=target_checkpoint_sha256,
+        )
 
     async def _prepare_projections(
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
-        event_sequence: int,
+        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
+        eligible_viewer_ids: set[str],
         transaction_id: str,
         source_turn_index: int,
-        spawn_task: asyncio.Task[tuple[CharacterRecord, ...]] | None,
-        actor_id: str,
+        spawn_tasks: list[asyncio.Task[tuple[CharacterRecord, ...]]],
+        actor_ids_by_event_id: dict[str, str],
     ) -> None:
-        spawned = (
-            await asyncio.shield(spawn_task)
-            if spawn_task is not None
-            else ()
+        spawn_groups = await asyncio.gather(
+            *(asyncio.shield(task) for task in spawn_tasks),
+        ) if spawn_tasks else []
+        spawned = tuple(
+            record for records in spawn_groups for record in records
         )
-        projections = build_projection_groups(
+        projections = build_render_batch_projection_groups(
             checkpoint=checkpoint,
-            event=event,
-            event_sequence=event_sequence,
+            buffered_events_by_pov=buffered_events_by_pov,
+            eligible_viewer_ids=eligible_viewer_ids,
             transaction_id=transaction_id,
             source_turn_index=source_turn_index,
             spawned_records=spawned,
-            actor_id=actor_id,
+            actor_ids_by_event_id=actor_ids_by_event_id,
             active_identity_character_ids=(
                 self.generation.active_identity_character_ids(
                     checkpoint.session.session_id
@@ -254,6 +318,7 @@ class EventImageSidecar:
                 ):
                     materialization = asyncio.create_task(
                         self._materialize_requests(
+                            run.run_id,
                             run.projection,
                             output.requests,
                         ),
@@ -289,36 +354,47 @@ class EventImageSidecar:
 
     async def _materialize_requests(
         self,
+        run_id: str,
         projection: VisibleEventProjection,
         requests: Sequence[ImageDirection],
     ) -> None:
-        if not self.generation.available:
-            logger.warning(
-                "image director produced requests but diffusion is unavailable"
-            )
-            return
-        targets = _delivery_targets(projection)
-        for ordinal, direction in enumerate(requests):
-            establishes_unknown_identity = bool(
-                direction.kind == "portrait"
-                and len(direction.subject_character_ids) == 1
-                and direction.subject_character_ids[0]
-                not in self.generation.active_identity_character_ids(
-                    projection.session_id
+        admitted: list[ImageDirection] = []
+        try:
+            if not self.generation.available:
+                logger.warning(
+                    "image director produced requests but diffusion is unavailable"
                 )
+                return
+            targets = _delivery_targets(projection)
+            for ordinal, direction in enumerate(requests):
+                establishes_unknown_identity = bool(
+                    direction.kind == "portrait"
+                    and len(direction.subject_character_ids) == 1
+                    and direction.subject_character_ids[0]
+                    not in self.generation.active_identity_character_ids(
+                        projection.session_id
+                    )
+                )
+                job = await self.generation.enqueue_direction(
+                    projection=projection,
+                    direction=direction,
+                    request_ordinal=ordinal,
+                    visual_style=projection.engine_visual_style,
+                    delivery_targets=targets,
+                )
+                if job is None:
+                    continue
+                admitted.append(direction)
+                # Keep later durable scene requests behind a first portrait so
+                # their frozen reference set can include the successful identity.
+                # This wait occurs only inside the presentation sidecar.
+                if establishes_unknown_identity:
+                    await self.generation.wait_for_terminal(job.job_id)
+        finally:
+            self.generation.store.finalize_director_materialization(
+                run_id,
+                ImageDirectorOutput(requests=admitted),
             )
-            job = await self.generation.enqueue_direction(
-                projection=projection,
-                direction=direction,
-                request_ordinal=ordinal,
-                visual_style=projection.engine_visual_style,
-                delivery_targets=targets,
-            )
-            # Keep later durable scene requests behind a first portrait so
-            # their frozen reference set can include the successful identity.
-            # This wait occurs only inside the presentation sidecar.
-            if establishes_unknown_identity and job is not None:
-                await self.generation.wait_for_terminal(job.job_id)
 
     def _preparation_done(
         self,

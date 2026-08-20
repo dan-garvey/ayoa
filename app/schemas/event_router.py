@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import uuid
 from difflib import SequenceMatcher
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.events import CanonicalEvent
 from app.schemas.dnd_inventory import (
@@ -26,7 +26,7 @@ EventKind = Literal[
     # canonical event: observers receive visible facts through the usual inbox
     # path. `next_output` observers may also receive a background turn.
     "public_fact",
-    "directed_at_player",
+    "response_requested",
     "state_change",
     "cascade_exhausted",
     "cat_ii_resolution",
@@ -61,15 +61,16 @@ EventKind = Literal[
     "observation_harvest",
 ]
 
-TERMINAL_EVENT_KINDS = set(EventKind.__args__) - {"beat_continues"}
+ClosedEventKind = Literal[
+    *tuple(kind for kind in EventKind.__args__ if kind != "cat_ii_open")
+]
 
 ObserverRoutingRole = Literal[
     # Receives any visible facts for this event, but no immediate output is
     # requested from this observer.
     "observe_only",
     # The router wants this participant to produce the next live output for
-    # this beat. Runtime maps NPC ids to agent turns; human-bound characters
-    # render from their buffer when the router emits a terminal event.
+    # this beat. Runtime resolves the participant against current bindings.
     "next_output",
     # The router wants a perception/loadout enrichment target rather than an
     # in-fiction response actor. Used by observation_harvest/query_response.
@@ -377,11 +378,9 @@ class EventRouterOutput(BaseModel):
       - `requires_responders` + `required_responders`: Cat I (self-closing)
         vs Cat II (contested). Cat II events open and collect responder
         intentions before canonicalization closes.
-      - `event_kind`: the router's pacing and dispatch signal. The engine
-        derives beat closure from this field: `beat_continues` requests the
-        next ordered character output, `public_fact` delivers public
-        information and can select background output, while terminal event
-        kinds render, suspend, or hand off to adapter-owned flows.
+      - `event_kind`: the fictional shape and pacing suggestion for the event.
+        Live bindings and forced adapter modes determine whether a selected
+        next actor is dispatched or the event becomes a render candidate.
       - `observers[].routing_role`: ordered perception/render/agent-routing
         intent. `next_output` entries are the response candidates for a live
         beat; `perception_enrichment` entries are non-response targets for
@@ -473,8 +472,8 @@ class EventRouterOutput(BaseModel):
     def _normalize_event_kind(cls, data: Any) -> Any:
         """Pydantic's Literal[] validation rejects unknown values with a
         ValidationError. For a pacing field, a model typo should be a
-        warn-log, not a crash. Coerce unknown values to a safe terminal
-        event kind and log.
+        warn-log, not a crash. Coerce unknown values to a soft pacing
+        candidate and log.
         """
         if not isinstance(data, dict):
             return data
@@ -486,10 +485,10 @@ class EventRouterOutput(BaseModel):
         if not isinstance(raw_kind, str) or raw_kind not in valid:
             import logging
             logging.getLogger(__name__).warning(
-                "Unknown event_kind %r coerced to directed_at_player; "
+                "Unknown event_kind %r coerced to cascade_exhausted; "
                 "valid values: %s", raw_kind, sorted(valid),
             )
-            raw_kind = "directed_at_player"
+            raw_kind = "cascade_exhausted"
         data["event_kind"] = raw_kind
         return data
 
@@ -532,6 +531,14 @@ class EventRouterOutput(BaseModel):
             raise ValueError(
                 "required_responders contains duplicates; each responder "
                 "must appear exactly once."
+            )
+        if (
+            self.event_kind == "response_requested"
+            and not self.next_output_character_ids
+        ):
+            raise ValueError(
+                "event_kind='response_requested' requires an observer with "
+                "routing_role='next_output' naming the in-world response actor."
             )
         observer_ids = [o.character_id for o in self.observers if o.character_id]
         observer_id_set = set(observer_ids)
@@ -642,6 +649,20 @@ class EventRouterOutput(BaseModel):
         for observer in self.observers:
             if observer.routing_role in roles:
                 observer.routing_role = "observe_only"  # type: ignore[assignment]
+
+
+class ClosedEventRouterOutput(EventRouterOutput):
+    """Router output for modes that canonicalize already-committed motion.
+
+    Agent output and continuation may author a closed event or select the next
+    actor, but they cannot open a fresh contested-action collection. Narrowing
+    the shared event contract here makes that mode rule part of structured
+    generation while the turn loop retains its loud invariant check.
+    """
+
+    event_kind: ClosedEventKind
+    requires_responders: Literal[False]
+    required_responders: Annotated[list[str], Field(max_length=0)]
 
 
 class DndEventRouterOutput(EventRouterOutput):

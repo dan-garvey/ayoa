@@ -1899,7 +1899,7 @@ async def _deliver_loot_prompts(
             )
 
 
-async def _wait_for_tandem_image_delivery(
+async def _wait_for_render_image_delivery(
     *,
     engine: EngineBridge,
     session_id: str,
@@ -1909,13 +1909,27 @@ async def _wait_for_tandem_image_delivery(
     event_ids = list(rendered_event_ids_by_pov.get(character_id, []) or [])
     if not event_ids:
         return
+    if not bool(
+        getattr(
+            getattr(engine.image_sidecar, "config", None),
+            "diffusion_enabled",
+            False,
+        )
+    ):
+        return
+    if not engine.image_generation.can_accept_render(
+        ImageDeliveryKind.discord,
+        session_id=session_id,
+        pov_character_id=character_id,
+    ):
+        return
     try:
-        await engine.image_generation.wait_for_rendered_event_images(
+        await engine.image_generation.wait_for_render_images(
             session_id=session_id,
             rendered_event_ids_by_pov={character_id: event_ids},
         )
     except Exception:
-        logger.exception("tandem image wait failed for %s", character_id)
+        logger.exception("render image wait failed for %s", character_id)
 
 
 def _numbered_ref_lines(ids: list[str]) -> str:
@@ -2049,11 +2063,11 @@ async def _deliver_turn_response_to_povs(
         bindings = {}
         roster = []
 
-    async def _wait_for_tandem_image_prose(
+    async def _wait_for_render_image_prose(
         character_id: str,
         rendered_event_ids_by_pov: dict[str, list[str]],
     ) -> None:
-        await _wait_for_tandem_image_delivery(
+        await _wait_for_render_image_delivery(
             engine=engine,
             session_id=session_id,
             character_id=character_id,
@@ -2115,7 +2129,7 @@ async def _deliver_turn_response_to_povs(
                 )
                 if event_id else None
             )
-            await _wait_for_tandem_image_prose(
+            await _wait_for_render_image_prose(
                 cid,
                 rendered_event_ids_by_pov,
             )
@@ -2404,7 +2418,7 @@ async def _deliver_turn_response_to_povs(
                 turn_index=response.turn_index,
                 story_id=story_id,
             )
-            await _wait_for_tandem_image_prose(
+            await _wait_for_render_image_prose(
                 actor_character_id,
                 response.rendered_event_ids_by_pov or {},
             )
@@ -2470,7 +2484,7 @@ async def _deliver_turn_response_to_povs(
             turn_index=response.turn_index,
             story_id=story_id,
         )
-        await _wait_for_tandem_image_prose(
+        await _wait_for_render_image_prose(
             actor_character_id,
             response.rendered_event_ids_by_pov or {},
         )
@@ -4373,7 +4387,7 @@ def register(
         )
         intro = f"**{char_name}** joined. You step into the moment."
 
-        await _wait_for_tandem_image_delivery(
+        await _wait_for_render_image_delivery(
             engine=engine,
             session_id=session_id,
             character_id=binding_cid,
@@ -4475,7 +4489,7 @@ def register(
                 (c for c in roster if c.character_id == cid), None,
             )
             other_name = char.name if char else cid
-            await _wait_for_tandem_image_delivery(
+            await _wait_for_render_image_delivery(
                 engine=engine,
                 session_id=session_id,
                 character_id=cid,

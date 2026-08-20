@@ -29,6 +29,7 @@ from app.schemas.conversation import ConversationMessage
 from app.schemas.image_director import ImageDirectorOutput
 from app.schemas.image_generation import ImageDeliveryKind
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.state import RenderBufferEntry
 from tests.support.factories import (
     InstanceFakeDispatcher,
     checkpoint,
@@ -113,6 +114,19 @@ class UnavailableWorker:
         return None
 
 
+class AvailableNoopWorker(UnavailableWorker):
+    available = True
+    supported_generation_modes = ("compose",)
+
+    async def preflight(self):
+        return True
+
+
+class FailedPreflightWorker(AvailableNoopWorker):
+    async def preflight(self):
+        return False
+
+
 def _spawn_event():
     return router_output(
         event_id="evt_spawn",
@@ -146,6 +160,11 @@ def test_event_router_contract_has_no_image_responsibility():
         for field_name in EventRouterOutput.model_fields
         if "image" in field_name or "illustration" in field_name
     }
+
+
+def test_retired_shadow_image_mode_is_rejected():
+    with pytest.raises(ValueError, match="disabled or enabled"):
+        EventImageSidecarConfig(mode="shadow")
 
 
 @pytest.mark.asyncio
@@ -192,7 +211,7 @@ async def test_spawn_authoring_uses_one_immutable_task_across_consumers():
 
 
 @pytest.mark.asyncio
-async def test_closed_event_starts_spawn_and_notifies_image_sink_without_awaiting():
+async def test_closed_event_starts_spawn_without_notifying_image_sink():
     ckpt = checkpoint()
     event = _spawn_event()
     manager = BlockingCharacterManager()
@@ -213,12 +232,10 @@ async def test_closed_event_starts_spawn_and_notifies_image_sink_without_awaitin
         actor_id="alice",
     )
 
-    assert len(sink.calls) == 1
-    assert sink.calls[0]["event"] is event
-    assert sink.calls[0]["event_sequence"] == 4
-    assert sink.calls[0]["spawn_key"] is not None
+    assert sink.calls == []
+    spawn_key = runtime.spawn_keys_by_event_id[event.event_id]
     await asyncio.wait_for(manager.started.wait(), timeout=1)
-    assert coordinator.task(sink.calls[0]["spawn_key"]) is not None
+    assert coordinator.task(spawn_key) is not None
     manager.release.set()
     records = await runtime.authored_records(
         checkpoint=ckpt,
@@ -261,7 +278,8 @@ async def test_preapplied_spawn_reuses_authoring_key_when_event_closes():
     )
 
     assert manager.calls == 1
-    assert sink.calls[0]["spawn_key"] == key
+    assert runtime.spawn_keys_by_event_id[event.event_id] == key
+    assert sink.calls == []
 
 
 @pytest.mark.asyncio
@@ -317,16 +335,11 @@ async def test_post_beat_spawn_keeps_generated_names_in_prior_event():
     assert "practical travel clothes" not in compact
 
 
-def test_broadcast_notifies_sidecar_after_event_is_finalized_in_canonical_log():
+def test_broadcast_does_not_invoke_images_before_a_render_boundary():
     ckpt = checkpoint()
     coordinator = SpawnAuthoringCoordinator(BlockingCharacterManager())
 
-    class FinalizationSink(RecordingSink):
-        def on_closed_event(self, **kwargs) -> None:
-            assert kwargs["checkpoint"].canonical_events[-1] is kwargs["event"]
-            super().on_closed_event(**kwargs)
-
-    sink = FinalizationSink()
+    sink = RecordingSink()
     runtime = ClosedEventRuntime(
         transaction_id="tx_broadcast",
         source_turn_index=1,
@@ -338,8 +351,8 @@ def test_broadcast_notifies_sidecar_after_event_is_finalized_in_canonical_log():
 
     broadcast_event(ckpt, event, actor_id="alice")
 
-    assert len(sink.calls) == 1
-    assert sink.calls[0]["event_sequence"] == 0
+    assert ckpt.canonical_events[-1] is event
+    assert sink.calls == []
 
 
 @pytest.mark.asyncio
@@ -357,7 +370,7 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
     generation = ImageGenerationCoordinator(
         sessions_dir=tmp_path / "sessions",
         config=ImageGenerationConfig(runtime_root=tmp_path / "runtime"),
-        worker=UnavailableWorker(),
+        worker=AvailableNoopWorker(),
     )
     director = BlockingDirector()
     sidecar = EventImageSidecar(
@@ -365,25 +378,37 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
         generation=generation,
         spawn_authoring=spawn,
         delivery_kind=ImageDeliveryKind.cli,
-        config=EventImageSidecarConfig(mode="shadow"),
+        config=EventImageSidecarConfig(mode="enabled"),
     )
-    generation.begin_transaction(
-        transaction_id="tx_sidecar",
-        session_id="sidecar",
-        source_turn_index=1,
-        source_checkpoint_sha256="a" * 64,
+    async def _deliver(*_args):
+        return True
+    generation.register_delivery_handler(
+        ImageDeliveryKind.cli,
+        _deliver,
     )
+    ckpt.canonical_events.append(event)
     await sidecar.start()
     try:
-        sidecar.on_closed_event(
+        transaction_id = await sidecar.start_render_candidate(
             checkpoint=ckpt,
-            event=event,
-            event_sequence=0,
-            transaction_id="tx_sidecar",
+            buffered_events_by_pov={
+                "alice": [RenderBufferEntry(
+                    event_id=event.event_id,
+                    visible_at_s=0,
+                    event_sequence=0,
+                )],
+                "bob": [RenderBufferEntry(
+                    event_id=event.event_id,
+                    visible_at_s=0,
+                    event_sequence=0,
+                )],
+            },
             source_turn_index=1,
-            spawn_key=None,
-            actor_id="alice",
+            source_checkpoint_sha256="a" * 64,
+            spawn_keys_by_event_id={},
+            actor_ids_by_event_id={event.event_id: "alice"},
         )
+        assert transaction_id is not None
         await asyncio.wait_for(director.started.wait(), timeout=1)
         assert len(director.calls) == 1
         assert director.calls[0].viewer_character_ids == ("alice", "bob")
@@ -415,6 +440,88 @@ async def test_sidecar_groups_equivalent_viewers_and_persists_empty_decision(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("worker", "register_handler", "can_present"),
+    [
+        (AvailableNoopWorker(), False, True),
+        (AvailableNoopWorker(), True, False),
+        (UnavailableWorker(), True, True),
+        (FailedPreflightWorker(), True, True),
+    ],
+    ids=(
+        "no-presentation-handler",
+        "frontend-cannot-present",
+        "worker-unavailable",
+        "preflight-failed",
+    ),
+)
+async def test_sidecar_skips_direction_without_usable_presentation_path(
+    tmp_path: Path,
+    worker,
+    register_handler: bool,
+    can_present: bool,
+):
+    ckpt = checkpoint()
+    ckpt.session.session_id = "sidecar_skipped"
+    ckpt.session.character_bindings = {"alice": "11"}
+    event = router_output(event_id="evt_skipped", observer_ids=["alice"])
+    ckpt.canonical_events.append(event)
+    generation = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=ImageGenerationConfig(runtime_root=tmp_path / "runtime"),
+        worker=worker,
+    )
+    director = BlockingDirector()
+    sidecar = EventImageSidecar(
+        director=director,
+        generation=generation,
+        spawn_authoring=SpawnAuthoringCoordinator(
+            BlockingCharacterManager()
+        ),
+        delivery_kind=ImageDeliveryKind.cli,
+        config=EventImageSidecarConfig(mode="enabled"),
+    )
+    if register_handler:
+        async def _deliver(*_args):
+            return True
+
+        generation.register_delivery_handler(
+            ImageDeliveryKind.cli,
+            _deliver,
+            can_present=lambda _session_id, _pov_id: can_present,
+        )
+
+    await generation.start()
+    await sidecar.start()
+    try:
+        transaction_id = await sidecar.start_render_candidate(
+            checkpoint=ckpt,
+            buffered_events_by_pov={
+                "alice": [RenderBufferEntry(
+                    event_id=event.event_id,
+                    visible_at_s=0,
+                    event_sequence=0,
+                )],
+            },
+            source_turn_index=1,
+            source_checkpoint_sha256="a" * 64,
+            spawn_keys_by_event_id={},
+            actor_ids_by_event_id={event.event_id: "alice"},
+        )
+
+        assert transaction_id is None
+        assert director.calls == []
+        with generation.store._connect() as db:
+            assert db.execute(
+                "SELECT COUNT(*) FROM image_director_runs"
+            ).fetchone()[0] == 0
+    finally:
+        director.release.set()
+        await sidecar.close()
+        await generation.close()
+
+
+@pytest.mark.asyncio
 async def test_director_starts_while_narrator_is_still_blocked(tmp_path: Path):
     ckpt = checkpoint()
     ckpt.session.session_id = "concurrent_sidecar"
@@ -423,7 +530,7 @@ async def test_director_starts_while_narrator_is_still_blocked(tmp_path: Path):
     generation = ImageGenerationCoordinator(
         sessions_dir=tmp_path / "sessions",
         config=ImageGenerationConfig(runtime_root=tmp_path / "runtime"),
-        worker=UnavailableWorker(),
+        worker=AvailableNoopWorker(),
     )
     director = BlockingDirector()
     sidecar = EventImageSidecar(
@@ -431,13 +538,13 @@ async def test_director_starts_while_narrator_is_still_blocked(tmp_path: Path):
         generation=generation,
         spawn_authoring=spawn,
         delivery_kind=ImageDeliveryKind.cli,
-        config=EventImageSidecarConfig(mode="shadow"),
+        config=EventImageSidecarConfig(mode="enabled"),
     )
-    generation.begin_transaction(
-        transaction_id="tx_concurrent",
-        session_id="concurrent_sidecar",
-        source_turn_index=1,
-        source_checkpoint_sha256="a" * 64,
+    async def _deliver(*_args):
+        return True
+    generation.register_delivery_handler(
+        ImageDeliveryKind.cli,
+        _deliver,
     )
     install_closed_event_runtime(
         ckpt,
@@ -446,6 +553,7 @@ async def test_director_starts_while_narrator_is_still_blocked(tmp_path: Path):
             source_turn_index=1,
             spawn_authoring=spawn,
             image_sink=sidecar,
+            source_checkpoint_sha256="a" * 64,
             record_applier=Orchestrator._apply_authored_spawn_records,
         ),
     )

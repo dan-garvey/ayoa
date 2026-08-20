@@ -150,7 +150,6 @@ def _event_summary(
     event: Any,
     *,
     include_observers: bool = False,
-    prefer_ends_beat_reason: bool = False,
 ) -> dict[str, Any]:
     if event is None:
         return {}

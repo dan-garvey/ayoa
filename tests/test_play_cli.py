@@ -322,7 +322,7 @@ def _mock_engine(bindings: dict[str, str] | None = None) -> MagicMock:
         per_player_renders={"aldric": "Aldric wakes."},
     ))
     engine.image_sidecar.config.diffusion_enabled = False
-    engine.image_generation.wait_for_rendered_event_images = AsyncMock(
+    engine.image_generation.wait_for_render_images = AsyncMock(
         return_value=True,
     )
     engine.opening_lobby.return_value = OpeningLobbyView(
@@ -1837,7 +1837,29 @@ class TestActingDescribe:
 
         run(state.handle_line("/query what does the crest look like?"))
 
-        engine.image_generation.wait_for_rendered_event_images.assert_not_awaited()
+        engine.image_generation.wait_for_render_images.assert_not_awaited()
+        assert "illustrating" not in capsys.readouterr().out
+
+    def test_unsupported_terminal_does_not_wait_for_illustration(
+        self, run, capsys,
+    ):
+        engine = _mock_engine()
+        engine.image_sidecar.config.diffusion_enabled = True
+        engine.run_query = AsyncMock(return_value=_turn_response(
+            beat_ended_reason="query_response",
+            turn_index=4,
+            output_text="The crest is weathered silver.",
+            per_player_renders={"aldric": "The crest is weathered silver."},
+            rendered_event_ids_by_pov={"aldric": ["evt_crest"]},
+        ))
+        state = CLIState(engine, SESSION_ID, STORY_ID)
+        engine.image_generation.can_accept_render.return_value = False
+        run(state.handle_line("/join aldric"))
+        capsys.readouterr()
+
+        run(state.handle_line("/query what does the crest look like?"))
+
+        engine.image_generation.wait_for_render_images.assert_not_awaited()
         assert "illustrating" not in capsys.readouterr().out
 
     def test_turn_response_prints_per_pov_asset_reveals_for_claimed_characters(

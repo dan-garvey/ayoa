@@ -104,7 +104,7 @@ from app.schemas.event_router import (
 )
 from app.schemas.events import CanonicalEvent, ObservableFact, WorldAdjudication
 from app.schemas.image_generation import ImageDeliveryKind
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import TranscriptEntry
 from app.schemas.requests import TurnRequest
 from app.schemas.responses import TurnResponse
 from app.schemas.state import SlotEntry
@@ -3907,7 +3907,11 @@ def _narrator_history_message_text(content: Any) -> str:
         if not text:
             continue
         try:
-            return NarratorFinalOutput.model_validate_json(text).final_text
+            payload = json.loads(text)
+            final_text = payload.get("final_text")
+            if not isinstance(final_text, str):
+                raise ValueError("narrator history has no final_text string")
+            return final_text
         except Exception:
             logger.warning(
                 "Skipping malformed narrator history envelope",

@@ -57,14 +57,12 @@ def targets_from_router_output(
     player_ids: set[str],
     agent_ids: list[str],
 ) -> list[RouterOutputTarget]:
-    """Build the agent-turn targets implied by the router's routing roles.
+    """Build agent-turn targets from semantic routing roles.
 
-    Only forward-motion kinds (`beat_continues`, `public_fact`) project
-    agent turns; terminal kinds project nothing and let the beat close.
+    Event kind does not decide whether an actor is autonomous. The binding-aware
+    turn loop resolves each ordered `next_output` id before considering a soft
+    render candidate.
     """
-
-    if result.event_kind not in ("beat_continues", "public_fact"):
-        return []
     return [
         RouterOutputTarget(
             character_id=cid,

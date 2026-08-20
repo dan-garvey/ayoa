@@ -77,6 +77,7 @@ ImageDeliveryHandler = Callable[
     ],
     Awaitable[bool],
 ]
+ImagePresentationCapability = Callable[[str, str], bool]
 
 
 @dataclass(frozen=True)
@@ -97,7 +98,6 @@ class ImageGenerationConfig:
     max_reference_bytes: int = 20_000_000
     max_scene_prompt_chars: int = 2_000
     max_style_chars: int = 800
-    tandem_delivery_wait_seconds: float = 20.0
     transaction_recovery_lease_seconds: float = 3_600
     steps: int = 50
     guidance: float = 4.0
@@ -127,10 +127,6 @@ class ImageGenerationConfig:
                 0,
                 int(os.getenv("AYOA_IMAGE_MAX_REQUESTS", "6")),
             ),
-            tandem_delivery_wait_seconds=max(
-                0.0,
-                float(os.getenv("AYOA_IMAGE_TANDEM_WAIT_SECONDS", "20")),
-            ),
             max_subjects=max(
                 1,
                 int(os.getenv("AYOA_IMAGE_MAX_SUBJECTS", "4")),
@@ -152,7 +148,7 @@ class ImageGenerationConfig:
 
 
 class ImageGenerationCoordinator:
-    """Durable event-owned diffusion and independent delivery workers."""
+    """Durable render-owned diffusion and independent delivery workers."""
 
     def __init__(
         self,
@@ -179,6 +175,10 @@ class ImageGenerationCoordinator:
             ImageDeliveryKind,
             ImageDeliveryHandler,
         ] = {}
+        self._presentation_capabilities: dict[
+            ImageDeliveryKind,
+            ImagePresentationCapability,
+        ] = {}
         self._runner: asyncio.Task[None] | None = None
         self._delivery_runner: asyncio.Task[None] | None = None
         self._ownership_runner: asyncio.Task[None] | None = None
@@ -190,6 +190,7 @@ class ImageGenerationCoordinator:
         self._queue_lock_handle: Any = None
         self._queue_owner = False
         self._unavailable_logged = False
+        self._preflight_ready = self.available
 
     @property
     def available(self) -> bool:
@@ -208,13 +209,44 @@ class ImageGenerationCoordinator:
         self,
         delivery_kind: ImageDeliveryKind,
         handler: ImageDeliveryHandler,
+        *,
+        can_present: ImagePresentationCapability | None = None,
     ) -> None:
         self._delivery_handlers[delivery_kind] = handler
+        self._presentation_capabilities[delivery_kind] = (
+            can_present or (lambda _session_id, _pov_character_id: True)
+        )
         if self._started and self._delivery_runner is None:
             self._delivery_runner = asyncio.create_task(
                 self._run_delivery_poll(),
                 name="ayoa-image-delivery",
             )
+
+    def can_accept_render(
+        self,
+        delivery_kind: ImageDeliveryKind,
+        *,
+        session_id: str,
+        pov_character_id: str,
+    ) -> bool:
+        """Whether diffusion and a usable POV-safe presentation path exist."""
+        if not self.available or not self._preflight_ready:
+            return False
+        if delivery_kind not in self._delivery_handlers:
+            return False
+        capability = self._presentation_capabilities.get(delivery_kind)
+        if capability is None:
+            return False
+        try:
+            return bool(capability(session_id, pov_character_id))
+        except Exception:
+            logger.exception(
+                "image presentation capability failed kind=%s session=%s pov=%s",
+                delivery_kind.value,
+                session_id,
+                pov_character_id,
+            )
+            return False
 
     async def start(self) -> None:
         if self._started:
@@ -222,10 +254,16 @@ class ImageGenerationCoordinator:
         self._started = True
         self._closing = False
         self._reconcile_speculative_transactions()
+        self._preflight_ready = self.available
         preflight = getattr(self.worker, "preflight", None)
-        if self.available and callable(preflight) and not await preflight():
+        if (
+            self._preflight_ready
+            and callable(preflight)
+            and not await preflight()
+        ):
+            self._preflight_ready = False
             self._log_unavailable("image generation preflight failed")
-        if self.available:
+        if self._preflight_ready:
             self._queue_owner = self._acquire_queue_owner()
             if self._queue_owner:
                 self._activate_queue_owner()
@@ -542,7 +580,7 @@ class ImageGenerationCoordinator:
                 except TimeoutError:
                     continue
 
-    async def wait_for_rendered_event_images(
+    async def wait_for_render_images(
         self,
         *,
         session_id: str,
@@ -550,13 +588,18 @@ class ImageGenerationCoordinator:
         timeout: float | None = None,
         discovery_grace_seconds: float = 0.5,
     ) -> bool:
-        """Wait briefly for first-pass event illustrations before prose posts."""
+        """Wait until render-bound image work reaches a terminal state.
 
-        if timeout is None:
-            timeout = self.config.tandem_delivery_wait_seconds
-        timeout = max(0.0, float(timeout))
+        A short discovery grace covers a candidate whose asynchronous
+        projection has not reached the durable director queue yet. Callers may
+        supply a timeout for bounded tooling or tests; player presentation
+        relies on the director and worker's own terminal success/failure
+        states instead of racing diffusion with an arbitrary prose deadline.
+        """
+
+        timeout = None if timeout is None else max(0.0, float(timeout))
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + timeout
+        deadline = None if timeout is None else loop.time() + timeout
         discovery_deadline = loop.time() + max(0.0, discovery_grace_seconds)
         saw_work = False
 
@@ -568,14 +611,18 @@ class ImageGenerationCoordinator:
             saw_work = saw_work or has_work
             if ready and (saw_work or loop.time() >= discovery_deadline):
                 return True
-            remaining = deadline - loop.time()
-            if remaining <= 0:
+            remaining = (
+                None if deadline is None else deadline - loop.time()
+            )
+            if remaining is not None and remaining <= 0:
                 return False
             async with self._changed:
                 try:
                     await asyncio.wait_for(
                         self._changed.wait(),
-                        timeout=min(0.2, remaining),
+                        timeout=(
+                            0.2 if remaining is None else min(0.2, remaining)
+                        ),
                     )
                 except TimeoutError:
                     continue

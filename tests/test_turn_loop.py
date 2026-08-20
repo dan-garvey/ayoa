@@ -34,7 +34,6 @@ from app.engine.turn_loop import (
     run_beat,
     sweep_stale_cat_ii_pins,
     _end_dnd_combat_from_router_signal,
-    _human_next_output_ids,
 )
 from app.schemas.characters import (
     CharacterRecord,
@@ -193,10 +192,10 @@ class TestCheckActSlot:
 
 
 class TestBeatCascade:
-    def test_single_cat_i_ends_beat_and_renders(self):
+    def test_single_cat_i_closes_and_renders(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -206,7 +205,7 @@ class TestBeatCascade:
         ))
 
         assert result.events_closed == 1
-        assert result.ended_reason == "directed_at_player"
+        assert result.ended_reason == "cascade_exhausted"
         assert "alice" in result.renders
         assert ckpt.session.active_act_slots == {}
 
@@ -239,7 +238,7 @@ class TestBeatCascade:
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Alice rushes past Bob.")],
             ),
-            event_kind="directed_at_player",
+            event_kind="cascade_exhausted",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -306,7 +305,7 @@ class TestBeatCascade:
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Alice shifts her stance.")],
             ),
-            event_kind="directed_at_player",
+            event_kind="cascade_exhausted",
             observers=[
                 ObserverEntry(
                     character_id="alice",
@@ -337,7 +336,7 @@ class TestBeatCascade:
             intention="I shift my stance",
         ))
 
-        assert result.ended_reason == "directed_at_player"
+        assert result.ended_reason == "cascade_exhausted"
         assert result.reaction_prompts == {}
         assert "bob" not in ckpt.session.active_act_slots
         assert ckpt.session.render_buffers.get("bob") == []
@@ -380,7 +379,7 @@ class TestBeatCascade:
                     routing_role="observe_only",
                 )
             ],
-            event_kind="directed_at_player",
+            event_kind="cascade_exhausted",
             requires_responders=False,
             required_responders=[],
             spawn=[],
@@ -397,7 +396,7 @@ class TestBeatCascade:
             trigger_event_id="evt_trigger",
         )
         fake = FakeDispatcher()
-        combat_out = _router_out(ends_beat=True)
+        combat_out = _router_out(event_kind="cascade_exhausted")
         combat_out.event_kind = "ruleset_resolution"
         fake.queue_combat(combat_out)
 
@@ -588,10 +587,10 @@ class TestBeatCascade:
     def test_cat_i_cascades_through_agent_pick(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        prior = _router_out(agent_ids=["pip"], ends_beat=False)
+        prior = _router_out(agent_ids=["pip"], event_kind="beat_continues")
         fake.queue_route(prior)
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -649,7 +648,7 @@ class TestBeatCascade:
         )
         fake.queue_route(prior)
         fake.queue_agent("Pip sends a runner to the archive")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -702,7 +701,7 @@ class TestBeatCascade:
             )
         )
         fake.queue_agent("Pip sends a public warning.")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         with caplog.at_level("INFO", logger="app.engine.turn_loop"):
             result = asyncio.run(
@@ -767,9 +766,9 @@ class TestBeatCascade:
     def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
         ckpt = _ckpt({})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_ids=["pip"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip"], event_kind="beat_continues"))
         fake.queue_agent("Pip lowers his voice")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         asyncio.run(run_beat(
             ckpt=ckpt,
@@ -787,9 +786,9 @@ class TestBeatCascade:
         ckpt = _ckpt({"alice": "1"})
         ckpt.session.config.settings.max_agent_cascades_per_beat = 1
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_ids=["pip"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip"], event_kind="beat_continues"))
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_route(_router_out(agent_ids=["pip"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip"], event_kind="beat_continues"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -809,9 +808,9 @@ class TestBeatCascade:
     ):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_ids=["pip", "bob"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip", "bob"], event_kind="beat_continues"))
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -833,11 +832,11 @@ class TestBeatCascade:
     ):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(agent_ids=["pip", "bob"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["pip", "bob"], event_kind="beat_continues"))
         fake.queue_agent("Pip polishes the bell")
-        fake.queue_route(_router_out(agent_ids=["bob"], ends_beat=False))
+        fake.queue_route(_router_out(agent_ids=["bob"], event_kind="beat_continues"))
         fake.queue_agent("Bob studies the latch")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -860,8 +859,8 @@ class TestBeatCascade:
     def test_false_endbeat_with_no_next_output_routes_continuation(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(ends_beat=False))
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="beat_continues"))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -870,15 +869,15 @@ class TestBeatCascade:
             intention="wait",
         ))
 
-        assert result.ended_reason == "directed_at_player"
+        assert result.ended_reason == "cascade_exhausted"
         assert len(fake.continuation_calls) == 1
         assert result.events_closed == 2
 
     def test_repeated_false_endbeat_without_next_output_errors(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(ends_beat=False))
-        fake.queue_route(_router_out(ends_beat=False))
+        fake.queue_route(_router_out(event_kind="beat_continues"))
+        fake.queue_route(_router_out(event_kind="beat_continues"))
 
         with pytest.raises(RuntimeError, match="without a dispatchable"):
             asyncio.run(run_beat(
@@ -895,7 +894,7 @@ class TestBeatCascade:
             event_id="evt_scout_arrives",
             agent_ids=["new_scout"],
             observer_ids=["alice", "new_scout"],
-            ends_beat=False,
+            event_kind="beat_continues",
             facts=[ObservableFact.all("A scout steps through the gate.")],
             spawn=[
                 SpawnRequest(
@@ -910,7 +909,7 @@ class TestBeatCascade:
             ],
         ))
         fake.queue_agent("The scout delivers the warning.")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -920,7 +919,7 @@ class TestBeatCascade:
         ))
 
         scout = next(c for c in ckpt.characters if c.character_id == "new_scout")
-        assert result.ended_reason == "directed_at_player"
+        assert result.ended_reason == "cascade_exhausted"
         assert fake.continuation_calls == []
         assert fake.materialize_calls[0]["character_ids"] == ["new_scout"]
         assert fake.agent_calls[0]["character_id"] == "new_scout"
@@ -930,12 +929,12 @@ class TestBeatCascade:
     def test_continuation_still_cannot_open_cat_ii(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(ends_beat=False))
+        fake.queue_route(_router_out(event_kind="beat_continues"))
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["pip"],
             observer_ids=["alice", "pip"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
 
         with pytest.raises(RuntimeError, match="continuation opened Cat II"):
@@ -957,13 +956,13 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["pip"],
-            ends_beat=False,
+            event_kind="beat_continues",
             effective_at_s=100,
             duration_s=30,
         ))
         fake.queue_agent("Pip dodges")
         fake.queue_route(_router_out(
-            ends_beat=True,
+            event_kind="cascade_exhausted",
             effective_at_s=500,
             duration_s=5,
         ))
@@ -990,7 +989,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["hidden_lookout"],
             observer_ids=["alice", "hidden_lookout"],
-            ends_beat=False,
+            event_kind="beat_continues",
             spawn=[
                 SpawnRequest(
                     character_id="hidden_lookout",
@@ -1004,7 +1003,7 @@ class TestCatIIBeat:
             ],
         ))
         fake.queue_agent("The lookout freezes and signals.")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1027,7 +1026,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["ghost_responder"],
             observer_ids=["alice", "ghost_responder"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
 
         with pytest.raises(RuntimeError, match="not in the roster"):
@@ -1048,10 +1047,10 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["pip"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
         fake.queue_agent("Pip dodges")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         with caplog.at_level("WARNING", logger="app.engine.turn_loop"):
             result = asyncio.run(run_beat(
@@ -1120,7 +1119,7 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["bob"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
 
         result = asyncio.run(run_beat(
@@ -1573,7 +1572,7 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["alice"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
 
         result = asyncio.run(run_beat(
@@ -1600,7 +1599,7 @@ class TestCatIIBeat:
         pin_cat_ii_responder(ckpt, "bob", evt.event_id)
 
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1627,10 +1626,10 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             agent_ids=["pip"],
             observer_ids=["alice", "pip"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
         fake.queue_agent("Pip answers the warning.")
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         result = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1640,7 +1639,7 @@ class TestCatIIBeat:
             cat_ii_event_id=evt.event_id,
         ))
 
-        assert result.ended_reason == "directed_at_player"
+        assert result.ended_reason == "cascade_exhausted"
         assert ckpt.session.open_cat_ii_events == []
         assert fake.agent_calls[0]["character_id"] == "pip"
         assert fake.agent_output_calls[0]["character_id"] == "pip"
@@ -1669,7 +1668,7 @@ class TestCatIIBeat:
         assert "bob" not in ckpt.session.active_act_slots
         assert "alice" in ckpt.session.active_act_slots
 
-        fake.queue_route(_router_out(ends_beat=True))
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
         fake.queue_agent("")
         result2 = asyncio.run(run_beat(
             ckpt=ckpt,
@@ -1688,12 +1687,26 @@ class TestObservationHarvest:
         presented_facts: list[list[str]] = []
 
         class RecordingImageSink:
-            def on_closed_event(self, **kwargs):
-                event = kwargs["event"]
+            async def start_render_candidate(self, **kwargs):
+                checkpoint = kwargs["checkpoint"]
+                event_ids = {
+                    entry.event_id
+                    for entries in kwargs["buffered_events_by_pov"].values()
+                    for entry in entries
+                }
                 presented_facts.append([
                     fact.text
+                    for event in checkpoint.canonical_events
+                    if event.event_id in event_ids
                     for fact in event.canonical_event.observable_facts
                 ])
+                return None
+
+            async def cancel_transaction(self, *_args, **_kwargs):
+                return None
+
+            async def commit_transaction(self, *_args, **_kwargs):
+                return None
 
         install_closed_event_runtime(
             ckpt,
@@ -1711,7 +1724,7 @@ class TestObservationHarvest:
             location="gatehouse",
         ))
         fake = FakeDispatcher()
-        out = _router_out(ends_beat=True, agent_ids=["pip", "vex"])
+        out = _router_out(event_kind="cascade_exhausted", agent_ids=["pip", "vex"])
         out.event_kind = "observation_harvest"
         for observer in out.observers:
             if observer.character_id in {"pip", "vex"}:
@@ -1740,7 +1753,7 @@ class TestObservationHarvest:
 
     def test_harvest_drops_human_targets(self):
         ckpt = _ckpt({"alice": "1"})
-        out = _router_out(ends_beat=True, agent_ids=["alice"])
+        out = _router_out(event_kind="cascade_exhausted", agent_ids=["alice"])
         out.event_kind = "observation_harvest"
         fake = FakeDispatcher()
         fake.queue_route(out)
@@ -1775,7 +1788,7 @@ class TestBroadcastEvent:
                     ObservableFact.all("Alice sets down a glass.")
                 ],
             ),
-            event_kind="directed_at_player",
+            event_kind="cascade_exhausted",
             observers=[
                 ObserverEntry(
                     character_id=cid,
@@ -2501,14 +2514,14 @@ class TestSchemaValidators:
         assert out.perception_enrichment_character_ids == ["pip"]
 
     def test_legacy_agent_responder_picks_field_is_rejected(self):
-        out = _router_out(agent_ids=["pip"], ends_beat=False)
+        out = _router_out(agent_ids=["pip"], event_kind="beat_continues")
         data = out.model_dump()
         data["agent_responder_picks"] = ["pip", "offstage_npc"]
         with pytest.raises(ValueError, match="Extra inputs"):
             EventRouterOutput.model_validate(data)
 
     def test_router_target_projection_uses_runtime_frame_semantics(self):
-        out = _router_out(agent_ids=["pip"], ends_beat=False)
+        out = _router_out(agent_ids=["pip"], event_kind="beat_continues")
         assert targets_from_router_output(
             out,
             player_ids={"alice"},
@@ -2520,7 +2533,7 @@ class TestSchemaValidators:
             agent_ids=["pip"],
         )[0].frame == "private"
 
-        offstage = _router_out(ends_beat=False)
+        offstage = _router_out(event_kind="beat_continues")
         assert targets_from_router_output(
             offstage,
             player_ids={"alice"},
@@ -2540,7 +2553,7 @@ class TestSchemaValidators:
 
         departing = _router_out(
             agent_ids=["pip"],
-            ends_beat=False,
+            event_kind="beat_continues",
             observer_ids=["alice", "pip"],
             location_updates=[
                 {"character_id": "pip", "location_label": "archive"}
@@ -2552,15 +2565,15 @@ class TestSchemaValidators:
             agent_ids=["pip"],
         )[0].frame == "background"
 
-    def test_unknown_event_kind_coerced_to_terminal_kind(self):
-        out = _router_out(ends_beat=True)
+    def test_unknown_event_kind_coerced_to_cascade_exhausted(self):
+        out = _router_out(event_kind="cascade_exhausted")
         data = out.model_dump()
         data["event_kind"] = "location-transition"
         rebuilt = EventRouterOutput.model_validate(data)
-        assert rebuilt.event_kind == "directed_at_player"
+        assert rebuilt.event_kind == "cascade_exhausted"
 
-    def test_observation_harvest_is_terminal(self):
-        out = _router_out(ends_beat=True, agent_ids=["pip"])
+    def test_observation_harvest_is_not_an_open_cascade(self):
+        out = _router_out(event_kind="cascade_exhausted", agent_ids=["pip"])
         data = out.model_dump()
         data["event_kind"] = "observation_harvest"
         for observer in data["observers"]:
@@ -2576,7 +2589,7 @@ class TestEndBeatFanout:
         from app.engine.turn_loop import _end_beat
 
         ckpt = _ckpt({"alice": "1", "bob": "2"})
-        event = _router_out(ends_beat=True)
+        event = _router_out(event_kind="cascade_exhausted")
         ckpt.canonical_events.append(event)
         append_to_render_buffer(ckpt, "alice", event.event_id, "direct")
         append_to_render_buffer(ckpt, "bob", event.event_id, "direct")
@@ -2591,7 +2604,7 @@ class TestEndBeatFanout:
         result = asyncio.run(_end_beat(
             ckpt,
             fake,
-            ended_reason="directed_at_player",
+            ended_reason="cascade_exhausted",
             events_closed=1,
             event_actor_ids=["alice"],
         ))
@@ -2626,18 +2639,6 @@ class TestHumanNextOutputYield:
     respond next, the beat must yield to that human's own /act instead of an
     agent turn or a continuation rescue voicing them."""
 
-    def test_human_next_output_ids_detects_observer_and_list(self):
-        ckpt = _ckpt({"alice": "1", "bob": "2"})
-        # next-output expressed via observer routing_role (the shape the live
-        # router used): bob is a bound human, pip is an NPC.
-        out = _router_out(agent_ids=["bob", "pip"], ends_beat=False)
-        assert _human_next_output_ids(ckpt, out) == ["bob"]
-
-    def test_human_next_output_ids_empty_when_next_is_npc(self):
-        ckpt = _ckpt({"alice": "1"})
-        out = _router_out(agent_ids=["pip"], ends_beat=False)
-        assert _human_next_output_ids(ckpt, out) == []
-
     def test_beat_yields_when_router_routes_a_human_next(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
         fake = FakeDispatcher()
@@ -2645,7 +2646,7 @@ class TestHumanNextOutputYield:
         # Bob as next output. Bob must NOT be voiced by the engine.
         fake.queue_route(_router_out(
             agent_ids=["bob"],
-            ends_beat=False,
+            event_kind="beat_continues",
             facts=[ObservableFact.all("Alice grins and nudges Bob's elbow.")],
         ))
 
@@ -2663,3 +2664,212 @@ class TestHumanNextOutputYield:
         # Only Alice's own action was canonicalized; Bob was not spoken for.
         assert len(ckpt.canonical_events) == 1
         assert "bob" in result.renders  # Bob still perceives Alice's action.
+
+    def test_response_requested_dispatches_an_npc_before_rendering(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="response_requested",
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+        ))
+        fake.queue_agent("I step through the gate.")
+        fake.queue_route(_router_out(
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "pip"],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip, go first.",
+        ))
+
+        assert result.ended_reason == "cascade_exhausted"
+        assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
+        assert len(ckpt.canonical_events) == 2
+
+    def test_response_requested_yields_to_a_bound_human(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="response_requested",
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob"],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Bob, are you ready?",
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        assert fake.agent_calls == []
+        assert fake.continuation_calls == []
+
+    def test_first_bound_human_target_wins_over_later_npc(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="response_requested",
+            agent_ids=["bob", "pip"],
+            observer_ids=["alice", "bob", "pip"],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Bob and Pip, decide who enters.",
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        assert fake.agent_calls == []
+
+    def test_first_npc_target_runs_before_later_bound_human(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="response_requested",
+            agent_ids=["pip", "bob"],
+            observer_ids=["alice", "pip", "bob"],
+        ))
+        fake.queue_agent("I will enter.")
+        fake.queue_route(_router_out(
+            event_kind="cascade_exhausted",
+            observer_ids=["alice", "pip", "bob"],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip and Bob, decide who enters.",
+        ))
+
+        assert result.ended_reason == "cascade_exhausted"
+        assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
+
+    def test_unbound_player_authored_target_fails_loudly(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="newcomer",
+            name="the Newcomer",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+        ))
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="response_requested",
+            agent_ids=["newcomer"],
+            observer_ids=["alice", "newcomer"],
+        ))
+
+        with pytest.raises(
+            RuntimeError,
+            match="unclaimed player-authored seat",
+        ):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="Newcomer, answer me.",
+            ))
+
+        assert fake.agent_calls == []
+
+
+class TestNarratorHandoff:
+    def test_continue_retains_full_batch_and_discards_candidate_prose(self):
+        ckpt = _ckpt({"alice": "1"})
+        image_batches: list[list[str]] = []
+        cancelled_transactions: list[str] = []
+
+        class RecordingImageSink:
+            async def start_render_candidate(self, **kwargs):
+                image_batches.append([
+                    entry.event_id
+                    for entry in kwargs["buffered_events_by_pov"]["alice"]
+                ])
+                return f"imgtx_{len(image_batches)}"
+
+            async def cancel_transaction(self, transaction_id, **_kwargs):
+                cancelled_transactions.append(transaction_id)
+
+            async def commit_transaction(self, *_args, **_kwargs):
+                return None
+
+        image_runtime = ClosedEventRuntime(
+            transaction_id="tx_handoff",
+            source_turn_index=1,
+            spawn_authoring=SpawnAuthoringCoordinator(object()),
+            image_sink=RecordingImageSink(),
+        )
+        install_closed_event_runtime(ckpt, image_runtime)
+        ckpt.session.open_commitments = [OpenCommitment(
+            commitment_id="commit_wait",
+            description="Alice waits until the gate finishes opening.",
+            actor_ids=["alice"],
+            opened_event_id="evt_prior",
+        )]
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_id="evt_motion",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice"],
+            facts=[ObservableFact.all("The gate starts to rise.")],
+        ))
+        fake.queue_route(_router_out(
+            event_id="evt_arrival",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice"],
+            facts=[ObservableFact.all("The gate locks open.")],
+        ))
+        fake.queue_narrator(
+            handoff="continue",
+            reason="The submitted wait condition is still pending.",
+            text="REJECTED CANDIDATE",
+        )
+        fake.queue_narrator(
+            handoff="render",
+            reason="The gate has finished opening.",
+            text="ACCEPTED BATCH",
+        )
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I wait until the gate finishes opening.",
+        ))
+
+        assert result.renders == {"alice": "ACCEPTED BATCH"}
+        assert result.rendered_event_ids_by_pov == {
+            "alice": ["evt_motion", "evt_arrival"]
+        }
+        assert [
+            len(call["buffered_events"]) for call in fake.narrator_calls
+        ] == [1, 2]
+        assert fake.narrator_calls[0]["handoff_policy"] == "candidate"
+        assert "gate finishes opening" in (
+            fake.narrator_calls[0]["handoff_context"]
+        )
+        assert fake.continuation_calls[0]["original_action"] == (
+            "I wait until the gate finishes opening."
+        )
+        assert fake.continuation_calls[0]["handoff_reason"] == (
+            "The submitted wait condition is still pending."
+        )
+        history = ckpt.narrator_conversations["alice"]
+        assert "REJECTED CANDIDATE" not in str(history)
+        assert "ACCEPTED BATCH" in str(history)
+        assert ckpt.session.render_buffers["alice"] == []
+        assert image_batches == [
+            ["evt_motion"],
+            ["evt_motion", "evt_arrival"],
+        ]
+        assert cancelled_transactions == ["imgtx_1"]
+        assert image_runtime.accepted_image_transaction_ids == {"imgtx_2"}

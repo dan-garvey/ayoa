@@ -160,7 +160,7 @@ class TestEngineBridgeRetry:
                 session_id="session",
                 character_bindings={"alice": "42"},
                 pending_narrator_render=PendingNarratorRender(
-                    ended_reason="directed_at_player",
+                    ended_reason="response_requested",
                     events_closed=1,
                     event_actor_ids=["alice"],
                     acting_player_id="alice",
@@ -177,7 +177,7 @@ class TestEngineBridgeRetry:
             turn_index=1,
             output_text="Recovered POV",
             per_player_renders={"alice": "Recovered POV"},
-            beat_ended_reason="directed_at_player",
+            beat_ended_reason="response_requested",
         )
         mock_bridge.sweep_stale_pins = MagicMock()
         mock_bridge.orchestrator.retry_pending_narrator_render = AsyncMock(
@@ -244,7 +244,7 @@ class TestRetryCommandDelivery:
             turn_index=2,
             output_text="Recovered POV",
             per_player_renders={"alice": "Recovered POV"},
-            beat_ended_reason="directed_at_player",
+            beat_ended_reason="response_requested",
         )
         result = RetryRenderResult(
             response=response,
@@ -1383,7 +1383,7 @@ class TestSweepDrivesReadjudication:
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="directed_at_player",
+                beat_ended_reason="response_requested",
             )
         )
 
@@ -1404,7 +1404,7 @@ class TestSweepDrivesReadjudication:
         # the caller's /act should never be silently dropped.
         assert mock_bridge.orchestrator.process_turn.await_count == 1
         # run_turn returns the process_turn result, not resolve_cat_ii's.
-        assert result.beat_ended_reason == "directed_at_player"
+        assert result.beat_ended_reason == "response_requested"
 
     def test_resolve_cat_ii_failure_does_not_block_current_act(
         self, mock_bridge,
@@ -1420,7 +1420,7 @@ class TestSweepDrivesReadjudication:
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="directed_at_player",
+                beat_ended_reason="response_requested",
             )
         )
 
@@ -1434,7 +1434,7 @@ class TestSweepDrivesReadjudication:
         result = asyncio.run(run())
         mock_bridge.orchestrator.resolve_cat_ii.assert_awaited_once()
         assert mock_bridge.orchestrator.process_turn.await_count == 1
-        assert result.beat_ended_reason == "directed_at_player"
+        assert result.beat_ended_reason == "response_requested"
 
     def test_process_turn_pre_resolutions_are_preserved(
         self, mock_bridge,
@@ -1450,12 +1450,12 @@ class TestSweepDrivesReadjudication:
             turn_index=5,
             output_text="The rat lunges.",
             per_player_renders={"alice": "The rat lunges."},
-            beat_ended_reason="directed_at_player",
+            beat_ended_reason="response_requested",
         )
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
                 session_id="session",
-                beat_ended_reason="directed_at_player",
+                beat_ended_reason="response_requested",
                 pre_turn_resolutions=[npc_response],
             )
         )
@@ -1502,7 +1502,7 @@ class TestRunArrivalTurnDirective:
         mock_bridge.sweep_stale_pins = MagicMock(return_value=[])
         mock_bridge.orchestrator.process_turn = AsyncMock(
             return_value=TurnResponse(
-                session_id="session", beat_ended_reason="directed_at_player",
+                session_id="session", beat_ended_reason="response_requested",
             )
         )
 
@@ -1525,7 +1525,7 @@ class TestRunArrivalTurnDirective:
         call_kwargs = mock_bridge.orchestrator.process_turn.call_args.args[0]
         assert call_kwargs.user_input == "(arrive)"
         assert call_kwargs.acting_character_id == "alice"
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "response_requested"
 
     def test_session_with_prior_narrator_history_fires_arrive(
         self, mock_bridge,
@@ -1580,7 +1580,7 @@ class TestRunArrivalTurnDirective:
             recorded_directives.append(req.user_input)
             return TurnResponse(
                 session_id="session",
-                beat_ended_reason="directed_at_player",
+                beat_ended_reason="response_requested",
             )
 
         mock_bridge.orchestrator.process_turn = AsyncMock(

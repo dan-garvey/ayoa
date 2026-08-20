@@ -46,6 +46,12 @@ When appearance details are supplied for people the viewpoint is looking over, w
 
 Use dramatic economy. Combine multiple beats into one continuous viewpoint passage rather than listing them. Center the latest or most relevant beat for this viewpoint; earlier beats should orient the reader only as needed. Drop repeated ambient baselines unless they changed or became actionable.
 
+Handoff judgment:
+- `candidate`: decide whether the complete visible sequence has reached a useful delivery point. Choose `continue` only when no player-owned response is required and established motion or an unresolved submitted wait condition still needs to advance.
+- `forced`: choose `render`; the boundary must be delivered now.
+
+The handoff condition is decision context, not an observable event. Use it only to decide `handoff`; never reveal, quote, paraphrase, or explain it in `final_text` unless the same information also appears in the visible details.
+
 Response shape:
 - Dialogue: center the spoken line. Stop when an NPC has said something that asks for a response.
 - Observation: two to four sentences focused on concrete, actionable details.
@@ -74,6 +80,8 @@ Stay inside the fiction. The player should never see labels, diagnostics, data n
 Return only valid JSON. No commentary, no markdown fences.
 
 {{
+  "handoff": "render | continue",
+  "handoff_reason": "one concise sentence naming the delivered boundary or the specific motion/condition still pending",
   "final_text": "string - the narrative passage the player reads. Use paragraph breaks with \\n\\n when needed."
 }}
 </format>
@@ -87,6 +95,11 @@ Characters whose choices belong to players:
 {player_characters_block}
 
 For this passage: {rendering_note}
+
+Handoff policy: {handoff_policy}
+
+Handoff condition:
+{handoff_context}
 
 What reaches this viewpoint:
 {visible_events}

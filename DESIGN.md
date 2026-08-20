@@ -663,23 +663,24 @@ movement side-effect.
 
 ### 6.7 Router-Selected Agent Turns
 
-The router owns the decision about who gets the next turn. When it emits
-`event_kind="beat_continues"` or `event_kind="public_fact"`, observers with
-`routing_role="next_output"` name the NPCs eligible for the next routed-agent
-target. The turn loop dispatches one valid routed agent, strips private
+The router owns the fictional decision about who should produce the next
+in-world output. On any semantic event kind, observers with
+`routing_role="next_output"` form an ordered target list. The turn loop resolves
+that list against live bindings: the first bound human yields a player turn,
+while the first dispatchable NPC runs as an agent. It strips private
 parentheticals, routes that single public result back through the router, and
 then lets the router decide whether another target is still needed.
 Additional `next_output` observers are ordered backlog or fallback candidates,
 not a simultaneous response group.
 
 The same surface covers foreground responses, private branches, and background
-turns. Human-bound characters do not dispatch as agents;
-their visible facts accumulate in render buffers and are flushed by the
-narrator when a terminal router event targets that POV. Conceptually, a
-player-bound character is still a participant, but their immediate
-output is a renderer result rather than an agent inbox result. The current
-schema derives that renderer target from terminal event kind plus observers
-rather than from an explicit router target field.
+turns. Human-bound characters do not dispatch as agents. Visible facts
+accumulate in per-POV render buffers. When no valid next-output target remains,
+the narrator judges whether the complete visible batch is ready to render or
+whether established motion or a submitted wait condition still needs one more
+router continuation. Cat II, rules-adapter resolutions, queries, observation
+harvests, and safety caps force an immediate render. The router therefore does
+not need to know which character is controlled by a human.
 
 The engine determines the agent frame from visibility, event kind, location
 updates, and player bindings, then enforces hard safety filters: no
@@ -1023,7 +1024,7 @@ Response:
     "dan": "You ask Dante...",
     "dante_royale": "Dan turns toward Dante..."
   },
-  "beat_ended_reason": "directed_at_player",
+  "beat_ended_reason": "cascade_exhausted",
   "pre_turn_resolutions": [],
   "reaction_prompts": {}
 }

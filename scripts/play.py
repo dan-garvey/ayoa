@@ -1494,6 +1494,11 @@ class CLIState:
         self.engine.image_generation.register_delivery_handler(
             ImageDeliveryKind.cli,
             self._deliver_cli_image,
+            can_present=lambda session_id, pov_character_id: (
+                session_id == self.session_id
+                and self.asset_image_renderer.backend.is_supported()
+                and pov_character_id in self._pov_claims()
+            ),
         )
         # When set, restrict printed POV renders/asset reveals to this one
         # character. Separate-terminal one-shot play sets this so each
@@ -1995,7 +2000,7 @@ class CLIState:
             return
         if actor_id:
             self.current_actor = actor_id
-        await self._wait_for_tandem_images(response, actor_id=actor_id)
+        await self._wait_for_render_images(response, actor_id=actor_id)
         self._print_turn_response(
             response,
             actor_id=actor_id,
@@ -2513,7 +2518,7 @@ class CLIState:
         else:
             print(f"claimed {display_name}. /as {display_name} to switch.")
         if join_result.response is not None:
-            await self._wait_for_tandem_images(
+            await self._wait_for_render_images(
                 join_result.response,
                 actor_id=char_id,
             )
@@ -2727,7 +2732,7 @@ class CLIState:
             logger.exception("run_query failed")
             print(f"error: {player_safe_error_message(e, operation='that query')}")
             return
-        await self._wait_for_tandem_images(
+        await self._wait_for_render_images(
             response,
             actor_id=self.current_actor,
         )
@@ -2980,7 +2985,7 @@ class CLIState:
                 logger.exception("pending roll continuation failed")
                 print(f"error: {type(e).__name__}: {e}")
                 return
-            await self._wait_for_tandem_images(
+            await self._wait_for_render_images(
                 response,
                 actor_id=result.actor_id,
             )
@@ -3205,7 +3210,7 @@ class CLIState:
                     logger.exception("combat reaction defer failed")
                     print(f"error: {type(e).__name__}: {e}")
                     return
-                await self._wait_for_tandem_images(
+                await self._wait_for_render_images(
                     response,
                     actor_id=self.current_actor,
                 )
@@ -3234,7 +3239,7 @@ class CLIState:
             print(f"error: {player_safe_error_message(e)}")
             return
 
-        await self._wait_for_tandem_images(
+        await self._wait_for_render_images(
             response,
             actor_id=self.current_actor,
         )
@@ -3254,7 +3259,7 @@ class CLIState:
             return {self.pov_filter} if self.pov_filter in self.claims else set()
         return set(self.claims or {})
 
-    async def _wait_for_tandem_images(
+    async def _wait_for_render_images(
         self,
         response,
         *,
@@ -3279,14 +3284,23 @@ class CLIState:
             )
             if not any(rendered.values()):
                 continue
+            if not any(
+                self.engine.image_generation.can_accept_render(
+                    ImageDeliveryKind.cli,
+                    session_id=self.session_id,
+                    pov_character_id=pov_character_id,
+                )
+                for pov_character_id in rendered
+            ):
+                continue
             try:
                 async with _progress("illustrating"):
-                    await self.engine.image_generation.wait_for_rendered_event_images(
+                    await self.engine.image_generation.wait_for_render_images(
                         session_id=self.session_id,
                         rendered_event_ids_by_pov=rendered,
                     )
             except Exception:
-                logger.exception("tandem image wait failed")
+                logger.exception("render image wait failed")
 
     def _rendered_event_ids_for_visible_prose(
         self,

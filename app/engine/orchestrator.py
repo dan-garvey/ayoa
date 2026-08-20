@@ -649,7 +649,6 @@ class Orchestrator:
         )
         self.image_sink = image_sink
         self.image_generation = image_generation
-        self._registered_image_transactions: set[str] = set()
         # One manager per Orchestrator. /acts in the same session
         # serialize here; perception fan-out is observer-driven.
         self.session_locks = SessionLockManager()
@@ -711,6 +710,19 @@ class Orchestrator:
                 False,
             )
         )
+        source_checkpoint_sha256 = ""
+        if director_enabled:
+            try:
+                source_path = self.checkpoint_mgr._checkpoint_path(
+                    ckpt.session.session_id,
+                    ckpt.session.turn_index,
+                )
+                source_checkpoint_sha256 = _sha256_path(source_path)
+            except Exception:
+                director_enabled = False
+                logger.exception(
+                    "render image lineage setup failed; text turn continues"
+                )
         runtime = ClosedEventRuntime(
             transaction_id=transaction_id,
             # Closed events produced from checkpoint N are committed in
@@ -719,27 +731,10 @@ class Orchestrator:
             source_turn_index=ckpt.session.turn_index + 1,
             spawn_authoring=self.spawn_authoring,
             image_sink=self.image_sink if director_enabled else None,
+            source_checkpoint_sha256=source_checkpoint_sha256,
             record_applier=self._apply_authored_spawn_records,
         )
         install_closed_event_runtime(ckpt, runtime)
-        if director_enabled:
-            try:
-                source_path = self.checkpoint_mgr._checkpoint_path(
-                    ckpt.session.session_id,
-                    runtime.source_turn_index - 1,
-                )
-                self.image_generation.begin_transaction(
-                    transaction_id=transaction_id,
-                    session_id=ckpt.session.session_id,
-                    source_turn_index=runtime.source_turn_index,
-                    source_checkpoint_sha256=_sha256_path(source_path),
-                )
-                self._registered_image_transactions.add(transaction_id)
-            except Exception:
-                runtime.image_sink = None
-                logger.exception(
-                    "image transaction setup failed; text turn continues"
-                )
         return runtime
 
     async def _commit_closed_event_runtime(
@@ -750,31 +745,29 @@ class Orchestrator:
         runtime = closed_event_runtime_for(ckpt)
         if runtime is None:
             return
-        if runtime.transaction_id not in self._registered_image_transactions:
-            self.spawn_authoring.discard_transaction(
-                runtime.transaction_id,
-                cancel_running=False,
-            )
-            ckpt.__dict__.pop("_closed_event_runtime", None)
-            return
         target_path = self.checkpoint_mgr._checkpoint_path(
             ckpt.session.session_id,
             ckpt.session.turn_index,
         )
         try:
             target_hash = _sha256_path(target_path)
-            await self.image_generation.commit_transaction(
-                runtime.transaction_id,
-                target_checkpoint_sha256=target_hash,
-            )
+            if runtime.image_sink is not None:
+                for transaction_id in runtime.image_transaction_ids:
+                    if transaction_id in runtime.accepted_image_transaction_ids:
+                        await runtime.image_sink.commit_transaction(
+                            transaction_id,
+                            target_checkpoint_sha256=target_hash,
+                        )
+                    else:
+                        await runtime.image_sink.cancel_transaction(
+                            transaction_id,
+                            reason="render_candidate_not_accepted",
+                        )
         except Exception:
             logger.exception(
                 "image transaction commit failed; recovery will reconcile it"
             )
         finally:
-            self._registered_image_transactions.discard(
-                runtime.transaction_id
-            )
             self.spawn_authoring.discard_transaction(
                 runtime.transaction_id,
                 cancel_running=False,
@@ -790,28 +783,15 @@ class Orchestrator:
         runtime = closed_event_runtime_for(ckpt)
         if runtime is None:
             return
-        if self.image_sink is not None:
-            try:
-                await self.image_sink.cancel_transaction(
-                    runtime.transaction_id
-                )
-            except Exception:
-                logger.exception("image sidecar cancellation failed")
-        if (
-            self.image_generation is not None
-            and runtime.transaction_id
-            in self._registered_image_transactions
-        ):
-            try:
-                await self.image_generation.cancel_transaction(
-                    runtime.transaction_id,
-                    reason=reason,
-                )
-            except Exception:
-                logger.exception("image transaction cancellation failed")
-            self._registered_image_transactions.discard(
-                runtime.transaction_id
-            )
+        if runtime.image_sink is not None:
+            for transaction_id in runtime.image_transaction_ids:
+                try:
+                    await runtime.image_sink.cancel_transaction(
+                        transaction_id,
+                        reason=reason,
+                    )
+                except Exception:
+                    logger.exception("image sidecar cancellation failed")
         self.spawn_authoring.discard_transaction(
             runtime.transaction_id,
             cancel_running=True,
@@ -938,6 +918,7 @@ class Orchestrator:
             (str(transaction_id), str(roll_id))
             for transaction_id, roll_id in pending.roll_keys_before
         }
+        self._ensure_closed_event_runtime(ckpt)
         beat_result = await _end_beat(
             ckpt,
             dispatcher,
@@ -949,7 +930,32 @@ class Orchestrator:
             acting_player_id=pending.acting_player_id,
             acting_player_input=pending.acting_player_input,
             suppress_reaction_prompts=pending.suppress_reaction_prompts,
+            soft_handoff_candidate=pending.soft_handoff_candidate,
         )
+        if beat_result.continue_requested:
+            prior_result = next(
+                (
+                    event
+                    for event in reversed(ckpt.canonical_events)
+                    if event.event_id == pending.handoff_event_id
+                ),
+                None,
+            )
+            if prior_result is None:
+                raise RuntimeError(
+                    "Pending narrator continuation event is missing from "
+                    "canonical history."
+                )
+            beat_result = await run_beat(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+                actor_id=pending.acting_player_id,
+                intention=pending.acting_player_input,
+                resume_after_handoff=prior_result,
+                resume_events_closed=pending.events_closed,
+                resume_event_actor_ids=list(pending.event_actor_ids),
+                resume_handoff_reason=beat_result.continuation_reason,
+            )
         self._clear_pending_commitment_revision(ckpt, pending)
         await self._apply_beat_roster_side_effects(
             ckpt, beat_result, log_label="Resumed BeatResult",

@@ -14,7 +14,6 @@ around:
 - Cat II opening and resolution
 - mediated perception without scene topology
 - custom player arrival guidance
-- frontier-result fan-in
 
 Outputs:
   app/storage/playtest_reports/router_prompt_targeted_<timestamp>.json
@@ -46,7 +45,6 @@ from app.schemas.characters import CharacterRecord, PrivateState, PublicSheet
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
-from app.schemas.router_frontier import RouterFrontierResult
 from app.schemas.state import (
     OpenCatIIEvent,
     PhysicsRuleset,
@@ -309,7 +307,11 @@ async def _multi_recipient(dispatcher: LLMDispatcher) -> CaseResult:
             _contains_all(result.next_output_character_ids, ["ashara", "rashid"]),
             f"next={result.next_output_character_ids}",
         ),
-        _check("keeps_beat_open", result.event_kind == "beat_continues"),
+        _check(
+            "keeps_beat_open",
+            bool(result.next_output_character_ids),
+            f"kind={result.event_kind} next={result.next_output_character_ids}",
+        ),
         _check(
             "dialogue_preserved",
             "What do you both want from this room" in _fact_text(result),
@@ -348,7 +350,7 @@ async def _npc_to_npc(dispatcher: LLMDispatcher) -> CaseResult:
         ),
         _check(
             "keeps_beat_open_for_target",
-            result.event_kind == "beat_continues",
+            bool(result.next_output_character_ids),
             f"kind={result.event_kind}",
         ),
     ]
@@ -399,6 +401,11 @@ async def _defer_pacing(dispatcher: LLMDispatcher) -> CaseResult:
     checks = [
         _check("does_not_invent_player_action", not invented_player_motion),
         _check(
+            "does_not_route_defer_back_to_player",
+            "dan" not in result.next_output_character_ids,
+            f"next={result.next_output_character_ids}",
+        ),
+        _check(
             "no_dead_air_closed_beat",
             not (
                 result.event_kind != "beat_continues"
@@ -408,12 +415,9 @@ async def _defer_pacing(dispatcher: LLMDispatcher) -> CaseResult:
             f"kind={result.event_kind}",
         ),
         _check(
-            "open_has_pick_or_closed_has_affordance",
-            (
-                result.event_kind == "beat_continues"
-                and bool(result.next_output_character_ids)
-            )
-            or (result.event_kind != "beat_continues" and non_empty_forward_motion),
+            "routes_actor_or_creates_affordance",
+            bool(result.next_output_character_ids)
+            or non_empty_forward_motion,
             f"next={result.next_output_character_ids}",
         ),
     ]
@@ -431,7 +435,7 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
         role="assistant",
         content=(
             "prior_event evt_thin_prompt @120+8 source=dan mode=intention "
-            "end=directed_at_player\n"
+            "kind=response_requested\n"
             "fact all @0+8: Dante says, 'Dan, one name. Who do you trust "
             "here?'\n"
             "obs dan:d5 ashara:d2 rashid:d2 thessaly:d2 dante:d5 maya:d3"
@@ -472,23 +476,29 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
         ]
     )
     thin_direct_return = (
-        result.event_kind == "directed_at_player"
+        result.event_kind == "response_requested"
+        and "dan" in result.next_output_character_ids
         and not stronger_boundary
     )
     checks = [
         _check("does_not_invent_player_action", not invented_player_motion),
         _check(
             "does_not_repeat_thin_direct_handoff",
-            not thin_direct_return,
+            "dan" not in result.next_output_character_ids
+            and not thin_direct_return,
             f"kind={result.event_kind} facts={_fact_text(result)}",
         ),
         _check(
             "keeps_open_or_creates_stronger_boundary",
             (
-                result.event_kind == "beat_continues"
-                and bool(result.next_output_character_ids)
+                bool(result.next_output_character_ids)
+                and "dan" not in result.next_output_character_ids
             ) or (
-                result.event_kind in {"state_change", "ambient_pause"}
+                result.event_kind in {
+                    "state_change",
+                    "cascade_exhausted",
+                    "ambient_pause",
+                }
                 and stronger_boundary
             ),
             (
@@ -499,7 +509,7 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
     ]
     return CaseResult(
         name="defer_after_premature_boundary",
-        input_summary="(defer) after a prior thin directed-at-player handoff",
+        input_summary="(defer) after a prior thin response handoff",
         output=_result_dict(result),
         checks=checks,
     )
@@ -578,7 +588,7 @@ async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
             result.event_kind == "cat_ii_resolution",
             f"kind={result.event_kind}",
         ),
-        _check("terminal_event_kind", result.event_kind != "beat_continues"),
+        _check("resolution_event_kind", result.event_kind == "cat_ii_resolution"),
         _check(
             "does_not_blindly_accept_total_knockout",
             not any(term in lowered for term in total_incapacitation_terms),
@@ -698,90 +708,13 @@ async def _custom_arrival(dispatcher: LLMDispatcher) -> CaseResult:
                 result.event_kind == "beat_continues"
                 and bool(result.next_output_character_ids)
             )
-            or result.event_kind in {"state_change", "directed_at_player", "ambient_pause"},
+            or result.event_kind in {"state_change", "response_requested", "ambient_pause"},
             f"kind={result.event_kind} next={result.next_output_character_ids}",
         ),
     ]
     return CaseResult(
         name="custom_arrival_story_direction",
         input_summary="Britney enters via (begin) with a pending roster note.",
-        output=_result_dict(result),
-        checks=checks,
-    )
-
-
-async def _frontier_private_talkback(dispatcher: LLMDispatcher) -> CaseResult:
-    ckpt = _ckpt(session_id="targeted_frontier_private_talkback")
-    result = await dispatcher.route_frontier_results(
-        ckpt=ckpt,
-        prior_result=EventRouterOutput.model_validate(
-            {
-                "event_id": "evt_prior",
-                "effective_at_s": 0,
-                "duration_s": 0,
-                "decision_rationale": "targeted frontier fixture",
-                "canonical_event": {
-                    "world_adjudication": {"feasible": True},
-                    "observable_facts": [],
-                },
-                "observers": [
-                    {
-                        "character_id": "maya",
-                        "observation_level": "f",
-                        "routing_role": "next_output",
-                    }
-                ],
-                "requires_responders": False,
-                "required_responders": [],
-                "event_kind": "beat_continues",
-                "spawn": [],
-                "dormant": [],
-                "cull": [],
-            }
-        ),
-        frontier_results=[
-            RouterFrontierResult(
-                result_kind="agent_turn",
-                character_id="maya",
-                frame="background",
-                public_text=(
-                    "Maya presses the control-room talkback and says into "
-                    "Dante's earpiece, \"Bring Britney in now. Tell Dan "
-                    "it is the twist.\""
-                ),
-                source_event_id="evt_prior",
-            ),
-        ],
-    )
-    if result is None:
-        raise AssertionError(
-            "route_frontier_results returned None for a non-empty frontier"
-        )
-    facts = _fact_text(result).lower()
-    checks = [
-        _check(
-            "private_frontier_routes_or_settles",
-            result.event_kind in {"state_change", "cascade_exhausted"}
-            or (
-                result.event_kind == "beat_continues"
-                and "dante" in result.next_output_character_ids
-            ),
-            f"kind={result.event_kind} next={result.next_output_character_ids}",
-        ),
-        _check(
-            "talkback_target_observes",
-            "dante" in _observer_ids(result),
-            f"observers={_observer_ids(result)}",
-        ),
-        _check(
-            "player_not_direct_observer_of_private_talkback",
-            "dan" not in _observer_ids(result) or "dante's earpiece" not in facts,
-            f"observers={_observer_ids(result)} facts={_fact_text(result)}",
-        ),
-    ]
-    return CaseResult(
-        name="frontier_private_talkback",
-        input_summary="Maya privately cues Dante through frontier fan-in.",
         output=_result_dict(result),
         checks=checks,
     )
@@ -796,7 +729,6 @@ CASES: list[tuple[str, Callable[[LLMDispatcher], Awaitable[CaseResult]]]] = [
     ("cat_ii_resolution_responder_overclaim", _cat_ii_resolution),
     ("mediated_pod_shared_audio_not_sight", _mediated_pod),
     ("custom_arrival_story_direction", _custom_arrival),
-    ("frontier_private_talkback", _frontier_private_talkback),
 ]
 
 

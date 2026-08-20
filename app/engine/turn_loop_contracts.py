@@ -95,21 +95,26 @@ def format_agent_output_entry(character_id: str, public_text: str) -> str:
     return f"{character_id}: {text}"
 
 
-def format_router_continuation_block(*, prior_rationale: str = "") -> str:
+def format_router_continuation_block(
+    *,
+    prior_rationale: str = "",
+    original_action: str = "",
+    handoff_reason: str = "",
+) -> str:
     """Ask the router to repair an open beat with no continuation path.
 
     This is not a new character intention. It is a router-only recovery
-    mode used after the prior router output used `event_kind=beat_continues` but
-    left no dispatchable next-output target. The next router output must either
-    create a concrete human-facing beat boundary or supply a real NPC
+    mode used when the prior router output left no dispatchable next-output
+    target but the visible sequence still needs motion. The next router output
+    must either create a concrete response boundary or supply a real NPC
     continuation.
     """
     lines = [
         ROUTER_CONTINUATION_HEADER,
         "",
         (
-            "The beat is still open, but no NPC was selected to act next. "
-            "Do not hand control back on an unresolved pause."
+            "The visible sequence still needs motion, but no autonomous actor "
+            "was selected to act next."
         ),
         "",
         (
@@ -122,12 +127,16 @@ def format_router_continuation_block(*, prior_rationale: str = "") -> str:
         ),
         "",
         (
-            "If this new event creates a clear human-facing affordance, set "
-            "the correct terminal `event_kind`. "
-            "If the beat still needs NPC action, set `event_kind=beat_continues` and "
-            "mark dispatchable NPC observers with `routing_role=next_output`."
+            "Do not open Cat II in this mode. Author a closed cue or select an "
+            "autonomous actor with `routing_role=next_output`."
         ),
     ]
+    action = (original_action or "").strip()
+    if action:
+        lines.extend(["", f"Original submitted action: {action}"])
+    pending = (handoff_reason or "").strip()
+    if pending:
+        lines.extend(["", f"Pending motion: {pending}"])
     cleaned = (prior_rationale or "").strip()
     if cleaned:
         lines.extend(["", f"Prior diagnostic: {cleaned}"])

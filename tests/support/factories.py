@@ -18,14 +18,6 @@ from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import SessionState, StorySetting, WorldState
 
 
-def _attach_legacy_beat_attrs(event: EventRouterOutput) -> EventRouterOutput:
-    legacy_ends_beat = event.event_kind != "beat_continues"
-    legacy_reason = event.event_kind if legacy_ends_beat else ""
-    object.__setattr__(event, "ends_beat", legacy_ends_beat)
-    object.__setattr__(event, "ends_beat_reason", legacy_reason)
-    return event
-
-
 def text_block(text: str = "{}") -> MagicMock:
     block = MagicMock()
     block.type = "text"
@@ -75,11 +67,17 @@ def text_llm_response(
 def narrator_llm_response(
     final_text: str = "RENDERED",
     *,
+    handoff: str = "render",
+    handoff_reason: str = "The visible sequence is ready.",
     model: str = "claude-sonnet-4-6",
     raw_text: str = "{}",
 ) -> LLMResponse:
     return llm_response(
-        parsed=NarratorFinalOutput(final_text=final_text),
+        parsed=NarratorFinalOutput(
+            handoff=handoff,
+            handoff_reason=handoff_reason,
+            final_text=final_text,
+        ),
         content=raw_text,
         model=model,
         raw_text=raw_text,
@@ -179,8 +177,6 @@ def router_output(
     agent_ids: list[str] | None = None,
     observer_ids: list[str] | None = None,
     event_kind: str | None = None,
-    ends_beat: bool = True,
-    ends_beat_reason: str | None = "directed_at_player",
     facts: list[ObservableFact] | None = None,
     effective_at_s: int = 0,
     duration_s: int = 0,
@@ -210,11 +206,7 @@ def router_output(
         )
 
     resolved_event_kind = event_kind or (
-        "cat_ii_open"
-        if requires_responders
-        else "beat_continues"
-        if not ends_beat
-        else (ends_beat_reason or "directed_at_player")
+        "cat_ii_open" if requires_responders else "cascade_exhausted"
     )
     data: dict[str, Any] = dict(
         event_id=event_id,
@@ -240,7 +232,7 @@ def router_output(
         commitment_interrupts=[],
         location_updates=location_updates or [],
     )
-    return _attach_legacy_beat_attrs(EventRouterOutput(**data))
+    return EventRouterOutput(**data)
 
 
 def dnd_router_output(
@@ -260,7 +252,7 @@ def dnd_router_output(
         data["loot_offer"] = loot_offer
     if battle_map_seed is not None:
         data["battle_map_seed"] = battle_map_seed
-    return _attach_legacy_beat_attrs(DndEventRouterOutput(**data))
+    return DndEventRouterOutput(**data)
 
 
 def dnd5e_mechanics(
@@ -321,6 +313,9 @@ class InstanceFakeDispatcher:
         self._agent_responses: list[str] = []
         self._harvest_responses: list[list[str]] = []
         self._narrator_response = "RENDER"
+        self._narrator_handoff = "render"
+        self._narrator_handoff_reason = "The visible sequence is ready."
+        self._narrator_responses: list[tuple[str, str, str]] = []
 
     def queue_route(self, response: EventRouterOutput) -> None:
         self._route_responses.append(response)
@@ -333,6 +328,15 @@ class InstanceFakeDispatcher:
 
     def queue_harvest(self, fragments: list[str]) -> None:
         self._harvest_responses.append(fragments)
+
+    def queue_narrator(
+        self,
+        *,
+        handoff: str,
+        reason: str,
+        text: str,
+    ) -> None:
+        self._narrator_responses.append((handoff, reason, text))
 
     async def route_intention(self, **kw) -> EventRouterOutput:
         self.route_calls.append(kw)
@@ -397,10 +401,23 @@ class InstanceFakeDispatcher:
 
     async def narrator_compose(self, **kw):
         self.narrator_calls.append(kw)
-        envelope = NarratorFinalOutput(final_text=self._narrator_response)
+        handoff, reason, response = (
+            self._narrator_responses.pop(0)
+            if self._narrator_responses
+            else (
+                self._narrator_handoff,
+                self._narrator_handoff_reason,
+                self._narrator_response,
+            )
+        )
+        envelope = NarratorFinalOutput(
+            handoff=handoff,
+            handoff_reason=reason,
+            final_text=response,
+        )
         entry = TranscriptEntry(
             user=kw.get("user_input", ""),
-            assistant=self._narrator_response,
+            assistant=response,
         )
         return envelope, entry
 
@@ -410,6 +427,9 @@ class ClassFakeDispatcher:
     _agent_responses: list[str] = []
     _narrator_errors: list[Exception] = []
     _narrator_text: str = "POV_RENDER"
+    _narrator_handoff: str = "render"
+    _narrator_handoff_reason: str = "The visible sequence is ready."
+    _narrator_responses: list[tuple[str, str, str]] = []
     route_calls: list[dict] = []
     agent_calls: list[dict] = []
     narrator_calls: list[dict] = []
@@ -423,6 +443,9 @@ class ClassFakeDispatcher:
         cls._agent_responses = []
         cls._narrator_errors = []
         cls._narrator_text = "POV_RENDER"
+        cls._narrator_handoff = "render"
+        cls._narrator_handoff_reason = "The visible sequence is ready."
+        cls._narrator_responses = []
         cls.route_calls = []
         cls.agent_calls = []
         cls.narrator_calls = []
@@ -438,6 +461,16 @@ class ClassFakeDispatcher:
     @classmethod
     def queue_narrator_error(cls, error: Exception) -> None:
         cls._narrator_errors.append(error)
+
+    @classmethod
+    def queue_narrator(
+        cls,
+        *,
+        handoff: str,
+        reason: str,
+        text: str,
+    ) -> None:
+        cls._narrator_responses.append((handoff, reason, text))
 
     async def route_intention(self, **kw) -> EventRouterOutput:
         type(self).route_calls.append(kw)
@@ -463,9 +496,22 @@ class ClassFakeDispatcher:
         type(self).narrator_calls.append(kw)
         if type(self)._narrator_errors:
             raise type(self)._narrator_errors.pop(0)
-        envelope = NarratorFinalOutput(final_text=type(self)._narrator_text)
+        handoff, reason, text = (
+            type(self)._narrator_responses.pop(0)
+            if type(self)._narrator_responses
+            else (
+                type(self)._narrator_handoff,
+                type(self)._narrator_handoff_reason,
+                type(self)._narrator_text,
+            )
+        )
+        envelope = NarratorFinalOutput(
+            handoff=handoff,
+            handoff_reason=reason,
+            final_text=text,
+        )
         entry = TranscriptEntry(
             user=kw.get("user_input", ""),
-            assistant=type(self)._narrator_text,
+            assistant=text,
         )
         return envelope, entry

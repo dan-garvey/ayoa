@@ -360,7 +360,7 @@ def test_turn_response_xp_award_drain_is_persisted(patched_orchestrator):
             BeatResult(
                 renders={"alice": "The combat quiets."},
                 events_closed=0,
-                ended_reason="ends_beat",
+                ended_reason="cascade_exhausted",
                 transcript_entries={},
                 event_actor_ids=[],
             )
@@ -394,12 +394,12 @@ def patched_orchestrator(monkeypatch):
 
 class TestHappyPath:
     @pytest.mark.asyncio
-    async def test_cat_i_ends_beat_populates_renders_and_saves(
+    async def test_cat_i_close_populates_renders_and_saves(
         self, patched_orchestrator,
     ):
         ckpt = _ckpt(bindings={"alice": "u1"})
         orch, mgr = patched_orchestrator(ckpt)
-        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+        FakeDispatcher.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         response = await orch.process_turn(TurnRequest(
             session_id="s",
@@ -409,7 +409,7 @@ class TestHappyPath:
 
         assert response.per_player_renders["alice"] == "POV_RENDER"
         assert response.output_text == "POV_RENDER"
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "cascade_exhausted"
         assert response.turn_index == 1
         assert mgr.save.call_count == 1
         saved = mgr.save.call_args[0][0]
@@ -423,7 +423,7 @@ class TestHappyPath:
     ):
         ckpt = _ckpt(bindings={"alice": "u1"})
         orch, mgr = patched_orchestrator(ckpt)
-        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+        FakeDispatcher.queue_route(_router_out(event_kind="cascade_exhausted"))
         FakeDispatcher.queue_narrator_error(RuntimeError("narrator offline"))
 
         with pytest.raises(RuntimeError, match="narrator offline"):
@@ -456,6 +456,64 @@ class TestHappyPath:
         assert not hasattr(ckpt, "transcript")
         assert len(FakeDispatcher.route_calls) == 1
         assert len(FakeDispatcher.narrator_calls) == 2
+        assert mgr.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_soft_handoff_retry_can_continue_without_replaying_action(
+        self, patched_orchestrator,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_waiting",
+            event_kind="cascade_exhausted",
+            facts=[ObservableFact.all("The lift starts to descend.")],
+        ))
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_arrived",
+            event_kind="cascade_exhausted",
+            facts=[ObservableFact.all("The lift reaches the lower hall.")],
+        ))
+        FakeDispatcher.queue_narrator_error(RuntimeError("narrator offline"))
+
+        with pytest.raises(RuntimeError, match="narrator offline"):
+            await orch.process_turn(TurnRequest(
+                session_id="s",
+                user_input="I ride the lift to the lower hall.",
+                acting_character_id="alice",
+            ))
+
+        pending = ckpt.session.pending_narrator_render
+        assert pending is not None
+        assert pending.soft_handoff_candidate is True
+        assert pending.handoff_event_id == "evt_waiting"
+        FakeDispatcher.queue_narrator(
+            handoff="continue",
+            reason="The lift is still moving.",
+            text="DISCARDED",
+        )
+        FakeDispatcher.queue_narrator(
+            handoff="render",
+            reason="The lift has arrived.",
+            text="ARRIVED",
+        )
+
+        response = await orch.retry_pending_narrator_render("s")
+
+        assert response.output_text == "ARRIVED"
+        assert len(FakeDispatcher.route_calls) == 2
+        assert FakeDispatcher.route_calls[1]["original_action"] == (
+            "I ride the lift to the lower hall."
+        )
+        assert FakeDispatcher.route_calls[1]["handoff_reason"] == (
+            "The lift is still moving."
+        )
+        assert [
+            len(call["buffered_events"])
+            for call in FakeDispatcher.narrator_calls
+        ] == [1, 1, 2]
+        assert "DISCARDED" not in str(ckpt.narrator_conversations["alice"])
+        assert ckpt.session.pending_narrator_render is None
         assert mgr.save.call_count == 2
 
     @pytest.mark.asyncio
@@ -1396,7 +1454,7 @@ class TestCombatTurnGating:
             return BeatResult(
                 renders={"alice": f"{actor_id} acts."},
                 events_closed=0,
-                ended_reason="directed_at_player",
+                ended_reason="response_requested",
                 transcript_entries={},
                 event_actor_ids=[actor_id],
             )
@@ -1553,7 +1611,7 @@ class TestCombatTurnGating:
             ],
         )
         orch, mgr = patched_orchestrator(ckpt)
-        FakeDispatcher.queue_route(_router_out(ends_beat=True))
+        FakeDispatcher.queue_route(_router_out(event_kind="cascade_exhausted"))
 
         response = await orch.process_turn(TurnRequest(
             session_id="s",
@@ -1561,7 +1619,7 @@ class TestCombatTurnGating:
             acting_character_id="bob",
         ))
 
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "cascade_exhausted"
         assert FakeDispatcher.route_calls[0]["actor_id"] == "bob"
         assert mgr.save.call_count == 1
 
@@ -1574,7 +1632,7 @@ class TestCombatTurnGating:
             return BeatResult(
                 renders={"alice": f"{actor_id} acts."},
                 events_closed=0,
-                ended_reason="directed_at_player",
+                ended_reason="response_requested",
                 transcript_entries={},
                 event_actor_ids=[actor_id],
             )
@@ -1614,7 +1672,7 @@ class TestCombatTurnGating:
             acting_character_id="alice",
         ))
 
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "response_requested"
         assert ckpt.session.active_combat.turn_index == 2
         assert ckpt.session.active_combat.round_number == 1
         assert response.output_text == "alice acts. pip acts."
@@ -1637,7 +1695,7 @@ class TestCombatTurnGating:
             return BeatResult(
                 renders={"alice": "Alice acts."},
                 events_closed=0,
-                ended_reason="directed_at_player",
+                ended_reason="response_requested",
                 transcript_entries={},
                 event_actor_ids=[kw["actor_id"]],
             )
@@ -1697,7 +1755,7 @@ class TestCombatTurnGating:
             return BeatResult(
                 renders={"alice": "Alice acts."},
                 events_closed=0,
-                ended_reason="directed_at_player",
+                ended_reason="response_requested",
                 transcript_entries={},
                 event_actor_ids=[kw["actor_id"]],
             )
@@ -1926,7 +1984,7 @@ class TestCombatTurnGating:
                 world_adjudication=WorldAdjudication(feasible=True),
                 observable_facts=[ObservableFact.all("Bob reacts.")],
             ),
-            event_kind="directed_at_player",
+            event_kind="cascade_exhausted",
             observers=[
                 ObserverEntry(
                     character_id="bob",
@@ -1951,7 +2009,7 @@ class TestCombatTurnGating:
             acting_character_id="bob",
         ))
 
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "cascade_exhausted"
         assert FakeDispatcher.route_calls[0]["actor_id"] == "bob"
         assert "Combat reaction" in FakeDispatcher.route_calls[0]["intention"]
         assert ckpt.session.active_act_slots == {}
@@ -2028,7 +2086,7 @@ class TestCombatTurnGating:
             trigger_event_id="evt_blocked",
         )
         FakeDispatcher.queue_route(_router_out(
-            ends_beat=True,
+            event_kind="cascade_exhausted",
             facts=[ObservableFact.only("Alice steps back.", ["alice"])],
         ))
         orch, mgr = patched_orchestrator(ckpt)
@@ -2039,7 +2097,7 @@ class TestCombatTurnGating:
             acting_character_id="alice",
         ))
 
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "cascade_exhausted"
         assert ckpt.session.active_act_slots == {}
         assert FakeDispatcher.route_calls[0]["actor_id"] == "alice"
         assert mgr.save.call_count == 1
@@ -2232,7 +2290,7 @@ class TestCatIIPending:
         FakeDispatcher.queue_route(_router_out(
             requires_responders=True,
             required_responders=["bob"],
-            ends_beat=False,
+            event_kind="beat_continues",
         ))
 
         response = await orch.process_turn(TurnRequest(
@@ -2268,7 +2326,7 @@ class TestResolveCatII:
         orch, mgr = patched_orchestrator(ckpt)
 
         resolution = _router_out(
-            ends_beat=True,
+            event_kind="cascade_exhausted",
             facts=[
                 ObservableFact.all("Alice keeps her guard up."),
                 ObservableFact.all("Pip ends the exchange checked."),
@@ -2288,7 +2346,7 @@ class TestResolveCatII:
         ]
         FakeDispatcher.queue_route(resolution)
         FakeDispatcher.queue_agent("Pip releases the angle.")
-        followup = _router_out(ends_beat=True, agent_ids=[])
+        followup = _router_out(event_kind="cascade_exhausted", agent_ids=[])
         followup.observers = [
             ObserverEntry(
                 character_id="alice",
@@ -2305,7 +2363,7 @@ class TestResolveCatII:
 
         response = await orch.resolve_cat_ii("s", evt.event_id)
 
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "cascade_exhausted"
         assert response.per_player_renders["alice"] == "POV_RENDER"
         saved = mgr.save.call_args[0][0]
         assert all(e.event_id != evt.event_id for e in saved.session.open_cat_ii_events)
@@ -2330,7 +2388,7 @@ class TestResolveCatII:
         orch, mgr = patched_orchestrator(ckpt)
 
         resolution = _router_out(
-            ends_beat=False,
+            event_kind="beat_continues",
             agent_ids=["pip"],
             facts=[
                 ObservableFact.all("Alice's warning hangs in the doorway."),
@@ -2342,11 +2400,11 @@ class TestResolveCatII:
         )
         FakeDispatcher.queue_route(resolution)
         FakeDispatcher.queue_agent("Pip answers the warning.")
-        FakeDispatcher.queue_route(_router_out(ends_beat=True, agent_ids=[]))
+        FakeDispatcher.queue_route(_router_out(event_kind="cascade_exhausted", agent_ids=[]))
 
         response = await orch.resolve_cat_ii("s", evt.event_id)
 
-        assert response.beat_ended_reason == "directed_at_player"
+        assert response.beat_ended_reason == "cascade_exhausted"
         saved = mgr.save.call_args[0][0]
         assert len(saved.canonical_events) == 2
         assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"

@@ -12,7 +12,7 @@ from app.llm.client import (
     _openai_strict_json_schema,
     extract_json,
 )
-from app.llm.config import LLMConfig
+from app.llm.config import LLMConfig, live_play_required_roles
 from app.schemas.dnd_cat_ii import (
     DndCombatManagerAdjudication,
     DndCombatTurnPlan,
@@ -90,6 +90,19 @@ class TestExtractJson:
 # --- LLMConfig tests ---
 
 class TestLLMConfig:
+    @pytest.mark.parametrize("mode", ["0", "disabled", "shadow"])
+    def test_image_director_role_is_not_required_for_disabled_modes(
+        self, monkeypatch, mode,
+    ):
+        monkeypatch.setenv("AYOA_IMAGE_DIRECTOR_ENABLED", mode)
+
+        assert "image_director" not in live_play_required_roles()
+
+    def test_image_director_role_is_required_when_enabled(self, monkeypatch):
+        monkeypatch.setenv("AYOA_IMAGE_DIRECTOR_ENABLED", "enabled")
+
+        assert "image_director" in live_play_required_roles()
+
     def test_defaults_use_gpt_router_narrator_and_anthropic_agents(self):
         config = LLMConfig()
         assert config.default_provider == "openai"

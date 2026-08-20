@@ -99,7 +99,7 @@ class TurnResponse(BaseModel):
         default_factory=dict
     )
     # v11: why the beat stopped. Values come from `BeatResult.ended_reason`
-    # (e.g. "directed_at_player", "cat_ii_resolution", "cat_ii_pending",
+    # (e.g. "awaiting_player_turn", "cat_ii_resolution", "cat_ii_pending",
     # "max_events_cap", "cascade_exhausted"). Callers can detect the
     # Cat II pending state with `not per_player_renders` +
     # `beat_ended_reason == "cat_ii_pending"`.

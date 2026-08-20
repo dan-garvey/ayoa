@@ -9,13 +9,13 @@ continuity hold across the session on a per-POV basis.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
 
 from app.engine.prompt_manager import PromptManager
 from app.engine.context_builder import (
-    append_assistant_to_conversation,
     build_narrator_player_characters_block,
     replace_character_ids_with_names,
 )
@@ -28,6 +28,7 @@ from app.engine.visual_context import (
 )
 from app.llm.client import LLMClient
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import EventRouterOutput
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import RenderBufferEntry
@@ -157,6 +158,8 @@ async def compose_pov_render(
     buffered_events: list[RenderBufferEntry],
     partial_mode: bool,
     user_input: str = "",
+    handoff_policy: str = "forced",
+    handoff_context: str = "",
 ) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
     """v11 per-POV narrator entry point.
 
@@ -184,11 +187,9 @@ async def compose_pov_render(
     carries `final_text` now; the engine constructs the transcript
     entry from the real `user_input` + the rendered prose.
 
-    Side-effect: appends the assistant output into
-    `ckpt.narrator_conversations[pov_character_id]` in-place. The
-    current user message is still sent to the LLM, but prior narrator
-    user messages are redundant with canonical events and transcripts,
-    so they are no longer stored.
+    Composition is side-effect free. The caller commits accepted prose with
+    `commit_pov_render`; rejected handoff candidates must not affect narrator
+    history or visual-introduction state.
     """
     resolved = _resolve_buffered_events(ckpt, buffered_events)
 
@@ -245,6 +246,8 @@ async def compose_pov_render(
         pov_character_name=pov_name,
         player_characters_block=player_characters_block,
         rendering_note=rendering_note,
+        handoff_policy=handoff_policy,
+        handoff_context=(handoff_context or "No unresolved handoff condition."),
     )
     render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -266,26 +269,8 @@ async def compose_pov_render(
     )
     result: NarratorFinalOutput = response.parsed
     if result is not None:
-        if visual_intro_plan.mark_character_ids:
-            mark_visual_introductions(
-                ckpt,
-                pov_character_id,
-                visual_intro_plan.mark_character_ids,
-            )
         result.final_text = _strip_unmatched_trailing_closers(result.final_text)
         response.parsed = result
-        # Persist sanitized structured text into the narrator rolling history.
-        # Leaving the raw provider block here can feed the same stray brace back
-        # to the next narrator call.
-        response.assistant_content = [{
-            "type": "text",
-            "text": result.model_dump_json(),
-        }]
-
-    # Store assistant output only. The current user message is still sent
-    # above, but replaying old narrator user packets duplicates canonical
-    # visible-event context and player transcript input.
-    append_assistant_to_conversation(pov_history, response)
 
     final_text = result.final_text if result is not None else ""
     logger.info(
@@ -297,8 +282,46 @@ async def compose_pov_render(
     # this never fires; the schema is required and the caller would
     # have raised on the parse error.
     if result is None:
-        result = NarratorFinalOutput(final_text="")
+        result = NarratorFinalOutput(
+            handoff="render",
+            handoff_reason="Narrator returned no structured result.",
+            final_text="",
+        )
     transcript_entry = TranscriptEntry(
         user=user_input, assistant=final_text,
     )
     return result, transcript_entry
+
+
+def commit_pov_render(
+    ckpt: CheckpointFile,
+    *,
+    pov_character_id: str,
+    buffered_events: list[RenderBufferEntry],
+    result: NarratorFinalOutput,
+) -> None:
+    """Persist one accepted narrator composition and its visual introductions."""
+    resolved = _resolve_buffered_events(ckpt, buffered_events)
+    visual_intro_plan = plan_render_visual_introductions(
+        ckpt,
+        viewer_id=pov_character_id,
+        resolved=resolved,
+    )
+    if visual_intro_plan.mark_character_ids:
+        mark_visual_introductions(
+            ckpt,
+            pov_character_id,
+            visual_intro_plan.mark_character_ids,
+        )
+    history = ckpt.narrator_conversations.setdefault(pov_character_id, [])
+    history.append(ConversationMessage(
+        role="assistant",
+        content=[{
+            "type": "text",
+            "text": json.dumps(
+                {"final_text": result.final_text},
+                ensure_ascii=True,
+                separators=(",", ":"),
+            ),
+        }],
+    ))

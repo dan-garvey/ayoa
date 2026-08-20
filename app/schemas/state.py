@@ -58,6 +58,8 @@ class PendingNarratorRender(BaseModel):
     release_slots: bool = True
     force_partial: bool = False
     suppress_reaction_prompts: bool = False
+    soft_handoff_candidate: bool = False
+    handoff_event_id: str = ""
     roll_keys_before: list[tuple[str, str]] = Field(default_factory=list)
     commitment_revision_character_id: str = ""
     commitment_revision_id: str = ""

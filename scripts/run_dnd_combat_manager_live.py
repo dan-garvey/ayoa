@@ -804,7 +804,7 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
                 "source": source,
                 "source_detail": source_detail,
                 "intention": intention,
-                "result": _event_summary(result, include_observers=True, prefer_ends_beat_reason=True),
+                "result": _event_summary(result, include_observers=True),
                 "capture": _capture_dump(capture),
                 "role_calls": role_calls[call_start:],
                 "next_actor_id": _current_actor_id(ckpt),
@@ -857,7 +857,10 @@ async def _run_harness(max_turns: int) -> dict[str, Any]:
         "pending_engine_state_updates": list(
             ckpt.session.pending_engine_state_updates
         ),
-        "canonical_events": [_event_summary(event, include_observers=True, prefer_ends_beat_reason=True) for event in ckpt.canonical_events],
+        "canonical_events": [
+            _event_summary(event, include_observers=True)
+            for event in ckpt.canonical_events
+        ],
         "error": error,
     }
     report["all_illegal_stress_turns"] = live_all_illegal_stress_turns(

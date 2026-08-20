@@ -14,6 +14,7 @@ from app.engine.image_director import (
     SelectableVisualReference,
     VisibleEventProjection,
     build_projection_groups,
+    build_render_batch_projection_groups,
     projection_checkpoint_snapshot,
     source_event_fingerprint,
 )
@@ -43,7 +44,12 @@ from app.schemas.image_generation import (
     ImageGenerationStatus,
     ImageWorkerResult,
 )
-from app.schemas.state import SessionState, StorySetting, WorldState
+from app.schemas.state import (
+    RenderBufferEntry,
+    SessionState,
+    StorySetting,
+    WorldState,
+)
 from tests.support.factories import router_output
 
 
@@ -308,18 +314,80 @@ def test_projection_groups_equivalent_viewers_and_respects_fact_visibility():
     assert "PRIVATE" not in str(projections)
 
 
+def test_render_batch_keeps_private_povs_separate_and_anchors_latest_event():
+    ckpt = _checkpoint()
+    shared = router_output(
+        event_id="evt_shared",
+        observer_ids=["alice", "bob"],
+        facts=[ObservableFact.all("Rain sweeps across the courtyard.")],
+    )
+    private = router_output(
+        event_id="evt_private",
+        observer_ids=["alice"],
+        facts=[ObservableFact.only("Alice spots a hidden key.", ["alice"])],
+    )
+    ckpt.canonical_events.extend((shared, private))
+
+    projections = build_render_batch_projection_groups(
+        checkpoint=ckpt,
+        buffered_events_by_pov={
+            "alice": [
+                RenderBufferEntry(
+                    event_id="evt_shared",
+                    visible_at_s=0,
+                    event_sequence=17,
+                ),
+                RenderBufferEntry(
+                    event_id="evt_private",
+                    visible_at_s=1,
+                    event_sequence=18,
+                ),
+            ],
+            "bob": [RenderBufferEntry(
+                event_id="evt_shared",
+                visible_at_s=0,
+                event_sequence=17,
+            )],
+        },
+        eligible_viewer_ids={"alice", "bob"},
+        transaction_id="tx_batch",
+        source_turn_index=1,
+        delivery_kind="cli",
+    )
+
+    assert len(projections) == 2
+    by_viewer = {
+        projection.viewer_character_ids[0]: projection
+        for projection in projections
+    }
+    assert by_viewer["alice"].event_id == "evt_private"
+    assert by_viewer["alice"].event_sequence == 18
+    assert by_viewer["alice"].canonical_event_count == 19
+    assert "hidden key" in str(by_viewer["alice"].visible_facts)
+    assert by_viewer["bob"].event_id == "evt_shared"
+    assert by_viewer["bob"].event_sequence == 17
+    assert by_viewer["bob"].canonical_event_count == 18
+    assert "hidden key" not in str(by_viewer["bob"].visible_facts)
+
+
 def test_projection_snapshot_contains_no_private_story_or_character_state():
     source = _checkpoint()
+    kept = router_output(event_id="evt_kept", observer_ids=["alice"])
+    omitted = router_output(event_id="evt_omitted", observer_ids=["alice"])
+    source.canonical_events.extend((kept, omitted))
     source.characters[0].visuals.identity_reference_id = (
         "imgref_PRIVATE_FILE_ID"
     )
-    snapshot = projection_checkpoint_snapshot(source)
+    snapshot = projection_checkpoint_snapshot(source, event_ids={"evt_kept"})
     serialized = snapshot.model_dump_json()
     assert "PRIVATE WORLD SECRET" not in serialized
     assert "PRIVATE ALICE SECRET" not in serialized
     assert "PRIVATE NARRATIVE RULE" not in serialized
     assert "imgref_PRIVATE_FILE_ID" not in serialized
     assert "yellow raincoat" in serialized
+    assert [event.event_id for event in snapshot.canonical_events] == [
+        "evt_kept"
+    ]
 
 
 def test_projection_snapshot_omits_unclaimed_player_authored_slot():
@@ -951,7 +1019,7 @@ async def test_generation_starts_speculatively_but_delivery_waits_for_commit_and
 
 
 @pytest.mark.asyncio
-async def test_tandem_wait_tracks_all_requested_event_images(tmp_path):
+async def test_render_wait_tracks_all_requested_event_images(tmp_path):
     worker = FakeImageWorker(wait=True)
     coordinator = ImageGenerationCoordinator(
         sessions_dir=tmp_path / "sessions",
@@ -1003,7 +1071,7 @@ async def test_tandem_wait_tracks_all_requested_event_images(tmp_path):
         assert second.request.title == "Brass Key"
 
         await asyncio.wait_for(worker.started.wait(), timeout=1)
-        assert await coordinator.wait_for_rendered_event_images(
+        assert await coordinator.wait_for_render_images(
             session_id="image_test",
             rendered_event_ids_by_pov={"alice": ["evt_1"]},
             timeout=0.1,
@@ -1013,7 +1081,7 @@ async def test_tandem_wait_tracks_all_requested_event_images(tmp_path):
         worker.release.set()
         await coordinator.wait_for_terminal(first.job_id, timeout=2)
         await coordinator.wait_for_terminal(second.job_id, timeout=2)
-        assert await coordinator.wait_for_rendered_event_images(
+        assert await coordinator.wait_for_render_images(
             session_id="image_test",
             rendered_event_ids_by_pov={"alice": ["evt_1"]},
             timeout=0.1,
@@ -1022,6 +1090,50 @@ async def test_tandem_wait_tracks_all_requested_event_images(tmp_path):
     finally:
         worker.release.set()
         await coordinator.close()
+
+
+@pytest.mark.asyncio
+async def test_render_wait_finishes_when_no_director_requests_are_admitted(
+    tmp_path,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    _begin(coordinator, "tx_1")
+    projection = _projection(viewers=("alice",))
+    queued = coordinator.store.enqueue_director_run(projection)
+    claimed = coordinator.store.claim_next_director_run()
+    assert claimed is not None
+    direction = ImageDirection(
+        kind="action",
+        title="Rejected Rain Run",
+        subject_character_ids=["alice"],
+        scene_prompt="Alice runs into the rain.",
+    )
+    coordinator.store.complete_director_run(
+        queued.run_id,
+        ImageDirectorOutput(requests=[direction]),
+    )
+
+    assert await coordinator.wait_for_render_images(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_1"]},
+        timeout=0.05,
+        discovery_grace_seconds=0,
+    ) is False
+
+    coordinator.store.finalize_director_materialization(
+        queued.run_id,
+        ImageDirectorOutput(requests=[]),
+    )
+    assert await coordinator.wait_for_render_images(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_1"]},
+        timeout=0.05,
+        discovery_grace_seconds=0,
+    ) is True
 
 
 @pytest.mark.asyncio

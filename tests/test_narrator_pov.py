@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.engine.narrator import compose_pov_render
+from app.engine.narrator import commit_pov_render, compose_pov_render
 from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop_contracts import PARTIAL_MODE_MARKER
 from app.llm.client import LLMClient
@@ -102,7 +102,7 @@ def _router_event(
         event_id=event_id,
         duration_s=duration_s,
         facts=facts,
-        event_kind="directed_at_player",
+        event_kind="cascade_exhausted",
         observer_ids=observers or ["alice"],
     )
     event.commitment_open = {
@@ -135,7 +135,7 @@ def mock_client() -> MagicMock:
 
 class TestComposePovRender:
     @pytest.mark.asyncio
-    async def test_basic_render_appends_history(
+    async def test_basic_render_commits_history_only_when_accepted(
         self, mock_client, prompt_manager,
     ):
         ckpt = _ckpt()
@@ -154,13 +154,20 @@ class TestComposePovRender:
             user_input="I look around.",
         )
 
-        # The narrator only emits final_text; the engine builds the entry
+        # The narrator emits a delivery judgment and prose; the engine builds the entry
         # from the real player input (passed in) and the rendered prose.
         assert isinstance(result, NarratorFinalOutput)
         assert result.final_text == "RENDERED"
         assert entry.user == "I look around."
         assert entry.assistant == "RENDERED"
-        # Per-POV history stores only the assistant output.
+        assert ckpt.narrator_conversations.get("alice", []) == []
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
+        )
+        # Per-POV history stores only accepted assistant output.
         alice_hist = ckpt.narrator_conversations["alice"]
         assert len(alice_hist) == 1
         assert alice_hist[0].role == "assistant"
@@ -201,7 +208,7 @@ class TestComposePovRender:
             },
         }
 
-        await compose_pov_render(
+        result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
@@ -288,6 +295,16 @@ class TestComposePovRender:
 
         assert result.final_text == "She says, 'entirely human?'"
         assert entry.assistant == "She says, 'entirely human?'"
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=[
+                RenderBufferEntry(
+                    event_id="evt_alpha", observation_level="direct",
+                ),
+            ],
+            result=result,
+        )
         assistant = ckpt.narrator_conversations["alice"][-1]
         assert assistant.role == "assistant"
         assert isinstance(assistant.content, list)
@@ -327,7 +344,7 @@ class TestComposePovRender:
             [ObservableFact.all("sora_kageyama adjusts the blue tabard.")],
         ))
 
-        await compose_pov_render(
+        result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
@@ -423,13 +440,19 @@ class TestComposePovRender:
             RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
         ]
 
-        await compose_pov_render(
+        result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
             buffered_events=buffered,
             partial_mode=True,
+        )
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
         )
 
         call_kwargs = mock_client.complete.call_args.kwargs
@@ -457,13 +480,19 @@ class TestComposePovRender:
             RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
         ]
 
-        await compose_pov_render(
+        result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
             buffered_events=buffered,
             partial_mode=False,
+        )
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
         )
 
         call_kwargs = mock_client.complete.call_args.kwargs
@@ -487,15 +516,22 @@ class TestComposePovRender:
             default_loadout="Patched red coat, brass buttons, ink-dark braid.",
         )
 
-        await compose_pov_render(
+        buffered = [
+            RenderBufferEntry(event_id="evt_beta", observation_level="direct"),
+        ]
+        result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
-            buffered_events=[
-                RenderBufferEntry(event_id="evt_beta", observation_level="direct"),
-            ],
+            buffered_events=buffered,
             partial_mode=False,
+        )
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
         )
 
         messages = mock_client.complete.call_args.kwargs["messages"]
@@ -519,18 +555,25 @@ class TestComposePovRender:
             [ObservableFact.all("[loadout — Pip] Pip wears a blue cloak.")],
         ))
 
-        await compose_pov_render(
+        buffered = [
+            RenderBufferEntry(
+                event_id="evt_query_loadout",
+                observation_level="direct",
+            ),
+        ]
+        result, _entry = await compose_pov_render(
             client=mock_client,
             prompt_mgr=prompt_manager,
             ckpt=ckpt,
             pov_character_id="alice",
-            buffered_events=[
-                RenderBufferEntry(
-                    event_id="evt_query_loadout",
-                    observation_level="direct",
-                ),
-            ],
+            buffered_events=buffered,
             partial_mode=False,
+        )
+        commit_pov_render(
+            ckpt,
+            pov_character_id="alice",
+            buffered_events=buffered,
+            result=result,
         )
 
         user_content = mock_client.complete.call_args.kwargs["messages"][-1]["content"]

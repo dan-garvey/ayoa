@@ -12,19 +12,35 @@ from app.engine.spawn_authoring import (
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import EventRouterOutput
+from app.schemas.state import RenderBufferEntry
 
 
-class ClosedEventImageSink(Protocol):
-    def on_closed_event(
+class RenderCandidateImageSink(Protocol):
+    async def start_render_candidate(
         self,
         *,
         checkpoint: CheckpointFile,
-        event: EventRouterOutput,
-        event_sequence: int,
-        transaction_id: str,
+        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
         source_turn_index: int,
-        spawn_key: SpawnAuthoringKey | None,
-        actor_id: str,
+        source_checkpoint_sha256: str,
+        spawn_keys_by_event_id: dict[str, SpawnAuthoringKey],
+        actor_ids_by_event_id: dict[str, str],
+    ) -> str | None:
+        ...
+
+    async def cancel_transaction(
+        self,
+        transaction_id: str,
+        *,
+        reason: str,
+    ) -> None:
+        ...
+
+    async def commit_transaction(
+        self,
+        transaction_id: str,
+        *,
+        target_checkpoint_sha256: str,
     ) -> None:
         ...
 
@@ -44,12 +60,15 @@ class ClosedEventRuntime:
     transaction_id: str
     source_turn_index: int
     spawn_authoring: SpawnAuthoringCoordinator
-    image_sink: ClosedEventImageSink | None = None
+    image_sink: RenderCandidateImageSink | None = None
+    source_checkpoint_sha256: str = ""
     record_applier: SpawnRecordApplier | None = None
     spawn_keys_by_event_id: dict[str, SpawnAuthoringKey] = field(
         default_factory=dict
     )
     applied_character_ids: set[str] = field(default_factory=set)
+    image_transaction_ids: set[str] = field(default_factory=set)
+    accepted_image_transaction_ids: set[str] = field(default_factory=set)
 
     def close_event(
         self,
@@ -59,23 +78,45 @@ class ClosedEventRuntime:
         event_sequence: int,
         actor_id: str,
     ) -> None:
-        key = self.spawn_keys_by_event_id.get(event.event_id)
-        if key is None:
-            key = self.start_spawn_authoring(
+        if event.event_id not in self.spawn_keys_by_event_id:
+            self.start_spawn_authoring(
                 checkpoint=checkpoint,
                 event=event,
                 actor_id=actor_id,
             )
-        if self.image_sink is not None:
-            self.image_sink.on_closed_event(
-                checkpoint=checkpoint,
-                event=event,
-                event_sequence=event_sequence,
-                transaction_id=self.transaction_id,
-                source_turn_index=self.source_turn_index,
-                spawn_key=key,
-                actor_id=actor_id,
-            )
+
+    async def start_render_candidate(
+        self,
+        *,
+        checkpoint: CheckpointFile,
+        buffered_events_by_pov: dict[str, list[RenderBufferEntry]],
+        actor_ids_by_event_id: dict[str, str],
+    ) -> str | None:
+        if self.image_sink is None:
+            return None
+        transaction_id = await self.image_sink.start_render_candidate(
+            checkpoint=checkpoint,
+            buffered_events_by_pov=buffered_events_by_pov,
+            source_turn_index=self.source_turn_index,
+            source_checkpoint_sha256=self.source_checkpoint_sha256,
+            spawn_keys_by_event_id=dict(self.spawn_keys_by_event_id),
+            actor_ids_by_event_id=actor_ids_by_event_id,
+        )
+        if transaction_id:
+            self.image_transaction_ids.add(transaction_id)
+        return transaction_id
+
+    async def reject_render_candidate(self, transaction_id: str | None) -> None:
+        if not transaction_id or self.image_sink is None:
+            return
+        await self.image_sink.cancel_transaction(
+            transaction_id,
+            reason="narrator_continued",
+        )
+
+    def accept_render_candidate(self, transaction_id: str | None) -> None:
+        if transaction_id:
+            self.accepted_image_transaction_ids.add(transaction_id)
 
     def start_spawn_authoring(
         self,

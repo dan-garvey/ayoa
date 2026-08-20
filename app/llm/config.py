@@ -61,7 +61,6 @@ def live_play_required_roles() -> frozenset[str]:
         "true",
         "on",
         "enabled",
-        "shadow",
     }:
         roles.add("image_director")
     return frozenset(roles)

@@ -20,6 +20,7 @@ from app.schemas.events import (
     visible_fact_texts,
 )
 from app.schemas.event_router import (
+    ClosedEventRouterOutput,
     DndEventRouterOutput,
     EventRouterOutput,
 )
@@ -80,7 +81,7 @@ ROUTER_OUTPUT_EXAMPLE = {
         },
         "observable_facts": [],
     },
-    "event_kind": "directed_at_player",
+    "event_kind": "cascade_exhausted",
     "requires_responders": False,
     "required_responders": [],
     "observers": [
@@ -167,6 +168,8 @@ AGENT_OUTPUT_EXAMPLE = {
 }
 
 NARRATOR_FINAL_EXAMPLE = {
+    "handoff": "render",
+    "handoff_reason": "The exchange has settled on a visible response point.",
     "final_text": (
         "You plant both palms against the stone and drive upward until your arms shake. "
         'Nothing gives. Rainwater slicks beneath your boots. Captain Vero steps closer, '
@@ -527,6 +530,35 @@ class TestEventRouterOutput:
         fact = rebuilt.canonical_event.observable_facts[0]
         assert fact.at_offset_s == 0
         assert fact.duration_s == 0
+
+
+class TestClosedEventRouterOutput:
+    def test_accepts_shared_closed_event_shape(self):
+        rebuilt = ClosedEventRouterOutput.model_validate(ROUTER_OUTPUT_EXAMPLE)
+
+        assert rebuilt.requires_responders is False
+        assert rebuilt.required_responders == []
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {
+                "event_kind": "cat_ii_open",
+                "requires_responders": True,
+                "required_responders": ["guard_17"],
+            },
+            {
+                "event_kind": "beat_continues",
+                "requires_responders": False,
+                "required_responders": ["guard_17"],
+            },
+        ],
+    )
+    def test_rejects_fresh_responder_collection(self, overrides):
+        with pytest.raises(ValidationError):
+            ClosedEventRouterOutput.model_validate(
+                {**ROUTER_OUTPUT_EXAMPLE, **overrides}
+            )
 
 
 class TestDndEventRouterOutput:
@@ -905,6 +937,11 @@ class TestNarratorFinalOutput:
         with pytest.raises(ValidationError):
             NarratorFinalOutput(**data)
 
+    def test_handoff_reason_is_required(self):
+        data = {**NARRATOR_FINAL_EXAMPLE, "handoff_reason": ""}
+        with pytest.raises(ValidationError):
+            NarratorFinalOutput(**data)
+
 
 class TestTurnRequest:
     def test_construct(self):
@@ -1215,7 +1252,7 @@ class TestCheckpointFile:
             session=SessionState(
                 session_id="pending-render",
                 pending_narrator_render=PendingNarratorRender(
-                    ended_reason="directed_at_player",
+                    ended_reason="response_requested",
                     events_closed=2,
                     event_actor_ids=["alice", "pip"],
                     acting_player_id="alice",

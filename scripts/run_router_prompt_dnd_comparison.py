@@ -931,7 +931,7 @@ async def _case_repeated_defer(dispatcher: LLMDispatcher) -> CaseResult:
             role="assistant",
             content=(
                 "prior_event evt_thin @90+5 source=kess mode=agent_output "
-                "end=directed_at_player\n"
+                "kind=response_requested\n"
                 "fact all @0+5: Kess says, 'Then say what you are doing next.'\n"
                 "obs marlowe:d:observe_only tavi:d:observe_only ilyra:d:observe_only kess:d:observe_only"
             ),
@@ -983,22 +983,28 @@ async def _case_repeated_defer(dispatcher: LLMDispatcher) -> CaseResult:
             "choice",
         ],
     )
-    thin_direct_return = result.event_kind == "directed_at_player" and not stronger_affordance
+    next_output_ids = _next_output_ids(result)
+    thin_direct_return = (
+        result.event_kind == "response_requested"
+        and "marlowe" in next_output_ids
+        and not stronger_affordance
+    )
     checks = [
         _check("dnd_fresh_schema", case.output["schema"] == "DndEventRouterOutput"),
         _check("does_not_invent_player_action", not invented_player_action, facts),
-        _check("does_not_repeat_thin_direct_handoff", not thin_direct_return, {"event_kind": result.event_kind, "facts": facts}),
         _check(
-            "open_with_pick_or_terminal_with_affordance",
+            "does_not_repeat_thin_direct_handoff",
+            "marlowe" not in next_output_ids and not thin_direct_return,
+            {"event_kind": result.event_kind, "facts": facts},
+        ),
+        _check(
+            "npc_pick_or_stronger_affordance",
             (
-                result.event_kind == "beat_continues"
-                and bool(_next_output_ids(result))
+                bool(next_output_ids)
+                and "marlowe" not in next_output_ids
             )
-            or (
-                result.event_kind != "beat_continues"
-                and stronger_affordance
-            ),
-            {"event_kind": result.event_kind, "next": _next_output_ids(result), "facts": facts},
+            or stronger_affordance,
+            {"event_kind": result.event_kind, "next": next_output_ids, "facts": facts},
         ),
     ]
     return CaseResult(**{**case.__dict__, "checks": checks})

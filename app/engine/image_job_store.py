@@ -663,6 +663,29 @@ class ImageJobStore:
             ).fetchone()
         return _director_run_from_row(row) if row is not None else None
 
+    def finalize_director_materialization(
+        self,
+        run_id: str,
+        output: ImageDirectorOutput,
+    ) -> DurableDirectorRun | None:
+        """Record only requests that were admitted to the generation queue."""
+        with self._connect() as db:
+            db.execute(
+                """
+                UPDATE image_director_runs
+                SET output_json = ?, updated_at = ?
+                WHERE run_id = ? AND status = 'succeeded'
+                """,
+                (output.model_dump_json(), time.time(), run_id),
+            )
+            row = db.execute(
+                """
+                SELECT * FROM image_director_runs WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+        return _director_run_from_row(row) if row is not None else None
+
     def heartbeat_director_run(self, run_id: str) -> bool:
         with self._connect() as db:
             cursor = db.execute(

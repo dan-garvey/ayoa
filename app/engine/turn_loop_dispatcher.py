@@ -53,7 +53,11 @@ from app.llm.client import LLMClient
 from app.schemas.characters import CharacterRecord
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
-from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
+from app.schemas.event_router import (
+    ClosedEventRouterOutput,
+    DndEventRouterOutput,
+    EventRouterOutput,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
@@ -525,8 +529,7 @@ def _router_history_record(
             f"prior_event {result.event_id} @{result.effective_at_s}"
             f"+{result.duration_s} source={acting_character_id or '-'} mode={mode}"
         )
-        if result.event_kind != "beat_continues":
-            header += f" end={result.event_kind}"
+        header += f" kind={result.event_kind}"
         if result.requires_responders:
             header += f" requires={_compact_id_list(result.required_responders)}"
         if result.next_output_character_ids:
@@ -1126,6 +1129,8 @@ class LLMDispatcher:
         ckpt: CheckpointFile,
         actor_id: str,
         prior_result: EventRouterOutput,
+        original_action: str = "",
+        handoff_reason: str = "",
     ) -> EventRouterOutput:
         """Ask the router to advance an open beat with no next-output target."""
 
@@ -1144,6 +1149,8 @@ class LLMDispatcher:
             )
             continuation_block = format_router_continuation_block(
                 prior_rationale=prior_result.decision_rationale,
+                original_action=original_action,
+                handoff_reason=handoff_reason,
             )
 
             router_input_block = _build_router_input_block(
@@ -1174,7 +1181,7 @@ class LLMDispatcher:
             response = await self.client.complete(
                 role="event_router",
                 messages=messages,
-                response_model=EventRouterOutput,
+                response_model=ClosedEventRouterOutput,
                 temperature=0.35,
                 max_tokens=EVENT_ROUTER_MAX_TOKENS,
                 cache=True,
@@ -1264,7 +1271,7 @@ class LLMDispatcher:
             response = await self.client.complete(
                 role="event_router",
                 messages=messages,
-                response_model=EventRouterOutput,
+                response_model=ClosedEventRouterOutput,
                 temperature=0.35,
                 max_tokens=EVENT_ROUTER_MAX_TOKENS,
                 cache=True,
@@ -1448,6 +1455,8 @@ class LLMDispatcher:
         buffered_events: list[RenderBufferEntry],
         partial_mode_override: bool | None = None,
         user_input: str = "",
+        handoff_policy: str = "forced",
+        handoff_context: str = "",
     ) -> tuple[NarratorFinalOutput, "TranscriptEntry"]:
         """Render per-POV prose via narrator.compose_pov_render.
 
@@ -1481,6 +1490,8 @@ class LLMDispatcher:
             buffered_events=buffered_events,
             partial_mode=partial_mode,
             user_input=user_input,
+            handoff_policy=handoff_policy,
+            handoff_context=handoff_context,
         )
         return envelope, entry
 

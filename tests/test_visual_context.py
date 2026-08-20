@@ -20,7 +20,7 @@ def _event(text: str) -> EventRouterOutput:
         event_id="evt_group",
         facts=[ObservableFact.all(text)],
         observer_ids=["alice"],
-        event_kind="directed_at_player",
+        event_kind="cascade_exhausted",
     )
 
 

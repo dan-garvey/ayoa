@@ -30,7 +30,7 @@ from app.schemas.content import (
     ContentPackState,
     ContentPovRevealState,
 )
-from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
+from app.schemas.narrator import TranscriptEntry
 from app.schemas.state import (
     SessionState,
     WorldState,
@@ -220,9 +220,7 @@ class TestTurnHistory:
         def _message(entry: TranscriptEntry) -> ConversationMessage:
             return ConversationMessage(
                 role="assistant",
-                content=NarratorFinalOutput(
-                    final_text=entry.assistant,
-                ).model_dump_json(),
+                content=json.dumps({"final_text": entry.assistant}),
             )
 
         ckpt0 = _make_ckpt(turn_index=0)
