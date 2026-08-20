@@ -965,7 +965,6 @@ class Orchestrator:
                 resume_after_handoff=prior_result,
                 resume_events_closed=pending.events_closed,
                 resume_event_actor_ids=list(pending.event_actor_ids),
-                resume_handoff_reason=beat_result.continuation_reason,
             )
         self._clear_pending_commitment_revision(ckpt, pending)
         await self._apply_beat_roster_side_effects(

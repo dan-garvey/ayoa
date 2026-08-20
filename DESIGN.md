@@ -460,9 +460,15 @@ The narrator output schema is:
 
 ```json
 {
+  "handoff": "render | continue",
+  "handoff_reason": "diagnostic sentence",
   "final_text": "string"
 }
 ```
+
+`handoff_reason` is logged for playtest diagnostics only. It is never forwarded
+to the router or treated as canonical event evidence; engine control uses the
+typed `handoff` decision.
 
 The engine constructs a transient render record from the real player input and
 the rendered `final_text` for response assembly. Durable player history is the

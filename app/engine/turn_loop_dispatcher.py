@@ -1130,7 +1130,6 @@ class LLMDispatcher:
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
-        handoff_reason: str = "",
     ) -> EventRouterOutput:
         """Ask the router to advance an open beat with no next-output target."""
 
@@ -1150,7 +1149,6 @@ class LLMDispatcher:
             continuation_block = format_router_continuation_block(
                 prior_rationale=prior_result.decision_rationale,
                 original_action=original_action,
-                handoff_reason=handoff_reason,
             )
 
             router_input_block = _build_router_input_block(

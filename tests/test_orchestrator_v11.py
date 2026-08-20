@@ -508,9 +508,7 @@ class TestHappyPath:
         assert FakeDispatcher.route_calls[1]["original_action"] == (
             "I ride the lift to the lower hall."
         )
-        assert FakeDispatcher.route_calls[1]["handoff_reason"] == (
-            "The lift is still moving."
-        )
+        assert "handoff_reason" not in FakeDispatcher.route_calls[1]
         assert [
             len(call["buffered_events"])
             for call in FakeDispatcher.narrator_calls

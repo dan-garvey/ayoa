@@ -99,7 +99,6 @@ def format_router_continuation_block(
     *,
     prior_rationale: str = "",
     original_action: str = "",
-    handoff_reason: str = "",
 ) -> str:
     """Ask the router to repair an open beat with no continuation path.
 
@@ -134,9 +133,6 @@ def format_router_continuation_block(
     action = (original_action or "").strip()
     if action:
         lines.extend(["", f"Original submitted action: {action}"])
-    pending = (handoff_reason or "").strip()
-    if pending:
-        lines.extend(["", f"Pending motion: {pending}"])
     cleaned = (prior_rationale or "").strip()
     if cleaned:
         lines.extend(["", f"Prior diagnostic: {cleaned}"])

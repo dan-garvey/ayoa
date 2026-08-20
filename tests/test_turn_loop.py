@@ -2849,7 +2849,9 @@ class TestNarratorHandoff:
         assert pending.soft_handoff_candidate is True
         assert pending.handoff_event_id == "evt_alice_gate"
 
-    def test_continue_retains_full_batch_and_discards_candidate_prose(self):
+    def test_continue_retains_full_batch_and_discards_candidate_prose(
+        self, caplog,
+    ):
         ckpt = _ckpt({"alice": "1"})
         image_batches: list[list[str]] = []
         cancelled_transactions: list[str] = []
@@ -2905,12 +2907,13 @@ class TestNarratorHandoff:
             text="ACCEPTED BATCH",
         )
 
-        result = asyncio.run(run_beat(
-            ckpt=ckpt,
-            dispatcher=fake,
-            actor_id="alice",
-            intention="I wait until the gate finishes opening.",
-        ))
+        with caplog.at_level("INFO", logger="app.engine.turn_loop"):
+            result = asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I wait until the gate finishes opening.",
+            ))
 
         assert result.renders == {"alice": "ACCEPTED BATCH"}
         assert result.rendered_event_ids_by_pov == {
@@ -2926,8 +2929,10 @@ class TestNarratorHandoff:
         assert fake.continuation_calls[0]["original_action"] == (
             "I wait until the gate finishes opening."
         )
-        assert fake.continuation_calls[0]["handoff_reason"] == (
-            "The submitted wait condition is still pending."
+        assert "handoff_reason" not in fake.continuation_calls[0]
+        assert any(
+            "The submitted wait condition is still pending." in message
+            for message in caplog.messages
         )
         history = ckpt.narrator_conversations["alice"]
         assert "REJECTED CANDIDATE" not in str(history)

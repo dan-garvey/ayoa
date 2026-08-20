@@ -1620,7 +1620,6 @@ class TestRouteIntention:
             actor_id="alice",
             prior_result=prior,
             original_action="I wait for the door to open.",
-            handoff_reason="The door is still opening.",
         ))
 
         user_content = _last_user_content(
@@ -1631,7 +1630,7 @@ class TestRouteIntention:
         assert "Alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
         assert "I wait for the door to open." in user_content
-        assert "The door is still opening." in user_content
+        assert "Pending motion:" not in user_content
         assert (
             mock_client.complete.await_args.kwargs["response_model"]
             is ClosedEventRouterOutput

@@ -2455,7 +2455,6 @@ class Dispatcher(Protocol):
         actor_id: str,
         prior_result: EventRouterOutput,
         original_action: str = "",
-        handoff_reason: str = "",
     ) -> EventRouterOutput:
         """Advance an open beat when the prior router output supplied
         no dispatchable next actor despite `event_kind=beat_continues`."""
@@ -2586,7 +2585,6 @@ class BeatResult:
         default_factory=dict
     )
     continue_requested: bool = False
-    continuation_reason: str = ""
 
 
 async def run_beat(
@@ -2599,7 +2597,6 @@ async def run_beat(
     resume_after_handoff: EventRouterOutput | None = None,
     resume_events_closed: int = 0,
     resume_event_actor_ids: list[str] | None = None,
-    resume_handoff_reason: str = "",
 ) -> BeatResult:
     """Run one beat to completion.
 
@@ -2650,11 +2647,13 @@ async def run_beat(
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
         *,
-        handoff_reason: str = "",
+        narrator_requested: bool = False,
     ) -> None:
         nonlocal missing_target_rescue_used, pending_result, pending_result_mode
         nonlocal pending_result_actor_id
-        missing_target_rescue = not bool(handoff_reason.strip())
+        # Narrator prose is diagnostic only. Keep the engine-control
+        # distinction typed so a free-form reason never becomes router input.
+        missing_target_rescue = not narrator_requested
         if missing_target_rescue and missing_target_rescue_used:
             raise RuntimeError(
                 "Router kept beat open without a dispatchable continuation: "
@@ -2668,7 +2667,6 @@ async def run_beat(
             actor_id=actor_id,
             prior_result=prior_result,
             original_action=intention,
-            handoff_reason=handoff_reason,
         )
         pending_result_mode = "continuation"
         pending_result_actor_id = actor_id
@@ -2854,7 +2852,7 @@ async def run_beat(
         if handoff.continue_requested:
             await _queue_router_continuation(
                 result,
-                handoff_reason=handoff.continuation_reason,
+                narrator_requested=True,
             )
             return None
         return handoff
@@ -3030,7 +3028,7 @@ async def run_beat(
     if resume_after_handoff is not None:
         await _queue_router_continuation(
             resume_after_handoff,
-            handoff_reason=resume_handoff_reason,
+            narrator_requested=True,
         )
 
     while True:
@@ -3612,6 +3610,15 @@ async def _end_beat(
             if callable(persist_pending):
                 persist_pending(ckpt)
             raise errors[0]
+        for h, envelope, _entry in results:
+            logger.info(
+                "Narrator handoff judgment: pov=%s decision=%s reason=%s "
+                "events=%d",
+                h,
+                envelope.handoff,
+                envelope.handoff_reason,
+                len(dict(targets)[h]),
+            )
         if soft_handoff_candidate:
             gate_result = next(
                 envelope
@@ -3623,12 +3630,6 @@ async def _end_beat(
                     await image_runtime.reject_render_candidate(
                         image_transaction_id
                     )
-                logger.info(
-                    "Narrator kept beat open: pov=%s reason=%s events=%d",
-                    gate_id,
-                    gate_result.handoff_reason,
-                    events_closed,
-                )
                 return BeatResult(
                     renders={},
                     events_closed=events_closed,
@@ -3637,7 +3638,6 @@ async def _end_beat(
                     event_actor_ids=event_actor_ids,
                     reaction_prompts={},
                     continue_requested=True,
-                    continuation_reason=gate_result.handoff_reason,
                 )
         if image_runtime is not None:
             image_runtime.accept_render_candidate(image_transaction_id)
