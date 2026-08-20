@@ -470,6 +470,20 @@ The narrator output schema is:
 to the router or treated as canonical event evidence; engine control uses the
 typed `handoff` decision.
 
+Narrator composition is lossless semantic compression over the complete
+ordered set of facts visible to that POV. It may fuse clauses, remove repeated
+grammatical scaffolding, and carry unchanged ambience through continuous prose,
+but every distinct fact must remain traceable in the rendered passage. Exact
+dialogue, signals, targets, contrasts, refusals, consent, state changes,
+tactical preparation, outcomes, and event order are never salience-filtered.
+The turn loop owns how many canonical events accumulate; the narrator does not
+solve an overlong beat by hiding events.
+
+A render-buffer reference that cannot be resolved against canonical history is
+a loud contract failure, not a skippable stale entry. Likewise, a `render`
+handoff requires non-empty `final_text`; an empty draft is permitted only for a
+discarded `continue` judgment.
+
 The engine constructs a transient render record from the real player input and
 the rendered `final_text` for response assembly. Durable player history is the
 per-character narrator conversation, not a second checkpoint transcript.

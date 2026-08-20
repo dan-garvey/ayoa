@@ -59,23 +59,28 @@ def _resolve_buffered_events(
     buffered_events: list[RenderBufferEntry],
 ) -> list[tuple[RenderBufferEntry, EventRouterOutput]]:
     """Walk the render buffer and resolve each entry against
-    `ckpt.canonical_events`. Missing event_ids are warned and skipped —
-    a stale buffer entry must not abort the render.
+    `ckpt.canonical_events`.
+
+    A missing canonical event makes lossless rendering impossible. Fail before
+    calling the narrator so the buffer remains available for diagnosis/retry
+    instead of silently flushing an incomplete player-visible sequence.
     """
     by_id: dict[str, EventRouterOutput] = {
         ev.event_id: ev for ev in ckpt.canonical_events
     }
+    missing_event_ids = [
+        entry.event_id for entry in buffered_events if entry.event_id not in by_id
+    ]
+    if missing_event_ids:
+        missing = ", ".join(dict.fromkeys(missing_event_ids))
+        raise RuntimeError(
+            "Narrator render buffer references missing canonical event(s): "
+            f"{missing}"
+        )
+
     resolved: list[tuple[RenderBufferEntry, EventRouterOutput]] = []
     for entry in buffered_events:
-        ev = by_id.get(entry.event_id)
-        if ev is None:
-            logger.warning(
-                "compose_pov_render: buffered event_id %r not found in "
-                "canonical_events; skipping",
-                entry.event_id,
-            )
-            continue
-        resolved.append((entry, ev))
+        resolved.append((entry, by_id[entry.event_id]))
     return sorted(
         resolved,
         key=lambda pair: (pair[0].visible_at_s, pair[0].event_sequence),
@@ -272,21 +277,13 @@ async def compose_pov_render(
         result.final_text = _strip_unmatched_trailing_closers(result.final_text)
         response.parsed = result
 
-    final_text = result.final_text if result is not None else ""
+    if result is None:
+        raise RuntimeError("Narrator returned no structured result.")
+    final_text = result.final_text
     logger.info(
         "compose_pov_render: pov=%s rendered %d chars",
         pov_character_id, len(final_text),
     )
-    # Defensive fallback when the SDK gives us no parsed envelope —
-    # synthesize an empty one rather than crash run_beat. In practice
-    # this never fires; the schema is required and the caller would
-    # have raised on the parse error.
-    if result is None:
-        result = NarratorFinalOutput(
-            handoff="render",
-            handoff_reason="Narrator returned no structured result.",
-            final_text="",
-        )
     transcript_entry = TranscriptEntry(
         user=user_input, assistant=final_text,
     )

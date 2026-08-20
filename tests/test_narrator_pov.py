@@ -5,14 +5,13 @@ Exercises the new function against a mocked LLMClient so we can verify:
   the resolved prose is returned unchanged from the LLM parsed output.
 - Per-POV rolling history stores assistant messages only.
 - partial_mode puts the stop-before-resolution instruction in the user payload.
-- A stale buffer entry (event_id missing from canonical_events) is
-  logged and skipped without aborting the render.
+- A buffer entry missing from canonical_events fails before an incomplete
+  player-visible sequence can be rendered or flushed.
 """
 
 from __future__ import annotations
 
 import json
-import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -583,18 +582,20 @@ class TestComposePovRender:
         assert ckpt.session.visual_introductions["alice"] == ["pip"]
 
     @pytest.mark.asyncio
-    async def test_missing_event_id_is_warned_and_skipped(
-        self, mock_client, prompt_manager, caplog,
+    async def test_missing_event_id_fails_before_narrator_call(
+        self, mock_client, prompt_manager,
     ):
         ckpt = _ckpt()
-        # Two entries: one stale (not in canonical_events), one valid.
         buffered = [
             RenderBufferEntry(event_id="evt_ghost", observation_level="direct"),
             RenderBufferEntry(event_id="evt_alpha", observation_level="direct"),
         ]
 
-        with caplog.at_level(logging.WARNING, logger="app.engine.narrator"):
-            result, _entry = await compose_pov_render(
+        with pytest.raises(
+            RuntimeError,
+            match="missing canonical event.*evt_ghost",
+        ):
+            await compose_pov_render(
                 client=mock_client,
                 prompt_mgr=prompt_manager,
                 ckpt=ckpt,
@@ -603,18 +604,34 @@ class TestComposePovRender:
                 partial_mode=False,
             )
 
-        assert result.final_text == "RENDERED"
-        # The missing id should appear in a warn log.
-        assert any("evt_ghost" in rec.message for rec in caplog.records)
-        # And the real event's visible details should still have been rendered.
-        call_kwargs = mock_client.complete.call_args.kwargs
-        flat = "\n".join(
-            m["content"] for m in call_kwargs["messages"]
-            if isinstance(m.get("content"), str)
-        )
-        assert "The arch is weathered" in flat
-        assert "evt_alpha" not in flat
-        assert "evt_ghost" not in flat
+        mock_client.complete.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_missing_structured_result_fails_loudly(
+        self, mock_client, prompt_manager,
+    ):
+        ckpt = _ckpt()
+        response = _llm_response()
+        response.parsed = None
+        mock_client.complete = AsyncMock(return_value=response)
+
+        with pytest.raises(
+            RuntimeError,
+            match="Narrator returned no structured result",
+        ):
+            await compose_pov_render(
+                client=mock_client,
+                prompt_mgr=prompt_manager,
+                ckpt=ckpt,
+                pov_character_id="alice",
+                buffered_events=[
+                    RenderBufferEntry(
+                        event_id="evt_alpha",
+                        observation_level="direct",
+                    ),
+                ],
+                partial_mode=False,
+            )
 
 
 class TestFormatVisibleEventsBlock:
@@ -766,3 +783,31 @@ class TestFormatVisibleEventsBlock:
         out = _format_visible_events_block(resolved)
 
         assert out.index("First visible beat.") < out.index("Second visible beat.")
+
+    def test_distinct_signal_details_reach_narrator_in_order(self):
+        from app.engine.narrator import _format_visible_events_block
+
+        resolved = self._resolved(
+            event_id="evt_signal",
+            facts=[
+                ObservableFact.all(
+                    "Bob raises his index and middle fingers toward Alice.",
+                    at_offset_s=1,
+                ),
+                ObservableFact.all(
+                    "Alice answers with only her middle finger.",
+                    at_offset_s=2,
+                ),
+                ObservableFact.all(
+                    "Bob lowers his hand and waits.",
+                    at_offset_s=3,
+                ),
+            ],
+            duration_s=3,
+        )
+
+        out = _format_visible_events_block(resolved)
+
+        assert out.index("index and middle fingers") < out.index(
+            "only her middle finger"
+        ) < out.index("lowers his hand and waits")

@@ -44,7 +44,9 @@ Observation clarity:
 
 When appearance details are supplied for people the viewpoint is looking over, weave them as visible appearance only. Do not copy source tags or explain that a look was requested. Ignore first visible impressions for any person the visible facts clearly present only as a voice, message, quoted mention, remote feed, or otherwise not physically visible to this viewpoint.
 
-Use dramatic economy. Combine multiple beats into one continuous viewpoint passage rather than listing them. Center the latest or most relevant beat for this viewpoint; earlier beats should orient the reader only as needed. Drop repeated ambient baselines unless they changed or became actionable.
+Use lossless semantic compression. Treat the supplied visible details as an ordered event ledger, not a menu of material to emphasize or omit. Every distinct observable fact must leave a faithful textual trace in `final_text`, in the supplied order. Compress syntax, not events: fuse adjacent facts into clauses, remove repeated subjects and grammatical scaffolding, and fold an unchanged ambient baseline into continuous prose rather than restating it mechanically.
+
+Never generalize away exact dialogue; gesture or signal content; source and target; negation, refusal, consent, contrast, reversal, jokes, or insults; location, possession, or condition changes; tactical preparation; attempts and outcomes; or causal and temporal order. If two similar details differ, preserve the difference. If you are unsure whether a detail is distinct, preserve it. Fidelity to the complete visible sequence overrides brevity and passage-shape guidance.
 
 Handoff judgment:
 - `candidate`: decide whether the complete visible sequence has reached a useful delivery point. Choose `continue` only when no player-owned response is required and established motion or an unresolved submitted wait condition still needs to advance.
@@ -54,10 +56,10 @@ The handoff condition is decision context, not an observable event. Use it only 
 
 Response shape:
 - Dialogue: center the spoken line. Stop when an NPC has said something that asks for a response.
-- Observation: two to four sentences focused on concrete, actionable details.
-- Transition: three to five sentences covering what changed, then land in a specific new moment.
-- Tension: precise, slower, and no more than four dense paragraphs.
-- Visual sweep: when details describe several people the viewpoint character is looking over, use roughly one sentence per person, capped at six sentences total.
+- Observation: focus on concrete, actionable details and combine compatible facts into fluent sentences.
+- Transition: cover everything that changed, then land in the specific new moment.
+- Tension: use precise, slower prose without dropping any supplied development.
+- Visual sweep: when details describe several people the viewpoint character is looking over, keep each person's distinct visible details while avoiding a mechanical one-person-per-paragraph inventory.
 
 If the current instruction says to stop before an attempted action resolves, end on the incoming attempt itself. Do not write the viewpoint character's response. Do not soften the cutoff with atmosphere. The abrupt stop is the handoff.
 

@@ -942,6 +942,20 @@ class TestNarratorFinalOutput:
         with pytest.raises(ValidationError):
             NarratorFinalOutput(**data)
 
+    def test_render_requires_non_empty_final_text(self):
+        data = {**NARRATOR_FINAL_EXAMPLE, "final_text": "   "}
+        with pytest.raises(ValidationError):
+            NarratorFinalOutput(**data)
+
+    def test_continue_may_discard_empty_candidate_text(self):
+        data = {
+            **NARRATOR_FINAL_EXAMPLE,
+            "handoff": "continue",
+            "final_text": "",
+        }
+        result = NarratorFinalOutput(**data)
+        assert result.final_text == ""
+
 
 class TestTurnRequest:
     def test_construct(self):
