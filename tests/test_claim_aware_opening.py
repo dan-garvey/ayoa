@@ -116,6 +116,12 @@ def _reset_fake_dispatcher():
 
 def test_claimed_newcomer_receives_existing_character_opening_contract() -> None:
     ckpt = _load_one_star()
+    newcomer = next(
+        character for character in ckpt.characters
+        if character.character_id == "one_star_newcomer"
+    )
+    newcomer.name = "Mara Vale"
+    newcomer.public_sheet.appearance = "scarlet coat and iron-gray braid"
     ckpt.session.character_bindings = {"one_star_newcomer": "user-1"}
     output = _opening_output(
         observer_ids=["one_star_newcomer"],
@@ -142,10 +148,22 @@ def test_claimed_newcomer_receives_existing_character_opening_contract() -> None
         "</turn_context>", 1
     )[0]
     opening_input = user_content.split("<input>", 1)[1].split("</input>", 1)[0]
-    assert "**one_star_newcomer**" in turn_context
-    assert "**the_master**" not in turn_context
-    assert "one_star_newcomer is human-bound" in opening_input
+    assert "## Acting Character\none_star_newcomer" in turn_context
+    assert "the_master" not in turn_context
+    assert "## Authored Opening Participants" in opening_input
+    assert "- one_star_newcomer" in opening_input
+    assert "Name: Mara Vale" in opening_input
+    assert "Appearance: scarlet coat and iron-gray braid" in opening_input
     assert "emit no spawn requests" in opening_input
+    for forbidden in (
+        "human-bound",
+        "human player",
+        "player-controlled",
+        "player-owned",
+        "ai control",
+        "character binding",
+    ):
+        assert forbidden not in opening_input.lower()
     assert result.spawn == []
     assert [
         update.character_id for update in result.activate
@@ -177,8 +195,11 @@ def test_master_only_opening_accepts_varied_generated_wave_contract() -> None:
         "</turn_context>", 1
     )[0]
     opening_input = user_content.split("<input>", 1)[1].split("</input>", 1)[0]
-    assert "**the_master**" in turn_context
-    assert "**one_star_newcomer**" not in turn_context
+    assert "## Acting Character\nthe_master" in turn_context
+    assert "one_star_newcomer" not in turn_context
+    assert "## Authored Opening Participants" in opening_input
+    assert "- the_master" in opening_input
+    assert "- one_star_newcomer" not in opening_input
     assert "New-character spawn requests: allowed only" in opening_input
     assert "niflheim_first_summon_03" in opening_input
     assert [request.character_id for request in result.spawn] == [
@@ -192,7 +213,7 @@ def test_master_only_opening_accepts_varied_generated_wave_contract() -> None:
     assert all(request.seed.knowledge_tier == 1 for request in result.spawn)
 
 
-def test_multiple_claimed_players_are_all_authoritative_and_not_roster_npcs() -> None:
+def test_multiple_selected_opening_participants_are_semantic_only() -> None:
     ckpt = _load_one_star()
     claimed_ids = [
         "one_star_newcomer",
@@ -224,10 +245,22 @@ def test_multiple_claimed_players_are_all_authoritative_and_not_roster_npcs() ->
         "</turn_context>", 1
     )[0]
     opening_input = user_content.split("<input>", 1)[1].split("</input>", 1)[0]
-    initial_roster = opening_input.split("## Authored Opening Context", 1)[0]
+    participant_block = opening_input.split(
+        "## Authored Opening Participants",
+        1,
+    )[1].split("## Authored Opening Context", 1)[0]
     for character_id in claimed_ids:
-        assert f"**{character_id}**" in turn_context
-        assert f"- {character_id}\n" not in initial_roster
+        assert f"- {character_id}\n" in participant_block
+    assert "## Acting Character\none_star_newcomer" in turn_context
+    for forbidden in (
+        "human-bound",
+        "human player",
+        "player-controlled",
+        "player-owned",
+        "ai control",
+        "character binding",
+    ):
+        assert forbidden not in participant_block.lower()
     assert {observer.character_id for observer in result.observers} == set(
         claimed_ids
     )
@@ -345,14 +378,16 @@ async def test_claimed_newcomer_is_activated_without_materialization(
     monkeypatch,
 ) -> None:
     ckpt = _load_one_star()
-    ckpt.session.character_bindings = {"one_star_newcomer": "user-1"}
     newcomer = next(
         character
         for character in ckpt.characters
         if character.character_id == "one_star_newcomer"
     )
+    newcomer.name = "Mara Vale"
+    newcomer.public_sheet.appearance = "scarlet coat and iron-gray braid"
+    ckpt.session.character_bindings = {"one_star_newcomer": "user-1"}
     assert newcomer.status.value == "dormant"
-    assert newcomer.location == "unclaimed_player_slot"
+    assert newcomer.location == "not_yet_fictional"
     spawn_manager = RecordingCharacterManager()
     orchestrator, _checkpoint_manager = _orchestrator_with_fake_dispatcher(
         monkeypatch,
@@ -394,6 +429,66 @@ async def test_claimed_newcomer_is_activated_without_materialization(
         character.character_id == "one_star_newcomer"
         for character in ckpt.characters
     ) == 1
+    assert ClassFakeDispatcher.agent_calls == []
+
+
+@pytest.mark.asyncio
+async def test_claimed_newcomer_mid_session_arrival_activates_existing_record(
+    monkeypatch,
+) -> None:
+    ckpt = _load_one_star()
+    newcomer = next(
+        character
+        for character in ckpt.characters
+        if character.character_id == "one_star_newcomer"
+    )
+    newcomer.name = "Mara Vale"
+    newcomer.public_sheet.appearance = "scarlet coat and iron-gray braid"
+    ckpt.session.character_bindings = {"one_star_newcomer": "user-1"}
+    ckpt.session.turn_index = 4
+    spawn_manager = RecordingCharacterManager()
+    orchestrator, _checkpoint_manager = _orchestrator_with_fake_dispatcher(
+        monkeypatch,
+        ckpt,
+        spawn_manager,
+    )
+    ClassFakeDispatcher.queue_route(
+        _opening_output(
+            observer_ids=["one_star_newcomer"],
+            fact_text=(
+                "Mara Vale takes shape in the summon-light at Niflheim."
+            ),
+            activate=[
+                {
+                    "character_id": "one_star_newcomer",
+                    "location_label": "niflheim_lobby",
+                }
+            ],
+        )
+    )
+
+    await orchestrator.process_turn(
+        TurnRequest(
+            session_id=ckpt.session.session_id,
+            user_input="(arrive)",
+            acting_character_id="one_star_newcomer",
+        )
+    )
+
+    assert ckpt.canonical_events[-1].spawn == []
+    assert newcomer.name == "Mara Vale"
+    assert newcomer.public_sheet.appearance == (
+        "scarlet coat and iron-gray braid"
+    )
+    assert newcomer.status.value == "active"
+    assert newcomer.location == "niflheim_lobby"
+    assert spawn_manager.calls == 0
+    assert sum(
+        character.character_id == "one_star_newcomer"
+        for character in ckpt.characters
+    ) == 1
+    assert len(ClassFakeDispatcher.route_calls) == 1
+    assert ClassFakeDispatcher.agent_calls == []
 
 
 @pytest.mark.asyncio

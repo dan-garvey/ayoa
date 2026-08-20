@@ -91,7 +91,7 @@ def _no_loot_event() -> DndEventRouterOutput:
         event_id="evt_search",
         facts=[ObservableFact.all("Alice opens the chest and sees a key.")],
         observer_ids=["alice"],
-        interaction_mode="cat_i",
+        interaction_mode="narrative",
         combatant_ids=[],
         loot_offer={
             "present": False,

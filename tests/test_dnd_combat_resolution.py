@@ -2818,6 +2818,66 @@ def test_combat_end_queues_router_observed_continuity():
     assert "D&D combat ends." in facts
 
 
+@pytest.mark.parametrize(
+    ("defeat_state", "fact", "reason"),
+    [
+        (
+            "dead",
+            "Bob died during the combat.",
+            "Character death is durable post-combat state.",
+        ),
+        (
+            "stable",
+            "Bob is unconscious but stable when combat ends.",
+            "An established combatant remains incapacitated after combat.",
+        ),
+        (
+            "down",
+            "Bob is unconscious and still in danger when combat ends.",
+            "An established combatant remains unresolved after combat.",
+        ),
+    ],
+)
+def test_durable_defeat_router_updates_are_binding_invariant(
+    defeat_state,
+    fact,
+    reason,
+):
+    unbound = _ckpt()
+    rebound = _ckpt()
+    rebound.session.character_bindings["bob"] = "2"
+    rebound.session.active_combat.combatants[1].player_controlled = True
+
+    for ckpt in (unbound, rebound):
+        combatant = ckpt.session.active_combat.combatants[1]
+        combatant.hit_points_current = 0
+        combatant.defeat_state = defeat_state
+        queued = dnd_combat.queue_router_observed_fact_updates(ckpt.session)
+        assert queued == 1
+
+    assert unbound.session.pending_engine_state_updates == (
+        rebound.session.pending_engine_state_updates
+    )
+    assert unbound.session.pending_engine_state_updates == [
+        f"Combat continuity [major]: {fact} Reason: {reason}"
+    ]
+    update = unbound.session.pending_engine_state_updates[0].lower()
+    assert "player" not in update
+    assert "binding" not in update
+
+
+def test_routine_defeated_combatant_does_not_queue_router_continuity():
+    ckpt = _ckpt()
+    combatant = ckpt.session.active_combat.combatants[1]
+    combatant.hit_points_current = 0
+    combatant.defeat_state = "defeated"
+
+    queued = dnd_combat.queue_router_observed_fact_updates(ckpt.session)
+
+    assert queued == 0
+    assert ckpt.session.pending_engine_state_updates == []
+
+
 def test_combat_end_includes_queued_death_fact(monkeypatch):
     ckpt = _ckpt()
     ckpt.session.character_bindings["bob"] = "2"

@@ -130,7 +130,7 @@ def _base_characters() -> list[CharacterRecord]:
         _char(
             character_id="dan",
             name="Dan Gahvey",
-            role="human player contestant and heir; currently the acting human",
+            role="contestant and heir",
             appearance="tired, observant, plainly dressed",
             location="dinner hall or pod A depending on the described action",
             playable=True,
@@ -148,7 +148,7 @@ def _base_characters() -> list[CharacterRecord]:
             character_id="rashid",
             name="Rashid Vel Amara",
             role="dinner-table observer with reasons to test Ashara",
-            personality="cool, analytical, willing to speak past the player",
+            personality="cool, analytical, willing to speak past the speaker",
             goals=["Expose false alliances at the table."],
             objectives=["Pressure Ashara when a useful opening appears."],
             location="dinner hall",
@@ -517,6 +517,11 @@ async def _defer_after_premature_boundary(dispatcher: LLMDispatcher) -> CaseResu
 
 async def _cat_ii_open(dispatcher: LLMDispatcher) -> CaseResult:
     ckpt = _ckpt(session_id="targeted_cat_ii_open")
+    for character in ckpt.characters:
+        if character.character_id == "dan":
+            character.location = "security_annex"
+        elif character.character_id == "pip":
+            character.location = "security_annex"
     text = "I shove Pip aside and try to force my way through the restricted door."
     result = await dispatcher.route_intention(
         ckpt=ckpt,
@@ -541,6 +546,25 @@ async def _cat_ii_open(dispatcher: LLMDispatcher) -> CaseResult:
             "does_not_resolve_in_open",
             not any(word in lowered for word in resolving_words),
         ),
+        _check(
+            "does_not_apply_success_dependent_participant_state",
+            not any(
+                update.character_id in {"dan", "pip"}
+                and update.location_label != "security_annex"
+                for update in result.location_updates
+            )
+            and not ({"dan", "pip"} & set(result.dormant))
+            and not ({"dan", "pip"} & set(result.cull))
+            and not any(
+                update.character_id in {"dan", "pip"}
+                for update in result.activate
+            ),
+            (
+                f"locations={result.location_updates} "
+                f"dormant={result.dormant} cull={result.cull} "
+                f"activate={result.activate}"
+            ),
+        ),
     ]
     return CaseResult(
         name="cat_ii_open_physical_contest",
@@ -559,8 +583,8 @@ async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
         required_responders=["pip"],
         collected_intentions={
             "pip": (
-                "Pip slips the punch, twists Dan face-down onto the floor, "
-                "and knocks him out before he can make another sound."
+                "Pip taps Dan's wrist with one fingertip, instantly rendering "
+                "him unconscious."
             ),
         },
         swept_responders=[],
@@ -581,6 +605,30 @@ async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
         "motionless",
         "lies limp",
     ]
+    motion_upgrade_patterns = [
+        re.compile(
+            r"\bpip\b[^.!?]{0,100}\b"
+            r"(?:darts?|flicks?|jabs?|lunges?|snaps?|strikes?)\b"
+        ),
+        re.compile(
+            r"\b(?:finger|fingertip)\b[^.!?]{0,40}\b"
+            r"(?:jab|strike|nerve|pressure point)\b"
+        ),
+        re.compile(
+            r"\b(?:jarring dan|jars dan|numbing|numb|spasm|"
+            r"disrupting dan|disrupts dan|punch veers|swing veers|"
+            r"dan flinches|dan recoils|dan staggers|dan buckles)\b"
+        ),
+        re.compile(
+            r"\bpip\b[^.!?]{0,100}\b"
+            r"(?:chokes? dan|takes dan down|takedown)\b"
+        ),
+    ]
+    motion_upgrades = [
+        match.group(0)
+        for pattern in motion_upgrade_patterns
+        for match in pattern.finditer(lowered)
+    ]
     checks = [
         _check("resolved_no_more_required", not result.requires_responders),
         _check(
@@ -594,10 +642,22 @@ async def _cat_ii_resolution(dispatcher: LLMDispatcher) -> CaseResult:
             not any(term in lowered for term in total_incapacitation_terms),
             _fact_text(result),
         ),
+        _check(
+            "does_not_upgrade_asserted_motion",
+            not motion_upgrades,
+            (
+                f"matches={motion_upgrades}; facts={_fact_text(result)}"
+                if motion_upgrades
+                else _fact_text(result)
+            ),
+        ),
     ]
     return CaseResult(
         name="cat_ii_resolution_responder_overclaim",
-        input_summary="Dan swings; Pip overclaims a total knockout.",
+        input_summary=(
+            "Dan swings; Pip overclaims an instant knockout from a fingertip "
+            "touch at ordinary human scale."
+        ),
         output=_result_dict(result),
         checks=checks,
     )

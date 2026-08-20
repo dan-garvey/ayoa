@@ -585,7 +585,7 @@ class TestDndEventRouterOutput:
     def test_dnd_observer_routing_extends_generic_enum(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "interaction_mode": "cat_i",
+            "interaction_mode": "narrative",
             "combatant_ids": [],
             "observers": [
                 {
@@ -693,7 +693,7 @@ class TestDndEventRouterOutput:
     def test_dnd_scoped_fact_visible_to_confusable_observer_is_repaired(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "interaction_mode": "cat_i",
+            "interaction_mode": "narrative",
             "combatant_ids": [],
             "canonical_event": {
                 **ROUTER_OUTPUT_EXAMPLE["canonical_event"],
@@ -724,7 +724,7 @@ class TestDndEventRouterOutput:
     def test_dnd_loot_offer_contract(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "interaction_mode": "cat_i",
+            "interaction_mode": "narrative",
             "combatant_ids": [],
             "loot_offer": {
                 "present": True,
@@ -761,7 +761,7 @@ class TestDndEventRouterOutput:
     def test_dnd_loot_offer_clamps_unknown_literals(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "interaction_mode": "cat_i",
+            "interaction_mode": "narrative",
             "combatant_ids": [],
             "loot_offer": {
                 "present": True,
@@ -784,7 +784,7 @@ class TestDndEventRouterOutput:
     def test_non_combat_start_modes_clear_battle_map_seed(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "interaction_mode": "cat_i",
+            "interaction_mode": "narrative",
             "combatant_ids": [],
             "combatant_spawns": [RAT_COMBATANT_SPAWN],
             "battle_map_seed": {
@@ -829,9 +829,41 @@ class TestDndEventRouterOutput:
     def test_cat_ii_requires_responders(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,
-            "interaction_mode": "cat_ii",
+            "interaction_mode": "narrative",
+            "event_kind": "cat_ii_open",
+            "requires_responders": True,
             "combatant_ids": [],
             "required_responders": [],
+        }
+
+        with pytest.raises(ValidationError):
+            DndEventRouterOutput(**data)
+
+    def test_narrative_mode_preserves_generic_cat_ii_contract(self):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": "narrative",
+            "event_kind": "cat_ii_open",
+            "requires_responders": True,
+            "required_responders": ["marlowe"],
+            "combatant_ids": ["kess", "marlowe"],
+        }
+
+        out = DndEventRouterOutput(**data)
+
+        assert out.interaction_mode == "narrative"
+        assert out.requires_responders is True
+        assert out.required_responders == ["marlowe"]
+        assert out.combatant_ids == []
+
+    @pytest.mark.parametrize("retired_mode", ["cat_i", "cat_ii"])
+    def test_retired_duplicate_narrative_modes_are_rejected(
+        self, retired_mode: str,
+    ):
+        data = {
+            **ROUTER_OUTPUT_EXAMPLE,
+            "interaction_mode": retired_mode,
+            "combatant_ids": [],
         }
 
         with pytest.raises(ValidationError):

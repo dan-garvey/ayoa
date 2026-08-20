@@ -565,61 +565,6 @@ def build_dnd_player_identities_block(checkpoint: CheckpointFile) -> str:
     )
 
 
-def build_player_characters_block(
-    checkpoint: CheckpointFile,
-    acting_character_id: str,
-) -> str:
-    """Render a markdown list of every CURRENTLY-BOUND player character.
-
-    Appears in role prompts where human-bound characters must be
-    distinguished from NPCs. For the router this is intentionally
-    per-turn user-message context, not frozen system-prefix context,
-    because it marks the turn's acting character.
-
-    Membership: union of `character_bindings` keys and (for legacy
-    checkpoints) `session.player_character_id`. We deliberately do NOT
-    surface every `is_playable=True` character here — under playable-2
-    semantics, an unbound playable character is an agent NPC and
-    belongs in the NPC roster, not the protagonists block. The router
-    treats a name in this block as "human, never dispatch as an agent";
-    listing unbound playables here would forbid the cascade from
-    reaching the very characters the agents are supposed to drive.
-
-    Returns "- No player characters bound to this session." when empty
-    (pristine session before anyone /joins) so prompts still render
-    cleanly.
-    """
-    bindings = checkpoint.session.character_bindings or {}
-    bound_ids = list(bindings.keys())
-    pcid = checkpoint.session.player_character_id
-    if pcid and pcid not in bound_ids:
-        bound_ids.append(pcid)
-
-    lines: list[str] = []
-    for char_id in bound_ids:
-        char = next(
-            (c for c in checkpoint.characters if c.character_id == char_id), None
-        )
-        if char is None:
-            continue
-        role = char.public_sheet.role or "unspecified role"
-        appearance = (char.public_sheet.appearance or "not yet described").strip()
-        location = char.location or "unknown location"
-        marker = " (acting this turn)" if char.character_id == acting_character_id else ""
-        identity = build_dnd_character_identity_sentence(checkpoint, char)
-        identity_text = f" {identity}" if identity else ""
-        equipment = _build_dnd_player_equipment_sentence(checkpoint, char)
-        equipment_text = f" {equipment}" if equipment else ""
-        lines.append(
-            f"- **{char.character_id}**{marker} — {role}. "
-            f"Location: {location}. {appearance}{identity_text}{equipment_text}"
-        )
-
-    if not lines:
-        return "- No player characters bound to this session."
-    return "\n".join(lines)
-
-
 def build_narrator_player_characters_block(
     checkpoint: CheckpointFile,
     pov_character_id: str,
@@ -682,7 +627,7 @@ def _dnd_identity_display_text(identity_sentence: str) -> str:
     return text.rstrip(".")
 
 
-def _build_dnd_player_equipment_sentence(
+def build_dnd_character_equipment_sentence(
     checkpoint: CheckpointFile,
     character: CharacterRecord,
     *,

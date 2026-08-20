@@ -687,7 +687,7 @@ class TestHappyPath:
         ckpt = _ckpt(bindings={"alice": "u1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         orch, mgr = patched_orchestrator(ckpt)
-        data = _dnd_router_out(interaction_mode="cat_i").model_dump()
+        data = _dnd_router_out(interaction_mode="narrative").model_dump()
         data["loot_offer"] = {
             "present": True,
             "source_kind": "container",
@@ -2456,7 +2456,7 @@ class TestCatIIPending:
 
 class TestResolveCatII:
     @pytest.mark.asyncio
-    async def test_ready_event_closes_and_returns_render(
+    async def test_ready_event_without_semantic_next_output_ends_after_resolution(
         self, patched_orchestrator,
     ):
         from app.engine.turn_loop import open_cat_ii
@@ -2492,31 +2492,16 @@ class TestResolveCatII:
             ),
         ]
         FakeDispatcher.queue_route(resolution)
-        FakeDispatcher.queue_agent("Pip releases the angle.")
-        followup = _router_out(event_kind="cascade_exhausted", agent_ids=[])
-        followup.observers = [
-            ObserverEntry(
-                character_id="alice",
-                observation_level="d",
-                routing_role="observe_only",
-            ),
-            ObserverEntry(
-                character_id="pip",
-                observation_level="d",
-                routing_role="observe_only",
-            ),
-        ]
-        FakeDispatcher.queue_route(followup)
 
         response = await orch.resolve_cat_ii("s", evt.event_id)
 
-        assert response.beat_ended_reason == "cascade_exhausted"
+        assert response.beat_ended_reason == "cat_ii_resolution"
         assert response.per_player_renders["alice"] == "POV_RENDER"
         saved = mgr.save.call_args[0][0]
         assert all(e.event_id != evt.event_id for e in saved.session.open_cat_ii_events)
-        assert len(saved.canonical_events) == 2
-        assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
-        assert FakeDispatcher.route_calls[1]["actor_id"] == "pip"
+        assert len(saved.canonical_events) == 1
+        assert FakeDispatcher.agent_calls == []
+        assert len(FakeDispatcher.route_calls) == 1
 
     @pytest.mark.asyncio
     async def test_ready_event_routes_resolution_next_output_before_initiator(
@@ -2556,6 +2541,38 @@ class TestResolveCatII:
         assert len(saved.canonical_events) == 2
         assert FakeDispatcher.agent_calls[0]["character_id"] == "pip"
         assert FakeDispatcher.route_calls[1]["actor_id"] == "pip"
+
+    @pytest.mark.asyncio
+    async def test_ready_event_yields_to_bound_semantic_next_output(
+        self, patched_orchestrator,
+    ):
+        from app.engine.turn_loop import open_cat_ii
+
+        ckpt = _ckpt(bindings={"alice": "u1", "bob": "u2"})
+        evt = open_cat_ii(
+            ckpt,
+            initiator_id="pip",
+            initiator_intention="pip pressures alice",
+            required_responders=["alice"],
+        )
+        evt.collected_intentions["alice"] = "Alice holds her ground."
+        orch, mgr = patched_orchestrator(ckpt)
+
+        FakeDispatcher.queue_route(_router_out(
+            event_kind="beat_continues",
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob", "pip"],
+            facts=[ObservableFact.all("Bob now has the next choice.")],
+        ))
+
+        response = await orch.resolve_cat_ii("s", evt.event_id)
+
+        assert response.beat_ended_reason == "awaiting_player_turn"
+        saved = mgr.save.call_args[0][0]
+        assert len(saved.canonical_events) == 1
+        assert saved.canonical_events[0].next_output_character_ids == ["bob"]
+        assert FakeDispatcher.agent_calls == []
+        assert len(FakeDispatcher.route_calls) == 1
 
     @pytest.mark.asyncio
     async def test_ready_cat_ii_flushes_pending_combat_visible_facts(

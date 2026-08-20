@@ -320,12 +320,22 @@ class TestCreatePlayerCharacterSimple:
         changes = loaded.session.pending_engine_state_updates
         arrival_change = next(
             line for line in changes
-            if "akari_tanaka" in line and "[player-bound]" in line
+            if "akari_tanaka" in line
         )
+        assert "Existing character ready for arrival" in arrival_change
         assert "appearance:" in arrival_change
-        assert "player-supplied backstory:" in arrival_change
-        assert "sparse player-authored arrival" in arrival_change
+        assert "authored backstory:" in arrival_change
+        assert "sparse arrival" in arrival_change
         assert "observable_facts" in arrival_change
+        for forbidden in (
+            "human",
+            "player-bound",
+            "player-authored",
+            "player-supplied",
+            "ai control",
+            "protagonist",
+        ):
+            assert forbidden not in arrival_change.lower()
 
     async def test_backstory_optional(self, bridge: EngineBridge):
         ckpt = _make_checkpoint()

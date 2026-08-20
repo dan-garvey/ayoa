@@ -7,6 +7,8 @@ wrapper around `(name -> {prompts_dir}/{name}.txt)`, plus include
 expansion and `<<<USER>>>` system/user splitting.
 """
 
+import re
+
 import pytest
 
 from app.engine.prompt_manager import PromptManager
@@ -116,10 +118,6 @@ class TestPromptManagerWithRealTemplates:
             hidden_facts="- Hidden fact one",
             acting_character_name="Aldric",
             acting_character_id="aldric",
-            player_characters_block=(
-                "- **aldric** (acting this turn) — scholar. "
-                "Tall, broad-shouldered, grey-streaked hair."
-            ),
             fresh_intention_classifier=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
@@ -128,7 +126,6 @@ class TestPromptManagerWithRealTemplates:
         assert "I try to lift the building" in result
         assert "aldric" in result
         assert "No magic" in result
-        assert "Tall, broad-shouldered" in result
 
     def test_dnd_cat_ii_router_renders(self):
         mgr = PromptManager(prompts_dir="app/prompts")
@@ -252,9 +249,8 @@ class TestPromptManagerWithRealTemplates:
         with pytest.raises(KeyError, match="stable"):
             mgr.render_system_message("router", volatile="turn")
 
-    def test_event_router_keeps_turn_context_out_of_system_prefix(self):
-        """Router cache efficiency depends on actor/player turn state
-        living in the volatile user tail, not the cached system prefix."""
+    def test_event_router_keeps_actor_context_out_of_system_prefix(self):
+        """Actor state belongs in the volatile user tail, not the cache."""
         mgr = PromptManager(prompts_dir="app/prompts")
         messages = mgr.render_messages(
             "event_router",
@@ -265,10 +261,6 @@ class TestPromptManagerWithRealTemplates:
             hidden_facts="- Hidden fact one",
             acting_character_name="Aldric UniqueActor",
             acting_character_id="aldric_unique_actor",
-            player_characters_block=(
-                "- **aldric_unique_actor** (acting this turn) — scholar. "
-                "Unique player-block appearance."
-            ),
             fresh_intention_classifier=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
@@ -280,13 +272,52 @@ class TestPromptManagerWithRealTemplates:
 
         assert "Aldric UniqueActor" not in system
         assert "aldric_unique_actor" not in system
-        assert "acting this turn" not in system
-        assert "Unique player-block appearance" not in system
 
         assert "Aldric UniqueActor" not in user
         assert "aldric_unique_actor" in user
-        assert "acting this turn" in user
-        assert "Unique player-block appearance" in user
+        assert "Player Characters" not in user
+        assert "human" not in user.lower()
+
+    def test_router_templates_exclude_controller_metadata(self):
+        mgr = PromptManager(prompts_dir="app/prompts")
+        rendered = {
+            "event_router": mgr.render(
+                "event_router",
+                setting_summary="Genre: fantasy",
+                world_lore="A bell marks the hour.",
+                world_rules="Ordinary physical constraints apply.",
+                hidden_lore="None.",
+                hidden_facts="None.",
+                acting_character_id="alice",
+                fresh_intention_classifier="",
+                router_input_block=(
+                    "## Actor Submission\n\n"
+                    "submitted_actor_id: alice\n"
+                    "submission_text:\nI listen."
+                ),
+            ),
+            "event_router_ruleset_dnd5e": mgr.render(
+                "event_router_ruleset_dnd5e",
+            ),
+        }
+        forbidden = (
+            r"\bhuman[-_ ](?:bound|controlled|played|player)\b",
+            r"\bplayer[-_ ](?:owned|controlled|bound|characters?)\b",
+            r"\bnpcs?\b",
+            r"\bagent[-_ ]output\b",
+            r"\broute_agent_output\b",
+            r"\bcharacter_bindings?\b",
+            r"\bplayer_controlled\b",
+            r"\bplayer_roll_mode\b",
+            r"\bbinding metadata\b",
+        )
+
+        for template_name, text in rendered.items():
+            for pattern in forbidden:
+                assert re.search(pattern, text, flags=re.IGNORECASE) is None, (
+                    template_name,
+                    pattern,
+                )
 
     def test_narrator_keeps_pov_context_out_of_system_prefix(self):
         """Narrator cache efficiency depends on POV-specific render inputs

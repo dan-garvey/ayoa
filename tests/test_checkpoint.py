@@ -94,7 +94,7 @@ class TestCheckpointSaveLoad:
             spawn=[],
             dormant=[],
             cull=[],
-            interaction_mode="cat_i",
+            interaction_mode="narrative",
             combatant_ids=[],
             loot_offer={
                 "present": True,
@@ -136,7 +136,7 @@ class TestCheckpointSaveLoad:
         event = loaded.canonical_events[0]
         assert isinstance(event, DndEventRouterOutput)
         assert event.event_id == "evt_loot"
-        assert event.interaction_mode == "cat_i"
+        assert event.interaction_mode == "narrative"
         assert event.loot_offer.present is True
         assert event.loot_offer.currency.gp == 5
         assert event.battle_map_seed.present is False

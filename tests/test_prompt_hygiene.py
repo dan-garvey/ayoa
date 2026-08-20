@@ -77,3 +77,21 @@ def test_narrator_prompt_does_not_leak_routing_structures():
 
     leaks = [term for term in forbidden if term.lower() in text.lower()]
     assert not leaks, "Narrator prompt leaks routing internals: " + ", ".join(leaks)
+
+
+def test_dnd_cat_ii_prompt_does_not_receive_runtime_control_policy():
+    text = (PROMPTS_DIR / "dnd_cat_ii_router.txt").read_text().lower()
+    forbidden = [
+        "human",
+        "player-controlled",
+        "player controlled",
+        "player_controlled",
+        "player_roll_mode",
+        "agent-controlled",
+        "agent controlled",
+    ]
+
+    leaks = [term for term in forbidden if term in text]
+    assert not leaks, "D&D Cat II prompt leaks runtime control policy: " + ", ".join(
+        leaks
+    )

@@ -287,9 +287,27 @@ def test_dnd_cat_ii_packet_includes_identity_without_training_spar_hints():
     assert "training_spar" not in packet.get("adjudication_hints", {})
 
 
-def test_hidden_observer_who_beats_player_stealth_gets_next_output():
+def test_dnd_cat_ii_packet_is_invariant_to_bindings_and_roll_ui_mode():
+    ckpt = _ckpt()
+    ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+    event = _open_event()
+
+    autonomous_packet = cat._build_contested_packet(ckpt, event)
+    ckpt.session.character_bindings = {
+        "alice": "discord_1",
+        "pip": "discord_2",
+    }
+    ckpt.session.config.settings.player_roll_mode = "interactive"
+    bound_packet = cat._build_contested_packet(ckpt, event)
+
+    assert bound_packet == autonomous_packet
+    assert "player_controlled" not in bound_packet
+    assert "player_roll_mode" not in bound_packet
+
+
+def test_hidden_observer_who_beats_stealth_gets_next_output_regardless_binding():
     ckpt = checkpoint(
-        bindings={"alice": "discord_1"},
+        bindings={"dace": "discord_1"},
         characters=[
             character_record("alice", name="Alice", role="rogue"),
             character_record("dace", name="Dace", role="hidden lookout"),
@@ -606,6 +624,7 @@ def test_dnd_cat_ii_scopes_private_outcome_facts(monkeypatch):
     from app.engine import dice
 
     ckpt = _ckpt()
+    ckpt.session.character_bindings = {"pip": "discord_1"}
     values = iter([15, 8])
     monkeypatch.setattr(
         dice.d20.expression.random, "randrange", lambda _: next(values)

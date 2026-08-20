@@ -1,11 +1,14 @@
-3. Classify the intention with the D&D interaction mode.
+3. Classify only the D&D-specific interaction mode.
 
-Choose one `interaction_mode` before setting Cat I or Cat II fields.
+Choose one `interaction_mode`. The generic `requires_responders`,
+`required_responders`, and `event_kind` fields remain the sole Cat I/Cat II
+classification; do not duplicate that classification here.
 
-- `cat_i`: ordinary self-closing narrative action.
-- `cat_ii`: non-combat contested interaction. Use this for consent-dependent
-  contact, grabbing an object, blocking passage, guarded searches, social
-  pressure, or other contests that are not a fight.
+- `narrative`: every interaction that does not start or end initiative. This
+  includes both ordinary self-closing action and non-combat contests such as
+  consent-dependent contact, grabbing an object, blocking passage, guarded
+  searches, or social pressure. Apply the generic Cat I/Cat II contract to
+  these interactions.
 - `dnd_combat_start`: imminent or active initiative-scale danger. Use this for
   any hostile group moving to attack, ambush springing, monster emerging to
   strike, weapon attack, damaging spell, combat spell, natural attack, grapple,
@@ -23,8 +26,8 @@ the combat-starting trigger only; do not resolve attack rolls, hits, damage, or
 spell effects before initiative.
 
 Start initiative as soon as tactical danger becomes the governing risk, not
-after the first blow lands. A normal D&D table often rolls initiative before
-the players know exactly who is attacking or before any attack has resolved.
+after the first blow lands. Initiative may begin before the observing
+characters know exactly who is attacking or before any attack has resolved.
 Use `dnd_combat_start` when reviewed or established context says an ambush is
 springing, hostiles have taken attack positions, enemies are moving to strike,
 monsters erupt into the scene, a trap creates an initiative-scale fight, or the
@@ -32,7 +35,7 @@ acting character realizes weapons/spells are about to decide the next seconds.
 Do not wait for an attack declaration unless the attacking side's stealth is
 the reason the fight was not perceptible until the attack.
 
-The acting player and observers do not need to understand that combat has begun.
+The acting character and observers do not need to understand that combat has begun.
 Observable facts must reveal only what each observer can perceive: a twig snap,
 a sudden silhouette, a bowstring sound, a door bursting inward, a blade clearing
 a scabbard, or no new visible detail if the threat is still hidden. Use hidden
@@ -42,7 +45,7 @@ hidden enemies, motives, locations, source labels, or module details into
 
 The active combat system owns whether the initiating action later hits, misses,
 spends resources, applies nonlethal damage, or has no effect. If the first
-combatant to act is surprised, hidden, or not the player, initiative order and
+combatant to act is surprised, hidden, or not the initiating character, initiative order and
 the combat resolver will handle it.
 
 If a fight starts against a hostile creature that is not already in the roster,
@@ -54,8 +57,8 @@ protected excerpts, or hidden module notes into any spawn field. If no reviewed
 imported ref is present, set `statblock_ref=""` and fill the compact stat block
 from your best D&D 5e rules knowledge. Use spawns only for combat-ready
 creatures such as rats, wolves, goblins, bandits, guards, summoned creatures, or
-other standard hostile participants. Do not use them for named story NPCs,
-player characters, allies whose identity should persist as a full character, or
+other standard hostile participants. Do not use them for established named
+characters, allies whose identity should persist as a full character, or
 ordinary bystanders.
 
 For spawned combatants, use a stable snake_case `monster_key` for the standard
@@ -76,35 +79,37 @@ lists instead. The seed is tactical context, not an observable fact.
 For `dnd_combat_end`, set `requires_responders=false`,
 `required_responders=[]`, and `combatant_ids=[]`.
 
-For every mode except `dnd_combat_start`, set `combatant_spawns=[]`.
+For `narrative`, set `combatant_ids=[]`, `combatant_spawns=[]`, and
+`battle_map_seed.present=false`. For every mode except `dnd_combat_start`, set
+`combatant_spawns=[]`.
 
 ### D&D Exploration Spawn Authority
 
 D&D exploration often includes closed doors, caves, ruins, darkness, and other
 unknown spaces. Keep those scenes moving, but do not turn every shouted
-question, warning, or negotiation into a new speaking NPC.
+question, warning, or negotiation into a new speaking character.
 
-When a player addresses an unknown or only weakly implied presence, first prefer
+When a character addresses an unknown or only weakly implied presence, first prefer
 surface exploration cues: silence, echoes, movement, disturbed dust, light,
 airflow, smells, tracks, shifting shadows, a changed obstacle, or evidence that
 something recently passed through. These cues can be concrete affordances
 without creating a persistent person.
 
-Create a non-combat story NPC who speaks from an unknown space only when current
+Create a non-combat story character who speaks from an unknown space only when current
 reviewed content, loaded location/front context, an existing live roster
 character, or a specific current canonical fact at this place authorizes that
 agentic respondent. Prior faction existence, earlier enemies, old tracks,
 generic scouts, or the possibility that someone could be nearby are not enough
-authority to mint a new hidden listener when the player calls into darkness.
+authority to mint a new hidden listener when a character calls into darkness.
 A hidden creature implied only by generic adventuring uncertainty may become a
 cue, hazard, or combatant if danger is imminent, but not a named gatekeeper,
 negotiator, guide, faction envoy, scout, sentry, or lore source.
 
 Do not spawn a new non-combat hidden listener as the first proof that someone
-heard the player. If off-screen faction pressure matters, use an existing
+heard the call. If off-screen faction pressure matters, use an existing
 roster character only when that character already has live perception here;
 otherwise surface a cue, trace, message, obstacle, or later consequence that
-the players can investigate.
+present characters can investigate.
 
 If an unknown respondent is authorized and will persist as a social actor, use
 the generic `spawn` field. If the figure is only a one-shot sound, warning,
@@ -118,28 +123,28 @@ talent, danger, pressure, or another character's resistance matters. Do not
 leave such moments as ordinary narration merely because the character's words,
 movement, or inspection can physically begin.
 
-Use `cat_ii` for a non-combat attempt when a present character's belief, fear,
-trust, cooperation, suspicion, attention, concealment, emotional control, or
-willingness is the uncertain thing being tested. This includes attempts to
+Open generic Cat II for a non-combat attempt when a present character's belief,
+fear, trust, cooperation, suspicion, attention, concealment, emotional control,
+or willingness is the uncertain thing being tested. This includes attempts to
 persuade, deceive, intimidate, read, calm, distract, sneak past, search under
 watch, examine a guarded clue, or draw out signs of coercion, injury, curse,
 undeath, magic, or hidden motive.
 
-Use `cat_i` when the character only speaks, looks, moves, or asks without
-seeking an immediate uncertain result. The words still happen; the uncertain
-result is what makes the moment contested.
+Keep generic Cat I when the character only speaks, looks, moves, or asks
+without seeking an immediate uncertain result. The words still happen; the
+uncertain result is what makes the moment contested.
 
-Bias toward `cat_ii` when the player explicitly names a D&D check, ability, or
-skill and a present character could be swayed, fooled, frightened, read,
-resist, conceal something, notice something, or block the result. Do not invent
-a required responder just to ask for dice when no present character's agency,
-attention, or concealment matters.
+Bias toward generic Cat II when the submission explicitly names a D&D check,
+ability, or skill and a present character could be swayed, fooled, frightened,
+read, resist, conceal something, notice something, or block the result. Do not
+invent a required responder just to ask for dice when no present character's
+agency, attention, or concealment matters.
 
 Explicit training, sparring, dueling, or drill requests are still combat when
 they involve a weapon exchange, attack spell, grapple, shove, strike, or
 similar initiative-scale action. Use `dnd_combat_start`; nonlethal intent and
 training constraints are tactical context for the combat resolver, not a reason
-to open Cat II. Use `cat_ii` only for non-combat instruction or observation,
+to open Cat II. Open generic Cat II only for non-combat instruction or observation,
 such as asking a trainer to critique stance, read an opponent's style, or test
 knowledge without an exchange of blows.
 
@@ -163,16 +168,16 @@ Use these D&D skill cues:
 ### D&D Observer Routing Extension
 
 In D&D mode, `observers[].routing_role` also allows `dnd_reaction`.
-Use `dnd_reaction` only for a direct observer in active combat who should
-receive a player-facing reaction prompt before combat advances. This is a
+Use `dnd_reaction` only for a direct observer in active combat who has a
+rules-eligible immediate reaction decision before combat advances. This is a
 ruleset-specific routing role, not a generic narrative response. Use
 `observe_only` for combatants who merely see the event, and leave ordinary
-NPC follow-up pressure as `next_output` only outside initiative-locked combat.
+character follow-up pressure as `next_output` only outside initiative-locked combat.
 
 ### D&D Loot Offers
 
-`loot_offer` represents visible items or coins a player character may choose to
-add to inventory after the event. It is a choice surface, not a resolved
+`loot_offer` represents visible items or coins an eligible character may choose
+to add to inventory after the event. It is a choice surface, not a resolved
 inventory mutation.
 
 Set `loot_offer.present=true` only when the current event makes takeable
@@ -183,9 +188,9 @@ unidentified magical properties, or ordinary shop stock that still requires an
 unresolved purchase.
 
 In D&D mode, mundane adventuring supplies still count when they become
-takeable. If an NPC, institution, or scene visibly issues or hands over rope,
+takeable. If a character, institution, or scene visibly issues or hands over rope,
 bedrolls, rations, torches, food, waterskins, maps, healer's kits, tools,
-weapons, armor, or similar gear to one or more player characters, set
+weapons, armor, or similar gear to one or more characters, set
 `loot_offer.present=true` for those items. Do not leave acquired equipment only
 inside observable facts; visible prose alone does not add anything to a
 character inventory.
@@ -193,13 +198,12 @@ character inventory.
 Do not create a loot offer when a character merely uses, adjusts, draws, or
 handles gear they already have. Do not create a loot offer for animal tack,
 reins, saddles, harnesses, or lead ropes unless the event clearly separates the
-item from the animal and presents it as adventuring gear a player character can
-claim.
+item from the animal and presents it as adventuring gear a character can take.
 
 When the offer is private to one character, set `visibility="private"` and put
-only that character in `eligible_character_ids`. When the table can see and
-reasonably claim it, set `visibility="table"` and list the player character ids
-who can choose from it. If the item is not identified, use its visible surface
+only that character in `eligible_character_ids`. When every observer can see and
+reasonably take it, set `visibility="table"` and list the character ids eligible
+to choose from it. If the item is not identified, use its visible surface
 name, set `identified=false`, and put unknown details in `notes` only if the
 character can perceive them.
 

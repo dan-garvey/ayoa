@@ -53,7 +53,7 @@ def _loot_event() -> DndEventRouterOutput:
         event_id="evt_loot",
         facts=[ObservableFact.all("Alice opens the chest.")],
         observer_ids=["alice"],
-        interaction_mode="cat_i",
+        interaction_mode="narrative",
         combatant_ids=[],
         loot_offer={
             "present": True,

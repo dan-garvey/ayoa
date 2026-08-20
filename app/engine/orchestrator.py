@@ -75,11 +75,11 @@ from app.engine.turn_loop import (
     release_beat_slots,
     run_beat,
     _agent_intention_for_dispatch,
+    _binding_aware_next_output_targets,
     align_cat_ii_resolution_time,
     _clear_pending_initiating_action,
     _end_beat,
     flush_combat_visible_facts,
-    _cat_ii_resolution_followup_ids,
 )
 from app.llm.client import LLMClient
 
@@ -1598,44 +1598,47 @@ class Orchestrator:
         # intentions. Every NPC observer, including the initiator, needs the
         # final result in their inbox for future turns.
         broadcast_event(ckpt, resolved)
-        followup_ids = _cat_ii_resolution_followup_ids(
-            ckpt,
-            resolved,
-            initiator_id=evt_live.initiator_id,
-        )
-        followup_actor_id = followup_ids[0] if followup_ids else ""
-        followup = None
-        if followup_actor_id:
+        for control_kind, followup_actor_id in (
+            _binding_aware_next_output_targets(ckpt, resolved)
+        ):
+            if control_kind == "bound":
+                return await _end_beat(
+                    ckpt, dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=1,
+                    event_actor_ids=[evt_live.initiator_id],
+                )
             followup = await _agent_intention_for_dispatch(
                 dispatcher, ckpt, followup_actor_id,
             )
-        if followup is None:
-            return await _end_beat(
-                ckpt, dispatcher,
-                ended_reason="cat_ii_resolution",
-                events_closed=1,
-                event_actor_ids=[evt_live.initiator_id],
+            if followup is None:
+                continue
+            followup_result = await run_beat(
+                ckpt=ckpt,
+                dispatcher=dispatcher,
+                actor_id=followup_actor_id,
+                intention=followup,
+            )
+            return BeatResult(
+                renders=followup_result.renders,
+                events_closed=1 + followup_result.events_closed,
+                ended_reason=followup_result.ended_reason,
+                transcript_entries=followup_result.transcript_entries,
+                event_actor_ids=[
+                    evt_live.initiator_id,
+                    *followup_result.event_actor_ids,
+                ],
+                reaction_prompts=followup_result.reaction_prompts or {},
+                rendered_event_ids_by_pov=(
+                    followup_result.rendered_event_ids_by_pov
+                ),
             )
 
-        followup_result = await run_beat(
-            ckpt=ckpt,
-            dispatcher=dispatcher,
-            actor_id=followup_actor_id,
-            intention=followup,
-        )
-        return BeatResult(
-            renders=followup_result.renders,
-            events_closed=1 + followup_result.events_closed,
-            ended_reason=followup_result.ended_reason,
-            transcript_entries=followup_result.transcript_entries,
-            event_actor_ids=[
-                evt_live.initiator_id,
-                *followup_result.event_actor_ids,
-            ],
-            reaction_prompts=followup_result.reaction_prompts or {},
-            rendered_event_ids_by_pov=(
-                followup_result.rendered_event_ids_by_pov
-            ),
+        return await _end_beat(
+            ckpt, dispatcher,
+            ended_reason="cat_ii_resolution",
+            events_closed=1,
+            event_actor_ids=[evt_live.initiator_id],
         )
 
     async def _finalize_ready_cat_ii_locked(
@@ -1708,8 +1711,8 @@ class Orchestrator:
 
         Acquires the session lock for the event, re-checks
         readiness, drives `route_intention` on the adjudication path,
-        closes the event, broadcasts the canonical result, lets selected
-        follow-up NPCs act when applicable, fans renders
+        closes the event, broadcasts the canonical result, yields to selected
+        bound follow-ups or lets selected autonomous characters act, fans renders
         out, applies roster side-effects, and saves.
         Returns a TurnResponse describing the resolution; if the event
         was already closed (race) returns an empty "cat_ii_stale"

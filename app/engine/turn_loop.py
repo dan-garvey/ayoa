@@ -1052,16 +1052,71 @@ async def _materialize_next_output_spawns(
     )
 
 
-def _cat_ii_resolution_followup_ids(
+def _binding_aware_next_output_targets(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+) -> list[tuple[str, str]]:
+    """Resolve semantic next-output ids to runtime handoff kinds in order."""
+    from app.engine.context_builder import collect_player_ids
+
+    bound_ids = collect_player_ids(ckpt)
+    targets: list[tuple[str, str]] = []
+    for character_id in event.next_output_character_ids:
+        if character_id in bound_ids:
+            targets.append(("bound", character_id))
+            continue
+        autonomous = _filter_routed_agents_for_dispatch(
+            ckpt,
+            [character_id],
+            event=event,
+        )
+        if autonomous:
+            targets.append(("autonomous", autonomous[0]))
+    return targets
+
+
+def _validate_cat_ii_open_participant_state(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
     *,
     initiator_id: str,
-) -> list[str]:
-    explicit = event.next_output_character_ids
-    if explicit:
-        return _filter_routed_agents_for_dispatch(ckpt, explicit, event=event)
-    return _filter_routed_agents_for_dispatch(ckpt, [initiator_id], event=event)
+    responder_ids: list[str],
+) -> None:
+    """Reject durable participant outcomes before a contest resolves.
+
+    A Cat II opening is canonical attempt-in-progress surface. Its facts can
+    establish posture, contact, and immediate position for responders, but it
+    cannot durably move, activate, remove, or kill either side before their
+    collected intentions are adjudicated. Non-participant side effects and
+    responder spawns remain valid.
+    """
+    participant_ids = {initiator_id, *responder_ids}
+    current_locations = {
+        character.character_id: character.location
+        for character in ckpt.characters
+        if character.character_id in participant_ids
+    }
+    changed_ids = {
+        update.character_id
+        for update in event.location_updates
+        if update.character_id in participant_ids
+        and current_locations.get(update.character_id) != update.location_label
+    }
+    changed_ids.update(
+        character_id
+        for character_id in (*event.dormant, *event.cull)
+        if character_id in participant_ids
+    )
+    changed_ids.update(
+        update.character_id
+        for update in event.activate
+        if update.character_id in participant_ids
+    )
+    if changed_ids:
+        raise ValueError(
+            "Cat II open applied a durable state change to unresolved "
+            "participant(s): " + ", ".join(sorted(changed_ids))
+        )
 
 
 def _character_by_id(ckpt: CheckpointFile) -> dict[str, Any]:
@@ -2460,16 +2515,6 @@ class Dispatcher(Protocol):
         no dispatchable next actor despite `event_kind=beat_continues`."""
         ...
 
-    async def route_agent_output(
-        self,
-        *,
-        ckpt: CheckpointFile,
-        character_id: str,
-        public_text: str,
-    ) -> EventRouterOutput:
-        """Route one returned character output back into one canonical event."""
-        ...
-
     async def route_combat_action(
         self,
         *,
@@ -2601,8 +2646,8 @@ async def run_beat(
     """Run one beat to completion.
 
     Entry paths:
-    1. Fresh /act from a human — `cat_ii_event_id=None`, actor's intention
-       is a fresh initiator. Claim slot, route, cascade.
+    1. Fresh actor submission — `cat_ii_event_id=None`; claim the initiator
+       slot, route the proposed motion, and cascade.
     2. Cat II responder intention — `cat_ii_event_id` set. Collect the
        intention into the open event. If all required responders are in,
        adjudicate the Cat II (calling dispatcher.route_intention with
@@ -2613,16 +2658,16 @@ async def run_beat(
        and the intention is routed as an out-of-turn response.
 
     Handoff:
-    - Ordered `next_output` targets resolve against live human bindings and
-      dispatchable agents before any render decision.
+    - Ordered `next_output` targets resolve against live bindings and
+      dispatchable autonomous characters before any render decision.
     - Targetless narrative events become narrator handoff candidates; the
       narrator may request another router continuation while established
       motion or a submitted wait condition remains unresolved.
     - Rules, query, Cat II, harvest, and safety-cap event kinds force render
       fan-out and slot release.
-    - Cat II event adjudicates; selected `next_output` NPCs get first
-      follow-up, otherwise NPC initiators keep the legacy first follow-up.
-      If no NPC can act, render fan-out and slot release.
+    - Cat II event adjudicates; selected semantic `next_output` targets yield
+      for bound characters or dispatch eligible autonomous characters. If no
+      selected character can act, render fan-out and slot release.
     - max_events_per_beat reached → forced render + slot release.
     - max_agent_cascades_per_beat reached → forced render + slot release.
     """
@@ -2640,8 +2685,9 @@ async def run_beat(
     current_actor = actor_id
     missing_target_rescue_used = False
     pending_result: EventRouterOutput | None = None
-    pending_result_mode: str | None = None
+    pending_result_is_continuation = False
     pending_result_actor_id: str = ""
+    pending_result_submission: str = ""
     suppress_reaction_prompts = combat_reaction_event_id is not None
 
     async def _queue_router_continuation(
@@ -2649,8 +2695,9 @@ async def run_beat(
         *,
         narrator_requested: bool = False,
     ) -> None:
-        nonlocal missing_target_rescue_used, pending_result, pending_result_mode
-        nonlocal pending_result_actor_id
+        nonlocal missing_target_rescue_used, pending_result
+        nonlocal pending_result_is_continuation, pending_result_actor_id
+        nonlocal pending_result_submission
         # Narrator prose is diagnostic only. Keep the engine-control
         # distinction typed so a free-form reason never becomes router input.
         missing_target_rescue = not narrator_requested
@@ -2668,19 +2715,20 @@ async def run_beat(
             prior_result=prior_result,
             original_action=intention,
         )
-        pending_result_mode = "continuation"
+        pending_result_is_continuation = True
         pending_result_actor_id = actor_id
+        pending_result_submission = ""
         _log_router_rationale(
             pending_result, actor_id, kind="continuation",
         )
 
-    async def _queue_router_agent_output(
+    async def _queue_router_agent_submission(
         prior_result: EventRouterOutput,
         character_ids: list[str],
     ) -> str:
         nonlocal agent_cascade_attempts, background_thread_attempts
-        nonlocal pending_result, pending_result_mode
-        nonlocal pending_result_actor_id
+        nonlocal pending_result, pending_result_is_continuation
+        nonlocal pending_result_actor_id, pending_result_submission
         if not character_ids:
             return "exhausted"
         if agent_cascade_attempts >= max_agent_cascades:
@@ -2720,18 +2768,20 @@ async def run_beat(
             )
             if agent_output is None:
                 continue
-            routed = await dispatcher.route_agent_output(
+            routed = await dispatcher.route_intention(
                 ckpt=ckpt,
-                character_id=target.character_id,
-                public_text=agent_output,
+                actor_id=target.character_id,
+                intention=agent_output,
+                cat_ii_event=None,
             )
             pending_result = routed
-            pending_result_mode = "agent_output"
+            pending_result_is_continuation = False
             pending_result_actor_id = target.character_id
+            pending_result_submission = agent_output
             _log_router_rationale(
                 pending_result,
                 target.character_id,
-                kind="agent_output",
+                kind="route",
             )
             return "queued"
 
@@ -2743,20 +2793,14 @@ async def run_beat(
         prior_result: EventRouterOutput,
     ) -> str:
         """Resolve ordered semantic targets against live control bindings."""
-        from app.engine.context_builder import collect_player_ids
-
-        humans = collect_player_ids(ckpt)
-        for character_id in prior_result.next_output_character_ids:
-            if character_id in humans:
+        for control_kind, character_id in _binding_aware_next_output_targets(
+            ckpt, prior_result,
+        ):
+            if control_kind == "bound":
                 return "human"
-            agent_ids = _filter_routed_agents_for_dispatch(
-                ckpt,
-                [character_id],
-                event=prior_result,
+            outcome = await _queue_router_agent_submission(
+                prior_result, [character_id],
             )
-            if not agent_ids:
-                continue
-            outcome = await _queue_router_agent_output(prior_result, agent_ids)
             if outcome == "exhausted":
                 continue
             return outcome
@@ -2914,15 +2958,20 @@ async def run_beat(
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
 
-        followup_ids = _cat_ii_resolution_followup_ids(
-            ckpt,
-            resolved,
-            initiator_id=evt.initiator_id,
-        )
-        if followup_ids:
-            followup = await _queue_router_agent_output(resolved, followup_ids)
+        if resolved.next_output_character_ids:
+            followup = await _queue_binding_aware_next_output(resolved)
             if followup == "cap":
                 return await _end_for_cascade_cap()
+            if followup == "human":
+                return await _end_beat(
+                    ckpt, dispatcher,
+                    ended_reason="awaiting_player_turn",
+                    events_closed=events_closed,
+                    event_actor_ids=event_actor_ids,
+                    acting_player_id=actor_id,
+                    acting_player_input=intention,
+                    suppress_reaction_prompts=suppress_reaction_prompts,
+                )
             if followup == "exhausted":
                 return await _end_beat(
                     ckpt, dispatcher,
@@ -3033,7 +3082,7 @@ async def run_beat(
 
     while True:
         if pending_result is None:
-            # Route the current intention.
+            # Route the current actor submission.
             result = await dispatcher.route_intention(
                 ckpt=ckpt,
                 actor_id=current_actor,
@@ -3041,27 +3090,30 @@ async def run_beat(
                 cat_ii_event=None,
             )
             result_actor_id = current_actor
+            result_submission = current_intention
             result_is_continuation = False
-            result_is_agent_output = False
             _log_router_rationale(
                 result, current_actor, kind="route",
             )
         else:
             result = pending_result
             pending_result = None
-            mode = pending_result_mode or "continuation"
-            pending_result_mode = None
             result_actor_id = pending_result_actor_id
             pending_result_actor_id = ""
-            result_is_continuation = mode == "continuation"
-            result_is_agent_output = mode == "agent_output"
+            result_submission = pending_result_submission
+            pending_result_submission = ""
+            result_is_continuation = pending_result_is_continuation
+            pending_result_is_continuation = False
+            if not result_is_continuation:
+                current_actor = result_actor_id
+                current_intention = result_submission
 
         interaction_mode = _dnd_interaction_mode(result)
         if interaction_mode == "dnd_combat_start":
-            if result_is_continuation or result_is_agent_output:
+            if result_is_continuation:
                 raise RuntimeError(
-                    "Router non-intention mode tried to start D&D combat; "
-                    "only a fresh intention can start initiative."
+                    "Router continuation tried to start D&D combat; only an "
+                    "actor submission can start initiative."
                 )
             signal_actor_id = result_actor_id or current_actor or actor_id
             if _active_combat(ckpt) is not None:
@@ -3085,7 +3137,7 @@ async def run_beat(
                 ckpt,
                 result,
                 actor_id=signal_actor_id,
-                intention=current_intention,
+                intention=result_submission,
             )
             broadcast_event(ckpt, result, actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
@@ -3132,12 +3184,6 @@ async def run_beat(
             )
 
         if result.requires_responders:
-            if result_is_agent_output:
-                raise RuntimeError(
-                    "Router agent-output result opened Cat II; agent-output mode "
-                    "must compose a closed group event or select another "
-                    "agent output target."
-                )
             suppressed_actor_id = result_actor_id or current_actor or actor_id
             required = [
                 r for r in result.required_responders if r != result_actor_id
@@ -3200,10 +3246,17 @@ async def run_beat(
                     return completed
                 continue
 
+            _validate_cat_ii_open_participant_state(
+                ckpt,
+                result,
+                initiator_id=result_actor_id,
+                responder_ids=required,
+            )
+
             evt = open_cat_ii(
                 ckpt=ckpt,
                 initiator_id=result_actor_id,
-                initiator_intention=current_intention,
+                initiator_intention=result_submission,
                 required_responders=required,
                 opening_event=result,
             )
@@ -3220,7 +3273,7 @@ async def run_beat(
             event_actor_ids.append(result_actor_id)
             events_closed += 1
 
-            # Agents among required_responders intend immediately; their
+            # Autonomous required responders intend immediately; their
             # intentions are collected into the same Cat II event.
             from app.engine.context_builder import is_unbound_player_authored_slot
 
@@ -3246,7 +3299,7 @@ async def run_beat(
                     )
 
             if cat_ii_is_ready(evt):
-                # No humans in required list — resolve immediately.
+                # No bound responders in the required list — resolve immediately.
                 try:
                     resolved = await dispatcher.route_intention(
                         ckpt=ckpt,
@@ -3273,21 +3326,22 @@ async def run_beat(
                 broadcast_event(ckpt, resolved)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
-                initiator_pick = _filter_routed_agents_for_dispatch(
-                    ckpt, [evt.initiator_id], event=resolved,
-                )
-                followup = None
-                if initiator_pick:
-                    if agent_cascade_attempts >= max_agent_cascades:
+                if resolved.next_output_character_ids:
+                    followup = await _queue_binding_aware_next_output(resolved)
+                    if followup == "cap":
                         return await _end_for_cascade_cap()
-                    agent_cascade_attempts += 1
-                    followup = await _agent_intention_for_dispatch(
-                        dispatcher, ckpt, evt.initiator_id,
-                    )
-                if followup is not None:
-                    current_actor = evt.initiator_id
-                    current_intention = followup
-                    continue
+                    if followup == "human":
+                        return await _end_beat(
+                            ckpt, dispatcher,
+                            ended_reason="awaiting_player_turn",
+                            events_closed=events_closed,
+                            event_actor_ids=event_actor_ids,
+                            acting_player_id=actor_id,
+                            acting_player_input=intention,
+                            suppress_reaction_prompts=suppress_reaction_prompts,
+                        )
+                    if followup == "queued":
+                        continue
                 return await _end_beat(
                     ckpt, dispatcher,
                     ended_reason="cat_ii_resolution",
@@ -3297,7 +3351,7 @@ async def run_beat(
                     acting_player_input=intention,
                     suppress_reaction_prompts=suppress_reaction_prompts,
                 )
-            # Humans are pinned — pause the beat here. Their /acts will
+            # Bound responders are pinned — pause the beat here. Their /acts will
             # re-enter run_beat with their cat_ii_event_id.
             #
             # v11-r6a/r12: render the already-broadcast router event in
@@ -3370,13 +3424,7 @@ async def run_beat(
                 _refresh_router_history_after_mutation(
                     ckpt, result,
                     acting_character_id=result_actor_id or current_actor,
-                    mode=(
-                        "agent_output"
-                        if result_is_agent_output
-                        else "continuation"
-                        if result_is_continuation
-                        else "intention"
-                    ),
+                    mode="continuation" if result_is_continuation else "intention",
                 )
         elif result.event_kind == "query_response":
             query_picks = _filter_routed_agents_for_dispatch(
@@ -3396,12 +3444,7 @@ async def run_beat(
                         ckpt, result,
                         acting_character_id=result_actor_id or current_actor,
                         mode=(
-                            "agent_output"
-                            if result_is_agent_output
-                            else
-                            "continuation"
-                            if result_is_continuation
-                            else "intention"
+                            "continuation" if result_is_continuation else "intention"
                         ),
                     )
 

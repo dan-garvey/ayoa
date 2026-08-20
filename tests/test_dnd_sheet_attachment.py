@@ -178,10 +178,8 @@ async def test_attach_preserves_story_identity_without_override(
     assert hero.mechanics["dnd5e_sheet"]["identity"]["name"] == "DDB Sheet Name"
     assert "raw_source" in hero.mechanics["dnd5e_sheet"]
     assert "D&D sheet attached" in loaded.session.pending_engine_state_updates[-1]
-    assert (
-        "D&D session settings enabled"
-        in loaded.session.pending_engine_state_updates[-1]
-    )
+    assert "D&D rules now govern" in loaded.session.pending_engine_state_updates[-1]
+    assert "player_roll_mode" not in loaded.session.pending_engine_state_updates[-1]
     assert (
         "listed D&D equipment is physically present"
         in loaded.session.pending_engine_state_updates[-1]

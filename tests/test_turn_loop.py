@@ -602,11 +602,35 @@ class TestBeatCascade:
         assert result.events_closed == 2
         assert fake.agent_calls[0]["character_id"] == "pip"
         assert fake.agent_calls[0]["frame"] == "foreground"
-        assert len(fake.agent_output_calls) == 1
-        agent_output = fake.agent_output_calls[0]
-        assert agent_output["character_id"] == "pip"
-        assert agent_output["public_text"] == "Pip polishes the bell"
-        assert "prior_result" not in agent_output
+        assert len(fake.route_calls) == 2
+        agent_submission = fake.route_calls[1]
+        assert agent_submission["actor_id"] == "pip"
+        assert agent_submission["intention"] == "Pip polishes the bell"
+        assert agent_submission["cat_ii_event"] is None
+
+    def test_parenthesized_agent_silence_is_routed_as_actor_submission(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_ids=["pip"],
+            observer_ids=["alice", "pip"],
+            event_kind="beat_continues",
+        ))
+        fake.queue_agent("(remains silent)")
+        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I wait for Pip's answer.",
+        ))
+
+        assert result.ended_reason == "cascade_exhausted"
+        assert len(fake.route_calls) == 2
+        assert fake.route_calls[1]["actor_id"] == "pip"
+        assert fake.route_calls[1]["intention"] == "(remains silent)"
+        assert fake.continuation_calls == []
 
     def test_public_fact_observe_only_delivers_inbox_without_cascade(self):
         ckpt = _ckpt({"alice": "1"})
@@ -634,7 +658,7 @@ class TestBeatCascade:
             "Official criers announce the cohort has been summoned."
         ]
         assert fake.agent_calls == []
-        assert fake.agent_output_calls == []
+        assert len(fake.route_calls) == 1
         assert fake.continuation_calls == []
 
     def test_public_fact_next_output_dispatches_background_turn(self):
@@ -662,9 +686,9 @@ class TestBeatCascade:
         assert fake.agent_calls[0]["frame"] == "background"
         assert "Location: gatehouse" in fake.agent_calls[0]["local_context"]
         assert "Alice (alice)" in fake.agent_calls[0]["local_context"]
-        agent_output = fake.agent_output_calls[0]
-        assert agent_output["character_id"] == "pip"
-        assert "prior_result" not in agent_output
+        agent_submission = fake.route_calls[1]
+        assert agent_submission["actor_id"] == "pip"
+        assert agent_submission["intention"] == "Pip sends a runner to the archive"
 
     def test_public_front_signal_does_not_leak_hidden_plan_to_surfaces(
         self, caplog,
@@ -761,7 +785,7 @@ class TestBeatCascade:
         assert result.ended_reason == "cascade_cap"
         assert result.events_closed == 5
         assert len(fake.agent_calls) == 4
-        assert len(fake.agent_output_calls) == 4
+        assert len(fake.route_calls) == 5
 
     def test_agent_pick_without_bound_player_observer_uses_private_frame(self):
         ckpt = _ckpt({})
@@ -779,8 +803,7 @@ class TestBeatCascade:
 
         assert fake.agent_calls[0]["character_id"] == "pip"
         assert fake.agent_calls[0]["frame"] == "private"
-        agent_output = fake.agent_output_calls[0]
-        assert agent_output["character_id"] == "pip"
+        assert fake.route_calls[1]["actor_id"] == "pip"
 
     def test_agent_cascade_cap_forces_beat_end(self):
         ckpt = _ckpt({"alice": "1"})
@@ -799,8 +822,7 @@ class TestBeatCascade:
 
         assert result.ended_reason == "cascade_cap"
         assert result.events_closed == 2
-        assert len(fake.route_calls) == 1
-        assert len(fake.agent_output_calls) == 1
+        assert len(fake.route_calls) == 2
         assert len(fake.agent_calls) == 1
 
     def test_cat_i_dispatches_only_first_agent_pick_before_router_roundtrip(
@@ -823,9 +845,8 @@ class TestBeatCascade:
         assert [call["character_id"] for call in fake.agent_calls] == [
             "pip",
         ]
-        assert len(fake.agent_output_calls) == 1
-        assert fake.agent_output_calls[0]["character_id"] == "pip"
-        assert fake.agent_output_calls[0]["public_text"] == "Pip polishes the bell"
+        assert fake.route_calls[1]["actor_id"] == "pip"
+        assert fake.route_calls[1]["intention"] == "Pip polishes the bell"
 
     def test_router_can_continue_to_next_agent_pick_after_canonicalizing_first(
         self,
@@ -850,10 +871,9 @@ class TestBeatCascade:
             "pip",
             "bob",
         ]
-        assert len(fake.agent_output_calls) == 2
         assert [
-            call["character_id"]
-            for call in fake.agent_output_calls
+            call["actor_id"]
+            for call in fake.route_calls[1:]
         ] == ["pip", "bob"]
 
     def test_false_endbeat_with_no_next_output_routes_continuation(self):
@@ -950,6 +970,191 @@ class TestBeatCascade:
 
 
 class TestCatIIBeat:
+    def test_cat_ii_open_rejects_durable_participant_outcome(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            observer_ids=["alice", "pip"],
+            event_kind="cat_ii_open",
+            location_updates=[{
+                "character_id": "alice",
+                "location_label": "past_pip",
+            }],
+        ))
+
+        with pytest.raises(
+            ValueError,
+            match="durable state change.*alice",
+        ):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I shove past Pip.",
+            ))
+
+        alice = next(
+            character for character in ckpt.characters
+            if character.character_id == "alice"
+        )
+        assert alice.location == "gatehouse"
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.canonical_events == []
+
+    def test_direct_and_autonomous_submissions_share_cat_ii_open_contract(self):
+        submission = "Bob reaches for Alice's letter."
+
+        direct_ckpt = _ckpt({"alice": "1", "bob": "2"})
+        direct = FakeDispatcher()
+        direct.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["alice"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+        direct_result = asyncio.run(run_beat(
+            ckpt=direct_ckpt,
+            dispatcher=direct,
+            actor_id="bob",
+            intention=submission,
+        ))
+
+        autonomous_ckpt = _ckpt({"alice": "1"})
+        autonomous = FakeDispatcher()
+        autonomous.queue_route(_router_out(
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+        autonomous.queue_agent(submission)
+        autonomous.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["alice"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+        autonomous_result = asyncio.run(run_beat(
+            ckpt=autonomous_ckpt,
+            dispatcher=autonomous,
+            actor_id="alice",
+            intention="I wait with the letter in hand.",
+        ))
+
+        assert direct_result.ended_reason == autonomous_result.ended_reason == (
+            "cat_ii_pending"
+        )
+        direct_open = direct_ckpt.session.open_cat_ii_events[0]
+        autonomous_open = autonomous_ckpt.session.open_cat_ii_events[0]
+        assert (
+            direct_open.initiator_id,
+            direct_open.initiator_intention,
+            direct_open.required_responders,
+        ) == (
+            autonomous_open.initiator_id,
+            autonomous_open.initiator_intention,
+            autonomous_open.required_responders,
+        ) == (
+            "bob",
+            submission,
+            ["alice"],
+        )
+        assert autonomous.route_calls[1]["cat_ii_event"] is None
+
+    def test_agent_submission_opens_cat_ii_with_exact_submission_text(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+        agent_submission = "Bob reaches for Alice's letter."
+        fake.queue_agent(agent_submission)
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["alice"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I wait with the letter in hand.",
+        ))
+
+        assert result.ended_reason == "cat_ii_pending"
+        assert [call["actor_id"] for call in fake.route_calls] == [
+            "alice",
+            "bob",
+        ]
+        assert fake.route_calls[1]["intention"] == agent_submission
+        open_event = ckpt.session.open_cat_ii_events[0]
+        assert open_event.initiator_id == "bob"
+        assert open_event.initiator_intention == agent_submission
+        assert open_event.required_responders == ["alice"]
+        assert ckpt.session.active_act_slots["alice"].reason == (
+            "cat_ii_responder"
+        )
+        assert [event.event_kind for event in ckpt.canonical_events] == [
+            "beat_continues",
+            "cat_ii_open",
+        ]
+
+    def test_agent_submission_cat_ii_collects_agent_and_resolves_once(self):
+        ckpt = _ckpt({"alice": "1"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+        initiator_submission = "Bob reaches for Pip's letter."
+        responder_submission = "Pip pulls the letter against his chest."
+        fake.queue_agent(initiator_submission)
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="beat_continues",
+        ))
+        fake.queue_agent(responder_submission)
+        fake.queue_route(_router_out(
+            observer_ids=["alice"],
+            event_kind="cascade_exhausted",
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I watch Bob and Pip.",
+        ))
+
+        assert result.ended_reason == "cat_ii_resolution"
+        assert ckpt.session.open_cat_ii_events == []
+        assert [call["actor_id"] for call in fake.route_calls] == [
+            "alice",
+            "bob",
+            "bob",
+        ]
+        resolution_call = fake.route_calls[2]
+        assert resolution_call["intention"] == initiator_submission
+        assert resolution_call["cat_ii_event"].initiator_intention == (
+            initiator_submission
+        )
+        assert resolution_call["cat_ii_event"].collected_intentions == {
+            "pip": responder_submission,
+        }
+        assert [event.event_kind for event in ckpt.canonical_events] == [
+            "beat_continues",
+            "cat_ii_open",
+            "cascade_exhausted",
+        ]
+
     def test_cat_ii_with_agent_responder_resolves_inline(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
@@ -981,6 +1186,35 @@ class TestCatIIBeat:
         assert ckpt.canonical_events[0].duration_s == 0
         assert ckpt.canonical_events[1].effective_at_s == 100
         assert ckpt.session.open_cat_ii_events == []
+
+    def test_inline_cat_ii_resolution_yields_to_bound_semantic_next_output(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            requires_responders=True,
+            required_responders=["pip"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="beat_continues",
+        ))
+        fake.queue_agent("Pip pulls the letter against his chest.")
+        fake.queue_route(_router_out(
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="beat_continues",
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I reach for Pip's letter.",
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.canonical_events[-1].next_output_character_ids == ["bob"]
+        assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
+        assert len(fake.route_calls) == 2
 
     def test_cat_ii_materializes_spawned_responder_before_dispatch(self):
         ckpt = _ckpt({"alice": "1"})
@@ -1232,6 +1466,43 @@ class TestCatIIBeat:
         )
         assert alice.pending_initiating_action == "I attack Bob"
 
+    def test_autonomous_actor_submission_can_start_dnd_combat(self):
+        ckpt = _ckpt({"alice": "1"})
+        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob"],
+            event_kind="beat_continues",
+        ))
+        submission = "Bob lunges at Alice with a knife."
+        fake.queue_agent(submission)
+        fake.queue_route(_dnd_router_out(
+            interaction_mode="dnd_combat_start",
+            combatant_ids=["bob", "alice"],
+            facts=[ObservableFact.all("Bob commits to an attack against Alice.")],
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I watch Bob's hands.",
+        ))
+
+        assert result.ended_reason == "combat_started"
+        assert ckpt.session.active_combat is not None
+        assert [call["actor_id"] for call in fake.route_calls] == [
+            "alice",
+            "bob",
+        ]
+        bob = next(
+            combatant
+            for combatant in ckpt.session.active_combat.combatants
+            if combatant.character_id == "bob"
+        )
+        assert bob.pending_initiating_action == submission
+
     def test_underpopulated_dnd_combat_start_signal_closes_without_crashing(self):
         ckpt = _ckpt({"alice": "1"})
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
@@ -1258,7 +1529,7 @@ class TestCatIIBeat:
         ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
         fake = FakeDispatcher()
         fake.queue_route(_dnd_router_out(
-            interaction_mode="cat_ii",
+            interaction_mode="narrative",
             requires_responders=True,
             required_responders=["bob"],
             facts=[
@@ -1642,8 +1913,40 @@ class TestCatIIBeat:
         assert result.ended_reason == "cascade_exhausted"
         assert ckpt.session.open_cat_ii_events == []
         assert fake.agent_calls[0]["character_id"] == "pip"
-        assert fake.agent_output_calls[0]["character_id"] == "pip"
         assert fake.route_calls[0]["actor_id"] == "alice"
+        assert fake.route_calls[1]["actor_id"] == "pip"
+        assert fake.route_calls[1]["intention"] == "Pip answers the warning."
+
+    def test_cat_ii_resolution_yields_to_bound_semantic_next_output(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        evt = open_cat_ii(
+            ckpt,
+            initiator_id="pip",
+            initiator_intention="Pip asks Alice to choose a route",
+            required_responders=["alice"],
+        )
+        pin_cat_ii_responder(ckpt, "alice", evt.event_id)
+
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            agent_ids=["bob"],
+            observer_ids=["alice", "bob", "pip"],
+            event_kind="beat_continues",
+        ))
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="I ask Bob to make the final call.",
+            cat_ii_event_id=evt.event_id,
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        assert ckpt.session.open_cat_ii_events == []
+        assert ckpt.canonical_events[-1].next_output_character_ids == ["bob"]
+        assert fake.agent_calls == []
+        assert len(fake.route_calls) == 1
 
     def test_cat_ii_multi_responder_pauses_until_all_intentions_in(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
@@ -2772,7 +3075,7 @@ class TestHumanNextOutputYield:
 
         assert result.ended_reason == "awaiting_player_turn"
         assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
-        assert fake.agent_output_calls == []
+        assert len(fake.route_calls) == 1
         assert fake.continuation_calls == []
 
     def test_unbound_player_authored_target_fails_loudly(self):

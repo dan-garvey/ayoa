@@ -502,7 +502,10 @@ def _enrichment_ids(result: EventRouterOutput) -> list[str]:
 
 
 def _dnd_mode(result: EventRouterOutput) -> str:
-    return str(getattr(result, "interaction_mode", "") or "")
+    interaction_mode = str(getattr(result, "interaction_mode", "") or "")
+    if interaction_mode == "narrative":
+        return "cat_ii" if result.requires_responders else "cat_i"
+    return interaction_mode
 
 
 def _combatant_ids(result: EventRouterOutput) -> list[str]:
@@ -529,7 +532,10 @@ def _battle_map_seed(result: EventRouterOutput) -> dict[str, Any] | None:
 def _output_dict(result: EventRouterOutput) -> dict[str, Any]:
     output = result.model_dump(mode="json")
     output["schema"] = result.__class__.__name__
-    output["interaction_mode"] = _dnd_mode(result)
+    output["interaction_mode"] = str(
+        getattr(result, "interaction_mode", "") or ""
+    )
+    output["narrative_mode"] = _dnd_mode(result)
     output["combatant_ids"] = _combatant_ids(result)
     output["combatant_spawns"] = _combatant_spawns(result)
     output["loot_offer"] = _loot_offer(result)
@@ -839,35 +845,95 @@ async def _case_social_cat_ii(dispatcher: LLMDispatcher) -> CaseResult:
     return CaseResult(**{**case.__dict__, "checks": checks})
 
 
-async def _case_agent_output_not_cat_ii(dispatcher: LLMDispatcher) -> CaseResult:
-    text = '"Move!" He draws his scimitar and steps between Marlowe and the cleft.'
-    ckpt = _dnd_ckpt(
-        "cmp_agent_output",
+async def _case_actor_submission_origin_invariant(
+    dispatcher: LLMDispatcher,
+) -> CaseResult:
+    text = "Kess reaches for the sealed route letter in Marlowe's hand."
+    world_facts = [
+        *_base_world_facts(),
+        "Marlowe is holding a sealed route letter and has not offered it.",
+        "Kess is present within arm's reach of Marlowe and the letter.",
+    ]
+    direct_ckpt = _dnd_ckpt(
+        "cmp_actor_submission_direct",
+        facts=world_facts,
+        include_bandit=False,
+        include_trainer=False,
+    )
+    direct_ckpt.session.character_bindings["kess"] = "user-4"
+    autonomous_ckpt = _dnd_ckpt(
+        "cmp_actor_submission_autonomous",
         facts=[
-            *_base_world_facts(),
-            "Bandit Leader is already in the live scene and visible to the party.",
-            "This is a committed NPC public output from the existing cascade.",
+            *world_facts,
         ],
+        include_bandit=False,
+        include_trainer=False,
     )
-    result = await dispatcher.route_agent_output(
-        ckpt=ckpt,
-        character_id="bandit_leader",
-        public_text=text,
+
+    direct_result = await dispatcher.route_intention(
+        ckpt=direct_ckpt,
+        actor_id="kess",
+        intention=text,
     )
-    facts = _fact_text(result)
+    autonomous_result = await dispatcher.route_intention(
+        ckpt=autonomous_ckpt,
+        actor_id="kess",
+        intention=text,
+    )
+    direct_output = _output_dict(direct_result)
+    autonomous_output = _output_dict(autonomous_result)
+    direct_mode = _dnd_mode(direct_result)
+    autonomous_mode = _dnd_mode(autonomous_result)
+    direct_responders = list(direct_result.required_responders)
+    autonomous_responders = list(autonomous_result.required_responders)
     checks = [
-        _check("dnd_mode_enabled_on_checkpoint", ckpt.session.config.settings.ruleset_id == "dnd5e_basic"),
-        _check("nonfresh_generic_schema", result.__class__.__name__ == "EventRouterOutput", result.__class__.__name__),
-        _check("does_not_open_cat_ii", not result.requires_responders and result.event_kind != "cat_ii_open", result.event_kind),
-        _check("no_required_responders", not result.required_responders, result.required_responders),
-        _check("does_not_spawn_existing_actor", not result.spawn, result.spawn),
-        _check("keeps_public_text", "Move" in facts or "scimitar" in facts, facts),
+        _check(
+            "both_use_dnd_actor_submission_schema",
+            direct_output["schema"] == autonomous_output["schema"]
+            == "DndEventRouterOutput",
+            [direct_output["schema"], autonomous_output["schema"]],
+        ),
+        _check(
+            "both_open_cat_ii",
+            direct_mode == autonomous_mode == "cat_ii"
+            and direct_result.requires_responders
+            and autonomous_result.requires_responders,
+            [direct_mode, autonomous_mode],
+        ),
+        _check(
+            "both_require_marlowe",
+            "marlowe" in direct_responders
+            and "marlowe" in autonomous_responders,
+            [direct_responders, autonomous_responders],
+        ),
+        _check(
+            "same_required_responder_set",
+            set(direct_responders) == set(autonomous_responders),
+            [direct_responders, autonomous_responders],
+        ),
+        _check(
+            "neither_awards_the_letter",
+            not _contains_any(
+                "\n".join([
+                    _fact_text(direct_result),
+                    _fact_text(autonomous_result),
+                ]),
+                ["kess takes the letter", "kess has the letter"],
+            ),
+            [
+                _fact_text(direct_result),
+                _fact_text(autonomous_result),
+            ],
+        ),
     ]
     return CaseResult(
-        name="committed_agent_output_not_cat_ii",
-        input_summary=f"bandit_leader: {text}",
-        method="route_agent_output",
-        output=_output_dict(result),
+        name="actor_submission_origin_invariant",
+        input_summary=f"kess: {text}",
+        method="route_intention (direct and autonomous comparison)",
+        output={
+            "directly_supplied": direct_output,
+            "autonomous": autonomous_output,
+        },
         checks=checks,
     )
 
@@ -883,7 +949,7 @@ async def _case_mediated_perception(dispatcher: LLMDispatcher) -> CaseResult:
             *_base_world_facts(),
             "Marlowe and Tavi are beside the cracked pillar and can see each other.",
             "Ilyra hears Marlowe through a crackling sending stone but cannot see Marlowe.",
-            "Gearbox sends a silent crystal image to the party but carries no audio.",
+            "Gearbox receives a silent live crystal image of Marlowe and the rune but carries no audio.",
         ],
         include_kess=False,
         include_bandit=False,
@@ -930,7 +996,7 @@ async def _case_repeated_defer(dispatcher: LLMDispatcher) -> CaseResult:
         ConversationMessage(
             role="assistant",
             content=(
-                "prior_event evt_thin @90+5 source=kess mode=agent_output "
+                "prior_event evt_thin @90+5 source=kess mode=intention "
                 "kind=response_requested\n"
                 "fact all @0+5: Kess says, 'Then say what you are doing next.'\n"
                 "obs marlowe:d:observe_only tavi:d:observe_only ilyra:d:observe_only kess:d:observe_only"
@@ -1073,10 +1139,13 @@ CASES: list[Case] = [
         runner=_case_social_cat_ii,
     ),
     Case(
-        name="committed_agent_output_not_cat_ii",
-        description="Committed NPC output is canonicalized; it is not a fresh attempted action.",
-        commit_evidence=["05aad44"],
-        runner=_case_agent_output_not_cat_ii,
+        name="actor_submission_origin_invariant",
+        description=(
+            "The same contestable character submission opens the same Cat II "
+            "whether the actor is directly bound or autonomous."
+        ),
+        commit_evidence=["ayoa-m3aq"],
+        runner=_case_actor_submission_origin_invariant,
     ),
     Case(
         name="mediated_perception_splits_audio_and_visual",
@@ -1259,25 +1328,14 @@ def _default_candidates(config: LLMConfig) -> list[Candidate]:
         if configured_provider == "openai"
         else ""
     )
-    candidates = [
+    return [
         Candidate(
             label="current_default",
             model=configured_model,
             provider=configured_provider,
             reasoning_effort=configured_reasoning,
-        ),
-        Candidate(label="gpt_5_mini", model="gpt-5-mini", reasoning_effort="medium"),
-        Candidate(label="gpt_5_4_mini", model="gpt-5.4-mini", reasoning_effort="medium"),
+        )
     ]
-    seen: set[str] = set()
-    unique: list[Candidate] = []
-    for candidate in candidates:
-        key = f"{candidate.provider}:{candidate.model}:{candidate.reasoning_effort}"
-        if candidate.label != "current_default" and key in seen:
-            continue
-        seen.add(key)
-        unique.append(candidate)
-    return unique
 
 
 def _parse_candidate(raw: str) -> Candidate:
@@ -1477,8 +1535,8 @@ def main() -> None:
         type=_parse_candidate,
         help=(
             "Candidate override. Use label=model, label=model:reasoning, "
-            "or label=provider:model:reasoning. Defaults to current_default, "
-            "gpt-5-mini, and gpt-5.4-mini."
+            "or label=provider:model:reasoning. Repeat the flag to compare "
+            "models. The default is only the configured event router."
         ),
     )
     parser.add_argument(

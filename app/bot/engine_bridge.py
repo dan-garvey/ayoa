@@ -198,7 +198,7 @@ def _loot_claim_router_update(
     return (
         "Inventory update before the next action: "
         f"{character_id} took {_join_claim_parts(claimed)} from {source}. "
-        "Preserve this as explicit player continuity unless the current "
+        "Preserve this as established inventory continuity unless the current "
         "input reverses it."
     )
 
@@ -222,7 +222,7 @@ def _loot_split_router_update(
     return (
         "Inventory update before the next action: "
         f"{character_id} split currency from {source}; "
-        f"{'; '.join(share_bits)}. Preserve this as explicit player "
+        f"{'; '.join(share_bits)}. Preserve this as established inventory "
         "continuity unless the current input reverses it."
     )
 
@@ -1582,9 +1582,7 @@ class EngineBridge:
                 f"from {imported}; {class_line}, level {summary.total_level}, "
                 f"AC {summary.armor_class}, HP "
                 f"{summary.hit_points_current}/{summary.hit_points_max}. "
-                f"D&D session settings enabled: ruleset_id="
-                f"{settings.ruleset_id}, player_roll_mode="
-                f"{settings.player_roll_mode}. "
+                "D&D rules now govern relevant adjudication. "
                 "Use these mechanics for D&D adjudication; preserve the "
                 "story identity unless fiction explicitly changes it. "
                 f"{equipment_line}"
@@ -1862,11 +1860,6 @@ class EngineBridge:
             )
 
         ckpt.session.character_bindings[character_id] = uid
-        ckpt.session.pending_engine_state_updates.append(
-            f"Player binding: {character_id} is now "
-            f"driven by a human player. Treat them as a protagonist; "
-            f"the narrator may pivot POV to them."
-        )
         return target
 
     async def claim_player_character(
@@ -2013,17 +2006,12 @@ class EngineBridge:
             )
             if is_player_authored_slot(target):
                 target.status = CharacterStatus.dormant
-                target.location = ""
+                target.location = "outside_active_fiction"
                 ckpt.session.pending_engine_state_updates.append(
-                    f"Player binding: {freed} is no longer human-bound and "
-                    "has left the fiction. It is a player-authored slot, not "
-                    "an AI-controlled character."
-                )
-            else:
-                ckpt.session.pending_engine_state_updates.append(
-                    f"Player binding: {freed} returned to "
-                    f"AI control. Their character agent will resume producing "
-                    f"intentions on cascade."
+                    f"Character lifecycle update: {freed} left active fiction "
+                    "and is now dormant at outside_active_fiction. Do not "
+                    "route, observe, or activate this existing record unless "
+                    "a later authored arrival explicitly reintroduces it."
                 )
             if ckpt.session.player_character_id == freed:
                 ckpt.session.player_character_id = ""
@@ -2130,23 +2118,16 @@ class EngineBridge:
         # into the field can't shatter the next router prompt.
         summary = _normalize_router_summary(out.character.router_summary or "")
         if summary:
-            # Engine-side player-bound tag is a tight, repeatable
-            # signal; the takeover prompt's "describe" mode does NOT
-            # need to embed protagonist framing in the LLM-authored
-            # summary anymore (it owns the in-fiction line; we own the
-            # binding metadata). Tag stays compact to minimize echo
-            # surface in router short-circuit prose.
             ckpt.session.pending_engine_state_updates.append(
-                f"Custom player character created: {new_id} — "
-                f"{summary} [player-bound]"
+                f"Existing character ready for arrival: {new_id} — "
+                f"{summary} Status=active; location=not yet placed."
             )
         else:
             role = new_char.public_sheet.role or "unknown role"
             loc = new_char.location or "unknown"
             ckpt.session.pending_engine_state_updates.append(
-                f"Custom player character created: {new_id}, "
-                f"role={role}, location={loc}, bound to a "
-                f"human player."
+                f"Existing character ready for arrival: {new_id}, "
+                f"role={role}, location={loc}."
             )
             logger.warning(
                 "Custom-character spawn for %s landed without "
@@ -2241,15 +2222,15 @@ class EngineBridge:
         # in the per-turn router context.
         bits = [f"appearance: {appearance[:200]}"]
         if backstory:
-            bits.append(f"player-supplied backstory: {backstory[:300]}")
+            bits.append(f"authored backstory: {backstory[:300]}")
         bits.append(
-            "sparse player-authored arrival: infer a concrete story role "
+            "sparse arrival: infer a concrete story role "
             "and immediate on-ramp from the premise; surface that on-ramp "
-            "as in-fiction observable_facts to the NPCs who would know"
+            "as in-fiction observable_facts to the characters who would know"
         )
         ckpt.session.pending_engine_state_updates.append(
-            f"Custom player character created: {new_id} — "
-            f"{'; '.join(bits)}. [player-bound]"
+            f"Existing character ready for arrival: {new_id} — "
+            f"{'; '.join(bits)}."
         )
 
         self.checkpoint_mgr.save(ckpt)
@@ -2395,29 +2376,22 @@ class EngineBridge:
         ckpt.character_conversations.pop(target_character_id, None)
 
         ckpt.session.character_bindings[target_character_id] = str(user_id)
-        # Same router_summary preference as create_custom_character.
-        # For replace, the takeover prompt DOES instruct the LLM to
-        # acknowledge the graft (same body / new actor / new
-        # motivation) in the summary itself — that's substantive
-        # in-fiction content the LLM is best positioned to phrase.
-        # The engine adds a compact `[player-bound, replaced X]` tag
-        # so the router has unambiguous metadata even if the LLM
-        # phrasing is loose; replaced-id tag also double-keys the
-        # ghost-spawn cleanup helper since the new line carries the
-        # SAME id as the prior NPC.
+        # Same router_summary preference as create_custom_character. The
+        # replacement summary describes only the external fictional identity
+        # change; interface ownership is irrelevant to router adjudication.
         summary = _normalize_router_summary(out.character.router_summary or "")
         if summary:
             ckpt.session.pending_engine_state_updates.append(
                 f"Character replacement: id {target_character_id} "
-                f"identity overwritten — {summary} "
-                f"[player-bound, replaced prior occupant of this id]"
+                f"identity overwritten — {summary} Treat this as a new "
+                "identity with the same established body and circumstances."
             )
         else:
             ckpt.session.pending_engine_state_updates.append(
                 f"Character replacement: identity of {target_character_id} "
                 f"has been overwritten — "
-                f"role={target.public_sheet.role or 'unknown role'}, bound "
-                f"to a human player. Goals and personality are different "
+                f"role={target.public_sheet.role or 'unknown role'}. "
+                "Goals and personality are different "
                 f"from the prior version; treat as a new actor with the "
                 f"same body."
             )

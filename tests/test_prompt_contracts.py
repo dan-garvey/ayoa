@@ -1,27 +1,29 @@
 from app.engine.turn_loop_contracts import (
-    SWEPT_RESPONDERS_SUBHEADER,
+    ACTOR_SUBMISSION_HEADER,
     ROUTER_CONTINUATION_HEADER,
+    UNANSWERED_RESPONDERS_SUBHEADER,
     format_agent_turn_body,
-    format_agent_output_entry,
+    format_actor_submission,
     format_cat_ii_resolution_block,
-    format_human_initiator_intention,
-    format_npc_cascade_intention,
     format_router_continuation_block,
 )
 
 
 class TestContractHelpers:
-    def test_human_initiator_framing(self):
-        out = format_human_initiator_intention("alice", "I look around")
-        assert out == "I look around"
-        assert "## Intention" not in out
-        assert "attempts:" not in out
+    def test_actor_submission_names_character_and_preserves_proposed_motion(self):
+        out = format_actor_submission("alice", "I look around")
 
-    def test_npc_cascade_framing(self):
-        out = format_npc_cascade_intention("pip", "steps closer")
-        assert out == "steps closer"
-        assert "intends:" not in out
-        assert "attempts:" not in out
+        assert out == (
+            f"{ACTOR_SUBMISSION_HEADER}\n\n"
+            "submitted_actor_id: alice\n"
+            "submission_text:\n"
+            "I look around"
+        )
+
+    def test_actor_submission_blank_text_has_explicit_no_action_marker(self):
+        out = format_actor_submission("pip", "")
+
+        assert out.endswith("submission_text:\n(no public action)")
 
     def test_cat_ii_resolution_omits_swept_from_responder_list(self):
         block = format_cat_ii_resolution_block(
@@ -36,8 +38,10 @@ class TestContractHelpers:
         assert "Initiator (pip)" in block
         assert "alice: I duck" in block
         assert "sentinel text" not in block  # Bob's intention text NOT in block.
-        assert SWEPT_RESPONDERS_SUBHEADER in block
+        assert UNANSWERED_RESPONDERS_SUBHEADER in block
         assert "bob" in block  # Bob is named under swept subheader.
+        assert "AFK" not in block
+        assert "player" not in block.lower()
 
     def test_cat_ii_resolution_no_swept_section_when_all_live(self):
         block = format_cat_ii_resolution_block(
@@ -46,7 +50,7 @@ class TestContractHelpers:
             responders=[("alice", "dodge")],
             swept_responders=[],
         )
-        assert SWEPT_RESPONDERS_SUBHEADER not in block
+        assert UNANSWERED_RESPONDERS_SUBHEADER not in block
 
 
 class TestRouterContinuationBlock:
@@ -62,20 +66,9 @@ class TestRouterContinuationBlock:
         assert "I wait until the lift arrives." in block
         assert "Pending motion:" not in block
         assert "Cat II" in block
-
-
-class TestAgentOutputEntry:
-    """Agent-output router input is only `character_id: public text`."""
-
-    def test_renders_character_id_and_public_text_only(self):
-        entry = format_agent_output_entry(
-            "regent",
-            "He paces the long table.",
-        )
-        assert entry == "regent: He paces the long table."
-
-    def test_blank_public_text_falls_back_to_silent_marker(self):
-        assert format_agent_output_entry("mute", "") == "mute: (no public action)"
+        assert "autonomous" not in block.lower()
+        assert "player" not in block.lower()
+        assert "agent" not in block.lower()
 
 
 class TestAgentModeContract:

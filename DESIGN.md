@@ -173,9 +173,10 @@ role. It decides:
 * spawns, dormancy, and culls
 
 The router also handles router-shaped special entries: `(begin)`, `(arrive)`,
-`(query: ...)`, continuation rescue, Cat II resolution blocks, and committed
-agent outputs. These are different user-message framings over the same
-`EventRouterOutput` schema, not separate adjudication engines.
+`(query: ...)`, continuation rescue, and Cat II resolution blocks. Directly
+supplied and character-agent-authored prose share one proposed actor-submission
+framing over the same `EventRouterOutput` schema; neither source pre-commits
+fiction.
 
 ### 4.5 Agents Author Intentions, Not State
 
@@ -347,7 +348,7 @@ saves before the user's new action proceeds.
 ### 5.3 Turn Loop
 
 `run_beat()` in `app/engine/turn_loop.py` is the v11 state machine. It
-supports fresh human actions, Cat II responder actions, NPC cascades,
+supports actor submissions, Cat II responder actions, autonomous cascades,
 observation harvest, partial renders for contested attempts, max-event
 backstops, and per-human render fan-out.
 
@@ -367,11 +368,11 @@ Important state:
 
 `LLMDispatcher` binds the abstract turn-loop protocol to the live roles:
 
-* `route_intention()` calls the `event_router` prompt
+* `route_intention()` sends every proposed actor submission through the
+  `event_router` prompt, whether its text was supplied directly or authored by
+  a character agent
 * `route_continuation()` asks the router to repair an open beat with no
   dispatchable NPC pick
-* `route_agent_output()` routes one committed agent output back through the
-  normal router contract
 * `agent_intend()` calls `CharacterAgent.turn()`
 * `harvest_perceptions()` calls `CharacterAgent.perceive()` in parallel
 * `narrator_compose()` calls `compose_pov_render()`
@@ -386,14 +387,14 @@ router calls so a failed router completion does not silently drain them.
 
 The event router prompt and `EventRouterOutput` schema replace both the
 old narrator adjudication phase and the old discriminator role. The
-router emits one structured object per routed intention or agent output.
+router emits one structured object per actor submission or closed repair.
 
 Current router call shapes:
 
-* fresh human or NPC intention
+* actor submission (`submitted_actor_id` plus `submission_text`), independent
+  of how that text reached the runtime
 * Cat II final adjudication (`## Cat II Resolution`)
 * continuation rescue (`## Continuation Required`)
-* one committed agent output as `<character_id>: <public text>`
 * OOC directives such as `(begin)`, `(arrive)`, `(defer)`, and
   `(query: ...)`
 
@@ -615,23 +616,36 @@ through opposition, consensual physical contact where reciprocation
 matters, and similar actions whose outcome depends on another actor's
 response.
 
+Character-agent prose remains a proposed actor submission until this step;
+it is not pre-committed fiction. The same submitted character id and text use
+the same open Cat II schema as directly supplied text. Current bindings are a
+downstream scheduling concern: they decide whether a required responder waits
+for input or intends autonomously, but do not change the router's adjudication
+contract. D&D Cat II packets likewise omit binding and roll-UI policy; those
+settings are consulted only when executing an already-authored roll plan.
+The D&D router uses `interaction_mode="narrative"` for both generic Cat I and
+Cat II. Only initiative start/end remain D&D-specific interaction modes, so an
+adapter label cannot contradict or erase the generic responder contract.
+
 Cat II flow:
 
 1. The router emits an attempt-in-progress event.
 2. The engine opens an `OpenCatIIEvent`.
-3. Human responders are pinned in `active_act_slots`.
-4. Agent responders intend immediately.
+3. Bound responders are pinned in `active_act_slots`.
+4. Autonomous responders intend immediately.
 5. If all responders are present, the router resolves the event inline.
 6. If a ruleset adapter is active, final resolution may enter that
    ruleset's router-owned roll planning/finalization subflow. NPC/agent
    rolls execute automatically; player rolls either execute automatically
    or pause for Discord roll UI depending on `player_roll_mode`.
-7. If any human responder or player roll is pending, the narrator renders
+7. If any bound responder or interactive roll is pending, the narrator renders
    partial-mode prose where applicable and the beat pauses.
-8. When the human responds or rolls, the router receives the compact resolution
-   packet and emits the resolved canonical event.
-9. After a Cat II event resolves, an NPC initiator gets the first
-   follow-up turn when applicable.
+8. When the pending responder intention or roll arrives, the router receives
+   the compact resolution packet and emits the resolved canonical event.
+9. The resolution may name any fictional character in semantic `next_output`.
+   The runtime yields when that character is bound or dispatches an autonomous
+   turn otherwise; it does not invent an initiator follow-up when none was
+   requested.
 
 Cat II final resolution is still router-owned. There is no separate rules
 arbitrator model role in the live runtime. Roll plans and dice ledgers persist
@@ -794,8 +808,9 @@ enrichment target:
 * `observe_only` means the character receives visible facts and no immediate
   output is requested.
 * `next_output` means the router wants this character to produce the next live
-  output if the beat remains open. Runtime safety filters still remove
-  human-bound, inactive, pinned, disabled, or combat-blocked characters.
+  output if the beat remains open. The runtime yields for a bound character,
+  dispatches an eligible autonomous character, and rejects inactive, pinned,
+  disabled, or combat-blocked targets.
 * `perception_enrichment` means the character is a perception-harvest target
   for `observation_harvest` or `query_response`, not a response actor.
 
@@ -1452,7 +1467,7 @@ LLM failures:
 * permanent schema/prompt errors raise
 * a router or narrator failure aborts the turn before checkpoint commit
 * empty agent outputs are omitted from the current routed-agent pass
-* a failed agent-output router call aborts before checkpoint commit
+* a failed actor-submission router call aborts before checkpoint commit
 
 Structured output:
 

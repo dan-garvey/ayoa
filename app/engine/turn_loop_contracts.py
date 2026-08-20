@@ -10,8 +10,9 @@ PARTIAL_MODE_MARKER = (
     "Stop before the attempted action resolves; the player supplies the response."
 )
 CAT_II_RESOLUTION_HEADER = "## Cat II Resolution"
-SWEPT_RESPONDERS_SUBHEADER = "## Swept Responders (AFK)"
+UNANSWERED_RESPONDERS_SUBHEADER = "## Responders Without Submitted Intentions"
 ROUTER_CONTINUATION_HEADER = "## Continuation Required"
+ACTOR_SUBMISSION_HEADER = "## Actor Submission"
 
 # v11 unified-agent turn marker. The agent template (`agent.txt`) is a
 # single system prompt for foreground, private/background, and perception
@@ -32,21 +33,22 @@ AGENT_TURN_HEADER = "## AGENT-TURN"
 AGENT_PERCEPTION_HEADER = "## PERCEPTION"
 
 
-def format_human_initiator_intention(character_id: str, user_input: str) -> str:
-    """Cat I / Cat II OPEN path: a human player's /act.
+def format_actor_submission(character_id: str, submission_text: str) -> str:
+    """One uncommitted fictional-character submission for adjudication.
 
-    The router user tail already identifies the acting character by id.
-    Keep the input as the player's raw intention so we do not duplicate
-    actor labels or add "attempts:"/markdown framing to every call.
+    The same envelope is used whether the text was supplied directly or
+    authored by a character agent.  The router therefore sees only the
+    submitting fictional character and proposed motion, never its runtime
+    communication source.
     """
-    del character_id
-    return (user_input or "").strip()
-
-
-def format_npc_cascade_intention(character_id: str, intention: str) -> str:
-    """NPC cascade step in a beat (not a fresh player action)."""
-    del character_id
-    return (intention or "").strip()
+    text = (submission_text or "").strip() or "(no public action)"
+    return "\n".join([
+        ACTOR_SUBMISSION_HEADER,
+        "",
+        f"submitted_actor_id: {character_id}",
+        "submission_text:",
+        text,
+    ])
 
 
 def format_cat_ii_resolution_block(
@@ -57,9 +59,9 @@ def format_cat_ii_resolution_block(
     swept_responders: list[str],
 ) -> str:
     """Part C Cat II Resolution block. Responder intentions from
-    swept_responders (AFK-timeout) are LISTED in the swept sub-header
-    only — not in the responder list — so the prompt never sees the
-    debug sentinel text."""
+    `swept_responders` are listed under a source-neutral unanswered heading,
+    not in the responder list, so the prompt receives neither runtime control
+    metadata nor the internal sweep sentinel."""
     lines = [CAT_II_RESOLUTION_HEADER, ""]
     lines.append(f"Initiator ({initiator_id}): {initiator_intention}")
     lines.append("")
@@ -73,26 +75,18 @@ def format_cat_ii_resolution_block(
             lines.append(f"- {rid}: {itext}")
         lines.append("")
     if swept_responders:
-        lines.append(SWEPT_RESPONDERS_SUBHEADER)
+        lines.append(UNANSWERED_RESPONDERS_SUBHEADER)
         for rid in swept_responders:
-            lines.append(f"- {rid} (AFK — render as present-but-non-reactive)")
+            lines.append(
+                f"- {rid}: no intention received; adjudicate as present "
+                "but non-reactive"
+            )
         lines.append("")
     lines.append(
         "Compose the resolved canonical event per Part C. Emit "
         "requires_responders=false and event_kind=cat_ii_resolution."
     )
     return "\n".join(lines)
-
-
-def format_agent_output_entry(character_id: str, public_text: str) -> str:
-    """Router input for one committed agent output.
-
-    Runtime dispatch metadata such as frame and source event id shapes the
-    agent call before this point; the router only needs the authoring
-    character id and public surface text.
-    """
-    text = (public_text or "").strip() or "(no public action)"
-    return f"{character_id}: {text}"
 
 
 def format_router_continuation_block(
@@ -105,15 +99,15 @@ def format_router_continuation_block(
     This is not a new character intention. It is a router-only recovery
     mode used when the prior router output left no dispatchable next-output
     target but the visible sequence still needs motion. The next router output
-    must either create a concrete response boundary or supply a real NPC
+    must either create a concrete response boundary or supply a real character
     continuation.
     """
     lines = [
         ROUTER_CONTINUATION_HEADER,
         "",
         (
-            "The visible sequence still needs motion, but no autonomous actor "
-            "was selected to act next."
+            "The visible sequence still needs motion, but no character was "
+            "selected to act next."
         ),
         "",
         (
@@ -126,8 +120,8 @@ def format_router_continuation_block(
         ),
         "",
         (
-            "Do not open Cat II in this mode. Author a closed cue or select an "
-            "autonomous actor with `routing_role=next_output`."
+            "Do not open Cat II in this mode. Author a closed cue or select a "
+            "character with `routing_role=next_output`."
         ),
     ]
     action = (original_action or "").strip()

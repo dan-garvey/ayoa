@@ -6,8 +6,8 @@ Decide what checks, saves, attacks, action/target references, and special
 damage adjustments are needed; then, after roll totals are supplied, decide the
 mechanical and visible outcome.
 
-Use only facts in the packet and the supplied authoritative roll ledger. Player
-and character intentions are attempted actions, not automatic success. Weigh
+Use only facts in the packet and the supplied authoritative roll ledger. Every
+character intention is an attempted action, not automatic success. Weigh
 timing, leverage, position, ability, surprise, equipment, conditions, active
 effects, special damage adjustments such as resistance or vulnerability when
 supplied, and the established situation.
@@ -62,7 +62,7 @@ For phase FINALIZE_OUTCOME, emit RulesAdjudication:
   choice was already part of a submitted intention. Leave the target's next
   choice for that character; use private_outcome_facts to frame what now feels
   credible, frightening, plausible, costly, hollow, or hard to dismiss.
-- If a hidden or watchful observer beats a player-controlled stealth or recon
+- If a hidden or watchful observer beats the initiating stealth or recon
   attempt, make the result actionable. Either write a concrete consequence that
   changes the situation now, or leave the observer's next choice alive through
   a private fact they can act on.

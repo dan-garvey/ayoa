@@ -82,7 +82,7 @@ _STEALTH_RECON_CONTEXT_TERMS = {
     "unseen",
     "watcher",
 }
-_STEALTH_RECON_PLAYER_SKILLS = {
+_STEALTH_RECON_INITIATOR_SKILLS = {
     "investigation",
     "perception",
     "stealth",
@@ -3134,7 +3134,6 @@ def _build_contested_packet(
     content_context_records: list[str] | None = None,
 ) -> str:
     by_id = {c.character_id: c for c in ckpt.characters}
-    bindings = ckpt.session.character_bindings or {}
     participant_ids = _participant_ids(cat_ii_event)
     participants = []
     for cid in participant_ids:
@@ -3146,7 +3145,6 @@ def _build_contested_packet(
             "character_id": cid,
             "role": char.public_sheet.role,
             "location": char.location,
-            "player_controlled": cid in bindings,
             "mechanics": mechanics.mechanics_summary(
                 char,
                 include_inventory_resources=(
@@ -3157,7 +3155,6 @@ def _build_contested_packet(
 
     payload = {
         "ruleset_id": ckpt.session.config.settings.ruleset_id,
-        "player_roll_mode": ckpt.session.config.settings.player_roll_mode,
         "initiator_id": cat_ii_event.initiator_id,
         "initiator_intention": cat_ii_event.initiator_intention,
         "required_responders": cat_ii_event.required_responders,
@@ -3184,7 +3181,7 @@ def _contested_adjudication_hints(
         hints["stealth_recon"] = {
             "present": True,
             "consequence_contract": (
-                "If an observer beats a player-controlled stealth or recon "
+                "If an observer beats the initiating stealth or recon "
                 "approach, the result must create an actionable consequence "
                 "or give that observer an immediate follow-up choice."
             ),
@@ -4029,16 +4026,11 @@ def _social_private_followup_responder_ids(
     if not _transaction_uses_social_influence(transaction):
         return []
 
-    from app.engine.context_builder import collect_player_ids
-
-    humans = collect_player_ids(ckpt)
     required = set(cat_ii_event.required_responders)
     out: list[str] = []
     for fact in adjudication.private_outcome_facts:
         for cid in fact.visible_to:
             if cid not in required:
-                continue
-            if cid in humans:
                 continue
             if not _character_exists(ckpt, cid):
                 continue
@@ -4054,18 +4046,16 @@ def _stealth_recon_followup_responder_ids(
 ) -> list[str]:
     """Give a hidden watcher agency when they win the D&D contest.
 
-    A failed stealth/recon approach against a hidden or watchful NPC is not a
-    terminal "nothing happens" result at the table. The observer now knows
+    A failed stealth/recon approach against a hidden or watchful character is
+    not a terminal "nothing happens" result at the table. The observer now knows
     something and should either act immediately or receive a concrete state
     change. The adapter enforces the agency half of that contract by routing
-    the winning non-player responder for the next output.
+    the winning required responder for the next output. Runtime bindings decide
+    whether that semantic target is yielded to or advanced autonomously.
     """
     if not _stealth_recon_context_present(cat_ii_event):
         return []
 
-    from app.engine.context_builder import collect_player_ids
-
-    humans = collect_player_ids(ckpt)
     required = set(cat_ii_event.required_responders)
     by_roll_id = {
         record.roll_id: record
@@ -4073,18 +4063,16 @@ def _stealth_recon_followup_responder_ids(
         if record.roll_id
     }
     out: list[str] = []
-    for player_record in transaction.rolls:
-        if player_record.actor_id not in humans:
+    for initiator_record in transaction.rolls:
+        if initiator_record.actor_id != cat_ii_event.initiator_id:
             continue
-        player_request = _safe_planned_roll(player_record.request)
-        if player_request is None:
+        initiator_request = _safe_planned_roll(initiator_record.request)
+        if initiator_request is None:
             continue
-        if not _is_stealth_recon_player_roll(player_request):
+        if not _is_stealth_recon_initiator_roll(initiator_request):
             continue
-        observer_record = by_roll_id.get(player_request.opposed_by)
+        observer_record = by_roll_id.get(initiator_request.opposed_by)
         if observer_record is None:
-            continue
-        if observer_record.actor_id in humans:
             continue
         if observer_record.actor_id not in required:
             continue
@@ -4093,11 +4081,11 @@ def _stealth_recon_followup_responder_ids(
             continue
         if not _is_stealth_recon_counter_roll(observer_request):
             continue
-        player_total = _completed_roll_total(player_record)
+        initiator_total = _completed_roll_total(initiator_record)
         observer_total = _completed_roll_total(observer_record)
-        if player_total is None or observer_total is None:
+        if initiator_total is None or observer_total is None:
             continue
-        if observer_total <= player_total:
+        if observer_total <= initiator_total:
             continue
         if not _character_exists(ckpt, observer_record.actor_id):
             continue
@@ -4120,10 +4108,10 @@ def _completed_roll_total(record: CatIIRollRecord) -> int | None:
         return None
 
 
-def _is_stealth_recon_player_roll(request: PlannedRoll) -> bool:
+def _is_stealth_recon_initiator_roll(request: PlannedRoll) -> bool:
     return (
         request.kind in {"ability_check", "skill_check"}
-        and request.skill.strip().lower() in _STEALTH_RECON_PLAYER_SKILLS
+        and request.skill.strip().lower() in _STEALTH_RECON_INITIATOR_SKILLS
         and bool(request.opposed_by.strip())
     )
 
@@ -4239,7 +4227,7 @@ def _compile_combat_router_output(
         commitment_resolutions=[],
         commitment_interrupts=[],
         location_updates=[],
-        interaction_mode="cat_i",
+        interaction_mode="narrative",
         combatant_ids=[],
     )
 

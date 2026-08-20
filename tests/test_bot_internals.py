@@ -427,7 +427,8 @@ class TestLootRouterSync:
         update = reloaded.session.pending_engine_state_updates[0]
         assert "Inventory update before the next action" in update
         assert "alice took Potion of Healing and 8 sp from iron chest" in update
-        assert "explicit player continuity" in update
+        assert "established inventory continuity" in update
+        assert "player" not in update.lower()
 
     def test_decline_loot_does_not_queue_router_update(
         self,

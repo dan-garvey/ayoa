@@ -27,10 +27,12 @@ from copy import deepcopy
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
 from app.engine.context_builder import (
+    build_dnd_character_equipment_sentence,
+    build_dnd_character_identity_sentence,
     build_hidden_facts,
-    build_player_characters_block,
     build_setting_summary,
     build_world_rules,
+    collect_player_ids,
     resolve_acting_character,
 )
 from app.engine.prompt_manager import PromptManager
@@ -43,10 +45,8 @@ from app.engine.dnd_cat_ii import (
 )
 from app.engine.dnd_combat_resolution import DndCombatResolver
 from app.engine.turn_loop_contracts import (
+    format_actor_submission,
     format_cat_ii_resolution_block,
-    format_agent_output_entry,
-    format_human_initiator_intention,
-    format_npc_cascade_intention,
     format_router_continuation_block,
 )
 from app.llm.client import LLMClient
@@ -135,11 +135,11 @@ def _build_router_world_lore(checkpoint: CheckpointFile) -> str:
 
 
 def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
-    """Render the full NPC roster + interior on turn 1 only.
+    """Render the binding-invariant active character roster on turn 1.
 
     Pre-Commit-3 the per-turn user message carried `character_registry`
-    EVERY turn — name + role + status + location for every non-player
-    character (~80 tokens × N NPCs, ~1000 tokens/turn for hollowstone).
+    EVERY turn — name + role + status + location for every character
+    (~80 tokens × N characters, ~1000 tokens/turn for hollowstone).
     The router has its own session conversation history, so re-feeding
     identity every turn was duplication: turn-1's inject plus spawn
     outcomes are already in history.
@@ -150,13 +150,14 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     world and what are they trying to do" so picking decisions on turn
     1 aren't blind. Returns "" on every turn after the first.
 
-    NOTE: this block does NOT carry per-NPC interior beyond
-    seed-authored goals/objectives. An agent's freshest interior
-    (the trailing parenthetical from its last committed turn)
-    lives in that agent's own rolling history and is deliberately
-    NOT mirrored to the router — the router decides who acts based on
-    public signals (cascade intentions, prior canonical events) +
-    seeded objectives, not stolen interior.
+    Membership and rendering deliberately ignore live bindings. A character's
+    controller cannot change the router's fictional roster. Dormant records,
+    including an unintroduced player-authored slot, remain absent. Authored
+    opening/arrival participant blocks carry a selected dormant character only
+    for the transition that introduces them.
+
+    This block does not carry private interior beyond seed-authored goals and
+    objectives. Fresh private thought stays in character-local history.
     """
     if any(
         not _is_router_content_history_message(message)
@@ -166,17 +167,8 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     if not checkpoint.characters:
         return ""
 
-    from app.engine.context_builder import (
-        collect_player_ids,
-        is_unbound_player_authored_slot,
-    )
-    player_ids = collect_player_ids(checkpoint)
     entries: list[str] = []
     for char in checkpoint.characters:
-        if char.character_id in player_ids:
-            continue
-        if is_unbound_player_authored_slot(checkpoint, char):
-            continue
         if char.status.value != "active":
             continue
 
@@ -186,8 +178,17 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
             f"- {char.character_id}",
             f"  Role: {role}",
         ]
+        appearance = (char.public_sheet.appearance or "").strip()
+        if appearance:
+            parts.append(f"  Appearance: {appearance}")
         location = char.location or "unknown location"
         parts.append(f"  Location: {location}")
+        dnd_identity = build_dnd_character_identity_sentence(checkpoint, char)
+        if dnd_identity:
+            parts.append(f"  {dnd_identity}")
+        dnd_equipment = build_dnd_character_equipment_sentence(checkpoint, char)
+        if dnd_equipment:
+            parts.append(f"  {dnd_equipment}")
         goals = [g for g in (char.private_state.goals or []) if g]
         if goals:
             parts.append(
@@ -204,8 +205,8 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
         return ""
 
     header = (
-        "## Initial Roster\n"
-        "Every active NPC in this world, with their long-term goals "
+        "## Initial Character Roster\n"
+        "Every active character in this world, with their long-term goals "
         "and active pursuits.\n\n"
     )
     return header + "\n\n".join(entries) + "\n"
@@ -226,10 +227,9 @@ def _build_engine_state_updates_block(checkpoint: CheckpointFile) -> str:
     - player loot claim: character inventory changed from a D&D loot offer
     - player loot currency split: party inventories changed from a D&D loot offer
     - D&D sheet attached: character mechanics/ruleset state changed externally
-    - player binding changed: /join bound a human to a character
-    - player binding removed: /leave returned a character to AI control
-    - custom player character created by frontend takeover/create flow
-    - existing character replaced/overwritten by player character creation
+    - an authored character left active fiction and became dormant
+    - a custom character became ready for an authored arrival
+    - an existing character received a replacement fictional identity
 
     Explicitly excluded:
     - router-authored spawn/dormant/cull/location/commitment changes
@@ -272,32 +272,103 @@ def _is_begin_directive(intention: str) -> bool:
 def _build_opening_context_block(
     checkpoint: CheckpointFile,
     intention: str,
+    acting_character_id: str,
 ) -> str:
-    """Render story-authored opening requirements only for ``(begin)``."""
-    if not _is_begin_directive(intention):
+    """Render semantic participants plus story rules for begin/arrival.
+
+    The opening participant selection is computed from interface bindings, but
+    the router receives only its authorial meaning: these existing fictional
+    records must enter this opening. For ``(arrive)``, the submitted actor is
+    the sole semantic arrival participant. No controller/source metadata is
+    exposed in either mode.
+    """
+    normalized = (intention or "").strip().casefold()
+    is_begin = normalized == "(begin)"
+    is_arrive = normalized == "(arrive)"
+    if not is_begin and not is_arrive:
         return ""
+
+    if is_begin:
+        selected_ids = collect_player_ids(checkpoint)
+        participant_heading = "## Authored Opening Participants"
+        participant_purpose = (
+            "Place these existing characters in the opening according to the "
+            "authored context below."
+        )
+    else:
+        selected_ids = {acting_character_id}
+        participant_heading = "## Arriving Existing Character"
+        participant_purpose = (
+            "Bring this existing character into the current story frame now."
+        )
+
+    participant_lines: list[str] = []
+    for character in checkpoint.characters:
+        if character.character_id not in selected_ids:
+            continue
+        role = character.public_sheet.role or "unspecified role"
+        appearance = (
+            character.public_sheet.appearance or "not yet described"
+        ).strip()
+        location = character.location or "not yet placed"
+        participant_lines.extend([
+            f"- {character.character_id}",
+            f"  Name: {character.name}",
+            f"  Role: {role}",
+            f"  Appearance: {appearance}",
+            f"  Current status: {character.status.value}",
+            f"  Current location: {location}",
+        ])
+        dnd_identity = build_dnd_character_identity_sentence(
+            checkpoint,
+            character,
+        )
+        if dnd_identity:
+            participant_lines.append(f"  {dnd_identity}")
+        dnd_equipment = build_dnd_character_equipment_sentence(
+            checkpoint,
+            character,
+        )
+        if dnd_equipment:
+            participant_lines.append(f"  {dnd_equipment}")
+
+    if participant_lines:
+        participants = (
+            f"{participant_heading}\n"
+            f"{participant_purpose}\n"
+            + "\n".join(participant_lines)
+        )
+    else:
+        participants = (
+            f"{participant_heading}\n"
+            "No existing character is authored to enter this transition."
+        )
+
+    if is_arrive:
+        return participants
 
     policy = checkpoint.world_state.opening
     if policy is None:
-        return (
+        opening_context = (
             "## Authored Opening Context\n"
             "New-character spawn requests: forbidden.\n"
             "No story-specific opening requirements were authored."
         )
-
-    if policy.allow_spawns:
-        spawn_rule = (
-            "allowed only when the authored requirements below explicitly "
-            "require newly generated actors"
-        )
     else:
-        spawn_rule = "forbidden"
-    context = policy.context or "No story-specific opening requirements."
-    return (
-        "## Authored Opening Context\n"
-        f"New-character spawn requests: {spawn_rule}.\n"
-        f"{context}"
-    )
+        if policy.allow_spawns:
+            spawn_rule = (
+                "allowed only when the authored requirements below explicitly "
+                "require newly generated characters"
+            )
+        else:
+            spawn_rule = "forbidden"
+        context = policy.context or "No story-specific opening requirements."
+        opening_context = (
+            "## Authored Opening Context\n"
+            f"New-character spawn requests: {spawn_rule}.\n"
+            f"{context}"
+        )
+    return f"{participants}\n\n{opening_context}"
 
 
 def _validate_opening_spawn_authority(
@@ -721,7 +792,6 @@ def _normalize_router_result_for_history(
     result: EventRouterOutput,
     clock_anchor_character_id: str = "",
     cat_ii_event: OpenCatIIEvent | None = None,
-    minimum_effective_at_s: int | None = None,
 ) -> None:
     if clock_anchor_character_id:
         actor = next(
@@ -733,6 +803,11 @@ def _normalize_router_result_for_history(
         )
         if actor is not None and cat_ii_event is None:
             result.effective_at_s = max(result.effective_at_s, actor.clock_at_s)
+    if cat_ii_event is None:
+        result.effective_at_s = max(
+            result.effective_at_s,
+            ckpt.session.leading_at_s,
+        )
     if cat_ii_event is not None and cat_ii_event.opening_event_id:
         opening = next(
             (
@@ -743,11 +818,6 @@ def _normalize_router_result_for_history(
         )
         if opening is not None:
             result.effective_at_s = opening.effective_at_s
-    if minimum_effective_at_s is not None:
-        result.effective_at_s = max(
-            result.effective_at_s,
-            minimum_effective_at_s,
-        )
 
 
 def _roll_transaction_actor_id(ckpt: CheckpointFile, event_id: str) -> str:
@@ -784,9 +854,6 @@ def _build_router_context(
         "hidden_lore": ckpt.world_state.hidden_lore or "None.",
         "hidden_facts": build_hidden_facts(ckpt, empty="None."),
         "acting_character_id": acting_id,
-        "player_characters_block": build_player_characters_block(
-            ckpt, acting_id,
-        ),
         "initial_roster_block": _build_initial_roster_block(ckpt),
         "engine_state_updates_block": (
             _build_engine_state_updates_block(ckpt)
@@ -933,15 +1000,9 @@ class LLMDispatcher:
             dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
             if cat_ii_event is None:
-                bindings = ckpt.session.character_bindings or {}
-                if actor_id in bindings:
-                    intention_block = format_human_initiator_intention(
-                        actor_id, intention,
-                    )
-                else:
-                    intention_block = format_npc_cascade_intention(
-                        actor_id, intention,
-                    )
+                intention_block = format_actor_submission(
+                    actor_id, intention,
+                )
                 cat_ii_resolution_block = ""
             else:
                 evt = cat_ii_event
@@ -960,7 +1021,7 @@ class LLMDispatcher:
 
             router_input_block = _build_router_input_block(
                 ctx.pop("initial_roster_block", ""),
-                _build_opening_context_block(ckpt, intention),
+                _build_opening_context_block(ckpt, intention, actor_id),
                 ctx.pop("engine_state_updates_block", ""),
                 cat_ii_resolution_block,
                 intention_block,
@@ -1200,96 +1261,6 @@ class LLMDispatcher:
             acting_character_id=actor_id,
             result=result,
             mode="continuation",
-        )
-        return result
-
-    # ------------------------------------------------------------------
-    # route_agent_output
-    # ------------------------------------------------------------------
-
-    async def route_agent_output(
-        self,
-        *,
-        ckpt: CheckpointFile,
-        character_id: str,
-        public_text: str,
-    ) -> EventRouterOutput:
-        """Route one returned character output into one canonical event.
-
-        Agent parentheticals are already stripped by the agent adapter. The
-        router receives only public result text and chooses the next response
-        or player-facing boundary through its normal output fields.
-        """
-        router_snapshot = _router_call_snapshot(ckpt)
-        try:
-            await _append_router_content_lookup_records(
-                ckpt,
-                actor_id=character_id,
-                current_input=public_text,
-                client=self.client,
-                prompt_mgr=self.prompt_mgr,
-            )
-
-            ctx = _build_router_context(
-                ckpt,
-                character_id,
-                resolve_actor_fallback=False,
-                include_engine_state_updates=False,
-            )
-
-            agent_output = format_agent_output_entry(character_id, public_text)
-
-            template_vars = {
-                **ctx,
-                **_router_ruleset_template_vars(
-                    self.prompt_mgr,
-                    dnd_mode=_session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID,
-                    dnd_fresh=False,
-                ),
-                "router_input_block": agent_output,
-            }
-
-            system_message = self.prompt_mgr.render_system_message(
-                "event_router",
-                **template_vars,
-            )
-            messages = [system_message]
-            for item in ckpt.session_conversation:
-                messages.append({"role": item.role, "content": item.content})
-            messages.append({
-                "role": "user",
-                "content": agent_output,
-            })
-
-            logger.info(
-                "LLMDispatcher.route_agent_output: character=%s",
-                character_id,
-            )
-
-            response = await self.client.complete(
-                role="event_router",
-                messages=messages,
-                response_model=ClosedEventRouterOutput,
-                temperature=0.35,
-                max_tokens=EVENT_ROUTER_MAX_TOKENS,
-                cache=True,
-                compact=True,
-            )
-        except Exception:
-            _restore_router_call_snapshot(ckpt, router_snapshot)
-            raise
-
-        result: EventRouterOutput = response.parsed
-        _normalize_router_result_for_history(
-            ckpt,
-            result=result,
-            minimum_effective_at_s=ckpt.session.leading_at_s,
-        )
-        _append_router_history_record(
-            ckpt.session_conversation,
-            acting_character_id=character_id,
-            result=result,
-            mode="agent_output",
         )
         return result
 

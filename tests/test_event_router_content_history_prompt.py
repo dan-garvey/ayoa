@@ -25,7 +25,6 @@ def _render_router_conversation(
         hidden_lore="The cellar has a hidden exit.",
         hidden_facts="- The baron spies through the servant.",
         acting_character_id="alice",
-        player_characters_block="- **alice** (acting this turn) - investigator.",
         fresh_intention_classifier=mgr.render(
             "event_router_ruleset_default",
         ).strip(),
@@ -60,17 +59,6 @@ def test_event_router_defines_content_history_record_contract():
     assert "non-binding attention hint" in contract
     assert "spawn authority" in contract
     assert "Never route or spawn" in contract
-
-
-def test_event_router_defines_departure_handoff_contract():
-    messages = _render_router_conversation()
-    system_content = messages[0]["content"]
-
-    assert "Departure And Handoff Pacing" in system_content
-    assert "location_updates" in system_content
-    assert "accepted terms and assigned responsibilities" in system_content
-    assert "material objection" in system_content
-    assert "extra agent turns" in system_content
 
 
 def test_content_history_records_stay_assistant_side_not_current_turn_packet():

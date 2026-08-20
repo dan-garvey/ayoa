@@ -13,7 +13,6 @@ from app.bot.engine_bridge import (
 )
 from app.engine.frontend_views import CharacterSummary
 from app.engine.context_builder import (
-    build_player_characters_block,
     collect_player_ids,
 )
 from app.schemas.characters import (
@@ -160,11 +159,38 @@ class TestSummaries:
 
         assert [summary.character_id for summary in joinable] == ["open"]
 
+    def test_player_authored_slot_is_selectable_with_claim_guidance(self):
+        ckpt = _make_checkpoint()
+        ckpt.session.player_character_id = ""
+        ckpt.session.character_bindings = {}
+        ckpt.characters.append(CharacterRecord(
+            character_id="blank_arrival",
+            name="the Newcomer",
+            status=CharacterStatus.dormant,
+            location="not_yet_fictional",
+            is_playable=True,
+            player_slot_kind=PlayerSlotKind.player_authored,
+            player_guidance="Choose this character's identity when joining.",
+        ))
+
+        summaries = _summaries_from_checkpoint(ckpt)
+        joinable = joinable_character_summaries(summaries)
+
+        summary = next(
+            item for item in joinable
+            if item.character_id == "blank_arrival"
+        )
+        assert summary.player_slot_kind == "player_authored"
+        assert "identity" in summary.player_guidance
+
 
 class TestBindUnbind:
     async def test_bind_user_happy_path(self, bridge: EngineBridge):
         await bridge.bind_user(SESSION_ID, user_id=42, character_id="sera")
         assert bridge.get_user_binding(SESSION_ID, 42) == "sera"
+        assert bridge.load_latest(
+            SESSION_ID,
+        ).session.pending_engine_state_updates == []
 
     async def test_bind_allows_dormant(self, bridge: EngineBridge):
         await bridge.bind_user(SESSION_ID, user_id=42, character_id="thane")
@@ -199,6 +225,9 @@ class TestBindUnbind:
         freed = await bridge.unbind_user(SESSION_ID, 42)
         assert freed == "sera"
         assert bridge.get_user_binding(SESSION_ID, 42) is None
+        assert bridge.load_latest(
+            SESSION_ID,
+        ).session.pending_engine_state_updates == []
         # Another user can now claim sera.
         await bridge.bind_user(SESSION_ID, user_id=99, character_id="sera")
         assert bridge.get_user_binding(SESSION_ID, 99) == "sera"
@@ -215,7 +244,7 @@ class TestStrictPlayerJoin:
             character_id="blank_arrival",
             name="the Newcomer",
             status=CharacterStatus.dormant,
-            location="unclaimed_player_slot",
+            location="not_yet_fictional",
             is_playable=True,
             player_slot_kind=PlayerSlotKind.player_authored,
             public_sheet=PublicSheet(role="new arrival"),
@@ -321,7 +350,20 @@ class TestStrictPlayerJoin:
         )
         assert "blank_arrival" not in current.session.character_bindings
         assert slot.status == CharacterStatus.dormant
-        assert slot.location == ""
+        assert slot.location == "outside_active_fiction"
+        assert len(current.session.pending_engine_state_updates) == 1
+        lifecycle_update = current.session.pending_engine_state_updates[0]
+        assert "left active fiction" in lifecycle_update
+        assert "now dormant" in lifecycle_update
+        for forbidden in (
+            "human",
+            "player",
+            "binding",
+            "ai control",
+            "agent",
+            "protagonist",
+        ):
+            assert forbidden not in lifecycle_update.lower()
 
     async def test_standard_playable_leave_retains_agent_handoff(
         self, bridge: EngineBridge, monkeypatch: pytest.MonkeyPatch,
@@ -393,131 +435,3 @@ class TestCollectPlayerIds:
         # be in player_ids — that would block their agent ticks.
         ids = collect_player_ids(ckpt)
         assert "aldric" not in ids
-
-
-class TestPlayerCharactersBlock:
-    def test_marks_acting_character(self):
-        ckpt = _make_checkpoint()
-        ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
-        block = build_player_characters_block(ckpt, "aldric")
-        assert "acting this turn" in block
-        # Acting marker on aldric, not sera.
-        aldric_line = next(
-            line for line in block.splitlines() if "aldric" in line
-        )
-        sera_line = next(
-            line for line in block.splitlines() if "sera" in line
-        )
-        assert "acting this turn" in aldric_line
-        assert "acting this turn" not in sera_line
-
-    def test_includes_current_locations(self):
-        ckpt = _make_checkpoint()
-        ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
-        next(c for c in ckpt.characters if c.character_id == "aldric").location = (
-            "gatehouse"
-        )
-        next(c for c in ckpt.characters if c.character_id == "sera").location = (
-            "archive"
-        )
-
-        block = build_player_characters_block(ckpt, "aldric")
-
-        assert "Location: gatehouse" in block
-        assert "Location: archive" in block
-
-    def test_falls_back_to_creator_when_no_bindings(self):
-        """With no `character_bindings`, the creator binding still
-        surfaces in the prompt block (so single-player legacy
-        checkpoints still render their protagonist)."""
-        ckpt = _make_checkpoint()
-        block = build_player_characters_block(ckpt, "aldric")
-        assert "aldric" in block
-
-    def test_unbound_playable_does_not_appear(self):
-        """An is_playable=True character without a binding is an
-        agent NPC and must NOT appear in the Player Characters
-        block — surfacing them would tell the router 'human, never
-        dispatch as an agent' and starve the cascade of the very agent
-        it needs."""
-        ckpt = _make_checkpoint()
-        # Aldric is_playable=True but no binding and no creator.
-        ckpt.session.player_character_id = ""
-        ckpt.session.character_bindings = {}
-        block = build_player_characters_block(ckpt, "aldric")
-        assert "aldric" not in block
-        assert "No player characters bound" in block
-
-    def test_unbound_player_authored_slot_is_selectable_but_not_model_context(
-        self,
-    ):
-        ckpt = _make_checkpoint()
-        ckpt.session.player_character_id = ""
-        ckpt.session.character_bindings = {}
-        ckpt.characters.append(CharacterRecord(
-            character_id="blank_arrival",
-            name="the Newcomer",
-            status=CharacterStatus.dormant,
-            is_playable=True,
-            player_slot_kind=PlayerSlotKind.player_authored,
-            player_guidance="Choose this character's identity when joining.",
-        ))
-
-        summaries = _summaries_from_checkpoint(ckpt)
-        joinable = joinable_character_summaries(summaries)
-        block = build_player_characters_block(ckpt, "aldric")
-
-        summary = next(
-            item for item in joinable
-            if item.character_id == "blank_arrival"
-        )
-        assert summary.player_slot_kind == "player_authored"
-        assert "identity" in summary.player_guidance
-        assert "blank_arrival" not in block
-
-    def test_uses_character_ids_without_name_annotations(self):
-        """The router uses character_id as the sole LLM-facing handle."""
-        ckpt = _make_checkpoint()
-        ckpt.session.character_bindings = {"aldric": "1", "sera": "2"}
-        block = build_player_characters_block(ckpt, "aldric")
-        assert "**aldric**" in block
-        assert "**sera**" in block
-        assert "(id:" not in block
-
-    def test_dnd_equipment_context_is_dnd_only(self):
-        ckpt = _make_checkpoint()
-        ckpt.session.character_bindings = {"aldric": "1"}
-        aldric = next(c for c in ckpt.characters if c.character_id == "aldric")
-        aldric.mechanics = {
-            "dnd5e_sheet": {
-                "statblock": {
-                    "inventory": {
-                        "items": [
-                            {
-                                "id": "sword",
-                                "name": "Longsword",
-                                "kind": "weapon",
-                                "quantity": 1,
-                                "equipped": True,
-                            },
-                            {
-                                "id": "torch",
-                                "name": "Torch",
-                                "kind": "gear",
-                                "quantity": 2,
-                            },
-                        ],
-                    },
-                },
-            },
-        }
-
-        neutral_block = build_player_characters_block(ckpt, "aldric")
-        assert "D&D equipment" not in neutral_block
-
-        ckpt.session.config.settings.ruleset_id = "dnd5e_basic"
-        dnd_block = build_player_characters_block(ckpt, "aldric")
-
-        assert "D&D equipment: currently has" in dnd_block
-        assert "equipped Longsword" in dnd_block
-        assert "carried 2x Torch" in dnd_block

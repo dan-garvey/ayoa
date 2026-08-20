@@ -237,7 +237,7 @@ def router_output(
 
 def dnd_router_output(
     *,
-    interaction_mode: str = "cat_i",
+    interaction_mode: str = "narrative",
     combatant_ids: list[str] | None = None,
     combatant_spawns: list[dict] | None = None,
     loot_offer: dict | None = None,
@@ -301,7 +301,6 @@ class InstanceFakeDispatcher:
     def __init__(self):
         self.route_calls: list[dict] = []
         self.continuation_calls: list[dict] = []
-        self.agent_output_calls: list[dict] = []
         self.agent_calls: list[dict] = []
         self.agent_character_exists: list[bool] = []
         self.narrator_calls: list[dict] = []
@@ -344,10 +343,6 @@ class InstanceFakeDispatcher:
 
     async def route_continuation(self, **kw) -> EventRouterOutput:
         self.continuation_calls.append(kw)
-        return self._route_responses.pop(0)
-
-    async def route_agent_output(self, **kw) -> EventRouterOutput:
-        self.agent_output_calls.append(kw)
         return self._route_responses.pop(0)
 
     async def route_combat_action(self, **kw) -> EventRouterOutput:

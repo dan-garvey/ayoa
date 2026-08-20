@@ -9,6 +9,7 @@ dormant summon pool of pre-authored candidates, and the router-facing reveals.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from app.engine.character_manager import _assemble_knowledge_grant
@@ -265,7 +266,7 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     # fallback personality. Claim-aware opening policy decides whether it appears.
     assert pc.pending_observations == []
     assert pc.status.value == "dormant"
-    assert pc.location == "unclaimed_player_slot"
+    assert pc.location == "not_yet_fictional"
 
 
 def test_unclaimed_newcomer_seed_is_an_unbound_claim_aware_seat() -> None:
@@ -283,6 +284,53 @@ def test_unclaimed_newcomer_seed_is_an_unbound_claim_aware_seat() -> None:
     assert newcomer.status.value == "dormant"
     assert opening is not None
     assert opening.requires_claim_confirmation is True
+
+
+def test_model_visible_seed_surfaces_exclude_live_controller_metadata() -> None:
+    checkpoint = _load_checkpoint()
+    world = checkpoint.world_state
+    surfaces = [
+        checkpoint.session.config.narrative_rules,
+        *world.facts,
+        world.lore,
+        world.hidden_lore,
+        *world.hidden_facts,
+        world.opening.context if world.opening is not None else "",
+    ]
+    for character in checkpoint.characters:
+        surfaces.extend([
+            character.name,
+            character.public_sheet.role,
+            character.public_sheet.appearance,
+            character.public_sheet.faction,
+            character.backstory,
+            character.personality,
+            character.known_context,
+            character.descriptions.public,
+            character.descriptions.private,
+            *character.private_state.goals,
+            *character.private_state.current_objectives,
+            *character.private_state.secrets,
+        ])
+    model_visible_seed = "\n".join(text for text in surfaces if text)
+    forbidden = (
+        r"\bhuman[-_ ](?:bound|controlled|played|player)\b",
+        r"\bplayer[-_ ](?:owned|controlled|bound|characters?)\b",
+        r"\bnpcs?\b",
+        r"\bagent[-_ ]output\b",
+        r"\bcharacter bindings?\b",
+        r"\bai[-_ ]control(?:led)?\b",
+        r"\bwho or what is directing\b",
+        r"\brun by the game(?:'s)? own logic\b",
+        r"\bprotagonist\b",
+    )
+
+    for pattern in forbidden:
+        assert re.search(
+            pattern,
+            model_visible_seed,
+            flags=re.IGNORECASE,
+        ) is None, pattern
 
 
 def test_master_is_offstage_unreachable_actor() -> None:

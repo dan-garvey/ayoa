@@ -165,10 +165,7 @@ def queue_router_observed_fact_updates(
             reason=fact.reason,
             seen=seen,
         )
-    for fact, salience, reason in _player_lifecycle_router_updates(
-        session,
-        active,
-    ):
+    for fact, salience, reason in _durable_defeat_router_updates(active):
         queued += _queue_router_update(
             session,
             fact=fact,
@@ -203,19 +200,18 @@ def _queue_router_update(
     return 1
 
 
-def _player_lifecycle_router_updates(
-    session: SessionState,
+def _durable_defeat_router_updates(
     combat: DndCombatState,
 ) -> list[tuple[str, str, str]]:
+    """Project post-combat states that remain fictionally unresolved.
+
+    Routine combatants use ``defeated`` and need no extra router continuity.
+    Death-save states are durable facts regardless of how their character is
+    currently controlled, so bindings and ``player_controlled`` are irrelevant
+    to this projection.
+    """
     updates: list[tuple[str, str, str]] = []
-    bound_ids = set(session.character_bindings or {})
     for combatant in combat.combatants:
-        if not (
-            combatant.player_controlled
-            or combatant.character_id in bound_ids
-            or combatant.combatant_id in bound_ids
-        ):
-            continue
         name = _combatant_label(combatant)
         state = _defeat_state(combatant)
         if state == "dead":
@@ -228,13 +224,13 @@ def _player_lifecycle_router_updates(
             updates.append((
                 f"{name} is unconscious but stable when combat ends.",
                 "major",
-                "A player-controlled character remains incapacitated after combat.",
+                "An established combatant remains incapacitated after combat.",
             ))
         elif state == "down":
             updates.append((
                 f"{name} is unconscious and still in danger when combat ends.",
                 "major",
-                "A player-controlled character remains unresolved after combat.",
+                "An established combatant remains unresolved after combat.",
             ))
     return updates
 

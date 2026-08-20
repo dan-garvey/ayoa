@@ -90,8 +90,7 @@ FRONTIER_ROUTING_ROLES = {"next_output"}
 PERCEPTION_ENRICHMENT_ROUTING_ROLES = {"perception_enrichment"}
 
 DndInteractionMode = Literal[
-    "cat_i",
-    "cat_ii",
+    "narrative",
     "dnd_combat_start",
     "dnd_combat_end",
 ]
@@ -527,6 +526,11 @@ class EventRouterOutput(BaseModel):
                 "an empty Cat II has no one to close it. Treat as Cat I at "
                 "the prompt layer."
             )
+        if self.event_kind == "cat_ii_open" and not self.requires_responders:
+            raise ValueError(
+                "event_kind='cat_ii_open' requires requires_responders=true "
+                "and at least one required responder."
+            )
         if len(self.required_responders) != len(set(self.required_responders)):
             raise ValueError(
                 "required_responders contains duplicates; each responder "
@@ -652,12 +656,14 @@ class EventRouterOutput(BaseModel):
 
 
 class ClosedEventRouterOutput(EventRouterOutput):
-    """Router output for modes that canonicalize already-committed motion.
+    """Router output for continuation/repair of already-canonical motion.
 
-    Agent output and continuation may author a closed event or select the next
-    actor, but they cannot open a fresh contested-action collection. Narrowing
-    the shared event contract here makes that mode rule part of structured
-    generation while the turn loop retains its loud invariant check.
+    Continuation may author a closed event or select the next actor, but it
+    cannot open a fresh contested-action collection. Character-agent prose is
+    an actor submission, not committed motion, and therefore uses the full
+    EventRouterOutput contract instead. Narrowing this repair contract makes
+    that mode rule part of structured generation while the turn loop retains
+    its loud invariant check.
     """
 
     event_kind: ClosedEventKind
@@ -668,9 +674,9 @@ class ClosedEventRouterOutput(EventRouterOutput):
 class DndEventRouterOutput(EventRouterOutput):
     """D&D ruleset extension for fresh event-router intentions.
 
-    The generic router's Cat I/Cat II fields stay rules-neutral. In D&D mode,
-    fresh intentions add an explicit interaction mode so "contested" and
-    "initiative-governed combat" cannot be conflated.
+    The generic router's Cat I/Cat II fields remain the sole narrative contest
+    contract. The D&D interaction mode says only whether initiative starts or
+    ends; `narrative` leaves the generic contest fields authoritative.
     """
 
     interaction_mode: DndInteractionMode
@@ -703,25 +709,15 @@ class DndEventRouterOutput(EventRouterOutput):
             data = dict(data)
             data["combatant_spawns"] = []
         mode = data.get("interaction_mode")
-        if mode in {"cat_i", "dnd_combat_start", "dnd_combat_end"}:
+        if mode in {"dnd_combat_start", "dnd_combat_end"}:
             data = dict(data)
             data["requires_responders"] = False
             data["required_responders"] = []
-        elif mode == "cat_ii":
-            data = dict(data)
-            data["requires_responders"] = True
-            data["combatant_ids"] = []
-            data["combatant_spawns"] = []
         return data
 
     @model_validator(mode="after")
     def _validate_interaction_mode(self) -> "DndEventRouterOutput":
-        if self.interaction_mode == "cat_ii":
-            if not self.required_responders:
-                raise ValueError(
-                    "interaction_mode='cat_ii' requires required_responders."
-                )
-            self.requires_responders = True
+        if self.interaction_mode == "narrative":
             self.combatant_ids = []
             self.combatant_spawns = []
             self.battle_map_seed = DndBattleMapSeed.model_validate(
@@ -746,7 +742,7 @@ class DndEventRouterOutput(EventRouterOutput):
                 *[spawn.character_id for spawn in self.combatant_spawns],
             ]))
             self.combatant_ids = [cid for cid in unique if cid]
-        elif self.interaction_mode in {"cat_i", "dnd_combat_end"}:
+        elif self.interaction_mode == "dnd_combat_end":
             self.combatant_ids = []
             self.combatant_spawns = []
             self.battle_map_seed = DndBattleMapSeed.model_validate(
