@@ -2753,6 +2753,28 @@ class TestHumanNextOutputYield:
         assert result.ended_reason == "cascade_exhausted"
         assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
 
+    def test_silent_first_npc_falls_through_to_later_bound_human(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        fake = FakeDispatcher()
+        fake.queue_route(_router_out(
+            event_kind="response_requested",
+            agent_ids=["pip", "bob"],
+            observer_ids=["alice", "pip", "bob"],
+        ))
+        fake.queue_agent("")
+
+        result = asyncio.run(run_beat(
+            ckpt=ckpt,
+            dispatcher=fake,
+            actor_id="alice",
+            intention="Pip and Bob, tell me what you decide.",
+        ))
+
+        assert result.ended_reason == "awaiting_player_turn"
+        assert [call["character_id"] for call in fake.agent_calls] == ["pip"]
+        assert fake.agent_output_calls == []
+        assert fake.continuation_calls == []
+
     def test_unbound_player_authored_target_fails_loudly(self):
         ckpt = _ckpt({"alice": "1"})
         ckpt.characters.append(CharacterRecord(
@@ -2783,6 +2805,50 @@ class TestHumanNextOutputYield:
 
 
 class TestNarratorHandoff:
+    def test_pending_retry_anchor_uses_the_selected_gate_pov(self):
+        ckpt = _ckpt({"alice": "1", "bob": "2"})
+        prior = _router_out(
+            event_id="evt_bob_buffer",
+            event_kind="cascade_exhausted",
+            observer_ids=["bob"],
+            facts=[ObservableFact.only("Bob hears a distant bell.", ["bob"])],
+        )
+        broadcast_event(ckpt, prior, actor_id="pip")
+
+        class FailingGateDispatcher(FakeDispatcher):
+            async def narrator_compose(self, **kwargs):
+                if kwargs["character_id"] == "alice":
+                    self.narrator_calls.append(kwargs)
+                    raise RuntimeError("alice narrator offline")
+                return await super().narrator_compose(**kwargs)
+
+        fake = FailingGateDispatcher()
+        fake.queue_route(_router_out(
+            event_id="evt_alice_gate",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice"],
+            facts=[ObservableFact.only("Alice reaches the lift.", ["alice"])],
+        ))
+        persisted = []
+        fake.persist_pending_narrator_render = lambda value: persisted.append(
+            value.session.pending_narrator_render
+        )
+
+        with pytest.raises(RuntimeError, match="alice narrator offline"):
+            asyncio.run(run_beat(
+                ckpt=ckpt,
+                dispatcher=fake,
+                actor_id="alice",
+                intention="I take the lift.",
+            ))
+
+        pending = ckpt.session.pending_narrator_render
+        assert pending is not None
+        assert persisted == [pending]
+        assert list(ckpt.session.render_buffers) == ["bob", "alice"]
+        assert pending.soft_handoff_candidate is True
+        assert pending.handoff_event_id == "evt_alice_gate"
+
     def test_continue_retains_full_batch_and_discards_candidate_prose(self):
         ckpt = _ckpt({"alice": "1"})
         image_batches: list[list[str]] = []

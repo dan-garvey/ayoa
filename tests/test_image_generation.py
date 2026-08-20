@@ -1137,6 +1137,60 @@ async def test_render_wait_finishes_when_no_director_requests_are_admitted(
 
 
 @pytest.mark.asyncio
+async def test_cancelled_succeeded_director_run_cannot_wedge_render_wait(
+    tmp_path,
+):
+    coordinator = ImageGenerationCoordinator(
+        sessions_dir=tmp_path / "sessions",
+        config=_config(tmp_path),
+        worker=FakeImageWorker(),
+    )
+    _begin(coordinator, "tx_1")
+    projection = _projection(viewers=("alice",))
+    queued = coordinator.store.enqueue_director_run(projection)
+    claimed = coordinator.store.claim_next_director_run()
+    assert claimed is not None
+    assert claimed.run_id == queued.run_id
+    coordinator.store.complete_director_run(
+        queued.run_id,
+        ImageDirectorOutput(requests=[ImageDirection(
+            kind="action",
+            title="Discarded Rain Run",
+            subject_character_ids=["alice"],
+            scene_prompt="Alice runs into the rain.",
+        )]),
+    )
+
+    assert coordinator.store.rendered_event_image_status(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_1"]},
+    ) == (True, False)
+
+    await coordinator.cancel_transaction(
+        "tx_1",
+        reason="narrator_continued",
+    )
+
+    with coordinator.store._connect() as db:
+        row = db.execute(
+            "SELECT status FROM image_director_runs WHERE run_id = ?",
+            (queued.run_id,),
+        ).fetchone()
+    assert row is not None
+    assert row["status"] == "cancelled"
+    assert coordinator.store.rendered_event_image_status(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_1"]},
+    ) == (False, True)
+    assert await coordinator.wait_for_render_images(
+        session_id="image_test",
+        rendered_event_ids_by_pov={"alice": ["evt_1"]},
+        timeout=0.05,
+        discovery_grace_seconds=0,
+    ) is True
+
+
+@pytest.mark.asyncio
 async def test_capacity_rejects_new_event_without_fallback(tmp_path):
     worker = FakeImageWorker(wait=True)
     coordinator = ImageGenerationCoordinator(

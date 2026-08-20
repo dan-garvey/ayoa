@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.engine import dice, dnd_experience, dnd_monsters
+from app.engine.checkpoint_manager import CheckpointManager
 from app.engine.dnd_combat import apply_damage, current_combatant
 from app.engine.imported_statblocks import ImportedStatBlockNotFoundError
 from app.engine.orchestrator import (
@@ -41,6 +43,7 @@ from app.schemas.state import (
     DndExperienceAwardDisplay,
     OpenCatIIEvent,
     OpenCommitment,
+    PendingNarratorRender,
     RenderBufferEntry,
     SlotEntry,
 )
@@ -515,6 +518,152 @@ class TestHappyPath:
         assert "DISCARDED" not in str(ckpt.narrator_conversations["alice"])
         assert ckpt.session.pending_narrator_render is None
         assert mgr.save.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_continue_then_failure_rebuilds_the_pending_retry_snapshot(
+        self, patched_orchestrator, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        orch, _mgr = patched_orchestrator(ckpt)
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_waiting",
+            event_kind="cascade_exhausted",
+            dormant=["pip"],
+            facts=[ObservableFact.all("The lift starts to descend.")],
+        ))
+        FakeDispatcher.queue_route(_router_out(
+            event_id="evt_arrived",
+            event_kind="cascade_exhausted",
+            facts=[ObservableFact.all("The lift reaches the lower hall.")],
+        ))
+        FakeDispatcher.queue_narrator(
+            handoff="continue",
+            reason="The lift is still moving.",
+            text="DISCARDED",
+        )
+        original_narrator_compose = FakeDispatcher.narrator_compose
+        narrator_attempt = 0
+
+        async def _continue_then_fail(self, **kwargs):
+            nonlocal narrator_attempt
+            narrator_attempt += 1
+            if narrator_attempt == 2:
+                type(self).narrator_calls.append(kwargs)
+                raise RuntimeError("narrator offline after continuation")
+            return await original_narrator_compose(self, **kwargs)
+
+        monkeypatch.setattr(
+            FakeDispatcher,
+            "narrator_compose",
+            _continue_then_fail,
+        )
+
+        with pytest.raises(
+            RuntimeError,
+            match="narrator offline after continuation",
+        ):
+            await orch.process_turn(TurnRequest(
+                session_id="s",
+                user_input="I ride the lift to the lower hall.",
+                acting_character_id="alice",
+            ))
+
+        pending = ckpt.session.pending_narrator_render
+        assert pending is not None
+        assert pending.events_closed == 2
+        assert pending.event_actor_ids == ["alice", "alice"]
+        assert pending.handoff_event_id == "evt_arrived"
+        assert [
+            entry.event_id for entry in ckpt.session.render_buffers["alice"]
+        ] == ["evt_waiting", "evt_arrived"]
+        pip = next(char for char in ckpt.characters if char.character_id == "pip")
+        assert pip.status == CharacterStatus.active
+
+        FakeDispatcher.queue_narrator(
+            handoff="render",
+            reason="The lift has arrived.",
+            text="ARRIVED",
+        )
+        response = await orch.retry_pending_narrator_render("s")
+
+        assert response.output_text == "ARRIVED"
+        assert len(FakeDispatcher.route_calls) == 2
+        assert pip.status == CharacterStatus.dormant
+        assert ckpt.session.pending_narrator_render is None
+
+    @pytest.mark.asyncio
+    async def test_retry_image_lineage_stays_on_the_persisted_failed_turn(
+        self, tmp_path, monkeypatch,
+    ):
+        ckpt = _ckpt(bindings={"alice": "u1"})
+        ckpt.session.turn_index = 4
+        event = _router_out(
+            event_id="evt_failed_render",
+            event_kind="cascade_exhausted",
+            observer_ids=["alice"],
+        )
+        ckpt.canonical_events.append(event)
+        ckpt.session.render_buffers["alice"] = [RenderBufferEntry(
+            event_id=event.event_id,
+            visible_at_s=0,
+            event_sequence=0,
+        )]
+        ckpt.session.active_act_slots["alice"] = SlotEntry(reason="initiator")
+        ckpt.session.pending_narrator_render = PendingNarratorRender(
+            ended_reason="cascade_exhausted",
+            events_closed=1,
+            event_actor_ids=["alice"],
+            acting_player_id="alice",
+            acting_player_input="I look around.",
+        )
+        manager = CheckpointManager(str(tmp_path / "sessions"))
+        manager.save(ckpt)
+
+        class RecordingImageSink:
+            config = SimpleNamespace(director_enabled=True)
+
+            def __init__(self):
+                self.source_turn_indexes = []
+                self.committed = []
+
+            async def start_render_candidate(self, **kwargs):
+                self.source_turn_indexes.append(kwargs["source_turn_index"])
+                return "imgtx_retry"
+
+            async def cancel_transaction(self, transaction_id, **_kwargs):
+                raise AssertionError(
+                    f"accepted retry transaction was cancelled: {transaction_id}"
+                )
+
+            async def commit_transaction(self, transaction_id, **_kwargs):
+                self.committed.append(transaction_id)
+
+        sink = RecordingImageSink()
+        generation = MagicMock()
+        generation.reconcile_lineage = MagicMock()
+        client = MagicMock()
+        client.config.provider_for_role.return_value = "test"
+        client.config.model_for_role.return_value = "test-model"
+        monkeypatch.setattr(
+            "app.engine.orchestrator.LLMDispatcher",
+            FakeDispatcher,
+        )
+        orch = Orchestrator(
+            client,
+            manager,
+            MagicMock(),
+            image_sink=sink,
+            image_generation=generation,
+        )
+
+        response = await orch.retry_pending_narrator_render("s")
+
+        assert response.turn_index == 4
+        assert sink.source_turn_indexes == [4]
+        assert sink.committed == ["imgtx_retry"]
+        reloaded = manager.load_latest("s")
+        assert reloaded.session.turn_index == 4
+        assert reloaded.session.pending_narrator_render is None
 
     @pytest.mark.asyncio
     async def test_retry_pending_narrator_render_noops_without_pending_state(

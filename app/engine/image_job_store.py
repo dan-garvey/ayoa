@@ -389,7 +389,8 @@ class ImageJobStore:
                 """
                 UPDATE image_director_runs
                 SET status = 'cancelled', error_code = ?, updated_at = ?
-                WHERE transaction_id = ? AND status IN ('queued', 'running')
+                WHERE transaction_id = ?
+                  AND status IN ('queued', 'running', 'succeeded')
                 """,
                 (_clean_reason(reason), now, transaction_id),
             )
@@ -1722,19 +1723,25 @@ class ImageJobStore:
         with self._connect() as db:
             run_rows = db.execute(
                 f"""
-                SELECT * FROM image_director_runs
-                WHERE session_id = ?
-                  AND source_event_id IN ({placeholders})
-                  AND status != 'cancelled'
+                SELECT r.* FROM image_director_runs AS r
+                JOIN image_transactions AS t
+                  ON t.transaction_id = r.transaction_id
+                WHERE r.session_id = ?
+                  AND r.source_event_id IN ({placeholders})
+                  AND r.status != 'cancelled'
+                  AND t.status != 'cancelled'
                 """,
                 (session_id, *povs_by_event),
             ).fetchall()
             job_rows = db.execute(
                 f"""
-                SELECT * FROM image_jobs
-                WHERE session_id = ?
-                  AND source_event_id IN ({placeholders})
-                  AND status != ?
+                SELECT j.* FROM image_jobs AS j
+                JOIN image_transactions AS t
+                  ON t.transaction_id = j.transaction_id
+                WHERE j.session_id = ?
+                  AND j.source_event_id IN ({placeholders})
+                  AND j.status != ?
+                  AND t.status != 'cancelled'
                 """,
                 (
                     session_id,

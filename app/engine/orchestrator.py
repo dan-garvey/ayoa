@@ -683,6 +683,8 @@ class Orchestrator:
     def _ensure_closed_event_runtime(
         self,
         ckpt: CheckpointFile,
+        *,
+        source_turn_index: int | None = None,
     ) -> ClosedEventRuntime:
         current = closed_event_runtime_for(ckpt)
         if current is not None:
@@ -727,8 +729,14 @@ class Orchestrator:
             transaction_id=transaction_id,
             # Closed events produced from checkpoint N are committed in
             # checkpoint N+1. Rewind cancellation is keyed to the committed
-            # turn, not the pre-turn source snapshot.
-            source_turn_index=ckpt.session.turn_index + 1,
+            # turn, not the pre-turn source snapshot. A durable narrator retry
+            # already lives in that committed checkpoint, so its caller passes
+            # the persisted turn explicitly instead of advancing it again.
+            source_turn_index=(
+                ckpt.session.turn_index + 1
+                if source_turn_index is None
+                else max(0, int(source_turn_index))
+            ),
             spawn_authoring=self.spawn_authoring,
             image_sink=self.image_sink if director_enabled else None,
             source_checkpoint_sha256=source_checkpoint_sha256,
@@ -918,7 +926,10 @@ class Orchestrator:
             (str(transaction_id), str(roll_id))
             for transaction_id, roll_id in pending.roll_keys_before
         }
-        self._ensure_closed_event_runtime(ckpt)
+        self._ensure_closed_event_runtime(
+            ckpt,
+            source_turn_index=ckpt.session.turn_index,
+        )
         beat_result = await _end_beat(
             ckpt,
             dispatcher,

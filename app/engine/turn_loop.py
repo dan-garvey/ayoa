@@ -2758,7 +2758,10 @@ async def run_beat(
             )
             if not agent_ids:
                 continue
-            return await _queue_router_agent_output(prior_result, agent_ids)
+            outcome = await _queue_router_agent_output(prior_result, agent_ids)
+            if outcome == "exhausted":
+                continue
+            return outcome
         return "exhausted"
 
     async def _pause_for_pending_rolls() -> BeatResult:
@@ -3515,6 +3518,7 @@ async def _end_beat(
             )
 
     gate_id = ""
+    gate_buffer: list[RenderBufferEntry] = []
     if soft_handoff_candidate and targets:
         target_ids = {character_id for character_id, _buf in targets}
         gate_id = (
@@ -3522,16 +3526,16 @@ async def _end_beat(
             if acting_player_id in target_ids
             else targets[0][0]
         )
+        gate_buffer = next(
+            buf for character_id, buf in targets if character_id == gate_id
+        )
 
     persist_pending = None
     if targets:
         persist_pending = getattr(
             dispatcher, "persist_pending_narrator_render", None,
         )
-        if (
-            callable(persist_pending)
-            and ckpt.session.pending_narrator_render is None
-        ):
+        if callable(persist_pending):
             ckpt.session.pending_narrator_render = PendingNarratorRender(
                 ended_reason=ended_reason,
                 events_closed=events_closed,
@@ -3543,8 +3547,8 @@ async def _end_beat(
                 suppress_reaction_prompts=suppress_reaction_prompts,
                 soft_handoff_candidate=soft_handoff_candidate,
                 handoff_event_id=(
-                    targets[0][1][-1].event_id
-                    if soft_handoff_candidate and targets[0][1]
+                    gate_buffer[-1].event_id
+                    if soft_handoff_candidate and gate_buffer
                     else ""
                 ),
             )
