@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.engine.prompt_manager import PromptManager
+from app.engine.one_star_adapter import OneStarTransactionError
 from app.engine.turn_loop_dispatcher import (
     LLMDispatcher,
     _build_router_context,
@@ -198,6 +199,36 @@ def test_one_star_repair_accepts_only_the_transaction_shape(monkeypatch):
     assert "one_star_transaction_repair" in repair_packet
     assert "Candidate transaction" in repair_packet
     assert "canonical_event" not in repair_packet
+
+
+def test_one_star_spawn_activation_overlap_fails_before_materialization():
+    data = _one_star_output().model_dump(mode="json")
+    data["spawn"] = [{
+        "character_id": "new_hero",
+        "seed": {
+            "role": "baker",
+            "reason": "cold light deposits a stranger",
+            "location": "niflheim_lobby",
+            "objectives": ["find an exit"],
+            "knowledge_tier": 1,
+        },
+    }]
+    data["activate"] = [{
+        "character_id": "new_hero",
+        "location_label": "niflheim_lobby",
+    }]
+    result = OneStarEventRouterOutput.model_validate(data)
+    dispatcher, _client = _dispatcher()
+    dispatcher.materialize_spawns = AsyncMock()
+
+    with pytest.raises(OneStarTransactionError, match="both spawn and activate"):
+        asyncio.run(dispatcher.prepare_ruleset_event(
+            ckpt=_one_star_checkpoint(),
+            result=result,
+            actor_id="alice",
+        ))
+
+    dispatcher.materialize_spawns.assert_not_awaited()
 
 
 def test_default_and_dnd_ruleset_addons_stay_isolated(monkeypatch):

@@ -38,10 +38,12 @@ while preserving its existing birth sheet. A `source=fresh` slot uses one new
 stable id in both `spawn` and `summon`; that spawn's
 `seed.knowledge_tier` equals the slot's fixed birth-star value. Every summoned
 Hero arrives at the configured lobby, never directly inside an active mission
-or another facility, and each id appears in exactly one lifecycle path. Do not
-treat an ordinary dormant non-Hero activation as a summon. A newly persistent
-non-Hero uses the ordinary generic `spawn` path without a `summon` operation or
-Hero sheet. A pool whose usage is `opening_actor` may only activate its exact
+or another facility, and each id appears in exactly one lifecycle path. A fresh
+`spawn` id must be absent from `activate`; `activate` is only for a pre-existing
+dormant record. Do not treat an ordinary dormant non-Hero activation as a
+summon. A newly persistent non-Hero uses the ordinary generic `spawn` path
+without a `summon` operation or Hero sheet. A pool whose usage is
+`opening_actor` may only activate its exact
 acting character on the account's first event; it does not consume a standard
 draw, cannot generate a substitute, and cannot be selected by another actor.
 An `opening_wave` pool is likewise a one-time authored first event: use only

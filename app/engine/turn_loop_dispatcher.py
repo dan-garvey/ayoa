@@ -1290,6 +1290,15 @@ class LLMDispatcher:
             prepare_one_star_transaction,
         )
 
+        spawned_ids = {request.character_id for request in result.spawn}
+        activated_ids = {signal.character_id for signal in result.activate}
+        lifecycle_overlap = spawned_ids & activated_ids
+        if lifecycle_overlap:
+            raise OneStarTransactionError(
+                "One-Star event cannot both spawn and activate the same "
+                "character: " + ", ".join(sorted(lifecycle_overlap))
+            )
+
         event_fingerprint = one_star_event_fingerprint(
             {
                 "actor_id": actor_id,
