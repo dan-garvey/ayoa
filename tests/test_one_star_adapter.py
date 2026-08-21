@@ -43,7 +43,8 @@ def _config() -> dict:
             "basic": {
                 "cost": {"gold": 2, "gems": 0, "building_resources": 0, "materials": {}},
                 "minimum_birth_stars": 1,
-                "maximum_birth_stars": 3,
+                "maximum_birth_stars": 1,
+                "star_weights": {1: 10_000},
                 "eligible_existing_ids": ["reserve"],
                 "fresh_generation_allowed": True,
                 "usage": "standard",

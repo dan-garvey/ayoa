@@ -117,6 +117,7 @@ def _rules_config() -> OneStarRulesConfig:
                 ),
                 minimum_birth_stars=1,
                 maximum_birth_stars=3,
+                star_weights={1: 8_000, 2: 1_800, 3: 200},
                 fresh_generation_allowed=True,
                 usage="standard",
             ),
@@ -251,6 +252,7 @@ def test_account_projection_is_exact_but_excludes_private_mechanics() -> None:
     assert "armory 1" in block
     assert "Hero capacity: 12" in block
     assert "basic: 2 Gold" in block
+    assert "1-star 80%, 2-star 18%, 3-star 2%" in block
     assert "feed-7" in block
     assert "Tired Baker: 2-star" in block
     assert "HP 17/53" in block

@@ -65,6 +65,7 @@ def _config() -> dict:
                 "cost": {"gold": 1, "gems": 0, "building_resources": 0, "materials": {}},
                 "minimum_birth_stars": 1,
                 "maximum_birth_stars": 1,
+                "star_weights": {1: 10_000},
                 "eligible_existing_ids": ["reserve"],
                 "fresh_generation_allowed": False,
                 "usage": "standard",
@@ -508,7 +509,12 @@ def test_guide_tutorial_delivery_records_active_recipient_exactly_once() -> None
     fresh_checkpoint = _checkpoint(heroes=[fresh])
     fresh_checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"][
         "summon_pools"
-    ]["basic"]["fresh_generation_allowed"] = True
+    ]["basic"].update(
+        {
+            "eligible_existing_ids": [],
+            "fresh_generation_allowed": True,
+        }
+    )
     with pytest.raises(OneStarTransactionError, match="configured lobby"):
         prepare_one_star_transaction(
             fresh_checkpoint,
@@ -556,7 +562,7 @@ def test_existing_reserve_must_be_dormant_before_summon_activation() -> None:
         "hero_ids": ["reserve"],
         "birth_stars": [1],
     })
-    with pytest.raises(OneStarTransactionError, match="dormant"):
+    with pytest.raises(OneStarTransactionError, match="no eligible reserve"):
         prepare_one_star_transaction(
             checkpoint,
             event_id="summon_active_reserve",
@@ -1144,6 +1150,7 @@ def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
         "cost": {"gold": 0, "gems": 0, "building_resources": 0, "materials": {}},
         "minimum_birth_stars": 1,
         "maximum_birth_stars": 1,
+        "star_weights": {1: 10_000},
         "eligible_existing_ids": ["newcomer"],
         "fresh_generation_allowed": False,
         "usage": "opening_actor",
@@ -1167,6 +1174,46 @@ def test_opening_actor_pool_remains_available_to_the_exact_newcomer() -> None:
         if character.character_id == "newcomer"
     )
     assert load_one_star_hero(acquired).owner_lobby_id == "lobby_a"
+    assert (
+        load_one_star_account(prepared.after_checkpoint)[1]
+        .state.summon_draw_counters
+        == {}
+    )
+
+
+def test_authored_master_opening_wave_does_not_consume_standard_draws() -> None:
+    fresh_heroes = []
+    for index in range(3):
+        hero = _hero(status=CharacterStatus.active, owner="")
+        hero.character_id = f"opening_{index}"
+        fresh_heroes.append(hero)
+    checkpoint = _checkpoint(heroes=fresh_heroes)
+    config = checkpoint.characters[0].mechanics[ONE_STAR_ACCOUNT_KEY]["config"]
+    config["summon_pools"]["opening_wave"] = {
+        "cost": {"gold": 1, "gems": 0, "building_resources": 0, "materials": {}},
+        "minimum_birth_stars": 1,
+        "maximum_birth_stars": 1,
+        "star_weights": {1: 10_000},
+        "eligible_existing_ids": [],
+        "fresh_generation_allowed": True,
+        "usage": "opening_wave",
+    }
+    ids = [hero.character_id for hero in fresh_heroes]
+    prepared = prepare_one_star_transaction(
+        checkpoint,
+        event_id="master_opening_wave",
+        transaction=_transaction({
+            "operation": "summon",
+            "pool_id": "opening_wave",
+            "hero_ids": ids,
+            "birth_stars": [1, 1, 1],
+        }),
+        spawned_character_ids=ids,
+        initiating_actor_id="account_owner",
+    )
+    account = load_one_star_account(prepared.after_checkpoint)[1]
+    assert account.state.resources.gold == 17
+    assert account.state.summon_draw_counters == {}
 
 
 def test_deployment_selection_cannot_target_the_lobby_as_its_floor() -> None:

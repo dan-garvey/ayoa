@@ -509,6 +509,13 @@ class TestRouterContext:
         assert bound_system == rebound_system
         assert bound_user == rebound_user
         assert len(bound_system) < 85_000
+        assert "birth_star_rates[2=75%,3=23%,4=1.75%,5=0.25%]" in bound_system
+        assert "authoritative_summon_draw_slates" not in bound_system
+        assert "authoritative_summon_draw_slates" in bound_user
+        assert "summon_draw_counters" not in bound_system
+        assert "summon_draw_counters" not in bound_user
+        assert "one-star-gacha" not in bound_system
+        assert "one-star-gacha" not in bound_user
 
         source_checkpoint = _one_star_checkpoint(bindings={})
         seed_context = _build_router_context(

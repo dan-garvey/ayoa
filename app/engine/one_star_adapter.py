@@ -1,8 +1,10 @@
 """Pure ledger preparation for the opt-in One-Star Ascension adapter.
 
 The router still arbitrates fiction.  This module only validates and applies
-the exact bookkeeping transaction it authored.  It deliberately has no combat
-resolver, RNG, stat formula, XP curve, story id, or facility/economy constants.
+the exact bookkeeping transaction it authored.  It also resolves configured
+weighted summons before the router authors their fictional identities.  It
+deliberately has no combat resolver, stat formula, XP curve, story id, or
+facility/economy constants.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from app.schemas.characters import CharacterRecord, CharacterStatus
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import (
     ONE_STAR_ACCOUNT_KEY,
+    ONE_STAR_GACHA_WEIGHT_TOTAL,
     ONE_STAR_HERO_KEY,
     ONE_STAR_RULESET_ID,
     OneStarAccountEnvelope,
@@ -39,6 +42,7 @@ from app.schemas.one_star import (
     OneStarPendingResolveOperation,
     OneStarRulesConfig,
     OneStarSkillEntry,
+    OneStarSummonPool,
     OneStarSummonOperation,
     OneStarTransaction,
     OneStarTutorialDeliveryOperation,
@@ -72,6 +76,15 @@ class OneStarPreparedMutation:
     newly_acquired_hero_ids: tuple[str, ...] = ()
     touched_hero_ids: tuple[str, ...] = ()
     already_applied: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class OneStarSummonDraw:
+    """One authoritative slot in the next unconsumed standard-pool draw."""
+
+    slot: int
+    birth_stars: int
+    existing_character_id: str = ""
 
 
 def is_one_star_checkpoint(checkpoint: CheckpointFile) -> bool:
@@ -126,6 +139,160 @@ def load_one_star_hero(character: CharacterRecord) -> OneStarHeroState | None:
         raise OneStarTransactionError(
             f"character {character.character_id!r} has invalid One-Star Hero state"
         ) from exc
+
+
+def one_star_birth_stars_for_ticket(
+    pool: OneStarSummonPool,
+    ticket: int,
+) -> int:
+    """Map a zero-based 10,000-point ticket through configured pool weights."""
+
+    if ticket < 0 or ticket >= ONE_STAR_GACHA_WEIGHT_TOTAL:
+        raise OneStarTransactionError(
+            "summon ticket falls outside the configured weight scale"
+        )
+    upper_bound = 0
+    for birth_stars, weight in sorted(pool.star_weights.items()):
+        upper_bound += weight
+        if ticket < upper_bound:
+            return birth_stars
+    raise OneStarTransactionError(
+        "summon pool weights do not cover the configured scale"
+    )
+
+
+def _stable_bounded_draw(
+    *,
+    session_id: str,
+    pool_id: str,
+    draw_index: int,
+    stream: str,
+    upper_bound: int,
+) -> int:
+    """Return an unbiased replay-stable integer below ``upper_bound``."""
+
+    if upper_bound < 1:
+        raise OneStarTransactionError("summon draw requires a positive bound")
+    full_range = 1 << 256
+    rejection_limit = full_range - (full_range % upper_bound)
+    attempt = 0
+    while True:
+        payload = json.dumps(
+            [
+                "one-star-gacha-v1",
+                session_id,
+                pool_id,
+                draw_index,
+                stream,
+                attempt,
+            ],
+            ensure_ascii=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        value = int.from_bytes(hashlib.sha256(payload).digest(), "big")
+        if value < rejection_limit:
+            return value % upper_bound
+        attempt += 1
+
+
+def _one_star_summon_draw_preview(
+    checkpoint: CheckpointFile,
+    config: OneStarRulesConfig,
+    state: OneStarAccountState,
+    *,
+    pool_id: str,
+    count: int,
+) -> tuple[OneStarSummonDraw, ...]:
+    pool = config.summon_pools.get(pool_id)
+    if pool is None:
+        raise OneStarTransactionError(
+            "summon preview references an unknown configured pool"
+        )
+    if pool.usage != "standard":
+        raise OneStarTransactionError(
+            "only standard summon pools have weighted draw previews"
+        )
+    if count < 1 or count > config.max_summon_batch:
+        raise OneStarTransactionError(
+            "summon preview count exceeds the configured batch range"
+        )
+
+    available_by_star: dict[int, list[str]] = {
+        birth_stars: [] for birth_stars in pool.star_weights
+    }
+    for character_id in pool.eligible_existing_ids:
+        character = _require_character(checkpoint, character_id)
+        hero = load_one_star_hero(character)
+        if hero is None:
+            raise OneStarTransactionError(
+                "eligible summon reserve does not carry a One-Star Hero sheet"
+            )
+        if hero.birth_stars not in pool.star_weights:
+            raise OneStarTransactionError(
+                "eligible summon reserve falls outside its configured pool weights"
+            )
+        if (
+            character.status == CharacterStatus.dormant
+            and not hero.owner_lobby_id
+            and not hero.acquisition_event_id
+        ):
+            available_by_star[hero.birth_stars].append(character_id)
+    for candidates in available_by_star.values():
+        candidates.sort()
+
+    start_index = state.summon_draw_counters.get(pool_id, 0)
+    draws: list[OneStarSummonDraw] = []
+    for slot_offset in range(count):
+        draw_index = start_index + slot_offset
+        ticket = _stable_bounded_draw(
+            session_id=checkpoint.session.session_id,
+            pool_id=pool_id,
+            draw_index=draw_index,
+            stream="birth-stars",
+            upper_bound=ONE_STAR_GACHA_WEIGHT_TOTAL,
+        )
+        birth_stars = one_star_birth_stars_for_ticket(pool, ticket)
+        candidates = available_by_star[birth_stars]
+        existing_character_id = ""
+        if candidates:
+            candidate_index = _stable_bounded_draw(
+                session_id=checkpoint.session.session_id,
+                pool_id=pool_id,
+                draw_index=draw_index,
+                stream="existing-reserve",
+                upper_bound=len(candidates),
+            )
+            existing_character_id = candidates.pop(candidate_index)
+        elif not pool.fresh_generation_allowed:
+            raise OneStarTransactionError(
+                "summon pool has no eligible reserve for its next weighted result"
+            )
+        draws.append(
+            OneStarSummonDraw(
+                slot=slot_offset + 1,
+                birth_stars=birth_stars,
+                existing_character_id=existing_character_id,
+            )
+        )
+    return tuple(draws)
+
+
+def one_star_summon_draw_preview(
+    checkpoint: CheckpointFile,
+    pool_id: str,
+    *,
+    count: int | None = None,
+) -> tuple[OneStarSummonDraw, ...]:
+    """Return the exact next standard-pool slots without consuming them."""
+
+    _owner, account = load_one_star_account(checkpoint)
+    return _one_star_summon_draw_preview(
+        checkpoint,
+        account.config,
+        account.state,
+        pool_id=pool_id,
+        count=account.config.max_summon_batch if count is None else count,
+    )
 
 
 def _require_character(
@@ -510,6 +677,62 @@ def _apply_summon(
             raise OneStarTransactionError(
                 "opening-actor summon requires an account with no acquired Heroes"
             )
+        weighted_draws: tuple[OneStarSummonDraw, ...] = ()
+    elif pool.usage == "opening_wave":
+        account_owner = find_one_star_account_owner(checkpoint.characters)
+        if (
+            set(operation.hero_ids) != spawned_ids
+            or activated_ids
+            or state.applied_event_fingerprints
+            or account_owner is None
+            or initiating_actor_id != account_owner.character_id
+        ):
+            raise OneStarTransactionError(
+                "opening-wave summon must be the account owner's first event "
+                "and contain only fresh Hero spawns"
+            )
+        if any(
+            character.status != CharacterStatus.culled
+            and (hero := load_one_star_hero(character)) is not None
+            and hero.owner_lobby_id == config.lobby_id
+            for character in checkpoint.characters
+        ):
+            raise OneStarTransactionError(
+                "opening-wave summon requires an account with no acquired Heroes"
+            )
+        weighted_draws = ()
+    else:
+        weighted_draws = _one_star_summon_draw_preview(
+            checkpoint,
+            config,
+            state,
+            pool_id=operation.pool_id,
+            count=len(operation.hero_ids),
+        )
+        expected_birth_stars = [draw.birth_stars for draw in weighted_draws]
+        if operation.birth_stars != expected_birth_stars:
+            raise OneStarTransactionError(
+                "summon birth stars must consume the exact next weighted draw prefix"
+            )
+        for hero_id, draw in zip(
+            operation.hero_ids,
+            weighted_draws,
+            strict=True,
+        ):
+            if draw.existing_character_id:
+                if (
+                    hero_id != draw.existing_character_id
+                    or hero_id not in activated_ids
+                    or hero_id in spawned_ids
+                ):
+                    raise OneStarTransactionError(
+                        "summon must activate the exact reserve selected by "
+                        "its weighted draw"
+                    )
+            elif hero_id not in spawned_ids or hero_id in activated_ids:
+                raise OneStarTransactionError(
+                    "a fresh weighted summon result requires a matching new Hero spawn"
+                )
     if any(
         stars < pool.minimum_birth_stars or stars > pool.maximum_birth_stars
         for stars in operation.birth_stars
@@ -570,6 +793,11 @@ def _apply_summon(
         _validate_hero_constraints(hero, config)
         hero_initializations[hero_id] = hero
         _store_hero(existing, hero)
+    if weighted_draws:
+        state.summon_draw_counters[operation.pool_id] = (
+            state.summon_draw_counters.get(operation.pool_id, 0)
+            + len(weighted_draws)
+        )
 
 
 def _apply_hero_delta(
@@ -1531,11 +1759,11 @@ def prepare_one_star_transaction(
                 raise OneStarTransactionError(
                     "summon references an unknown configured pool"
                 )
-            if pool.usage == "standard":
-                require_account_owner("a standard summon")
+            if pool.usage in {"standard", "opening_wave"}:
+                require_account_owner("an account summon")
                 if state.active_mission is not None:
                     raise OneStarTransactionError(
-                        "standard summons are unavailable during an active mission"
+                        "account summons are unavailable during an active mission"
                     )
             summon_ids.update(operation.hero_ids)
             _apply_summon(

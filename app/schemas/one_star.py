@@ -17,6 +17,7 @@ from app.schemas.event_router import ClosedEventRouterOutput, EventRouterOutput
 ONE_STAR_RULESET_ID = "one_star_ascension"
 ONE_STAR_ACCOUNT_KEY = "one_star_account"
 ONE_STAR_HERO_KEY = "one_star_hero"
+ONE_STAR_GACHA_WEIGHT_TOTAL = 10_000
 
 
 class OneStarResources(BaseModel):
@@ -93,14 +94,31 @@ class OneStarSummonPool(BaseModel):
     cost: OneStarCost
     minimum_birth_stars: int = Field(ge=1)
     maximum_birth_stars: int = Field(ge=1)
+    star_weights: dict[int, int]
     eligible_existing_ids: list[str] = Field(default_factory=list)
     fresh_generation_allowed: bool = False
-    usage: Literal["standard", "opening_actor"]
+    usage: Literal["standard", "opening_actor", "opening_wave"]
 
     @model_validator(mode="after")
     def _valid_star_range(self) -> "OneStarSummonPool":
         if self.maximum_birth_stars < self.minimum_birth_stars:
             raise ValueError("maximum_birth_stars must be at least minimum_birth_stars")
+        expected_stars = set(
+            range(
+                self.minimum_birth_stars,
+                self.maximum_birth_stars + 1,
+            )
+        )
+        if set(self.star_weights) != expected_stars:
+            raise ValueError(
+                "star_weights must define every configured birth-star grade exactly"
+            )
+        if any(weight <= 0 for weight in self.star_weights.values()):
+            raise ValueError("summon star weights must be positive")
+        if sum(self.star_weights.values()) != ONE_STAR_GACHA_WEIGHT_TOTAL:
+            raise ValueError(
+                f"summon star weights must total {ONE_STAR_GACHA_WEIGHT_TOTAL}"
+            )
         self.eligible_existing_ids = list(dict.fromkeys(
             value.strip() for value in self.eligible_existing_ids if value.strip()
         ))
@@ -116,6 +134,15 @@ class OneStarSummonPool(BaseModel):
                 *self.cost.materials.values(),
             )):
                 raise ValueError("opening-actor summon pools must be free")
+        if self.usage == "opening_wave":
+            if (
+                not self.fresh_generation_allowed
+                or self.eligible_existing_ids
+                or self.minimum_birth_stars != self.maximum_birth_stars
+            ):
+                raise ValueError(
+                    "opening-wave summon pools require one fixed fresh grade and no reserves"
+                )
         return self
 
 
@@ -423,6 +450,7 @@ class OneStarAccountState(BaseModel):
     guide_character_ids: list[str] = Field(default_factory=list)
     system_observer_ids: list[str] = Field(default_factory=list)
     tutorial_deliveries: dict[str, list[str]] = Field(default_factory=dict)
+    summon_draw_counters: dict[str, int] = Field(default_factory=dict)
     applied_event_fingerprints: dict[str, str] = Field(default_factory=dict)
     active_master_feed_id: str = ""
 
@@ -449,6 +477,17 @@ class OneStarAccountState(BaseModel):
             )
             for key, character_ids in self.tutorial_deliveries.items()
             if key.strip()
+        }
+        if any(
+            not pool_id.strip() or draw_count < 0
+            for pool_id, draw_count in self.summon_draw_counters.items()
+        ):
+            raise ValueError(
+                "summon draw counters require non-empty pool ids and non-negative values"
+            )
+        self.summon_draw_counters = {
+            pool_id.strip(): draw_count
+            for pool_id, draw_count in self.summon_draw_counters.items()
         }
         if any(
             not event_id.strip() or not fingerprint.strip()
@@ -488,6 +527,19 @@ class OneStarAccountEnvelope(BaseModel):
         ):
             raise ValueError(
                 "an active mission and embodied pending operation cannot coexist"
+            )
+        standard_pool_ids = {
+            pool_id
+            for pool_id, pool in self.config.summon_pools.items()
+            if pool.usage == "standard"
+        }
+        unknown_draw_counters = (
+            set(self.state.summon_draw_counters) - standard_pool_ids
+        )
+        if unknown_draw_counters:
+            raise ValueError(
+                "summon draw counters reference non-standard pools: "
+                + ", ".join(sorted(unknown_draw_counters))
             )
         available_facility_ids = {
             *self.state.facilities,

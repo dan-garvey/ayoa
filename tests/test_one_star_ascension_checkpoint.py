@@ -139,6 +139,17 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     assert config.summon_pools["basic"].maximum_birth_stars == 3
     assert config.summon_pools["premium"].minimum_birth_stars == 2
     assert config.summon_pools["premium"].maximum_birth_stars == 5
+    assert config.summon_pools["basic"].star_weights == {
+        1: 8000,
+        2: 1800,
+        3: 200,
+    }
+    assert config.summon_pools["premium"].star_weights == {
+        2: 7500,
+        3: 2300,
+        4: 175,
+        5: 25,
+    }
     assert config.summon_pools["basic"].usage == "standard"
     assert config.summon_pools["premium"].usage == "standard"
     opening_pool = config.summon_pools["newcomer_opening"]
@@ -151,10 +162,13 @@ def test_one_star_ledger_matches_approved_seed_authority() -> None:
     }
     assert opening_pool.minimum_birth_stars == 1
     assert opening_pool.maximum_birth_stars == 1
+    assert opening_pool.star_weights == {1: 10_000}
     assert opening_pool.eligible_existing_ids == [BLANK_PLAYER_ID]
     assert opening_pool.fresh_generation_allowed is False
     assert config.summon_pools["basic"].cost.gold == 2
     assert config.summon_pools["premium"].cost.gems == 5
+    assert config.summon_pools["master_opening_wave"].usage == "opening_wave"
+    assert config.summon_pools["master_opening_wave"].star_weights == {1: 10_000}
     assert "basic_summon" not in config.catalogue
     assert "premium_summon" not in config.catalogue
     assert set(config.summon_pools["basic"].eligible_existing_ids) == {

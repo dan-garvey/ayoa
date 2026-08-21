@@ -15,6 +15,7 @@ from app.engine.one_star_adapter import (
     is_one_star_checkpoint,
     load_one_star_account,
     load_one_star_hero,
+    one_star_summon_draw_preview,
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import OneStarCost, OneStarHeroState
@@ -38,6 +39,20 @@ def _render_ids(values: Iterable[str]) -> str:
     return ",".join(rendered) if rendered else "none"
 
 
+def _render_weight_percent(weight: int) -> str:
+    whole, fractional = divmod(weight, 100)
+    if not fractional:
+        return f"{whole}%"
+    return f"{whole}.{fractional:02d}".rstrip("0") + "%"
+
+
+def _render_star_weights(weights: dict[int, int]) -> str:
+    return ",".join(
+        f"{birth_stars}={_render_weight_percent(weight)}"
+        for birth_stars, weight in sorted(weights.items())
+    )
+
+
 def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
     """Render immutable seed rules for the router's cached system prefix."""
     if not is_one_star_checkpoint(checkpoint):
@@ -58,6 +73,7 @@ def render_one_star_router_static_config(checkpoint: CheckpointFile) -> str:
         lines.append(
             f"- id={pool_id}; cost[{_render_resources(pool.cost)}]; "
             f"birth_stars={pool.minimum_birth_stars}-{pool.maximum_birth_stars}; "
+            f"birth_star_rates[{_render_star_weights(pool.star_weights)}]; "
             f"usage={pool.usage}; "
             f"eligible_existing_ids={_render_ids(pool.eligible_existing_ids)}; "
             f"fresh_generation_allowed={str(pool.fresh_generation_allowed).lower()}"
@@ -200,6 +216,21 @@ def render_one_star_router_ledger(checkpoint: CheckpointFile) -> str:
             for key, character_ids in sorted(state.tutorial_deliveries.items())
         ),
     ]
+    lines.append("authoritative_summon_draw_slates:")
+    for pool_id, pool in sorted(config.summon_pools.items()):
+        if pool.usage != "standard":
+            continue
+        slots = one_star_summon_draw_preview(checkpoint, pool_id)
+        lines.append(f"- pool={pool_id}")
+        for draw in slots:
+            source = (
+                f"reserve:{draw.existing_character_id}"
+                if draw.existing_character_id
+                else "fresh"
+            )
+            lines.append(
+                f"  slot={draw.slot}; birth_stars={draw.birth_stars}; source={source}"
+            )
     if state.active_mission is None:
         lines.append("active_mission: none")
     else:

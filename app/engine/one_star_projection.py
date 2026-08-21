@@ -67,6 +67,19 @@ def _join_values(values: Iterable[str], *, empty: str = "none") -> str:
     return ", ".join(rendered) if rendered else empty
 
 
+def _summon_rate_text(weights: dict[int, int]) -> str:
+    rendered: list[str] = []
+    for birth_stars, weight in sorted(weights.items()):
+        whole, fractional = divmod(weight, 100)
+        percent = (
+            f"{whole}%"
+            if not fractional
+            else f"{whole}.{fractional:02d}".rstrip("0") + "%"
+        )
+        rendered.append(f"{birth_stars}-star {percent}")
+    return ", ".join(rendered)
+
+
 def _equipment_line(hero: OneStarHeroState, *, exact: bool) -> str:
     parts: list[str] = []
     for item in _visible_equipment(hero):
@@ -208,8 +221,9 @@ def _management_lines(
             f"{pool_id}: {pool.cost.gold} Gold, {pool.cost.gems} Gems, "
             f"{pool.cost.building_resources} Building Resources; "
             f"birth stars {pool.minimum_birth_stars}-"
-            f"{pool.maximum_birth_stars}"
+            f"{pool.maximum_birth_stars}; rates {_summon_rate_text(pool.star_weights)}"
             for pool_id, pool in sorted(envelope.config.summon_pools.items())
+            if pool.usage == "standard"
         )
     )
     research = _join_values(

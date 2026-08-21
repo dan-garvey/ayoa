@@ -524,6 +524,7 @@ def test_one_star_router_projections_split_static_rules_from_live_ledger(
                 cost=cost(gems=5),
                 minimum_birth_stars=2,
                 maximum_birth_stars=5,
+                star_weights={2: 7500, 3: 2300, 4: 175, 5: 25},
                 eligible_existing_ids=["veil"],
                 fresh_generation_allowed=True,
                 usage="standard",
@@ -646,12 +647,21 @@ def test_one_star_router_projections_split_static_rules_from_live_ledger(
         "load_one_star_hero",
         lambda character: hero if character.character_id == "pip" else None,
     )
+    monkeypatch.setattr(
+        one_star_router_context,
+        "one_star_summon_draw_preview",
+        lambda _checkpoint, _pool_id: (
+            SimpleNamespace(slot=1, birth_stars=2, existing_character_id="veil"),
+            SimpleNamespace(slot=2, birth_stars=3, existing_character_id=""),
+        ),
+    )
 
     static = one_star_router_context.render_one_star_router_static_config(ckpt)
     dynamic = one_star_router_context.render_one_star_router_ledger(ckpt)
 
     assert "synthesis_chamber_i" in static
     assert "birth_stars=2-5" in static
+    assert "birth_star_rates[2=75%,3=23%,4=1.75%,5=0.25%]" in static
     assert "repeat_clear_gold" in static
     assert "hero_constraints" in static
     assert "gold=34" not in static
@@ -661,6 +671,10 @@ def test_one_star_router_projections_split_static_rules_from_live_ledger(
     assert "pending_operation" in dynamic
     assert "hidden_capabilities" in dynamic
     assert "eligible_unowned_reserves" in dynamic
+    assert "source=reserve:veil" in dynamic
+    assert "source=fresh" in dynamic
+    assert "summon_draw_counters" not in dynamic
+    assert "one-star-gacha" not in dynamic
     mission_header = dynamic.split("mission_completion=", 1)[0]
     assert "status=" not in mission_header
 

@@ -1470,25 +1470,34 @@ canonical event is broadcast.
 Durable state stays on existing character records:
 
 * the unique account owner carries configuration and account state under
-  `CharacterRecord.mechanics["one_star_account"]`;
+  `CharacterRecord.mechanics["one_star_account"]`, including per-pool summon
+  draw counters;
 * each Hero carries HP, XP, stars, stats, equipment, skills, injuries, and
   ownership under `CharacterRecord.mechanics["one_star_hero"]`;
 * `CharacterRecord.status` and `CharacterRecord.location` remain the only
   lifecycle and location authority. The adapter does not duplicate the roster;
 * story-authored configuration owns costs, rewards, caps, facilities, summon
-  pools, progression prerequisites, and physical operation requirements.
-  Engine code contains no One-Star entity names or economy constants.
+  pool weights, progression prerequisites, and physical operation
+  requirements. Engine code contains no One-Star entity names or economy
+  constants.
 
-The cached router addon receives immutable configuration. Current balances,
-stamina, progression, mission, pending operation, and relevant Hero sheets are
-rendered only in the volatile user tail. One-Star routes use
+The cached router addon receives immutable configuration, including disclosed
+summon rates. Current balances, stamina, progression, mission, pending
+operation, relevant Hero sheets, and the exact next standard-pool draw slates
+are rendered only in the volatile user tail. Draw counters and deterministic
+draw inputs are never model context. One-Star routes use
 `OneStarEventRouterOutput`; continuation routes use the closed subtype. Default
 narrative and D&D routes retain their existing schemas and receive no One-Star
 prompt or state block.
 
-Summoning pairs the typed ledger operation with the generic spawn or dormant
-activation that creates the identity transition. Deployment, synthesis, and
-promotion are staged: selection opens a zero-side-effect pending operation,
+For a standard summon, the adapter fixes each weighted birth grade and any
+eligible dormant reserve before routing, then accepts only an exact ordered
+prefix of that slate. The typed ledger operation pairs each result with the
+generic fresh spawn or exact dormant activation that creates the identity
+transition; a successful atomic commit advances the pool counter, while failed
+validation and replay cannot reroll or double-advance. Authored opening pools
+remain non-random and do not consume standard draws. Deployment, synthesis,
+and promotion are staged: selection opens a zero-side-effect pending operation,
 affected Heroes keep ordinary response ownership, and a later event may resolve
 only after the recorded bodies physically reach the configured gate or chamber.
 Tower mission boundaries, pre-existing escape authority, resource underflow,
