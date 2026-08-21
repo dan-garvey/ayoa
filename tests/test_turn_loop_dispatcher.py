@@ -1829,13 +1829,12 @@ class TestRouteIntention:
         assert ckpt.session_conversation[-1].role == "assistant"
         assert "prior_event" in ckpt.session_conversation[-1].content
 
-    def test_route_continuation_uses_recovery_block_not_intention(
+    def test_route_continuation_uses_continuation_block_not_intention(
         self, prompt_mgr, mock_client,
     ):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         prior = _router_output()
-        prior.event_kind = "beat_continues"
-        prior.decision_rationale = "The beat stayed open without a pick."
+        prior.decision_rationale = "The visible motion has not settled."
         mock_client.complete.return_value = _llm_response(_router_output())
 
         asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_continuation(
@@ -1849,7 +1848,7 @@ class TestRouteIntention:
             mock_client.complete.await_args.kwargs["messages"]
         )
         assert ROUTER_CONTINUATION_HEADER in user_content
-        assert "The beat stayed open without a pick." in user_content
+        assert "The visible motion has not settled." in user_content
         assert "Alice attempts:" not in user_content
         assert "Alice intends:" not in user_content
         assert "I wait for the door to open." in user_content
@@ -1865,7 +1864,6 @@ class TestRouteIntention:
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         _queue_content_signal(ckpt, ref_id="front/villain", kind="front_signal")
         prior = _router_output()
-        prior.event_kind = "beat_continues"
         mock_client.complete.return_value = _llm_response(_router_output())
 
         asyncio.run(LLMDispatcher(mock_client, prompt_mgr).route_continuation(

@@ -516,6 +516,9 @@ class EventRouterOutput(BaseModel):
           (edge-case #2) cannot reach the loop.
         - `required_responders` must be unique; duplicates corrupt the
           collection set semantics in `cat_ii_is_ready`.
+        - `event_kind="beat_continues"` must name at least one
+          `next_output` observer. The event kind is a semantic frontier, not
+          a request for the runtime to invent another routing step.
         - `observers[].routing_role` may select observer NPCs or explicit
           enrichment targets as ordered response/perception candidates. The
           engine applies hard safety filters before dispatch.
@@ -543,6 +546,14 @@ class EventRouterOutput(BaseModel):
             raise ValueError(
                 "event_kind='response_requested' requires an observer with "
                 "routing_role='next_output' naming the in-world response actor."
+            )
+        if (
+            self.event_kind == "beat_continues"
+            and not self.next_output_character_ids
+        ):
+            raise ValueError(
+                "event_kind='beat_continues' requires an observer with "
+                "routing_role='next_output' naming the next in-world actor."
             )
         observer_ids = [o.character_id for o in self.observers if o.character_id]
         observer_id_set = set(observer_ids)

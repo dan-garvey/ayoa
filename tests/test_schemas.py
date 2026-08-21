@@ -373,6 +373,28 @@ class TestEventRouterOutput:
         assert "ends_beat_reason" not in props
         assert "agent_responder_picks" not in props
 
+    def test_beat_continues_requires_next_output_observer(self):
+        with pytest.raises(
+            ValidationError,
+            match="beat_continues.*requires.*next_output",
+        ):
+            EventRouterOutput.model_validate({
+                **ROUTER_OUTPUT_EXAMPLE,
+                "event_kind": "beat_continues",
+            })
+
+    def test_beat_continues_accepts_next_output_observer(self):
+        rebuilt = EventRouterOutput.model_validate({
+            **ROUTER_OUTPUT_EXAMPLE,
+            "event_kind": "beat_continues",
+            "observers": [{
+                **ROUTER_OUTPUT_EXAMPLE["observers"][0],
+                "routing_role": "next_output",
+            }],
+        })
+
+        assert rebuilt.next_output_character_ids == ["guard_17"]
+
     def test_generic_observer_rejects_dnd_reaction_role(self):
         data = {
             **ROUTER_OUTPUT_EXAMPLE,

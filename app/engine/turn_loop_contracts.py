@@ -94,13 +94,12 @@ def format_router_continuation_block(
     prior_rationale: str = "",
     original_action: str = "",
 ) -> str:
-    """Ask the router to repair an open beat with no continuation path.
+    """Ask the router to author another event for an open visible sequence.
 
-    This is not a new character intention. It is a router-only recovery
-    mode used when the prior router output left no dispatchable next-output
-    target but the visible sequence still needs motion. The next router output
-    must either create a concrete response boundary or supply a real character
-    continuation.
+    This is not a new character intention. It is used after a narrator
+    continuation handoff says the visible sequence still needs motion. The
+    next router output must either create a concrete response boundary or
+    supply a real character continuation.
     """
     lines = [
         ROUTER_CONTINUATION_HEADER,
@@ -121,7 +120,8 @@ def format_router_continuation_block(
         "",
         (
             "Do not open Cat II in this mode. Author a closed cue or select a "
-            "character with `routing_role=next_output`."
+            "character with `routing_role=next_output`. Never emit "
+            "`event_kind=beat_continues` without a next-output character."
         ),
     ]
     action = (original_action or "").strip()

@@ -173,7 +173,7 @@ role. It decides:
 * spawns, dormancy, and culls
 
 The router also handles router-shaped special entries: `(begin)`, `(arrive)`,
-`(query: ...)`, continuation rescue, and Cat II resolution blocks. Directly
+`(query: ...)`, narrator-requested continuation, and Cat II resolution blocks. Directly
 supplied and character-agent-authored prose share one proposed actor-submission
 framing over the same `EventRouterOutput` schema; neither source pre-commits
 fiction.
@@ -371,8 +371,8 @@ Important state:
 * `route_intention()` sends every proposed actor submission through the
   `event_router` prompt, whether its text was supplied directly or authored by
   a character agent
-* `route_continuation()` asks the router to repair an open beat with no
-  dispatchable NPC pick
+* `route_continuation()` asks the router for another grounded event after a
+  narrator continuation handoff keeps the visible batch open
 * `agent_intend()` calls `CharacterAgent.turn()`
 * `harvest_perceptions()` calls `CharacterAgent.perceive()` in parallel
 * `narrator_compose()` calls `compose_pov_render()`
@@ -394,7 +394,7 @@ Current router call shapes:
 * actor submission (`submitted_actor_id` plus `submission_text`), independent
   of how that text reached the runtime
 * Cat II final adjudication (`## Cat II Resolution`)
-* continuation rescue (`## Continuation Required`)
+* narrator-requested continuation (`## Continuation Required`)
 * OOC directives such as `(begin)`, `(arrive)`, `(defer)`, and
   `(query: ...)`
 
@@ -605,8 +605,8 @@ The turn loop broadcasts the event, then either:
 * performs private query harvest, if `event_kind=query_response`
 * dispatches the next valid NPC pick and routes that public result back
   through the router
-* asks the router for one continuation rescue if the beat remains open but
-  no dispatchable NPC pick survives filtering
+* lets the narrator request another grounded router event when established
+  motion or a submitted wait condition remains visibly unresolved
 * forces render if `max_events_per_beat` is reached
 
 ### 6.3 Cat II

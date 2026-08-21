@@ -876,36 +876,26 @@ class TestBeatCascade:
             for call in fake.route_calls[1:]
         ] == ["pip", "bob"]
 
-    def test_false_endbeat_with_no_next_output_routes_continuation(self):
+    def test_mutated_targetless_beat_continues_fails_before_broadcast(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(event_kind="beat_continues"))
-        fake.queue_route(_router_out(event_kind="cascade_exhausted"))
+        invalid = _router_out(event_kind="cascade_exhausted")
+        invalid.event_kind = "beat_continues"
+        fake.queue_route(invalid)
 
-        result = asyncio.run(run_beat(
-            ckpt=ckpt,
-            dispatcher=fake,
-            actor_id="alice",
-            intention="wait",
-        ))
-
-        assert result.ended_reason == "cascade_exhausted"
-        assert len(fake.continuation_calls) == 1
-        assert result.events_closed == 2
-
-    def test_repeated_false_endbeat_without_next_output_errors(self):
-        ckpt = _ckpt({"alice": "1"})
-        fake = FakeDispatcher()
-        fake.queue_route(_router_out(event_kind="beat_continues"))
-        fake.queue_route(_router_out(event_kind="beat_continues"))
-
-        with pytest.raises(RuntimeError, match="without a dispatchable"):
+        with pytest.raises(
+            RuntimeError,
+            match="beat_continues requires at least one next_output",
+        ):
             asyncio.run(run_beat(
                 ckpt=ckpt,
                 dispatcher=fake,
                 actor_id="alice",
                 intention="wait",
             ))
+
+        assert fake.continuation_calls == []
+        assert ckpt.canonical_events == []
 
     def test_next_output_spawn_materializes_before_broadcast_and_dispatch(self):
         ckpt = _ckpt({"alice": "1"})
@@ -949,12 +939,17 @@ class TestBeatCascade:
     def test_continuation_still_cannot_open_cat_ii(self):
         ckpt = _ckpt({"alice": "1"})
         fake = FakeDispatcher()
-        fake.queue_route(_router_out(event_kind="beat_continues"))
+        fake.queue_route(_router_out(event_kind="state_change"))
+        fake.queue_narrator(
+            handoff="continue",
+            reason="The visible sequence still has established motion.",
+            text="DISCARDED CANDIDATE",
+        )
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["pip"],
             observer_ids=["alice", "pip"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
 
         with pytest.raises(RuntimeError, match="continuation opened Cat II"):
@@ -1012,7 +1007,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["alice"],
             observer_ids=["alice", "bob"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
         direct_result = asyncio.run(run_beat(
             ckpt=direct_ckpt,
@@ -1033,7 +1028,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["alice"],
             observer_ids=["alice", "bob"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
         autonomous_result = asyncio.run(run_beat(
             ckpt=autonomous_ckpt,
@@ -1076,7 +1071,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["alice"],
             observer_ids=["alice", "bob"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
 
         result = asyncio.run(run_beat(
@@ -1119,7 +1114,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["pip"],
             observer_ids=["alice", "bob", "pip"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
         fake.queue_agent(responder_submission)
         fake.queue_route(_router_out(
@@ -1161,7 +1156,7 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["pip"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
             effective_at_s=100,
             duration_s=30,
         ))
@@ -1194,7 +1189,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["pip"],
             observer_ids=["alice", "bob", "pip"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
         fake.queue_agent("Pip pulls the letter against his chest.")
         fake.queue_route(_router_out(
@@ -1223,7 +1218,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["hidden_lookout"],
             observer_ids=["alice", "hidden_lookout"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
             spawn=[
                 SpawnRequest(
                     character_id="hidden_lookout",
@@ -1260,7 +1255,7 @@ class TestCatIIBeat:
             requires_responders=True,
             required_responders=["ghost_responder"],
             observer_ids=["alice", "ghost_responder"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
 
         with pytest.raises(RuntimeError, match="not in the roster"):
@@ -1281,7 +1276,7 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["pip"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
         fake.queue_agent("Pip dodges")
         fake.queue_route(_router_out(event_kind="cascade_exhausted"))
@@ -1353,7 +1348,7 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["bob"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
 
         result = asyncio.run(run_beat(
@@ -1843,7 +1838,7 @@ class TestCatIIBeat:
         fake.queue_route(_router_out(
             requires_responders=True,
             required_responders=["alice"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
 
         result = asyncio.run(run_beat(
@@ -2836,7 +2831,7 @@ class TestSchemaValidators:
             agent_ids=["pip"],
         )[0].frame == "private"
 
-        offstage = _router_out(event_kind="beat_continues")
+        offstage = _router_out(event_kind="state_change")
         assert targets_from_router_output(
             offstage,
             player_ids={"alice"},
@@ -2940,7 +2935,7 @@ class TestRejectionFormatting:
 class TestHumanNextOutputYield:
     """Multiplayer turn ownership: when the router wants a co-present human to
     respond next, the beat must yield to that human's own /act instead of an
-    agent turn or a continuation rescue voicing them."""
+    agent turn or a narrator continuation voicing them."""
 
     def test_beat_yields_when_router_routes_a_human_next(self):
         ckpt = _ckpt({"alice": "1", "bob": "2"})
@@ -2961,7 +2956,7 @@ class TestHumanNextOutputYield:
         ))
 
         assert result.ended_reason == "awaiting_player_turn"
-        # The beat yielded: no continuation rescue and no agent turn for Bob.
+        # The beat yielded: no narrator continuation and no agent turn for Bob.
         assert fake.continuation_calls == []
         assert fake.agent_calls == []
         # Only Alice's own action was canonicalized; Bob was not spoken for.

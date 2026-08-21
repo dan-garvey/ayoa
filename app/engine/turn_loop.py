@@ -974,9 +974,9 @@ async def _materialize_router_spawns_for_dispatch(
     visible facts before the character agent is called.
 
     Cat II requires every missing responder to be backed by a spawn request.
-    Ordinary next-output routing keeps the existing continuation rescue for
-    unrelated unknown ids, but a matching spawn that fails to materialize is a
-    loud runtime contract violation in either mode.
+    An unrelated unknown next-output id is not materializable. A matching
+    spawn that fails to materialize is a loud runtime contract violation in
+    either mode.
     """
     known_ids = {char.character_id for char in ckpt.characters}
     missing = [cid for cid in character_ids if cid not in known_ids]
@@ -2511,8 +2511,8 @@ class Dispatcher(Protocol):
         prior_result: EventRouterOutput,
         original_action: str = "",
     ) -> EventRouterOutput:
-        """Advance an open beat when the prior router output supplied
-        no dispatchable next actor despite `event_kind=beat_continues`."""
+        """Author another grounded event after a narrator continuation
+        handoff keeps the current visible batch open."""
         ...
 
     async def route_combat_action(
@@ -2683,7 +2683,6 @@ async def run_beat(
     event_actor_ids = list(resume_event_actor_ids or [])
     current_intention = intention
     current_actor = actor_id
-    missing_target_rescue_used = False
     pending_result: EventRouterOutput | None = None
     pending_result_is_continuation = False
     pending_result_actor_id: str = ""
@@ -2692,23 +2691,10 @@ async def run_beat(
 
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
-        *,
-        narrator_requested: bool = False,
     ) -> None:
-        nonlocal missing_target_rescue_used, pending_result
-        nonlocal pending_result_is_continuation, pending_result_actor_id
+        nonlocal pending_result, pending_result_is_continuation
+        nonlocal pending_result_actor_id
         nonlocal pending_result_submission
-        # Narrator prose is diagnostic only. Keep the engine-control
-        # distinction typed so a free-form reason never becomes router input.
-        missing_target_rescue = not narrator_requested
-        if missing_target_rescue and missing_target_rescue_used:
-            raise RuntimeError(
-                "Router kept beat open without a dispatchable continuation: "
-                "event_kind=beat_continues and no dispatchable next_output "
-                "after the continuation rescue."
-            )
-        if missing_target_rescue:
-            missing_target_rescue_used = True
         pending_result = await dispatcher.route_continuation(
             ckpt=ckpt,
             actor_id=actor_id,
@@ -2878,10 +2864,6 @@ async def run_beat(
                 acting_player_input=intention,
                 suppress_reaction_prompts=suppress_reaction_prompts,
             )
-        if result.event_kind == "beat_continues":
-            await _queue_router_continuation(result)
-            return None
-
         handoff = await _end_beat(
             ckpt,
             dispatcher,
@@ -2894,10 +2876,7 @@ async def run_beat(
             soft_handoff_candidate=True,
         )
         if handoff.continue_requested:
-            await _queue_router_continuation(
-                result,
-                narrator_requested=True,
-            )
+            await _queue_router_continuation(result)
             return None
         return handoff
 
@@ -3075,10 +3054,7 @@ async def run_beat(
             )
 
     if resume_after_handoff is not None:
-        await _queue_router_continuation(
-            resume_after_handoff,
-            narrator_requested=True,
-        )
+        await _queue_router_continuation(resume_after_handoff)
 
     while True:
         if pending_result is None:
@@ -3107,6 +3083,15 @@ async def run_beat(
             if not result_is_continuation:
                 current_actor = result_actor_id
                 current_intention = result_submission
+
+        if (
+            result.event_kind == "beat_continues"
+            and not result.next_output_character_ids
+        ):
+            raise RuntimeError(
+                "Router contract violation: event_kind=beat_continues "
+                "requires at least one next_output character."
+            )
 
         interaction_mode = _dnd_interaction_mode(result)
         if interaction_mode == "dnd_combat_start":

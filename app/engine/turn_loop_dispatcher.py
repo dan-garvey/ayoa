@@ -1192,7 +1192,7 @@ class LLMDispatcher:
         prior_result: EventRouterOutput,
         original_action: str = "",
     ) -> EventRouterOutput:
-        """Ask the router to advance an open beat with no next-output target."""
+        """Ask the router for another event after a narrator continue handoff."""
 
         router_snapshot = _router_call_snapshot(ckpt)
         try:

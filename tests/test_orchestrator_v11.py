@@ -2437,7 +2437,7 @@ class TestCatIIPending:
         FakeDispatcher.queue_route(_router_out(
             requires_responders=True,
             required_responders=["bob"],
-            event_kind="beat_continues",
+            event_kind="cat_ii_open",
         ))
 
         response = await orch.process_turn(TurnRequest(
