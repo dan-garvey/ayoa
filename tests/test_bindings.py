@@ -48,8 +48,13 @@ def _make_checkpoint() -> CheckpointFile:
                 name="Aldric",
                 is_playable=True,
                 public_sheet=PublicSheet(role="wanderer", appearance="tall"),
+                player_guidance=(
+                    "Control Aldric's body, speech, and choices. "
+                    "You can read the trail signs he recognizes."
+                ),
                 backstory="Raised by wolves.",
-                personality="Quiet.",
+                personality="MODEL-ONLY: Keep his voice clipped and quiet.",
+                known_context="The north trail is safe at dawn.",
                 private_state=PrivateState(
                     goals=["survive"],
                     secrets=["knows the royal sigil"],
@@ -382,12 +387,21 @@ class TestStrictPlayerJoin:
 
 
 class TestDossier:
-    def test_includes_character_interior(self, bridge: EngineBridge):
-        """Dossier surfaces what the CHARACTER knows about themselves."""
+    def test_projects_player_contract_and_character_interior_only(
+        self,
+        bridge: EngineBridge,
+    ):
+        """The player sees control guidance and character-known material,
+        never the model's portrayal direction."""
         dossier = bridge.build_character_dossier(SESSION_ID, "aldric")
+        assert "## Your Control & Perspective" in dossier
+        assert "Control Aldric's body" in dossier
         assert "Raised by wolves" in dossier  # backstory
+        assert "north trail" in dossier        # known context
         assert "survive" in dossier           # goal
         assert "royal sigil" in dossier       # secret THIS character keeps
+        assert "MODEL-ONLY" not in dossier
+        assert "clipped and quiet" not in dossier
 
     def test_excludes_world_hidden_content(self, bridge: EngineBridge):
         """World-wide hidden lore/facts are engine secrets, not per-character

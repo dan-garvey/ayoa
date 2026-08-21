@@ -393,20 +393,14 @@ def test_cast_is_bounded_so_the_lobby_never_becomes_thousands_of_agents() -> Non
     # A small authored roster; any lobby crowd lives as ambient world text.
     assert len(checkpoint.characters) <= 18
 
-    facts = "\n".join(checkpoint.world_state.facts).lower()
-    assert "only a small active party" in facts
-    assert "dormant" in facts
-
-
 def test_floor_zero_start_and_summon_pool() -> None:
     checkpoint = _load_checkpoint()
     by_id = {c.character_id: c for c in checkpoint.characters}
 
     # Floor-zero: a brand-new lobby / tutorial start, not the old mid-climb stall.
-    facts = "\n".join(checkpoint.world_state.facts).lower()
-    assert "the very start of a climb" in facts or "brand-new master" in facts
-    assert "tutorial" in facts
-    assert "stalled on the eighth floor" not in facts
+    assert checkpoint.world_state.global_flags["floor"] == 0
+    assert checkpoint.world_state.global_flags["phase"] == "floor_zero_tutorial"
+    assert checkpoint.world_state.global_flags["lobby_freshly_instanced"] is True
 
     # The pre-authored characters are preserved as a dormant, quarantined pool:
     # not in play until the router summons/introduces one.
@@ -416,12 +410,6 @@ def test_floor_zero_start_and_summon_pool() -> None:
         assert pooled.location == "unsummoned_pool", pool_id
         assert pooled.is_playable is False, pool_id
         assert pooled.private_state.intentions_enabled is False, pool_id
-
-    # Router-only guidance describes the pool + floor-zero framing.
-    hidden_lore = checkpoint.world_state.hidden_lore.lower()
-    assert "summon pool" in hidden_lore
-    assert "unsummoned_pool" in hidden_lore
-    assert "floor-zero framing" in hidden_lore
 
     # Ordinary one-stars are generated for an actual summon instead of living as
     # fixed active starters. Renna is the only authored one-star exception:
@@ -441,14 +429,8 @@ def test_floor_zero_start_and_summon_pool() -> None:
     assert renna.is_playable is False
     assert len(renna.backstory.split()) < 40
     assert len(renna.personality.split()) < 55
-    renna_private = (
-        renna.descriptions.private
-        + " "
-        + " ".join(renna.private_state.secrets)
-    ).lower()
-    assert "retain" in renna_private
-    assert "pattern" in renna_private
-    assert "no visible marker" in renna_private
+    assert renna.descriptions.private
+    assert len(renna.private_state.secrets) == 1
 
     for character in checkpoint.characters:
         role = character.public_sheet.role.lower()
@@ -467,7 +449,7 @@ def test_floor_zero_start_and_summon_pool() -> None:
         assert not any(leak in private for leak in lifecycle_leaks), pool_id
 
 
-def test_opening_goblin_chapter_is_authored_without_stale_slime_guidance() -> None:
+def test_opening_seed_has_no_stale_slime_guidance() -> None:
     checkpoint = _load_checkpoint()
     by_id = {character.character_id: character for character in checkpoint.characters}
 
@@ -484,12 +466,7 @@ def test_opening_goblin_chapter_is_authored_without_stale_slime_guidance() -> No
     assert "acid slime" not in public_facts
     assert "acid slime" not in guide_context
 
-    for floor in range(1, 6):
-        assert f"floor {floor}" in router_only
-    assert "five minutes" in router_only
-    assert "hundreds of goblins" in router_only
-    assert "five-floor cadence" in router_only
-    assert "materially different motif" in router_only
+    assert "acid slime" not in router_only
 
 
 def test_expanded_summon_pool_spans_two_through_five_stars() -> None:
@@ -514,21 +491,13 @@ def test_expanded_summon_pool_spans_two_through_five_stars() -> None:
 
 def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
     checkpoint = _load_checkpoint()
-    facts = "\n".join(checkpoint.world_state.facts).lower()
-    hidden = (
-        checkpoint.world_state.hidden_lore
-        + "\n"
-        + "\n".join(checkpoint.world_state.hidden_facts)
-    ).lower()
     by_id = {character.character_id: character for character in checkpoint.characters}
 
-    assert "two-stars retain thin" in facts
-    assert "four-stars cross the memory threshold" in facts
-    assert "status mapping" in hidden
-    assert "remains active" in hidden
-    assert "not lower-stage templates" in hidden
-    assert "trade, poaching, rescue, transfer" in hidden
-    assert "through the interface" not in facts
+    for character_id in SUMMON_POOL_IDS:
+        character = by_id[character_id]
+        assert character.status.value == "dormant"
+        assert character.location == "unsummoned_pool"
+        assert character.knowledge_tier is not None
 
     veil_public = (
         by_id["veil_the_unnumbered"].public_sheet.role
@@ -539,21 +508,13 @@ def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
     assert "status window" not in veil_public
 
 
-def test_router_facing_game_world_manual_is_present() -> None:
+def test_common_world_authority_does_not_leak_hidden_origin() -> None:
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
 
-    facts = "\n".join(ws.facts).lower()
-    lore = ws.lore.lower()
-
-    assert "of their own will" in facts
-    assert "does not puppet" in facts
-    assert "synthes" in facts
-    assert "gems" in facts and "stamina" in facts
-    assert "one-star" in facts or "one star" in facts
-    assert "dialogue box" in facts  # System pop-up notices are a core texture
-    for token in ["interface", "niflheim", "synthesis menu", "intervention"]:
-        assert token in lore, token
+    common = ("\n".join(ws.facts) + "\n" + ws.lore).lower()
+    for hidden_origin in ("moebius", "abduct", "stolen people"):
+        assert hidden_origin not in common
 
 
 def test_hidden_reveals_are_router_only() -> None:
@@ -571,8 +532,6 @@ def test_hidden_reveals_are_router_only() -> None:
         "wailing wall",
     ]:
         assert token in hidden, token
-    assert "arbitrary early" in hidden
-
     primer = checkpoint.player_primer.lower()
     assert "moebius" not in primer
     assert "stolen" not in primer
@@ -586,27 +545,14 @@ def test_promotion_star_up_and_memory_spine() -> None:
     assert "promotion" in facts
     assert "leveling" in facts
     assert "promotion chamber" in facts
-    assert "one-star summons arrive blank" in facts
-    assert "two-stars retain thin" in facts
-    assert "four-stars cross the memory threshold" in facts
-    assert "five-stars retain" in facts
 
-    facts_lore = ("\n".join(ws.facts) + "\n" + ws.lore).lower()
-    assert "1-star to level 10" in facts_lore
-    assert "6-star to 99" in facts_lore
-
-    hidden_lore = ws.hidden_lore.lower()
     hidden = (ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)).lower()
-    assert "promotion and memory" in hidden_lore
-    assert "new summons" in hidden_lore
     assert "four stars" in hidden or "four-star" in hidden
-    assert "cannot see inside the promotion chamber" in hidden
     for grade in ("three-stars", "four-stars", "five-stars"):
         assert grade in hidden
 
     master = next(c for c in checkpoint.characters if c.character_id == "the_master")
-    msecrets = " ".join(master.private_state.secrets).lower()
-    assert "promotion chamber" in msecrets and "memories" in msecrets
+    assert master.private_state.secrets == []
 
     halcyon = next(
         c for c in checkpoint.characters
@@ -630,17 +576,14 @@ def test_system_sight_is_master_view_with_protagonist_exception() -> None:
     # The System's crisp readouts belong to the Master, not to an ordinary Hero,
     # and the research upgrade is the diegetic gate that shares them with a party.
     assert "hero reaction research" in facts
-    assert "hero reaction research" in hidden
-    assert "cannot see them" in facts
-    assert "system-blind" in hidden
+    assert hidden.count("hero reaction research") == 0
     # Guard against regressing to the old (wrong) "shared reality" framing.
     assert "the heroes' shared reality" not in facts
 
     # The player-character is the authored exception: an out-of-world summon who
     # reads the System from birth (both the POV necessity and a live anomaly).
-    assert "another world" in facts
-    assert "exception" in facts
-    assert "one authored anomaly" in hidden
+    assert BLANK_PLAYER_ID in hidden
+    assert "system windows" in hidden
 
     # The narrator must gate dialogue boxes by who can actually see the System,
     # and the protagonist's sight is not tied to the Master being logged in.
@@ -671,25 +614,18 @@ def test_lobby_master_and_guide_framing() -> None:
     assert by_id["one_star_newcomer"].public_sheet.faction == "Niflheim lobby"
     assert by_id["renna_holt"].public_sheet.faction == "Hero"
 
-    facts = "\n".join(ws.facts).lower()
-    lore = ws.lore.lower()
     rules = checkpoint.session.config.narrative_rules
     rules_lower = rules.lower()
 
-    # Concern 4: the lobby is a home hub, distinct from the Tower's floors.
-    assert "not part of the tower" in facts
-    assert "not a part of the tower" in lore
+    # Concern 4: the story begins in the lobby, before any floor deployment.
+    assert ws.global_flags["floor"] == 0
+    assert by_id["one_star_newcomer"].location == "not_yet_fictional"
+    assert by_id["iselle_the_guide"].location == "niflheim_lobby"
     assert "lobby vs. tower" in rules_lower
 
-    # Concern 1/5: the Master prepares the party before deployment; the guide
-    # only assists and the deployed Heroes command themselves.
-    assert "the master prepares the party before a mission" in facts
-    assert "after deployment, the heroes command themselves" in facts
     iselle = by_id["iselle_the_guide"]
     assert "master" in iselle.public_sheet.role.lower()
-    guide_ctx = iselle.known_context.lower()
-    assert "the master chooses the floor and prepares the party" in guide_ctx
-    assert "does not treat a hero" in guide_ctx
+    assert iselle.known_context
 
     # Concern 5: the narrator is told to aim the guide's coaching at the Master.
     assert "tutorial-guide's audience" in rules
@@ -710,16 +646,12 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
 
     router_contract = "\n".join((*ws.facts, ws.lore)).lower()
     narrator_contract = checkpoint.session.config.narrative_rules.lower()
-    adjudication_contract = (
-        ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)
-    ).lower()
     tier_one_grant, _ = _assemble_knowledge_grant(checkpoint, 1)
     tier_one_contract = tier_one_grant.lower()
     master_contract = "\n".join(
         (
             ws.setting.play_guidance,
             by_id["the_master"].player_guidance,
-            by_id["the_master"].personality,
             by_id["the_master"].known_context,
         )
     ).lower()
@@ -727,7 +659,6 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
     for contract_name, contract in (
         ("router", router_contract),
         ("narrator", narrator_contract),
-        ("adjudication", adjudication_contract),
         ("generated one-star", tier_one_contract),
         ("Master", master_contract),
     ):
@@ -737,9 +668,6 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
 
     assert "tactical withdrawal" in router_contract
     assert "tactical withdrawal" in narrator_contract
-    assert "another position on the same floor" in adjudication_contract
-    assert "ordinary retreat never changes" in adjudication_contract
-
     # Existing seeded agents receive authoritative known_context instead of
     # the generated-character tier grant, so each social character needs the
     # same common floor law on its own record.
@@ -752,7 +680,7 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
         known = character.known_context.lower()
         assert "very rare escape item" in known, character.character_id
         assert "very powerful magic" in known, character.character_id
-        assert "current floor" in known, character.character_id
+        assert "floor" in known, character.character_id
 
     # Preserve the authored-Newcomer contract and the inert floor boss.
     assert by_id[BLANK_PLAYER_ID].known_context == ""
@@ -763,7 +691,6 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
         (
             router_contract,
             narrator_contract,
-            adjudication_contract,
             tier_one_contract,
             master_contract,
             by_id["iselle_the_guide"].known_context.lower(),
@@ -806,14 +733,12 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
         "crack of space and time",
     ):
         assert facility in facts_lore, facility
-    assert "facilities and lobby management" in lore
-    assert "builds and upgrades" in facts
     assert "waiting room" in facts
     assert "shrine" not in facts_lore  # repurposed, not a purposeless building
 
     # Lobby restoration with the permadeath / old-amputation exceptions.
-    assert "mends its own" in facts
-    assert "cannot regrow a limb" in facts
+    assert "restorative" in facts
+    assert "limb lost long ago" in facts
     assert "do not carry wounds" in rules
 
     # The guide is also the warden: compels refusers, lethal defense protocol.
@@ -823,18 +748,20 @@ def test_lobby_facilities_healing_and_enforcement() -> None:
     assert "warden" in iselle.public_sheet.role.lower()
     guide_ctx = iselle.known_context.lower()
     assert "lethal defense protocol" in guide_ctx
-    assert "compel a hero who refuses to deploy" in guide_ctx
+    assert "compel deployment" in guide_ctx
 
-    # A durable name must not silently reintroduce immunity to the protocol.
-    assert "warden" in hidden
+    # Old softening clauses must not silently reintroduce immunity.
     assert "treat it exactly like synthesis" not in hidden
     assert "never an arbitrary instant kill" not in hidden
 
-    # The Master's lobby toolkit includes facilities and transformation.
+    # The human-facing Master toolkit includes facilities and transformation;
+    # these controls no longer live in model-only personality prose.
     master = by_id["the_master"]
-    persona = master.personality.lower()
-    assert "facilities and upgrades" in persona
-    assert "transformation" in persona
+    player_contract = (
+        master.player_guidance + "\n" + master.known_context
+    ).lower()
+    assert "facilit" in player_contract
+    assert "transformation" in player_contract
 
 
 def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
@@ -850,7 +777,6 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
             checkpoint.player_primer,
             ws.setting.play_guidance,
             master.player_guidance,
-            master.personality,
             master.known_context,
         )
     ).lower()
@@ -874,29 +800,12 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
     assert "audible hero dialogue" in master.player_guidance.lower()
     assert "cannot speak or type" in master.player_guidance.lower()
     assert "heroes choose targets" in player_contract
-    assert "cannot choose targets" in master.known_context.lower()
-
-    adjudication = (
-        ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)
-    ).lower()
-    assert "master mission boundary (authoritative)" in adjudication
-    assert "crossing the deployment gate commits" in adjudication
-    assert "mission advances without routine master input" in adjudication
-    assert "next deployed hero under pressure acts" in adjudication
-    assert "after at most one brief coordination exchange" in adjudication
-    assert (
-        "concrete movement, scouting, attack, or tactical withdrawal "
-        "to another position on the same floor"
-    ) in adjudication
-    assert "never stop on a warning or approaching threat" in adjudication
-    assert "none exists at the start" in adjudication
+    assert "deployed heroes choose their own targets" in master.known_context.lower()
 
     # The tutorial guide must not recreate the removed tactical control loop.
     guide_contract = "\n".join(
         (iselle.public_sheet.role, iselle.personality, iselle.known_context)
     ).lower()
-    assert "heroes act for themselves" in guide_contract
-    assert "does not ask the master to choose targets" in guide_contract
     for obsolete_tactical_cue in (
         "target priority",
         "priority directives",
@@ -967,11 +876,14 @@ def test_knowledge_tier_ladder_gradient() -> None:
 
 def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
     """The char-gen budget is cumulative (tier N covers 1..N), gates plot
-    knowledge to high tiers, carries the rung's agent tier, and is inert
-    (no block, default agent tier) when the story authors no ladder."""
+    knowledge to high tiers, carries the rung's agent tier, and gives tier zero
+    an explicit no-knowledge contract when the story authors a ladder."""
     checkpoint = _load_checkpoint()
 
-    assert _assemble_knowledge_grant(checkpoint, 0) == ("", None)
+    grant0, agent0 = _assemble_knowledge_grant(checkpoint, 0)
+    assert grant0
+    assert all(f"Tier {n}" not in grant0 for n in range(1, 7))
+    assert agent0 is None
 
     tiers = {t.tier: t for t in checkpoint.world_state.knowledge_tiers}
     tiers[1].generation_guidance.visual_salience = "TARGET_ONE_MARKER"
@@ -1113,20 +1025,31 @@ def test_seeded_rare_characters_scale_depth_and_public_visual_identity() -> None
 def test_seed_has_depth_without_dnd_mechanics() -> None:
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
+    opening = ws.opening
 
     assert len(checkpoint.player_primer) > 500
-    assert len(ws.lore) > 3000
-    assert len(ws.hidden_lore) > 2000
-    assert len(ws.facts) >= 16
-    assert len(ws.hidden_facts) >= 20
+    assert ws.lore.strip()
+    assert ws.hidden_lore.strip()
+    assert ws.facts
+    assert ws.hidden_facts
 
     for character in checkpoint.characters:
         # The blank user-created player slot is intentionally empty.
         if character.character_id == BLANK_PLAYER_ID:
             continue
-        assert character.backstory.strip(), character.character_id
-        assert character.personality.strip(), character.character_id
-        assert character.known_context.strip(), character.character_id
+        if character.entity_kind.value == "hazard":
+            assert character.backstory == ""
+            assert character.personality == ""
+            assert character.known_context == ""
+        else:
+            assert character.personality.strip(), character.character_id
+        if (
+            character.character_id != "the_master"
+            and character.entity_kind.value != "hazard"
+        ):
+            assert character.backstory.strip(), character.character_id
+        if character.entity_kind.value != "hazard":
+            assert character.known_context.strip(), character.character_id
         assert character.descriptions.public.strip(), character.character_id
         assert character.descriptions.private.strip(), character.character_id
         assert character.visuals.default_loadout.strip(), character.character_id

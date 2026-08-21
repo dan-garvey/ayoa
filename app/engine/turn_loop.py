@@ -87,7 +87,11 @@ from app.engine.visual_context import (
     plan_event_visual_introductions,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.characters import CharacterStatus
+from app.schemas.characters import (
+    CharacterRecord,
+    CharacterStatus,
+    is_non_social_hazard,
+)
 from app.schemas.event_router import (
     EventRouterOutput,
     ObserverEntry,
@@ -925,6 +929,13 @@ def _filter_routed_agents_for_dispatch(
         if char is None:
             logger.warning("router picked unknown agent id %s; dropped", rid)
             continue
+        if is_non_social_hazard(char):
+            logger.error(
+                "router picked non-social hazard %s for a character-agent "
+                "turn; dropped",
+                rid,
+            )
+            continue
         if is_unbound_player_authored_slot(ckpt, char):
             logger.error(
                 "router picked unbound player-authored slot %s; dropped",
@@ -953,6 +964,58 @@ def _filter_routed_agents_for_dispatch(
             continue
         out.append(rid)
     return out
+
+
+def _validate_non_social_hazard_routing(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+) -> None:
+    """Reject character-owned work assigned to a patterned scene hazard.
+
+    A non-social hazard may remain an ``observe_only`` recipient so the
+    canonical ledger can record what its sensors or triggers registered. It
+    never produces an intention, self-presentation fragment, player-facing
+    reaction, or private commitment revision. Its established behavior is
+    authored directly as environmental pressure.
+    """
+    hazard_ids = {
+        character.character_id
+        for character in ckpt.characters
+        if is_non_social_hazard(character)
+    }
+    if not hazard_ids:
+        return
+
+    violations: list[str] = []
+    for character_id in event.required_responders:
+        if character_id in hazard_ids:
+            violations.append(f"required_responder={character_id}")
+    for observer in event.observers:
+        if (
+            observer.character_id in hazard_ids
+            and observer.routing_role != "observe_only"
+        ):
+            violations.append(
+                f"routing_role={observer.routing_role}:"
+                f"{observer.character_id}"
+            )
+    for character_id in event.commitment_open.actor_ids:
+        if character_id in hazard_ids:
+            violations.append(f"commitment_open={character_id}")
+    for signal in event.commitment_resolutions:
+        for character_id in signal.actor_ids:
+            if character_id in hazard_ids:
+                violations.append(f"commitment_resolution={character_id}")
+    for signal in event.commitment_interrupts:
+        for character_id in signal.actor_ids:
+            if character_id in hazard_ids:
+                violations.append(f"commitment_interrupt={character_id}")
+
+    if violations:
+        raise RuntimeError(
+            "Router event assigned character-owned work to a non-social "
+            "hazard: " + ", ".join(dict.fromkeys(violations))
+        )
 
 
 async def _materialize_router_spawns_for_dispatch(
@@ -1568,6 +1631,7 @@ def broadcast_event(
     BeatResult.event_actor_ids for callers that need actor-aware
     event application.
     """
+    _validate_non_social_hazard_routing(ckpt, event)
     _reject_unbound_player_authored_references(ckpt, event, actor_id=actor_id)
     obs_level_by_char: dict[str, str] = {}
     for o in event.observers:
@@ -1605,7 +1669,11 @@ def broadcast_event(
     player_ids = collect_player_ids(ckpt)
     if actor_id and actor_id not in player_ids:
         actor = by_id.get(actor_id)
-        if actor is not None and actor.status != "culled":
+        if (
+            actor is not None
+            and actor.status != "culled"
+            and not is_non_social_hazard(actor)
+        ):
             end_at_s = max(0, event.effective_at_s + event.duration_s)
             previous = actor.last_agent_turn_at_s
             actor.last_agent_turn_at_s = max(
@@ -1663,6 +1731,11 @@ def broadcast_event(
             continue
         recipient = by_id.get(o.character_id)
         if recipient is None or recipient.status == "culled":
+            continue
+        if is_non_social_hazard(recipient):
+            # The event ledger already preserves any fact scoped to this
+            # hazard. There is no future character-agent call that could
+            # consume an inbox or a first-meeting self-presentation.
             continue
         if facts:
             if len(facts) == 1:
@@ -2876,7 +2949,12 @@ async def run_beat(
             soft_handoff_candidate=True,
         )
         if handoff.continue_requested:
-            await _queue_router_continuation(result)
+            _restore_speculative_spawn_roster(ckpt)
+            try:
+                await _queue_router_continuation(result)
+            except Exception:
+                _rollback_speculative_spawn_roster(ckpt)
+                raise
             return None
         return handoff
 
@@ -2918,6 +2996,7 @@ async def run_beat(
         _log_router_rationale(
             resolved, evt.initiator_id, kind="cat_ii_resolve",
         )
+        _validate_non_social_hazard_routing(ckpt, resolved)
         close_cat_ii(ckpt, evt.event_id)
         # Defensive guard: if the router's resolution call ever returns
         # requires_responders=true (contradicting Part C of the prompt),
@@ -3092,6 +3171,10 @@ async def run_beat(
                 "Router contract violation: event_kind=beat_continues "
                 "requires at least one next_output character."
             )
+
+        # Validate the semantic frontier before materializing spawns, opening
+        # Cat II, pinning slots, or otherwise mutating beat state.
+        _validate_non_social_hazard_routing(ckpt, result)
 
         interaction_mode = _dnd_interaction_mode(result)
         if interaction_mode == "dnd_combat_start":
@@ -3298,6 +3381,7 @@ async def run_beat(
                     resolved, evt.initiator_id,
                     kind="cat_ii_resolve_inline",
                 )
+                _validate_non_social_hazard_routing(ckpt, resolved)
                 close_cat_ii(ckpt, evt.event_id)
                 if resolved.requires_responders:
                     raise ValueError(
@@ -3450,6 +3534,152 @@ async def run_beat(
             return completed
 
 
+async def _stage_closed_event_spawns_for_render(
+    ckpt: CheckpointFile,
+    *,
+    events_closed: int,
+    event_actor_ids: list[str],
+) -> tuple[CharacterRecord, ...]:
+    """Await and expose every spawn in the candidate render batch."""
+
+    if events_closed <= 0:
+        return ()
+    closed_events = ckpt.canonical_events[-events_closed:]
+    spawned_events = [event for event in closed_events if event.spawn]
+    if not spawned_events:
+        return ()
+
+    from app.engine.closed_event_runtime import closed_event_runtime_for
+    from app.engine.turn_loop_dispatcher import refresh_router_history_record
+
+    runtime = closed_event_runtime_for(ckpt)
+    if runtime is None:
+        raise RuntimeError(
+            "narrator spawn materialization requires the shared "
+            "closed-event runtime"
+        )
+
+    pending = ckpt.session.pending_narrator_render
+    durable_records = list(
+        pending.pending_spawn_records if pending is not None else []
+    )
+    durable_introductions = dict(
+        pending.pending_spawn_introductions if pending is not None else {}
+    )
+    if durable_introductions and not durable_records:
+        raise RuntimeError(
+            "pending narrator spawn introductions require durable records"
+        )
+    durable_by_id = {
+        record.character_id: record for record in durable_records
+    }
+    if len(durable_by_id) != len(durable_records):
+        raise RuntimeError(
+            "pending narrator spawn payload contains duplicate character ids"
+        )
+    requested_ids = {
+        request.character_id
+        for event in spawned_events
+        for request in event.spawn
+        if request.character_id
+    }
+    unexpected_ids = set(durable_by_id) - requested_ids
+    if unexpected_ids:
+        raise RuntimeError(
+            "pending narrator spawn payload contains records outside the "
+            "render batch: " + ", ".join(sorted(unexpected_ids))
+        )
+
+    staged_by_id: dict[str, CharacterRecord] = {}
+    for index, event in enumerate(closed_events):
+        if not event.spawn:
+            continue
+        actor_id = (
+            event_actor_ids[index]
+            if index < len(event_actor_ids)
+            else ""
+        )
+        event_spawn_ids = [
+            request.character_id
+            for request in event.spawn
+            if request.character_id
+        ]
+        event_durable = tuple(
+            durable_by_id[character_id]
+            for character_id in event_spawn_ids
+            if character_id in durable_by_id
+        )
+        if event_durable and len(event_durable) != len(event_spawn_ids):
+            raise RuntimeError(
+                "pending narrator spawn payload is incomplete for event "
+                f"{event.event_id}"
+            )
+        records = event_durable or await runtime.authored_records(
+            checkpoint=ckpt,
+            event=event,
+            actor_id=actor_id,
+        )
+        runtime.apply_records(ckpt, records)
+        for record in records:
+            staged_by_id.setdefault(record.character_id, record)
+        refresh_router_history_record(
+            ckpt.session_conversation,
+            result=event,
+            spawned_characters=records,
+        )
+    if durable_introductions:
+        runtime.spawn_authoring.load_pending_introductions(
+            checkpoint=ckpt,
+            transaction_id=runtime.transaction_id,
+            introductions=durable_introductions,
+        )
+    return tuple(staged_by_id.values())
+
+
+def _rollback_speculative_spawn_roster(
+    ckpt: CheckpointFile,
+) -> dict[str, list[str]]:
+    from app.engine.closed_event_runtime import closed_event_runtime_for
+
+    runtime = closed_event_runtime_for(ckpt)
+    if runtime is None:
+        return {}
+    rolled_back = runtime.spawn_authoring.rollback_roster(
+        checkpoint=ckpt,
+        transaction_id=runtime.transaction_id,
+    )
+    runtime.applied_character_ids.difference_update(rolled_back)
+    return runtime.spawn_authoring.pending_introductions(
+        runtime.transaction_id
+    )
+
+
+def _restore_speculative_spawn_roster(ckpt: CheckpointFile) -> None:
+    from app.engine.closed_event_runtime import closed_event_runtime_for
+
+    runtime = closed_event_runtime_for(ckpt)
+    if runtime is None:
+        return
+    restored = runtime.spawn_authoring.restore_roster(
+        checkpoint=ckpt,
+        transaction_id=runtime.transaction_id,
+    )
+    runtime.applied_character_ids.update(restored)
+
+
+def _accept_speculative_spawn_roster(ckpt: CheckpointFile) -> None:
+    from app.engine.closed_event_runtime import closed_event_runtime_for
+
+    runtime = closed_event_runtime_for(ckpt)
+    if runtime is None:
+        return
+    accepted = runtime.spawn_authoring.accept_roster(
+        checkpoint=ckpt,
+        transaction_id=runtime.transaction_id,
+    )
+    runtime.applied_character_ids.update(accepted)
+
+
 async def _end_beat(
     ckpt: CheckpointFile,
     dispatcher: Dispatcher,
@@ -3521,6 +3751,14 @@ async def _end_beat(
             continue  # Human had no perceivable events this beat.
         targets.append((h, buf))
 
+    staged_spawn_records: tuple[CharacterRecord, ...] = ()
+    if targets:
+        staged_spawn_records = await _stage_closed_event_spawns_for_render(
+            ckpt,
+            events_closed=events_closed,
+            event_actor_ids=event_actor_ids,
+        )
+
     image_runtime = None
     image_transaction_id: str | None = None
     if targets:
@@ -3577,6 +3815,7 @@ async def _end_beat(
                     if soft_handoff_candidate and gate_buffer
                     else ""
                 ),
+                pending_spawn_records=list(staged_spawn_records),
             )
 
     async def _render_one(
@@ -3626,17 +3865,26 @@ async def _end_beat(
             if isinstance(result, BaseException)
         ]
         if errors:
-            if image_runtime is not None:
-                await image_runtime.reject_render_candidate(
-                    image_transaction_id
+            try:
+                if image_runtime is not None:
+                    await image_runtime.reject_render_candidate(
+                        image_transaction_id
+                    )
+            finally:
+                for h, length in narrator_lengths.items():
+                    history = ckpt.narrator_conversations.get(h)
+                    if history is not None:
+                        del history[length:]
+                ckpt.session.visual_introductions = visual_intro_snapshot
+                pending_spawn_introductions = (
+                    _rollback_speculative_spawn_roster(ckpt)
                 )
-            for h, length in narrator_lengths.items():
-                history = ckpt.narrator_conversations.get(h)
-                if history is not None:
-                    del history[length:]
-            ckpt.session.visual_introductions = visual_intro_snapshot
-            if callable(persist_pending):
-                persist_pending(ckpt)
+                if ckpt.session.pending_narrator_render is not None:
+                    ckpt.session.pending_narrator_render.pending_spawn_introductions = (
+                        pending_spawn_introductions
+                    )
+                if callable(persist_pending):
+                    persist_pending(ckpt)
             raise errors[0]
         for h, envelope, _entry in results:
             logger.info(
@@ -3654,10 +3902,18 @@ async def _end_beat(
                 if h == gate_id
             )
             if gate_result.handoff == "continue":
-                if image_runtime is not None:
-                    await image_runtime.reject_render_candidate(
-                        image_transaction_id
-                    )
+                try:
+                    if image_runtime is not None:
+                        await image_runtime.reject_render_candidate(
+                            image_transaction_id
+                        )
+                finally:
+                    for h, length in narrator_lengths.items():
+                        history = ckpt.narrator_conversations.get(h)
+                        if history is not None:
+                            del history[length:]
+                    ckpt.session.visual_introductions = visual_intro_snapshot
+                    _rollback_speculative_spawn_roster(ckpt)
                 return BeatResult(
                     renders={},
                     events_closed=events_closed,
@@ -3688,6 +3944,8 @@ async def _end_beat(
             h: [entry.event_id for entry in buf]
             for h, buf in targets
         }
+
+    _accept_speculative_spawn_roster(ckpt)
 
     if ckpt.session.pending_narrator_render is not None:
         ckpt.session.pending_narrator_render = None

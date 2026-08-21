@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,18 +20,26 @@ from app.engine.prompt_manager import PromptManager
 from app.engine.turn_loop import pin_cat_ii_responder
 from app.engine.turn_loop_contracts import (
     ROUTER_CONTINUATION_HEADER,
+    format_actor_submission,
 )
 from app.engine.turn_loop_dispatcher import (
     EVENT_ROUTER_MAX_TOKENS,
     LLMDispatcher,
     _build_opening_context_block,
     _build_router_context,
+    _build_router_input_block,
     _router_ruleset_template_vars,
     refresh_router_history_record,
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterRecord, PlayerSlotKind, PublicSheet
+from app.schemas.characters import (
+    CharacterRecord,
+    FictionalEntityKind,
+    PlayerSlotKind,
+    PublicSheet,
+)
+from app.schemas.checkpoint import CheckpointFile
 from app.schemas.content import (
     ContentKnowledgeEntityState,
     ContentPackState,
@@ -115,6 +125,86 @@ def _last_user_content(messages: list[dict]) -> str:
     if isinstance(content, list):
         return "".join(p.get("text", "") for p in content)
     return content
+
+
+ONE_STAR_CHECKPOINT_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "app"
+    / "storage"
+    / "stories"
+    / "one_star_ascension_s1"
+    / "ckpt_0000.json"
+)
+
+
+def _one_star_checkpoint(
+    *,
+    bindings: dict[str, str],
+) -> CheckpointFile:
+    checkpoint = CheckpointFile.model_validate(
+        json.loads(ONE_STAR_CHECKPOINT_PATH.read_text(encoding="utf-8"))
+    )
+    checkpoint.session.character_bindings = bindings
+    checkpoint.session.player_character_id = ""
+    return checkpoint
+
+
+def _render_one_star_router(
+    prompt_mgr: PromptManager,
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+    intention: str,
+) -> tuple[str, str]:
+    context = _build_router_context(
+        checkpoint,
+        actor_id,
+        include_engine_state_updates=False,
+    )
+    roster_record = context.pop("initial_roster_block")
+    if roster_record:
+        checkpoint.session_conversation.append(ConversationMessage(
+            role="assistant",
+            content=roster_record,
+        ))
+    router_input_block = _build_router_input_block(
+        _build_opening_context_block(checkpoint, intention, actor_id),
+        context.pop("engine_state_updates_block"),
+        format_actor_submission(actor_id, intention),
+    )
+    messages = prompt_mgr.render_conversation(
+        "event_router",
+        history=checkpoint.session_conversation,
+        **context,
+        **_router_ruleset_template_vars(
+            prompt_mgr,
+            dnd_mode=False,
+            dnd_fresh=False,
+        ),
+        router_input_block=router_input_block,
+    )
+    system_messages = [
+        message["content"]
+        for message in messages
+        if message.get("role") == "system"
+    ]
+    assert len(system_messages) == 1
+    assert isinstance(system_messages[0], str)
+    return system_messages[0], _last_user_content(messages)
+
+
+def _render_one_star_begin(
+    prompt_mgr: PromptManager,
+    checkpoint: CheckpointFile,
+    *,
+    actor_id: str,
+) -> tuple[str, str]:
+    return _render_one_star_router(
+        prompt_mgr,
+        checkpoint,
+        actor_id=actor_id,
+        intention="(begin)",
+    )
 
 
 def test_router_classifier_module_defaults_but_drops_in_nonfresh_dnd(prompt_mgr):
@@ -377,6 +467,156 @@ class TestRouterContext:
         assert "player" not in roster
         assert " npc" not in roster
 
+    def test_active_hazard_gets_one_semantic_kind_marker(self):
+        ckpt = _ckpt(bindings={"alice": "discord_1"})
+        ckpt.characters.append(CharacterRecord(
+            character_id="clockwork_gate",
+            name="the Clockwork Gate",
+            entity_kind=FictionalEntityKind.hazard,
+            location="gatehouse",
+            public_sheet=PublicSheet(role="a repeating blade mechanism"),
+        ))
+
+        roster = _build_router_context(ckpt, "alice")["initial_roster_block"]
+        alice_entry = roster.split("- alice", 1)[1].split("\n\n-", 1)[0]
+        hazard_entry = roster.split("- clockwork_gate", 1)[1]
+
+        assert "Kind: non-social hazard" not in alice_entry
+        assert "Kind: non-social hazard" in hazard_entry
+        assert roster.count("Kind: non-social hazard") == 1
+
+    def test_one_star_begin_prefix_is_compact_binding_invariant_and_complete(
+        self,
+        prompt_mgr: PromptManager,
+    ):
+        bound = _one_star_checkpoint(bindings={"the_master": "discord_1"})
+        rebound = _one_star_checkpoint(
+            bindings={"the_master": "discord_999"},
+        )
+
+        bound_system, bound_user = _render_one_star_begin(
+            prompt_mgr,
+            bound,
+            actor_id="the_master",
+        )
+        rebound_system, rebound_user = _render_one_star_begin(
+            prompt_mgr,
+            rebound,
+            actor_id="the_master",
+        )
+
+        assert bound_system == rebound_system
+        assert bound_user == rebound_user
+        assert len(bound_system) < 85_000
+
+        source_checkpoint = _one_star_checkpoint(bindings={})
+        seed_context = _build_router_context(
+            source_checkpoint,
+            "the_master",
+            include_engine_state_updates=False,
+        )
+        for source_name in (
+            "setting_summary",
+            "world_lore",
+            "world_rules",
+            "hidden_lore",
+            "hidden_facts",
+        ):
+            source_text = seed_context[source_name]
+            assert bound_system.count(source_text) == 1, source_name
+            assert source_text not in bound_user, source_name
+        assert source_checkpoint.session.config.narrative_rules not in bound_system
+
+    def test_one_star_begin_actor_semantics_change_only_the_user_tail(
+        self,
+        prompt_mgr: PromptManager,
+    ):
+        master = _one_star_checkpoint(bindings={"the_master": "discord_1"})
+        newcomer = _one_star_checkpoint(
+            bindings={"one_star_newcomer": "discord_2"},
+        )
+        authored_newcomer = next(
+            character
+            for character in newcomer.characters
+            if character.character_id == "one_star_newcomer"
+        )
+        authored_newcomer.name = "Mara Vale"
+        authored_newcomer.public_sheet.appearance = (
+            "a scarlet coat and iron-gray braid"
+        )
+
+        master_system, master_user = _render_one_star_begin(
+            prompt_mgr,
+            master,
+            actor_id="the_master",
+        )
+        newcomer_system, newcomer_user = _render_one_star_begin(
+            prompt_mgr,
+            newcomer,
+            actor_id="one_star_newcomer",
+        )
+
+        assert master_system == newcomer_system
+        assert master_user != newcomer_user
+        assert "- the_master" in master_user
+        assert "- one_star_newcomer" in newcomer_user
+        assert "Name: Mara Vale" in newcomer_user
+        assert "Appearance: a scarlet coat and iron-gray braid" in newcomer_user
+        for forbidden in ("human", "binding", "bound", "controller"):
+            assert forbidden not in master_user.lower()
+            assert forbidden not in newcomer_user.lower()
+
+    def test_one_star_roster_and_iselle_channel_survive_after_begin(
+        self,
+        prompt_mgr: PromptManager,
+    ):
+        checkpoint = _one_star_checkpoint(
+            bindings={"the_master": "discord_1"},
+        )
+        first_system, _first_user = _render_one_star_begin(
+            prompt_mgr,
+            checkpoint,
+            actor_id="the_master",
+        )
+        checkpoint.session_conversation.append(ConversationMessage(
+            role="assistant",
+            content=(
+                "prior_event evt_open @0+1 source=the_master mode=intention\n"
+                "fact[all@0+1] Summon-light fades in Niflheim."
+            ),
+        ))
+
+        second_system, second_user = _render_one_star_router(
+            prompt_mgr,
+            checkpoint,
+            actor_id="the_master",
+            intention="Build the Training Hall and spend the listed gold.",
+        )
+
+        assert first_system == second_system
+        roster_records = [
+            message.content
+            for message in checkpoint.session_conversation
+            if message.role == "assistant"
+            and isinstance(message.content, str)
+            and message.content.startswith("roster_seed\n")
+        ]
+        assert len(roster_records) == 1
+        roster = roster_records[0]
+        assert "- iselle_the_guide" in roster
+        assert "- the_master" in roster
+        assert "- halcyon_of_the_gilded_march" in roster
+        assert "Build the Training Hall" in second_user
+        source_context = _build_router_context(
+            _one_star_checkpoint(bindings={}),
+            "the_master",
+            include_engine_state_updates=False,
+        )
+        assert source_context["world_lore"] in second_system
+        assert source_context["world_lore"] not in second_user
+        for forbidden in ("human", "binding", "bound", "controller"):
+            assert forbidden not in second_user.lower()
+
     def test_initial_roster_ignores_opening_content_history_only(self):
         ckpt = _ckpt(bindings={"alice": "discord_1"})
         ckpt.session_conversation = [
@@ -388,7 +628,7 @@ class TestRouterContext:
 
         ctx = _build_router_context(ckpt, "alice")
 
-        assert "## Initial Character Roster" in ctx["initial_roster_block"]
+        assert ctx["initial_roster_block"].startswith("roster_seed\n")
         assert "- pip" in ctx["initial_roster_block"]
 
     def test_initial_roster_still_omits_after_non_content_history(self):
@@ -598,11 +838,57 @@ class TestRouteIntention:
         rebound_messages = mock_client.complete.await_args_list[1].kwargs["messages"]
         assert first_messages == rebound_messages
         user_content = _last_user_content(first_messages)
-        assert "D&D identity: High Elf; Wizard 2." in user_content
-        assert "D&D identity: Hill Dwarf; Cleric 3." in user_content
-        assert "D&D equipment: currently has equipped Ash Wand." in user_content
-        assert "D&D equipment: currently has carried Silver Bell." in user_content
+        roster_content = next(
+            message["content"]
+            for message in first_messages
+            if message.get("role") == "assistant"
+            and message.get("content", "").startswith("roster_seed\n")
+        )
+        assert "D&D identity: High Elf; Wizard 2." in roster_content
+        assert "D&D identity: Hill Dwarf; Cleric 3." in roster_content
+        assert "D&D equipment: currently has equipped Ash Wand." in roster_content
+        assert "D&D equipment: currently has carried Silver Bell." in roster_content
         assert "## Player Characters" not in user_content
+
+    def test_master_facility_action_can_route_iselle_by_mediated_perception(
+        self,
+        prompt_mgr,
+        mock_client,
+    ):
+        checkpoint = _one_star_checkpoint(
+            bindings={"the_master": "discord_1"},
+        )
+        routed = router_output(
+            event_id="evt_facility",
+            facts=[ObservableFact.only(
+                "The Synthesis Chamber construction state changes.",
+                ["the_master", "iselle_the_guide"],
+            )],
+            observer_ids=["the_master", "iselle_the_guide"],
+        )
+        mock_client.complete.return_value = _llm_response(routed)
+
+        result = asyncio.run(LLMDispatcher(
+            mock_client,
+            prompt_mgr,
+        ).route_intention(
+            ckpt=checkpoint,
+            actor_id="the_master",
+            intention="Build the Synthesis Chamber.",
+        ))
+
+        assert {
+            observer.character_id for observer in result.observers
+        } == {"the_master", "iselle_the_guide"}
+        messages = mock_client.complete.await_args.kwargs["messages"]
+        user_content = _last_user_content(messages)
+        assert "Build the Synthesis Chamber." in user_content
+        assert "discord_1" not in user_content
+        for forbidden in ("human", "binding", "bound", "controller"):
+            assert forbidden not in user_content.lower()
+        assert "obs the_master:d:observe_only iselle_the_guide:d:observe_only" in (
+            checkpoint.session_conversation[-1].content
+        )
 
     def test_pending_inventory_update_precedes_next_intention(
         self, prompt_mgr, mock_client,
@@ -742,8 +1028,9 @@ class TestRouteIntention:
             intention="I check whether the hinge is loose.",
         ))
 
-        assert len(ckpt.session_conversation) == 1
-        record = ckpt.session_conversation[0]
+        assert len(ckpt.session_conversation) == 2
+        assert ckpt.session_conversation[0].content.startswith("roster_seed\n")
+        record = ckpt.session_conversation[1]
         assert record.role == "assistant"
         assert isinstance(record.content, str)
         assert "prior_event" in record.content
@@ -905,11 +1192,13 @@ class TestRouteIntention:
         ))
 
         assert [m.role for m in ckpt.session_conversation] == [
+            "assistant",
             "user",
             "assistant",
         ]
-        assert ckpt.session_conversation[0].content == "(defer)"
-        assert ckpt.session_conversation[1].content.startswith(
+        assert ckpt.session_conversation[0].content.startswith("roster_seed\n")
+        assert ckpt.session_conversation[1].content == "(defer)"
+        assert ckpt.session_conversation[2].content.startswith(
             "prior_event evt_defer_continue "
         )
 
@@ -932,8 +1221,13 @@ class TestRouteIntention:
 
         assert "location_card ref=room/entry" not in system_content
         assert "location_card ref=room/entry" not in user_content
-        assert "## Initial Character Roster" in user_content
-        assert "- pip" in user_content
+        assert "roster_seed" not in user_content
+        assert any(
+            message.get("role") == "assistant"
+            and message.get("content", "").startswith("roster_seed\n")
+            and "- pip" in message.get("content", "")
+            for message in messages
+        )
         assert any(
             message.get("role") == "assistant"
             and "location_card ref=room/entry" in message.get("content", "")
@@ -942,11 +1236,13 @@ class TestRouteIntention:
         assert [message.role for message in ckpt.session_conversation] == [
             "assistant",
             "assistant",
+            "assistant",
         ]
         assert ckpt.session_conversation[0].content.startswith(
             "location_card ref=room/entry "
         )
-        assert ckpt.session_conversation[1].content.startswith("prior_event ")
+        assert ckpt.session_conversation[1].content.startswith("roster_seed\n")
+        assert ckpt.session_conversation[2].content.startswith("prior_event ")
         assert ckpt.session.content_state["pack"].pending_signals == {}
         assert sorted(ckpt.session.content_state["pack"].introduced_refs) == [
             "pack::room/entry::hash-1"
@@ -1529,6 +1825,7 @@ class TestRouteIntention:
         ]
         assert any(m["content"] == "(defer)" for m in prior_user_messages)
         assert [m.role for m in ckpt.session_conversation] == [
+            "assistant",
             "user",
             "assistant",
             "assistant",
@@ -1853,6 +2150,12 @@ class TestRouteIntention:
         assert "Alice intends:" not in user_content
         assert "I wait for the door to open." in user_content
         assert "Pending motion:" not in user_content
+        assert "roster_seed" not in user_content
+        assert any(
+            message.get("role") == "assistant"
+            and message.get("content", "").startswith("roster_seed\n")
+            for message in mock_client.complete.await_args.kwargs["messages"]
+        )
         assert (
             mock_client.complete.await_args.kwargs["response_model"]
             is ClosedEventRouterOutput

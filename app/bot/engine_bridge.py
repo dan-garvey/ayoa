@@ -2470,9 +2470,10 @@ class EngineBridge:
     ) -> str:
         """Build the private DM a joining player needs to play this character.
 
-        Strictly character-interior: who they are, what they want, what they
-        know, what they're keeping to themselves. The player should learn
-        the WORLD through play, not through the dossier.
+        The dossier combines a concise human control contract with character-
+        interior material: who they are, what they want, what they know, and
+        what they're keeping to themselves. The player should learn the wider
+        world through play, not through the dossier.
 
         Deliberately excludes:
         - `personality` — now absorbs what used to be narrative_notes
@@ -2509,10 +2510,13 @@ class EngineBridge:
         if sheet_bits:
             lines.append("\n".join(sheet_bits))
 
+        if char.player_guidance:
+            lines.append(
+                "## Your Control & Perspective\n"
+                f"{char.player_guidance}"
+            )
         if char.backstory:
             lines.append(f"## Your Backstory\n{char.backstory}")
-        if char.personality:
-            lines.append(f"## How You Think & Feel\n{char.personality}")
         if char.known_context:
             lines.append(f"## The World As You Know It\n{char.known_context}")
 

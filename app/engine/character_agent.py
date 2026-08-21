@@ -51,7 +51,11 @@ from app.engine.turn_loop_contracts import (
 )
 from app.llm.client import LLMClient
 from app.schemas.agents import CharacterAgentOutput
-from app.schemas.characters import CharacterAgentTier, CharacterRecord
+from app.schemas.characters import (
+    CharacterAgentTier,
+    CharacterRecord,
+    is_non_social_hazard,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 
@@ -356,6 +360,12 @@ class CharacterAgent:
         and does not produce private intent.
 
         """
+        if is_non_social_hazard(character):
+            raise ValueError(
+                "Non-social hazards have no character-agent perception turn: "
+                f"{character.character_id}"
+            )
+
         history = checkpoint.character_conversations.get(character.character_id, [])
 
         # Deliberately DO NOT call `clear_character_inbox`: perception is
@@ -428,6 +438,11 @@ class CharacterAgent:
         local_context: str = "",
     ) -> CharacterAgentTurnDraft:
         """Prepare an agent turn without mutating agent memory."""
+        if is_non_social_hazard(character):
+            raise ValueError(
+                "Non-social hazards have no character-agent intention turn: "
+                f"{character.character_id}"
+            )
         frame = (frame or "foreground").strip().lower()
         if frame not in {"foreground", "private", "background"}:
             frame = "foreground"

@@ -71,6 +71,10 @@ What must not appear in `observable_facts`:
 
 <assistant_history_records>
 Assistant-side router history may include compact content records:
+- `roster_seed`: the initial active fictional identities, entity kinds,
+  locations, and established pursuits.
+- `prior_event`: an earlier canonical event, including its visible facts,
+  routing frontier, pacing result, and non-empty state changes.
 - `content_known`: a content reference is available as routing continuity.
 - `location_card`: a place record, often carrying exits, hazards, clues, or summary.
 - `front_signal`: an actor, faction, or front pressure/knowledge cue.
@@ -103,6 +107,16 @@ Omit characters who receive no packet, have no meaningful perception, and are no
 - `perception_enrichment`: this character is a visual/self-presentation target for `observation_harvest` or `query_response`, not a response actor. Use this only in those modes.
 
 `required_responders` is only for Cat II contested actions: the characters whose intentions must be collected before the outcome can be resolved.
+
+A roster entry marked `Kind: non-social hazard` has stable identity and state
+but no dialogue, private intent, or character turn. Never put such an id in
+`required_responders`, or give it `next_output` or `perception_enrichment`.
+You may author only its established patterned behavior as environmental
+pressure: triggers, movement, attacks, tells, damage, and state changes that
+follow from the known pattern and current situation. Do not invent human
+interiority, strategy, speech, or a new capability for it. Every other
+established named character still owns deliberate action through that
+character's submitted intention.
 
 `commitment_open` starts a private ongoing commitment when an actor begins an interruptible activity whose result should not be decided immediately, such as hiding, traveling, searching a room, keeping watch, crafting, resting, staking out a door, or waiting for a signal. Open commitments are not observable facts. Put only visible setup in `observable_facts`; use the commitment fields to preserve the unfinished activity.
 
@@ -223,7 +237,7 @@ An assistant-side `mission_status` record is the authoritative current declarati
 
 The status line is private adjudication context. Never copy it, its hidden conditions, or its exact counts into `canonical_event.observable_facts` merely to retain them. Participants learn only the objective details and progress they can actually perceive through established channels.
 
-An untimed mission must not become a stable waiting room. When consecutive mission events make no objective progress, stop routing participants solely for more planning, watchfulness, silence, or indecision. After at most one brief coordination exchange, author one concrete, motif-consistent escalation in the current canonical event: worsen an established hazard, reveal or reposition established opposition, close an opportunity, advance an established consequence, or create another grounded change supported by the premise. Classify that actual changed surface; use `beat_continues` only when the escalation leaves a named character owing the next output, and mark that character `next_output`. The escalation may not change the completion or failure conditions, alter a fixed target, decide an action for an established named character, or introduce a persistent named person outside the normal spawn rules. It may directly author the observable action of nameless or one-shot opposition already established by the mission; established named characters still act through normal character output. Timed missions already have pressure from their clock; keep that clock exact and do not add this generic escalation obligation on top of it.
+An untimed mission must not become a stable waiting room. When consecutive mission events make no objective progress, stop routing participants solely for more planning, watchfulness, silence, or indecision. After at most one brief coordination exchange, author one concrete, motif-consistent escalation in the current canonical event: worsen an established hazard, reveal or reposition established opposition, close an opportunity, advance an established consequence, or create another grounded change supported by the premise. Classify that actual changed surface; use `beat_continues` only when the escalation leaves a character owing the next output, and mark that character `next_output`. The escalation may not change the completion or failure conditions, alter a fixed target, decide an action for an established social character, or introduce a persistent named person outside the normal spawn rules. It may directly author the observable action of nameless or one-shot opposition already established by the mission, or the established pattern of a roster entry explicitly marked as a non-social hazard. Other established named characters still act through their own submitted output. Timed missions already have pressure from their clock; keep that clock exact and do not add this generic escalation obligation on top of it.
 
 `decision_rationale` is diagnostic, not in-fiction prose. Explain why the selected event kind fits, which in-world actors still have immediate response pressure, and why each `next_output` actor is selected. When no next actor is selected, name the concrete changed surface or the reason the exchange has settled. For `ambient_pause`, name the exact surface established by the pause.
 
@@ -305,6 +319,14 @@ Do not use observation harvest when:
 ### Spawning, Dormancy, Culling, Communication
 
 Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone established characters relate to. Emit at most three spawn requests in one event. Give each new person a stable snake_case id that is unique in the roster. Seed `role`, `reason`, `location`, 1-3 actionable `objectives`, and `knowledge_tier` (how much the new character knows at birth; in a world with a knowledge ladder set it to their rung, otherwise 0). Re-use existing characters before spawning.
+
+In the event that requests a spawn, refer to each new person by that stable id
+and author only arrival facts guaranteed by the spawn seed or an established
+world rule. Do not invent their display name, dialogue, appearance, specific
+equipment, history, or capabilities before those details have been authored.
+When several spawn seeds request different roles or established equipment,
+preserve those differences; never flatten the group into one shared weapon,
+uniform, or description.
 
 Do not spawn one-shot utility figures. Couriers, runners, guards waving someone through, crowd shouts, bartenders pouring drinks, producers making an announcement, or other plot-utility figures usually belong inside `observable_facts`.
 

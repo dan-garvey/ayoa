@@ -541,15 +541,23 @@ async def test_failed_opening_render_retry_materializes_wave_once(
     pending_checkpoint = checkpoint_manager.load_latest(
         ckpt.session.session_id
     )
-    assert pending_checkpoint.session.pending_narrator_render is not None
+    pending_render = pending_checkpoint.session.pending_narrator_render
+    assert pending_render is not None
+    # A failed narrator candidate must not make the wave part of the active
+    # roster.  The exact authored records live only in the durable retry
+    # payload until prose is accepted.
     assert all(
         sum(
             character.character_id == character_id
             for character in pending_checkpoint.characters
         )
-        == 1
+        == 0
         for character_id in expected_ids
     )
+    assert [
+        character.character_id
+        for character in pending_render.pending_spawn_records
+    ] == expected_ids
 
     response = await orchestrator.retry_pending_narrator_render(
         ckpt.session.session_id
@@ -560,6 +568,7 @@ async def test_failed_opening_render_retry_materializes_wave_once(
     completed_checkpoint = checkpoint_manager.load_latest(
         ckpt.session.session_id
     )
+    assert completed_checkpoint.session.pending_narrator_render is None
     assert all(
         sum(
             character.character_id == character_id

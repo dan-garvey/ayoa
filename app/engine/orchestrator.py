@@ -659,25 +659,16 @@ class Orchestrator:
         checkpoint: CheckpointFile,
         records: tuple[CharacterRecord, ...],
     ) -> list[str]:
-        """Apply shared authoring results; only the orchestrator mutates roster."""
+        """Stage the shared authoring result in the transaction's roster view."""
 
-        existing_ids = {
-            character.character_id for character in checkpoint.characters
-        }
-        applied: list[str] = []
-        for record in records:
-            character_id = record.character_id
-            if character_id in runtime.applied_character_ids:
-                continue
-            if character_id in existing_ids:
-                raise ValueError(
-                    "router-authored spawn targets existing character id: "
-                    f"{character_id}"
-                )
-            checkpoint.characters.append(record.model_copy(deep=True))
-            existing_ids.add(character_id)
-            runtime.applied_character_ids.add(character_id)
-            applied.append(character_id)
+        applied = runtime.spawn_authoring.stage_roster(
+            checkpoint=checkpoint,
+            transaction_id=runtime.transaction_id,
+            records=records,
+        )
+        runtime.applied_character_ids.update(
+            record.character_id for record in records
+        )
         return applied
 
     def _ensure_closed_event_runtime(
@@ -753,6 +744,12 @@ class Orchestrator:
         runtime = closed_event_runtime_for(ckpt)
         if runtime is None:
             return
+        if not beat_results:
+            rolled_back = self.spawn_authoring.rollback_roster(
+                checkpoint=ckpt,
+                transaction_id=runtime.transaction_id,
+            )
+            runtime.applied_character_ids.difference_update(rolled_back)
         target_path = self.checkpoint_mgr._checkpoint_path(
             ckpt.session.session_id,
             ckpt.session.turn_index,
@@ -791,6 +788,11 @@ class Orchestrator:
         runtime = closed_event_runtime_for(ckpt)
         if runtime is None:
             return
+        rolled_back = self.spawn_authoring.rollback_roster(
+            checkpoint=ckpt,
+            transaction_id=runtime.transaction_id,
+        )
+        runtime.applied_character_ids.difference_update(rolled_back)
         if runtime.image_sink is not None:
             for transaction_id in runtime.image_transaction_ids:
                 try:
@@ -868,48 +870,6 @@ class Orchestrator:
             == pending.commitment_revision_trigger_id
         ):
             ckpt.session.pending_commitment_revisions.pop(character_id, None)
-
-    async def _materialize_pending_narrator_spawns(
-        self,
-        ckpt: CheckpointFile,
-    ) -> bool:
-        """Persist shared spawn results before discarding a failed render task.
-
-        A narrator retry reuses the already-closed canonical events. Keeping
-        their generated records in the pending checkpoint prevents that retry
-        from launching a second character-generation pass after the transient
-        closed-event runtime is committed.
-        """
-        pending = ckpt.session.pending_narrator_render
-        if pending is None or pending.events_closed <= 0:
-            return False
-
-        closed_events = ckpt.canonical_events[-pending.events_closed:]
-        if not any(event.spawn for event in closed_events):
-            return False
-
-        event_runtime = self._ensure_closed_event_runtime(ckpt)
-        for index, event in enumerate(closed_events):
-            if not event.spawn:
-                continue
-            actor_id = (
-                pending.event_actor_ids[index]
-                if index < len(pending.event_actor_ids)
-                else ""
-            )
-            records = await event_runtime.authored_records(
-                checkpoint=ckpt,
-                event=event,
-                actor_id=actor_id,
-            )
-            event_runtime.apply_records(ckpt, records)
-            refresh_router_history_record(
-                ckpt.session_conversation,
-                result=event,
-                spawned_characters=records,
-            )
-        self.checkpoint_mgr.save(ckpt)
-        return True
 
     async def _resume_pending_narrator_render_locked(
         self,
@@ -1078,6 +1038,10 @@ class Orchestrator:
                     result=evt,
                     spawned_characters=records,
                 )
+        self.spawn_authoring.accept_roster(
+            checkpoint=ckpt,
+            transaction_id=event_runtime.transaction_id,
+        )
         loot_prompts = dnd_inventory.apply_loot_offers_from_events(
             ckpt,
             closed_this_beat,
@@ -1423,10 +1387,7 @@ class Orchestrator:
                 )
             except Exception:
                 if pending_render_saved():
-                    try:
-                        await self._materialize_pending_narrator_spawns(ckpt)
-                    finally:
-                        await self._commit_closed_event_runtime(ckpt, [])
+                    await self._commit_closed_event_runtime(ckpt, [])
                 else:
                     await self._cancel_closed_event_runtime(
                         ckpt,

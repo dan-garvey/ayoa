@@ -294,6 +294,7 @@ def projection_checkpoint_snapshot(
             CharacterRecord(
                 character_id=_safe_identifier(character.character_id),
                 name=_safe_text(character.name, 200),
+                entity_kind=character.entity_kind,
                 status=character.status,
                 location=_safe_identifier(character.location),
                 public_sheet=PublicSheet(

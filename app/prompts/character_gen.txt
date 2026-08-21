@@ -6,16 +6,9 @@ You are a character generation authority for an interactive fiction world.
 Generate a new character who fits naturally into the established setting and has a clear reason for entering the story now.
 </task>
 
-<context>
-## Setting
+<story_style>
 {setting_summary}
-
-## World Lore
-{world_lore}
-
-## Physical Rules
-{world_rules}
-</context>
+</story_style>
 
 <instructions>
 1. Create a character who fits the world's genre, era, and tone naturally.
@@ -29,7 +22,7 @@ Generate a new character who fits naturally into the established setting and has
 9. `personality` absorbs three things that used to be separate fields: a distinct voice (so they sound different from existing characters), personality traits and inner life, and portrayal direction (how to play them under pressure — what they hide, what they deflect, situational tells if genuinely distinctive). Write ONE prose block that covers all three. Prioritize pressure points, contradictions, loyalties, and vulnerabilities over surface quirks. Situational > always-on.
 10. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas), or when an Authored Generation Budget explicitly says their objectives remain active between scenes. False for walk-ons, attendants, and background figures.
 11. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
-12. If a Knowledge Budget appears in the input, it is AUTHORITATIVE: author `backstory`, `known_context`, and `secrets` to exactly that knowledge boundary and no further. If an Authored Generation Budget appears, it is also AUTHORITATIVE: match its backstory depth; personality, voice, and contradiction depth; public visual-detail quantity and specificity; loadout complexity and material finish; visual salience; and presentation guidance. It overrides the ordinary concision defaults in instructions 3 and 8. Fulfill requested identity anchors consistently across `appearance` and `default_loadout`, but never put spoiler-bearing knowledge, private truths, concealed traits, or motives in either public field. If no authored budgets are provided, author the character as usual and do not infer a tier, rarity ladder, or presentation hierarchy; still provide enough public visual fingerprint for future portrait anchoring.
+12. If a Knowledge Budget appears in the input, it is AUTHORITATIVE: author `backstory`, `known_context`, and `secrets` to exactly that knowledge boundary and no further. Entry Context and explicit Spawn Request facts are also available for this arrival, but they do not imply adjacent setting knowledge. If an Authored Generation Budget appears, it is also AUTHORITATIVE: match its backstory depth; personality, voice, and contradiction depth; public visual-detail quantity and specificity; loadout complexity and material finish; visual salience; and presentation guidance. It overrides the ordinary concision defaults in instructions 3 and 8. Fulfill requested identity anchors consistently across `appearance` and `default_loadout`, but never put spoiler-bearing knowledge, private truths, concealed traits, or motives in either public field. If no authored budgets are provided, author the character as usual and do not infer a tier, rarity ladder, or presentation hierarchy; still provide enough public visual fingerprint for future portrait anchoring.
 {dnd_generation_instructions}
 </instructions>
 
@@ -67,7 +60,7 @@ Character ID: {character_id}
 Location: {location}
 {spawn_seed}
 
-{knowledge_grant}
+{generation_context}
 
 ## Existing Characters (avoid duplicating)
 {existing_characters}

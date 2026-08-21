@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.characters import CharacterAgentTier
+from app.schemas.characters import CharacterAgentTier, CharacterRecord
 from app.schemas.content import ContentPackState
 from app.schemas.dnd_inventory import DndLootOffer
 from app.schemas.dnd_spatial import DndBattleMapSeed, DndBattleMapState
@@ -64,6 +64,14 @@ class PendingNarratorRender(BaseModel):
     commitment_revision_character_id: str = ""
     commitment_revision_id: str = ""
     commitment_revision_trigger_id: str = ""
+    # Private runtime payload for a rejected render candidate. These authored
+    # records are deliberately not active roster entries until a retry render
+    # is accepted, but must survive process restart so character generation is
+    # never repeated for the already-closed canonical spawn event.
+    pending_spawn_records: list[CharacterRecord] = Field(default_factory=list)
+    pending_spawn_introductions: dict[str, list[str]] = Field(
+        default_factory=dict
+    )
 
 
 class OpenCommitment(BaseModel):

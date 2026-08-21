@@ -50,7 +50,7 @@ from app.engine.turn_loop_contracts import (
     format_router_continuation_block,
 )
 from app.llm.client import LLMClient
-from app.schemas.characters import CharacterRecord
+from app.schemas.characters import CharacterRecord, is_non_social_hazard
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.conversation import ConversationMessage
 from app.schemas.event_router import (
@@ -135,20 +135,18 @@ def _build_router_world_lore(checkpoint: CheckpointFile) -> str:
 
 
 def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
-    """Render the binding-invariant active character roster on turn 1.
+    """Render the binding-invariant durable roster seed on the first call.
 
-    Pre-Commit-3 the per-turn user message carried `character_registry`
-    EVERY turn — name + role + status + location for every character
-    (~80 tokens × N characters, ~1000 tokens/turn for hollowstone).
-    The router has its own session conversation history, so re-feeding
-    identity every turn was duplication: turn-1's inject plus spawn
-    outcomes are already in history.
+    This is stored once as compact assistant-side router history. It is not a
+    turn-specific user block: live bindings cannot alter fictional identity,
+    and later stateless calls must retain the starting cast even though raw
+    user turns are not replayed. Router-authored spawn, activation, location,
+    and status mutations then extend this seed through compact prior events.
 
-    This block lands ONCE — on turn 1 only — and carries richer signal
-    than the dropped registry: name, id, role, location, goals,
-    current_objectives. The router uses it to seed "who's in this
-    world and what are they trying to do" so picking decisions on turn
-    1 aren't blind. Returns "" on every turn after the first.
+    Keep it small: id, name, role, initial location, D&D identity/equipment,
+    and active goals. Appearance belongs to prose-facing roles and authored
+    opening participant blocks. Returns "" once a roster seed or canonical
+    router event already exists.
 
     Membership and rendering deliberately ignore live bindings. A character's
     controller cannot change the router's fictional roster. Dormant records,
@@ -159,6 +157,13 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
     This block does not carry private interior beyond seed-authored goals and
     objectives. Fresh private thought stays in character-local history.
     """
+    if any(
+        message.role == "assistant"
+        and isinstance(message.content, str)
+        and message.content.startswith("roster_seed\n")
+        for message in checkpoint.session_conversation
+    ):
+        return ""
     if any(
         not _is_router_content_history_message(message)
         for message in checkpoint.session_conversation
@@ -176,11 +181,11 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
 
         parts = [
             f"- {char.character_id}",
+            f"  Name: {char.name}",
             f"  Role: {role}",
         ]
-        appearance = (char.public_sheet.appearance or "").strip()
-        if appearance:
-            parts.append(f"  Appearance: {appearance}")
+        if is_non_social_hazard(char):
+            parts.append("  Kind: non-social hazard")
         location = char.location or "unknown location"
         parts.append(f"  Location: {location}")
         dnd_identity = build_dnd_character_identity_sentence(checkpoint, char)
@@ -205,9 +210,8 @@ def _build_initial_roster_block(checkpoint: CheckpointFile) -> str:
         return ""
 
     header = (
-        "## Initial Character Roster\n"
-        "Every active character in this world, with their long-term goals "
-        "and active pursuits.\n\n"
+        "roster_seed\n"
+        "Initial active fictional identities and pursuits:\n"
     )
     return header + "\n\n".join(entries) + "\n"
 
@@ -997,6 +1001,12 @@ class LLMDispatcher:
                 ckpt,
                 actor_id,
             )
+            initial_roster_record = ctx.pop("initial_roster_block", "")
+            if initial_roster_record:
+                ckpt.session_conversation.append(ConversationMessage(
+                    role="assistant",
+                    content=initial_roster_record,
+                ))
             dnd_fresh = _dnd_fresh_router_enabled(ckpt, cat_ii_event)
 
             if cat_ii_event is None:
@@ -1020,7 +1030,6 @@ class LLMDispatcher:
                 intention_block = ""
 
             router_input_block = _build_router_input_block(
-                ctx.pop("initial_roster_block", ""),
                 _build_opening_context_block(ckpt, intention, actor_id),
                 ctx.pop("engine_state_updates_block", ""),
                 cat_ii_resolution_block,
@@ -1207,13 +1216,18 @@ class LLMDispatcher:
                 ckpt,
                 actor_id,
             )
+            initial_roster_record = ctx.pop("initial_roster_block", "")
+            if initial_roster_record:
+                ckpt.session_conversation.append(ConversationMessage(
+                    role="assistant",
+                    content=initial_roster_record,
+                ))
             continuation_block = format_router_continuation_block(
                 prior_rationale=prior_result.decision_rationale,
                 original_action=original_action,
             )
 
             router_input_block = _build_router_input_block(
-                ctx.pop("initial_roster_block", ""),
                 ctx.pop("engine_state_updates_block", ""),
                 continuation_block,
             )

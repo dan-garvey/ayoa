@@ -3,7 +3,13 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, SerializationInfo, field_serializer
+from pydantic import (
+    BaseModel,
+    Field,
+    SerializationInfo,
+    field_serializer,
+    model_validator,
+)
 
 from app.schemas.content_privacy import should_include_private_runtime_metadata
 
@@ -25,6 +31,20 @@ class CharacterAgentTier(str, Enum):
     # consume the expensive plot-agent model. In the current runtime they
     # use the Sonnet-backed convenience role.
     utility = "utility"
+
+
+class FictionalEntityKind(str, Enum):
+    """The kind of fictional agency represented by a roster record.
+
+    ``character`` records own deliberate choices and can therefore produce a
+    character-agent or player intention. ``hazard`` records preserve stable
+    identity, location, visuals, and state for a patterned non-social entity,
+    but have no dialogue, interiority, or character turn. Their established
+    behavior is adjudicated as environmental pressure instead.
+    """
+
+    character = "character"
+    hazard = "hazard"
 
 
 class PlayerSlotKind(str, Enum):
@@ -115,6 +135,7 @@ class PrivateState(BaseModel):
 class CharacterRecord(BaseModel):
     character_id: str
     name: str
+    entity_kind: FictionalEntityKind = FictionalEntityKind.character
     status: CharacterStatus = CharacterStatus.active
     location: str = ""
     # Fiction-time clock in seconds since session start. Updated from
@@ -202,9 +223,50 @@ class CharacterRecord(BaseModel):
     # asymmetry; reach for in-fiction signals (a courier, an
     # observable_fact, a witnessed action) instead.
 
+    @model_validator(mode="after")
+    def _validate_entity_kind(self) -> "CharacterRecord":
+        if self.entity_kind != FictionalEntityKind.hazard:
+            return self
+        if self.is_playable:
+            raise ValueError("non-social hazards cannot be playable seats")
+        if self.player_slot_kind != PlayerSlotKind.standard:
+            raise ValueError(
+                "non-social hazards cannot be player-authored seats"
+            )
+        if self.player_guidance:
+            raise ValueError(
+                "non-social hazards cannot carry player guidance"
+            )
+        if self.personality.strip():
+            raise ValueError(
+                "non-social hazards cannot carry character portrayal direction"
+            )
+        if self.backstory.strip() or self.known_context.strip():
+            raise ValueError(
+                "non-social hazards cannot carry character knowledge fields"
+            )
+        private_state = self.private_state
+        if (
+            private_state.goals
+            or private_state.current_objectives
+            or private_state.secrets
+            or private_state.intentions_enabled
+        ):
+            raise ValueError(
+                "non-social hazards cannot carry character interior state"
+            )
+        return self
+
 
 def is_player_authored_slot(character: CharacterRecord | None) -> bool:
     return bool(
         character is not None
         and character.player_slot_kind == PlayerSlotKind.player_authored
+    )
+
+
+def is_non_social_hazard(character: CharacterRecord | None) -> bool:
+    return bool(
+        character is not None
+        and character.entity_kind == FictionalEntityKind.hazard
     )
