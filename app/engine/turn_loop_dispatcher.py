@@ -1539,6 +1539,59 @@ class LLMDispatcher:
         )
         return response.parsed
 
+    async def _retry_one_star_routing_contract(
+        self,
+        *,
+        messages: list[dict[str, object]],
+        result: OneStarEventRouterOutput,
+        validation_error: str,
+    ) -> OneStarEventRouterOutput:
+        """Ask once for a complete replacement of an invalid routing envelope.
+
+        Transaction repair is intentionally narrower and runs only after the
+        event's fiction and routing have been accepted.  Response ownership,
+        observer delivery, and reversible Cat II selection are coupled to the
+        whole event, so correcting one of those failures requires a fresh full
+        output before any candidate reaches canonical history or rules state.
+        """
+
+        correction_messages = [
+            *messages,
+            {
+                "role": "assistant",
+                "content": result.model_dump_json(),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "<router_output_correction>\n"
+                    "Return one complete replacement output. The candidate "
+                    "above violates this story's routing contract:\n"
+                    f"{validation_error}\n"
+                    "Preserve any compatible fictional judgment, but make the "
+                    "canonical event, Cat II classification, responder set, "
+                    "observers, lifecycle, and One-Star transaction mutually "
+                    "consistent. Do not discuss the correction in the fiction "
+                    "or rationale.\n"
+                    "</router_output_correction>"
+                ),
+            },
+        ]
+        logger.warning(
+            "Retrying invalid One-Star router output once: %s",
+            validation_error,
+        )
+        response = await self.client.complete(
+            role="event_router",
+            messages=correction_messages,
+            response_model=OneStarEventRouterOutput,
+            temperature=0.2,
+            max_tokens=EVENT_ROUTER_MAX_TOKENS,
+            cache=True,
+            compact=True,
+        )
+        return response.parsed
+
     # ------------------------------------------------------------------
     # route_intention
     # ------------------------------------------------------------------
@@ -1682,19 +1735,39 @@ class LLMDispatcher:
                 compact=True,
             )
             result: EventRouterOutput = response.parsed
-            _validate_one_star_cat_ii_transaction(result)
-            _validate_one_star_tutorial_routing(result)
-            _validate_one_star_pending_response_routing(
-                ckpt,
-                actor_id=actor_id,
-                result=result,
-            )
-            _validate_one_star_guide_routing(
-                ckpt,
-                actor_id=actor_id,
-                result=result,
-            )
-            _validate_opening_spawn_authority(ckpt, intention, result)
+
+            def validate_candidate() -> None:
+                _validate_one_star_cat_ii_transaction(result)
+                _validate_one_star_tutorial_routing(result)
+                _validate_one_star_pending_response_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_guide_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_opening_spawn_authority(ckpt, intention, result)
+
+            try:
+                validate_candidate()
+            except ValueError as first_error:
+                if not _one_star_router_enabled(ckpt):
+                    raise
+                result = await self._retry_one_star_routing_contract(
+                    messages=messages,
+                    result=result,
+                    validation_error=str(first_error),
+                )
+                try:
+                    validate_candidate()
+                except ValueError as second_error:
+                    raise ValueError(
+                        "One-Star router output remained invalid after one "
+                        f"correction: {second_error}"
+                    ) from second_error
         except Exception:
             _restore_router_call_snapshot(ckpt, router_snapshot)
             raise

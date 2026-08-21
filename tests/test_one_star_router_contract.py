@@ -53,6 +53,34 @@ def _closed_one_star_output() -> ClosedOneStarEventRouterOutput:
     )
 
 
+def _pending_selection_output(
+    *,
+    event_id: str,
+    requires_responders: bool,
+) -> OneStarEventRouterOutput:
+    data = router_output(
+        event_id=event_id,
+        requires_responders=requires_responders,
+        required_responders=["pip"] if requires_responders else [],
+        observer_ids=["alice", "pip"],
+    ).model_dump(mode="json")
+    data["one_star_transaction"] = {
+        "present": True,
+        "operations": [{
+            "operation": "pending_open",
+            "pending": {
+                "operation_id": "deployment_1",
+                "kind": "deployment",
+                "participant_ids": ["pip"],
+                "target_id": "",
+                "destination": "tower_floor_1",
+                "opened_at_s": 0,
+            },
+        }],
+    }
+    return OneStarEventRouterOutput.model_validate(data)
+
+
 @pytest.mark.parametrize(
     "response_model",
     [OneStarEventRouterOutput, ClosedOneStarEventRouterOutput],
@@ -160,6 +188,110 @@ def test_one_star_router_schema_is_used_for_fresh_and_cat_ii_routes(monkeypatch)
 
     assert result is closed
     assert client.complete.await_args.kwargs["response_model"] is OneStarEventRouterOutput
+
+
+def test_invalid_embodied_selection_is_retried_before_router_history(
+    monkeypatch,
+):
+    from app.engine import one_star_adapter
+
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            lobby_id="local",
+            lobby_location_label="lobby",
+            operation_requirements={},
+        ),
+        state=SimpleNamespace(guide_character_ids=[]),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _ckpt: (ckpt.characters[0], account),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_hero",
+        lambda _character: SimpleNamespace(owner_lobby_id="local"),
+    )
+    invalid = _pending_selection_output(
+        event_id="invalid_selection",
+        requires_responders=False,
+    )
+    corrected = _pending_selection_output(
+        event_id="corrected_selection",
+        requires_responders=True,
+    )
+    dispatcher, client = _dispatcher(invalid, corrected)
+
+    result = asyncio.run(dispatcher.route_intention(
+        ckpt=ckpt,
+        actor_id="alice",
+        intention="Send Pip through the Tower gate.",
+    ))
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    correction_messages = client.complete.await_args_list[1].kwargs["messages"]
+    assert correction_messages[-2] == {
+        "role": "assistant",
+        "content": invalid.model_dump_json(),
+    }
+    assert "must open Cat II" in correction_messages[-1]["content"]
+    assert "Send Pip through the Tower gate." in correction_messages[-3]["content"]
+    stored_history = "\n".join(
+        str(message.content) for message in ckpt.session_conversation
+    )
+    assert "corrected_selection" in stored_history
+    assert "invalid_selection" not in stored_history
+
+
+def test_repeated_invalid_embodied_selection_restores_router_snapshot(
+    monkeypatch,
+):
+    from app.engine import one_star_adapter
+
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            lobby_id="local",
+            lobby_location_label="lobby",
+            operation_requirements={},
+        ),
+        state=SimpleNamespace(guide_character_ids=[]),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _ckpt: (ckpt.characters[0], account),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_hero",
+        lambda _character: SimpleNamespace(owner_lobby_id="local"),
+    )
+    first = _pending_selection_output(
+        event_id="invalid_selection_1",
+        requires_responders=False,
+    )
+    second = _pending_selection_output(
+        event_id="invalid_selection_2",
+        requires_responders=False,
+    )
+    dispatcher, client = _dispatcher(first, second)
+    before = ckpt.model_dump(mode="json")
+
+    with pytest.raises(ValueError, match="remained invalid after one correction"):
+        asyncio.run(dispatcher.route_intention(
+            ckpt=ckpt,
+            actor_id="alice",
+            intention="Send Pip through the Tower gate.",
+        ))
+
+    assert client.complete.await_count == 2
+    assert ckpt.model_dump(mode="json") == before
 
 
 def test_one_star_continuation_uses_the_closed_schema(monkeypatch):
