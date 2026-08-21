@@ -818,11 +818,9 @@ def _apply_hero_delta(
     hero.experience_points += operation.experience_delta
     if hero.experience_points < 0:
         raise OneStarTransactionError("Hero XP cannot become negative")
-    for stat, delta in operation.stats_delta.items():
-        key = stat.strip()
-        if not key:
-            raise OneStarTransactionError("Hero stat delta has an empty stat id")
-        hero.stats[key] = hero.stats.get(key, 0) + delta
+    for stat_delta in operation.stats_delta:
+        key = stat_delta.stat_id
+        hero.stats[key] = hero.stats.get(key, 0) + stat_delta.delta
     remove_equipment = set(operation.equipment_remove_ids)
     if len(remove_equipment) != len(operation.equipment_remove_ids):
         raise OneStarTransactionError("Hero equipment removal ids must be unique")
@@ -970,13 +968,15 @@ def _apply_mission_update(
         raise OneStarTransactionError(
             "mission counters cannot advance after the canonical deadline"
         )
-    if set(operation.counters) != set(mission.counters):
+    current_counters = {counter.counter_id: counter for counter in mission.counters}
+    updated_counters = {counter.counter_id: counter for counter in operation.counters}
+    if set(updated_counters) != set(current_counters):
         raise OneStarTransactionError("mission update must retain the declared counter set")
-    for key, counter in operation.counters.items():
-        declared = mission.counters[key]
+    for key, counter in updated_counters.items():
+        declared = current_counters[key]
         if counter.target != declared.target or counter.current < declared.current:
             raise OneStarTransactionError("mission counters cannot change targets or regress")
-    mission.counters = dict(operation.counters)
+    mission.counters = list(operation.counters)
 
 
 def _apply_mission_end(
@@ -1027,8 +1027,8 @@ def _apply_mission_end(
         )
     if operation.outcome == "completed":
         incomplete_counters = [
-            counter_id
-            for counter_id, counter in mission.counters.items()
+            counter.counter_id
+            for counter in mission.counters
             if counter.current < counter.target
         ]
         if incomplete_counters:

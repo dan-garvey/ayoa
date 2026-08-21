@@ -243,12 +243,18 @@ def render_one_star_router_ledger(checkpoint: CheckpointFile) -> str:
             f"mission_failure={mission.failure_declaration}",
             "mission_party: " + _render_ids(mission.party_ids),
             "mission_formation: " + ", ".join(
-                f"{character_id}={label}"
-                for character_id, label in sorted(mission.formation_labels.items())
+                f"{entry.character_id}={entry.label}"
+                for entry in sorted(
+                    mission.formation_labels,
+                    key=lambda formation: formation.character_id,
+                )
             ),
             "mission_counters: " + ", ".join(
-                f"{counter_id}={counter.current}/{counter.target}"
-                for counter_id, counter in sorted(mission.counters.items())
+                f"{counter.counter_id}={counter.current}/{counter.target}"
+                for counter in sorted(
+                    mission.counters,
+                    key=lambda entry: entry.counter_id,
+                )
             ),
         ])
     if state.pending_operation is None:

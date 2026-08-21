@@ -129,11 +129,14 @@ def _mission(*, destination: str = "tower_floor_1", party: list[str] | None = No
         mission_id="mission_1",
         floor=1,
         party_ids=party or ["hero"],
-        formation_labels={cid: "front" for cid in (party or ["hero"])},
+        formation_labels=[
+            {"character_id": cid, "label": "front"}
+            for cid in (party or ["hero"])
+        ],
         destination=destination,
         completion_declaration="the floor is cleared",
         failure_declaration="the party is broken",
-        counters={"clear": OneStarMissionCounter(current=0, target=1)},
+        counters=[OneStarMissionCounter(counter_id="clear", current=0, target=1)],
         started_at_s=0,
         deadline_at_s=0,
     )
@@ -189,7 +192,7 @@ def _hero_delta(hero_id: str = "hero", **overrides: object) -> dict:
         "hp_max": None,
         "level": None,
         "experience_delta": 0,
-        "stats_delta": {},
+        "stats_delta": [],
         "equipment_add": [],
         "equipment_remove_ids": [],
         "skills_add": [],
@@ -303,7 +306,9 @@ def test_active_mission_rejects_pending_open_and_completed_end_returns_survivor(
             {
                 "operation": "mission_update",
                 "mission_id": "mission_1",
-                "counters": {"clear": {"current": 1, "target": 1}},
+                "counters": [
+                    {"counter_id": "clear", "current": 1, "target": 1},
+                ],
             },
             {
                 "operation": "mission_end",
@@ -659,7 +664,7 @@ def test_synthesis_requires_advancement_but_culls_all_sources_when_valid() -> No
                 _hero_delta(
                     "target",
                     level=2,
-                    stats_delta={"new_penalty": -10},
+                    stats_delta=[{"stat_id": "new_penalty", "delta": -10}],
                 ),
                 resolve,
             ),
@@ -1272,7 +1277,7 @@ def test_repeat_reward_minimum_is_seed_authored(
     envelope["config"]["repeat_gold_numerator"] = 0
     envelope["config"]["repeat_gold_minimum"] = minimum
     envelope["state"]["highest_cleared_floor"] = 1
-    envelope["state"]["active_mission"]["counters"]["clear"]["current"] = 1
+    envelope["state"]["active_mission"]["counters"][0]["current"] = 1
     prepared = prepare_one_star_transaction(
         checkpoint,
         event_id=f"repeat_minimum_{minimum}",

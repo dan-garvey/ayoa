@@ -366,17 +366,49 @@ class OneStarHeroState(BaseModel):
         return self
 
 
+class OneStarMissionCounter(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    counter_id: str
+    current: int = Field(ge=0)
+    target: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _valid_counter(self) -> "OneStarMissionCounter":
+        self.counter_id = self.counter_id.strip()
+        if not self.counter_id:
+            raise ValueError("mission counter id cannot be empty")
+        if self.current > self.target:
+            raise ValueError("mission counter current cannot exceed target")
+        return self
+
+
+class OneStarFormationEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    character_id: str
+    label: str
+
+    @model_validator(mode="after")
+    def _clean(self) -> "OneStarFormationEntry":
+        self.character_id = self.character_id.strip()
+        self.label = self.label.strip()
+        if not self.character_id or not self.label:
+            raise ValueError("mission formation entries require character id and label")
+        return self
+
+
 class OneStarMissionState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mission_id: str
     floor: int = Field(ge=1)
     party_ids: list[str]
-    formation_labels: dict[str, str]
+    formation_labels: list[OneStarFormationEntry]
     destination: str
     completion_declaration: str
     failure_declaration: str
-    counters: dict[str, "OneStarMissionCounter"]
+    counters: list[OneStarMissionCounter]
     started_at_s: int = Field(ge=0)
     deadline_at_s: int = Field(ge=0)
 
@@ -391,21 +423,28 @@ class OneStarMissionState(BaseModel):
             raise ValueError("mission requires immutable completion and failure declarations")
         if self.deadline_at_s and self.deadline_at_s < self.started_at_s:
             raise ValueError("mission deadline cannot precede start")
-        if not set(self.formation_labels).issubset(self.party_ids):
+        formation_ids = [entry.character_id for entry in self.formation_labels]
+        if len(formation_ids) != len(set(formation_ids)):
+            raise ValueError("mission formation character ids must be unique")
+        if not set(formation_ids).issubset(self.party_ids):
             raise ValueError("mission formation ids must belong to the party")
+        counter_ids = [entry.counter_id for entry in self.counters]
+        if not counter_ids or len(counter_ids) != len(set(counter_ids)):
+            raise ValueError("mission counter ids must be non-empty and unique")
         return self
 
 
-class OneStarMissionCounter(BaseModel):
+class OneStarStatDelta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    current: int = Field(ge=0)
-    target: int = Field(ge=1)
+    stat_id: str
+    delta: int
 
     @model_validator(mode="after")
-    def _valid_counter(self) -> "OneStarMissionCounter":
-        if self.current > self.target:
-            raise ValueError("mission counter current cannot exceed target")
+    def _clean(self) -> "OneStarStatDelta":
+        self.stat_id = self.stat_id.strip()
+        if not self.stat_id:
+            raise ValueError("Hero stat delta id cannot be empty")
         return self
 
 
@@ -610,7 +649,7 @@ class OneStarHeroDeltaOperation(BaseModel):
     hp_max: int | None = Field(ge=1)
     level: int | None = Field(ge=1)
     experience_delta: int = Field(ge=0)
-    stats_delta: dict[str, int]
+    stats_delta: list[OneStarStatDelta]
     equipment_add: list[OneStarEquipmentEntry]
     equipment_remove_ids: list[str]
     skills_add: list[OneStarSkillEntry]
@@ -621,6 +660,13 @@ class OneStarHeroDeltaOperation(BaseModel):
     persistent_injuries: list[str] | None
     terminal_action: Literal["none", "death"]
     death_cause: str
+
+    @model_validator(mode="after")
+    def _validate_stat_deltas(self) -> "OneStarHeroDeltaOperation":
+        stat_ids = [entry.stat_id for entry in self.stats_delta]
+        if len(stat_ids) != len(set(stat_ids)):
+            raise ValueError("Hero stat delta ids must be unique")
+        return self
 
 
 class OneStarDurabilityUpdate(BaseModel):
@@ -646,7 +692,14 @@ class OneStarMissionUpdateOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation: Literal["mission_update"]
     mission_id: str
-    counters: dict[str, OneStarMissionCounter]
+    counters: list[OneStarMissionCounter]
+
+    @model_validator(mode="after")
+    def _validate_counters(self) -> "OneStarMissionUpdateOperation":
+        counter_ids = [entry.counter_id for entry in self.counters]
+        if not counter_ids or len(counter_ids) != len(set(counter_ids)):
+            raise ValueError("mission update counter ids must be non-empty and unique")
+        return self
 
 
 class OneStarMissionEndOperation(BaseModel):

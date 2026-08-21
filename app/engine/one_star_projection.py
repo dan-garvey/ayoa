@@ -162,8 +162,8 @@ def _mission_lines(mission: OneStarMissionState | None) -> list[str]:
         return ["Active mission: none"]
     counters = _join_values(
         (
-            f"{key} {value.current}/{value.target}"
-            for key, value in sorted(mission.counters.items())
+            f"{counter.counter_id} {counter.current}/{counter.target}"
+            for counter in sorted(mission.counters, key=lambda entry: entry.counter_id)
         )
     )
     return [
@@ -173,8 +173,11 @@ def _mission_lines(mission: OneStarMissionState | None) -> list[str]:
         f"Failure: {mission.failure_declaration}",
         f"Mission party: {_join_values(mission.party_ids)}; formation "
         + _join_values(
-            f"{hero_id}={label}"
-            for hero_id, label in sorted(mission.formation_labels.items())
+            f"{entry.character_id}={entry.label}"
+            for entry in sorted(
+                mission.formation_labels,
+                key=lambda formation: formation.character_id,
+            )
         ),
         "Mission counters: "
         f"{counters}; deadline "

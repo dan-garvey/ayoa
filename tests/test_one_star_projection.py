@@ -339,11 +339,13 @@ def test_active_mission_is_visible_to_owner_but_not_guide() -> None:
         mission_id="floor_two",
         floor=2,
         party_ids=["hero"],
-        formation_labels={"hero": "front"},
+        formation_labels=[{"character_id": "hero", "label": "front"}],
         destination="tower_floor_2",
         completion_declaration="the last enemy falls",
         failure_declaration="the party is destroyed",
-        counters={"enemies": OneStarMissionCounter(current=2, target=5)},
+        counters=[
+            OneStarMissionCounter(counter_id="enemies", current=2, target=5),
+        ],
         started_at_s=40,
         deadline_at_s=340,
     )

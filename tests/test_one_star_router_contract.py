@@ -20,7 +20,7 @@ from app.engine.turn_loop_dispatcher import (
     _validate_one_star_pending_response_routing,
     _validate_one_star_tutorial_routing,
 )
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, _openai_strict_json_schema
 from app.schemas.one_star import (
     ClosedOneStarEventRouterOutput,
     OneStarEventRouterOutput,
@@ -50,6 +50,35 @@ def _closed_one_star_output() -> ClosedOneStarEventRouterOutput:
     return ClosedOneStarEventRouterOutput.model_validate(
         _one_star_output().model_dump()
     )
+
+
+@pytest.mark.parametrize(
+    "response_model",
+    [OneStarEventRouterOutput, ClosedOneStarEventRouterOutput],
+)
+def test_one_star_provider_schema_contains_only_closed_objects(response_model):
+    schema = _openai_strict_json_schema(response_model)
+    invalid_objects: list[tuple[str, ...]] = []
+    required_mismatches: list[tuple[str, ...]] = []
+
+    def walk(node, path=()):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                if node.get("additionalProperties") is not False:
+                    invalid_objects.append(path)
+                properties = node.get("properties")
+                if isinstance(properties, dict) and node.get("required") != list(properties):
+                    required_mismatches.append(path)
+            for key, value in node.items():
+                walk(value, path + (str(key),))
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, path + (str(index),))
+
+    walk(schema)
+
+    assert invalid_objects == []
+    assert required_mismatches == []
 
 
 def _one_star_checkpoint():
@@ -377,7 +406,7 @@ def test_cat_ii_open_rejects_one_star_mechanical_side_effects():
         "hp_max": None,
         "level": None,
         "experience_delta": 0,
-        "stats_delta": {},
+        "stats_delta": [],
         "equipment_add": [],
         "equipment_remove_ids": [],
         "skills_add": [],
@@ -588,8 +617,8 @@ def test_one_star_router_projections_split_static_rules_from_live_ledger(
         completion_declaration="reach the exit",
         failure_declaration="all party members fall",
         party_ids=["pip"],
-        formation_labels={"pip": "front"},
-        counters={"exit": SimpleNamespace(current=0, target=1)},
+        formation_labels=[SimpleNamespace(character_id="pip", label="front")],
+        counters=[SimpleNamespace(counter_id="exit", current=0, target=1)],
     )
     state = SimpleNamespace(
         resources=cost(gold=34, gems=5, building_resources=3, materials={"stone": 1}),
