@@ -7,7 +7,7 @@ normal character lifecycle/location fields for embodied state.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -744,7 +744,7 @@ class OneStarActiveFeedOperation(BaseModel):
     hero_id: str
 
 
-OneStarOperation = Annotated[
+OneStarOperation = (
     OneStarCatalogueApplyOperation
     | OneStarSummonOperation
     | OneStarInventoryDeltaOperation
@@ -756,9 +756,8 @@ OneStarOperation = Annotated[
     | OneStarPendingResolveOperation
     | OneStarPendingCancelOperation
     | OneStarTutorialDeliveryOperation
-    | OneStarActiveFeedOperation,
-    Field(discriminator="operation"),
-]
+    | OneStarActiveFeedOperation
+)
 
 
 class OneStarTransaction(BaseModel):

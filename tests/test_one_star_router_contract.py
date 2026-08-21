@@ -60,9 +60,13 @@ def test_one_star_provider_schema_contains_only_closed_objects(response_model):
     schema = _openai_strict_json_schema(response_model)
     invalid_objects: list[tuple[str, ...]] = []
     required_mismatches: list[tuple[str, ...]] = []
+    unsupported_composition: list[tuple[str, ...]] = []
 
     def walk(node, path=()):
         if isinstance(node, dict):
+            for keyword in ("oneOf", "allOf", "not", "discriminator"):
+                if keyword in node:
+                    unsupported_composition.append(path + (keyword,))
             if node.get("type") == "object":
                 if node.get("additionalProperties") is not False:
                     invalid_objects.append(path)
@@ -79,6 +83,7 @@ def test_one_star_provider_schema_contains_only_closed_objects(response_model):
 
     assert invalid_objects == []
     assert required_mismatches == []
+    assert unsupported_composition == []
 
 
 def _one_star_checkpoint():
