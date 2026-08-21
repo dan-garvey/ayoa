@@ -1,0 +1,696 @@
+{
+  "source_checkpoint": "app/storage/stories/one_star_ascension_s1/ckpt_0000.json",
+  "source_session": "one-star-human-test-death",
+  "model_calls": 0,
+  "surface_count": 34,
+  "surfaces": {
+    "player.story_primer": {
+      "audience": "Every prospective player before seat selection",
+      "provenance": "CheckpointFile.player_primer",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 1621,
+      "words": 263,
+      "sha256": "c2e5ecb0ec386d4cb2333b876442308b227c251a0398111b9a78ff68cbd1bef4",
+      "note": ""
+    },
+    "player.guidance.one_star_newcomer": {
+      "audience": "Prospective player considering one_star_newcomer",
+      "provenance": "CharacterRecord.player_guidance via shared CLI/Discord seat summary",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 193,
+      "words": 32,
+      "sha256": "cf3d8addd102e3230455f458f2bbed12dd0f889ba9ae69e88d67f1557593931d",
+      "note": ""
+    },
+    "player.guidance.the_master": {
+      "audience": "Prospective player considering the_master",
+      "provenance": "CharacterRecord.player_guidance via shared CLI/Discord seat summary",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 869,
+      "words": 132,
+      "sha256": "fed4ffde35d930dad589bb2ecf9e877dec4563e0712877c2fbcba123d35990dd",
+      "note": ""
+    },
+    "player.guidance.halcyon_of_the_gilded_march": {
+      "audience": "Prospective player considering halcyon_of_the_gilded_march",
+      "provenance": "CharacterRecord.player_guidance via shared CLI/Discord seat summary",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 175,
+      "words": 26,
+      "sha256": "a07becfabf739f4c637516a88a18e7e860c45c29f6c7457fbe0e2931b1de18ad",
+      "note": ""
+    },
+    "player.dossier.one_star_newcomer": {
+      "audience": "Player immediately after claiming one_star_newcomer",
+      "provenance": "EngineBridge.build_character_dossier",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 497,
+      "words": 79,
+      "sha256": "065bf4d4894f8320699a8df5947eb490df1142d71f67280f1abfefc1f4d1ad99",
+      "note": "Representative post-claim name and appearance; the unclaimed blank record is never shown as a dossier."
+    },
+    "player.dossier.the_master": {
+      "audience": "Player immediately after claiming the_master",
+      "provenance": "EngineBridge.build_character_dossier",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 5292,
+      "words": 873,
+      "sha256": "a93a8897fb1db5371b9f37e6705c2d38130c4879e819f8d5d2b265ee6e5e9c26",
+      "note": "Exact authored seed dossier."
+    },
+    "player.dossier.halcyon_of_the_gilded_march": {
+      "audience": "Player immediately after claiming halcyon_of_the_gilded_march",
+      "provenance": "EngineBridge.build_character_dossier",
+      "message_roles": [
+        "display"
+      ],
+      "characters": 9144,
+      "words": 1445,
+      "sha256": "7c9a3a406baf676e000b7bc9cf7bebe70583a7e6c2fa2e2809499dd8f4a8c551",
+      "note": "Exact authored seed dossier."
+    },
+    "agent.seeded.renna_holt": {
+      "audience": "Character-agent model for renna_holt",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 16754,
+      "words": 2730,
+      "sha256": "38c453eb6668c64a058da35c8e667d5593b3ff1f2a4c6d6673e3dd554d6a34f8",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.iselle_the_guide": {
+      "audience": "Character-agent model for iselle_the_guide",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 21738,
+      "words": 3544,
+      "sha256": "ab9b77dbc99d9c1cd917717a8da9852c5e9891f053ab9412ecddd90da0c5054c",
+      "note": ""
+    },
+    "agent.seeded.the_master": {
+      "audience": "Character-agent model for the_master",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 20043,
+      "words": 3279,
+      "sha256": "dc7731a01e28904deef92008856a157fd4ceca8aed837827b2eee634487bcc58",
+      "note": ""
+    },
+    "agent.seeded.halcyon_of_the_gilded_march": {
+      "audience": "Character-agent model for halcyon_of_the_gilded_march",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 23885,
+      "words": 3851,
+      "sha256": "a00a2e2320cacdbc574ec77a02043de87cfce273f5855fe0b6572bff062f63f5",
+      "note": ""
+    },
+    "agent.seeded.soren_ironvow": {
+      "audience": "Character-agent model for soren_ironvow",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 21202,
+      "words": 3459,
+      "sha256": "cf49b502985ef31cded647f69eb7b5d1fc16ee2f4399eac226f52a2a7cbd6f01",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.castor_valebrand": {
+      "audience": "Character-agent model for castor_valebrand",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 20971,
+      "words": 3416,
+      "sha256": "998a9065ed661859f40d1b00b2d211c5c25082a128638855d1a1e40b12e55e5b",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.wren_thelantern": {
+      "audience": "Character-agent model for wren_thelantern",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 19855,
+      "words": 3271,
+      "sha256": "0a77c1470d26ab88390dfa0363470704b5f4041c926e19b1c23b55dbcc1c08ef",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.rowan_kest": {
+      "audience": "Character-agent model for rowan_kest",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 17624,
+      "words": 2884,
+      "sha256": "88aa202f236adb078f75b64cee121b30cf077f4dfe4938b7cdb67a1b99374f6a",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.liora_fen": {
+      "audience": "Character-agent model for liora_fen",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 17518,
+      "words": 2865,
+      "sha256": "23761620e19b7f83da5530e3ae4e6a1eaebfd825d6e6766f6ff52ecbac251e70",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.mirelle_voss": {
+      "audience": "Character-agent model for mirelle_voss",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 18649,
+      "words": 3050,
+      "sha256": "a5f0c4bbf6b17cdba26be617444d09952c027445aa921135c08c5b5f1fcd1b2f",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.seris_nightglass": {
+      "audience": "Character-agent model for seris_nightglass",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 19547,
+      "words": 3189,
+      "sha256": "e4188f3d47cdb362090c6e1dd3a3a2cdc4e373471f0651bda0efd4b9935c985c",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.aveline_morcant": {
+      "audience": "Character-agent model for aveline_morcant",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 20899,
+      "words": 3354,
+      "sha256": "64714c3fcba2d47034c131f131bbafcbc93066e1cc50dddff0aafdcb62b48e2d",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.veil_the_unnumbered": {
+      "audience": "Character-agent model for veil_the_unnumbered",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 17813,
+      "words": 2935,
+      "sha256": "8fa01b4314ad2cde3ba2d06d20f28abaf94b04283f154dd36d522fffb4a6777f",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.seeded.warden_of_the_eighth": {
+      "audience": "Character-agent model for warden_of_the_eighth",
+      "provenance": "CharacterAgent initial foreground render with empty history and inbox",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 16795,
+      "words": 2763,
+      "sha256": "753f138466cedea6fe6e9b77f942fef33fd735a8f873aaa2ca1769ab7d3ac48f",
+      "note": "Dormant records are dry-rendered for audit only; runtime dispatches them only after activation."
+    },
+    "agent.generated.niflheim_first_summon_01": {
+      "audience": "Character-agent model for generated niflheim_first_summon_01",
+      "provenance": "CharacterAgent initial foreground render from materialized playtest record",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 17848,
+      "words": 2962,
+      "sha256": "0ae17c462d1d070642b66fa5f34effd8e9df0b381a4f26aaa7f5f5cc69e380d5",
+      "note": ""
+    },
+    "agent.generated.niflheim_first_summon_02": {
+      "audience": "Character-agent model for generated niflheim_first_summon_02",
+      "provenance": "CharacterAgent initial foreground render from materialized playtest record",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 17487,
+      "words": 2889,
+      "sha256": "623528ab8b2f014249d4c3042d8751d74b2efa4df768bb8a1c2ac062a3e40dd0",
+      "note": ""
+    },
+    "agent.generated.niflheim_first_summon_03": {
+      "audience": "Character-agent model for generated niflheim_first_summon_03",
+      "provenance": "CharacterAgent initial foreground render from materialized playtest record",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 17543,
+      "words": 2878,
+      "sha256": "03fdd9baaf1cc8fa73fe5f9f368218469e6bf9bc68e5c65533ed4bb3f1ecd8b3",
+      "note": ""
+    },
+    "agent.cospawned.floor2_goblin_front_spear": {
+      "audience": "Character-agent model for co-spawned floor2_goblin_front_spear",
+      "provenance": "CharacterAgent initial foreground render from materialized playtest record",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 20983,
+      "words": 3479,
+      "sha256": "d6b2a511e181da0c8f78a7da860b240c46e86d6be6069c47133a5ee671517a9d",
+      "note": ""
+    },
+    "agent.cospawned.floor2_goblin_rear_spear": {
+      "audience": "Character-agent model for co-spawned floor2_goblin_rear_spear",
+      "provenance": "CharacterAgent initial foreground render from materialized playtest record",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 20862,
+      "words": 3467,
+      "sha256": "9e6b9f1aea22fedc1c7d59006fcc0138bf7572b38d0ae34619f1065b76b27522",
+      "note": ""
+    },
+    "agent.cospawned.floor2_goblin_shield": {
+      "audience": "Character-agent model for co-spawned floor2_goblin_shield",
+      "provenance": "CharacterAgent initial foreground render from materialized playtest record",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 20959,
+      "words": 3473,
+      "sha256": "e0ed3c484da90c7163ddd516b741199c8cd49a907f6e612bd96dd67a8ab49700",
+      "note": ""
+    },
+    "generation.first_wave_tier1": {
+      "audience": "Character-generation model for one first-wave one-star",
+      "provenance": "CharacterManager character_gen render using ev_niflheim_open_001 spawn request",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 28986,
+      "words": 4417,
+      "sha256": "f31de427d200f2ec90a7cc94012d681c00e967274ceea3fe46f288882430e3fa",
+      "note": ""
+    },
+    "generation.cospawned_tier0": {
+      "audience": "Character-generation model for one co-spawned Floor-2 goblin",
+      "provenance": "CharacterManager character_gen render using event-39 spawn request and pre-spawn roster",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 27104,
+      "words": 4145,
+      "sha256": "d26b318d335d3d0e87268ef1629d95cbfa438514d3306468b3114b78e08c3514",
+      "note": ""
+    },
+    "router.begin.master": {
+      "audience": "Omniscient event-router model",
+      "provenance": "LLMDispatcher route_intention render for (begin), without a model call",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 114984,
+      "words": 17399,
+      "sha256": "15faeb12f0f5363a3a78f95a5b429516c9ad4a38a3afdc5a6e1b37739b413579",
+      "note": ""
+    },
+    "router.begin.newcomer": {
+      "audience": "Omniscient event-router model",
+      "provenance": "LLMDispatcher route_intention render for (begin), without a model call",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 114857,
+      "words": 17374,
+      "sha256": "f0eb88cba6d2abc57731bcc05adcb50a833815c5d4c711381335d2093a9a1876",
+      "note": ""
+    },
+    "router.begin.all_playable": {
+      "audience": "Omniscient event-router model",
+      "provenance": "LLMDispatcher route_intention render for (begin), without a model call",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 116244,
+      "words": 17579,
+      "sha256": "020056b85700498467c8127d349b906b00b01f8c77f9af9b83bb773621e6ba24",
+      "note": ""
+    },
+    "narrator.opening.master.with_spawn_records": {
+      "audience": "Per-viewpoint narrator model for the Master",
+      "provenance": "Narrator render reconstructed from ev_niflheim_open_001 after spawn materialization",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 23997,
+      "words": 3773,
+      "sha256": "38113e57c7c8486a90862268c3cd071edc26d55c43dc5f90c05ca237edafc297",
+      "note": "Counterfactual intended identity surface: generated records are available."
+    },
+    "narrator.opening.master.pre_spawn_runtime": {
+      "audience": "Per-viewpoint narrator model for the Master",
+      "provenance": "Narrator render reconstructed from ev_niflheim_open_001 before orchestrator spawn application",
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "characters": 22837,
+      "words": 3573,
+      "sha256": "cfbbe3704f64dd975bf3eadec93df3dfee2f9f2750baebbf69b7d705d889b08b",
+      "note": "Matches the ordering defect that exposed raw spawn ids in the accepted opening."
+    }
+  },
+  "seed_roster": [
+    {
+      "character_id": "one_star_newcomer",
+      "name": "the Newcomer",
+      "status": "dormant",
+      "location": "not_yet_fictional",
+      "is_playable": true,
+      "player_slot_kind": "player_authored",
+      "knowledge_tier": 0,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 193,
+        "backstory": 0,
+        "personality": 0,
+        "known_context": 0,
+        "goals": 0,
+        "current_objectives": 0,
+        "secrets": 0
+      }
+    },
+    {
+      "character_id": "renna_holt",
+      "name": "Renna Holt",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 1,
+      "agent_tier": "utility",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 100,
+        "personality": 203,
+        "known_context": 585,
+        "goals": 118,
+        "current_objectives": 117,
+        "secrets": 286
+      }
+    },
+    {
+      "character_id": "iselle_the_guide",
+      "name": "Iselle",
+      "status": "active",
+      "location": "niflheim_lobby",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 0,
+      "agent_tier": "utility",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 348,
+        "personality": 904,
+        "known_context": 3744,
+        "goals": 215,
+        "current_objectives": 416,
+        "secrets": 249
+      }
+    },
+    {
+      "character_id": "the_master",
+      "name": "the Master",
+      "status": "active",
+      "location": "the_masters_screen",
+      "is_playable": true,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 0,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 869,
+        "backstory": 453,
+        "personality": 1239,
+        "known_context": 1873,
+        "goals": 184,
+        "current_objectives": 204,
+        "secrets": 492
+      }
+    },
+    {
+      "character_id": "halcyon_of_the_gilded_march",
+      "name": "Halcyon",
+      "status": "active",
+      "location": "the_gilded_march",
+      "is_playable": true,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 6,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 175,
+        "backstory": 3461,
+        "personality": 2381,
+        "known_context": 1165,
+        "goals": 164,
+        "current_objectives": 163,
+        "secrets": 661
+      }
+    },
+    {
+      "character_id": "soren_ironvow",
+      "name": "Soren",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 5,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 2124,
+        "personality": 1441,
+        "known_context": 1048,
+        "goals": 142,
+        "current_objectives": 159,
+        "secrets": 502
+      }
+    },
+    {
+      "character_id": "castor_valebrand",
+      "name": "Castor",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 4,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 2017,
+        "personality": 1387,
+        "known_context": 965,
+        "goals": 175,
+        "current_objectives": 142,
+        "secrets": 514
+      }
+    },
+    {
+      "character_id": "wren_thelantern",
+      "name": "Wren",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 3,
+      "agent_tier": "standard",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 1297,
+        "personality": 1050,
+        "known_context": 904,
+        "goals": 186,
+        "current_objectives": 152,
+        "secrets": 400
+      }
+    },
+    {
+      "character_id": "rowan_kest",
+      "name": "Rowan Kest",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 2,
+      "agent_tier": "utility",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 356,
+        "personality": 466,
+        "known_context": 724,
+        "goals": 187,
+        "current_objectives": 206,
+        "secrets": 162
+      }
+    },
+    {
+      "character_id": "liora_fen",
+      "name": "Liora Fen",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 2,
+      "agent_tier": "utility",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 377,
+        "personality": 430,
+        "known_context": 718,
+        "goals": 187,
+        "current_objectives": 177,
+        "secrets": 165
+      }
+    },
+    {
+      "character_id": "mirelle_voss",
+      "name": "Mirelle Voss",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 3,
+      "agent_tier": "standard",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 948,
+        "personality": 698,
+        "known_context": 832,
+        "goals": 168,
+        "current_objectives": 193,
+        "secrets": 271
+      }
+    },
+    {
+      "character_id": "seris_nightglass",
+      "name": "Seris Nightglass",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 4,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 1612,
+        "personality": 763,
+        "known_context": 876,
+        "goals": 188,
+        "current_objectives": 194,
+        "secrets": 325
+      }
+    },
+    {
+      "character_id": "aveline_morcant",
+      "name": "Aveline Morcant",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 5,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 2380,
+        "personality": 1003,
+        "known_context": 901,
+        "goals": 236,
+        "current_objectives": 213,
+        "secrets": 478
+      }
+    },
+    {
+      "character_id": "veil_the_unnumbered",
+      "name": "Veil",
+      "status": "dormant",
+      "location": "unsummoned_pool",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 0,
+      "agent_tier": "premium",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 403,
+        "personality": 358,
+        "known_context": 850,
+        "goals": 191,
+        "current_objectives": 134,
+        "secrets": 287
+      }
+    },
+    {
+      "character_id": "warden_of_the_eighth",
+      "name": "the Warden of the Eighth",
+      "status": "dormant",
+      "location": "floor_eight_arena",
+      "is_playable": false,
+      "player_slot_kind": "standard",
+      "knowledge_tier": 0,
+      "agent_tier": "utility",
+      "field_characters": {
+        "player_guidance": 0,
+        "backstory": 321,
+        "personality": 409,
+        "known_context": 224,
+        "goals": 0,
+        "current_objectives": 0,
+        "secrets": 323
+      }
+    }
+  ]
+}
