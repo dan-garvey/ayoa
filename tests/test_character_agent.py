@@ -147,12 +147,14 @@ class TestContextBuilder:
         assert state["character_goals"] == "None specified."
         assert state["character_secrets"] == "None."
 
-    def test_build_world_context_legacy_fallback(self, sample_checkpoint, guard_character):
-        """Pre-v2 characters (known_context=="") fall back to global lore/facts."""
+    def test_build_world_context_empty_does_not_leak_global_lore(
+        self, sample_checkpoint, guard_character,
+    ):
         assert guard_character.known_context == ""
         context = build_world_context(guard_character, sample_checkpoint)
-        assert "fantasy" in context
-        assert "fountain is dry" in context
+        assert context
+        assert "fantasy" not in context
+        assert "fountain is dry" not in context
 
     def test_build_world_context_uses_envelope(self, sample_checkpoint, guard_character):
         """When the character carries a known_context envelope, that IS the

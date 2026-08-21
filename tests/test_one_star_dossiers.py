@@ -9,6 +9,14 @@ from pathlib import Path
 import pytest
 
 from app.bot.engine_bridge import EngineBridge
+from app.engine.context_builder import (
+    build_character_packet,
+    build_character_state,
+    build_world_context,
+    format_pending_observations_block,
+)
+from app.engine.prompt_manager import PromptManager
+from app.engine.turn_loop_contracts import AGENT_TURN_HEADER, format_agent_turn_body
 from app.schemas.checkpoint import CheckpointFile
 
 
@@ -167,3 +175,59 @@ def test_seed_fields_respect_character_awareness_boundaries() -> None:
     assert warden.private_state.secrets == []
     assert warden.private_state.intentions_enabled is False
     assert warden.known_context == ""
+
+
+def _render_foreground_agent(
+    checkpoint: CheckpointFile,
+    character_id: str,
+) -> list[dict[str, str]]:
+    character = next(
+        item for item in checkpoint.characters
+        if item.character_id == character_id
+    )
+    return PromptManager("app/prompts").render_conversation(
+        "agent",
+        history=[],
+        agent_ruleset_system_addon="",
+        **build_character_packet(character, checkpoint),
+        **build_character_state(character, checkpoint),
+        world_context=build_world_context(character, checkpoint),
+        pending_observations_block=format_pending_observations_block(character),
+        mode_header=AGENT_TURN_HEADER,
+        mode_block=format_agent_turn_body(frame="foreground"),
+    )
+
+
+def test_birth_one_star_learns_tutorial_only_from_witnessed_dialogue() -> None:
+    checkpoint = _seed_checkpoint()
+    renna = next(
+        character for character in checkpoint.characters
+        if character.character_id == "renna_holt"
+    )
+
+    initial = _render_foreground_agent(checkpoint, renna.character_id)
+    assert [message["role"] for message in initial] == ["system", "user"]
+    initial_system = initial[0]["content"]
+    initial_user = initial[1]["content"]
+    for pre_tutorial_leak in (
+        "master",
+        "tower",
+        "climb",
+        "deployment",
+        "summoned hero",
+        "one-star",
+    ):
+        assert pre_tutorial_leak not in initial_system.casefold()
+        assert pre_tutorial_leak not in initial_user.casefold()
+
+    renna.pending_observations.append(
+        "Iselle says, \"An unseen Master brought you here. You are expected "
+        "to climb the Tower, and entering the deployment gate commits you "
+        "until the objective is cleared.\""
+    )
+    instructed = _render_foreground_agent(checkpoint, renna.character_id)
+    assert instructed[0]["content"] == initial_system
+    instructed_user = instructed[-1]["content"].casefold()
+    assert "since your last response" in instructed_user
+    for witnessed_fact in ("unseen master", "climb the tower", "deployment gate"):
+        assert witnessed_fact in instructed_user

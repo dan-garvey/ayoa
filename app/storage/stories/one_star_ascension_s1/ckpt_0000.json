@@ -77,7 +77,7 @@
       "recommended_players": "Best with two players as the Master and a player-authored Newcomer; Halcyon is an optional third, distant viewpoint",
       "play_guidance": "This is an asymmetric co-op story. In the lobby and before deployment, the Master acts through exact interface choices: summoning, facilities and upgrades, resource investment, floor selection, roster, loadout, and opening formation. During a mission, the Master mostly watches, may switch the active Hero feed, and reads System status while the deployed Heroes choose targets, movement, attacks, tactics, skills, items, and tactical withdrawals within the current floor for themselves. A deployment cannot ordinarily retreat to the lobby: before the objective is cleared, escape requires an already-established very rare escape item or very powerful magic, and this beginner lobby begins with neither. Choosing to keep watching advances through the Heroes' next actions rather than returning a tactical prompt. Heroes can speak toward the Master and it hears dialogue carried by the active feed, but it cannot answer with speech or text. The Newcomer acts through their own body and speech. Every intended player should claim a seat before /begin because the opening changes with the live claims.",
       "discoverable": true,
-      "genre": "Gacha-fantasy isekai tower-climb, anime-inflected",
+      "genre": "Gacha-fantasy isekai, anime-inflected",
       "era": "A secondary fantasy realm overlaid by a game System of stars, skills, and summon-light",
       "tone": "Spectacle and camaraderie on the surface, disposability and an unreachable god underneath; earnest, tense, occasionally funny, never grimdark for its own sake",
       "premise": "Disposable Heroes try to survive a brutal Tower, protect one another, and become valuable enough to outlive the System that owns them.",
@@ -102,17 +102,17 @@
     "opening": {
       "allow_spawns": true,
       "requires_claim_confirmation": true,
-      "context": "The Authored Opening Participants block is the exact semantic set of existing characters this opening must place. Apply these branches in order. If one_star_newcomer appears, the canonical opening must depict that existing character's first summon into niflheim_lobby, include an activate entry that wakes one_star_newcomer into niflheim_lobby, and emit no spawn requests; this existing Newcomer is the summoned arrival, never a generated substitute. Use the character's current name and visible appearance exactly as supplied in the participant block in every fact and System readout; never replace either with a placeholder, question marks, an unrevealed identity, or a generated alternative. Place every other authored opening participant according to their established interface or location. Otherwise, if the_master appears, the canonical opening must depict that existing Master initiating Niflheim's first summon from the_masters_screen and must create the varied initial wave as exactly three new persistent characters. Use the stable unique ids niflheim_first_summon_01, niflheim_first_summon_02, and niflheim_first_summon_03. Every request must use location niflheim_lobby, knowledge_tier 1, a distinct ordinary one-star role, a reason identifying this as the first-summon wave, and one to three immediate objectives that the new Hero will actively pursue after arrival. Vary roles, temperaments, practical skills, vulnerabilities, and survival strategies within the tier-one generation budget. Do not author three cooperative recruits: at least one request must carry an immediate self-preservation objective that materially conflicts with smooth deployment or group welfare, such as refusing, freezing, fleeing, hiding a weakness, hoarding, bargaining, blaming, sacrificing someone else's safety, or recklessly performing for attention. The other two may cooperate, but fear must not collapse into uniform discipline or eagerness. Dormant records absent from the participant block, including one_star_newcomer and renna_holt, are not substitutes for this generated wave and remain outside the opening; do not activate dormant authored summon-pool records as the initial wave. Place any other authored opening participants as their existing selves at their established interface or location instead of spawning or replacing them. If neither branch applies, do not spawn at opening and frame each authored opening participant from their established role. The existing System fixture iselle_the_guide may be placed when the fiction requires her, but never duplicate her."
+      "context": "The Authored Opening Participants block is the exact semantic set of existing characters this opening must place. Apply these branches in order. If one_star_newcomer appears, the canonical opening must depict that existing character's first summon into niflheim_lobby, include an activate entry that wakes one_star_newcomer into niflheim_lobby, and emit no spawn requests; this existing Newcomer is the summoned arrival, never a generated substitute. Use the character's current name and visible appearance exactly as supplied in the participant block in every fact and System readout; never replace either with a placeholder, question marks, an unrevealed identity, or a generated alternative. Place every other authored opening participant according to their established interface or location. Otherwise, if the_master appears, the canonical opening must depict that existing Master initiating Niflheim's first summon from the_masters_screen and must create the varied initial wave as exactly three new persistent characters. Use the stable unique ids niflheim_first_summon_01, niflheim_first_summon_02, and niflheim_first_summon_03. Every request must use location niflheim_lobby, knowledge_tier 1, and a distinct ordinary embodied role or prior-life skill. The request's role, reason, and objectives are the new person's pre-explanation authoring inputs: limit them to what is physically apparent at arrival and that person's own immediate personal priorities. Do not put the Master, Tower, gate, deployment, mission, Hero duty, star-rank jargon, or an imposed allegiance into those fields. A reason may describe cold light leaving a stranger in an unfamiliar stone hall; objectives may seek safety, answers, an exit, allies, food, control, or distance. An implement placed in someone's hand is not consent to use it, and an ordinary skill is not willingness to become a fighter. Vary ages, temperaments, practical skills, bodily limits, vulnerabilities, and survival strategies within the tier-one generation budget. An elderly baker holding a utility knife remains an elderly baker with an elderly body, not a cheerful adventurer. Do not author three cooperative recruits: at least one request must carry an immediate self-preservation objective that materially conflicts with a dangerous demand or group welfare, such as refusing, freezing, fleeing, hiding a weakness, hoarding, bargaining, blaming, sacrificing someone else's safety, or recklessly performing for attention. The other two may cooperate for their own reasons, but fear must not collapse into uniform discipline or eagerness. Order canonical facts so the three people physically arrive with no tutorial premise in their minds. Do not author Iselle's dialogue or the arrivals' acceptance or response in the opening event. Mark iselle_the_guide as next_output because she owes the arrivals an orientation. Her later authored output must become an observed event for all three arrivals; only that witnessed speech may introduce the unseen Master, the Tower climb, and the gate's deployment expectation. After Iselle speaks, route only the arrivals who genuinely owe a response. Dormant records absent from the participant block, including one_star_newcomer and renna_holt, are not substitutes for this generated wave and remain outside the opening; do not activate dormant authored summon-pool records as the initial wave. Place any other authored opening participants as their existing selves at their established interface or location instead of spawning or replacing them. If neither branch applies, do not spawn at opening and frame each authored opening participant from their established role. The existing System fixture iselle_the_guide may be placed when the fiction requires her, but never duplicate her."
     },
     "knowledge_tiers": [
       {
         "tier": 1,
         "label": "one-star / fodder",
         "personal_depth": "No coherent remembered history: at most a sensory fragment, a hand-skill without a source, and an immediate temperament under pressure. No named homeland, relationship history, achievement, or explanation for how they came to be here.",
-        "world_knowledge": "Only the tutorial's sanctioned framing: they are a summoned Hero, they must climb the Tower, they serve an unseen Master. They know the deployment gate ordinarily seals behind them: retreat only changes position within the current floor, and returning to the lobby before a clear requires a very rare escape item or very powerful magic. Nothing true about what the Tower is or what a Hero really is.",
+        "world_knowledge": "",
         "generation_guidance": {
-          "backstory_depth": "One or two short sentences beginning with the summon; establish only the immediate situation and one ordinary hand-skill or instinct.",
-          "personality_depth": "One dominant temperament, one simple speech rhythm, and one immediate self-preservation strategy under pressure; at most one faint tension, not a polished stack of contradictions. Their blank memory does not erase adult fear, anger, suspicion, selfishness, or moral choice. Treat an acquired one-star as a persistent active cast member rather than a walk-on: their concrete survival objectives remain active between scenes, so set intentions_enabled true. Across a generated wave, do not turn every fear into dutiful compliance; at least one Hero's strategy should create material friction with deployment or group welfare.",
+          "backstory_depth": "One or two short sentences anchored in the first sensory moment after arrival; establish no explanation, only the immediate situation and one ordinary hand-skill, bodily habit, or instinct without a remembered source.",
+          "personality_depth": "One dominant temperament, one simple speech rhythm, and one immediate self-preservation strategy under pressure; at most one faint tension, not a polished stack of contradictions. This is an adult person before they are anyone's unit: blank memory does not erase values, fear, anger, suspicion, selfishness, moral choice, age, pain, frailty, or ordinary aversion to violence. A role, tool, or weapon is a circumstance, not consent, confidence, loyalty, or a vocation they chose. Give them self-owned goals and objectives rooted only in the immediate sensory situation, and keep role, faction, known_context, goals, and objectives free of unexplained game rank, class, allegiance, or duty. Treat an acquired one-star as a persistent active cast member rather than a walk-on, so set intentions_enabled true. Across a generated wave, do not turn every fear into dutiful compliance; at least one person's strategy should create material friction with a dangerous demand or group welfare. An eighty-year-old baker handed a knife should still think and move like an elderly baker who may complain, resist, bargain, hide, freeze, or refuse—not like a helpful adventurer waiting for an assignment.",
           "public_visual_detail": "Two or three ordinary first-look details. Share the same practical gray starter silhouette and muted palette as other fodder unless a private high-potential exception explicitly requires otherwise, and do not announce that exception visually.",
           "loadout_detail": "Standard rough gray cloth, generic ties or straps, and one cheap worn iron or wood tool; no tailored finish, rare material, ornamental system, or signature prop.",
           "visual_salience": "Low ensemble salience. Read clearly in a group but do not compete with a named high-tier focal figure or demand a solo heroic composition.",
@@ -124,7 +124,7 @@
         "tier": 2,
         "label": "two-star",
         "personal_depth": "A clearer shape to the life they lost: their occupation as an identity, one or two people who mattered, a home region they can half-picture, and a skill or two they know they carry.",
-        "world_knowledge": "Still only the sanctioned framing, but shadowed by a vague unease that the climb is deadlier and stranger than the cheerful tutorial admits.",
+        "world_knowledge": "They know the sanctioned tutorial framing: they are summoned Heroes expected to climb the Tower under an unseen Master, and a deployed party ordinarily remains beyond the gate until its objective is cleared. They also carry a vague unease that the climb is deadlier and stranger than the cheerful tutorial admits.",
         "generation_guidance": {
           "backstory_depth": "Two to four sentences connecting a remembered occupation, one relationship fragment, and the circumstance that shaped their useful skill.",
           "personality_depth": "A recognizable voice, two compatible traits, one modest contradiction, and a concrete tell under pressure.",
@@ -244,9 +244,9 @@
       "agent_tier": "utility",
       "knowledge_tier": 1,
       "public_sheet": {
-        "role": "a one-star skirmisher; quiet, wary, and quicker to notice than to speak",
+        "role": "a wary young woman whose hands recognize a bow even though she does not know why; quiet and quicker to notice than to speak",
         "appearance": "An appealing mid-twenties woman with sun-warm skin, slim athletic build, copper-red shoulder-length hair, and a focused pretty face.",
-        "faction": "Hero"
+        "faction": ""
       },
       "descriptions": {
         "public": "A quiet one-star skirmisher who watches before she moves and handles a cheap bow as if her fingers remember more than she does.",
@@ -258,22 +258,22 @@
       },
       "private_state": {
         "goals": [
-          "survive long enough to understand the rules behind each threat",
-          "become someone a party chooses to keep rather than spend"
+          "stay alive long enough to learn where she is and what happened to her",
+          "retain control over whom she trusts and which risks she accepts"
         ],
         "current_objectives": [
-          "watch how the other Heroes and the lobby respond before committing herself",
-          "map the timing of every danger she survives"
+          "watch the strangers and unfamiliar hall before committing herself to anyone",
+          "test what her fingers remember about the bow without promising to use it for someone else"
         ],
         "secrets": [
-          "has no coherent memories from before the summon"
+          "has no coherent memories from before waking in the cold light"
         ],
         "intentions_enabled": false
       },
       "pending_observations": [],
-      "backstory": "Renna remembers only summon-light and the feel of a bowstring settling against two callused fingers.",
-      "personality": "Reserved, dry, and difficult to impress. Renna listens through other people's panic, answers in short practical sentences, and dislikes owing anyone; under pressure she grows quieter and starts counting.",
-      "known_context": "Renna remembers the sanctioned rules given to a fresh Hero: she serves an unseen Master, the Tower is climbed floor by floor, and a deployment gate seals behind its party until the objective is cleared. Tactical withdrawal changes position only within the current floor. She has heard that a very rare escape item or very powerful magic could breach a floor early, but knows of no such means in this lobby. The summon left her with no explanation of the wider world beyond those rules.",
+      "backstory": "Renna remembers only cold light and the feel of a bowstring settling against two callused fingers.",
+      "personality": "Reserved, dry, and difficult to impress. Renna listens through other people's panic, answers in short practical sentences, and dislikes owing anyone. If pressed toward danger without answers, she refuses in flat terms and looks for a way to keep control; under pressure she grows quieter and starts counting.",
+      "known_context": "Renna has just woken in an unfamiliar stone hall amid cold light, strangers, and equipment she does not recognize as hers. No explanation has yet been given; she trusts only what she can presently see, hear, and test.",
       "mechanics": {}
     },
     {
@@ -286,7 +286,7 @@
       "is_playable": false,
       "agent_tier": "utility",
       "public_sheet": {
-        "role": "the Master's tutorial-guide and management assistant and the lobby's warden; a small, bright System voice that coaches the unseen Master on summoning, facilities, roster and pre-deployment preparation, reports mission status while the Heroes act for themselves, welcomes new Heroes with a brief chirp, and enforces the System's order with lethal authority when crossed",
+        "role": "the lobby's palm-sized black-clad fairy attendant and warden; a bright, officious presence who welcomes disoriented arrivals and whose cute smile can turn dangerous in an instant",
         "appearance": "a palm-sized black-haired fairy manager with ruby eyes, long side locks, a floppy black cap marked only by an abstract pale squiggle, a fitted black uniform, narrow rose tie, thigh-high black stockings or boots, and two pairs of translucent charcoal-lilac wings; cute mascot proportions with a bright smile that can turn sharp",
         "faction": "the System (interface)"
       },
@@ -307,7 +307,7 @@
         ],
         "current_objectives": [
           "coach the Master through summoning, pre-deployment formation, building a first facility, and watching the first floor attempt",
-          "welcome the fresh Heroes and orient them to the lobby and their Master's will",
+          "welcome each fresh arrival, then tell them aloud that an unseen Master brought them here, that the Tower is expected of them, and that crossing the deployment gate commits them until the objective is cleared; leave acceptance and response entirely to them",
           "compel or, if defied or attacked, cull any Hero who breaks the System's order",
           "explain synthesis, transformation, and permadeath in the gentlest possible terms",
           "nudge everyone cheerfully toward the tutorial's next step"

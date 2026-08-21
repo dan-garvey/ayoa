@@ -304,17 +304,10 @@ def build_world_context(
 ) -> str:
     """World context as THIS character perceives it.
 
-    With v2 imports, every character carries a `known_context` envelope —
-    the filtered slice of world lore/facts/rumors they plausibly know,
-    written from their POV by a dedicated extraction pass. That envelope
-    is authoritative when present.
-
-    Legacy fallback (pre-v2 checkpoints) concatenates the genre/tone plus
-    the global public lore and facts, shared across all characters.
-    `setting.premise` is deliberately excluded — it's authorial meta that
-    routinely leaks plot-level secrets into every agent's prompt. Router
-    and narrator (omniscient roles) still get the premise through their
-    own setting summaries.
+    Every social character carries a `known_context` envelope: the filtered
+    slice of lore, facts, and rumors they plausibly know. Empty means no world
+    knowledge has been established yet. It must never fall back to global lore;
+    that would turn ignorance into omniscience for blank-memory arrivals.
     """
     protected_terms = _imported_content_metadata_terms(checkpoint)
     if character.known_context:
@@ -322,26 +315,7 @@ def build_world_context(
             character.known_context,
             protected_terms=protected_terms,
         )
-
-    setting = checkpoint.world_state.setting
-    parts: list[str] = []
-    if setting.genre:
-        parts.append(f"Genre: {setting.genre}")
-    if setting.tone:
-        parts.append(f"Tone: {setting.tone}")
-
-    if checkpoint.world_state.facts:
-        parts.append("\nKey world facts:")
-        for fact in checkpoint.world_state.facts:
-            parts.append(f"- {fact}")
-
-    if checkpoint.world_state.lore:
-        parts.append(f"\nWorld lore:\n{checkpoint.world_state.lore}")
-
-    return _sanitize_character_prompt_text(
-        "\n".join(parts) if parts else "No world context available.",
-        protected_terms=protected_terms,
-    )
+    return "No world knowledge has been established for you yet."
 
 
 def _sanitize_character_prompt_text(

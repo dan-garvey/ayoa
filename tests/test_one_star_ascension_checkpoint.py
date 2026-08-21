@@ -600,7 +600,7 @@ def test_lobby_master_and_guide_framing() -> None:
     """Playtest fixes: the party is formed by the Master (the guide only
     assists), Niflheim is a home hub distinct from the Tower, and the
     tutorial-guide's unit-management coaching is aimed at the Master, never at
-    the player-Hero; plus newcomer POV/jargon discipline for the blank Hero."""
+    a pre-tutorial arrival; plus newcomer POV/jargon discipline."""
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
     by_id = {c.character_id: c for c in checkpoint.characters}
@@ -612,7 +612,7 @@ def test_lobby_master_and_guide_framing() -> None:
             character.character_id
         )
     assert by_id["one_star_newcomer"].public_sheet.faction == "Niflheim lobby"
-    assert by_id["renna_holt"].public_sheet.faction == "Hero"
+    assert by_id["renna_holt"].public_sheet.faction == ""
 
     rules = checkpoint.session.config.narrative_rules
     rules_lower = rules.lower()
@@ -624,7 +624,11 @@ def test_lobby_master_and_guide_framing() -> None:
     assert "lobby vs. tower" in rules_lower
 
     iselle = by_id["iselle_the_guide"]
-    assert "master" in iselle.public_sheet.role.lower()
+    # The public role is reused as visible local-cast context during character
+    # generation, so it cannot preload the unseen authority into a birth
+    # one-star. Iselle's own private knowledge still carries her full function.
+    assert "master" not in iselle.public_sheet.role.lower()
+    assert "master" in iselle.known_context.lower()
     assert iselle.known_context
 
     # Concern 5: the narrator is told to aim the guide's coaching at the Master.
@@ -639,7 +643,7 @@ def test_lobby_master_and_guide_framing() -> None:
 
 def test_tower_floor_exit_requires_extraordinary_means() -> None:
     """Every model that can decide or render a deployment receives the same
-    floor-exit law, while tactical withdrawal within the floor remains valid."""
+    floor-exit law, while a fresh one-star learns it only in fiction."""
     checkpoint = _load_checkpoint()
     ws = checkpoint.world_state
     by_id = {c.character_id: c for c in checkpoint.characters}
@@ -659,8 +663,8 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
     for contract_name, contract in (
         ("router", router_contract),
         ("narrator", narrator_contract),
-        ("generated one-star", tier_one_contract),
         ("Master", master_contract),
+        ("Iselle", by_id["iselle_the_guide"].known_context.lower()),
     ):
         assert "very rare escape item" in contract, contract_name
         assert "very powerful magic" in contract, contract_name
@@ -668,14 +672,24 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
 
     assert "tactical withdrawal" in router_contract
     assert "tactical withdrawal" in narrator_contract
-    # Existing seeded agents receive authoritative known_context instead of
-    # the generated-character tier grant, so each social character needs the
-    # same common floor law on its own record.
+    # Birth one-stars begin before Iselle's orientation. Neither generated
+    # dossiers nor the authored reserve may preload the tutorial's premise or
+    # floor law; it reaches them later as witnessed canonical dialogue.
+    for forbidden in (
+        "master",
+        "tower",
+        "deployment",
+        "very rare escape item",
+        "very powerful magic",
+    ):
+        assert forbidden not in tier_one_contract
+        assert forbidden not in by_id["renna_holt"].known_context.lower()
+
+    # Authored Heroes born at tier two or above already carry the sanctioned
+    # tutorial framing and therefore keep the common floor law in their own
+    # knowledge envelopes.
     for character in checkpoint.characters:
-        if (
-            not character.known_context
-            or character.character_id == "warden_of_the_eighth"
-        ):
+        if character.knowledge_tier is None or character.knowledge_tier < 2:
             continue
         known = character.known_context.lower()
         assert "very rare escape item" in known, character.character_id
@@ -691,7 +705,6 @@ def test_tower_floor_exit_requires_extraordinary_means() -> None:
         (
             router_contract,
             narrator_contract,
-            tier_one_contract,
             master_contract,
             by_id["iselle_the_guide"].known_context.lower(),
         )
@@ -823,9 +836,8 @@ def test_knowledge_tier_ladder_gradient() -> None:
 
     assert set(tiers) == {1, 2, 3, 4, 5, 6}
 
-    # One-star is near-blank and has no real plot knowledge; high rungs do.
-    assert "moebius" not in tiers[1].world_knowledge.lower()
-    assert "fade" not in tiers[1].world_knowledge.lower()
+    # A birth one-star has no pre-tutorial world knowledge; high rungs do.
+    assert tiers[1].world_knowledge == ""
     t5_world = tiers[5].world_knowledge.lower()
     assert "moebius" in t5_world
     assert "fade" in t5_world
@@ -893,8 +905,8 @@ def test_assemble_knowledge_grant_is_cumulative_and_tier_gated() -> None:
     assert "Tier 1" in grant1
     assert "## Authored Generation Budget (authoritative)" in grant1
     assert "TARGET_ONE_MARKER" in grant1
-    assert "moebius" not in grant1.lower()
-    assert "fade" not in grant1.lower()
+    for pre_tutorial_leak in ("master", "tower", "climb", "deployment"):
+        assert pre_tutorial_leak not in grant1.lower()
     assert agent1 == CharacterAgentTier.utility
 
     grant5, agent5 = _assemble_knowledge_grant(checkpoint, 5)

@@ -913,7 +913,9 @@ Agent context:
 * stable character identity and current state are in the per-turn user tail
   so model-tier cache prefixes can be shared across characters
 * per-turn user message carries pending observations and mode body
-* per-character `known_context` is the normal world-context source for agents
+* per-character `known_context` is the world-context source for agents; an
+  empty envelope means no world knowledge has been established and never
+  falls back to global lore
 * there is no repeating "Characters Present" block
 * local arrivals and exits arrive through the observation inbox
 

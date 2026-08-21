@@ -305,19 +305,16 @@ async def test_one_star_tier_one_render_excludes_later_system_concepts() -> None
     checkpoint = CheckpointFile.model_validate_json(checkpoint_path.read_text())
     client = _client(
         _authored(
-            known_context=(
-                "They serve an unseen Master, must climb the Tower, and know "
-                "the deployment gate ordinarily seals behind them."
-            ),
+            known_context="Only cold light and an unfamiliar hall are apparent.",
         ),
     )
     request = SpawnRequest(
         character_id="knowledge_boundary_fixture",
         seed={
-            "role": "ordinary one-star scout",
-            "reason": "part of a first-summon wave",
+            "role": "elderly baker with no combat training",
+            "reason": "cold light left a stranger in an unfamiliar stone hall",
             "location": "niflheim_lobby",
-            "objectives": ["Survive the first deployment"],
+            "objectives": ["Find out where they are and whether there is an exit"],
             "knowledge_tier": 1,
         },
     )
@@ -328,10 +325,15 @@ async def test_one_star_tier_one_render_excludes_later_system_concepts() -> None
 
     system, user = _rendered_call(client)
     rendered = f"{system}\n{user}".casefold()
-    assert all(term in rendered for term in ("unseen master", "tower", "deployment gate"))
     assert all(
         term not in rendered
         for term in (
+            "unseen master",
+            "the master",
+            "tower",
+            "climb",
+            "deployment",
+            "hero duty",
             "synthesis",
             "promotion chamber",
             "daily-dungeon",
