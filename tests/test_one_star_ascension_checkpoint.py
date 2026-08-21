@@ -524,8 +524,8 @@ def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
 
     assert "two-stars retain thin" in facts
     assert "four-stars cross the memory threshold" in facts
-    assert "returning from a floor" in hidden
-    assert "remain active" in hidden
+    assert "status mapping" in hidden
+    assert "remains active" in hidden
     assert "not lower-stage templates" in hidden
     assert "trade, poaching, rescue, transfer" in hidden
     assert "through the interface" not in facts
@@ -701,6 +701,85 @@ def test_lobby_master_and_guide_framing() -> None:
     assert "one-star" in rules
 
 
+def test_tower_floor_exit_requires_extraordinary_means() -> None:
+    """Every model that can decide or render a deployment receives the same
+    floor-exit law, while tactical withdrawal within the floor remains valid."""
+    checkpoint = _load_checkpoint()
+    ws = checkpoint.world_state
+    by_id = {c.character_id: c for c in checkpoint.characters}
+
+    router_contract = "\n".join((*ws.facts, ws.lore)).lower()
+    narrator_contract = checkpoint.session.config.narrative_rules.lower()
+    adjudication_contract = (
+        ws.hidden_lore + "\n" + "\n".join(ws.hidden_facts)
+    ).lower()
+    tier_one_grant, _ = _assemble_knowledge_grant(checkpoint, 1)
+    tier_one_contract = tier_one_grant.lower()
+    master_contract = "\n".join(
+        (
+            ws.setting.play_guidance,
+            by_id["the_master"].player_guidance,
+            by_id["the_master"].personality,
+            by_id["the_master"].known_context,
+        )
+    ).lower()
+
+    for contract_name, contract in (
+        ("router", router_contract),
+        ("narrator", narrator_contract),
+        ("adjudication", adjudication_contract),
+        ("generated one-star", tier_one_contract),
+        ("Master", master_contract),
+    ):
+        assert "very rare escape item" in contract, contract_name
+        assert "very powerful magic" in contract, contract_name
+        assert "lobby" in contract, contract_name
+
+    assert "tactical withdrawal" in router_contract
+    assert "tactical withdrawal" in narrator_contract
+    assert "another position on the same floor" in adjudication_contract
+    assert "ordinary retreat never changes" in adjudication_contract
+
+    # Existing seeded agents receive authoritative known_context instead of
+    # the generated-character tier grant, so each social character needs the
+    # same common floor law on its own record.
+    for character in checkpoint.characters:
+        if (
+            not character.known_context
+            or character.character_id == "warden_of_the_eighth"
+        ):
+            continue
+        known = character.known_context.lower()
+        assert "very rare escape item" in known, character.character_id
+        assert "very powerful magic" in known, character.character_id
+        assert "current floor" in known, character.character_id
+
+    # Preserve the authored-Newcomer contract and the inert floor boss.
+    assert by_id[BLANK_PLAYER_ID].known_context == ""
+    warden_context = by_id["warden_of_the_eighth"].known_context.lower()
+    assert "tower-floor law" not in warden_context
+
+    all_model_contracts = "\n".join(
+        (
+            router_contract,
+            narrator_contract,
+            adjudication_contract,
+            tier_one_contract,
+            master_contract,
+            by_id["iselle_the_guide"].known_context.lower(),
+        )
+    )
+    for obsolete_exit_rule in (
+        "when it is cleared or they retreat",
+        "left again when a floor is cleared or a party retreats",
+        "a floor's end flashes them back",
+        "whether to press on or retreat",
+        "sound tactics, timely retreat",
+        "fails on a party wipe or exhausted attempts",
+    ):
+        assert obsolete_exit_rule not in all_model_contracts
+
+
 def test_lobby_facilities_healing_and_enforcement() -> None:
     """Source-fidelity pass: the lobby is a build/upgrade economy of named
     chambers (incl. a Synthesis Chamber), it restores Heroes between missions
@@ -805,7 +884,10 @@ def test_master_commits_deployment_then_watches_autonomous_mission() -> None:
     assert "mission advances without routine master input" in adjudication
     assert "next deployed hero under pressure acts" in adjudication
     assert "after at most one brief coordination exchange" in adjudication
-    assert "concrete movement, scouting, attack, or retreat" in adjudication
+    assert (
+        "concrete movement, scouting, attack, or tactical withdrawal "
+        "to another position on the same floor"
+    ) in adjudication
     assert "never stop on a warning or approaching threat" in adjudication
     assert "none exists at the start" in adjudication
 
