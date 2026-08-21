@@ -57,6 +57,7 @@ def _pending_selection_output(
     *,
     event_id: str,
     requires_responders: bool,
+    target_id: str = "",
 ) -> OneStarEventRouterOutput:
     data = router_output(
         event_id=event_id,
@@ -72,7 +73,7 @@ def _pending_selection_output(
                 "operation_id": "deployment_1",
                 "kind": "deployment",
                 "participant_ids": ["pip"],
-                "target_id": "",
+                "target_id": target_id,
                 "destination": "tower_floor_1",
                 "opened_at_s": 0,
             },
@@ -147,6 +148,29 @@ def _stub_one_star_router_context(monkeypatch):
     )
 
 
+def _stub_local_one_star_account(monkeypatch, ckpt):
+    from app.engine import one_star_adapter
+
+    account = SimpleNamespace(
+        config=SimpleNamespace(
+            lobby_id="local",
+            lobby_location_label="lobby",
+            operation_requirements={},
+        ),
+        state=SimpleNamespace(guide_character_ids=[]),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_account",
+        lambda _ckpt: (ckpt.characters[0], account),
+    )
+    monkeypatch.setattr(
+        one_star_adapter,
+        "load_one_star_hero",
+        lambda _character: SimpleNamespace(owner_lobby_id="local"),
+    )
+
+
 def test_one_star_transaction_is_required_and_has_an_explicit_empty_shape():
     data = _one_star_output().model_dump()
     assert data["one_star_transaction"] == {"present": False, "operations": []}
@@ -193,28 +217,9 @@ def test_one_star_router_schema_is_used_for_fresh_and_cat_ii_routes(monkeypatch)
 def test_invalid_embodied_selection_is_retried_before_router_history(
     monkeypatch,
 ):
-    from app.engine import one_star_adapter
-
     _stub_one_star_router_context(monkeypatch)
     ckpt = _one_star_checkpoint()
-    account = SimpleNamespace(
-        config=SimpleNamespace(
-            lobby_id="local",
-            lobby_location_label="lobby",
-            operation_requirements={},
-        ),
-        state=SimpleNamespace(guide_character_ids=[]),
-    )
-    monkeypatch.setattr(
-        one_star_adapter,
-        "load_one_star_account",
-        lambda _ckpt: (ckpt.characters[0], account),
-    )
-    monkeypatch.setattr(
-        one_star_adapter,
-        "load_one_star_hero",
-        lambda _character: SimpleNamespace(owner_lobby_id="local"),
-    )
+    _stub_local_one_star_account(monkeypatch, ckpt)
     invalid = _pending_selection_output(
         event_id="invalid_selection",
         requires_responders=False,
@@ -239,6 +244,9 @@ def test_invalid_embodied_selection_is_retried_before_router_history(
         "content": invalid.model_dump_json(),
     }
     assert "must open Cat II" in correction_messages[-1]["content"]
+    assert "read-only System or status inspection" in (
+        correction_messages[-1]["content"]
+    )
     assert "Send Pip through the Tower gate." in correction_messages[-3]["content"]
     stored_history = "\n".join(
         str(message.content) for message in ckpt.session_conversation
@@ -247,31 +255,46 @@ def test_invalid_embodied_selection_is_retried_before_router_history(
     assert "invalid_selection" not in stored_history
 
 
+def test_invalid_deployment_target_is_corrected_before_cat_ii_history(
+    monkeypatch,
+):
+    _stub_one_star_router_context(monkeypatch)
+    ckpt = _one_star_checkpoint()
+    _stub_local_one_star_account(monkeypatch, ckpt)
+    invalid = _pending_selection_output(
+        event_id="invalid_deployment_target",
+        requires_responders=True,
+        target_id="alice",
+    )
+    corrected = _pending_selection_output(
+        event_id="corrected_deployment_target",
+        requires_responders=True,
+    )
+    dispatcher, client = _dispatcher(invalid, corrected)
+
+    result = asyncio.run(dispatcher.route_intention(
+        ckpt=ckpt,
+        actor_id="alice",
+        intention="Deploy Pip to Floor 1.",
+    ))
+
+    assert result is corrected
+    assert client.complete.await_count == 2
+    correction = client.complete.await_args_list[1].kwargs["messages"][-1]
+    assert "deployment has no separate target Hero" in correction["content"]
+    stored_history = "\n".join(
+        str(message.content) for message in ckpt.session_conversation
+    )
+    assert "corrected_deployment_target" in stored_history
+    assert "invalid_deployment_target" not in stored_history
+
+
 def test_repeated_invalid_embodied_selection_restores_router_snapshot(
     monkeypatch,
 ):
-    from app.engine import one_star_adapter
-
     _stub_one_star_router_context(monkeypatch)
     ckpt = _one_star_checkpoint()
-    account = SimpleNamespace(
-        config=SimpleNamespace(
-            lobby_id="local",
-            lobby_location_label="lobby",
-            operation_requirements={},
-        ),
-        state=SimpleNamespace(guide_character_ids=[]),
-    )
-    monkeypatch.setattr(
-        one_star_adapter,
-        "load_one_star_account",
-        lambda _ckpt: (ckpt.characters[0], account),
-    )
-    monkeypatch.setattr(
-        one_star_adapter,
-        "load_one_star_hero",
-        lambda _character: SimpleNamespace(owner_lobby_id="local"),
-    )
+    _stub_local_one_star_account(monkeypatch, ckpt)
     first = _pending_selection_output(
         event_id="invalid_selection_1",
         requires_responders=False,
@@ -330,6 +353,9 @@ def test_one_star_repair_accepts_only_the_transaction_shape(monkeypatch):
     repair_packet = client.complete.await_args.kwargs["messages"][-1]["content"]
     assert "one_star_transaction_repair" in repair_packet
     assert "Candidate transaction" in repair_packet
+    assert 'deployment uses participant_ids' in repair_packet
+    assert 'target_id=""' in repair_packet
+    assert "change the offending field" in repair_packet
     assert "canonical_event" not in repair_packet
 
 

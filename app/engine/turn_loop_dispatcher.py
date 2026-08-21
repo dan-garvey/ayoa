@@ -123,6 +123,23 @@ def _validate_one_star_cat_ii_transaction(result: EventRouterOutput) -> None:
         )
 
 
+def _validate_one_star_pending_operation_shapes(
+    result: EventRouterOutput,
+) -> None:
+    """Reject kind-dependent pending fields before response routing begins."""
+
+    transaction = getattr(result, "one_star_transaction", None)
+    if transaction is None or not transaction.present:
+        return
+    from app.engine.one_star_adapter import (
+        validate_one_star_pending_operation_shape,
+    )
+
+    for operation in transaction.operations:
+        if getattr(operation, "operation", "") == "pending_open":
+            validate_one_star_pending_operation_shape(operation.pending)
+
+
 def _validate_one_star_guide_routing(
     ckpt: CheckpointFile,
     *,
@@ -1505,7 +1522,13 @@ class LLMDispatcher:
             "<one_star_transaction_repair>\n"
             "The following event fields are fixed and are not output here. "
             "Return only a repaired one_star_transaction that agrees with the "
-            "supplied current One-Star state and this validation failure.\n"
+            "supplied current One-Star state and this validation failure. "
+            "The reported failure is mandatory: change the offending field "
+            "instead of repeating the candidate.\n"
+            "Pending field invariants: deployment uses participant_ids for "
+            "the complete party and target_id=\"\"; synthesis uses source "
+            "Heroes as participant_ids and a distinct target_id; promotion "
+            "uses the same single Hero as its sole participant and target_id.\n"
             f"Submitting actor id: {actor_id}\n"
             f"Validation failure: {validation_error}\n"
             "Fixed canonical event:\n"
@@ -1568,6 +1591,10 @@ class LLMDispatcher:
                     "Return one complete replacement output. The candidate "
                     "above violates this story's routing contract:\n"
                     f"{validation_error}\n"
+                    "First reconsider whether the candidate operation belongs. "
+                    "A read-only System or status inspection has an empty "
+                    "One-Star transaction and no responders; never turn such "
+                    "an inspection into Cat II merely to satisfy this error. "
                     "Preserve any compatible fictional judgment, but make the "
                     "canonical event, Cat II classification, responder set, "
                     "observers, lifecycle, and One-Star transaction mutually "
@@ -1738,6 +1765,7 @@ class LLMDispatcher:
 
             def validate_candidate() -> None:
                 _validate_one_star_cat_ii_transaction(result)
+                _validate_one_star_pending_operation_shapes(result)
                 _validate_one_star_tutorial_routing(result)
                 _validate_one_star_pending_response_routing(
                     ckpt,

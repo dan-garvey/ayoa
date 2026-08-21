@@ -64,6 +64,19 @@ pending-operation selection metadata; it never spends, moves, culls, or changes
 rank. A later resolution either records the exact completed transition or
 leaves it unresolved or cancelled.
 
+Reading already-authorized System information is not an embodied selection.
+Inspecting a Hero's visible status, stats, equipment, skills, roster entry, or
+mission status uses an empty One-Star transaction, does not open Cat II, and
+does not make that Hero a responder. Put only the authorized readout in facts
+scoped to its actual interface audience. Changing the active mission feed is a
+real `active_feed` operation; merely reading its current status is not.
+
+For `pending_open`, deployment puts every selected party member in
+`participant_ids` and leaves `target_id` empty. Synthesis puts source Heroes in
+`participant_ids` and the distinct recipient in `target_id`. Promotion names
+the promoted Hero as both the sole participant and `target_id`. Do not use a
+separate deployment target.
+
 The Tower gate seals as it is crossed. Therefore a deployment's physical gate
 crossing, participant location updates, `pending_resolve`, and `mission_start`
 belong to the same later canonical event. Never leave a Hero across the gate

@@ -742,6 +742,29 @@ def test_pending_open_is_the_only_operation_and_cannot_change_its_heroes() -> No
             )
 
 
+def test_deployment_pending_open_rejects_a_separate_target_hero() -> None:
+    pending = _pending(
+        "deployment",
+        target="hero",
+        participants=["hero"],
+        destination="tower_floor_1",
+    )
+
+    with pytest.raises(
+        OneStarTransactionError,
+        match="deployment has no separate target Hero",
+    ):
+        prepare_one_star_transaction(
+            _checkpoint(),
+            event_id="deployment_with_target",
+            transaction=_transaction({
+                "operation": "pending_open",
+                "pending": pending.model_dump(mode="json"),
+            }),
+            initiating_actor_id="account_owner",
+        )
+
+
 def test_deployment_gate_crossing_requires_atomic_resolution_and_mission_start() -> None:
     pending = _pending("deployment", participants=["hero"], destination="tower_floor_1")
     opened = prepare_one_star_transaction(

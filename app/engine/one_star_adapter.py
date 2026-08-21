@@ -53,6 +53,30 @@ class OneStarTransactionError(ValueError):
     """A router-authored One-Star transaction cannot be committed safely."""
 
 
+def validate_one_star_pending_operation_shape(pending: object) -> None:
+    """Validate kind-dependent pending fields without reading mutable state."""
+
+    kind = getattr(pending, "kind", "")
+    participant_ids = set(getattr(pending, "participant_ids", ()))
+    target_id = str(getattr(pending, "target_id", "") or "")
+    if kind == "deployment" and target_id:
+        raise OneStarTransactionError("deployment has no separate target Hero")
+    if kind == "synthesis":
+        if not target_id:
+            raise OneStarTransactionError("synthesis requires a target Hero")
+        if target_id in participant_ids:
+            raise OneStarTransactionError(
+                "synthesis sources cannot include the target"
+            )
+    if kind == "promotion":
+        if not target_id:
+            raise OneStarTransactionError("promotion requires a target Hero")
+        if participant_ids != {target_id}:
+            raise OneStarTransactionError(
+                "promotion participants must contain exactly the target Hero"
+            )
+
+
 def _durable_checkpoint_copy(checkpoint: CheckpointFile) -> CheckpointFile:
     """Copy durable checkpoint fields without traversing live runtime objects."""
 
@@ -1088,22 +1112,13 @@ def _apply_pending_open(
     if state.pending_operation is not None:
         raise OneStarTransactionError("only one embodied One-Star operation may be pending")
     pending = operation.pending
+    validate_one_star_pending_operation_shape(pending)
     if pending.opened_at_s != now_s:
         raise OneStarTransactionError("pending operation must use canonical event time")
     for hero_id in pending.participant_ids:
         _require_local_active_hero(checkpoint, hero_id, config)
     if pending.kind in {"synthesis", "promotion"}:
         _require_local_active_hero(checkpoint, pending.target_id, config)
-    if pending.kind == "synthesis" and pending.target_id in pending.participant_ids:
-        raise OneStarTransactionError("synthesis sources cannot include the target")
-    if pending.kind == "deployment" and pending.target_id:
-        raise OneStarTransactionError("deployment has no separate target Hero")
-    if pending.kind == "promotion" and set(pending.participant_ids) != {
-        pending.target_id
-    }:
-        raise OneStarTransactionError(
-            "promotion participants must contain exactly the target Hero"
-        )
     if not pending.destination:
         raise OneStarTransactionError(
             "embodied operations require a physical destination"
