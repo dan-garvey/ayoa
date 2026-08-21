@@ -289,3 +289,4 @@
 {"id":"int-eced819c","kind":"field_change","created_at":"2026-08-21T04:19:03.349117363Z","actor":"dan","issue_id":"ayoa-sdwi","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-0983a85b","kind":"field_change","created_at":"2026-08-21T04:19:04.495642134Z","actor":"dan","issue_id":"ayoa-shtx","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-3f0799c5","kind":"field_change","created_at":"2026-08-21T04:19:05.606092701Z","actor":"dan","issue_id":"ayoa-xruo","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-00bb3bbb","kind":"field_change","created_at":"2026-08-21T13:11:55.440686372Z","actor":"dan","issue_id":"ayoa-tnpw","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Removed output inspection and retained prompt-only tier boundaries"}}

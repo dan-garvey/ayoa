@@ -6,9 +6,7 @@ roster changes from event-router output, and LLM-powered character genesis.
 
 from __future__ import annotations
 
-from collections import Counter
 import logging
-import re
 
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient
@@ -32,61 +30,6 @@ MAX_SPAWNS_PER_TURN = 3
 # slack; entries longer than this are usually a sign the LLM regressed into
 # multi-paragraph backstory.
 ROUTER_SUMMARY_MAX_CHARS = 600
-
-# A tiered story gets one correction pass when generated model-facing fields
-# reuse an exact concept that was withheld from that tier. This is deliberately
-# bounded: repeated authoring failures invalidate the spawn instead of silently
-# persisting knowledge the story did not grant.
-KNOWLEDGE_LEAK_RETRIES = 1
-
-_KNOWLEDGE_WORD_RE = re.compile(r"[^\W\d_][\w'-]*", re.UNICODE)
-_KNOWLEDGE_COMMON_WORDS = frozenset(
-    {
-        "about",
-        "after",
-        "again",
-        "against",
-        "also",
-        "another",
-        "because",
-        "before",
-        "being",
-        "between",
-        "could",
-        "every",
-        "first",
-        "from",
-        "have",
-        "into",
-        "itself",
-        "later",
-        "might",
-        "never",
-        "nothing",
-        "only",
-        "other",
-        "people",
-        "should",
-        "something",
-        "their",
-        "there",
-        "these",
-        "thing",
-        "those",
-        "through",
-        "under",
-        "until",
-        "very",
-        "what",
-        "when",
-        "where",
-        "which",
-        "while",
-        "with",
-        "without",
-        "would",
-    }
-)
 
 DND_GENERATION_INSTRUCTIONS = """
 12. Because this session uses D&D 5e rules, also emit `dnd_statblock`. Build it
@@ -306,148 +249,6 @@ def _generation_world_context(
         "- Give the character no ability, equipment, or physical capability "
         "beyond the Entry Context, Spawn Request, and Knowledge Budget."
     )
-
-
-def _knowledge_words(text: str) -> list[str]:
-    """Normalize prose into comparison tokens for bounded leak evidence."""
-    return [
-        match.group(0).casefold()
-        for match in _KNOWLEDGE_WORD_RE.finditer(text.replace("_", " "))
-    ]
-
-
-def _withheld_story_knowledge(checkpoint: CheckpointFile) -> str:
-    """Collect authored story truth deliberately absent from a tiered prompt."""
-    world = checkpoint.world_state
-    setting = world.setting
-    opening = world.opening
-    parts = [
-        setting.premise,
-        setting.play_guidance,
-        world.lore,
-        world.hidden_lore,
-        *world.facts,
-        *world.hidden_facts,
-        checkpoint.session.config.narrative_rules,
-        world.physics_ruleset.strength_limits,
-        getattr(opening, "context", "") if opening is not None else "",
-    ]
-    for rung in world.knowledge_tiers:
-        parts.extend((rung.personal_depth, rung.world_knowledge))
-    return "\n".join(part for part in parts if part)
-
-
-def _generated_character_context_text(authored: object) -> str:
-    """Text from every generated field that persists onto model-facing state.
-
-    Structured-output adapters may add nested fields which are later projected
-    into agent or adjudication context. Recursing over the authored output keeps
-    this boundary rules-neutral and automatically covers those extensions.
-    `router_summary` is the sole discarded authoring scratch field.
-    """
-    dump = getattr(authored, "model_dump", None)
-    if not callable(dump):
-        return ""
-    payload = dump(exclude={"router_summary"})
-
-    def collect_strings(value: object) -> list[str]:
-        if isinstance(value, str):
-            return [value]
-        if isinstance(value, dict):
-            return [
-                text
-                for item in value.values()
-                for text in collect_strings(item)
-            ]
-        if isinstance(value, (list, tuple, set)):
-            return [text for item in value for text in collect_strings(item)]
-        return []
-
-    return "\n".join(collect_strings(payload))
-
-
-def _knowledge_leak_evidence(
-    authored: object,
-    *,
-    allowed_prompt: str,
-    withheld_story: str,
-) -> list[str]:
-    """Find exact, distinctive withheld concepts reused in persisted fields.
-
-    This is intentionally evidence-based rather than a semantic guess. It
-    catches multiword phrases and conspicuous recurring/proper terms authored
-    elsewhere in the story, but does not reject merely similar themes or
-    paraphrases. Anything explicitly present in the rendered prompt is allowed.
-    """
-    generated_words = _knowledge_words(_generated_character_context_text(authored))
-    withheld_words = _knowledge_words(withheld_story)
-    allowed_words = _knowledge_words(allowed_prompt)
-    if not generated_words or not withheld_words:
-        return []
-
-    private_ngrams = {
-        size: {
-            tuple(generated_words[index:index + size])
-            for index in range(len(generated_words) - size + 1)
-        }
-        for size in range(2, 6)
-    }
-    allowed_ngrams = {
-        size: {
-            tuple(allowed_words[index:index + size])
-            for index in range(len(allowed_words) - size + 1)
-        }
-        for size in range(2, 6)
-    }
-
-    matches: set[tuple[str, ...]] = set()
-    for size in range(5, 1, -1):
-        for index in range(len(withheld_words) - size + 1):
-            phrase = tuple(withheld_words[index:index + size])
-            informative = [
-                word
-                for word in phrase
-                if word not in _KNOWLEDGE_COMMON_WORDS and len(word) >= 4
-            ]
-            if len(informative) < 2 or sum(map(len, informative)) < 11:
-                continue
-            if (
-                phrase in private_ngrams[size]
-                and phrase not in allowed_ngrams[size]
-            ):
-                matches.add(phrase)
-
-    # A repeatedly-authored long term is also evidence when it appears without
-    # a neighboring concept noun. Do not infer proper nouns from capitalization:
-    # ordinary sentence-openers otherwise become false positives.
-    allowed_tokens = set(allowed_words)
-    generated_tokens = set(generated_words)
-    withheld_counts = Counter(withheld_words)
-    singleton_matches = {
-        word
-        for word in generated_tokens & set(withheld_counts)
-        if word not in allowed_tokens
-        and word not in _KNOWLEDGE_COMMON_WORDS
-        and len(word) >= 9
-        and withheld_counts[word] >= 3
-    }
-
-    ordered_phrases = sorted(matches, key=lambda item: (-len(item), item))
-    evidence: list[str] = []
-    for phrase in ordered_phrases:
-        rendered = " ".join(phrase)
-        if any(rendered in existing or existing in rendered for existing in evidence):
-            continue
-        evidence.append(rendered)
-        if len(evidence) == 4:
-            return evidence
-    for word in sorted(singleton_matches):
-        if any(word in existing.split() for existing in evidence):
-            continue
-        evidence.append(word)
-        if len(evidence) == 4:
-            break
-    return evidence
 
 
 def _existing_character_generation_lines(
@@ -760,56 +561,14 @@ class CharacterManager:
             from app.schemas.dnd_character_gen import AuthoredDndCharacter
 
             response_model = AuthoredDndCharacter
-        completion_kwargs = {
-            "role": "agent_convenience",
-            "response_model": response_model,
-            "temperature": 0.6,
-            "max_tokens": 3000,
-        }
         response = await self.client.complete(
+            role="agent_convenience",
             messages=messages,
-            **completion_kwargs,
+            response_model=response_model,
+            temperature=0.6,
+            max_tokens=3000,
         )
         authored: AuthoredCharacter = response.parsed
-
-        if knowledge_isolated:
-            allowed_prompt = "\n".join(
-                str(message.get("content", "")) for message in messages
-            )
-            withheld_story = _withheld_story_knowledge(checkpoint)
-            evidence = _knowledge_leak_evidence(
-                authored,
-                allowed_prompt=allowed_prompt,
-                withheld_story=withheld_story,
-            )
-            for _attempt in range(KNOWLEDGE_LEAK_RETRIES):
-                if not evidence:
-                    break
-                retry_messages = [dict(message) for message in messages]
-                retry_messages[-1]["content"] += (
-                    "\n\n<revision_constraint>\n"
-                    "The generated character exceeded the authored Knowledge "
-                    "Budget. Regenerate the complete object using only the Entry "
-                    "Context, explicit Spawn Request, and Knowledge Budget. "
-                    "Keep the character specific, but do not introduce ungranted "
-                    "story knowledge through identity, portrayal, objectives, "
-                    "or private context.\n</revision_constraint>"
-                )
-                response = await self.client.complete(
-                    messages=retry_messages,
-                    **completion_kwargs,
-                )
-                authored = response.parsed
-                evidence = _knowledge_leak_evidence(
-                    authored,
-                    allowed_prompt=allowed_prompt,
-                    withheld_story=withheld_story,
-                )
-            if evidence:
-                raise ValueError(
-                    f"Character generation for {req.character_id!r} exceeded "
-                    "its authored knowledge budget after correction."
-                )
         char = authored.to_record(character_id=req.character_id)
         char.agent_tier = tier_agent_tier or CharacterAgentTier.utility
         char.knowledge_tier = req.seed.knowledge_tier

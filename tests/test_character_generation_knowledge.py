@@ -14,7 +14,6 @@ from app.schemas.characters import (
     PublicSheet,
 )
 from app.schemas.checkpoint import CheckpointFile
-from app.schemas.dnd_character_gen import AuthoredDndCharacter
 from app.schemas.event_router import SpawnRequest
 from app.schemas.state import (
     CharacterGenerationGuidance,
@@ -50,50 +49,6 @@ def _authored(
     }
     fields.update(overrides)
     return AuthoredCharacter.model_validate(fields)
-
-
-def _dnd_authored(*, action_name: str) -> AuthoredDndCharacter:
-    fields = _authored().model_dump()
-    fields["dnd_statblock"] = {
-        "size": "Medium",
-        "creature_type": "humanoid",
-        "alignment": "neutral",
-        "armor_class": 12,
-        "hit_points": 9,
-        "hit_dice": "2d8",
-        "speed": "30 ft.",
-        "ability_scores": {
-            "strength": 10,
-            "dexterity": 12,
-            "constitution": 10,
-            "intelligence": 10,
-            "wisdom": 11,
-            "charisma": 9,
-        },
-        "proficiency_bonus": 2,
-        "skills": [],
-        "senses": [],
-        "passive_perception": 10,
-        "languages": ["Common"],
-        "challenge_rating": "1/8",
-        "xp": 25,
-        "traits": [],
-        "actions": [
-            {
-                "action_id": "staff_strike",
-                "name": action_name,
-                "attack_bonus": 3,
-                "reach_ft": 5,
-                "range_normal_ft": 0,
-                "range_long_ft": 0,
-                "target": "one creature",
-                "damage": "1d6+1",
-                "damage_type": "bludgeoning",
-                "description": "A direct thrust with the worn staff.",
-            }
-        ],
-    }
-    return AuthoredDndCharacter.model_validate(fields)
 
 
 def _response(authored: AuthoredCharacter) -> LLMResponse:
@@ -256,6 +211,27 @@ async def test_tier_one_receives_grant_without_broader_story_truth() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tiered_generation_does_not_inspect_or_retry_model_output() -> None:
+    checkpoint = _checkpoint()
+    client = _client(
+        _authored(
+            known_context=(
+                "The Glass Synthesis Chamber consumes identities."
+            ),
+        ),
+    )
+
+    spawned = await CharacterManager(
+        client, PromptManager("app/prompts"),
+    ).spawn_characters(checkpoint, [_request(tier=1)])
+
+    assert client.complete.await_count == 1
+    assert spawned[0].known_context == (
+        "The Glass Synthesis Chamber consumes identities."
+    )
+
+
+@pytest.mark.asyncio
 async def test_higher_tier_and_explicit_spawn_facts_remain_available() -> None:
     higher_checkpoint = _checkpoint()
     higher_client = _client(
@@ -319,103 +295,6 @@ async def test_untiered_story_retains_full_generation_context() -> None:
     assert "mnemonic forge" in rendered
     assert "## Knowledge Budget (authoritative)" not in user
     assert "The Cartel Prince" in user
-
-
-@pytest.mark.parametrize(
-    ("field", "leaking_value"),
-    (
-        ("name", "Keeper of the Glass Synthesis Chamber"),
-        ("location", "glass_synthesis_chamber"),
-        ("role", "Glass Synthesis Chamber keeper"),
-        ("appearance", "Glass Synthesis Chamber sigils cover her face."),
-        ("default_loadout", "A key to the Glass Synthesis Chamber."),
-        ("faction", "Glass Synthesis Chamber custodians"),
-        ("backstory", "The Glass Synthesis Chamber consumed her identity."),
-        ("personality", "She worships the Glass Synthesis Chamber."),
-        ("known_context", "The Glass Synthesis Chamber consumes identities."),
-        ("goals", ["Feed identities to the Glass Synthesis Chamber."]),
-        ("current_objectives", ["Reach the Glass Synthesis Chamber."]),
-        ("secrets", ["She built the Glass Synthesis Chamber."]),
-    ),
-)
-@pytest.mark.asyncio
-async def test_agent_facing_leak_gets_generic_bounded_correction_before_persistence(
-    field: str,
-    leaking_value: object,
-) -> None:
-    checkpoint = _checkpoint()
-    client = _client(
-        _authored(**{field: leaking_value}),
-        _authored(known_context="The unseen Regent controls the sealed gate."),
-    )
-
-    spawned = await CharacterManager(
-        client, PromptManager("app/prompts"),
-    ).spawn_characters(checkpoint, [_request(tier=1)])
-
-    assert client.complete.await_count == 2
-    retry_system, retry_user = _rendered_call(client, 1)
-    retry_render = f"{retry_system}\n{retry_user}".casefold()
-    assert "revision_constraint" in retry_user
-    assert all(
-        term not in retry_render
-        for term in (
-            "glass synthesis chamber",
-            "credit refinery",
-            "hidden economy",
-            "mnemonic forge",
-            "argent cartel",
-        )
-    )
-    assert spawned[0].known_context == "The unseen Regent controls the sealed gate."
-    assert "synthesis" not in spawned[0].model_dump_json().casefold()
-
-
-@pytest.mark.asyncio
-async def test_repeated_leak_raises_without_disclosing_withheld_evidence() -> None:
-    checkpoint = _checkpoint()
-    leaking = _authored(
-        current_objectives=["Reach the Glass Synthesis Chamber."],
-    )
-    client = _client(leaking, leaking)
-
-    with pytest.raises(ValueError) as raised:
-        await CharacterManager(
-            client, PromptManager("app/prompts"),
-        ).spawn_characters(checkpoint, [_request(tier=1)])
-
-    error = str(raised.value).casefold()
-    assert "mara_venn" in error
-    assert "knowledge budget" in error
-    assert "glass" not in error
-    assert "synthesis" not in error
-    assert "identities" not in error
-
-
-@pytest.mark.asyncio
-async def test_nested_adapter_output_obeys_same_knowledge_boundary() -> None:
-    from app.engine.character_agent import _combat_action_lines
-
-    checkpoint = _checkpoint()
-    checkpoint.session.config.settings.ruleset_id = "dnd5e_basic"
-    client = _client(
-        _dnd_authored(action_name="Glass Synthesis Chamber Strike"),
-        _dnd_authored(action_name="Staff Strike"),
-    )
-
-    spawned = await CharacterManager(
-        client, PromptManager("app/prompts"),
-    ).spawn_characters(checkpoint, [_request(tier=1)])
-
-    assert client.complete.await_count == 2
-    retry_system, retry_user = _rendered_call(client, 1)
-    retry_render = f"{retry_system}\n{retry_user}".casefold()
-    assert "glass synthesis chamber" not in retry_render
-    action = spawned[0].mechanics["dnd5e_sheet"]["statblock"]["actions"][0]
-    assert action["name"] == "Staff Strike"
-    action_context = "\n".join(_combat_action_lines(spawned[0]))
-    assert "Staff Strike" in action_context
-    assert "Synthesis" not in action_context
 
 
 @pytest.mark.asyncio
