@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 DND5E_BASIC_RULESET_ID = "dnd5e_basic"
+ONE_STAR_ASCENSION_RULESET_ID = "one_star_ascension"
 PLOT_AGENT_ROLE = "agent"
 STANDARD_AGENT_ROLE = "agent_standard"
 CONVENIENCE_AGENT_ROLE = "agent_convenience"
@@ -274,9 +275,36 @@ class CharacterAgent:
         return draft.output
 
     def _agent_ruleset_system_addon(self, checkpoint: CheckpointFile) -> str:
-        if _session_ruleset_id(checkpoint) != DND5E_BASIC_RULESET_ID:
+        ruleset_id = _session_ruleset_id(checkpoint)
+        if ruleset_id == DND5E_BASIC_RULESET_ID:
+            return self.prompt_manager.render("agent_ruleset_dnd5e").strip()
+        if ruleset_id == ONE_STAR_ASCENSION_RULESET_ID:
+            return self.prompt_manager.render(
+                "agent_ruleset_one_star"
+            ).strip()
+        return ""
+
+    @staticmethod
+    def _one_star_agent_state_block(
+        character: CharacterRecord,
+        checkpoint: CheckpointFile,
+    ) -> str:
+        if _session_ruleset_id(checkpoint) != ONE_STAR_ASCENSION_RULESET_ID:
             return ""
-        return self.prompt_manager.render("agent_ruleset_dnd5e").strip()
+        from app.engine.one_star_projection import one_star_agent_state_block
+
+        return one_star_agent_state_block(checkpoint, character)
+
+    @staticmethod
+    def _one_star_perception_block(character: CharacterRecord) -> str:
+        from app.engine.one_star_projection import (
+            visible_equipped_item_description,
+        )
+
+        description = visible_equipped_item_description(character)
+        if not description:
+            return ""
+        return "## Visible Equipped Items\n" + description
 
     def _dnd_combat_mode_block(
         self,
@@ -383,6 +411,12 @@ class CharacterAgent:
         # after the call so future beats remember what was established.
         char_identity = build_character_packet(character, checkpoint)
         char_state = build_character_state(character, checkpoint)
+        one_star_perception = (
+            self._one_star_perception_block(character)
+            if _session_ruleset_id(checkpoint)
+            == ONE_STAR_ASCENSION_RULESET_ID
+            else ""
+        )
 
         render_t0 = time.monotonic()
         messages = self.prompt_manager.render_conversation(
@@ -396,7 +430,10 @@ class CharacterAgent:
             world_context=build_world_context(character, checkpoint),
             pending_observations_block="",
             mode_header=AGENT_PERCEPTION_HEADER,
-            mode_block=format_agent_perception_body(),
+            mode_block=_join_mode_blocks(
+                format_agent_perception_body(),
+                one_star_perception,
+            ),
         )
         render_ms = (time.monotonic() - render_t0) * 1000
         user_content = messages[-1]["content"]
@@ -420,8 +457,15 @@ class CharacterAgent:
         conv = checkpoint.character_conversations.setdefault(
             character.character_id, [],
         )
+        conversation_user_content = user_content
+        if one_star_perception:
+            conversation_user_content = conversation_user_content.replace(
+                one_star_perception, "", 1
+            )
         append_turn_to_conversation(
-            conv, _conversation_safe_user_content(user_content), response
+            conv,
+            _conversation_safe_user_content(conversation_user_content),
+            response,
         )
 
         logger.info(
@@ -532,6 +576,9 @@ class CharacterAgent:
             + elapsed_time_block
             + format_pending_observations_block(character)
         )
+        one_star_state = self._one_star_agent_state_block(
+            character, checkpoint
+        )
 
         char_identity = build_character_packet(character, checkpoint)
         char_state = build_character_state(character, checkpoint)
@@ -548,7 +595,7 @@ class CharacterAgent:
             world_context=build_world_context(character, checkpoint),
             pending_observations_block=pending_block,
             mode_header=mode_header,
-            mode_block=mode_block,
+            mode_block=_join_mode_blocks(mode_block, one_star_state),
         )
         render_ms = (time.monotonic() - render_t0) * 1000
 
@@ -575,8 +622,14 @@ class CharacterAgent:
             intent=intent,
         )
         self.last_usage = {**response.usage, "prompt_render_ms": render_ms}
+        conversation_user_content = user_content
+        if one_star_state:
+            conversation_user_content = conversation_user_content.replace(
+                one_star_state, "", 1
+            )
         user_message, assistant_message = conversation_turn_messages(
-            _conversation_safe_user_content(user_content), response,
+            _conversation_safe_user_content(conversation_user_content),
+            response,
         )
 
         logger.info(

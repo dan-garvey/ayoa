@@ -1215,6 +1215,15 @@ class EngineBridge:
                     last_visible_update = last_visible_update[:400]
                     break
 
+        ruleset_lines: tuple[str, ...] = ()
+        if ckpt.session.config.settings.ruleset_id == "one_star_ascension":
+            from app.engine.one_star_projection import one_star_status_lines
+
+            ruleset_lines = one_star_status_lines(
+                ckpt,
+                viewpoint.character_id if viewpoint is not None else "",
+            )
+
         return SessionActivityView(
             session_id=session_id,
             story_id=ckpt.session.story_id,
@@ -1226,6 +1235,7 @@ class EngineBridge:
             nearby_character_names=nearby_names,
             requested_next_names=requested_names,
             last_visible_update=last_visible_update,
+            ruleset_lines=ruleset_lines,
         )
 
     def list_joinable_characters(self, session_id: str) -> list[CharacterSummary]:

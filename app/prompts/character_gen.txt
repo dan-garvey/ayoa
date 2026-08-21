@@ -23,7 +23,7 @@ Generate a new character who fits naturally into the established setting and has
 10. Set `intentions_enabled` true only for spawns who are narratively significant enough to pursue their objectives off-stage (antagonists, rivals, faction figures with active agendas), or when an Authored Generation Budget explicitly says their objectives remain active between scenes. False for walk-ons, attendants, and background figures.
 11. `router_summary` is not used for generated NPC spawns. Emit an empty string for it.
 12. If a Knowledge Budget appears in the input, it is AUTHORITATIVE: author `backstory`, `known_context`, and `secrets` to exactly that knowledge boundary and no further. Entry Context and explicit Spawn Request facts are also available for this arrival, but they do not imply adjacent setting knowledge. If an Authored Generation Budget appears, it is also AUTHORITATIVE: match its backstory depth; personality, voice, and contradiction depth; public visual-detail quantity and specificity; loadout complexity and material finish; visual salience; and presentation guidance. It overrides the ordinary concision defaults in instructions 3 and 8. Fulfill requested identity anchors consistently across `appearance` and `default_loadout`, but never put spoiler-bearing knowledge, private truths, concealed traits, or motives in either public field. If no authored budgets are provided, author the character as usual and do not infer a tier, rarity ladder, or presentation hierarchy; still provide enough public visual fingerprint for future portrait anchoring.
-{dnd_generation_instructions}
+{ruleset_generation_instructions}
 </instructions>
 
 <output_schema>
@@ -43,7 +43,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
   "current_objectives": ["string — 1-3 actionable pursuits they're working on right now"],
   "secrets": ["string — private truths; empty array if none"],
   "intentions_enabled": true or false,
-  "router_summary": "string — emit an empty string for this prompt"{dnd_output_schema_suffix}
+  "router_summary": "string — emit an empty string for this prompt"{ruleset_output_schema_suffix}
 }}
 
 **Every field in this schema is REQUIRED in the output. Emit "" for strings with no content, [] for empty lists. Do not omit fields.**
@@ -61,6 +61,8 @@ Location: {location}
 {spawn_seed}
 
 {generation_context}
+
+{ruleset_generation_context}
 
 ## Existing Characters (avoid duplicating)
 {existing_characters}

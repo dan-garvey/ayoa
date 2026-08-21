@@ -16,6 +16,7 @@ from typing import Any, Protocol
 from app.engine.image_director import (
     PublicCharacterVisual,
     VisibleEventProjection,
+    image_loadout_for_character,
     source_event_fingerprint,
     text_names_public_character,
 )
@@ -1758,7 +1759,7 @@ def _authored_identity_reroll_input(
         character.public_sheet.appearance,
         600,
     )
-    loadout = _bounded_text(character.visuals.default_loadout, 700)
+    loadout = image_loadout_for_character(checkpoint, character)
     scene = _bounded_text(
         "; ".join(
             part

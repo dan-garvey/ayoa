@@ -22,10 +22,16 @@ from app.schemas.event_router import EventRouterOutput
 from app.schemas.image_director import ImageDirectorOutput, ImageGenerationMode
 from app.schemas.state import (
     RenderBufferEntry,
+    SessionConfig,
     SessionState,
+    SessionSettings,
     StorySetting,
     WorldState,
 )
+
+
+_ONE_STAR_RULESET_ID = "one_star_ascension"
+_ONE_STAR_HERO_KEY = "one_star_hero"
 
 
 _OBSERVATION_LEVELS = {
@@ -272,6 +278,14 @@ def projection_checkpoint_snapshot(
     """Copy only bounded public state needed by asynchronous projection."""
 
     setting = checkpoint.world_state.setting
+    ruleset_id = str(
+        getattr(
+            getattr(checkpoint.session.config, "settings", None),
+            "ruleset_id",
+            "",
+        )
+        or ""
+    )
     selected_event_ids = set(event_ids)
     return CheckpointFile(
         session=SessionState(
@@ -279,6 +293,9 @@ def projection_checkpoint_snapshot(
             player_character_id=checkpoint.session.player_character_id,
             character_bindings=dict(
                 checkpoint.session.character_bindings or {}
+            ),
+            config=SessionConfig(
+                settings=SessionSettings(ruleset_id=ruleset_id),
             ),
         ),
         world_state=WorldState(
@@ -318,6 +335,10 @@ def projection_checkpoint_snapshot(
                     intentions_enabled=bool(
                         character.private_state.intentions_enabled
                     ),
+                ),
+                mechanics=_snapshot_image_mechanics(
+                    character,
+                    ruleset_id=ruleset_id,
                 ),
                 is_playable=bool(character.is_playable),
             )
@@ -429,6 +450,7 @@ def build_projection_groups(
         if not facts:
             continue
         public_characters = _public_character_projection(
+            checkpoint=checkpoint,
             facts=facts,
             actor_id=actor_id,
             viewer_character_id=viewer_id,
@@ -941,6 +963,7 @@ def _selectable_reference_options(
 
 def _public_character_projection(
     *,
+    checkpoint: CheckpointFile,
     facts: Sequence[tuple[str, int, int]],
     actor_id: str,
     viewer_character_id: str,
@@ -970,10 +993,7 @@ def _public_character_projection(
             name=_safe_text(character.name, 200),
             public_role=_safe_text(character.public_sheet.role, 300),
             appearance=_safe_text(character.public_sheet.appearance, 600),
-            default_loadout=_safe_text(
-                character.visuals.default_loadout,
-                700,
-            ),
+            default_loadout=image_loadout_for_character(checkpoint, character),
             depiction_policy=str(character.visuals.depiction_policy),
             is_new_character=character_id in new_ids,
             has_identity_reference=(
@@ -985,6 +1005,64 @@ def _public_character_projection(
             ),
         ))
     return tuple(result)
+
+
+def image_loadout_for_character(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> str:
+    """Return the current loadout allowed in image-direction context."""
+    ruleset_id = str(
+        getattr(
+            getattr(checkpoint.session.config, "settings", None),
+            "ruleset_id",
+            "",
+        )
+        or ""
+    )
+    mechanics = character.mechanics
+    if (
+        ruleset_id == _ONE_STAR_RULESET_ID
+        and isinstance(mechanics, dict)
+        and mechanics.get(_ONE_STAR_HERO_KEY) is not None
+    ):
+        # The One-Star projection helper filters visible=false entries.  Do
+        # not fall back to the stale authored loadout when the live Hero has
+        # no visible equipment: that would reintroduce retired/hidden gear.
+        # Keep the optional rules adapter out of generic narrative imports.
+        from app.engine.one_star_projection import (
+            visible_equipped_item_description,
+        )
+
+        return _safe_text(visible_equipped_item_description(character), 700)
+    return _safe_text(character.visuals.default_loadout, 700)
+
+
+def _snapshot_image_mechanics(
+    character: CharacterRecord,
+    *,
+    ruleset_id: str,
+) -> dict[str, object]:
+    """Keep only visible One-Star equipment for async image projection."""
+    if ruleset_id != _ONE_STAR_RULESET_ID:
+        return {}
+    # Import the optional adapter only for the opt-in One-Star snapshot path.
+    from app.engine.one_star_adapter import load_one_star_hero
+
+    hero = load_one_star_hero(character)
+    if hero is None:
+        return {}
+    return {
+        _ONE_STAR_HERO_KEY: {
+            "birth_stars": hero.birth_stars,
+            "current_stars": hero.current_stars,
+            "equipment": [
+                item.model_dump()
+                for item in hero.equipment
+                if item.visible
+            ],
+        },
+    }
 
 
 def _text_names_character(text: str, character: CharacterRecord) -> bool:

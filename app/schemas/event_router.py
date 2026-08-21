@@ -230,7 +230,7 @@ class SpawnSeed(BaseModel):
     # `world_state.knowledge_tiers` ladder, this selects the rung the
     # character_gen pass authors the new character to. For the gacha seed it
     # is the summon's star grade (1-5).
-    knowledge_tier: int = 0
+    knowledge_tier: int
 
 
 class SpawnRequest(BaseModel):

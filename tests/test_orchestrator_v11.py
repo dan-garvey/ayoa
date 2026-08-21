@@ -1155,6 +1155,7 @@ class TestCombatTurnGating:
                 ),
                 "location": "gatehouse",
                 "objectives": ["fight the party"],
+                "knowledge_tier": 0,
             },
         }
         orch, _mgr = patched_orchestrator(ckpt)

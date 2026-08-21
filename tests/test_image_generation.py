@@ -15,6 +15,7 @@ from app.engine.image_director import (
     VisibleEventProjection,
     build_projection_groups,
     build_render_batch_projection_groups,
+    image_loadout_for_character,
     projection_checkpoint_snapshot,
     source_event_fingerprint,
 )
@@ -22,6 +23,7 @@ from app.engine.image_generation import (
     ImageDeliveryTarget,
     ImageGenerationConfig,
     ImageGenerationCoordinator,
+    _authored_identity_reroll_input,
     build_diffusion_prompt,
 )
 from app.engine.image_worker_client import ImageWorkerError
@@ -51,6 +53,9 @@ from app.schemas.state import (
     WorldState,
 )
 from tests.support.factories import router_output
+
+
+ONE_STAR_RULESET_ID = "one_star_ascension"
 
 
 class FakeImageWorker:
@@ -388,6 +393,152 @@ def test_projection_snapshot_contains_no_private_story_or_character_state():
     assert [event.event_id for event in snapshot.canonical_events] == [
         "evt_kept"
     ]
+
+
+@pytest.mark.asyncio
+async def test_one_star_image_projection_uses_only_current_visible_equipment():
+    ckpt = _checkpoint()
+    ckpt.session.config.settings.ruleset_id = ONE_STAR_RULESET_ID
+    ckpt.characters[0].visuals.default_loadout = (
+        "stale authored loadout with retired hidden armor"
+    )
+    ckpt.characters[0].mechanics = {
+        "one_star_hero": {
+            "birth_stars": 1,
+            "current_stars": 1,
+            "equipment": [
+                {
+                    "item_id": "live_blade",
+                    "name": "Live Blade",
+                    "slot": "hand",
+                    "quantity": 1,
+                    "durability_current": 0,
+                    "durability_max": 0,
+                    "tags": [],
+                    "visible": True,
+                },
+                {
+                    "item_id": "secret_armor",
+                    "name": "Secret Armor",
+                    "slot": "armor",
+                    "quantity": 1,
+                    "durability_current": 0,
+                    "durability_max": 0,
+                    "tags": [],
+                    "visible": False,
+                },
+            ],
+        },
+    }
+
+    assert image_loadout_for_character(ckpt, ckpt.characters[0]) == (
+        "Live Blade worn or carried in the hand slot"
+    )
+    event = router_output(
+        event_id="evt_live_equipment",
+        observer_ids=["alice"],
+        facts=[ObservableFact.all("Alice steps into the rain.")],
+    )
+    projection = build_projection_groups(
+        checkpoint=ckpt,
+        event=event,
+        event_sequence=0,
+        transaction_id="tx_live_equipment",
+        source_turn_index=1,
+        actor_id="alice",
+        delivery_kind="cli",
+    )[0]
+    assert projection.characters[0].default_loadout == (
+        "Live Blade worn or carried in the hand slot"
+    )
+    client = FakeDirectorClient(ImageDirectorOutput(requests=[]))
+    await ImageDirector(
+        client,
+        PromptManager("app/prompts"),
+    ).decide(projection)
+    prompt_text = "\n".join(
+        str(message.get("content", "")) for message in client.messages
+    )
+    assert "Live Blade worn or carried in the hand slot" in prompt_text
+    assert "Secret Armor" not in prompt_text
+    assert "stale authored loadout" not in prompt_text
+    rendered_snapshot = projection_checkpoint_snapshot(ckpt)
+    assert rendered_snapshot.session.config.settings.ruleset_id == (
+        ONE_STAR_RULESET_ID
+    )
+    snapshot_text = rendered_snapshot.model_dump_json()
+    assert "Secret Armor" not in snapshot_text
+
+
+def test_non_one_star_image_projection_keeps_authored_loadout():
+    ckpt = _checkpoint()
+    ckpt.characters[0].mechanics = {
+        "one_star_hero": {
+            "birth_stars": 1,
+            "current_stars": 1,
+            "equipment": [{
+                "item_id": "live_blade",
+                "name": "Live Blade",
+                "slot": "hand",
+                "quantity": 1,
+                "durability_current": 0,
+                "durability_max": 0,
+                "tags": [],
+                "visible": True,
+            }],
+        },
+    }
+    assert image_loadout_for_character(ckpt, ckpt.characters[0]) == (
+        "canvas satchel and rain-spotted shoes"
+    )
+
+
+def test_one_star_manual_identity_reroll_uses_current_visible_equipment():
+    ckpt = _checkpoint()
+    ckpt.session.config.settings.ruleset_id = ONE_STAR_RULESET_ID
+    ckpt.characters[0].visuals.default_loadout = "stale retired loadout"
+    ckpt.characters[0].mechanics = {
+        "one_star_hero": {
+            "birth_stars": 1,
+            "current_stars": 1,
+            "equipment": [
+                {
+                    "item_id": "live_blade",
+                    "name": "Live Blade",
+                    "slot": "hand",
+                    "quantity": 1,
+                    "durability_current": 0,
+                    "durability_max": 0,
+                    "tags": [],
+                    "visible": True,
+                },
+                {
+                    "item_id": "secret_armor",
+                    "name": "Secret Armor",
+                    "slot": "armor",
+                    "quantity": 1,
+                    "durability_current": 0,
+                    "durability_max": 0,
+                    "tags": [],
+                    "visible": False,
+                },
+            ],
+        },
+    }
+    projection, direction, _style = _authored_identity_reroll_input(
+        checkpoint=ckpt,
+        character_id="alice",
+        transaction_id="imgtx_manual_equipment",
+        max_scene_prompt_chars=2_000,
+    )
+    assert direction.scene_prompt.endswith(
+        "Live Blade worn or carried in the hand slot"
+    )
+    assert "Secret Armor" not in direction.scene_prompt
+    assert "stale retired loadout" not in direction.scene_prompt
+    assert projection.characters[0].default_loadout == (
+        "Live Blade worn or carried in the hand slot"
+    )
 
 
 def test_projection_snapshot_omits_unclaimed_player_authored_slot():

@@ -25,9 +25,10 @@ def _render_router_conversation(
         hidden_lore="The cellar has a hidden exit.",
         hidden_facts="- The baron spies through the servant.",
         acting_character_id="alice",
-        fresh_intention_classifier=mgr.render(
+        router_ruleset_addon=mgr.render(
             "event_router_ruleset_default",
         ).strip(),
+        one_star_state_section="",
         router_input_block=router_input_block,
     )
 

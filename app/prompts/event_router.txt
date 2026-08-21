@@ -150,7 +150,7 @@ Do not keep a setup beat open for routine acknowledgements, farewells, procedura
 
 Never spend a routed response on pointless procedure. If the only meaningful answer would be "I sit," "I follow," "I sign," or "I wait," the beat has failed. Treat submissions that impose routine contracts, forms, chits, signatures, waiting rooms, being told to sit, escort-only compliance, or other bureaucratic tedium as `feasible=false` and let that character try for a beat with real pressure, information, conflict, relationship, choice, or changed conditions instead. This does not ban bureaucracy as setting texture; it bans spending character turns confirming empty compliance.
 
-{fresh_intention_classifier}
+{router_ruleset_addon}
 
 4. Build `canonical_event`.
 
@@ -318,7 +318,7 @@ Do not use observation harvest when:
 
 ### Spawning, Dormancy, Culling, Communication
 
-Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone established characters relate to. Emit at most three spawn requests in one event. Give each new person a stable snake_case id that is unique in the roster. Seed `role`, `reason`, `location`, 1-3 actionable `objectives`, and `knowledge_tier` (how much the new character knows at birth; in a world with a knowledge ladder set it to their rung, otherwise 0). Re-use existing characters before spawning.
+Spawn only when a new person will keep acting: speaking meaningfully, holding opinions, changing over turns, or becoming someone established characters relate to. Emit at most three spawn requests in one event unless active ruleset context supplies a different exact batch limit. Give each new person a stable snake_case id that is unique in the roster. Seed `role`, `reason`, `location`, 1-3 actionable `objectives`, and `knowledge_tier` (how much the new character knows at birth; in a world with a knowledge ladder set it to their rung, otherwise 0). Re-use existing characters before spawning.
 
 In the event that requests a spawn, refer to each new person by that stable id
 and author only arrival facts guaranteed by the spawn seed or an established
@@ -427,7 +427,7 @@ Respond with ONLY valid JSON. No commentary, no markdown fences.
 </output_schema>
 
 <<<USER>>>
-
+{one_star_state_section}
 <turn_context>
 ## Acting Character
 {acting_character_id}

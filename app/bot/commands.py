@@ -79,6 +79,7 @@ from app.engine.frontend_views import (
     DndSheetAttachmentSummary,
     PendingRollPrompt,
     RewindResult,
+    SessionActivityView,
 )
 from app.schemas.dnd_inventory import DndLootOffer
 from app.bot.session_map import SessionMap, TurnMessageRef
@@ -149,6 +150,30 @@ def _render_combat_status(
         max_chars=MAX_DESCRIPTION if include_map else None,
     )
     return render_info("Combat", "\n".join(lines))
+
+
+def _render_session_status_body_lines(
+    activity: SessionActivityView,
+) -> list[str]:
+    """Build Discord status text from the shared frontend projection."""
+    lines = [
+        f"**Story:** {activity.story_id}",
+        f"**Turn:** {activity.turn_index}",
+        f"**Viewpoint:** {activity.viewpoint_name or 'none selected'}",
+        f"**Location:** {activity.location or 'not yet in the fiction'}",
+        "**Joined:** " + (", ".join(activity.joined_seat_names) or "none"),
+        "**Nearby:** "
+        + (", ".join(activity.nearby_character_names) or "no one else"),
+        f"**Activity:** {activity.state}",
+    ]
+    lines.extend(activity.ruleset_lines)
+    if activity.last_visible_update:
+        lines.extend([
+            "",
+            "**Last visible update:**",
+            activity.last_visible_update,
+        ])
+    return lines
 
 
 # Cache the parsed admin set per env-value so we only log about invalid
@@ -6757,23 +6782,7 @@ def register(
             )
             return
 
-        body_lines = [
-            f"**Story:** {activity.story_id}",
-            f"**Turn:** {activity.turn_index}",
-            f"**Viewpoint:** {activity.viewpoint_name or 'none selected'}",
-            f"**Location:** {activity.location or 'not yet in the fiction'}",
-            "**Joined:** "
-            + (", ".join(activity.joined_seat_names) or "none"),
-            "**Nearby:** "
-            + (", ".join(activity.nearby_character_names) or "no one else"),
-            f"**Activity:** {activity.state}",
-        ]
-        if activity.last_visible_update:
-            body_lines.extend([
-                "",
-                "**Last visible update:**",
-                activity.last_visible_update,
-            ])
+        body_lines = _render_session_status_body_lines(activity)
         await inter.response.send_message(
             embed=render_info("Session status", "\n".join(body_lines)),
             ephemeral=True,

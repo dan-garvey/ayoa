@@ -476,7 +476,12 @@ def release_beat_slots(ckpt: CheckpointFile) -> None:
         ckpt.session.active_act_slots = {}
 
 
-def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
+def purge_character_state(
+    ckpt: CheckpointFile,
+    character_id: str,
+    *,
+    preserve_render_buffer: bool = False,
+) -> None:
     """Sweep all v11 bookkeeping when a character leaves/culls/unbinds.
 
     Called by the roster-move / /leave / cull code paths so state that
@@ -491,7 +496,8 @@ def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
       it stays open for the orchestrator to resolve normally. If the
       initiator is the one leaving, the event is abandoned (closed
       without resolution).
-    - Empties their render buffer.
+    - Empties their render buffer unless a pre-presentation terminal adapter
+      commit explicitly preserves already-queued POV events for narration.
     - Leaves canonical_events + narrator_conversations alone — those
       are historical, not live state.
     """
@@ -518,8 +524,11 @@ def purge_character_state(ckpt: CheckpointFile, character_id: str) -> None:
         remaining_events.append(evt)
     ckpt.session.open_cat_ii_events = remaining_events
 
-    # 3. Render buffer.
-    ckpt.session.render_buffers.pop(character_id, None)
+    # 3. Render buffer. A character who dies during a multi-event beat still
+    # receives the final lossless POV rendering; ordinary leave/cull paths keep
+    # the historical behavior of clearing their undeliverable queue.
+    if not preserve_render_buffer:
+        ckpt.session.render_buffers.pop(character_id, None)
 
 
 def sweep_stale_cat_ii_pins(
@@ -1588,6 +1597,7 @@ def broadcast_event(
     actor_id: str = "",
     *,
     close_for_presentation: bool = True,
+    preflighted: bool = False,
 ) -> list[str]:
     """Append a closed canonical event to the log and fan it out to
     every human observer's render buffer and every NPC observer's
@@ -1631,8 +1641,8 @@ def broadcast_event(
     BeatResult.event_actor_ids for callers that need actor-aware
     event application.
     """
-    _validate_non_social_hazard_routing(ckpt, event)
-    _reject_unbound_player_authored_references(ckpt, event, actor_id=actor_id)
+    if not preflighted:
+        _preflight_broadcast_event(ckpt, event, actor_id=actor_id)
     obs_level_by_char: dict[str, str] = {}
     for o in event.observers:
         # Legacy: observation_level is a single-char code ("d"|"i"|"f").
@@ -1774,6 +1784,46 @@ def broadcast_event(
     return visible_humans
 
 
+def _preflight_broadcast_event(
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    actor_id: str,
+) -> None:
+    """Run every fallible structural guard before adapter state commits."""
+
+    _validate_non_social_hazard_routing(ckpt, event)
+    _reject_unbound_player_authored_references(
+        ckpt,
+        event,
+        actor_id=actor_id,
+    )
+
+
+async def prepare_event_for_broadcast(
+    dispatcher: Dispatcher,
+    ckpt: CheckpointFile,
+    event: EventRouterOutput,
+    *,
+    actor_id: str = "",
+) -> None:
+    """Apply an optional ruleset transaction after generic preflight.
+
+    The hook is deliberately optional so every generic/D&D fake dispatcher and
+    production path remains byte-for-byte behaviorally unchanged when no
+    adapter transaction exists.
+    """
+
+    _preflight_broadcast_event(ckpt, event, actor_id=actor_id)
+    preparer = getattr(dispatcher, "prepare_ruleset_event", None)
+    if callable(preparer):
+        await preparer(
+            ckpt=ckpt,
+            result=event,
+            actor_id=actor_id,
+        )
+
+
 def _reject_unbound_player_authored_references(
     ckpt: CheckpointFile,
     event: EventRouterOutput,
@@ -1896,6 +1946,12 @@ def _dnd_ruleset_enabled(ckpt: CheckpointFile) -> bool:
     settings = getattr(ckpt.session.config, "settings", None)
     ruleset_id = str(getattr(settings, "ruleset_id", "") or "")
     return ruleset_id == "dnd5e_basic"
+
+
+def _one_star_ruleset_enabled(ckpt: CheckpointFile) -> bool:
+    settings = getattr(ckpt.session.config, "settings", None)
+    ruleset_id = str(getattr(settings, "ruleset_id", "") or "")
+    return ruleset_id == "one_star_ascension"
 
 
 def _character_status_value(character: Any) -> str:
@@ -2762,6 +2818,31 @@ async def run_beat(
     pending_result_submission: str = ""
     suppress_reaction_prompts = combat_reaction_event_id is not None
 
+    async def _commit_event(
+        event: EventRouterOutput,
+        *,
+        event_actor_id: str = "",
+        ruleset_actor_id: str | None = None,
+        close_for_presentation: bool = True,
+    ) -> list[str]:
+        await prepare_event_for_broadcast(
+            dispatcher,
+            ckpt,
+            event,
+            actor_id=(
+                event_actor_id
+                if ruleset_actor_id is None
+                else ruleset_actor_id
+            ),
+        )
+        return broadcast_event(
+            ckpt,
+            event,
+            actor_id=event_actor_id,
+            close_for_presentation=close_for_presentation,
+            preflighted=True,
+        )
+
     async def _queue_router_continuation(
         prior_result: EventRouterOutput,
     ) -> None:
@@ -2997,7 +3078,9 @@ async def run_beat(
             resolved, evt.initiator_id, kind="cat_ii_resolve",
         )
         _validate_non_social_hazard_routing(ckpt, resolved)
-        close_cat_ii(ckpt, evt.event_id)
+        one_star_resolution = _one_star_ruleset_enabled(ckpt)
+        if not one_star_resolution:
+            close_cat_ii(ckpt, evt.event_id)
         # Defensive guard: if the router's resolution call ever returns
         # requires_responders=true (contradicting Part C of the prompt),
         # we refuse the nesting rather than silently dropping it. Raise
@@ -3012,7 +3095,12 @@ async def run_beat(
         # adjudicated outcome of every collected intention. Broadcast it to all
         # NPC observers, including the initiator, so agents retain the final
         # result instead of only the player render seeing it.
-        broadcast_event(ckpt, resolved)
+        await _commit_event(
+            resolved,
+            ruleset_actor_id=evt.initiator_id,
+        )
+        if one_star_resolution:
+            close_cat_ii(ckpt, evt.event_id)
         events_closed = 1
         event_actor_ids.append(evt.initiator_id)
 
@@ -3078,7 +3166,7 @@ async def run_beat(
                     "resolver must close the reaction or pause for player "
                     "rolls."
                 )
-            broadcast_event(ckpt, resolved, actor_id=actor_id)
+            await _commit_event(resolved, event_actor_id=actor_id)
             event_actor_ids.append(actor_id)
             events_closed += 1
             return await _end_beat(
@@ -3118,7 +3206,7 @@ async def run_beat(
                     "resolver must close the turn or pause for player rolls."
                 )
             _clear_pending_initiating_action(ckpt, actor_id)
-            broadcast_event(ckpt, resolved, actor_id=actor_id)
+            await _commit_event(resolved, event_actor_id=actor_id)
             event_actor_ids.append(actor_id)
             events_closed += 1
             return await _end_beat(
@@ -3188,7 +3276,7 @@ async def run_beat(
                 _block_dnd_combat_start_from_router_signal(
                     ckpt, result, actor_id=signal_actor_id,
                 )
-                broadcast_event(ckpt, result, actor_id=signal_actor_id)
+                await _commit_event(result, event_actor_id=signal_actor_id)
                 event_actor_ids.append(signal_actor_id)
                 events_closed += 1
                 return await _end_beat(
@@ -3207,7 +3295,7 @@ async def run_beat(
                 actor_id=signal_actor_id,
                 intention=result_submission,
             )
-            broadcast_event(ckpt, result, actor_id=signal_actor_id)
+            await _commit_event(result, event_actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
             events_closed += 1
             if not started:
@@ -3237,7 +3325,7 @@ async def run_beat(
             _end_dnd_combat_from_router_signal(
                 ckpt, result, actor_id=signal_actor_id,
             )
-            broadcast_event(ckpt, result, actor_id=signal_actor_id)
+            await _commit_event(result, event_actor_id=signal_actor_id)
             event_actor_ids.append(signal_actor_id)
             events_closed += 1
             return await _end_beat(
@@ -3267,7 +3355,10 @@ async def run_beat(
                 result.required_responders = []
                 result.clear_routing_roles()
                 result.event_kind = "ruleset_cat_ii_suppressed"
-                broadcast_event(ckpt, result, actor_id=suppressed_actor_id)
+                await _commit_event(
+                    result,
+                    event_actor_id=suppressed_actor_id,
+                )
                 event_actor_ids.append(suppressed_actor_id)
                 events_closed += 1
                 return await _end_beat(
@@ -3306,7 +3397,7 @@ async def run_beat(
                     result,
                     actor_id=result_actor_id,
                 )
-                broadcast_event(ckpt, result, actor_id=result_actor_id)
+                await _commit_event(result, event_actor_id=result_actor_id)
                 event_actor_ids.append(result_actor_id)
                 events_closed += 1
                 completed = await _advance_or_render(result)
@@ -3337,7 +3428,7 @@ async def run_beat(
             # responder is reacting to. Pre-r12 synthesized an
             # observerless stub here and dropped the router's facts.
             result.event_kind = "cat_ii_open"
-            broadcast_event(ckpt, result, actor_id=result_actor_id)
+            await _commit_event(result, event_actor_id=result_actor_id)
             event_actor_ids.append(result_actor_id)
             events_closed += 1
 
@@ -3382,7 +3473,9 @@ async def run_beat(
                     kind="cat_ii_resolve_inline",
                 )
                 _validate_non_social_hazard_routing(ckpt, resolved)
-                close_cat_ii(ckpt, evt.event_id)
+                one_star_resolution = _one_star_ruleset_enabled(ckpt)
+                if not one_star_resolution:
+                    close_cat_ii(ckpt, evt.event_id)
                 if resolved.requires_responders:
                     raise ValueError(
                         "Router returned Cat II nesting on an adjudication "
@@ -3392,7 +3485,12 @@ async def run_beat(
                 # Cat II resolution belongs to every participant in the
                 # contest, so do not exclude the initiator from the observer
                 # inbox fan-out.
-                broadcast_event(ckpt, resolved)
+                await _commit_event(
+                    resolved,
+                    ruleset_actor_id=evt.initiator_id,
+                )
+                if one_star_resolution:
+                    close_cat_ii(ckpt, evt.event_id)
                 event_actor_ids.append(evt.initiator_id)
                 events_closed += 1
                 if resolved.next_output_character_ids:
@@ -3454,10 +3552,9 @@ async def run_beat(
                 result,
                 actor_id=result_actor_id,
             )
-        broadcast_event(
-            ckpt,
+        await _commit_event(
             result,
-            actor_id=result_actor_id,
+            event_actor_id=result_actor_id,
             close_for_presentation=not defer_presentation_close,
         )
         event_actor_ids.append(result_actor_id)
@@ -3619,7 +3716,27 @@ async def _stage_closed_event_spawns_for_render(
             event=event,
             actor_id=actor_id,
         )
-        runtime.apply_records(ckpt, records)
+        existing_by_id = {
+            character.character_id: character
+            for character in ckpt.characters
+        }
+        existing_records = tuple(
+            existing_by_id[record.character_id]
+            for record in records
+            if record.character_id in existing_by_id
+        )
+        if existing_records and len(existing_records) != len(records):
+            raise RuntimeError(
+                "spawn render batch is only partially present in the "
+                f"accepted roster for event {event.event_id}"
+            )
+        if existing_records:
+            # Ruleset transactions may atomically accept identity records
+            # before presentation.  Reuse the durable, mechanics-enriched
+            # records instead of trying to stage the authoring copies again.
+            records = existing_records
+        else:
+            runtime.apply_records(ckpt, records)
         for record in records:
             staged_by_id.setdefault(record.character_id, record)
         refresh_router_history_record(

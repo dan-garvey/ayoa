@@ -10,6 +10,7 @@ from app.llm.config import LLMConfig
 from app.schemas.characters import (
     CharacterAgentTier,
     CharacterRecord,
+    CharacterStatus,
     PublicSheet,
     PrivateState,
 )
@@ -121,6 +122,7 @@ def _spawn_request(
         "reason": "",
         "location": "",
         "objectives": [],
+        "knowledge_tier": 0,
     }
     seed_data.update(seed or {})
     return SpawnRequest(character_id=character_id, seed=seed_data)
@@ -145,6 +147,19 @@ class TestCharacterManager:
         mgr.apply_roster_updates(sample_checkpoint, routed)
         char = mgr.get_character(sample_checkpoint, "guard_17")
         assert char.status.value == "dormant"
+
+    def test_dormant_cannot_downgrade_terminal_cull(self, sample_checkpoint):
+        mgr = CharacterManager()
+        char = mgr.get_character(sample_checkpoint, "guard_17")
+        assert char is not None
+        char.status = CharacterStatus.culled
+
+        mgr.apply_roster_updates(
+            sample_checkpoint,
+            router_output(facts=[], dormant=["guard_17"]),
+        )
+
+        assert char.status == CharacterStatus.culled
 
 class TestCharacterSpawn:
     @pytest.mark.asyncio

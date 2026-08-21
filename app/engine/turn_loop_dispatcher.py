@@ -20,12 +20,14 @@ class is what the orchestrator constructs at wire-up time.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 
 from app.engine import narrator as narrator_module
 from app.engine.character_agent import CharacterAgent
+from app.engine.character_manager import CharacterManager
 from app.engine.context_builder import (
     build_dnd_character_equipment_sentence,
     build_dnd_character_identity_sentence,
@@ -58,6 +60,12 @@ from app.schemas.event_router import (
     DndEventRouterOutput,
     EventRouterOutput,
 )
+from app.schemas.one_star import (
+    ClosedOneStarEventRouterOutput,
+    OneStarEventRouterOutput,
+    ONE_STAR_RULESET_ID,
+    OneStarTransaction,
+)
 from app.schemas.narrator import NarratorFinalOutput, TranscriptEntry
 from app.schemas.state import OpenCatIIEvent, RenderBufferEntry
 
@@ -81,25 +89,318 @@ def _dnd_fresh_router_enabled(
     )
 
 
+def _one_star_router_enabled(ckpt: CheckpointFile) -> bool:
+    return _session_ruleset_id(ckpt) == ONE_STAR_RULESET_ID
+
+
+_ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS = frozenset({
+    "catalogue_apply",
+    "summon",
+    "inventory_delta",
+    "pending_open",
+    "pending_resolve",
+    "pending_cancel",
+})
+
+
+def _validate_one_star_cat_ii_transaction(result: EventRouterOutput) -> None:
+    """Keep a Cat II opening reversible until every intention is collected."""
+
+    if not result.requires_responders:
+        return
+    transaction = getattr(result, "one_star_transaction", None)
+    if transaction is None or not transaction.present:
+        return
+    operations = transaction.operations
+    if (
+        len(operations) != 1
+        or getattr(operations[0], "operation", "") != "pending_open"
+    ):
+        raise ValueError(
+            "A One-Star Cat II opening may record only one pending_open "
+            "selection; mechanical and irreversible operations must wait "
+            "for the resolved event"
+        )
+
+
+def _validate_one_star_guide_routing(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Require mediated guide delivery for an account-owner lobby mutation.
+
+    A guide observer is delivery, not a forced character turn. The router must
+    select ``next_output`` only when the guide has actual fictional pressure to
+    respond; otherwise the guide receives the scoped System fact as an ordinary
+    observer.
+    """
+    if not _one_star_router_enabled(ckpt):
+        return
+
+    transaction = getattr(result, "one_star_transaction", None)
+    operations = (
+        transaction.operations
+        if transaction is not None and transaction.present
+        else []
+    )
+    operation_names = {
+        getattr(operation, "operation", "")
+        for operation in operations
+    }
+    lifecycle_ids = {
+        *result.dormant,
+        *(signal.character_id for signal in result.activate),
+        *(update.character_id for update in result.location_updates),
+    }
+    if (
+        not operation_names & _ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS
+        and "hero_delta" not in operation_names
+        and not lifecycle_ids
+    ):
+        return
+
+    from app.engine.one_star_adapter import (
+        load_one_star_account,
+        load_one_star_hero,
+    )
+
+    owner, account = load_one_star_account(ckpt)
+    if actor_id != owner.character_id:
+        return
+    characters = {character.character_id: character for character in ckpt.characters}
+    lobby_locations = {
+        account.config.lobby_location_label,
+        *(
+            requirement.required_location
+            for kind, requirement in account.config.operation_requirements.items()
+            if kind != "deployment" and requirement.required_location
+        ),
+    }
+    typed_hero_management = False
+    for operation in operations:
+        if getattr(operation, "operation", "") != "hero_delta":
+            continue
+        character = characters.get(getattr(operation, "hero_id", ""))
+        hero = load_one_star_hero(character) if character is not None else None
+        if (
+            character is not None
+            and hero is not None
+            and hero.owner_lobby_id == account.config.lobby_id
+            and character.location in lobby_locations
+        ):
+            typed_hero_management = True
+            break
+    lifecycle_management = False
+    for character_id in lifecycle_ids:
+        character = characters.get(character_id)
+        hero = load_one_star_hero(character) if character is not None else None
+        if hero is None or hero.owner_lobby_id != account.config.lobby_id:
+            continue
+        target_locations = {
+            signal.location_label
+            for signal in result.activate
+            if signal.character_id == character_id
+        } | {
+            update.location_label
+            for update in result.location_updates
+            if update.character_id == character_id
+        }
+        if character.location in lobby_locations or target_locations & lobby_locations:
+            lifecycle_management = True
+            break
+    if (
+        not operation_names & _ONE_STAR_LOBBY_MANAGEMENT_OPERATIONS
+        and not typed_hero_management
+        and not lifecycle_management
+    ):
+        return
+
+    guide_ids = tuple(account.state.guide_character_ids)
+    if not guide_ids:
+        return
+    observers_by_id = {
+        observer.character_id: observer for observer in result.observers
+    }
+    for guide_id in guide_ids:
+        guide = characters.get(guide_id)
+        if guide is None or guide.status.value != "active":
+            raise ValueError(
+                "One-Star configured guide is unavailable for mediated "
+                f"lobby delivery: {guide_id!r}"
+            )
+        observer = observers_by_id.get(guide_id)
+        if observer is None:
+            raise ValueError(
+                "One-Star account-owner lobby mutation must include configured "
+                f"guide {guide_id!r} as a mediated observer"
+            )
+        if (
+            observer.observation_level != "d"
+            or observer.routing_role not in {"observe_only", "next_output"}
+        ):
+            raise ValueError(
+                "One-Star guide delivery must use direct mediated observation "
+                "and an ordinary observer or genuine next-output role"
+            )
+        if not any(
+            fact.audience == "only" and guide_id in fact.visible_to
+            for fact in result.canonical_event.observable_facts
+        ):
+            raise ValueError(
+                "One-Star account-owner lobby mutation must deliver a scoped "
+                f"System fact to configured guide {guide_id!r}"
+            )
+
+
+def _validate_one_star_pending_response_routing(
+    ckpt: CheckpointFile,
+    *,
+    actor_id: str,
+    result: EventRouterOutput,
+) -> None:
+    """Keep Master-selected embodied operations response-owned by Heroes."""
+
+    if not _one_star_router_enabled(ckpt):
+        return
+    transaction = getattr(result, "one_star_transaction", None)
+    if transaction is None or not transaction.present:
+        return
+
+    from app.engine.one_star_adapter import (
+        load_one_star_account,
+        load_one_star_hero,
+    )
+
+    owner, account = load_one_star_account(ckpt)
+    if actor_id != owner.character_id:
+        return
+    routed_ids = set(result.required_responders)
+    summoned_ids = {
+        character_id
+        for operation in transaction.operations
+        if getattr(operation, "operation", "") == "summon"
+        for character_id in operation.hero_ids
+    }
+    characters = {
+        character.character_id: character for character in ckpt.characters
+    }
+    for operation in transaction.operations:
+        if getattr(operation, "operation", "") != "pending_open":
+            continue
+        pending = operation.pending
+        affected_ids = {
+            *pending.participant_ids,
+            *([pending.target_id] if pending.target_id else []),
+        }
+        required_ids: set[str] = set()
+        for character_id in affected_ids - {actor_id}:
+            character = characters.get(character_id)
+            if character is None or character.status.value != "active":
+                continue
+            hero = load_one_star_hero(character)
+            if hero is not None and (
+                hero.owner_lobby_id == account.config.lobby_id
+                or character_id in summoned_ids
+            ):
+                required_ids.add(character_id)
+        missing = required_ids - routed_ids
+        if required_ids and not result.requires_responders:
+            raise ValueError(
+                "One-Star embodied selection affecting active Heroes must "
+                "open Cat II and collect every affected intention"
+            )
+        if missing:
+            raise ValueError(
+                "One-Star embodied selection omitted affected Hero response "
+                "routing: " + ", ".join(sorted(missing))
+            )
+
+
+def _validate_one_star_tutorial_routing(result: EventRouterOutput) -> None:
+    """Record teaching only when every named recipient actually receives it."""
+
+    transaction = getattr(result, "one_star_transaction", None)
+    if transaction is None or not transaction.present:
+        return
+    observers = {
+        observer.character_id: observer
+        for observer in result.observers
+    }
+    for operation in transaction.operations:
+        if getattr(operation, "operation", "") != "tutorial_delivery":
+            continue
+        for recipient_id in operation.delivered_to_ids:
+            observer = observers.get(recipient_id)
+            if observer is None or observer.observation_level != "d":
+                raise ValueError(
+                    "One-Star tutorial delivery requires each recipient to be "
+                    "a direct observer of the teaching event"
+                )
+            if not any(
+                fact.is_visible_to(recipient_id)
+                for fact in result.canonical_event.observable_facts
+            ):
+                raise ValueError(
+                    "One-Star tutorial delivery requires a canonical fact "
+                    f"visible to recipient {recipient_id!r}"
+                )
+
+
+def _rollback_one_star_materialized_spawns(
+    ckpt: CheckpointFile,
+    result: EventRouterOutput,
+) -> None:
+    """Remove an unaccepted One-Star spawn overlay after prepare failure."""
+
+    if not result.spawn:
+        return
+    from app.engine.closed_event_runtime import closed_event_runtime_for
+
+    runtime = closed_event_runtime_for(ckpt)
+    if runtime is None:
+        return
+    removed = runtime.spawn_authoring.rollback_roster(
+        checkpoint=ckpt,
+        transaction_id=runtime.transaction_id,
+    )
+    runtime.applied_character_ids.difference_update(removed)
+
+
 def _router_ruleset_template_vars(
     prompt_mgr: PromptManager,
     *,
-    dnd_mode: bool,
+    ruleset_id: str,
     dnd_fresh: bool,
+    ckpt: CheckpointFile | None = None,
 ) -> dict[str, str]:
+    if ruleset_id == ONE_STAR_RULESET_ID:
+        if ckpt is None:
+            raise ValueError("One-Star router rules require the active checkpoint")
+        from app.engine.one_star_router_context import (
+            render_one_star_router_static_config,
+        )
+
+        return {
+            "router_ruleset_addon": prompt_mgr.render(
+                "event_router_ruleset_one_star",
+                one_star_static_config=render_one_star_router_static_config(ckpt),
+            ).strip(),
+        }
     if dnd_fresh:
         return {
-            "fresh_intention_classifier": prompt_mgr.render(
+            "router_ruleset_addon": prompt_mgr.render(
                 "event_router_ruleset_dnd5e",
             ).strip(),
         }
-    if dnd_mode:
+    if ruleset_id == DND5E_BASIC_RULESET_ID:
         # Non-fresh D&D calls use a separate Cat II/combat resolver or are
         # canonicalizing already-committed output; the rules-neutral fresh
         # Cat II classifier would incorrectly reintroduce violence-as-Cat-II.
-        return {"fresh_intention_classifier": ""}
+        return {"router_ruleset_addon": ""}
     return {
-        "fresh_intention_classifier": prompt_mgr.render(
+        "router_ruleset_addon": prompt_mgr.render(
             "event_router_ruleset_default",
         ).strip(),
     }
@@ -616,7 +917,16 @@ def _router_history_record(
             )
 
     lines = [header]
-    mission_status = _mission_status_history_line(result.decision_rationale)
+    # One-Star's typed transaction owns mission continuity. Do not replay a
+    # diagnostic ``mission_status:`` line beside that durable ledger state.
+    mission_status = (
+        ""
+        if isinstance(
+            result,
+            (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+        )
+        else _mission_status_history_line(result.decision_rationale)
+    )
     if mission_status:
         lines.append(mission_status)
 
@@ -851,6 +1161,14 @@ def _build_router_context(
     else:
         acting_id = acting_character_id
 
+    one_star_state_section = ""
+    if _one_star_router_enabled(ckpt):
+        from app.engine.one_star_router_context import render_one_star_router_ledger
+
+        one_star_state_block = render_one_star_router_ledger(ckpt)
+        if one_star_state_block:
+            one_star_state_section = one_star_state_block
+
     return {
         "setting_summary": build_setting_summary(ckpt),
         "world_lore": _build_router_world_lore(ckpt),
@@ -863,6 +1181,9 @@ def _build_router_context(
             _build_engine_state_updates_block(ckpt)
             if include_engine_state_updates else ""
         ),
+        # This is deliberately a current-turn tail rather than compact router
+        # history: the ledger is authoritative state, not fiction to replay.
+        "one_star_state_section": one_star_state_section,
     }
 
 
@@ -933,6 +1254,281 @@ class LLMDispatcher:
             spawned_characters=records,
         )
         return applied
+
+    async def prepare_ruleset_event(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        result: EventRouterOutput,
+        actor_id: str,
+    ) -> None:
+        """Validate and atomically apply an opt-in ruleset transaction.
+
+        Generic narrative and D&D events have no work here.  One-Star first
+        awaits every identity authored by this event, then validates the
+        complete ledger/lifecycle transition on a durable copy.  A single
+        bounded router repair may correct only the typed transaction; the
+        already-authored fiction and routing envelope must remain identical.
+        """
+
+        if not _one_star_router_enabled(ckpt):
+            return
+        if not isinstance(
+            result,
+            (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+        ):
+            raise RuntimeError(
+                "One-Star routing returned an output without its ruleset "
+                "transaction contract"
+            )
+
+        from app.engine.one_star_adapter import (
+            OneStarTransactionError,
+            apply_one_star_prepared_mutation,
+            one_star_event_already_applied,
+            one_star_event_fingerprint,
+            prepare_one_star_transaction,
+        )
+
+        event_fingerprint = one_star_event_fingerprint(
+            {
+                "actor_id": actor_id,
+                "event": result.model_dump(mode="json"),
+            }
+        )
+        if one_star_event_already_applied(
+            ckpt,
+            event_id=result.event_id,
+            event_fingerprint=event_fingerprint,
+        ):
+            raise OneStarTransactionError(
+                "One-Star router event was already committed and cannot be "
+                "broadcast a second time"
+            )
+
+        _validate_one_star_cat_ii_transaction(result)
+        _validate_one_star_tutorial_routing(result)
+        _validate_one_star_pending_response_routing(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+        _validate_one_star_guide_routing(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+
+        if result.spawn:
+            try:
+                await self.materialize_spawns(
+                    ckpt=ckpt,
+                    result=result,
+                    actor_id=actor_id,
+                    character_ids=[
+                        request.character_id for request in result.spawn
+                    ],
+                )
+                _validate_one_star_pending_response_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+            except Exception:
+                _rollback_one_star_materialized_spawns(ckpt, result)
+                raise
+
+        location_updates = {
+            update.character_id: update.location_label
+            for update in result.location_updates
+        }
+        if len(location_updates) != len(result.location_updates):
+            _rollback_one_star_materialized_spawns(ckpt, result)
+            raise OneStarTransactionError(
+                "One-Star event contains duplicate location updates"
+            )
+        activation_locations = {
+            signal.character_id: signal.location_label
+            for signal in result.activate
+        }
+        if len(activation_locations) != len(result.activate):
+            _rollback_one_star_materialized_spawns(ckpt, result)
+            raise OneStarTransactionError(
+                "One-Star event contains duplicate activation signals"
+            )
+
+        def prepare():
+            return prepare_one_star_transaction(
+                ckpt,
+                event_id=result.event_id,
+                transaction=result.one_star_transaction,
+                spawned_character_ids=(
+                    request.character_id for request in result.spawn
+                ),
+                activated_character_ids=(
+                    signal.character_id for signal in result.activate
+                ),
+                activated_character_locations=activation_locations,
+                dormant_character_ids=result.dormant,
+                generic_culled_character_ids=result.cull,
+                location_updates=location_updates,
+                canonical_at_s=(
+                    result.effective_at_s + result.duration_s
+                ),
+                event_fingerprint=one_star_event_fingerprint(
+                    {
+                        "actor_id": actor_id,
+                        "event": result.model_dump(mode="json"),
+                    }
+                ),
+                initiating_actor_id=actor_id,
+            )
+
+        try:
+            try:
+                prepared = prepare()
+            except OneStarTransactionError as first_error:
+                result.one_star_transaction = await self._repair_one_star_transaction(
+                    ckpt=ckpt,
+                    result=result,
+                    actor_id=actor_id,
+                    validation_error=str(first_error),
+                )
+                _validate_one_star_cat_ii_transaction(result)
+                _validate_one_star_tutorial_routing(result)
+                _validate_one_star_pending_response_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                _validate_one_star_guide_routing(
+                    ckpt,
+                    actor_id=actor_id,
+                    result=result,
+                )
+                try:
+                    prepared = prepare()
+                except OneStarTransactionError as second_error:
+                    raise OneStarTransactionError(
+                        "One-Star transaction remained invalid after one repair: "
+                        f"{second_error}"
+                    ) from second_error
+        except Exception:
+            _rollback_one_star_materialized_spawns(ckpt, result)
+            raise
+
+        if prepared.already_applied:
+            raise OneStarTransactionError(
+                "One-Star prepared event was already committed and cannot be "
+                "broadcast a second time"
+            )
+        from app.engine.closed_event_runtime import closed_event_runtime_for
+
+        runtime = closed_event_runtime_for(ckpt)
+        live_characters = ckpt.characters
+        try:
+            apply_one_star_prepared_mutation(ckpt, prepared)
+
+            # Generic lifecycle signals remain the identity/status authority.
+            # The transaction validates their One-Star meaning, then the
+            # existing roster helper makes activated reserves dispatchable in
+            # this same beat. Reapplying these signals post-beat is idempotent.
+            CharacterManager().apply_roster_updates(ckpt, result)
+
+            # One-Star resource mutation and generated identities are one
+            # atomic canonical commit. Accept the speculative identity roster
+            # only after every durable character mutation succeeds.
+            if runtime is not None and result.spawn:
+                accepted = runtime.spawn_authoring.accept_roster(
+                    checkpoint=ckpt,
+                    transaction_id=runtime.transaction_id,
+                )
+                runtime.applied_character_ids.update(accepted)
+        except Exception:
+            ckpt.characters = live_characters
+            _rollback_one_star_materialized_spawns(ckpt, result)
+            raise
+
+        if prepared.culled_character_ids:
+            from app.engine.turn_loop import purge_character_state
+
+            for character_id in prepared.culled_character_ids:
+                purge_character_state(
+                    ckpt,
+                    character_id,
+                    preserve_render_buffer=True,
+                )
+
+    async def _repair_one_star_transaction(
+        self,
+        *,
+        ckpt: CheckpointFile,
+        result: OneStarEventRouterOutput | ClosedOneStarEventRouterOutput,
+        actor_id: str,
+        validation_error: str,
+    ) -> OneStarTransaction:
+        """Ask once for a transaction-only correction to a fixed event."""
+
+        ctx = _build_router_context(
+            ckpt,
+            actor_id,
+            include_engine_state_updates=False,
+        )
+        ctx.pop("initial_roster_block", "")
+        ctx.pop("engine_state_updates_block", "")
+        lifecycle = {
+            "spawn": [
+                {
+                    "character_id": request.character_id,
+                    "knowledge_tier": request.seed.knowledge_tier,
+                }
+                for request in result.spawn
+            ],
+            "dormant": result.dormant,
+            "cull": result.cull,
+            "activate": [signal.character_id for signal in result.activate],
+            "location_updates": {
+                update.character_id: update.location_label
+                for update in result.location_updates
+            },
+        }
+        repair_block = (
+            "<one_star_transaction_repair>\n"
+            "The following event fields are fixed and are not output here. "
+            "Return only a repaired one_star_transaction that agrees with the "
+            "supplied current One-Star state and this validation failure.\n"
+            f"Submitting actor id: {actor_id}\n"
+            f"Validation failure: {validation_error}\n"
+            "Fixed canonical event:\n"
+            f"{result.canonical_event.model_dump_json()}\n"
+            "Candidate transaction:\n"
+            f"{result.one_star_transaction.model_dump_json()}\n"
+            "Fixed generic lifecycle:\n"
+            f"{json.dumps(lifecycle, ensure_ascii=False, separators=(',', ':'))}\n"
+            "</one_star_transaction_repair>"
+        )
+        messages = self.prompt_mgr.render_conversation(
+            "event_router",
+            history=ckpt.session_conversation,
+            **ctx,
+            **_router_ruleset_template_vars(
+                self.prompt_mgr,
+                ruleset_id=ONE_STAR_RULESET_ID,
+                dnd_fresh=False,
+                ckpt=ckpt,
+            ),
+            router_input_block=repair_block,
+        )
+        response = await self.client.complete(
+            role="event_router",
+            messages=messages,
+            response_model=OneStarTransaction,
+            temperature=0.2,
+            max_tokens=EVENT_ROUTER_MAX_TOKENS,
+            cache=True,
+            compact=True,
+        )
+        return response.parsed
 
     # ------------------------------------------------------------------
     # route_intention
@@ -1039,8 +1635,9 @@ class LLMDispatcher:
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
-                    dnd_mode=_session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID,
+                    ruleset_id=_session_ruleset_id(ckpt),
                     dnd_fresh=dnd_fresh,
+                    ckpt=ckpt,
                 ),
                 "router_input_block": router_input_block,
             }
@@ -1064,7 +1661,11 @@ class LLMDispatcher:
                 role="event_router",
                 messages=messages,
                 response_model=(
-                    DndEventRouterOutput if dnd_fresh else EventRouterOutput
+                    OneStarEventRouterOutput
+                    if _one_star_router_enabled(ckpt)
+                    else DndEventRouterOutput
+                    if dnd_fresh
+                    else EventRouterOutput
                 ),
                 temperature=0.35,
                 max_tokens=EVENT_ROUTER_MAX_TOKENS,
@@ -1072,6 +1673,18 @@ class LLMDispatcher:
                 compact=True,
             )
             result: EventRouterOutput = response.parsed
+            _validate_one_star_cat_ii_transaction(result)
+            _validate_one_star_tutorial_routing(result)
+            _validate_one_star_pending_response_routing(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
+            _validate_one_star_guide_routing(
+                ckpt,
+                actor_id=actor_id,
+                result=result,
+            )
             _validate_opening_spawn_authority(ckpt, intention, result)
         except Exception:
             _restore_router_call_snapshot(ckpt, router_snapshot)
@@ -1235,8 +1848,9 @@ class LLMDispatcher:
                 **ctx,
                 **_router_ruleset_template_vars(
                     self.prompt_mgr,
-                    dnd_mode=_session_ruleset_id(ckpt) == DND5E_BASIC_RULESET_ID,
+                    ruleset_id=_session_ruleset_id(ckpt),
                     dnd_fresh=False,
+                    ckpt=ckpt,
                 ),
                 "router_input_block": router_input_block,
             }
@@ -1254,7 +1868,11 @@ class LLMDispatcher:
             response = await self.client.complete(
                 role="event_router",
                 messages=messages,
-                response_model=ClosedEventRouterOutput,
+                response_model=(
+                    ClosedOneStarEventRouterOutput
+                    if _one_star_router_enabled(ckpt)
+                    else ClosedEventRouterOutput
+                ),
                 temperature=0.35,
                 max_tokens=EVENT_ROUTER_MAX_TOKENS,
                 cache=True,
@@ -1265,6 +1883,18 @@ class LLMDispatcher:
             raise
 
         result: EventRouterOutput = response.parsed
+        _validate_one_star_cat_ii_transaction(result)
+        _validate_one_star_tutorial_routing(result)
+        _validate_one_star_pending_response_routing(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
+        _validate_one_star_guide_routing(
+            ckpt,
+            actor_id=actor_id,
+            result=result,
+        )
         _normalize_router_result_for_history(
             ckpt,
             result=result,

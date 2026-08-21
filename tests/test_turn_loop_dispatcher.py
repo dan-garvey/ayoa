@@ -178,8 +178,9 @@ def _render_one_star_router(
         **context,
         **_router_ruleset_template_vars(
             prompt_mgr,
-            dnd_mode=False,
+            ruleset_id=checkpoint.session.config.settings.ruleset_id,
             dnd_fresh=False,
+            ckpt=checkpoint,
         ),
         router_input_block=router_input_block,
     )
@@ -207,34 +208,34 @@ def _render_one_star_begin(
     )
 
 
-def test_router_classifier_module_defaults_but_drops_in_nonfresh_dnd(prompt_mgr):
+def test_router_ruleset_addon_defaults_but_drops_in_nonfresh_dnd(prompt_mgr):
     default_vars = _router_ruleset_template_vars(
         prompt_mgr,
-        dnd_mode=False,
+        ruleset_id="narrative",
         dnd_fresh=False,
     )
     dnd_fresh_vars = _router_ruleset_template_vars(
         prompt_mgr,
-        dnd_mode=True,
+        ruleset_id="dnd5e_basic",
         dnd_fresh=True,
     )
     dnd_nonfresh_vars = _router_ruleset_template_vars(
         prompt_mgr,
-        dnd_mode=True,
+        ruleset_id="dnd5e_basic",
         dnd_fresh=False,
     )
 
-    assert "Category II" in default_vars["fresh_intention_classifier"]
-    assert "dnd_combat_start" not in default_vars["fresh_intention_classifier"]
+    assert "Category II" in default_vars["router_ruleset_addon"]
+    assert "dnd_combat_start" not in default_vars["router_ruleset_addon"]
     assert "D&D Exploration Spawn Authority" not in default_vars[
-        "fresh_intention_classifier"
+        "router_ruleset_addon"
     ]
-    assert "dnd_combat_start" in dnd_fresh_vars["fresh_intention_classifier"]
+    assert "dnd_combat_start" in dnd_fresh_vars["router_ruleset_addon"]
     assert "D&D Exploration Spawn Authority" in dnd_fresh_vars[
-        "fresh_intention_classifier"
+        "router_ruleset_addon"
     ]
-    assert "Category II examples" not in dnd_fresh_vars["fresh_intention_classifier"]
-    assert dnd_nonfresh_vars["fresh_intention_classifier"] == ""
+    assert "Category II examples" not in dnd_fresh_vars["router_ruleset_addon"]
+    assert dnd_nonfresh_vars["router_ruleset_addon"] == ""
 
 
 def _queue_content_signal(
@@ -1134,6 +1135,7 @@ class TestRouteIntention:
                     "reason": "the expedition needs a guide",
                     "location": "courtyard",
                     "objectives": ["map the north road"],
+                    "knowledge_tier": 0,
                 },
             ),
         ]

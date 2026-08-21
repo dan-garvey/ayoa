@@ -15,6 +15,8 @@ from app.schemas.characters import (
 )
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import SpawnRequest
+from app.schemas.one_star import ONE_STAR_HERO_KEY
+from app.schemas.one_star_character_gen import AuthoredOneStarCharacter
 from app.schemas.state import (
     CharacterGenerationGuidance,
     KnowledgeTier,
@@ -319,9 +321,13 @@ async def test_one_star_tier_one_render_excludes_later_system_concepts() -> None
         },
     )
 
-    await CharacterManager(
+    spawned = await CharacterManager(
         client, PromptManager("app/prompts"),
-    ).spawn_characters(checkpoint, [request])
+    ).spawn_characters(
+        checkpoint,
+        [request],
+        one_star_hero_ids=set(),
+    )
 
     system, user = _rendered_call(client)
     rendered = f"{system}\n{user}".casefold()
@@ -342,3 +348,53 @@ async def test_one_star_tier_one_render_excludes_later_system_concepts() -> None
             "the fade",
         )
     )
+    assert ONE_STAR_HERO_KEY not in spawned[0].mechanics
+    assert client.complete.await_args.kwargs["response_model"] is AuthoredCharacter
+
+
+@pytest.mark.asyncio
+async def test_one_star_summon_membership_selects_hero_generation_overlay() -> None:
+    checkpoint_path = Path(
+        "app/storage/stories/one_star_ascension_s1/ckpt_0000.json"
+    )
+    checkpoint = CheckpointFile.model_validate_json(checkpoint_path.read_text())
+    authored_data = _authored(
+        known_context="Only cold light and an unfamiliar hall are apparent.",
+    ).model_dump(mode="json")
+    authored_data["one_star_hero"] = {
+        "level": 1,
+        "experience_points": 0,
+        "hp_current": 7,
+        "hp_max": 7,
+        "stats": {"vitality": 1},
+        "equipment": [],
+        "skills": [],
+        "conditions": [],
+        "persistent_injuries": [],
+        "innate_system_sight": False,
+        "hidden_capabilities": {},
+        "private_potential": "",
+    }
+    authored = AuthoredOneStarCharacter.model_validate(authored_data)
+    client = _client(authored)
+    request = SpawnRequest(
+        character_id="summoned_hero_fixture",
+        seed={
+            "role": "elderly baker with no combat training",
+            "reason": "cold light left a stranger in an unfamiliar stone hall",
+            "location": "niflheim_lobby",
+            "objectives": ["Find safety and an exit"],
+            "knowledge_tier": 1,
+        },
+    )
+
+    spawned = await CharacterManager(
+        client, PromptManager("app/prompts"),
+    ).spawn_characters(
+        checkpoint,
+        [request],
+        one_star_hero_ids={request.character_id},
+    )
+
+    assert ONE_STAR_HERO_KEY in spawned[0].mechanics
+    assert client.complete.await_args.kwargs["response_model"] is AuthoredOneStarCharacter

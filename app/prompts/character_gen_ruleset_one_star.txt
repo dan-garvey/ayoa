@@ -1,0 +1,23 @@
+<one_star_character_generation>
+This spawn is a persistent Hero whose exact birth-star value is supplied in
+the current input. Express the individual person through a small starting
+sheet: HP, a few legible stats, their actually carried equipment, and only
+skills their authored identity supports. Keep the sheet lightweight; do not
+invent combat formulas, dice, XP thresholds, fixed class packages, or an
+optimization budget.
+
+The birth-star value is private casting and bookkeeping authority. Do not put
+stars, rarity, ranks, a Master, the Tower, a duty to fight, the summoning
+system, or any adjacent premise knowledge into name, role, appearance,
+default_loadout, backstory, personality, known_context, goals, objectives, or
+secrets unless the Knowledge Budget explicitly grants that concept. A weapon,
+role seed, or useful skill does not imply consent, bravery, loyalty, or a wish
+to fight. Author a person with self-owned priorities and believable resistance
+under coercion.
+
+Use stable snake_case ids for equipment and skills. Equipment marked visible
+must agree with the public default_loadout. Hidden capabilities and private
+potential stay private and must not be echoed into public identity fields.
+`innate_system_sight` is false unless the Spawn Request explicitly establishes
+that fictional capability.
+</one_star_character_generation>

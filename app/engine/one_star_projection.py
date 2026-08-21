@@ -1,0 +1,392 @@
+"""POV-safe projections of the optional One-Star mechanics ledger.
+
+This module is deliberately read-only. The adapter owns validation and
+persistence; projections select only fields appropriate to a particular
+fictional audience and never expose a raw mechanics mapping.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+from app.engine.one_star_adapter import (
+    ONE_STAR_RULESET_ID,
+    effective_one_star_stamina,
+    load_one_star_account,
+    load_one_star_hero,
+)
+from app.schemas.characters import CharacterRecord
+from app.schemas.checkpoint import CheckpointFile
+from app.schemas.one_star import (
+    OneStarAccountEnvelope,
+    OneStarEquipmentEntry,
+    OneStarHeroState,
+    OneStarMissionState,
+    OneStarPendingOperation,
+    OneStarSkillEntry,
+)
+
+
+def _ruleset_id(checkpoint: CheckpointFile) -> str:
+    settings = getattr(
+        getattr(checkpoint.session, "config", None), "settings", None
+    )
+    return str(getattr(settings, "ruleset_id", "") or "")
+
+
+def _account(
+    checkpoint: CheckpointFile,
+) -> tuple[CharacterRecord, OneStarAccountEnvelope] | None:
+    if _ruleset_id(checkpoint) != ONE_STAR_RULESET_ID:
+        return None
+    return load_one_star_account(checkpoint)
+
+
+def _visible_equipment(
+    hero: OneStarHeroState,
+) -> list[OneStarEquipmentEntry]:
+    return [item for item in hero.equipment if bool(item.visible)]
+
+
+def _visible_skills(hero: OneStarHeroState) -> list[OneStarSkillEntry]:
+    return [skill for skill in hero.skills if bool(skill.visible)]
+
+
+def _belongs_to_account(
+    hero: OneStarHeroState,
+    envelope: OneStarAccountEnvelope,
+) -> bool:
+    return bool(
+        hero.owner_lobby_id
+        and hero.owner_lobby_id == envelope.config.lobby_id
+    )
+
+
+def _join_values(values: Iterable[str], *, empty: str = "none") -> str:
+    rendered = [str(value).strip() for value in values if str(value).strip()]
+    return ", ".join(rendered) if rendered else empty
+
+
+def _equipment_line(hero: OneStarHeroState, *, exact: bool) -> str:
+    parts: list[str] = []
+    for item in _visible_equipment(hero):
+        label = f"{item.name} ({item.slot})"
+        if item.quantity != 1:
+            label += f" x{item.quantity}"
+        if exact and item.durability_max:
+            label += (
+                f" durability {item.durability_current}/"
+                f"{item.durability_max}"
+            )
+        parts.append(label)
+    return _join_values(parts)
+
+
+def _skills_line(hero: OneStarHeroState, *, exact: bool) -> str:
+    parts: list[str] = []
+    for skill in _visible_skills(hero):
+        label = skill.name
+        if exact:
+            label += f" (rank {skill.rank})"
+        capability = str(skill.capability or "").strip()
+        if capability:
+            label += f": {capability}"
+        parts.append(label)
+    return _join_values(parts)
+
+
+def _qualitative_condition(hero: OneStarHeroState) -> str:
+    if hero.hp_max <= 0 or hero.hp_current <= 0:
+        condition = "unconscious or unable to continue"
+    else:
+        fraction = hero.hp_current / hero.hp_max
+        if fraction <= 0.25:
+            condition = "critically hurt"
+        elif fraction <= 0.5:
+            condition = "badly hurt"
+        elif fraction < 1:
+            condition = "hurt"
+        else:
+            condition = "physically steady"
+    embodied = [*hero.conditions, *hero.persistent_injuries]
+    if embodied:
+        condition += "; " + _join_values(embodied)
+    return condition
+
+
+def _exact_hero_lines(name: str, hero: OneStarHeroState) -> list[str]:
+    stats = _join_values(
+        (f"{key} {value}" for key, value in sorted(hero.stats.items()))
+    )
+    return [
+        f"{name}: {hero.current_stars}-star (born {hero.birth_stars}-star), "
+        f"level {hero.level}, XP {hero.experience_points}, "
+        f"HP {hero.hp_current}/{hero.hp_max}",
+        f"Stats: {stats}",
+        f"Skills: {_skills_line(hero, exact=True)}",
+        f"Equipment: {_equipment_line(hero, exact=True)}",
+        f"Conditions: {_join_values([*hero.conditions, *hero.persistent_injuries])}",
+    ]
+
+
+def _own_hero_lines(
+    character: CharacterRecord,
+    hero: OneStarHeroState,
+    *,
+    exact: bool,
+) -> list[str]:
+    if exact:
+        return _exact_hero_lines(character.name, hero)
+    return [
+        f"Your bodily condition: {_qualitative_condition(hero)}.",
+        f"What you visibly carry or wear: {_equipment_line(hero, exact=False)}.",
+        f"Usable embodied skills: {_skills_line(hero, exact=False)}.",
+    ]
+
+
+def _mission_lines(mission: OneStarMissionState | None) -> list[str]:
+    if mission is None:
+        return ["Active mission: none"]
+    counters = _join_values(
+        (
+            f"{key} {value.current}/{value.target}"
+            for key, value in sorted(mission.counters.items())
+        )
+    )
+    return [
+        f"Active mission: {mission.mission_id}; floor {mission.floor}; "
+        f"destination {mission.destination}",
+        f"Completion: {mission.completion_declaration}",
+        f"Failure: {mission.failure_declaration}",
+        f"Mission party: {_join_values(mission.party_ids)}; formation "
+        + _join_values(
+            f"{hero_id}={label}"
+            for hero_id, label in sorted(mission.formation_labels.items())
+        ),
+        "Mission counters: "
+        f"{counters}; deadline "
+        f"{mission.deadline_at_s if mission.deadline_at_s else 'untimed'}",
+    ]
+
+
+def _pending_operation_lines(
+    operation: OneStarPendingOperation | None,
+) -> list[str]:
+    if operation is None:
+        return ["Pending management operation: none"]
+    return [
+        f"Pending management operation: {operation.kind} "
+        f"({operation.operation_id}); participants "
+        f"{_join_values(operation.participant_ids)}; target "
+        f"{operation.target_id or 'none'}; destination "
+        f"{operation.destination or 'none'}; opened at "
+        f"{operation.opened_at_s}s"
+    ]
+
+
+def _management_lines(
+    envelope: OneStarAccountEnvelope,
+    *,
+    include_active_feed: bool,
+    canonical_now_s: int,
+) -> list[str]:
+    state = envelope.state
+    facilities = _join_values(
+        (f"{key} {value}" for key, value in sorted(state.facilities.items()))
+    )
+    inventory = _join_values(
+        (f"{key} x{value}" for key, value in sorted(state.inventory.items()))
+    )
+    materials = _join_values(
+        (
+            f"{key} x{value}"
+            for key, value in sorted(state.resources.materials.items())
+        )
+    )
+    summon_pools = _join_values(
+        (
+            f"{pool_id}: {pool.cost.gold} Gold, {pool.cost.gems} Gems, "
+            f"{pool.cost.building_resources} Building Resources; "
+            f"birth stars {pool.minimum_birth_stars}-"
+            f"{pool.maximum_birth_stars}"
+            for pool_id, pool in sorted(envelope.config.summon_pools.items())
+        )
+    )
+    research = _join_values(
+        (
+            f"{key} {level}"
+            for key, level in sorted(state.research_levels.items())
+        )
+    )
+    stamina_current, stamina_anchor = effective_one_star_stamina(
+        state,
+        envelope.config,
+        canonical_now_s,
+    )
+    lines = [
+        "Wallet: "
+        f"Gold {state.resources.gold}; Gems {state.resources.gems}; "
+        f"Building Resources {state.resources.building_resources}",
+        f"Materials: {materials}",
+        f"Facilities: {facilities}; lobby floor {state.lobby_floor}; "
+        f"highest cleared floor {state.highest_cleared_floor}; "
+        f"highest unlocked floor {state.highest_unlocked_floor}",
+        f"Hero capacity: {state.capacity}; stamina "
+        f"{stamina_current}/{envelope.config.maximum_stamina}",
+        f"Stamina recovery: anchor {stamina_anchor}s; "
+        f"one per {envelope.config.stamina_recovery_seconds}s",
+        f"Summon pools (maximum batch {envelope.config.max_summon_batch}): "
+        f"{summon_pools}",
+        f"Research: {research}",
+        f"Account inventory: {inventory}",
+    ]
+    if include_active_feed:
+        lines.append(f"Active feed: {state.active_master_feed_id or 'none'}")
+    return lines
+
+
+def _public_roster_lines(
+    checkpoint: CheckpointFile,
+    envelope: OneStarAccountEnvelope,
+) -> list[str]:
+    lines = ["Public Hero roster:"]
+    found = False
+    for character in checkpoint.characters:
+        hero = load_one_star_hero(character)
+        if hero is None or not _belongs_to_account(hero, envelope):
+            continue
+        found = True
+        lifecycle = str(
+            character.status.value
+            if hasattr(character.status, "value")
+            else character.status
+        )
+        hero_lines = _exact_hero_lines(character.name, hero)
+        summary = hero_lines[0]
+        terminal = (
+            f"; terminal cause {hero.terminal_cause}"
+            if hero.terminal_cause
+            else ""
+        )
+        lines.append(
+            f"- {summary}; lifecycle {lifecycle}; "
+            f"location {character.location or 'unknown'}{terminal}"
+        )
+        lines.extend(f"  {line}" for line in hero_lines[1:])
+    if not found:
+        lines.append("- none")
+    return lines
+
+
+def _has_exact_own_sheet(
+    character_id: str,
+    hero: OneStarHeroState,
+    envelope: OneStarAccountEnvelope,
+) -> bool:
+    research_key = envelope.config.hero_system_visibility_research_key
+    research_level = (
+        envelope.state.research_levels.get(research_key, 0)
+        if research_key
+        else 0
+    )
+    return bool(
+        hero.innate_system_sight
+        or character_id in envelope.state.system_observer_ids
+        or research_level > 0
+    )
+
+
+def one_star_agent_state_block(
+    checkpoint: CheckpointFile,
+    character: CharacterRecord,
+) -> str:
+    """Return dynamic user-tail mechanics visible to one character agent."""
+    loaded = _account(checkpoint)
+    if loaded is None:
+        return ""
+    owner, envelope = loaded
+    state = envelope.state
+    lines: list[str] = []
+    if character.character_id == owner.character_id:
+        lines = ["## Current System Account State"]
+        lines.extend(_management_lines(
+            envelope,
+            include_active_feed=True,
+            canonical_now_s=checkpoint.session.leading_at_s,
+        ))
+        lines.extend(_mission_lines(state.active_mission))
+        lines.extend(_public_roster_lines(checkpoint, envelope))
+        lines.extend(_pending_operation_lines(state.pending_operation))
+    elif character.character_id in state.guide_character_ids:
+        lines = [
+            "## Authored System Channel",
+            "Lobby management and tutorial state:",
+        ]
+        lines.extend(_management_lines(
+            envelope,
+            include_active_feed=False,
+            canonical_now_s=checkpoint.session.leading_at_s,
+        ))
+        lines.extend(_pending_operation_lines(state.pending_operation))
+        lines.append(
+            "Tutorial deliveries: " + _join_values(
+                f"{tutorial}: {_join_values(recipients)}"
+                for tutorial, recipients
+                in sorted(state.tutorial_deliveries.items())
+            )
+        )
+    else:
+        hero = load_one_star_hero(character)
+        if hero is None:
+            return ""
+        exact = (
+            _has_exact_own_sheet(character.character_id, hero, envelope)
+            if _belongs_to_account(hero, envelope)
+            else hero.innate_system_sight
+        )
+        lines = ["## Your Current Mechanics"]
+        lines.extend(_own_hero_lines(character, hero, exact=exact))
+    return "\n".join(lines)
+
+
+def one_star_status_lines(
+    checkpoint: CheckpointFile,
+    viewpoint_character_id: str,
+) -> tuple[str, ...]:
+    """Return shared CLI/Discord status lines for the selected fictional POV."""
+    if (
+        _ruleset_id(checkpoint) != ONE_STAR_RULESET_ID
+        or not viewpoint_character_id
+    ):
+        return ()
+    character = next(
+        (
+            candidate
+            for candidate in checkpoint.characters
+            if candidate.character_id == viewpoint_character_id
+        ),
+        None,
+    )
+    if character is None:
+        return ()
+    block = one_star_agent_state_block(checkpoint, character)
+    if not block:
+        return ()
+    return tuple(
+        line[3:] + ":" if line.startswith("## ") else line
+        for line in block.splitlines()
+    )
+
+
+def visible_equipped_item_description(character: CharacterRecord) -> str:
+    """Describe only visible current equipment for image-direction callers."""
+    hero = load_one_star_hero(character)
+    if hero is None:
+        return ""
+    return _join_values(
+        (
+            f"{item.name} worn or carried in the {item.slot} slot"
+            for item in _visible_equipment(hero)
+        ),
+        empty="",
+    )

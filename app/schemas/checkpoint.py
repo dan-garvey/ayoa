@@ -14,6 +14,7 @@ from app.schemas.characters import CharacterRecord
 from app.schemas.conversation import ConversationMessage
 from app.schemas.content_privacy import should_include_private_runtime_metadata
 from app.schemas.event_router import DndEventRouterOutput, EventRouterOutput
+from app.schemas.one_star import OneStarEventRouterOutput
 from app.schemas.state import SessionState, WorldState
 from app.schemas.visual_references import ReviewedVisualReference
 
@@ -64,7 +65,9 @@ class CheckpointFile(BaseModel):
     character_conversations: dict[str, list[ConversationMessage]] = Field(default_factory=dict)
     # v11: the canonical event log. Every closed canonical event appended
     # here. Source of truth for rendering, replay, and debug.
-    canonical_events: list[DndEventRouterOutput | EventRouterOutput] = Field(
+    canonical_events: list[
+        DndEventRouterOutput | OneStarEventRouterOutput | EventRouterOutput
+    ] = Field(
         default_factory=list
     )
     visibility_log: list[dict[str, Any]] = Field(default_factory=list)

@@ -91,11 +91,28 @@ class SpawnAuthoringCoordinator:
         immutable_requests = [
             request.model_copy(deep=True) for request in event.spawn
         ]
+        one_star_hero_ids: set[str] | None = None
+        if (
+            checkpoint.session.config.settings.ruleset_id
+            == "one_star_ascension"
+        ):
+            spawned_ids = {
+                request.character_id for request in immutable_requests
+            }
+            transaction = getattr(event, "one_star_transaction", None)
+            one_star_hero_ids = {
+                hero_id
+                for operation in getattr(transaction, "operations", ())
+                if getattr(operation, "operation", "") == "summon"
+                for hero_id in getattr(operation, "hero_ids", ())
+                if hero_id in spawned_ids
+            }
         task = asyncio.create_task(
             self._author(
                 immutable_checkpoint,
                 immutable_requests,
                 acting_actor_location=acting_actor_location,
+                one_star_hero_ids=one_star_hero_ids,
             ),
             name=f"spawn-authoring:{event.event_id}",
         )
@@ -415,12 +432,21 @@ class SpawnAuthoringCoordinator:
         requests: Sequence[SpawnRequest],
         *,
         acting_actor_location: str,
+        one_star_hero_ids: set[str] | None,
     ) -> tuple[CharacterRecord, ...]:
-        records = await self.character_manager.spawn_characters(
-            checkpoint,
-            list(requests),
-            acting_actor_location=acting_actor_location,
-        )
+        if not one_star_hero_ids:
+            records = await self.character_manager.spawn_characters(
+                checkpoint,
+                list(requests),
+                acting_actor_location=acting_actor_location,
+            )
+        else:
+            records = await self.character_manager.spawn_characters(
+                checkpoint,
+                list(requests),
+                acting_actor_location=acting_actor_location,
+                one_star_hero_ids=one_star_hero_ids,
+            )
         return tuple(
             character.model_copy(deep=True) for character in records
         )

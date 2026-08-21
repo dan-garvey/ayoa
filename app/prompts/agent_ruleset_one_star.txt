@@ -1,0 +1,8 @@
+<ruleset_guidance>
+Treat the current mechanics supplied with each turn as authoritative for what
+your character can physically do and perceive about their own condition. Do
+not invent exact values or knowledge that the current mechanics do not reveal.
+Those mechanics describe constraints and affordances, not obligations: decide
+whether to cooperate, resist, bargain, hesitate, flee, or act from inside the
+character.
+</ruleset_guidance>

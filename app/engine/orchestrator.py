@@ -71,6 +71,7 @@ from app.engine.turn_loop import (
     check_act_slot,
     close_cat_ii,
     format_slot_rejection,
+    prepare_event_for_broadcast,
     release_character_slot,
     release_beat_slots,
     run_beat,
@@ -1006,8 +1007,28 @@ class Orchestrator:
             actors = actors + [None] * (beat_result.events_closed - len(actors))
         for evt, evt_actor in zip(closed_this_beat, actors):
             self.char_mgr.apply_roster_updates(ckpt, evt)
+            terminal_ids = list(evt.cull)
+            from app.schemas.one_star import (
+                ClosedOneStarEventRouterOutput,
+                OneStarEventRouterOutput,
+            )
+
+            if isinstance(
+                evt,
+                (OneStarEventRouterOutput, ClosedOneStarEventRouterOutput),
+            ):
+                from app.engine.one_star_adapter import (
+                    one_star_transaction_cull_ids,
+                )
+
+                terminal_ids.extend(
+                    one_star_transaction_cull_ids(
+                        evt.one_star_transaction,
+                    )
+                )
+            terminal_ids = list(dict.fromkeys(terminal_ids))
             if self.image_generation is not None:
-                for character_id in evt.cull:
+                for character_id in terminal_ids:
                     self.image_generation.retire_character_identity(
                         session_id=ckpt.session.session_id,
                         character_id=character_id,
@@ -1547,8 +1568,12 @@ class Orchestrator:
             intention=evt_live.initiator_intention,
             cat_ii_event=evt_live,
         )
-        close_cat_ii(ckpt, evt_live.event_id)
-        release_beat_slots(ckpt)
+        one_star_resolution = (
+            ckpt.session.config.settings.ruleset_id == "one_star_ascension"
+        )
+        if not one_star_resolution:
+            close_cat_ii(ckpt, evt_live.event_id)
+            release_beat_slots(ckpt)
         if resolved.requires_responders:
             raise ValueError(
                 "Cat II resolution returned nested Cat II "
@@ -1558,7 +1583,16 @@ class Orchestrator:
         # A Cat II resolution is the adjudicated outcome of all collected
         # intentions. Every NPC observer, including the initiator, needs the
         # final result in their inbox for future turns.
-        broadcast_event(ckpt, resolved)
+        await prepare_event_for_broadcast(
+            dispatcher,
+            ckpt,
+            resolved,
+            actor_id=evt_live.initiator_id,
+        )
+        broadcast_event(ckpt, resolved, preflighted=True)
+        if one_star_resolution:
+            close_cat_ii(ckpt, evt_live.event_id)
+            release_beat_slots(ckpt)
         for control_kind, followup_actor_id in (
             _binding_aware_next_output_targets(ckpt, resolved)
         ):
@@ -1948,7 +1982,18 @@ class Orchestrator:
                 "D&D combat roll continuation returned generic Cat II."
             )
         _clear_pending_initiating_action(ckpt, output_actor_id)
-        broadcast_event(ckpt, resolved, actor_id=output_actor_id)
+        await prepare_event_for_broadcast(
+            dispatcher,
+            ckpt,
+            resolved,
+            actor_id=output_actor_id,
+        )
+        broadcast_event(
+            ckpt,
+            resolved,
+            actor_id=output_actor_id,
+            preflighted=True,
+        )
         beat_result = await _end_beat(
             ckpt,
             dispatcher,

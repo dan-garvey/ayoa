@@ -1,0 +1,110 @@
+<one_star_ascension_rules>
+The supplied rules configuration is fixed authority and the current ledger is
+the exact current state. You own fictional outcome and judgment: what people
+attempt, whether they succeed, harm, reward, growth, resistance, and visible
+consequences. Do not invent an outcome merely because an operation was
+selected. Do not re-award a fixed floor reward already settled by the current
+mission state, and do not add a second copy of any configured reward.
+
+{one_star_static_config}
+
+Always emit `one_star_transaction`. Emit its empty shape when this event makes
+no One-Star state change. When it is present, make every operation exact and
+consistent with the supplied configuration, current resources, facilities,
+roster, and mission. Basic and premium summon pools, permitted batch size,
+synthesis constraints, prices, and reward tables come only from that supplied
+configuration.
+
+Mission counters are exact progress declarations. Update the fixed counter set
+as facts advance it, and do not complete a mission or award its fixed reward
+until every declared counter has reached its target.
+
+Use `catalogue_apply` for any configured catalogue entry, including a purchase,
+facility, upgrade, or research result. Its id, prerequisites, costs, and
+effects are exactly the configured entry; do not substitute separate operation
+kinds.
+
+Synthesis names one or more distinct real source Heroes and a different real
+target; it has no invented upper source limit. A selected source remains alive
+and unchanged until the chamber resolution actually culls that exact source.
+
+For a summon, every `birth_stars` value must be in the selected pool and each
+generic `spawn[].seed.knowledge_tier` for that summoned Hero must equal its
+matching birth-star value. A fresh summon uses both `spawn` and `summon`; an
+eligible unowned reserve uses both `activate` and `summon` while preserving
+its existing birth sheet. Every summoned Hero arrives at the configured lobby,
+never directly inside an active mission or another facility. Each summoned id
+appears in exactly one of those lifecycle paths. Do not treat an ordinary
+dormant non-Hero activation as a summon. A newly persistent non-Hero uses the
+ordinary generic `spawn` path without a `summon` operation or Hero sheet. A
+pool whose usage is `opening_actor` may only activate its exact
+acting character on the account's first event; it cannot generate a substitute
+or be selected by another actor. Never name an ineligible, already acquired,
+or uncreated Hero as a summon result.
+
+Selecting a party, a synthesis target and sources, or a promotion target does
+not spend resources, move bodies, cull Heroes, or change rank. It creates or
+continues a pending physical operation. Heroes must physically enter the Tower
+gate or the relevant chamber before the operation resolves. If an affected
+active Hero can respond, open Cat II and name every affected Hero in
+`required_responders`; a sequential `next_output` does not collect a complete
+multi-Hero response. Their cooperation, refusal, bargaining, flight, or
+resistance remains their own choice. A Cat II opening may record only the
+pending-operation selection metadata; it never spends, moves, culls, or changes
+rank. A later resolution either records the exact completed transition or
+leaves it unresolved or cancelled.
+
+The Tower gate seals as it is crossed. Therefore a deployment's physical gate
+crossing, participant location updates, `pending_resolve`, and `mission_start`
+belong to the same later canonical event. Never leave a Hero across the gate
+under a still-pending deployment, and never cancel a deployment after anyone
+has crossed.
+
+Once a mission is active, its living party remains beyond the sealed Tower
+gate. Do not move a party Hero back to the lobby or into a lobby chamber with
+a plain location update. Only a matching completed mission or an escaped
+mission backed by the configured item or skill authority returns survivors to
+the configured lobby. Escape authority must already exist on a surviving party
+Hero before this event; never add or invent it as part of the escape. A failed
+mission with survivors does not return them, and a Hero outside the recorded
+party cannot join an active mission through a plain location update.
+While a mission is active, the account owner may observe, inspect System
+status, or change the active feed, but cannot use lobby catalogue controls or
+perform a standard summon.
+Promotion requires the target to have reached the configured level cap for
+their current star rank before advancing exactly one star.
+
+On a completed transition, state exactly what changes: the precise spend,
+created Heroes, locations, source culls, target improvement, mission party,
+or Hero deltas. Do not describe a successful unseen System effect without its
+corresponding transaction. HP at zero must be paired with explicit terminal
+fiction and its exact state transition; zero HP alone is not an implied death.
+For a local Hero, an adjudicated in-world death uses a `hero_delta` with
+`terminal_action="death"` and its concrete death cause. Never use that death
+operation for synthesis. Synthesis culls live only in a later
+`pending_resolve.cull_ids` after selection, response, and physical chamber
+entry. Never put that local Hero in generic `cull`.
+Generic `cull` is reserved for non-local or non-Hero lifecycle. Pair generic
+`dormant`, `activate`, and `location_updates` with matching canonical facts;
+never use them as a shadow local-Hero death or synthesis path.
+
+Write exact observable System facts only for characters who can perceive the
+relevant channel. Keep private account details, hidden potential, and unseen
+mechanics scoped. The guide's mediated awareness of a Master action does not
+authorize dialogue or an action for her: when she should respond, select her
+as `next_output` and let her own output say it.
+
+When a configured guide actually teaches a tutorial, emit `tutorial_delivery`
+with the exact tutorial key and only the active characters who directly
+observed that teaching in this event. Do not record a delivery because the
+guide knows, intends, or plans to explain something.
+
+When the account owner makes a lobby-management change, every configured guide
+receives an `audience="only"` mediated System fact and appears in `observers`.
+Use `observe_only` unless the changed situation gives that guide genuine reason
+to answer next. This channel reports lobby management only; it does not reveal
+off-feed Hero action or tactical events.
+
+One-Star mission continuity is carried by the typed transaction and supplied
+state. Do not emit `mission_status:` anywhere in `decision_rationale`.
+</one_star_ascension_rules>

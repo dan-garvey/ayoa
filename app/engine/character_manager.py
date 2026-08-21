@@ -79,6 +79,38 @@ DND_OUTPUT_SCHEMA_SUFFIX = r""",
     }]
   }"""
 
+ONE_STAR_OUTPUT_SCHEMA_SUFFIX = r""",
+  "one_star_hero": {
+    "level": 1,
+    "experience_points": 0,
+    "hp_current": 1,
+    "hp_max": 1,
+    "stats": {"string_stat_id": 0},
+    "equipment": [{
+      "item_id": "snake_case stable id",
+      "name": "string",
+      "slot": "string",
+      "quantity": 1,
+      "durability_current": 0,
+      "durability_max": 0,
+      "tags": ["string"],
+      "visible": true
+    }],
+    "skills": [{
+      "skill_id": "snake_case stable id",
+      "name": "string",
+      "rank": 1,
+      "capability": "short concrete capability",
+      "tags": ["string"],
+      "visible": true
+    }],
+    "conditions": [],
+    "persistent_injuries": [],
+    "innate_system_sight": false,
+    "hidden_capabilities": {},
+    "private_potential": "string - private casting note; empty if none"
+  }"""
+
 
 def _normalize_router_summary(summary: str) -> str:
     """Sanitize an LLM-authored one-line character summary."""
@@ -101,6 +133,13 @@ def _pinned_character_ids(checkpoint: CheckpointFile) -> set[str]:
 def _dnd_ruleset_enabled(checkpoint: CheckpointFile) -> bool:
     settings = getattr(checkpoint.session.config, "settings", None)
     return str(getattr(settings, "ruleset_id", "") or "") == "dnd5e_basic"
+
+
+def _one_star_ruleset_enabled(checkpoint: CheckpointFile) -> bool:
+    from app.schemas.one_star import ONE_STAR_RULESET_ID
+
+    settings = getattr(checkpoint.session.config, "settings", None)
+    return str(getattr(settings, "ruleset_id", "") or "") == ONE_STAR_RULESET_ID
 
 
 def _assemble_knowledge_grant(
@@ -361,6 +400,13 @@ class CharacterManager:
                 continue
             char = self.get_character(checkpoint, char_id)
             if char:
+                if char.status == CharacterStatus.culled:
+                    logger.warning(
+                        "Ignored dormant on %s: character is culled; terminal "
+                        "lifecycle cannot be downgraded.",
+                        char_id,
+                    )
+                    continue
                 char.status = CharacterStatus.dormant
                 logger.info("Character %s set to dormant", char_id)
 
@@ -394,6 +440,7 @@ class CharacterManager:
         spawn_requests: list[SpawnRequest],
         *,
         acting_actor_location: str = "",
+        one_star_hero_ids: set[str] | None = None,
     ) -> list[CharacterRecord]:
         """Generate new characters from router spawn requests via LLM.
 
@@ -404,6 +451,10 @@ class CharacterManager:
         It's the fallback when the router omits `seed.location`, so a new
         character materializes near the action rather than at some
         unrelated default.
+
+        `one_star_hero_ids` is the exact subset paired with a typed summon in
+        the source event. Other spawns in that ruleset remain ordinary
+        persistent characters and receive no Hero sheet.
 
         Returns the list of newly created and registered characters.
 
@@ -431,7 +482,36 @@ class CharacterManager:
                 + ", ".join(sorted(set(duplicate_ids)))
             )
 
-        if len(spawn_requests) > MAX_SPAWNS_PER_TURN:
+        hero_spawn_ids = set(one_star_hero_ids or ())
+        request_ids = {request.character_id for request in spawn_requests}
+        unknown_hero_ids = hero_spawn_ids - request_ids
+        if unknown_hero_ids:
+            raise ValueError(
+                "One-Star Hero generation targets absent spawn ids: "
+                + ", ".join(sorted(unknown_hero_ids))
+            )
+        if hero_spawn_ids and not _one_star_ruleset_enabled(checkpoint):
+            raise ValueError(
+                "One-Star Hero generation was requested outside its ruleset"
+            )
+        if _one_star_ruleset_enabled(checkpoint):
+            from app.engine.one_star_adapter import load_one_star_account
+
+            _owner, account = load_one_star_account(checkpoint)
+            ordinary_spawn_count = len(spawn_requests) - len(hero_spawn_ids)
+            if len(hero_spawn_ids) > account.config.max_summon_batch:
+                raise ValueError(
+                    "Router requested "
+                    f"{len(hero_spawn_ids)} One-Star Hero spawns; configured "
+                    f"summon max is {account.config.max_summon_batch}."
+                )
+            if ordinary_spawn_count > MAX_SPAWNS_PER_TURN:
+                raise ValueError(
+                    "Router requested "
+                    f"{ordinary_spawn_count} ordinary character spawns; max "
+                    f"per turn is {MAX_SPAWNS_PER_TURN}."
+                )
+        elif len(spawn_requests) > MAX_SPAWNS_PER_TURN:
             raise ValueError(
                 "Router requested "
                 f"{len(spawn_requests)} character spawns; max per turn is "
@@ -455,7 +535,10 @@ class CharacterManager:
         spawned = []
         for req in spawn_requests:
             char, _router_summary = await self._spawn_one(
-                checkpoint, req, default_location=acting_actor_location,
+                checkpoint,
+                req,
+                default_location=acting_actor_location,
+                one_star_hero=req.character_id in hero_spawn_ids,
             )
             checkpoint.characters.append(char)
             spawned.append(char)
@@ -467,7 +550,9 @@ class CharacterManager:
 
     async def _spawn_one(
         self, checkpoint: CheckpointFile, req: SpawnRequest,
-        *, default_location: str = "",
+        *,
+        default_location: str = "",
+        one_star_hero: bool = False,
     ) -> tuple[CharacterRecord, str]:
         """Generate a single character via LLM.
 
@@ -537,6 +622,36 @@ class CharacterManager:
             local_active_location=(location if knowledge_isolated else None),
         )
         dnd_enabled = _dnd_ruleset_enabled(checkpoint)
+        one_star_enabled = _one_star_ruleset_enabled(checkpoint)
+        if one_star_hero and not one_star_enabled:
+            raise ValueError(
+                "One-Star Hero generation was requested outside its ruleset"
+            )
+        if dnd_enabled and one_star_enabled:  # Defensive: ruleset_id is scalar.
+            raise RuntimeError("multiple character-generation rulesets are active")
+
+        ruleset_generation_instructions = ""
+        ruleset_output_schema_suffix = ""
+        ruleset_generation_context = ""
+        if dnd_enabled:
+            ruleset_generation_instructions = DND_GENERATION_INSTRUCTIONS
+            ruleset_output_schema_suffix = DND_OUTPUT_SCHEMA_SUFFIX
+        elif one_star_hero:
+            if req.seed.knowledge_tier < 1:
+                raise ValueError(
+                    "One-Star generated Heroes require an authored birth-star "
+                    "value in SpawnRequest.seed.knowledge_tier"
+                )
+            ruleset_generation_instructions = self.prompt_manager.render(
+                "character_gen_ruleset_one_star",
+            ).strip()
+            ruleset_output_schema_suffix = ONE_STAR_OUTPUT_SCHEMA_SUFFIX
+            ruleset_generation_context = (
+                "## One-Star Mechanics Authority\n"
+                f"Exact birth stars: {req.seed.knowledge_tier}. The structured "
+                "starting sheet must express this character at that birth "
+                "grade without teaching the character any premise facts."
+            )
 
         messages = self.prompt_manager.render_messages(
             "character_gen",
@@ -547,12 +662,9 @@ class CharacterManager:
             spawn_seed=spawn_seed,
             existing_characters=existing,
             location=location,
-            dnd_generation_instructions=(
-                DND_GENERATION_INSTRUCTIONS if dnd_enabled else ""
-            ),
-            dnd_output_schema_suffix=(
-                DND_OUTPUT_SCHEMA_SUFFIX if dnd_enabled else ""
-            ),
+            ruleset_generation_instructions=ruleset_generation_instructions,
+            ruleset_output_schema_suffix=ruleset_output_schema_suffix,
+            ruleset_generation_context=ruleset_generation_context,
         )
 
         from app.schemas.takeover import AuthoredCharacter
@@ -561,6 +673,12 @@ class CharacterManager:
             from app.schemas.dnd_character_gen import AuthoredDndCharacter
 
             response_model = AuthoredDndCharacter
+        elif one_star_hero:
+            from app.schemas.one_star_character_gen import (
+                AuthoredOneStarCharacter,
+            )
+
+            response_model = AuthoredOneStarCharacter
         response = await self.client.complete(
             role="agent_convenience",
             messages=messages,
@@ -574,6 +692,13 @@ class CharacterManager:
         char.knowledge_tier = req.seed.knowledge_tier
         if dnd_enabled:
             self._attach_dnd_spawn_mechanics(char, authored, req=req)
+        elif one_star_hero:
+            self._attach_one_star_spawn_mechanics(
+                checkpoint,
+                char,
+                authored,
+                birth_stars=req.seed.knowledge_tier,
+            )
         # Override the LLM's authored.location only when the router or
         # caller supplied a concrete location label. When neither is set,
         # trust the LLM.
@@ -596,6 +721,29 @@ class CharacterManager:
             )
 
         return char, authored.router_summary
+
+    @staticmethod
+    def _attach_one_star_spawn_mechanics(
+        checkpoint: CheckpointFile,
+        char: CharacterRecord,
+        authored: object,
+        *,
+        birth_stars: int,
+    ) -> None:
+        from app.engine.one_star_adapter import (
+            load_one_star_account,
+            validate_one_star_hero_state,
+        )
+        from app.schemas.one_star import ONE_STAR_HERO_KEY
+
+        generated = getattr(authored, "one_star_hero", None)
+        if generated is None:
+            raise ValueError("One-Star character generation omitted Hero mechanics")
+        hero = generated.to_hero_state(birth_stars=birth_stars)
+        _owner, account = load_one_star_account(checkpoint)
+        validate_one_star_hero_state(hero, account.config)
+        char.mechanics = dict(char.mechanics)
+        char.mechanics[ONE_STAR_HERO_KEY] = hero.model_dump(mode="json")
 
     def _attach_dnd_spawn_mechanics(
         self,

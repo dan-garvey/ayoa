@@ -16,6 +16,13 @@ from app.engine.character_manager import _assemble_knowledge_grant
 from app.engine.reviewed_visual_references import validate_story_visual_references
 from app.schemas.characters import CharacterAgentTier, PlayerSlotKind
 from app.schemas.checkpoint import CheckpointFile
+from app.schemas.one_star import (
+    ONE_STAR_ACCOUNT_KEY,
+    ONE_STAR_HERO_KEY,
+    ONE_STAR_RULESET_ID,
+    OneStarAccountEnvelope,
+    OneStarHeroState,
+)
 
 
 CHECKPOINT_PATH = (
@@ -75,17 +82,210 @@ def _load_checkpoint() -> CheckpointFile:
     return CheckpointFile.model_validate(raw)
 
 
-def test_checkpoint_loads_as_rules_neutral_magic_story() -> None:
+def test_checkpoint_loads_as_typed_one_star_story() -> None:
     checkpoint = _load_checkpoint()
 
     assert checkpoint.schema_version == "5.0"
     assert checkpoint.session.story_id == "one_star_ascension_s1"
     assert checkpoint.session.session_id == "one_star_ascension_s1"
-    assert checkpoint.session.config.settings.ruleset_id == "narrative"
+    assert checkpoint.session.config.settings.ruleset_id == ONE_STAR_RULESET_ID
     assert checkpoint.world_state.physics_ruleset.magic_enabled is True
     assert checkpoint.session.active_combat is None
+    owners = [
+        character for character in checkpoint.characters
+        if ONE_STAR_ACCOUNT_KEY in character.mechanics
+    ]
+    assert [character.character_id for character in owners] == ["the_master"]
+    account = OneStarAccountEnvelope.model_validate(
+        owners[0].mechanics[ONE_STAR_ACCOUNT_KEY]
+    )
+    assert account.config.lobby_id == "niflheim"
+    assert account.state.resources.gold == 40
+    assert account.state.capacity == 20
+
+    expected_hero_ids = EXPECTED_CHARACTER_IDS - {
+        "iselle_the_guide",
+        "the_master",
+        "warden_of_the_eighth",
+    }
     for character in checkpoint.characters:
-        assert character.mechanics == {}, character.character_id
+        if character.character_id in expected_hero_ids:
+            assert ONE_STAR_HERO_KEY in character.mechanics, character.character_id
+            OneStarHeroState.model_validate(character.mechanics[ONE_STAR_HERO_KEY])
+        else:
+            assert ONE_STAR_HERO_KEY not in character.mechanics, character.character_id
+
+
+def test_one_star_ledger_matches_approved_seed_authority() -> None:
+    checkpoint = _load_checkpoint()
+    owner = next(c for c in checkpoint.characters if c.character_id == "the_master")
+    account = OneStarAccountEnvelope.model_validate(owner.mechanics[ONE_STAR_ACCOUNT_KEY])
+    config = account.config
+    state = account.state
+
+    assert config.starting_resources.model_dump() == {
+        "gold": 40,
+        "gems": 5,
+        "building_resources": 3,
+        "materials": {},
+    }
+    assert config.lobby_id == "niflheim"
+    assert config.lobby_location_label == "niflheim_lobby"
+    assert config.max_summon_batch == 5
+    assert config.maximum_stamina == 5
+    assert config.stamina_recovery_seconds == 1800
+    assert config.deployment_stamina_cost == 1
+    assert config.summon_pools["basic"].minimum_birth_stars == 1
+    assert config.summon_pools["basic"].maximum_birth_stars == 3
+    assert config.summon_pools["premium"].minimum_birth_stars == 2
+    assert config.summon_pools["premium"].maximum_birth_stars == 5
+    assert config.summon_pools["basic"].usage == "standard"
+    assert config.summon_pools["premium"].usage == "standard"
+    opening_pool = config.summon_pools["newcomer_opening"]
+    assert opening_pool.usage == "opening_actor"
+    assert opening_pool.cost.model_dump() == {
+        "gold": 0,
+        "gems": 0,
+        "building_resources": 0,
+        "materials": {},
+    }
+    assert opening_pool.minimum_birth_stars == 1
+    assert opening_pool.maximum_birth_stars == 1
+    assert opening_pool.eligible_existing_ids == [BLANK_PLAYER_ID]
+    assert opening_pool.fresh_generation_allowed is False
+    assert config.summon_pools["basic"].cost.gold == 2
+    assert config.summon_pools["premium"].cost.gems == 5
+    assert "basic_summon" not in config.catalogue
+    assert "premium_summon" not in config.catalogue
+    assert set(config.summon_pools["basic"].eligible_existing_ids) == {
+        "renna_holt",
+        "wren_thelantern",
+        "rowan_kest",
+        "liora_fen",
+        "mirelle_voss",
+    }
+    assert set(config.summon_pools["premium"].eligible_existing_ids) == {
+        "soren_ironvow",
+        "castor_valebrand",
+        "wren_thelantern",
+        "rowan_kest",
+        "liora_fen",
+        "mirelle_voss",
+        "seris_nightglass",
+        "aveline_morcant",
+        "veil_the_unnumbered",
+    }
+    assert BLANK_PLAYER_ID not in {
+        *config.summon_pools["basic"].eligible_existing_ids,
+        *config.summon_pools["premium"].eligible_existing_ids,
+    }
+    immutable_birth_stars = {
+        character_id: OneStarHeroState.model_validate(
+            next(c for c in checkpoint.characters if c.character_id == character_id)
+            .mechanics[ONE_STAR_HERO_KEY]
+        ).birth_stars
+        for character_id in SUMMON_POOL_IDS
+    }
+    for pool in (
+        config.summon_pools["basic"],
+        config.summon_pools["premium"],
+    ):
+        assert all(
+            pool.minimum_birth_stars <= immutable_birth_stars[character_id]
+            <= pool.maximum_birth_stars
+            for character_id in pool.eligible_existing_ids
+        )
+        assert all(
+            next(
+                c for c in checkpoint.characters if c.character_id == character_id
+            ).status.value == "dormant"
+            and OneStarHeroState.model_validate(
+                next(
+                    c for c in checkpoint.characters
+                    if c.character_id == character_id
+                ).mechanics[ONE_STAR_HERO_KEY]
+            ).owner_lobby_id == ""
+            for character_id in pool.eligible_existing_ids
+        )
+    assert config.star_level_caps == {
+        1: 10,
+        2: 20,
+        3: 40,
+        4: 60,
+        5: 80,
+        6: 99,
+        7: 999999,
+    }
+    assert config.floor_rewards[5].model_dump() == {
+        "gold": 8,
+        "gems": 5,
+        "building_resources": 2,
+        "materials": {},
+    }
+    assert config.floor_rewards[10].model_dump() == {
+        "gold": 16,
+        "gems": 15,
+        "building_resources": 5,
+        "materials": {"lesser_promotion_stone": 1},
+    }
+    assert config.repeat_gold_numerator == 1
+    assert config.repeat_gold_denominator == 4
+    assert config.repeat_gold_minimum == 1
+    assert config.catalogue["common_weapon"].cost.gold == 1
+    assert config.catalogue["common_armor"].cost.gold == 2
+    assert config.catalogue["common_field_item"].cost.gold == 1
+    assert config.catalogue["synthesis_chamber_1"].cost.building_resources == 2
+    assert config.catalogue["hero_reaction_research_1"].required_cleared_floor == 5
+    assert config.catalogue["daily_dungeon_gate_1"].required_cleared_floor == 5
+    assert config.catalogue["lobby_floor_2"].required_cleared_floor == 10
+    assert config.catalogue["lobby_floor_2"].resulting_capacity == 40
+    assert config.catalogue["promotion_chamber_1"].required_lobby_floor == 2
+    for key in (
+        "summoning_hall_2",
+        "tower_gate_2",
+        "accommodation_2",
+        "warehouse_2",
+        "armory_2",
+        "training_camp_2",
+    ):
+        assert config.catalogue[key].cost.gold == 6
+        assert config.catalogue[key].cost.building_resources == 1
+        assert config.catalogue[key].required_lobby_floor == 2
+    assert {
+        key: requirement.model_dump()
+        for key, requirement in config.operation_requirements.items()
+    } == {
+        "deployment": {
+            "facility_id": "tower_gate",
+            "required_location": "",
+        },
+        "synthesis": {
+            "facility_id": "synthesis_chamber",
+            "required_location": "niflheim_synthesis_chamber",
+        },
+        "promotion": {
+            "facility_id": "promotion_chamber",
+            "required_location": "niflheim_promotion_chamber",
+        },
+    }
+    assert state.facilities == {
+        "summoning_hall": 1,
+        "tower_gate": 1,
+        "accommodation": 1,
+        "warehouse": 1,
+        "armory": 1,
+        "training_camp": 1,
+    }
+    assert state.highest_unlocked_floor == 1
+    assert state.highest_cleared_floor == 0
+    assert state.active_mission is None
+    assert state.pending_operation is None
+    assert state.active_master_feed_id == ""
+    assert state.research_levels == {}
+    assert state.tutorial_deliveries == {}
+    assert state.applied_event_fingerprints == {}
+    assert state.guide_character_ids == ["iselle_the_guide"]
+    assert state.system_observer_ids == ["iselle_the_guide"]
 
 
 def test_player_primer_covers_each_playable_perspective() -> None:
@@ -258,7 +458,10 @@ def test_player_character_is_a_blank_user_created_slot() -> None:
     assert pc.descriptions.private == ""
     assert pc.private_state.secrets == []
     assert pc.private_state.intentions_enabled is False
-    assert pc.mechanics == {}
+    assert ONE_STAR_HERO_KEY in pc.mechanics
+    newcomer_hero = OneStarHeroState.model_validate(pc.mechanics[ONE_STAR_HERO_KEY])
+    assert newcomer_hero.birth_stars == 1
+    assert newcomer_hero.innate_system_sight is True
     assert pc.player_slot_kind == PlayerSlotKind.player_authored
     assert pc.player_guidance
 
@@ -506,6 +709,88 @@ def test_grade_memory_status_and_reserve_authority_are_coherent() -> None:
     ).lower()
     assert "awakened" not in veil_public
     assert "status window" not in veil_public
+
+
+def test_hero_mechanics_follow_authored_tiers_without_public_hidden_potential() -> None:
+    checkpoint = _load_checkpoint()
+    by_id = {character.character_id: character for character in checkpoint.characters}
+    expected_birth_stars = {
+        "one_star_newcomer": 1,
+        "renna_holt": 1,
+        "halcyon_of_the_gilded_march": 6,
+        "soren_ironvow": 5,
+        "castor_valebrand": 4,
+        "wren_thelantern": 3,
+        "rowan_kest": 2,
+        "liora_fen": 2,
+        "mirelle_voss": 3,
+        "seris_nightglass": 4,
+        "aveline_morcant": 5,
+        # Veil's authored grade is unreadable; the seed chooses a private,
+        # schema-valid five-star overlay without changing her public identity.
+        "veil_the_unnumbered": 5,
+    }
+    for character_id, birth_stars in expected_birth_stars.items():
+        hero = OneStarHeroState.model_validate(
+            by_id[character_id].mechanics[ONE_STAR_HERO_KEY]
+        )
+        assert hero.birth_stars == birth_stars
+        assert hero.current_stars == birth_stars
+        assert hero.hp_current == hero.hp_max
+        assert hero.stats
+        assert hero.equipment
+        assert hero.skills
+        assert all(
+            item.quantity >= 1
+            and isinstance(item.tags, list)
+            and isinstance(item.visible, bool)
+            for item in hero.equipment
+        )
+        assert all(
+            skill.capability
+            and isinstance(skill.tags, list)
+            and isinstance(skill.visible, bool)
+            for skill in hero.skills
+        )
+        assert hero.owner_lobby_id == (
+            "gilded_march"
+            if character_id == "halcyon_of_the_gilded_march"
+            else ""
+        )
+    newcomer = OneStarHeroState.model_validate(
+        by_id[BLANK_PLAYER_ID].mechanics[ONE_STAR_HERO_KEY]
+    )
+    assert newcomer.innate_system_sight is True
+    assert newcomer.private_potential == ""
+    veil = OneStarHeroState.model_validate(
+        by_id["veil_the_unnumbered"].mechanics[ONE_STAR_HERO_KEY]
+    )
+    assert veil.private_potential
+    assert veil.hidden_capabilities
+    public_identity = (
+        by_id["veil_the_unnumbered"].public_sheet.role
+        + " "
+        + by_id["veil_the_unnumbered"].public_sheet.appearance
+    ).lower()
+    assert "schema-valid" not in public_identity
+
+
+def test_seed_rules_text_matches_typed_economy_and_retreat_law() -> None:
+    checkpoint = _load_checkpoint()
+    searchable = "\n".join(
+        [
+            checkpoint.session.config.narrative_rules,
+            *checkpoint.world_state.facts,
+            checkpoint.world_state.lore,
+            checkpoint.world_state.hidden_lore,
+            *checkpoint.world_state.hidden_facts,
+        ]
+    ).lower()
+    assert "premium gem summons improve odds but can still produce an ordinary one-star" not in searchable
+    assert "multiple distinct input heroes" not in searchable
+    assert "retreat can return the party to the lobby" not in searchable
+    assert "retreat" in searchable
+    assert "very rare escape item or very powerful magic" in searchable
 
 
 def test_common_world_authority_does_not_leak_hidden_origin() -> None:

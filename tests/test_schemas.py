@@ -467,6 +467,7 @@ class TestEventRouterOutput:
                     "reason": "needed for the stable scene",
                     "location": "stables",
                     "objectives": ["hold the horses"],
+                    "knowledge_tier": 0,
                 },
             }],
         }

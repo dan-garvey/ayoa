@@ -95,6 +95,7 @@ class SessionActivityView:
     nearby_character_names: tuple[str, ...] = ()
     requested_next_names: tuple[str, ...] = ()
     last_visible_update: str = ""
+    ruleset_lines: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

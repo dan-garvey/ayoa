@@ -139,6 +139,7 @@ def _spawn_event():
                     "reason": "The travelers need local help.",
                     "location": "station",
                     "objectives": ["lead them through the storm"],
+                    "knowledge_tier": 0,
                 },
             },
             {
@@ -148,6 +149,7 @@ def _spawn_event():
                     "reason": "The station is busy.",
                     "location": "station",
                     "objectives": ["move the luggage"],
+                    "knowledge_tier": 0,
                 },
             },
         ],

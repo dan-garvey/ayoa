@@ -208,7 +208,7 @@ locks, and API caches are not trusted as durable state.
 
 ### 4.7 Rules Adapters Are Modular
 
-Domain-specific rule systems (D&D 5e is the only one today) are
+Domain-specific rule systems are
 modular adapters around the narrative engine, not assumptions baked
 into router, narrator, or character-agent behavior. Every change to
 the engine's generic surface must survive two questions:
@@ -495,6 +495,9 @@ The character manager applies router-directed roster mutations:
 
 * status changes: active, dormant, culled
 * LLM-backed spawns from `SpawnRequest`
+
+`culled` is terminal across every ruleset: neither `activate` nor `dormant`
+may downgrade a culled record into a reusable character slot.
 
 It also purges live bookkeeping when characters are culled or leave: active
 act slots, open Cat II responder state, and render buffers. Movement is not a
@@ -1139,6 +1142,15 @@ D&D 5e adapter (rendered only when `ruleset_id == "dnd5e_basic"`; see §15):
   Cat II final adjudication.
 * `dnd_combat_manager.txt` — per-turn D&D initiative-scene manager prompt.
 
+One-Star Ascension adapter (rendered only when
+`ruleset_id == "one_star_ascension"`; see §15):
+
+* `event_router_ruleset_one_star.txt` — router transaction and fictional
+  boundary addon.
+* `agent_ruleset_one_star.txt` — character-facing mechanics and knowledge
+  boundary addon.
+* `character_gen_ruleset_one_star.txt` — generated-Hero authoring addon.
+
 Prompt rules:
 
 * use XML-style tags for major sections
@@ -1153,8 +1165,9 @@ Prompt rules:
 
 ## 15. Rules Adapters
 
-The current adapter is D&D 5e (`ruleset_id == "dnd5e_basic"`). It is
-opt-in per session and entirely off by default; the narrative engine
+The current adapters are D&D 5e (`ruleset_id == "dnd5e_basic"`) and
+One-Star Ascension (`ruleset_id == "one_star_ascension"`). Each is opt-in per
+session and entirely off by default; the narrative engine
 runs unchanged when no adapter is active. Adapter-specific code,
 prompts, schema fields, and bot commands all gate on the active
 session settings. See §4.7 for the modularity contract.
@@ -1445,7 +1458,52 @@ Deferred D&D adapter cleanup:
   override or grow typed damage inputs that run through the normal
   resistance/immunity/vulnerability pipeline
 
-### 15.7 Modularity Contract
+### 15.7 One-Star Ascension Adapter
+
+One-Star uses the generic narrative router for fictional judgment and adds one
+typed transaction to that same output. It does not have a second resolver or a
+parallel combat loop. The router decides what happens in the fiction; the
+adapter validates exact references, arithmetic, clocks, and lifecycle
+preconditions, then applies the complete transaction atomically before the
+canonical event is broadcast.
+
+Durable state stays on existing character records:
+
+* the unique account owner carries configuration and account state under
+  `CharacterRecord.mechanics["one_star_account"]`;
+* each Hero carries HP, XP, stars, stats, equipment, skills, injuries, and
+  ownership under `CharacterRecord.mechanics["one_star_hero"]`;
+* `CharacterRecord.status` and `CharacterRecord.location` remain the only
+  lifecycle and location authority. The adapter does not duplicate the roster;
+* story-authored configuration owns costs, rewards, caps, facilities, summon
+  pools, progression prerequisites, and physical operation requirements.
+  Engine code contains no One-Star entity names or economy constants.
+
+The cached router addon receives immutable configuration. Current balances,
+stamina, progression, mission, pending operation, and relevant Hero sheets are
+rendered only in the volatile user tail. One-Star routes use
+`OneStarEventRouterOutput`; continuation routes use the closed subtype. Default
+narrative and D&D routes retain their existing schemas and receive no One-Star
+prompt or state block.
+
+Summoning pairs the typed ledger operation with the generic spawn or dormant
+activation that creates the identity transition. Deployment, synthesis, and
+promotion are staged: selection opens a zero-side-effect pending operation,
+affected Heroes keep ordinary response ownership, and a later event may resolve
+only after the recorded bodies physically reach the configured gate or chamber.
+Tower mission boundaries, pre-existing escape authority, resource underflow,
+Hero bounds, event-id fingerprints, and exactly-once rewards are hard validation
+constraints. Damage, death, resistance, reward-worthy action, growth, and
+character choices remain router or character-agent judgment.
+
+Character-agent, status, and image projections are viewer-scoped. The account
+owner sees the local account roster; Heroes see their own body at the authored
+System-detail level; configured guides receive lobby-management and tutorial
+state but not off-feed tactical omniscience; image prompts receive only visible
+current equipment. Narrator input remains canonical observable facts rather
+than raw adapter state.
+
+### 15.8 Modularity Contract
 
 Per §4.7, the adapter must not change the narrative engine's generic
 behavior. Default settings keep the engine narrative-only; adapter

@@ -118,9 +118,10 @@ class TestPromptManagerWithRealTemplates:
             hidden_facts="- Hidden fact one",
             acting_character_name="Aldric",
             acting_character_id="aldric",
-            fresh_intention_classifier=mgr.render(
+            router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            one_star_state_section="",
             router_input_block="I try to lift the building.",
         )
         assert "I try to lift the building" in result
@@ -219,9 +220,10 @@ class TestPromptManagerWithRealTemplates:
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
-            fresh_intention_classifier=mgr.render(
+            router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            one_star_state_section="",
             router_input_block="",
         )
         assert len(messages) == 2
@@ -261,9 +263,10 @@ class TestPromptManagerWithRealTemplates:
             hidden_facts="- Hidden fact one",
             acting_character_name="Aldric UniqueActor",
             acting_character_id="aldric_unique_actor",
-            fresh_intention_classifier=mgr.render(
+            router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            one_star_state_section="",
             router_input_block="I wait.",
         )
 
@@ -289,7 +292,8 @@ class TestPromptManagerWithRealTemplates:
                 hidden_lore="None.",
                 hidden_facts="None.",
                 acting_character_id="alice",
-                fresh_intention_classifier="",
+                router_ruleset_addon="",
+                one_star_state_section="",
                 router_input_block=(
                     "## Actor Submission\n\n"
                     "submitted_actor_id: alice\n"
@@ -392,9 +396,10 @@ class TestPromptManagerWithRealTemplates:
             acting_character_name="x",
             acting_character_id="x",
             player_characters_block="x",
-            fresh_intention_classifier=mgr.render(
+            router_ruleset_addon=mgr.render(
                 "event_router_ruleset_default",
             ).strip(),
+            one_star_state_section="",
             router_input_block="",
         )
         assert len(messages) == 4

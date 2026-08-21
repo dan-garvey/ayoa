@@ -1952,6 +1952,8 @@ class CLIState:
         if activity.nearby_character_names:
             print("nearby: " + ", ".join(activity.nearby_character_names))
         print(f"activity: {activity.state}")
+        for line in activity.ruleset_lines:
+            print(line)
         if activity.last_visible_update:
             print(f"last visible update: {activity.last_visible_update}")
         self._print_open_reaction_slots()
