@@ -268,7 +268,7 @@ async def compose_pov_render(
         messages=messages,
         response_model=NarratorFinalOutput,
         temperature=0.5,
-        max_tokens=4000,
+        max_tokens=8000,
         cache=True,
         compact=True,
     )

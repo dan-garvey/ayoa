@@ -173,6 +173,7 @@ class TestComposePovRender:
 
         # Visible details made it into the rendered prompt.
         call_kwargs = mock_client.complete.call_args.kwargs
+        assert call_kwargs["max_tokens"] == 8000
         flat = "\n".join(
             m["content"] for m in call_kwargs["messages"]
             if isinstance(m.get("content"), str)
