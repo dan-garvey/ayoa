@@ -16,7 +16,11 @@ from collections.abc import Iterable, Mapping
 
 from pydantic import ValidationError
 
-from app.schemas.characters import CharacterRecord, CharacterStatus
+from app.schemas.characters import (
+    CharacterAgentTier,
+    CharacterRecord,
+    CharacterStatus,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.event_router import SpawnRequest, WakeSignal
 from app.schemas.one_star import (
@@ -1837,7 +1841,10 @@ def _restore_promotion_knowledge(
         if value
     )
     character.knowledge_tier = promoted_tier
-    if rung.agent_tier is not None:
+    hero = load_one_star_hero(character)
+    if hero is not None and hero.generated_for_summon:
+        character.agent_tier = CharacterAgentTier.standard
+    elif rung.agent_tier is not None:
         character.agent_tier = rung.agent_tier
 
 

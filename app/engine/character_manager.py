@@ -680,7 +680,9 @@ class CharacterManager:
 
             response_model = AuthoredOneStarCharacter
         response = await self.client.complete(
-            role="agent_convenience",
+            # Fresh One-Star summon identities stay on the Haiku-backed role
+            # both while authored and during their later character turns.
+            role="agent_standard" if one_star_hero else "agent_convenience",
             messages=messages,
             response_model=response_model,
             temperature=0.6,
@@ -688,7 +690,11 @@ class CharacterManager:
         )
         authored: AuthoredCharacter = response.parsed
         char = authored.to_record(character_id=req.character_id)
-        char.agent_tier = tier_agent_tier or CharacterAgentTier.utility
+        char.agent_tier = (
+            CharacterAgentTier.standard
+            if one_star_hero
+            else tier_agent_tier or CharacterAgentTier.utility
+        )
         char.knowledge_tier = req.seed.knowledge_tier
         if dnd_enabled:
             self._attach_dnd_spawn_mechanics(char, authored, req=req)
@@ -740,6 +746,7 @@ class CharacterManager:
         if generated is None:
             raise ValueError("One-Star character generation omitted Hero mechanics")
         hero = generated.to_hero_state(birth_stars=birth_stars)
+        hero.generated_for_summon = True
         _owner, account = load_one_star_account(checkpoint)
         validate_one_star_hero_state(hero, account.config)
         char.mechanics = dict(char.mechanics)

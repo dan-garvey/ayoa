@@ -9,7 +9,11 @@ from app.engine.one_star_adapter import (
     load_one_star_hero,
     prepare_one_star_transaction,
 )
-from app.schemas.characters import CharacterRecord, CharacterStatus
+from app.schemas.characters import (
+    CharacterAgentTier,
+    CharacterRecord,
+    CharacterStatus,
+)
 from app.schemas.checkpoint import CheckpointFile
 from app.schemas.one_star import OneStarTransaction
 from app.schemas.state import OpenCatIIEvent, SessionConfig, SessionSettings, SessionState
@@ -109,6 +113,7 @@ def _checkpoint() -> CheckpointFile:
         character_id="reserve",
         name="Reserve",
         status=CharacterStatus.dormant,
+        agent_tier=CharacterAgentTier.utility,
         mechanics={
             "one_star_hero": {
                 "birth_stars": 1,
@@ -194,6 +199,8 @@ def test_existing_reserve_keeps_authored_mechanics_and_acquires_atomically() -> 
     _owner, account = load_one_star_account(prepared.after_checkpoint)
     assert account.state.resources.gold == 8
     assert prepared.newly_acquired_hero_ids == ("reserve",)
+    assert hero.generated_for_summon is False
+    assert reserve.agent_tier is CharacterAgentTier.utility
 
 
 def test_preparation_uses_durable_copy_and_apply_preserves_transients() -> None:

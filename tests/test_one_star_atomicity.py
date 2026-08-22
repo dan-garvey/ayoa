@@ -688,13 +688,33 @@ def test_synthesis_requires_advancement_but_culls_all_sources_when_valid() -> No
     assert load_one_star_hero(by_id["target"]).level == 2
 
 
-def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge() -> None:
+@pytest.mark.parametrize(
+    ("generated_for_summon", "starting_tier", "expected_tier"),
+    [
+        (True, CharacterAgentTier.standard, CharacterAgentTier.standard),
+        (False, CharacterAgentTier.utility, CharacterAgentTier.premium),
+    ],
+)
+def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge(
+    generated_for_summon: bool,
+    starting_tier: CharacterAgentTier,
+    expected_tier: CharacterAgentTier,
+) -> None:
     target = _hero(location="promotion_room", level=10, xp=123)
+    target.agent_tier = starting_tier
+    target.mechanics[ONE_STAR_HERO_KEY]["generated_for_summon"] = (
+        generated_for_summon
+    )
     pending = _pending("promotion", target="hero", destination="promotion_room")
     checkpoint = _checkpoint(
         heroes=[target],
         pending_operation=pending,
-        knowledge_tiers=[KnowledgeTier(tier=2, personal_depth="a buried memory", world_knowledge="the gate's truth", agent_tier=CharacterAgentTier.standard)],
+        knowledge_tiers=[KnowledgeTier(
+            tier=2,
+            personal_depth="a buried memory",
+            world_knowledge="the gate's truth",
+            agent_tier=CharacterAgentTier.premium,
+        )],
     )
     prepared = prepare_one_star_transaction(
         checkpoint,
@@ -711,6 +731,7 @@ def test_promotion_preserves_level_xp_and_restores_reviewed_knowledge() -> None:
     assert hero is not None
     assert (hero.current_stars, hero.level, hero.experience_points) == (2, 10, 123)
     assert promoted.knowledge_tier == 2
+    assert promoted.agent_tier is expected_tier
     assert "a buried memory" in promoted.known_context
     assert "the gate's truth" in promoted.known_context
 

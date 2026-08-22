@@ -1508,11 +1508,13 @@ derives the exact weighted birth grades, eligible dormant reserves, fresh stable
 ids, and corresponding generic spawn/activation lifecycle without sending any
 result or future slate to the model. A successful atomic commit advances the
 pool counter, while failed validation and replay cannot reroll or double-
-advance. Authored opening pools remain non-random and do not consume standard
-draws. Deployment, synthesis, and promotion are staged: selection opens a
-zero-side-effect pending operation, affected Heroes keep ordinary response
-ownership, and a later event may resolve only after the recorded bodies
-physically reach the configured gate or chamber.
+advance. Freshly generated summon identities carry a durable origin marker and
+stay on the Haiku-backed standard-agent role; activated seeded reserves retain
+their authored agent tier. Authored opening pools remain non-random and do not
+consume standard draws. Deployment, synthesis, and promotion are staged:
+selection opens a zero-side-effect pending operation, affected Heroes keep
+ordinary response ownership, and a later event may resolve only after the
+recorded bodies physically reach the configured gate or chamber.
 Tower mission boundaries, pre-existing escape authority, resource underflow,
 Hero bounds, event-id fingerprints, and exactly-once rewards are hard validation
 constraints. Damage, death, resistance, reward-worthy action, growth, and

@@ -336,6 +336,9 @@ class OneStarHeroState(BaseModel):
     conditions: list[str] = Field(default_factory=list)
     persistent_injuries: list[str] = Field(default_factory=list)
     innate_system_sight: bool = False
+    # True only when character generation created this identity for a summon.
+    # Seeded dormant reserves keep their authored model tier instead.
+    generated_for_summon: bool = False
     acquisition_event_id: str = ""
     owner_lobby_id: str = ""
     terminal_cause: str = ""

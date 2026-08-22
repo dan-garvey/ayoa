@@ -5,10 +5,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.engine.character_agent import model_role_for_character
 from app.engine.character_manager import CharacterManager
 from app.engine.prompt_manager import PromptManager
 from app.llm.client import LLMClient, LLMResponse
 from app.schemas.characters import (
+    CharacterAgentTier,
     CharacterRecord,
     CharacterStatus,
     PublicSheet,
@@ -398,3 +400,7 @@ async def test_one_star_summon_membership_selects_hero_generation_overlay() -> N
 
     assert ONE_STAR_HERO_KEY in spawned[0].mechanics
     assert client.complete.await_args.kwargs["response_model"] is AuthoredOneStarCharacter
+    assert client.complete.await_args.kwargs["role"] == "agent_standard"
+    assert spawned[0].agent_tier is CharacterAgentTier.standard
+    assert model_role_for_character(spawned[0]) == "agent_standard"
+    assert spawned[0].mechanics[ONE_STAR_HERO_KEY]["generated_for_summon"] is True
